@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29209.62
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini_mbm", "mini-mbm\mini-mbm.vcxproj", "{75833981-86C0-463F-8AFD-45074B749A75}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini-mbm", "mini-mbm\mini-mbm.vcxproj", "{75833981-86C0-463F-8AFD-45074B749A75}"
 	ProjectSection(ProjectDependencies) = postProject
 		{75472E2C-C965-4F07-99B1-CC58AF398FEF} = {75472E2C-C965-4F07-99B1-CC58AF398FEF}
 	EndProjectSection
@@ -53,16 +53,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tilemap", "tilemap\tilemap.
 		{B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD} = {B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini-mbm", "mini-mbm-lib\mini-mbm-lib.vcxproj", "{75472E2C-C965-4F07-99B1-CC58AF398FEF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini-mbm-lib", "mini-mbm-lib\mini-mbm-lib.vcxproj", "{75472E2C-C965-4F07-99B1-CC58AF398FEF}"
 	ProjectSection(ProjectDependencies) = postProject
-		{B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD} = {B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mini-mbm-launcher", "mini-mbm-launcher\mini-mbm-launcher.vcxproj", "{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}"
-	ProjectSection(ProjectDependencies) = postProject
-		{75472E2C-C965-4F07-99B1-CC58AF398FEF} = {75472E2C-C965-4F07-99B1-CC58AF398FEF}
-		{75833981-86C0-463F-8AFD-45074B749A75} = {75833981-86C0-463F-8AFD-45074B749A75}
-		{2952FFC2-4374-4D25-86CA-973C88E2ABBE} = {2952FFC2-4374-4D25-86CA-973C88E2ABBE}
 		{B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD} = {B7BAFAC7-195B-4BCB-B9C3-4637E8FA9BBD}
 	EndProjectSection
 EndProject
@@ -162,14 +154,6 @@ Global
 		{75472E2C-C965-4F07-99B1-CC58AF398FEF}.Release|x64.Build.0 = Release|Win32
 		{75472E2C-C965-4F07-99B1-CC58AF398FEF}.Release|x86.ActiveCfg = Release|Win32
 		{75472E2C-C965-4F07-99B1-CC58AF398FEF}.Release|x86.Build.0 = Release|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Debug|x64.ActiveCfg = Debug|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Debug|x64.Build.0 = Debug|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Debug|x86.ActiveCfg = Debug|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Debug|x86.Build.0 = Debug|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Release|x64.ActiveCfg = Release|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Release|x64.Build.0 = Release|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Release|x86.ActiveCfg = Release|Win32
-		{82285007-C2A5-4A0B-8BC5-CFCBCBF3BAC3}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

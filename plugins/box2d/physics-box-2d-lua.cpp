@@ -38,8 +38,6 @@ extern "C"
     #include <lualib.h>
 }
 
-class b2ParticleSystem;
-
 namespace mbm
 {
     int onGetJointLua(lua_State *lua, b2Joint *joint);
@@ -319,6 +317,318 @@ namespace mbm
             lua_pushboolean(lua, 1);
         }
         return 1;
+    }
+
+    b2ParticleGroupFlag getb2GroupFlagsParticleFromTable(lua_State *lua,int indexTable)
+    {
+        b2ParticleGroupFlag groupFlags(b2_solidParticleGroup);
+        auto flagFromString = [](lua_State *lua,const char * flag) -> b2ParticleGroupFlag
+        {
+            if(strcmp(flag,"solidParticleGroup") == 0)
+                return b2_solidParticleGroup;
+            if(strcmp(flag,"rigidParticleGroup") == 0)
+                return b2_rigidParticleGroup;
+            if(strcmp(flag,"particleGroupCanBeEmpty") == 0)
+                return b2_particleGroupCanBeEmpty;
+            if(strcmp(flag,"particleGroupWillBeDestroyed") == 0)
+                return b2_particleGroupWillBeDestroyed;
+            if(strcmp(flag,"particleGroupNeedsUpdateDepth") == 0)
+                return b2_particleGroupNeedsUpdateDepth;
+            if(strcmp(flag,"particleGroupInternalMask") == 0)
+                return b2_particleGroupInternalMask;
+            plugin_helper::lua_error_debug(lua, "Flag group unknow [%s]",flag);
+            return b2_solidParticleGroup;
+        };
+        lua_getfield(lua, indexTable, "groupFlags");
+        if(lua_type(lua,-1) == LUA_TSTRING)
+        {
+            const char * flag = lua_tostring(lua,-1);
+            groupFlags = flagFromString(lua,flag);
+        }
+        else if(lua_type(lua,-1) == LUA_TTABLE)
+        {
+            const std::size_t lenTable = lua_rawlen(lua, -1);
+            for (std::size_t i=0; i<lenTable; ++i)
+            {
+                lua_rawgeti(lua, -1, (i + 1));
+                const char * flag = lua_tostring(lua,-1);
+                b2ParticleGroupFlag f = flagFromString(lua,flag);
+                groupFlags = static_cast<b2ParticleGroupFlag>(static_cast<int>(f) | static_cast<int>(groupFlags));
+                lua_pop(lua, 1);
+            }
+        }
+        lua_pop(lua, 1);
+
+        return groupFlags;
+    }
+
+    b2ParticleFlag getb2ParticleFlagFromTable(lua_State *lua,int indexTable)
+    {
+        b2ParticleFlag flags(b2_waterParticle);
+        auto flagFromString = [](lua_State *lua,const char * flag) -> b2ParticleFlag
+        {
+	        if(strcmp(flag,"water") == 0)
+                return b2_waterParticle;
+	        if(strcmp(flag,"zombie") == 0)
+                return b2_zombieParticle;
+	        if(strcmp(flag,"wall") == 0)
+                return b2_wallParticle;
+	        if(strcmp(flag,"spring") == 0)
+                return b2_springParticle;
+	        if(strcmp(flag,"elastic") == 0)
+                return b2_elasticParticle;
+	        if(strcmp(flag,"viscous") == 0)
+                return b2_viscousParticle;
+	        if(strcmp(flag,"powder") == 0)
+                return b2_powderParticle;
+	        if(strcmp(flag,"tensile") == 0)
+                return b2_tensileParticle;
+	        if(strcmp(flag,"colorMixing") == 0)
+                return b2_colorMixingParticle;
+	        if(strcmp(flag,"destructionListener") == 0)
+                return b2_destructionListenerParticle;
+	        if(strcmp(flag,"barrier") == 0)
+                return b2_barrierParticle;
+	        if(strcmp(flag,"staticPressure") == 0)
+                return b2_staticPressureParticle;
+	        if(strcmp(flag,"reactive") == 0)
+                return b2_reactiveParticle;
+	        if(strcmp(flag,"repulsive") == 0)
+                return b2_repulsiveParticle;
+	        if(strcmp(flag,"fixtureContactListener") == 0)
+                return b2_fixtureContactListenerParticle;
+	        if(strcmp(flag,"particleContactListener") == 0)
+                return b2_particleContactListenerParticle;
+	        if(strcmp(flag,"fixtureContactFilter") == 0)
+                return b2_fixtureContactFilterParticle;
+	        if(strcmp(flag,"particleContactFilter") == 0)
+                return b2_particleContactFilterParticle;
+            plugin_helper::lua_error_debug(lua, "Flag unknow [%s]",flag);
+            return b2_waterParticle;
+        };
+        lua_getfield(lua, indexTable, "flags");
+        if(lua_type(lua,-1) == LUA_TSTRING)
+        {
+            const char * flag = lua_tostring(lua,-1);
+            flags = flagFromString(lua,flag);
+        }
+        else if(lua_type(lua,-1) == LUA_TTABLE)
+        {
+            const std::size_t lenTable = lua_rawlen(lua, -1);
+            for (std::size_t i=0; i<lenTable; ++i)
+            {
+                lua_rawgeti(lua, -1, (i + 1));
+                const char * flag = lua_tostring(lua,-1);
+                b2ParticleFlag f = flagFromString(lua,flag);
+                flags = static_cast<b2ParticleFlag>(static_cast<int>(f) | static_cast<int>(flags));
+                lua_pop(lua, 1);
+            }
+        }
+        lua_pop(lua, 1);
+
+        return flags;
+    }
+
+    int onCreateFluidBodyBox2d(lua_State *lua)
+    {
+        const int     top = lua_gettop(lua);
+        if(top != 2 && top != 3)
+        {
+            return plugin_helper::lua_error_debug(lua, "expected physics:(<renderizable> | <physics_table>, <info_fluid>)");
+        }
+        if(top == 3 && lua_type(lua,3) != LUA_TTABLE)
+        {
+            return plugin_helper::lua_error_debug(lua, "expected physics:(<renderizable> | <physics_table>, <info_fluid>)");
+        }
+        PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        RENDERIZABLE *        the_ptr     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
+        INFO_PHYSICS  info_physics;
+        INFO_PHYSICS*  local_info_physics = &info_physics;
+        if(the_ptr != nullptr)
+        {
+            const INFO_PHYSICS*  const_info_physics = the_ptr->getInfoPhysics();
+            if(const_info_physics == nullptr)
+            {
+                return plugin_helper::lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
+            }
+            if(local_info_physics->clone(const_info_physics) == false)
+            {
+                return plugin_helper::lua_error_debug(lua, "Failed to clone phisics from [%s]", the_ptr->getTypeClassName());
+            }
+        }
+        else if(onSetPhysicsFromTableLua(lua,2,local_info_physics) != 0)
+        {
+            return plugin_helper::lua_error_debug(lua, "Failed to create physics from lua table");
+        }
+        VEC3 position;
+        VEC3 scale(1,1,1);
+        VEC2 linearVelocity(0,0);
+        bool is2dScreen        = false;
+        bool is3d              = false;
+        float radiusScale      = 1.0f;
+        float radius           = 0.5f;
+        float damping          = 0.5f;
+        float lifetime         = 0.0f;
+        float angularVelocity  = 0;
+        float strength         = 1.0f;
+        float stride           = 0;
+        float angle            = the_ptr ? the_ptr->angle.z : 0.0f;
+        bool segmented         = false;
+        std::string texture("#AAFF00FF");
+        COLOR * p_color = nullptr;
+        COLOR color(1.0f,1.0f,1.0f,1.0f);
+        std::string blend,operation;
+        b2ParticleFlag flags(b2_waterParticle);
+        b2ParticleGroupFlag groupFlags(b2_solidParticleGroup);
+        if(top == 3)
+        {
+            constexpr int indexTable = 3;
+            
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "texture",          LUA_TSTRING,  &texture);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "is2dScreen",       LUA_TBOOLEAN, &is2dScreen);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "is3d",             LUA_TBOOLEAN, &is3d);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "segmented",        LUA_TBOOLEAN, &segmented);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "radiusScale",      LUA_TNUMBER,  &radiusScale);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "radius",           LUA_TNUMBER,  &radius);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "damping",          LUA_TNUMBER,  &damping);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "lifetime",         LUA_TNUMBER,  &lifetime);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angularVelocity",  LUA_TNUMBER,  &angularVelocity);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "strength",         LUA_TNUMBER,  &strength);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "stride",           LUA_TNUMBER,  &stride);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angle",            LUA_TNUMBER,  &angle);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "blend",            LUA_TSTRING,  &blend);
+            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "operation",        LUA_TSTRING,  &operation);
+
+            lua_getfield(lua, indexTable, "scale");
+            if(lua_type(lua,top + 1) == LUA_TTABLE)
+            {
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "x", LUA_TNUMBER, &scale.x);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "y", LUA_TNUMBER, &scale.y);
+            }
+            lua_pop(lua, 1);
+
+            lua_getfield(lua, indexTable, "linearVelocity");
+            if(lua_type(lua,top + 1) == LUA_TTABLE)
+            {
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "x", LUA_TNUMBER, &linearVelocity.x);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "y", LUA_TNUMBER, &linearVelocity.y);
+            }
+            lua_pop(lua, 1);
+
+            lua_getfield(lua, indexTable, "position");
+            if(lua_type(lua,top + 1) == LUA_TTABLE)
+            {
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "x", LUA_TNUMBER, &position.x);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "y", LUA_TNUMBER, &position.y);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "z", LUA_TNUMBER, &position.z);
+            }
+            lua_pop(lua, 1);
+
+            lua_getfield(lua, indexTable, "color");
+            if(lua_type(lua,top + 1) == LUA_TTABLE)
+            {
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "r", LUA_TNUMBER, &color.r);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "g", LUA_TNUMBER, &color.g);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "b", LUA_TNUMBER, &color.b);
+                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "a", LUA_TNUMBER, &color.a);
+                p_color = &color;
+            }
+            lua_pop(lua, 1);
+
+            flags = getb2ParticleFlagFromTable(lua,indexTable);
+            groupFlags = getb2GroupFlagsParticleFromTable(lua,indexTable);
+        }
+        
+        INFO_FLUID *info = box2d->createRenderizableFluid(local_info_physics,
+                                                        position, 
+                                                        scale,
+                                                        linearVelocity,
+                                                        angularVelocity,
+                                                        angle,
+                                                        texture.c_str(),
+                                                        p_color,
+                                                        flags,
+                                                        groupFlags,
+                                                        lifetime,
+                                                        radius,
+                                                        damping,
+                                                        strength,
+                                                        stride,
+                                                        is3d,
+                                                        is2dScreen,
+                                                        segmented,
+                                                        radiusScale);
+        if (info == nullptr || info->particleSystem == nullptr || info->steered_particle == nullptr)
+        {
+            return plugin_helper::lua_error_debug(lua, "Failed to create fluid. particleSystem:%p steered_particle:%p",info->particleSystem,info->steered_particle);
+        }
+        else
+        {
+            auto *userData = new USER_DATA_RENDER_LUA();
+            info->steered_particle->userData = userData;
+            userData->extra = info;
+            if(blend.length() > 0)
+            {
+                ANIMATION_MANAGER * animManager = info->steered_particle->getAnimationManager();
+                auto anim = animManager ? animManager->getAnimation() : nullptr;
+                if(anim)
+                {
+                    const char * value = blend.c_str();
+                    if (strcasecmp("disable", value) == 0)
+                        anim->blendState = BLEND_DISABLE;
+                    else if (strcasecmp("zero", value) == 0)
+                        anim->blendState = BLEND_ZERO;
+                    else if (strcasecmp("one", value) == 0)
+                        anim->blendState = BLEND_ONE;
+                    else if (strcasecmp("src_color", value) == 0)
+                        anim->blendState = BLEND_SRCCOLOR;
+                    else if (strcasecmp("inv_src_color", value) == 0)
+                        anim->blendState = BLEND_INVSRCCOLOR;
+                    else if (strcasecmp("src_alpha", value) == 0)
+                        anim->blendState = BLEND_SRCALPHA;
+                    else if (strcasecmp("inv_src_alpha", value) == 0)
+                        anim->blendState = BLEND_INVSRCALPHA;
+                    else if (strcasecmp("dest_alpha", value) == 0)
+                        anim->blendState = BLEND_DESTALPHA;
+                    else if (strcasecmp("inv_dest_alpha", value) == 0)
+                        anim->blendState = BLEND_INVDESTALPHA;
+                    else if (strcasecmp("dest_color", value) == 0)
+                        anim->blendState = BLEND_DESTCOLOR;
+                    else if (strcasecmp("inv_dest_color", value) == 0)
+                        anim->blendState = BLEND_INVDESTCOLOR;
+                    else
+                    {
+                        box2d->destroyFluid(info);
+                        return plugin_helper::lua_error_debug(lua, "invalid blend [%s]",value);
+                    }
+                }
+            }
+            if(operation.length() > 0)
+            {
+                ANIMATION_MANAGER * animManager = info->steered_particle->getAnimationManager();
+                auto anim = animManager ? animManager->getAnimation() : nullptr;
+                if(anim)
+                {
+                    const char * blendFunc = operation.c_str();
+                    if(strcasecmp(blendFunc,"ADD") == 0)
+                        anim->fx.blendOperation = 1;
+                    else if(strcasecmp(blendFunc,"SUBTRACT") == 0)
+                        anim->fx.blendOperation = 2;
+                    else if(strcasecmp(blendFunc,"REVERSE_SUBTRACT") == 0)
+                        anim->fx.blendOperation = 3;
+                    else if(strcasecmp(blendFunc,"MIN") == 0)
+                        anim->fx.blendOperation = 4;
+                    else if(strcasecmp(blendFunc,"MAX") == 0)
+                        anim->fx.blendOperation = 5;
+                    else
+                    {
+                        box2d->destroyFluid(info);
+                        return plugin_helper::lua_error_debug(lua, "expected:([blendFunc (ADD,SUBTRACT,REVERSE_SUBTRACT,MIN,MAX)])");
+                    }
+                }
+            }
+            return onGetRenderizableFluidInterfaceBox2d(lua, info->steered_particle);
+        }
     }
 
     int onAddKinematicBodyBox2d(lua_State *lua)
@@ -889,7 +1199,8 @@ namespace mbm
     {
         b2Body *body            = getBodyBox2dFromRawTable(lua,1,2);
         const float   mass      = luaL_checknumber(lua, 3);
-        b2MassData b2Mass = body->GetMassData(); //-V522
+        b2MassData b2Mass;
+        body->GetMassData(&b2Mass); //-V522
         b2Mass.mass = mass;
         body->SetMassData(&b2Mass);
         return 0;
@@ -925,7 +1236,7 @@ namespace mbm
     int onIsActiveBodyBox2d(lua_State *lua)
     {
         const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
-        if (body->IsEnabled()) //-V522
+        if (body->IsActive()) //-V522
             lua_pushboolean(lua, 1);
         else
             lua_pushboolean(lua, 0);
@@ -1153,7 +1464,7 @@ namespace mbm
 
     int getVersionBox2d(lua_State *lua)
     {
-        lua_pushfstring(lua,"%d.%d.%d",b2_version.major,b2_version.minor,b2_version.revision);
+        lua_pushfstring(lua,"%d.%d.%d %s",b2_version.major,b2_version.minor,b2_version.revision,b2_liquidFunVersionString);
         return 1;
     }
 
@@ -1198,7 +1509,7 @@ namespace mbm
         {
         }
 
-        virtual float ReportFixture(	b2Fixture* fixture, const b2Vec2& point,const b2Vec2& normal, float fraction)
+        virtual float32 ReportFixture(	b2Fixture* fixture, const b2Vec2& point,const b2Vec2& normal, float32 fraction)
         {
             auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
             if(info)
@@ -1231,7 +1542,7 @@ namespace mbm
             return fraction;
         }
 
-        virtual float ReportParticle(const b2ParticleSystem* ,int32, const b2Vec2& ,const b2Vec2&,float)
+        virtual float32 ReportParticle(const b2ParticleSystem* ,int32, const b2Vec2& ,const b2Vec2&,float32)
         {
             return 0;
         }
@@ -1302,7 +1613,7 @@ namespace mbm
             }
             return false;
         }
-        virtual float ReportParticle(const b2ParticleSystem* ,int32 , const b2Vec2& ,const b2Vec2& , float )
+        virtual float32 ReportParticle(const b2ParticleSystem* ,int32 , const b2Vec2& ,const b2Vec2& , float32 )
         {
             return 0;
         }
@@ -1378,6 +1689,17 @@ namespace mbm
         return 0;
     }
 
+    
+    int onDestroyFluidBox2d(lua_State *lua)
+    {
+        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
+        auto * infoFluid                = static_cast<INFO_FLUID*>(userData->extra);
+        if(infoFluid)
+            box2d->destroyFluid(infoFluid);
+        return 0;
+    }
 
     int onTestPointBodyBox2d(lua_State *lua)
     {
@@ -1542,7 +1864,7 @@ namespace mbm
             }
             else if (strcasecmp(name, "rope") == 0) // done
             {
-                b2DistanceJointDef def;
+                b2RopeJointDef def;
                       b2Vec2 p1 (info1->body->GetPosition());
                 const b2Vec2 p2 (info2->body->GetPosition());
                 //has no member Initialize
@@ -1570,8 +1892,6 @@ namespace mbm
             else if (strcasecmp(name, "wheel") == 0 || strcasecmp(name, "line") == 0) //old line, done
             {
                 b2WheelJointDef def;
-                float frequencyHz = 1.0f;
-                float dampingRatio = 0.7f;
                 b2Vec2 anchor(0.0f,0.0f);
                 b2Vec2 axis(0.0f,1.0f);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
@@ -1580,44 +1900,37 @@ namespace mbm
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,     "collideConnected",            LUA_TBOOLEAN,   &def.collideConnected);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorA", "x", "y",                      &def.localAnchorA.x, &def.localAnchorA.y);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorB", "x", "y",                      &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &dampingRatio);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &def.dampingRatio);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,     "enableMotor",                 LUA_TBOOLEAN,   &def.enableMotor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &frequencyHz);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &def.frequencyHz);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAxisA", "x", "y",                        &def.localAxisA.x, &def.localAxisA.y);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,     "maxMotorTorque",              LUA_TNUMBER,    &def.maxMotorTorque);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
-                b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "weld") == 0) // 'solda' done
             {
                 b2WeldJointDef def;
-                float frequencyHz = 5.0f;
-			    float dampingRatio = 0.7f;
                 b2Vec2 anchor(info2->body->GetPosition());
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",       LUA_TBOOLEAN,   &def.collideConnected);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                 &def.localAnchorA.x, &def.localAnchorA.y);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                 &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &frequencyHz);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &def.dampingRatio);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &def.frequencyHz);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
-                b2AngularStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "mouse") == 0) // done
             {
                 b2MouseJointDef def;
-                float frequencyHz = 5.0f;
-		        float dampingRatio = 0.7f;
                 //has no member Initialize
                 plugin_helper::getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &frequencyHz);
+                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &def.dampingRatio);
+                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &def.frequencyHz);
                 plugin_helper::getFieldPrimaryFromTable(lua, 4,     "maxForce",            LUA_TNUMBER,    &def.maxForce);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4, "target", "x", "y",                    &def.target.x, &def.target.y);
-                b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "pulley") == 0) // polia, done
@@ -1642,8 +1955,6 @@ namespace mbm
             else if (strcasecmp(name, "distance") == 0) // done
             {
                 b2DistanceJointDef def;
-                float frequencyHz = 5.0f;
-                float dampingRatio = 0.7f;
                 b2Vec2 anchor1 (info1->body->GetPosition());
                 b2Vec2 anchor2 (info2->body->GetPosition());
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
@@ -1652,10 +1963,9 @@ namespace mbm
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",               LUA_TBOOLEAN,   &def.collideConnected);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                         &def.localAnchorA.x, &def.localAnchorA.y);
                 plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                         &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &def.dampingRatio);
+                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &def.frequencyHz);
                 plugin_helper::getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
-                b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "prismatic") == 0) //done
@@ -1765,6 +2075,7 @@ namespace mbm
         luaL_Reg regBox2dMethods[] = {  {"addStaticBody", onAddStaticBodyBox2d },
                                         {"addDynamicBody", onAddDynamicBodyBox2d },
                                         {"addKinematicBody", onAddKinematicBodyBox2d },
+                                        {"createFluid", onCreateFluidBodyBox2d },
                                         {"addBody", onAddBodyBox2d },
                                         {"applyForce", onApplyForceBodyBox2d },
                                         {"applyForceToCenter", onApplyForceToCenterBodyBox2dFromBody},
@@ -1774,6 +2085,7 @@ namespace mbm
                                         {"applyLinearImpulseToCenter", onApplyLinearImpulseToCenterBodyBox2d },
                                         {"destroyBody", onDestroyBodyBox2d},
                                         {"destroyJoint", onDestroyJointBox2d},
+                                        {"destroyFluid", onDestroyFluidBox2d},
                                         {"getAngularVelocity", onGetAngularVelocityBox2d },
                                         {"getInertia", onGetInertiaBox2dFromBody},
                                         {"getJoint", onGetJointBox2d},

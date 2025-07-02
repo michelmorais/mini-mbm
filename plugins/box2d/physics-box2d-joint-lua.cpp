@@ -19,7 +19,7 @@
 
 #include "physics-box-2d-joint-lua.h"
 #include "../plugin-helper/plugin-helper.h"
-#include <box2d/box2d.h>
+#include <Box2D/Box2D.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/class-identifier.h>
 
@@ -89,7 +89,7 @@ namespace mbm
     int onIsActiveJointBox2d(lua_State *lua)
     {
         b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
-        if (joint->IsEnabled())
+        if (joint->IsActive())
             lua_pushboolean(lua, 1);
         else
             lua_pushboolean(lua, 0);
@@ -102,8 +102,8 @@ namespace mbm
         const bool activate = lua_toboolean(lua, 2) ? true : false;
         b2Body* body_a = joint->GetBodyA();
         b2Body* body_b = joint->GetBodyB();
-        body_a->SetEnabled(activate);
-        body_b->SetEnabled(activate);
+        body_a->SetActive(activate);
+        body_b->SetActive(activate);
         return 0;
     }
 
@@ -269,7 +269,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetDamping());
+                    lua_pushnumber(lua,pJoint->GetDampingRatio());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -287,7 +287,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2WheelJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetDamping());
+                    lua_pushnumber(lua,pJoint->GetSpringDampingRatio());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -296,14 +296,14 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2WeldJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetDamping());
+                    lua_pushnumber(lua,pJoint->GetDampingRatio());
                 else
                     lua_pushnumber(lua,0.0f);
             }
             break;
             default:
             {
-                inform_joint_has_no_such_a_method(lua,joint,"getDamping");
+                inform_joint_has_no_such_a_method(lua,joint,"getDampingRatio");
                 lua_pushnumber(lua,0.0f);
             }
             break;
@@ -321,7 +321,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetDamping(v);
+                    pJoint->SetDampingRatio(v);
             }
             break;
             case e_gearJoint      :
@@ -335,19 +335,19 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2WheelJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetDamping(v);
+                    pJoint->SetSpringDampingRatio(v);
             }
             break;
             case e_weldJoint      :
             {
                 auto* pJoint = static_cast<b2WeldJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetDamping(v);
+                    pJoint->SetDampingRatio(v);
             }
             break;
             default:
             {
-                inform_joint_has_no_such_a_method(lua,joint,"setDamping");
+                inform_joint_has_no_such_a_method(lua,joint,"setDampingRatio");
             }
             break;
         }
@@ -458,26 +458,26 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetStiffness(v);
+                    pJoint->SetFrequency(v);
             }
             break;
             case e_wheelJoint     :
             {
                 auto* pJoint = static_cast<b2WheelJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetStiffness(v);
+                    pJoint->SetSpringFrequencyHz(v);
             }
             break;
             case e_weldJoint      :
             {
                 auto* pJoint = static_cast<b2WeldJoint*>(joint);
                 if(pJoint)
-                    pJoint->SetStiffness(v);
+                    pJoint->SetFrequency(v);
             }
             break;
             default:
             {
-                inform_joint_has_no_such_a_method(lua,joint,"SetStiffness");
+                inform_joint_has_no_such_a_method(lua,joint,"setFrequencyHz");
             }
             break;
         }
@@ -493,7 +493,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetStiffness());
+                    lua_pushnumber(lua,pJoint->GetFrequency());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -502,7 +502,7 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2WheelJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetStiffness());
+                    lua_pushnumber(lua,pJoint->GetSpringFrequencyHz());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -511,14 +511,14 @@ namespace mbm
             {
                 auto* pJoint = static_cast<b2WeldJoint*>(joint);
                 if(pJoint)
-                    lua_pushnumber(lua,pJoint->GetStiffness());
+                    lua_pushnumber(lua,pJoint->GetFrequency());
                 else
                     lua_pushnumber(lua,0.0f);
             }
             break;
             default:
             {
-                inform_joint_has_no_such_a_method(lua,joint,"getStiffness");
+                inform_joint_has_no_such_a_method(lua,joint,"getFrequencyHz");
                 lua_pushnumber(lua,0.0f);
             }
             break;
@@ -537,6 +537,13 @@ namespace mbm
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
                     pJoint->SetLength(v);
+            }
+            break;
+            case e_ropeJoint      :
+            {
+                auto* pJoint = static_cast<b2RopeJoint*>(joint);
+                if(pJoint)
+                    pJoint->SetMaxLength(v);
             }
             break;
             default:
@@ -558,6 +565,15 @@ namespace mbm
                 auto* pJoint = static_cast<b2DistanceJoint*>(joint);
                 if(pJoint)
                     lua_pushnumber(lua,pJoint->GetLength());
+                else
+                    lua_pushnumber(lua,0.0f);
+            }
+            break;
+            case e_ropeJoint      :
+            {
+                auto* pJoint = static_cast<b2RopeJoint*>(joint);
+                if(pJoint)
+                    lua_pushnumber(lua,pJoint->GetMaxLength());
                 else
                     lua_pushnumber(lua,0.0f);
             }
@@ -903,14 +919,14 @@ namespace mbm
                                     {"getMaxMotorTorque", onGetMaxMotorTorqueJointBox2d},
                                     {"setMaxMotorTorque", onSetMaxMotorTorqueJointBox2d},
                                     
-                                    {"getDamping", onGetRatioJointBox2d},
-                                    {"setDamping", onSetRatioJointBox2d},
+                                    {"getDampingRatio", onGetRatioJointBox2d},
+                                    {"setDampingRatio", onSetRatioJointBox2d},
 
                                     {"setMaxForce", onSetMaxForceJointBox2d},
                                     {"getMaxForce", onGetMaxForceJointBox2d},
 
-                                    {"setStiffness", onSetFrequencyHzJointBox2d},
-                                    {"getStiffness", onGetFrequencyHzJointBox2d},
+                                    {"setFrequencyHz", onSetFrequencyHzJointBox2d},
+                                    {"getFrequencyHz", onGetFrequencyHzJointBox2d},
 
                                     {"getLength", onGetLengthJointBox2d},
                                     {"setLength", onSetLengthJointBox2d},
