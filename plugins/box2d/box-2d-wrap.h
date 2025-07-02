@@ -23,7 +23,7 @@
 #include <vector>
 #include <core_mbm/physics.h>
 #include <core_mbm/primitives.h>
-#include <box2d/box2d.h>
+#include <Box2D/Box2D.h>
 
 class b2Body;
 class b2Joint;
@@ -31,6 +31,7 @@ class b2Joint;
 namespace mbm
 {
 class RENDERIZABLE;
+class STEERED_PARTICLE;
 class SCENE;
 struct INFO_PHYSICS;
 struct VEC2;
@@ -43,6 +44,15 @@ struct VEC3;
         b2Body *         body;
         SHAPE_INFO(RENDERIZABLE *ptrMesh, const b2BodyType newType) noexcept;
         virtual ~SHAPE_INFO() noexcept;
+    };
+
+    struct INFO_FLUID
+    {
+        RENDERIZABLE    * steered_particle;
+        b2ParticleSystem*  particleSystem;
+        b2ParticleGroupDef pd;
+        INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept;
+        virtual ~INFO_FLUID() noexcept;
     };
 
     class INFO_JOINT
@@ -85,6 +95,7 @@ struct VEC3;
         bool testPoint(SHAPE_INFO* info,const b2Vec2& point);
         bool destroyBody(SHAPE_INFO* info);
         bool undoDestroyBody(SHAPE_INFO* info);
+        bool undoDestroyFluid(INFO_FLUID* info);
         void setActive(SHAPE_INFO* info,const bool enable);
         void removeObject(RENDERIZABLE* ptr);
         void removeObjectByIdSceneScene(const int _idScene);
@@ -121,6 +132,26 @@ struct VEC3;
                                         const float reduceX = 1.0f,
                                         const float reduceY = 1.0f,
                                         const bool  isSensor = false);
+        INFO_FLUID* createRenderizableFluid(const INFO_PHYSICS* const physics,
+                                        const VEC3 &position,
+                                        const VEC3 &scale,
+                                        const VEC2 &linearVelocity,
+                                        const float angularVelocity,
+                                        const float angle,
+                                        const char* texture,
+                                        const mbm::COLOR* color,
+                                        const b2ParticleFlag flags,
+                                        const b2ParticleGroupFlag groupFlags,
+                                        const float lifetime,
+                                        const float radius,
+                                        const float damping,
+                                        const float strength,
+                                        const float stride,
+                                        const bool is3d,
+                                        const bool is2dScreen,
+                                        const bool segmented,
+                                        const float radiusScale);
+        static int32 addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine);
         void applyForce(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy);
         void applyTorque(SHAPE_INFO* info,const float torque,bool awake);
         void setLinearVelocity(SHAPE_INFO* info,const float x,const float y);
@@ -135,17 +166,21 @@ struct VEC3;
         void interference(b2Body* body,const VEC2 *newPosition,const float newAngleDegree);
         void interference(b2Body* body,const VEC3 *newPosition,const float newAngleDegree);
         bool removeJoint(SHAPE_INFO* info);
+        bool destroyFluid(INFO_FLUID* info);
         void setFixedRotation(SHAPE_INFO* info, bool value);
         void setSleepingAllowed(SHAPE_INFO* info, bool value);
     
     protected:
         void update(const float fps,const float delta);
+        void update_fluid(INFO_FLUID* info);
+        void update_uv_fluid(INFO_FLUID* info);
 
     private:
         float                           scale,scalePercentage;
         b2World*                        world;
         std::vector<SHAPE_INFO*>        lsShape;
         std::vector<INFO_JOINT*>        lsJoint;
+        std::vector<INFO_FLUID*>        lsFluid;
         
         SHAPE_INFO* completeStaticBody( RENDERIZABLE* controller,
                                         const float density,
@@ -168,10 +203,12 @@ struct VEC3;
         void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
         void safeDestroyBody(SHAPE_INFO* infoBox2d);
         void safeRemoveJoint(SHAPE_INFO* infoBox2d);
+        void safeDestroyFluid(INFO_FLUID* pInfoFluid);
         std::vector<SHAPE_INFO*>            ls2RemoveBody;
         std::vector<SHAPE_INFO*>            ls2RemoveJoint;
         std::vector<SHAPE_INFO*>            lsActiveCollisionBody;
         std::vector<SHAPE_INFO*>            lsDisableCollisionBody;
+        std::vector<INFO_FLUID*>            ls2RemoveFluid;
     };
 
 };

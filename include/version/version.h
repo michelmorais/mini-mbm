@@ -59,8 +59,9 @@
     3.4   refactoried files on LUA wrapper
     3.5   Frozen box 2d (2.3.2)
     3.6   Migrated to box2d (2.4.1)
+    4.0   LiquidFun for box 2d, this version forces to drawback Box2D to 2.3.0.
 */
-#define MBM_VERSION "3.6"
+#define MBM_VERSION "4.0"
 #endif
 
 #endif

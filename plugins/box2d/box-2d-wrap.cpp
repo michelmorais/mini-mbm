@@ -21,6 +21,8 @@
 #include <core_mbm/scene.h>
 #include <core_mbm/device.h>
 #include <core_mbm/renderizable.h>
+#include <render/steered_particle.h>
+#include <limits>
 
 namespace mbm
 {
@@ -35,6 +37,20 @@ namespace mbm
     SHAPE_INFO::~SHAPE_INFO()noexcept
     {
         this->body              =   nullptr;
+    }
+
+    INFO_FLUID::INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept
+    {
+        DEVICE * device = DEVICE::getInstance();
+        this->particleSystem =  nullptr;
+        this->steered_particle = new STEERED_PARTICLE(device->scene,is3d,is2dScreen,segmented,_scale_physics_engine);
+    }
+
+    INFO_FLUID::~INFO_FLUID()noexcept
+    {
+        this->particleSystem =   nullptr;
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(this->steered_particle);
+        delete p_steered_particle;
     }
 
     INFO_JOINT::INFO_JOINT(SHAPE_INFO*  info_a,SHAPE_INFO*  info_b,b2Joint* _joint) noexcept
@@ -89,6 +105,16 @@ namespace mbm
                 delete info;
             }
             this->lsShape.clear();
+
+            const std::vector<SHAPE_INFO*>::size_type sf = this->lsFluid.size();
+            for(std::vector<SHAPE_INFO*>::size_type i = 0; i < sf; ++i)
+            {
+                INFO_FLUID* info = this->lsFluid[i];
+                if(info->particleSystem)
+                    world->DestroyParticleSystem(info->particleSystem);
+                delete info;
+            }
+            this->lsFluid.clear();
             delete world;
         }
         this->on_box2d_BeginContact = nullptr;
@@ -145,6 +171,21 @@ namespace mbm
         return true;
     }
         
+    bool PHYSICS_BOX2D::undoDestroyFluid(INFO_FLUID* info)
+    {
+        const std::vector<INFO_FLUID*>::size_type sr = this->ls2RemoveFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sr; ++i)
+        {
+            INFO_FLUID* otherInfo = this->ls2RemoveFluid[i];
+            if (otherInfo == info)
+            {
+                this->ls2RemoveFluid.erase(this->ls2RemoveFluid.begin() + i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool PHYSICS_BOX2D::undoDestroyBody(SHAPE_INFO* info)
     {
         const std::vector<SHAPE_INFO*>::size_type sr = this->ls2RemoveBody.size();
@@ -582,7 +623,8 @@ namespace mbm
     {
         if(info && info->body)
         {
-            b2MassData mass = info->body->GetMassData();
+            b2MassData mass;
+            info->body->GetMassData(&mass);
             mass.mass = newMass;
             info->body->SetMassData(&mass);
         }
@@ -634,6 +676,21 @@ namespace mbm
         return true;
     }
 
+    bool PHYSICS_BOX2D::destroyFluid(INFO_FLUID* info)
+    {
+        const std::vector<INFO_FLUID*>::size_type sj = this->ls2RemoveFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sj; ++i)
+        {
+            const INFO_FLUID* otherInfo = this->ls2RemoveFluid[i];
+            if (otherInfo == info)
+            {
+                return false;
+            }
+        }
+        this->ls2RemoveFluid.push_back(info);
+        return true;
+    }
+
     void PHYSICS_BOX2D::update(const float fps,const float delta)
     {
         if(!this->world || this->stopSimulate)
@@ -650,6 +707,18 @@ namespace mbm
                 info->ptr->angle.z      =   info->body->GetAngle();
             }
         }
+        const std::vector<INFO_FLUID*>::size_type sf = this->lsFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sf; ++i)
+        {
+            INFO_FLUID* info  = this->lsFluid[i];
+            {
+                if(info->steered_particle && info->particleSystem && info->steered_particle->typeClass == mbm::TYPE_CLASS_STEERED_PARTICLE)
+                {
+                    update_fluid(info);
+                }
+            }
+        }
+        
         // Instruct the world to perform a single step of simulation.
         // It is generally best to keep the time step and iterations fixed.
         //const float delta = fps == 0.0f  ? 0.0f : 1.0f / fps;
@@ -670,6 +739,13 @@ namespace mbm
             this->ls2RemoveBody.erase(this->ls2RemoveBody.begin());
         }
 
+        while(this->ls2RemoveFluid.size())
+        {
+            INFO_FLUID* info = this->ls2RemoveFluid[0];
+            this->safeDestroyFluid(info);
+            this->ls2RemoveFluid.erase(this->ls2RemoveFluid.begin());
+        }
+
         while(this->ls2RemoveJoint.size())
         {
             SHAPE_INFO* info = this->ls2RemoveJoint[0];
@@ -681,14 +757,14 @@ namespace mbm
         {
             SHAPE_INFO* info = this->lsActiveCollisionBody[0];
             if (info && info->body)
-                info->body->SetEnabled(true);
+                info->body->SetActive(true);
             this->lsActiveCollisionBody.erase(this->lsActiveCollisionBody.begin());
         }
         while (this->lsDisableCollisionBody.size())
         {
             SHAPE_INFO* info = this->lsDisableCollisionBody[0];
             if (info && info->body)
-                info->body->SetEnabled(false);
+                info->body->SetActive(false);
             this->lsDisableCollisionBody.erase(this->lsDisableCollisionBody.begin());
         }
     }
@@ -963,6 +1039,265 @@ namespace mbm
         info->body->SetUserData(info);
         return info;
     }
+
+
+    INFO_FLUID * PHYSICS_BOX2D::createRenderizableFluid(const INFO_PHYSICS* const physics,
+                                        const VEC3 &position,
+                                        const VEC3 &scale,
+                                        const VEC2 &linearVelocity,
+                                        const float angularVelocity,
+                                        const float angle,
+                                        const char* texture,
+                                        const COLOR* color,
+                                        const b2ParticleFlag flags,
+                                        const b2ParticleGroupFlag groupFlags,
+                                        const float lifetime,
+                                        const float radius,
+                                        const float damping,
+                                        const float strength,
+                                        const float stride,
+                                        const bool is3d,
+                                        const bool is2dScreen,
+                                        const bool segmented,
+                                        const float radiusScale)
+    {
+        if(physics == nullptr)
+            return nullptr;
+        auto  info = new INFO_FLUID(is3d,is2dScreen,segmented, &this->scale);
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        if(p_steered_particle == nullptr || p_steered_particle->load(texture,color,physics) == false)
+        {
+            delete info;
+            return nullptr;
+        }
+        if(position.z != 0.0)
+            p_steered_particle->position.z = position.z;
+        auto infoPhysics = p_steered_particle->getInfoPhysics();
+        
+        const b2ParticleSystemDef particleSystemDef;
+        
+        b2ParticleSystem* pParticleSystem = this->world->CreateParticleSystem(&particleSystemDef);
+        info->particleSystem = pParticleSystem;
+
+        pParticleSystem->SetRadius(radius);
+        pParticleSystem->SetDamping(damping);
+        p_steered_particle->setRadiusScale(radiusScale);
+
+        info->pd.flags            = flags;
+        info->pd.groupFlags       = groupFlags;
+        info->pd.lifetime         = lifetime;
+        info->pd.strength         = strength;
+        info->pd.stride           = stride;
+        info->pd.linearVelocity.x = linearVelocity.x;
+        info->pd.linearVelocity.y = linearVelocity.y;
+        info->pd.angularVelocity  = angularVelocity;
+        info->pd.angle            = angle;
+
+        if(addParticleToFluid(info,infoPhysics, position, scale,this->scale) == 0)
+        {
+            delete info;
+            this->world->DestroyParticleSystem(pParticleSystem);
+            return nullptr;
+        }
+        update_fluid(info);
+        update_uv_fluid(info);
+        this->lsFluid.push_back(info);
+        return info;
+    }
+
+    int32 PHYSICS_BOX2D::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)
+    {
+        int32 initialParticleCount = 0;
+        if(info->pd.group != nullptr)
+        {
+            initialParticleCount     = info->pd.group->GetParticleCount();
+        }
+        const float scalePercentage = scaleEngine != 0 ? 1.0f / scaleEngine : 1.0f;
+        for(const CUBE* cube : infoPhysics->lsCube)
+        {
+            b2PolygonShape  dynamicBox;
+            b2Vec2 center(  cube->absCenter.x * scale.x * scalePercentage,
+                            cube->absCenter.y * scale.y * scalePercentage);
+            dynamicBox.SetAsBox(cube->halfDim.x * scale.x * scalePercentage,
+                                cube->halfDim.y * scale.y * scalePercentage,center,0);
+            info->pd.shape            = &dynamicBox;
+            info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const SPHERE * sphere : infoPhysics->lsSphere)
+        {
+            b2CircleShape   shape;
+            b2Vec2 center(  sphere->absCenter[0] * scale.x * scalePercentage,
+                            sphere->absCenter[1] * scale.y * scalePercentage);
+            shape.m_radius  = sphere->ray * scale.x * scalePercentage;
+            shape.m_p.Set(  sphere->absCenter[0] * scale.x * scalePercentage,
+                            sphere->absCenter[1] * scale.y * scalePercentage);
+            info->pd.shape = &shape;
+            info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const TRIANGLE * triangle : infoPhysics->lsTriangle)
+        {
+            b2PolygonShape  groundTriangle;
+            b2Vec2 vertices[3];
+            vertices[0].Set(triangle->point[0].x* scalePercentage * scale.x,triangle->point[0].y* scalePercentage * scale.y);
+            vertices[1].Set(triangle->point[1].x* scalePercentage * scale.x,triangle->point[1].y* scalePercentage * scale.y);
+            vertices[2].Set(triangle->point[2].x* scalePercentage * scale.x,triangle->point[2].y* scalePercentage * scale.y);
+            groundTriangle.Set(vertices, 3);
+            info->pd.shape = &groundTriangle;
+            info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const CUBE_COMPLEX * cube : infoPhysics->lsCubeComplex)
+        {
+            b2PolygonShape  groundPolygn;
+            b2Vec2 vertices[4];
+            vertices[0].Set(cube->a.x * scalePercentage * scale.x,cube->a.y * scalePercentage * scale.y);
+            vertices[1].Set(cube->b.x * scalePercentage * scale.x,cube->b.y * scalePercentage * scale.y);
+            vertices[2].Set(cube->c.x * scalePercentage * scale.x,cube->c.y * scalePercentage * scale.y);
+            vertices[3].Set(cube->d.x * scalePercentage * scale.x,cube->d.y * scalePercentage * scale.y);
+            groundPolygn.Set(vertices, 4);
+            info->pd.shape = &groundPolygn;
+            info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        if(info->pd.group != nullptr)
+        {
+            const int32 particleCount       = info->pd.group->GetParticleCount();
+            const int32 iTotalParticleAdded = particleCount - initialParticleCount;
+            return iTotalParticleAdded;
+        }
+        return 0;
+    }
+
+    void PHYSICS_BOX2D::update_uv_fluid(INFO_FLUID* info)
+    {
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        if(p_steered_particle->getSegmented())
+        {
+            float width         = 0;
+            float height        = 0;
+            uint32_t width_tex  = 0;
+            uint32_t height_tex = 0;
+            p_steered_particle->getAABB(&width,&height);
+            p_steered_particle->getSizeTexture(width_tex,height_tex);
+            if(width > 0 && height > 0)
+            {
+                const uint32_t iTotalGroup = p_steered_particle->getTotalGroup();
+                float min_x = std::numeric_limits<float>::max();
+                float min_y = std::numeric_limits<float>::max();
+                float max_x = std::numeric_limits<float>::min();
+                float max_y = std::numeric_limits<float>::min();
+
+                const b2ParticleGroup* group = info->particleSystem->GetParticleGroupList();
+                const b2Vec2* positionBuffer = info->particleSystem->GetPositionBuffer();
+                while (group)
+                {
+                    const int32 particleCount     = group->GetParticleCount();
+                    const int32 groupStart        = group->GetBufferIndex();
+                    const int32 groupEnd          = groupStart + particleCount;
+
+                    for (int32 j = 0; j < groupEnd; j++)
+                    {
+                        const uint32_t iPos = groupStart + j;
+                        min_x = positionBuffer[iPos].x < min_x ? positionBuffer[iPos].x : min_x;
+                        min_y = positionBuffer[iPos].y < min_y ? positionBuffer[iPos].y : min_y;
+                        max_x = positionBuffer[iPos].x > max_x ? positionBuffer[iPos].x : max_x;
+                        max_y = positionBuffer[iPos].y > max_y ? positionBuffer[iPos].y : max_y;
+                    }
+                    group = group->GetNext();
+                }
+                const float dx       = (max_x - min_x);
+                const float dy       = (max_y - min_y);
+                
+                for(uint32_t i=0; i < iTotalGroup; ++i)
+                {
+                    mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(i);
+                    const float up       = fluidGroup->aSizeParticle / width_tex  * 0.5f;
+                    const float vp       = fluidGroup->aSizeParticle / height_tex * 0.5f;
+                    const VEC2 halParticleSizeInUv(up, vp);
+                    const float dist_x   = dx + halParticleSizeInUv.x * 2.0f;
+                    const float dist_y   = dy + halParticleSizeInUv.y * 2.0f;
+                    const float factor_x = dx / (dx + (fluidGroup->aSizeParticle / this->scale) * 0.5f);
+                    const float factor_y = dy / (dy + (fluidGroup->aSizeParticle / this->scale) * 0.5f);
+
+                    for (uint32_t iPos = 0; iPos < fluidGroup->totalParticleToRender; ++iPos)
+                    {
+                        const float x = (positionBuffer[iPos].x - min_x) * factor_x;
+                        const float y = (positionBuffer[iPos].y - min_y) * factor_y;
+                        const float u = (x / dist_x) ;
+                        const float v = 1.0f - (y / dist_y) ;
+                        const VEC2 pos(u + up * 0.5f,v - vp * 0.5f);
+                        mbm::VEC2* uv = &fluidGroup->uv[iPos * 4];
+                        fluidGroup->setUv(uv,pos,halParticleSizeInUv);
+                    }
+                }
+            }
+        }
+    }
+
+    void PHYSICS_BOX2D::update_fluid(INFO_FLUID* info)
+    {
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        const uint32_t groupCount            = info->particleSystem->GetParticleGroupCount();
+        const b2ParticleGroup* group         = info->particleSystem->GetParticleGroupList();
+        while(group)
+        {
+            while(groupCount != p_steered_particle->getTotalGroup())
+            {
+                if(groupCount < p_steered_particle->getTotalGroup())
+                    p_steered_particle->removeGroup(0);
+                else
+                {
+                    uint32_t index_this_group = p_steered_particle->addGroup();
+                    mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(index_this_group-1);
+                    fluidGroup->aSizeParticle = info->particleSystem->GetRadius() * this->scale * 2;
+                    
+                }
+            }
+            group = group->GetNext();
+        }
+        group = info->particleSystem->GetParticleGroupList();
+        if(group)
+        {
+            const b2Vec2* positionBuffer = info->particleSystem->GetPositionBuffer();
+            uint32_t index_group         = 0;
+            while (group)
+            {
+                mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(index_group);
+                const int32 particleCount     = group->GetParticleCount();
+                const int32 groupStart        = group->GetBufferIndex();
+                //const int32 groupEnd          = groupStart + particleCount;
+
+                fluidGroup->resizeParticleData(particleCount);
+                for (int32 j = 0; j < particleCount; j++)
+                {
+                    auto iPos = groupStart + j;
+                    fluidGroup->particle_positions[j].x = positionBuffer[iPos].x * this->scale;
+                    fluidGroup->particle_positions[j].y = positionBuffer[iPos].y * this->scale;
+                }
+                index_group++;
+                group = group->GetNext();
+            }
+        }
+        else
+        {
+            const uint32_t iTotal = p_steered_particle->getTotalGroup();
+            for(uint32_t i=0; i < iTotal; ++i)
+            {
+                mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(i);
+                fluidGroup->resizeParticleData(0);
+            }
+        }
+    }
     
     //CallBack - b2ContactListener
     void PHYSICS_BOX2D::BeginContact(b2Contact* contact)
@@ -1054,6 +1389,26 @@ namespace mbm
                     delete infoJoint;
                     this->lsJoint.erase(this->lsJoint.begin() + i);
                     --i;
+                }
+            }
+        }
+    }
+
+    void PHYSICS_BOX2D::safeDestroyFluid(INFO_FLUID* pInfoFluid)
+    {
+        if(pInfoFluid)
+        {
+            for(std::vector<INFO_FLUID*>::size_type i = 0; i < this->lsFluid.size(); ++i)//must be size()
+            {
+                INFO_FLUID* infoFluid = this->lsFluid[i];
+                if(infoFluid == pInfoFluid)
+                {
+                    if(infoFluid->particleSystem)
+                        this->world->DestroyParticleSystem(infoFluid->particleSystem);
+                    infoFluid->particleSystem = nullptr;
+                    delete infoFluid;
+                    this->lsFluid.erase(this->lsFluid.begin() + i);
+                    break;
                 }
             }
         }

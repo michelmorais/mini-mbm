@@ -359,7 +359,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #set(CMAKE_VERBOSE_MAKEFILE on)
 
     set(LUA_LIB_VERSION         "5.4.1")
-    set(BOX2D_LIB_VERSION       "2.4.1")
+    set(BOX2D_LIB_VERSION       "2.3.1")
     set(BULLET_LIB_VERSION      "2.84")
     
 

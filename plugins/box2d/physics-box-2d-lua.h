@@ -95,6 +95,7 @@ namespace mbm
     int onQueryAABBBox2d(lua_State *lua);
     int onRayCastBox2d(lua_State *lua);
     int onGetJointBox2d(lua_State *lua);
+    int onGetRenderizableFluidInterfaceBox2d(lua_State *lua,RENDERIZABLE * steered_particle);
     int onStopSimulateBox2d(lua_State *lua);
     int onResumeSimulateBox2d(lua_State *lua);
     int onDestroyBodyBox2d(lua_State *lua);
