@@ -1,0 +1,750 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\tinyfiledialogs">
+      <UniqueIdentifier>{4ea432e1-0cd0-40e3-aa5f-b13b6becdee2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\tinyfiledialogs">
+      <UniqueIdentifier>{6e7cf924-0f7d-4363-b17d-b8b5617875ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\core_mbm">
+      <UniqueIdentifier>{0f329974-b955-4080-88b0-7352dc3a7f11}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\core_mbm">
+      <UniqueIdentifier>{e82c49f9-766e-40e0-8d93-95ec26ba2e46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\joystick-win32">
+      <UniqueIdentifier>{057712cc-2695-44b2-ad78-3fe251458bb4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\joystick-win32">
+      <UniqueIdentifier>{29a8f1c2-16a9-4f87-881d-6fa64987cfcb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lua-wrapper">
+      <UniqueIdentifier>{32eb21be-443e-41ae-ab8d-f1840639543b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lua-wrapper\Render">
+      <UniqueIdentifier>{80dd681c-a443-453b-9787-ceabedf2dba0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lodepng">
+      <UniqueIdentifier>{a19c95a1-88be-486c-9487-41e8ff9f60ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\lodepng">
+      <UniqueIdentifier>{d4e23d2b-f506-4221-9683-652560c3cf5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\miniz">
+      <UniqueIdentifier>{0fd12ddb-cf2f-4a3e-8227-d72cd0226a75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\miniz">
+      <UniqueIdentifier>{ad53d976-8079-4e2b-8122-75e44f2f13c8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\miniz-wrap">
+      <UniqueIdentifier>{40d4a28e-4a8a-4f78-ac97-f869c9f26c4a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\miniz-wrap">
+      <UniqueIdentifier>{ae7c5cd8-33ed-442b-911c-92044523ac4e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\platform">
+      <UniqueIdentifier>{daab242d-21cd-49c7-84be-1ee3b905d4b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\plugin">
+      <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\plusWindows">
+      <UniqueIdentifier>{a602dd15-695f-47b1-ae69-a5ab97588afe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\plusWindows">
+      <UniqueIdentifier>{80e2e00c-ff6f-4606-b9d9-ecd5b6b65630}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\render">
+      <UniqueIdentifier>{a49ca146-1a54-41f3-a440-8e4f860772a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\render">
+      <UniqueIdentifier>{0a24ae85-928d-4848-85af-6e07e9f8c4e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\stb">
+      <UniqueIdentifier>{6fa3a3bb-1514-432e-86e2-d925582c2ba5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\stb">
+      <UniqueIdentifier>{7e2158e8-6d8e-4239-af94-a52818bf4de0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua">
+      <UniqueIdentifier>{8dae6266-5a5c-4dbe-bb15-b48e16f446ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua-wrap">
+      <UniqueIdentifier>{83f45314-52cb-4fdf-ac5c-9ec0661933e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua-wrap\render-table">
+      <UniqueIdentifier>{2626242a-e8aa-4f76-9018-25864c8462dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\wave">
+      <UniqueIdentifier>{6805884d-2516-4f8e-b7c3-703d3f336aa0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\wave">
+      <UniqueIdentifier>{936000f7-150b-4850-8bea-f977d4b568ed}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c">
+      <Filter>Source Files\tinyfiledialogs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\animation.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\blend.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\camera.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\device.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\file-util.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\frustum.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\gles-debug.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\image-resource.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\log-util.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\order-render.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\physics.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\primitives.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\renderizable.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\scene.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shapes.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\time-control.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\uber-image.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\util.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\vigenere.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\lodepng\lodepng_util.cpp">
+      <Filter>Source Files\lodepng</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
+      <Filter>Source Files\lodepng</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp">
+      <Filter>Source Files\joystick-win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\miniz\miniz_zip.c">
+      <Filter>Source Files\miniz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c">
+      <Filter>Source Files\miniz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\miniz\miniz_tdef.c">
+      <Filter>Source Files\miniz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\miniz\miniz.c">
+      <Filter>Source Files\miniz</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp">
+      <Filter>Source Files\miniz-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp">
+      <Filter>Source Files\plusWindows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp">
+      <Filter>Source Files\plusWindows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\background.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\font.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\gif-view.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\HMD.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\line-mesh.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\mesh.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\particle.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\render-2-texture.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\renderizable-clone.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\shape-mesh.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\sprite.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\texture-view.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\tile.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\stb\stb.c">
+      <Filter>Source Files\stb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\check-user-type-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\manager-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\user-data-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\animation-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\background-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\font-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\gif-view-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\line-mesh-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\mesh-debug-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\mesh-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\no-gc-renderizable-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\particle-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\render-2-texture-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\shape-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\sprite-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\texture-view-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\tile-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp">
+      <Filter>Source Files\Lua-wrapper\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain-mini-mbm-lib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\wave\WAVE.cpp">
+      <Filter>Source Files\wave</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
+      <Filter>Source Files\wave</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\steered_particle.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">
+      <Filter>Header Files\tinyfiledialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\animation.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\audio.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\audio-interface.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\blend.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\camera.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\class-identifier.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\core-exports.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\core-manager.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\cr-static-local.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\deprecated.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\device.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\dynamic-var.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\file-util.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\frustum.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\gles-debug.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\header-mesh.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\image-resource.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\log-util.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\mesh-manager.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\order-render.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\physics.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\plugin-callback.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\primitives.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\renderizable.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\renderizable-clone.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\scene.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shader.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shader-cfg.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shader-fx.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shader-resource.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\shapes.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\texture-manager.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\time-control.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\uber-image.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\util.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\util-interface.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\vigenere.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\joystick-win32\joystick.h">
+      <Filter>Header Files\joystick-win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lodepng\lodepng.h">
+      <Filter>Header Files\lodepng</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h">
+      <Filter>Header Files\lodepng</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\miniz\miniz_common.h">
+      <Filter>Header Files\miniz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\miniz\miniz_tdef.h">
+      <Filter>Header Files\miniz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\miniz\miniz_tinfl.h">
+      <Filter>Header Files\miniz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\miniz\miniz_zip.h">
+      <Filter>Header Files\miniz</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h">
+      <Filter>Header Files\miniz-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\platform\mismatch-platform.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h">
+      <Filter>Header Files\plusWindows</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\plusWindows\plusWindows.h">
+      <Filter>Header Files\plusWindows</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\background.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\font.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\gif-view.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\HMD.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\line-mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\particle.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\render-2-texture.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\shape-mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\sprite.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\texture-view.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\tile.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\stb\stb_image.h">
+      <Filter>Header Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\stb\stb_truetype.h">
+      <Filter>Header Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\stb\stb-interface.h">
+      <Filter>Header Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lauxlib.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lcode.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lctype.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldebug.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldo.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lfunc.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lgc.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ljumptab.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llex.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llimits.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lmem.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lobject.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopcodes.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopnames.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lparser.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lprefix.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstate.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstring.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltable.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltm.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.hpp">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\luaconf.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lualib.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lundump.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lvm.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lzio.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec3-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\background-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\font-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\no-gc-renderizable-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\render-2-texture-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\shape-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\sprite-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\wave\WAVE.h">
+      <Filter>Header Files\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\wave\rifffile.h">
+      <Filter>Header Files\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\steered_particle.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\version\version.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

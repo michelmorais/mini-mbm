@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{75472e2c-c965-4f07-99b1-cc58af398fef}</ProjectGuid>
+    <RootNamespace>core_mbm</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>mini-mbm</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>$(ProjectName)</TargetName>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>core_mbm</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>core_mbm</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>
+      </PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>Default</ConformanceMode>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <PrecompiledHeaderFile>
+      </PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;MINIMBMLIB_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;MINIMBMLIB_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
+    <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
+    <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\gles-debug.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\vigenere.cpp" />
+    <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\check-user-type-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\manager-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\animation-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\background-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\font-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\gif-view-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\line-mesh-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\mesh-debug-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\mesh-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\no-gc-renderizable-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\particle-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\render-2-texture-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\shape-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\sprite-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\texture-view-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\tile-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\user-data-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
+    <ClCompile Include="..\..\src\render\background.cpp" />
+    <ClCompile Include="..\..\src\render\font.cpp" />
+    <ClCompile Include="..\..\src\render\gif-view.cpp" />
+    <ClCompile Include="..\..\src\render\HMD.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\mesh.cpp" />
+    <ClCompile Include="..\..\src\render\particle.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
+    <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
+    <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\sprite.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle.cpp" />
+    <ClCompile Include="..\..\src\render\texture-view.cpp" />
+    <ClCompile Include="..\..\src\render\tile.cpp" />
+    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />
+    <ClCompile Include="..\..\third-party\lodepng\lodepng_util.cpp" />
+    <ClCompile Include="..\..\third-party\miniz\miniz.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_tdef.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_zip.c" />
+    <ClCompile Include="..\..\third-party\stb\stb.c" />
+    <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
+    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
+    <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />
+    <ClCompile Include="dllmain-mini-mbm-lib.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\core_mbm\animation.h" />
+    <ClInclude Include="..\..\include\core_mbm\audio-interface.h" />
+    <ClInclude Include="..\..\include\core_mbm\audio.h" />
+    <ClInclude Include="..\..\include\core_mbm\blend.h" />
+    <ClInclude Include="..\..\include\core_mbm\camera.h" />
+    <ClInclude Include="..\..\include\core_mbm\class-identifier.h" />
+    <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
+    <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
+    <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
+    <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
+    <ClInclude Include="..\..\include\core_mbm\file-util.h" />
+    <ClInclude Include="..\..\include\core_mbm\frustum.h" />
+    <ClInclude Include="..\..\include\core_mbm\gles-debug.h" />
+    <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
+    <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
+    <ClInclude Include="..\..\include\core_mbm\log-util.h" />
+    <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\order-render.h" />
+    <ClInclude Include="..\..\include\core_mbm\physics.h" />
+    <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
+    <ClInclude Include="..\..\include\core_mbm\primitives.h" />
+    <ClInclude Include="..\..\include\core_mbm\renderizable-clone.h" />
+    <ClInclude Include="..\..\include\core_mbm\renderizable.h" />
+    <ClInclude Include="..\..\include\core_mbm\scene.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-cfg.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-fx.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-resource.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader.h" />
+    <ClInclude Include="..\..\include\core_mbm\shapes.h" />
+    <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\time-control.h" />
+    <ClInclude Include="..\..\include\core_mbm\uber-image.h" />
+    <ClInclude Include="..\..\include\core_mbm\util-interface.h" />
+    <ClInclude Include="..\..\include\core_mbm\util.h" />
+    <ClInclude Include="..\..\include\core_mbm\vigenere.h" />
+    <ClInclude Include="..\..\include\joystick-win32\joystick.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\background-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\font-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\no-gc-renderizable-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\render-2-texture-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\shape-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\sprite-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec3-lua.h" />
+    <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />
+    <ClInclude Include="..\..\include\platform\mismatch-platform.h" />
+    <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h" />
+    <ClInclude Include="..\..\include\plusWindows\plusWindows.h" />
+    <ClInclude Include="..\..\include\render\background.h" />
+    <ClInclude Include="..\..\include\render\font.h" />
+    <ClInclude Include="..\..\include\render\gif-view.h" />
+    <ClInclude Include="..\..\include\render\HMD.h" />
+    <ClInclude Include="..\..\include\render\line-mesh.h" />
+    <ClInclude Include="..\..\include\render\mesh.h" />
+    <ClInclude Include="..\..\include\render\particle.h" />
+    <ClInclude Include="..\..\include\render\render-2-texture.h" />
+    <ClInclude Include="..\..\include\render\shape-mesh.h" />
+    <ClInclude Include="..\..\include\render\sprite.h" />
+    <ClInclude Include="..\..\include\render\steered_particle.h" />
+    <ClInclude Include="..\..\include\render\texture-view.h" />
+    <ClInclude Include="..\..\include\render\tile.h" />
+    <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
+    <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
+    <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lauxlib.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lcode.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lctype.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldebug.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldo.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lfunc.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lgc.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ljumptab.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llex.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llimits.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lmem.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lobject.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopcodes.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopnames.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lparser.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lprefix.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstate.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstring.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltable.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltm.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.hpp" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\luaconf.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lualib.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lundump.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lvm.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lzio.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_common.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_tdef.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_tinfl.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_zip.h" />
+    <ClInclude Include="..\..\third-party\stb\stb-interface.h" />
+    <ClInclude Include="..\..\third-party\stb\stb_image.h" />
+    <ClInclude Include="..\..\third-party\stb\stb_truetype.h" />
+    <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
+    <ClInclude Include="..\..\third-party\wave\rifffile.h" />
+    <ClInclude Include="..\..\third-party\wave\WAVE.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

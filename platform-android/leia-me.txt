@@ -1,0 +1,42 @@
+Como criar um projeto utilizando a lib mbm no Android?
+
+1 – Utilizando Android Studio versão 3.5.1
+2 – Crie um projeto novo. Vamos chamar de "testeEngine" (com.mini.mbm.testeEngine).
+3 – Selecione o sdk mínimo (API 16 -> 4.1.x JELLY BEAN que é a API mínima da lib).
+4 – Selecione "Add No Activity".
+5 – vá na pasta do projeto criada (recomendo não fazer pelo Android Studio), navegue até app -> src -> main -> Java.
+6 – Copie a seguinte estrutura: com/mini/mbm (com todas as classes que existem em -> raiz/platform-android/com/mini/mbm)
+    Estas classes são utilizadas pela lib mbm e não devem ter caminhos diferentes no seu projeto.
+7 – Vá na pasta do projeto criada (recomendo não fazer pelo Android Studio), navegue até
+	app -> src -> main. Aqui sera e copiado (ou criado) uma pasta chamada jniLibs.
+8 – Copie as libs (com diretório e tudo) localizado em "raiz/bin/release/arm64-v8a/" e "raiz/bin/release/armeabi-v7a/" para app/src/main/jniLibs. 
+	Importante manter as subpastas arm64-v8a e armeabi-v7a dentro da pasta jniLibs.
+	arm64-v8a e obrigatorio desde NDK r10. Ent'ao tera que compilar duas vezes (arm64-v8a e armeabi-v7a). Lembre de dar o comando
+	make clean e remover a paste de build e lib (raiz/libs e raiz/bin) por completo na segunda recompilacao.
+	O diretorio vai ficar assim:(SeuProjeto\app\src\main\jniLibs\arm64-v8a\libMini-Mbm.so e SeuProjeto\app\src\main\jniLibs\armeabi-v7a\libMini-Mbm.so)
+	Lembrando que tambem ira copiar as libs libc++_shared.so, liblua-5.4.1.so quando compilado usando LUA. Demais libs tambem deverao ser copiadas.
+9 - Vá na pasta do projeto criada (recomendo não fazer pelo Android Studio), 
+	navegue até app -> src -> main e crie uma pasta chamada assets. 
+	É nesta pasta que deve conter o arquivo principal de script LUA (main.lua). 
+	Podem ser organizadas subpastas para novos arquivos tão quanto for necessário dentro da pasta de assets. 
+	Resumindo, nesta pasta vão todos os resources da aplicação bem como imagens, arquivos de scripts, áudios, etc.
+10– Agora esta faltando nossa classe principal de activity. Vamos criar no pacote (principal) com um nome diferente. 
+	Pode ser qualquer, mas vamos chamar de "com/mini/mbm/testeEngine".
+	Criaremos uma nova classe chamada "Main". Então devemos herda-la (extends) da classe MainJniEngine. 
+	O Android Studio vai reclamar que sua classe não tem implementados os métodos abstratos da classe. 
+	Mão na roda isso não! Botão direito do mouse e selecione "implement methods" que o Android Studio faz isso para você.
+11– Configure o arquivo AndroidManifest.xml de acordo com o exemplo na pasta raiz/platform-android/ AndroidManifest.xml. 
+	Precisara trocar o nome do package principalmente. 
+	Também é preciso apontar no XML o nome da Activity principal (neste caso Main).
+12- Agora vamos conectar o aparelho e dar o play no Android Studio. 
+13– Se tudo correu bem será instalado o App no seu aparelho e ira carregar a logo mini-mbm. Após isso ficara em branco, 
+	pois ira procurar pelo arquivo "main.lua" e não vai encontrar.
+	Poderá verificar pelo LogCat alguns prints da lib naturalmente.
+14 - Dica: Toda vez que atualizar algum arquivo da pasta assets modifique a versao interna no metodo getMyVersionAPP. 
+ 	Assim, sempre ao inicializar o game a aplicacao ira sobreescrever todos os arquivos porque a versao.
+
+É Isso ai!
+
+Dica:
+- Sempre utilize os arquivos LUA encode UTF8
+find . -type f -iname *.lua -exec sh -c 'iconv -f $(file -bi "$1" |sed -e "s/.*[ ]charset=//") -t utf-8 -o converted "$1" && mv converted "$1"' -- {} \;

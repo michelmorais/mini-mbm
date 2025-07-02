@@ -1,0 +1,277 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{75833981-86C0-463F-8AFD-45074B749A75}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>minimbm</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>mini_mbm</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+    <TargetName>$(ProjectName)</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\include\version;..\..\include\lua-interface\;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <TargetName>$(ProjectName)</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;NOMINMAX;USE_EDITOR_FEATURES;USE_OPENGL_ES;USE_VR;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ForceFileOutput>
+      </ForceFileOutput>
+    </Link>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;NOMINMAX;USE_OPENGL_ES;USE_VR;USE_EDITOR_FEATURES;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ForceFileOutput>
+      </ForceFileOutput>
+    </Link>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat" "$(OutDir)"
+      </Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" scene_editor scene_editor2d.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" sprite_maker sprite_maker.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" font_maker font_maker.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" particle_editor particle_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" physic_editor physic_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" shader_editor shader_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" asset_packager asset_packager.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" tilemap_editor tilemap_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
+Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_packer.lua "-w 1280 -h 800 -nosplash --showconsole"
+
+</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\background-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\font-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\no-gc-renderizable-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\shape-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\render-2-texture-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\sprite-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec3-lua.h" />
+    <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />
+    <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h" />
+    <ClInclude Include="..\..\include\plusWindows\plusWindows.h" />
+    <ClInclude Include="..\..\include\render\background.h" />
+    <ClInclude Include="..\..\include\render\font.h" />
+    <ClInclude Include="..\..\include\render\gif-view.h" />
+    <ClInclude Include="..\..\include\render\render-2-texture.h" />
+    <ClInclude Include="..\..\include\render\shape-mesh.h" />
+    <ClInclude Include="..\..\include\render\HMD.h" />
+    <ClInclude Include="..\..\include\render\line-mesh.h" />
+    <ClInclude Include="..\..\include\render\mesh.h" />
+    <ClInclude Include="..\..\include\render\particle.h" />
+    <ClInclude Include="..\..\include\render\sprite.h" />
+    <ClInclude Include="..\..\include\render\texture-view.h" />
+    <ClInclude Include="..\..\include\stb\stb_image.h" />
+    <ClInclude Include="..\..\include\stb\stb_truetype.h" />
+    <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lauxlib.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lcode.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lctype.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldebug.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldo.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lfunc.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lgc.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ljumptab.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llex.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llimits.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lmem.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lobject.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopcodes.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopnames.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lparser.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lprefix.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstate.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstring.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltable.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltm.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.hpp" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\luaconf.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lualib.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lundump.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lvm.h" />
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lzio.h" />
+    <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="mini-mbm.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="mini-mbm.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="create-short-cuts.bat" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

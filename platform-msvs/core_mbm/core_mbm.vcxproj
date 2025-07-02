@@ -1,0 +1,312 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2952FFC2-4374-4D25-86CA-973C88E2ABBE}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>core_mbm</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>core_mbm</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <CodeAnalysisRuleSet>C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+    <LibraryPath>$(LibraryPath);$(Outdir);$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs</LibraryPath>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
+    <CustomBuildAfterTargets>
+    </CustomBuildAfterTargets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ShowIncludes>false</ShowIncludes>
+      <EnablePREfast>false</EnablePREfast>
+      <PreprocessToFile>false</PreprocessToFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>
+      </LinkLibraryDependencies>
+    </ProjectReference>
+    <Lib>
+      <RemoveObjects>
+      </RemoveObjects>
+    </Lib>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+    </PreBuildEvent>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\core_mbm\animation.h" />
+    <ClInclude Include="..\..\include\core_mbm\audio-interface.h" />
+    <ClInclude Include="..\..\include\core_mbm\blend.h" />
+    <ClInclude Include="..\..\include\core_mbm\camera.h" />
+    <ClInclude Include="..\..\include\core_mbm\class-identifier.h" />
+    <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
+    <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
+    <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
+    <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
+    <ClInclude Include="..\..\include\core_mbm\frustum.h" />
+    <ClInclude Include="..\..\include\core_mbm\gles-debug.h" />
+    <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
+    <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
+    <ClInclude Include="..\..\include\core_mbm\log-util.h" />
+    <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\order-render.h" />
+    <ClInclude Include="..\..\include\core_mbm\file-util.h" />
+    <ClInclude Include="..\..\include\core_mbm\physics.h" />
+    <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
+    <ClInclude Include="..\..\include\core_mbm\primitives.h" />
+    <ClInclude Include="..\..\include\core_mbm\renderizable-clone.h" />
+    <ClInclude Include="..\..\include\core_mbm\renderizable.h" />
+    <ClInclude Include="..\..\include\core_mbm\scene.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-cfg.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-resource.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-fx.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h" />
+    <ClInclude Include="..\..\include\core_mbm\shader.h" />
+    <ClInclude Include="..\..\include\core_mbm\shapes.h" />
+    <ClInclude Include="..\..\include\core_mbm\audio.h" />
+    <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
+    <ClInclude Include="..\..\include\core_mbm\time-control.h" />
+    <ClInclude Include="..\..\include\core_mbm\uber-image.h" />
+    <ClInclude Include="..\..\include\core_mbm\util-interface.h" />
+    <ClInclude Include="..\..\include\core_mbm\util.h" />
+    <ClInclude Include="..\..\include\core_mbm\vigenere.h" />
+    <ClInclude Include="..\..\include\joystick-win32\joystick.h" />
+    <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />
+    <ClInclude Include="..\..\include\platform\common-jni.h" />
+    <ClInclude Include="..\..\include\platform\mismatch-platform.h" />
+    <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h" />
+    <ClInclude Include="..\..\include\plusWindows\plusWindows.h" />
+    <ClInclude Include="..\..\include\render\background.h" />
+    <ClInclude Include="..\..\include\render\font.h" />
+    <ClInclude Include="..\..\include\render\gif-view.h" />
+    <ClInclude Include="..\..\include\render\HMD.h" />
+    <ClInclude Include="..\..\include\render\line-mesh.h" />
+    <ClInclude Include="..\..\include\render\mesh.h" />
+    <ClInclude Include="..\..\include\render\particle.h" />
+    <ClInclude Include="..\..\include\render\render-2-texture.h" />
+    <ClInclude Include="..\..\include\render\shape-mesh.h" />
+    <ClInclude Include="..\..\include\render\sprite.h" />
+    <ClInclude Include="..\..\include\render\steered_particle.h" />
+    <ClInclude Include="..\..\include\render\texture-view.h" />
+    <ClInclude Include="..\..\include\render\tile.h" />
+    <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h" />
+    <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
+    <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_common.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_tdef.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_tinfl.h" />
+    <ClInclude Include="..\..\third-party\miniz\miniz_zip.h" />
+    <ClInclude Include="..\..\third-party\stb\stb-interface.h" />
+    <ClInclude Include="..\..\third-party\stb\stb_image.h" />
+    <ClInclude Include="..\..\third-party\stb\stb_truetype.h" />
+    <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
+    <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
+    <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\gles-debug.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\util.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\vigenere.cpp" />
+    <ClCompile Include="..\..\src\render\background.cpp" />
+    <ClCompile Include="..\..\src\render\font.cpp" />
+    <ClCompile Include="..\..\src\render\gif-view.cpp" />
+    <ClCompile Include="..\..\src\render\HMD.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\mesh.cpp" />
+    <ClCompile Include="..\..\src\render\particle.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
+    <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
+    <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\sprite.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle.cpp" />
+    <ClCompile Include="..\..\src\render\texture-view.cpp" />
+    <ClCompile Include="..\..\src\render\tile.cpp" />
+    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />
+    <ClCompile Include="..\..\third-party\lodepng\lodepng_util.cpp" />
+    <ClCompile Include="..\..\third-party\miniz\miniz.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_tdef.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c" />
+    <ClCompile Include="..\..\third-party\miniz\miniz_zip.c" />
+    <ClCompile Include="..\..\third-party\stb\stb.c" />
+    <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
+    <ClCompile Include="core_mbm.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\copy-dlls.bat" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

@@ -1,0 +1,300 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\plusWindows">
+      <UniqueIdentifier>{61aafae3-633f-41a2-ac16-4a880992c63a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\tinyfiledialogs">
+      <UniqueIdentifier>{d87f23ab-8f43-4c4f-89ac-c15aaf021f6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\audiere-1.9.4">
+      <UniqueIdentifier>{7bdc2625-3e65-4f1c-a064-34d79eeef707}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\src">
+      <UniqueIdentifier>{7ef09be2-030f-41d1-bf15-ee8538f41db7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua-wrap">
+      <UniqueIdentifier>{6e0f67e1-ff70-47d5-8175-49774bc97122}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\render">
+      <UniqueIdentifier>{e5bb136c-44ea-4ed4-9a4b-a692e500051b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua-wrap\render-table">
+      <UniqueIdentifier>{58e64448-6d8f-4eba-8e23-4985ec534017}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\stb">
+      <UniqueIdentifier>{e7ad98b7-6fe3-4602-8ea5-24ef17100543}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\miniz-wrap">
+      <UniqueIdentifier>{51fa0b25-0dc0-4cc1-8595-07f2f50ae015}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lsqLite3">
+      <UniqueIdentifier>{58125405-2aba-4602-b0fb-2619e306d5d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua">
+      <UniqueIdentifier>{13d92e4c-253b-4d57-8617-b78524629734}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lcode.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lctype.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldebug.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ldo.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lfunc.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lgc.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lauxlib.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llex.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\llimits.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lmem.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lobject.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopcodes.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lparser.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstate.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lstring.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltm.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ltable.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\luaconf.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lualib.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lundump.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lvm.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lzio.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lua.hpp">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec3-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\font-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\background-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\shape-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\gif-view-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\line-mesh-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\particle-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-debug-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\render-2-texture-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\sprite-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\font.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\background.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\shape-mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\HMD.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\line-mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\mesh.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\particle.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\sprite.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h">
+      <Filter>Header Files\plusWindows</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\plusWindows\plusWindows.h">
+      <Filter>Header Files\plusWindows</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\mesh-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h">
+      <Filter>Header Files\miniz-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stb\stb_image.h">
+      <Filter>Header Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\stb\stb_truetype.h">
+      <Filter>Header Files\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">
+      <Filter>Header Files\tinyfiledialogs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\gif-view.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\render-2-texture.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\render\texture-view.h">
+      <Filter>Header Files\render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\no-gc-renderizable-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lprefix.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\lopnames.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\lua-5.4.1\ljumptab.h">
+      <Filter>Header Files\lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h">
+      <Filter>Header Files\audiere-1.9.4</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\version\version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="mini-mbm.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="mini-mbm.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="create-short-cuts.bat">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+</Project>

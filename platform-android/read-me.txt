@@ -1,0 +1,41 @@
+Tutorial creating a project using the lib mbm Android.
+
+Here I will demonstrate how to create a project to run over android studio using the native lib mbm.
+
+
+1 - Using Android Studio version 3.5.1.
+2 - Create a new project.
+3 - Select the minimum SDK (4.1.x "JELLY BEAN" which is the minimum API 16 lib).
+4 - Select "Add Empty Activity" or "No Activity" (you can create in the step 11). (let the class name 'MainActivity', change if you want).
+5 - Go to the created project folder (do not do that using the Android Studio, use terminal instead 	of AndroidStudio), navigate to (app -> src -> main -> Java).
+6 - Create the following structure: com/mini/mbm
+7 - Copy and paste the Java files in the folder root/platform-android/com/min/mbm to the 
+	folder com/mini/mbm created in your project. 
+	These classes are used by mbm lib and should not have different paths in your project.
+8 - Go to the created project folder (do not recommend doing the Android Studio again), 
+	navigate to app -> src -> main and create a folder named jniLibs.
+9 - Copy the libs located in "root/platform-android/libs" to jniLibs (previously compiled). 
+	Important to keep the name of target platform as 'armeabi' 'armeabi-v7a', 'arm64-v8a', 'mips', etc within the jniLibs folder. eg.: jniLibs/armeabi/libMini-Mbm.so, jniLibs/armeabi-v7a/libMini-Mbm.so, jniLibs/arm64-v8a/libMini-Mbm.so, jniLibs/mips/libMini-Mbm.so etc.
+	The final folder name will be like this:(yourProject\app\src\main\jniLibs\arm64-v8a\libMini-Mbm.so and yourProject\app\src\main\jniLibs\armeabi-v7a\libMini-Mbm.so).
+	remember to copy also libc++_shared.so, liblua-5.4.1.so when using LUA and others libs as well.
+10 - Go to the created project folder, navigate to app -> src -> main and create a folder called assets. 
+	This folder will contain the main file LUA script (main.lua) and other resources sub-folder and files. 
+	In short, this folder will be used for application to get resources as images, scripts, files, audio, etc.
+	You will put into this folder (sub-folder) the needed files to build your game.
+11 - Now is missing our main class activity. 
+	let's go  to MainActivity.java (it was created automatically, if not, just create a new java class). 
+	Now, inherit it from MainJniEngine class. 
+	Next include the appropriate package to the class be found (com.mini.mbm.MainJniEngine;), 
+	and remove onCreate from 'MainActivity' if exists (MainJniEngine implement that already).
+	Implement the abstract methods.
+	Using Android studio, right click and select "implement methods" and Android Studio will do that for you.
+12 - Set the AndroidManifest.xml file according to the example in the folder root/platform-android/AndroidManifest.xml. 
+	Will need to change the package name mostly. You also need to point in the main XML Activity name (in this case MainActivity).
+13. Now let's connect the device and play on the Android Studio.
+14 - If all right, will be installed App in your device and then will show mini mbm logo.
+	In the logcat, you can see the search for "the file 'main.lua' not found!""
+	You can check the LogCat printing some messages from lib as well.
+
+
+Now you are able to go ahead and run your game in LUA over mbm lib C++.
+That's it!
