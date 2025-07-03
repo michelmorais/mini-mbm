@@ -98,6 +98,13 @@ ImDrawList* GetImDrawListLua()
     return ImGui::GetWindowDrawList();
 }
 
+namespace ImGui
+{
+    void   IsScrollVisible(bool* x, bool * y);
+    void   ImageQuad(ImTextureID user_texture_id, const ImVec2& size, const ImVec2& uv0 , const ImVec2& uv1, const ImVec2& uv2,const ImVec2& uv3 , const ImVec4& tint_col = ImVec4(1,1,1,1), const ImVec4& border_col = ImVec4(0,0,0,0));
+    float  GetMainMenuBarHeight();
+}
+
 IMGUI_LUA *getImGuiFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 void lua_log_error(lua_State *lua,const char * message);
 
@@ -479,7 +486,7 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-        {"ImGuiColorEditFlags__OptionsDefault",               ImGuiColorEditFlags__OptionsDefault},
+        {"ImGuiColorEditFlags_DefaultOptions_",               ImGuiColorEditFlags_DefaultOptions_},
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -733,7 +740,7 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-        {"ImGuiColorEditFlags__OptionsDefault",               ImGuiColorEditFlags__OptionsDefault},
+        {"ImGuiColorEditFlags_DefaultOptions_",               ImGuiColorEditFlags_DefaultOptions_},
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -1863,8 +1870,8 @@ void lua_push_ImFontConfig(lua_State *lua, const ImFontConfig & in)
     lua_setfield(lua, -2, "GlyphMaxAdvanceX");
     lua_pushboolean(lua,in.MergeMode);
     lua_setfield(lua, -2, "MergeMode");
-    lua_pushinteger(lua,in.RasterizerFlags);
-    lua_setfield(lua, -2, "RasterizerFlags");
+    lua_pushinteger(lua,in.FontBuilderFlags);
+    lua_setfield(lua, -2, "FontBuilderFlags");
     lua_pushnumber(lua,in.RasterizerMultiply);
     lua_setfield(lua, -2, "RasterizerMultiply");
     lua_pushinteger(lua,in.EllipsisChar);
@@ -1908,8 +1915,8 @@ void lua_push_ImFontAtlas(lua_State *lua, const ImFontAtlas & in)
     //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
     //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
     //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
-    push_int_arrayFromTable(lua,in.CustomRectIds ,sizeof(in.CustomRectIds) / sizeof(int));//TODO: 5 check if the type is right
-    lua_setfield(lua, -2, "CustomRectIds");
+    //push_int_arrayFromTable(lua,in.CustomRectIds ,sizeof(in.CustomRectIds) / sizeof(int));//TODO: 5 check if the type is right
+    //lua_setfield(lua, -2, "CustomRectIds");
     //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
     //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
 
@@ -1977,8 +1984,6 @@ void lua_push_ImFont(lua_State *lua, const ImFont & in)
     printStack(lua,__FILE__,__LINE__);
     lua_setfield(lua, -2, "FallbackGlyph");
     printStack(lua,__FILE__,__LINE__);
-    lua_push_ImVec2(lua,in.DisplayOffset);
-    lua_setfield(lua, -2, "DisplayOffset");
     lua_push_ImFontAtlas_pointer(lua, in.ContainerAtlas);//TODO: 6 check here, apparently, "ImFont.ContainerAtlas" is a pointer and might be nullptr 
     lua_setfield(lua, -2, "ContainerAtlas");
     lua_push_ImFontConfig_pointer(lua, in.ConfigData);//TODO: 6 check here, apparently, "ImFont.ConfigData" is a pointer and might be nullptr 
@@ -2146,8 +2151,8 @@ ImFontConfig lua_pop_ImFontConfig(lua_State *lua,const int index)
     lua_getfield(lua, index, "MergeMode");
     ImFontConfig_out.MergeMode             = lua_toboolean(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "RasterizerFlags");
-    ImFontConfig_out.RasterizerFlags       = luaL_checkinteger(lua,-1);
+    lua_getfield(lua, index, "FontBuilderFlags");
+    ImFontConfig_out.FontBuilderFlags       = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "RasterizerMultiply");
     ImFontConfig_out.RasterizerMultiply    = luaL_checknumber(lua,-1);
@@ -2190,26 +2195,11 @@ ImFont lua_pop_ImFont(lua_State *lua,const int index)
 {
     ImFont ImFont_out;
     lua_check_is_table(lua, index, "ImFont");
-    //#error "1 - (make_pop_methods) Not found ImVector<float>, do not know what to do for variables: IndexAdvanceX, "
     lua_getfield(lua, index, "FallbackAdvanceX");
     ImFont_out.FallbackAdvanceX     = luaL_checknumber(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "FontSize");
     ImFont_out.FontSize             = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    //#error "1 - (make_pop_methods) Not found ImVector<ImWchar>, do not know what to do for variables: IndexLookup, "
-    //#error "1 - (make_pop_methods) Not found ImVector<ImFontGlyph>, do not know what to do for variables: Glyphs, "
-    //lua_getfield(lua, index, "FallbackGlyph");
-    //ImFont_out.FallbackGlyph        = lua_pop_ImFontGlyph(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "DisplayOffset");
-    ImFont_out.DisplayOffset        = lua_pop_ImVec2(lua,-1);
-    lua_pop(lua, 1);
-    //lua_getfield(lua, index, "ContainerAtlas");
-    //ImFont_out.ContainerAtlas       = lua_pop_ImFontAtlas(lua,-1);
-    lua_pop(lua, 1);
-    //lua_getfield(lua, index, "ConfigData");
-    //ImFont_out.ConfigData           = lua_pop_ImFontConfig(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "ConfigDataCount");
     ImFont_out.ConfigDataCount      = luaL_checkinteger(lua,-1);
@@ -2437,7 +2427,7 @@ ImFontConfig * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImF
     in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
     in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
     in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    in_out_ImFontConfig->RasterizerFlags       = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerFlags),"RasterizerFlags"));
+    in_out_ImFontConfig->FontBuilderFlags      = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontBuilderFlags),"FontBuilderFlags"));
     in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
@@ -2485,8 +2475,6 @@ ImFont * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFont * in_out
      //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
     static ImFontGlyph var_ImFontGlyph_140;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
     in_out_ImFont->FallbackGlyph        = lua_pop_ImFont_pointer(lua, index, &var_ImFontGlyph_140);
-    lua_getfield(lua, index, "DisplayOffset");
-    in_out_ImFont->DisplayOffset        = lua_pop_ImVec2(lua,index);
     static ImFontAtlas var_ImFontAtlas_141;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
     in_out_ImFont->ContainerAtlas       = lua_pop_ImFont_pointer(lua, index, &var_ImFontAtlas_141);
     static ImFontConfig var_ImFontConfig_142;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
@@ -2550,7 +2538,7 @@ ImFontAtlas * lua_pop_ImFontAtlas_pointer(lua_State *lua, const int index, ImFon
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
+    //get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
 
      //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -2691,8 +2679,8 @@ void lua_push_ImFontConfig_pointer(lua_State *lua, const ImFontConfig * p_in_ImF
         lua_setfield(lua, -2, "GlyphMaxAdvanceX");
         lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
         lua_setfield(lua, -2, "MergeMode");
-        lua_pushinteger(lua,p_in_ImFontConfig->RasterizerFlags);
-        lua_setfield(lua, -2, "RasterizerFlags");
+        lua_pushinteger(lua,p_in_ImFontConfig->FontBuilderFlags);
+        lua_setfield(lua, -2, "FontBuilderFlags");
         lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
         lua_setfield(lua, -2, "RasterizerMultiply");
         lua_pushinteger(lua,p_in_ImFontConfig->EllipsisChar);
@@ -2755,8 +2743,6 @@ void lua_push_ImFont_pointer(lua_State *lua, const ImFont * p_in_ImFont)
             lua_push_ImFontGlyph(lua,*p_in_ImFont->FallbackGlyph);
             lua_setfield(lua, -2, "FallbackGlyph");
         }
-        lua_push_ImVec2(lua,p_in_ImFont->DisplayOffset);
-        lua_setfield(lua, -2, "DisplayOffset");
         if(p_in_ImFont->ContainerAtlas)
         {
             lua_push_ImFontAtlas(lua,*p_in_ImFont->ContainerAtlas);
@@ -2867,8 +2853,8 @@ void lua_push_ImFontAtlas_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFon
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
-        lua_setfield(lua, -2, "CustomRectIds");
+        //push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
+        //lua_setfield(lua, -2, "CustomRectIds");
 
          //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -2922,7 +2908,7 @@ ImFontConfig * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontCon
     in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
     in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
     in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    in_out_ImFontConfig->RasterizerFlags       = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerFlags),"RasterizerFlags"));
+    in_out_ImFontConfig->FontBuilderFlags      = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontBuilderFlags),"FontBuilderFlags"));
     in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
@@ -2965,7 +2951,7 @@ ImFontAtlas * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontAtla
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
+    //get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
 
      //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -3029,8 +3015,6 @@ ImFont * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImFont * 
      //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
     static ImFontGlyph var_ImFontGlyph_156;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
     in_out_ImFont->FallbackGlyph        = lua_pop_ImFont_pointer(lua, index, &var_ImFontGlyph_156);
-    lua_getfield(lua, index, "DisplayOffset");
-    in_out_ImFont->DisplayOffset        = lua_pop_ImVec2(lua,index);
     static ImFontAtlas var_ImFontAtlas_157;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
     in_out_ImFont->ContainerAtlas       = lua_pop_ImFont_pointer(lua, index, &var_ImFontAtlas_157);
     static ImFontConfig var_ImFontConfig_158;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
@@ -3106,8 +3090,8 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontConfig * p_in_ImFontConf
         lua_setfield(lua, -2, "GlyphMaxAdvanceX");
         lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
         lua_setfield(lua, -2, "MergeMode");
-        lua_pushinteger(lua,p_in_ImFontConfig->RasterizerFlags);
-        lua_setfield(lua, -2, "RasterizerFlags");
+        lua_pushinteger(lua,p_in_ImFontConfig->FontBuilderFlags);
+        lua_setfield(lua, -2, "FontBuilderFlags");
         lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
         lua_setfield(lua, -2, "RasterizerMultiply");
         lua_pushinteger(lua,p_in_ImFontConfig->EllipsisChar);
@@ -3169,8 +3153,8 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
-        lua_setfield(lua, -2, "CustomRectIds");
+        //push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
+        //lua_setfield(lua, -2, "CustomRectIds");
 
          //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -3237,8 +3221,6 @@ void lua_pop_ImFontConfig_pointer(lua_State *lua, const ImFont * p_in_ImFont)
             lua_push_ImFontGlyph(lua,*p_in_ImFont->FallbackGlyph);
             lua_setfield(lua, -2, "FallbackGlyph");
         }
-        lua_push_ImVec2(lua,p_in_ImFont->DisplayOffset);
-        lua_setfield(lua, -2, "DisplayOffset");
         if(p_in_ImFont->ContainerAtlas)
         {
             lua_push_ImFontAtlas(lua,*p_in_ImFont->ContainerAtlas);
@@ -5883,9 +5865,8 @@ int onOpenPopupOnItemClickImGuiLua(lua_State *lua)
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
     ImGuiMouseButton mouse_button      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const bool ret_bool                = ImGui::OpenPopupOnItemClick(p_str_id,mouse_button);
-    lua_pushboolean(lua,ret_bool);
-    return 1;
+    ImGui::OpenPopupOnItemClick(p_str_id,mouse_button);
+    return 0;
 }
 /*
 namespace ImGui
