@@ -103,6 +103,10 @@ public abstract class  MainJniEngine<MainActivity> extends AppCompatActivity
 
 	public abstract void OnPostCreate(Bundle savedInstanceState);
 
+	//ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE; -> Horizontal
+	//ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT -> Vertical
+	public abstract int getScreenOrientation();
+
 	@Override
 	protected final void onCreate(Bundle icicle)
 	{
@@ -499,11 +503,15 @@ public abstract class  MainJniEngine<MainActivity> extends AppCompatActivity
 	{
 		try
 		{
+			// If you remove android:screenOrientation="landscape" from AndroidManifest.xml screenOrientation become -1 which is none of orientation below
+			// you need to set the orientation here
 			int screenOrientation = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_ACTIVITIES).activities[0].screenOrientation;
 			if (screenOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
 				setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
 			else if (screenOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
 				setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+			else
+				setRequestedOrientation(getScreenOrientation());
 
 		}
 		catch (Exception e)
