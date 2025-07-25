@@ -37,14 +37,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.your_package"
-        tools:targetApi="31">
+        tools:targetApi="34">
+        <!-- android:screenOrientation="landscape" is no longer supported-->
         <activity
             android:name="com.mini.mbm.your_package.Main"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:orientation="horizontal"
-            android:screenOrientation="landscape"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

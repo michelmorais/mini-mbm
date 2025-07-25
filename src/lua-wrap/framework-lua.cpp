@@ -53,6 +53,8 @@
     #include <platform/common-jni.h>
 #elif defined __linux__
     #include <unistd.h>
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
 #endif
 
 #ifdef _WIN32
