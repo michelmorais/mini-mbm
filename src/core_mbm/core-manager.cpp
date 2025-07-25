@@ -36,7 +36,11 @@
 #include <platform/common-jni.h>
 #elif defined(__linux__)
     #include <thread>
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
     #include <X11/XKBlib.h>
+    //#include <X11/extensions/Xcomposite.h>
+    //#include <X11/Xmu/WinUtil.h>
 #elif defined(_WIN32)
     #include <GLES2/gl2ext.h>
 #endif
