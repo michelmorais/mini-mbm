@@ -38,6 +38,7 @@
 #if defined USE_EDITOR_FEATURES
 #include <map>
 #endif
+#include <unordered_set>
 
 const bool is_mode_draw_valid(const uint32_t mode_draw)noexcept
 {
@@ -1030,8 +1031,24 @@ namespace mbm
         }
 
         // 1 header MBM -------------------------------------------------------------------------------
+        std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
+        headerMain.extraHeader = static_cast<int>(ls_paths.size());
         if (!util::saveToFileBinary(fileOut, &this->headerMain, sizeof(util::HEADER), nullptr, 0, &file))
             return log_util::onFailed(file,__FILE__, __LINE__, "Failed to save file [%s]", fileOut);
+
+
+		// 2 extra header MBM -------------------------------------------------------------------------------
+        for (size_t i = 0; i < ls_paths.size(); i++)
+        {
+            util::EXTRA_HEADER extra;
+			const std::string& path = ls_paths[i];
+            extra.type = 1;
+            extra.sizeExtraHeader = path.size();
+            if (!util::addToFileBinary(fileOut, &extra, sizeof(util::EXTRA_HEADER), &file))
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to save EXTRA_HEADER [%s]", fileOut);
+            if (!util::addToFileBinary(fileOut, path.data(), path.size(), &file))
+                return log_util::onFailed(file, __FILE__, __LINE__, "failed to save path for EXTRA_HEADER [%s]", fileOut);
+        }
 
         if (!util::addToFileBinary(fileOut,&this->info_mode, sizeof(util::INFO_DRAW_MODE),&file))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail INFO_DRAW_MODE [%s]", fileOut);
@@ -1342,6 +1359,12 @@ namespace mbm
                 }
                 else
                     strncpy(headerDescSubset.nameTexture, "default",sizeof(headerDescSubset.nameTexture)-1);
+				bool exists = false;
+				std::string full_path_texture = util::getFullPath(headerDescSubset.nameTexture, &exists);
+                if (exists && full_path_texture.size() < sizeof(headerDescSubset.nameTexture))
+                {
+                    strncpy(headerDescSubset.nameTexture, full_path_texture.c_str(), sizeof(headerDescSubset.nameTexture) - 1);
+                }
                 headerDescSubset.vertexStart = pSubset->vertexStart;
                 headerDescSubset.indexStart  = pSubset->indexStart;
                 headerDescSubset.vertexCount = pSubset->vertexCount;
@@ -1471,6 +1494,26 @@ namespace mbm
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
 
+        if (headerMain.version >= EXTRA_MBM_HEADER_PATH_TEXTURE)
+        {
+            for (int i = 0; i < headerMain.extraHeader; i++)
+            {
+                util::EXTRA_HEADER extra;
+                if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
+                if (extra.type == 1)// paths
+                {
+                    std::string path(extra.sizeExtraHeader + 1, 0);
+                    if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
+                        return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
+                    util::addPath(path.c_str());
+                }
+                else
+                {
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
+                }
+            }
+        }
         if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
             if (!fread(&info_mode, sizeof(util::INFO_DRAW_MODE), 1, fp))
@@ -2904,6 +2947,29 @@ namespace mbm
         base->absCenter.y = vMin.y + (base->halfDim.y);
         base->absCenter.z = vMin.z + (base->halfDim.z);
     }
+
+    std::vector<std::string> MESH_MBM_DEBUG::getKnowPathsToExtraHeader()
+    {
+		mbm::TEXTURE_MANAGER* textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        std::vector<std::string> allTexturesFullPaths;
+        textureManager->getAllTexturesFullPaths(allTexturesFullPaths);
+
+		std::unordered_set<std::string> uniquePaths;
+        for(const auto& fullPath : allTexturesFullPaths)
+        {
+            std::string path = util::getPathFromFullPathName(fullPath.c_str());
+            if (!path.empty())
+            {
+                uniquePaths.insert(path);
+            }
+		}
+        std::vector<std::string> result;
+        for (const auto & path : uniquePaths)
+        {
+			result.insert(result.end(), path);
+        }
+        return result;
+    }
     
     bool MESH_MBM_DEBUG::fillAnimation_2(const char *fileNamePath, FILE *fp)
     {
@@ -4130,6 +4196,24 @@ namespace mbm
         }
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
+
+        for (int i = 0; i < headerMain.extraHeader; i++)
+        {
+            util::EXTRA_HEADER extra;
+            if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
+            if (extra.type == 1)// paths
+            {
+                std::string path(extra.sizeExtraHeader + 1, 0);
+                if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
+					return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
+                util::addPath(path.c_str());
+            }
+            else
+            {
+                return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
+            }
+        }
 
         if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
