@@ -1506,7 +1506,7 @@ namespace mbm
                     std::string path(extra.sizeExtraHeader + 1, 0);
                     if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
                         return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
-                    #ifndef (ANDROID)
+                    #ifndef ANDROID
                     util::addPath(path.c_str());
                     #endif
                 }
