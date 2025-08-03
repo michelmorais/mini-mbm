@@ -15,13 +15,20 @@ get_filename_component(AUDIERE_LIB
                       "${CMAKE_CURRENT_LIST_DIR}/src/.libs/${lib_auriere_version}"
                        ABSOLUTE)
 
+get_filename_component(AUDIERE_USR_LIB
+                      "/usr/local/lib/${lib_auriere_version}"
+                       ABSOLUTE)
+
 get_filename_component(AUDIERE_PATH
                        "${CMAKE_CURRENT_LIST_DIR}"
                         ABSOLUTE)
  
 message(CHECK_START "Finding ${lib_auriere_version}")
 
-if (NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/src/.libs/${lib_auriere_version}")
+if (EXISTS "${AUDIERE_USR_LIB}")
+        message(CHECK_START "Found audiere at ${AUDIERE_USR_LIB}")
+        set(AUDIERE_LIB ${AUDIERE_USR_LIB})
+elseif(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/src/.libs/${lib_auriere_version}")
         message("******************************************************************************************************")
         message("                                  Audiere                                                             ")
         message("CHECK_FAIL" " - ${lib_auriere_version} not found")
