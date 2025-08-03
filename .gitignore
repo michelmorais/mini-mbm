@@ -1,0 +1,15 @@
+platform-msvs/.vs/
+platform-msvs/Release/
+platform-msvs/box2d/Release/
+platform-msvs/bullet2.8/Release/
+platform-msvs/core_mbm/Release/
+platform-msvs/imGui/Release/
+platform-msvs/libTest/Release/
+platform-msvs/lsqlite3/Release/
+platform-msvs/lua5.4/Release/
+platform-msvs/mini-mbm-launcher/Release/
+platform-msvs/mini-mbm-lib/Release/
+platform-msvs/mini-mbm/Release/
+platform-msvs/mini-mbm/mini-mbm.vcxproj.user
+platform-msvs/tilemap/Release/
+platform-msvs/tiny-obj-loader/Release/
