@@ -2,7 +2,7 @@
  * @file
  *
  * Audiere Sound System
- * Version 1.10.1
+ * Version 1.9.4
  * (c) 2001-2003 Chad Austin
  *
  * This API uses principles explained at
@@ -28,10 +28,9 @@
 
 #include <vector>
 #include <string>
-#include <cstring>
+#include <string.h>
 
 #ifdef _MSC_VER
-#pragma warning(push)
 #pragma warning(disable : 4786)
 #endif
 
@@ -40,11 +39,10 @@
   #error Audiere requires C++
 #endif
 
-#ifndef AUDIERE_STATICLIB
 
 // DLLs in Windows should use the standard (Pascal) calling convention
 #ifndef ADR_CALL
-  #if defined(_WIN32)
+  #if defined(WIN32) || defined(_WIN32)
     #define ADR_CALL __stdcall
   #else
     #define ADR_CALL
@@ -53,7 +51,7 @@
 
 // Export functions from the DLL
 #ifndef ADR_DECL
-#  if defined(_WIN32)
+#  if defined(WIN32) || defined(_WIN32)
 #    ifdef AUDIERE_EXPORTS
 #      define ADR_DECL __declspec(dllexport)
 #    else
@@ -64,13 +62,7 @@
 #  endif
 #endif
 
-#else
 
-// Not exporting under a static build, so remove the linkage specifiers
-#define ADR_CALL
-#define ADR_DECL
-
-#endif
 
 #define ADR_FUNCTION(ret) extern "C" ADR_DECL ret ADR_CALL
 #define ADR_METHOD(ret) virtual ret ADR_CALL
@@ -122,7 +114,7 @@ namespace audiere {
         m_ptr = 0;
       }
     }
-
+ 
     RefPtr<T>& operator=(T* ptr) {
       if (ptr != m_ptr) {
         if (m_ptr) {
@@ -176,7 +168,7 @@ namespace audiere {
   bool operator==(const T* a, const RefPtr<T>& b) {
       return (a == b.get());
   }
-
+  
 
   template<typename T, typename U>
   bool operator!=(const RefPtr<T>& a, const RefPtr<U>& b) {
@@ -192,6 +184,39 @@ namespace audiere {
   bool operator!=(const T* a, const RefPtr<T>& b) {
       return (a != b.get());
   }
+
+
+  /**
+   * A basic implementation of the RefCounted interface.  Derive
+   * your implementations from RefImplementation<YourInterface>.
+   */
+  template<class Interface>
+  class RefImplementation : public Interface {
+  protected:
+    RefImplementation() {
+      m_ref_count = 0;
+    }
+
+    /**
+     * So the implementation can put its destruction logic in the destructor,
+     * as natural C++ code does.
+     */
+    virtual ~RefImplementation() { }
+
+  public:
+    void ADR_CALL ref() {
+      ++m_ref_count;
+    }
+
+    void ADR_CALL unref() {
+      if (--m_ref_count == 0) {
+        delete this;
+      }
+    }
+
+  private:
+    int m_ref_count;
+  };
 
 
   /**
@@ -321,7 +346,7 @@ namespace audiere {
      *          seekable
      */
     ADR_METHOD(int) getLength() = 0;
-
+    
     /**
      * Sets the current position within the sample source.  If the stream
      * is not seekable, this method does nothing.
@@ -371,12 +396,6 @@ namespace audiere {
      * the tag comes from, i.e. "ID3v1", "ID3v2", or "vorbis".
      */
     virtual const char* ADR_CALL getTagType(int i) = 0;
-
-    /**
-     * Returns a logical name for the decoder being used
-     * it will be in the format <type>:<decoder>, so an example is: ogg:standard and mp3:mpaudec
-     */
-    virtual const char* ADR_CALL getDecoder() = 0;
   };
   typedef RefPtr<SampleSource> SampleSourcePtr;
 
@@ -548,7 +567,7 @@ namespace audiere {
      *          seekable
      */
     ADR_METHOD(int) getLength() = 0;
-
+    
     /**
      * Sets the current position within the sample source.  If the stream
      * is not seekable, this method does nothing.
@@ -618,7 +637,7 @@ namespace audiere {
   /**
    * Base interface for all callbacks.  See specific callback implementations
    * for descriptions.
-   */
+   */  
   class Callback : public RefCounted {
   protected:
     ~Callback() { }
@@ -637,7 +656,7 @@ namespace audiere {
   };
   typedef RefPtr<Callback> CallbackPtr;
 
-
+  
   /**
    * To listen for stream stopped events on a device, implement this interface
    * and call registerStopCallback() on the device, passing your
@@ -743,7 +762,7 @@ namespace audiere {
      * registered multiple times.
      */
     ADR_METHOD(void) registerCallback(Callback* callback) = 0;
-
+    
     /**
      * Unregisters 'callback' once.  If it is registered multiple times,
      * each unregisterStopCallback call unregisters one of the instances.
@@ -912,7 +931,7 @@ namespace audiere {
      * does nothing.
      */
     ADR_METHOD(void) stop() = 0;
-
+    
     /**
      * pauses playback of the track that is currently playing (if any)
      * This does nothing if no track is playing
@@ -1028,9 +1047,6 @@ namespace audiere {
 
     ADR_FUNCTION(const char*) AdrGetVersion();
 
-    ADR_FUNCTION(long) AdrAtomicIncrement(volatile long& var);
-    ADR_FUNCTION(long) AdrAtomicDecrement(volatile long& var);
-
     /**
      * Returns a formatted string that lists the file formats that Audiere
      * supports.  This function is DLL-safe.
@@ -1122,20 +1138,6 @@ namespace audiere {
     return hidden::AdrGetVersion();
   }
 
-
-  /**
-   * Atomically increments a counter.  Returns incremented value.
-   */
-  inline long AtomicIncrement(volatile long& var) {
-    return hidden::AdrAtomicIncrement(var);
-  }
-
-  /**
-   * Atomically decrements a counter.  Returns decremented value.
-   */
-  inline long AtomicDecrement(volatile long& var) {
-    return hidden::AdrAtomicDecrement(var);
-  }
 
   inline void SplitString(
     std::vector<std::string>& out,
@@ -1537,7 +1539,7 @@ namespace audiere {
 
   /**
    * Opens the specified CD playback device.
-   *
+   * 
    * @param device  The filesystem device to be played.
    *                e.g. Linux: "/dev/cdrom", Windows: "D:"
    *
@@ -1558,43 +1560,7 @@ namespace audiere {
     return hidden::AdrOpenMIDIDevice(device);
   }
 
-
-  /**
-   * A basic implementation of the RefCounted interface.  Derive
-   * your implementations from RefImplementation<YourInterface>.
-   */
-  template<class Interface>
-  class RefImplementation : public Interface {
-  protected:
-    RefImplementation() {
-      m_ref_count = 0;
-    }
-
-    /**
-     * So the implementation can put its destruction logic in the destructor,
-     * as natural C++ code does.
-     */
-    virtual ~RefImplementation() { }
-
-  public:
-    void ADR_CALL ref() {
-      AtomicIncrement(m_ref_count);
-    }
-
-    void ADR_CALL unref() {
-      if (AtomicDecrement(m_ref_count) == 0) {
-        delete this;
-      }
-    }
-
-  private:
-    volatile long m_ref_count;
-  };
-
 }
 
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif
