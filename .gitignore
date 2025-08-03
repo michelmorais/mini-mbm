@@ -26,3 +26,6 @@ platform-msvs/mini-mbm-lib/Debug/
 platform-msvs/mini-mbm/Debug/
 platform-msvs/tilemap/Debug/
 platform-msvs/tiny-obj-loader/Debug/
+.vscode/
+bin/
+build/
