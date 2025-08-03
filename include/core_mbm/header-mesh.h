@@ -108,9 +108,10 @@ namespace util
     #define SPRITE_INFO_VERSION_MBM_HEADER 2
     #define DETAIL_MESH_VERSION_MBM_HEADER 3
     #define SPACE_SHIP_VERSION_MBM_HEADER  4
-    #define CURRENT_VERSION_MBM_HEADER     5
-
     #define MODE_DRAW_VERSION_MBM_HEADER   5
+    #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
+
+    #define CURRENT_VERSION_MBM_HEADER     6
 
     // step 1:
     struct API_IMPL HEADER
@@ -122,9 +123,16 @@ namespace util
         int reserved;           // reserved (Must be 0)
         int backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
         int backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
-        int extraHeader;        // Quando indica o tamanho do Header extra (em bytes) logo apos este frame (utilizado em fontes e/ou/futuros).
+        int extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
         HEADER() noexcept;
         HEADER(const char *nameApp, const int versionNumber = 3)noexcept;
+    };
+
+    struct API_IMPL EXTRA_HEADER //added since version 6
+    {
+        char type;           // 0 None, 1 = Paths
+		int sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
+        EXTRA_HEADER() noexcept;
     };
 
     struct API_IMPL INFO_DRAW_MODE //added since version 5
