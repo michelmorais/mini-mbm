@@ -1342,6 +1342,12 @@ namespace mbm
                 }
                 else
                     strncpy(headerDescSubset.nameTexture, "default",sizeof(headerDescSubset.nameTexture)-1);
+				bool exists = false;
+				std::string full_path_texture = util::getFullPath(headerDescSubset.nameTexture, &exists);
+                if (exists && full_path_texture.size() < sizeof(headerDescSubset.nameTexture))
+                {
+                    strncpy(headerDescSubset.nameTexture, full_path_texture.c_str(), sizeof(headerDescSubset.nameTexture) - 1);
+                }
                 headerDescSubset.vertexStart = pSubset->vertexStart;
                 headerDescSubset.indexStart  = pSubset->indexStart;
                 headerDescSubset.vertexCount = pSubset->vertexCount;

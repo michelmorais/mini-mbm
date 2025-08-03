@@ -13,3 +13,16 @@ platform-msvs/mini-mbm/Release/
 platform-msvs/mini-mbm/mini-mbm.vcxproj.user
 platform-msvs/tilemap/Release/
 platform-msvs/tiny-obj-loader/Release/
+platform-msvs/Debug/
+platform-msvs/box2d/Debug/
+platform-msvs/bullet2.8/Debug/
+platform-msvs/core_mbm/Debug/
+platform-msvs/imGui/Debug/
+platform-msvs/libTest/Debug/
+platform-msvs/lsqlite3/Debug/
+platform-msvs/lua5.4/Debug/
+platform-msvs/mini-mbm-launcher/Debug/
+platform-msvs/mini-mbm-lib/Debug/
+platform-msvs/mini-mbm/Debug/
+platform-msvs/tilemap/Debug/
+platform-msvs/tiny-obj-loader/Debug/
