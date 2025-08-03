@@ -72,6 +72,12 @@ namespace util
         backBufferHeight = 0;
     }
 
+    EXTRA_HEADER::EXTRA_HEADER() noexcept
+    {
+        type = 0; // 0 = None
+        sizeExtraHeader = 0; // Tamanho do header extra (em bytes) logo apos este frame
+	}
+
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
             mode_draw(GL_TRIANGLES),
             mode_cull_face(GL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK

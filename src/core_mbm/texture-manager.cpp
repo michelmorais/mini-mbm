@@ -1277,6 +1277,19 @@ namespace mbm
         }
         return fileNameTexture;
     }
+
+    void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
+    {
+        for (auto& texture : lsTextures)
+        {
+            bool existTexture = false;
+            std::string fullPathTexture = util::getFullPath(texture.first.c_str(), &existTexture);
+            if (existTexture)
+            {
+                result.push_back(fullPathTexture);
+            }
+        }
+    }
 #else
     #error "platform not suported"
 #endif
@@ -1287,3 +1300,4 @@ const char* getLodePNGVersion()
 {
     return LODEPNG_VERSION_STRING;
 }
+
