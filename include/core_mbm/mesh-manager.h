@@ -105,6 +105,7 @@ namespace mbm
 		void *       extraInfo;
       private:
         void fillAtLeastOneBound();
+        std::vector<std::string> getKnowPathsToExtraHeader();
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],

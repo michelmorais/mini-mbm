@@ -130,6 +130,7 @@ namespace mbm
         API_IMPL bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                                   const uint32_t width, const uint32_t height, char *strMessageError);
     
+        API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
         std::unordered_map<std::string,TEXTURE *> lsTextures;
