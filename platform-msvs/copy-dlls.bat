@@ -88,6 +88,8 @@ COPY "%audiere_source%" "%audiere_destin%"
 echo "COPY %mini_mbm_lib_source% %mini_mbm_lib_dest%"
 COPY "%mini_mbm_lib_source%" "%mini_mbm_lib_destin%"
 
+echo "Copying Editor LUA to  %destinationFolder%"
+
 echo "XCOPY %editor_source% %editor_dest%"
 XCOPY "%editor_source%" "%editor_destin%" /E /I /Y
 
