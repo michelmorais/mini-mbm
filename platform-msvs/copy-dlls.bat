@@ -36,6 +36,11 @@ pushd %mypath%\mini-mbm-launcher\
 set mini_mbm_lib_source=%CD%\mini-mbm-lib.h
 popd
 
+rem -> get editor path
+pushd %mypath%\..\editor\
+set editor_source=%CD%\
+popd
+
 rem -> destination -------------------------------
 
 rem -> set d3dcompiler_destin path
@@ -63,6 +68,11 @@ pushd %destinationFolder%
 set mini_mbm_lib_destin=%CD%\mini-mbm-lib.h
 popd
 
+rem -> set editor path
+pushd %destinationFolder%
+set editor_destin=%CD%\
+popd
+
 echo "COPY %d3dcompiler_source% %d3dcompiler_destin%"
 COPY "%d3dcompiler_source%" "%d3dcompiler_destin%"
 
@@ -77,6 +87,9 @@ COPY "%audiere_source%" "%audiere_destin%"
 
 echo "COPY %mini_mbm_lib_source% %mini_mbm_lib_dest%"
 COPY "%mini_mbm_lib_source%" "%mini_mbm_lib_destin%"
+
+echo "XCOPY %editor_source% %editor_dest%"
+XCOPY "%editor_source%" "%editor_destin%" /E /I /Y
 
 exit /b 0
 
