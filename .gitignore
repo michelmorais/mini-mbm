@@ -36,6 +36,12 @@ platform-msvs/mini-mbm-launcher/mini-mbm-launcher.vcxproj.user
 platform-msvs/mini-mbm-lib/mini-mbm-lib.vcxproj.user
 platform-msvs/tilemap/tilemap.vcxproj.user
 platform-msvs/tiny-obj-loader/tiny-obj-loader.vcxproj.user
+platform-msvs/mini-mbm-dev/Debug/
+platform-msvs/mini-mbm-dev/Release/
+platform-msvs/mini-mbm-dev/mini-mbm-dev.aps
+platform-msvs/mini-mbm-dev/mini-mbm-dev.vcxproj.user
+platform-msvs/mini-mbm-launcher/mini-mbm-launcher.aps
+platform-msvs/mini-mbm/mini-mbm.aps
 .vscode/
 bin/
 build/
