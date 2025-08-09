@@ -51,7 +51,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     bool allowFullScreen = false;
     bool full_screen_checked = true;
-    bool disable_select_monitor = false;
 
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
@@ -108,14 +107,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
         allowFullScreen = parser.allowFullScreen;
         full_screen_checked = parser.full_screen_checked;
-        disable_select_monitor = parser.disable_select_monitor;
     }
     int ret = 0;
-    if (disable_select_monitor)
-    {
-        ret = mbm::loop();
-    }
-    else if (mbm::select_resolution(nullptr, 0, allowFullScreen, full_screen_checked))
+    if (mbm::select_resolution(nullptr, 0, allowFullScreen, full_screen_checked))
     {
         ret = mbm::loop();
     }

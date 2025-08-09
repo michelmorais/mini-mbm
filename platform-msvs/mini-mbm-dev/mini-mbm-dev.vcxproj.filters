@@ -30,7 +30,7 @@
     <ClInclude Include="..\mini-mbm-launcher\parse_laucher_args.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\mini-mbm-launcher\mini-mbm-lib.h">
+    <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
