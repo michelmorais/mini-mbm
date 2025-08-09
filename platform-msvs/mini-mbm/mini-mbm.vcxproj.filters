@@ -296,5 +296,8 @@
     <None Include="create-short-cuts.bat">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="remove-trash.bat">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

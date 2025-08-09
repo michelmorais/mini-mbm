@@ -159,7 +159,7 @@ Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" shader_editor shader_edi
 Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" asset_packager asset_packager.lua "-w 1280 -h 800 -nosplash --showconsole"
 Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" tilemap_editor tilemap_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
 Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_packer.lua "-w 1280 -h 800 -nosplash --showconsole"
-
+Call  "$(MSBuildProjectDirectory)\remove-trash.bat"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -270,6 +270,7 @@ Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_p
   </ItemGroup>
   <ItemGroup>
     <None Include="create-short-cuts.bat" />
+    <None Include="remove-trash.bat" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
