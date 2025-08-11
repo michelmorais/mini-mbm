@@ -52,6 +52,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     bool allowFullScreen = false;
     bool full_screen_checked = true;
 
+    mbm::APP_RUN default_applications[] = {
+            {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
+            {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
+            {"Particle Editor"       ,"Editor de Partículas",     "particle_editor.lua"},
+            {"Physics Editor"        ,"Editor de Física",         "physic_editor.lua"},
+            {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
+            {"Shader Editor"         ,"Editor de Shader",         "shader_editor.lua"},
+            {"Sprite Maker"          ,"Editor de Sprite",         "sprite_maker.lua"},
+            {"Texture Packer"        ,"Empacotador de texturas",  "texture_packer.lua"},
+            {"Tile-Map Editor"       ,"Editor de mapa de blocos", "tilemap_editor.lua"},
+            {"User specified"        ,"Script do usuário",        "user_specified.lua"},
+    };
+    int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
+	size_app = size_app - 1; // remove the last one, it is a user specified script
+    std::string user_script_name;
+
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
     {
@@ -101,6 +117,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         if (parser.fileNameInitialLua.size() > 0)
         {
             mbm::set_scene(parser.fileNameInitialLua.c_str());
+			size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);; // add the user specified script
+			user_script_name = parser.fileNameInitialLua;
+			default_applications[size_app - 1].script_path = user_script_name.c_str();
         }
 
         mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);
@@ -109,8 +128,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         full_screen_checked = parser.full_screen_checked;
     }
     int ret = 0;
-    if (mbm::select_resolution(nullptr, 0, allowFullScreen, full_screen_checked))
+    
+    int index_app_selected = -1;
+	
+    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
     {
+        if (index_app_selected > -1 && index_app_selected < size_app)
+        {
+            mbm::set_scene(default_applications[index_app_selected].script_path);
+        }
         ret = mbm::loop();
     }
     if (temporary_folder_path.size() > 0)

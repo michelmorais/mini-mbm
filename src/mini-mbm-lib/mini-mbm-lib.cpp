@@ -371,6 +371,14 @@ namespace mbm
         * selected_height          = resolutions[index].height;
     }
 
+    static void onSelectApplication(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
+    {
+        APP_RUN * app_run = static_cast<APP_RUN *>(w->getObjectContext(6));
+        std::string* script_app = static_cast<std::string*>(w->getObjectContext(7));
+        int index = dataEvent.getAsInt();
+        *script_app = app_run[index].script_path;
+	}
+
     static void onSelectMonitor(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
     {
         __AUX_MONITOR_SELECT *__auxSelectMonitor = static_cast<__AUX_MONITOR_SELECT *>(w->getObjectContext(0));
@@ -391,19 +399,22 @@ namespace mbm
         *p_is_full_screen = dataEvent.getAsBool();
     }
 
-    bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list,bool allow_full_screen,const bool full_screen_checked)
+    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
-        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen;
+        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app;
         const char * strKeyName = my_app_name.length() > 0 ? my_app_name.c_str() : "Mini-Mbm";
         std::string key_index_monitor(strKeyName);
         std::string key_resolution(strKeyName);
         std::string key_screen_full_screen(strKeyName);
+        std::string key_script_app(strKeyName);
         key_index_monitor       += "\\index-monoitor";
         key_resolution          += "\\index-resolution";
         key_screen_full_screen  += "\\full-screen";
+        key_script_app += "\\script-app";
         reg_index_monitor.openKey(HKEY_CURRENT_USER,key_index_monitor.c_str());
         reg_index_resolution.openKey(HKEY_CURRENT_USER,key_resolution.c_str());
         reg_full_screen.openKey(HKEY_CURRENT_USER,key_screen_full_screen.c_str());
+        reg_script_app.openKey(HKEY_CURRENT_USER, key_script_app.c_str());
         
         mbm::MONITOR my_monitor_selected;
         mbm::MONITOR_MANAGER manMonitor;
@@ -412,8 +423,9 @@ namespace mbm
         bool full_screen = allow_full_screen && full_screen_checked;
         int x_las_pos = 0;
         int y_las_pos = 0;
+		const int extra_height = size_app_run != 0 ? 30 : 0;
         const int width_screen_option = 400;
-        const int height_screen_option = 350;
+        const int height_screen_option = 350 + extra_height;
         const int regindex_monitor    = reg_index_monitor.getVal(key_index_monitor.c_str(),0xff);
         if(regindex_monitor != 0xff && manMonitor.getMonitor(regindex_monitor, &my_monitor_selected))
         {
@@ -571,6 +583,40 @@ namespace mbm
             selected_width  = screen_resolution_list[regindex_resolution].width;
             selected_height = screen_resolution_list[regindex_resolution].height;
         }
+
+		std::string script_app;
+		int idAppSelection = -1;
+
+        if (size_app_run > 0)
+        {
+			const char* temp_app_label = "Application:";
+            if (isPTbr)
+			{
+                temp_app_label = "Aplicativo:";
+			}
+            w.addLabel(temp_app_label, 10, 180, 380, 25);
+            idAppSelection = w.addCombobox(10, 210, 380, 100, onSelectApplication);
+            for (int i = 0; i < size_app_run; i++)
+            {
+                if (isPTbr)
+                {
+                    w.addText(idAppSelection, app_run[i].name_pt_br ? app_run[i].name_pt_br : "Sem nome");
+                }
+                else
+                {
+                    w.addText(idAppSelection, app_run[i].name_eng ? app_run[i].name_eng : "No name");
+                }
+            }
+            w.setObjectContext(static_cast<void*>(app_run), 6);
+            w.setObjectContext(static_cast<void*>(&script_app), 7);
+
+            const int regindex_app = reg_script_app.getVal(key_script_app.c_str(), 0xff);
+            if (regindex_app != 0xff && regindex_app < size_app_run)
+            {
+                w.setSelectedIndex(idAppSelection, regindex_app);
+            }
+        }
+
         w.exitOnEsc = false;
         w.enterLoop(nullptr);
         w.run = false;
@@ -588,9 +634,23 @@ namespace mbm
         reg_index_monitor.setVal(key_index_monitor.c_str(),my_monitor_selected.index);
         reg_index_resolution.setVal(key_resolution.c_str(),w.getSelectedIndex(idResolution));
         reg_full_screen.setVal(key_screen_full_screen.c_str(),full_screen ? 1 : 0);
+        if (size_app_run > 0)
+        {
+			int local_index_app_selected = w.getSelectedIndex(idAppSelection);
+            reg_script_app.setVal(key_script_app.c_str(), local_index_app_selected);
+            if(index_app_selected != nullptr)
+            {
+                *index_app_selected = local_index_app_selected;
+			}
+        }
         reg_index_monitor.closeKey();
         reg_index_resolution.closeKey();
         reg_full_screen.closeKey();
         return true;
+    }
+
+    bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
+    {
+        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked);
     }
 }
