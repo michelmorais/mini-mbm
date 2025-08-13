@@ -409,6 +409,20 @@ namespace mbm
         }
     }
 
+    void REGEDIT::setVal(LPCTSTR lpValue, DWORD data, int size_string)
+    {
+        if (hKey)
+        {
+            LONG nError = RegSetValueEx(hKey, lpValue, 0, REG_SZ, (LPBYTE)&data, size_string);
+            if (nError)
+                std::cout << "Error: " << nError << " Could not set registry value: " << (char *)lpValue << std::endl;
+        }
+        else
+        {
+            std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
+		}
+    }
+
     DWORD REGEDIT::getVal(LPCTSTR lpValue, DWORD valueNotFound)
     {
         if (hKey)

@@ -66,6 +66,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
 	size_app = size_app - 1; // remove the last one, it is a user specified script
+    int index_app_selected = -1;
     std::string user_script_name;
 
     mbm::set_callback_do_commands(onDoNativeCommand);
@@ -117,9 +118,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         if (parser.fileNameInitialLua.size() > 0)
         {
             mbm::set_scene(parser.fileNameInitialLua.c_str());
-			size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);; // add the user specified script
+			size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
+            index_app_selected = size_app - 1;
 			user_script_name = parser.fileNameInitialLua;
-			default_applications[size_app - 1].script_path = user_script_name.c_str();
+			default_applications[index_app_selected].script_path = user_script_name.c_str();
         }
 
         mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);
@@ -129,8 +131,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
     int ret = 0;
     
-    int index_app_selected = -1;
+    
 	
+    size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
     if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
     {
         if (index_app_selected > -1 && index_app_selected < size_app)

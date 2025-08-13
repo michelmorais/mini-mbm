@@ -379,6 +379,19 @@ namespace mbm
         *script_app = app_run[index].script_path;
 	}
 
+    
+    static void onSelectUserScript(mbm::WINDOW* w, mbm::DATA_EVENT& dataEvent)
+    {
+        APP_RUN* app_run = static_cast<APP_RUN*>(w->getObjectContext(6));
+        std::string* custom_script = static_cast<std::string*>(w->getObjectContext(8));
+        char file_selected[1024] = {};
+        char* the_file = mbm::openFileBox("*.lua", "Script", true, false, w->getHwnd(), custom_script->c_str(), file_selected);
+        if (the_file)
+        {
+			*custom_script = the_file;
+        }
+    }
+
     static void onSelectMonitor(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
     {
         __AUX_MONITOR_SELECT *__auxSelectMonitor = static_cast<__AUX_MONITOR_SELECT *>(w->getObjectContext(0));
@@ -401,20 +414,23 @@ namespace mbm
 
     bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
-        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app;
+        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app, reg_user_script;
         const char * strKeyName = my_app_name.length() > 0 ? my_app_name.c_str() : "Mini-Mbm";
         std::string key_index_monitor(strKeyName);
         std::string key_resolution(strKeyName);
         std::string key_screen_full_screen(strKeyName);
-        std::string key_script_app(strKeyName);
+        std::string key_index_script_app(strKeyName);
+        std::string key_user_script(strKeyName);
         key_index_monitor       += "\\index-monoitor";
         key_resolution          += "\\index-resolution";
         key_screen_full_screen  += "\\full-screen";
-        key_script_app += "\\script-app";
+        key_index_script_app    += "\\script-app";
+        key_user_script         += "\\user-script";
         reg_index_monitor.openKey(HKEY_CURRENT_USER,key_index_monitor.c_str());
         reg_index_resolution.openKey(HKEY_CURRENT_USER,key_resolution.c_str());
         reg_full_screen.openKey(HKEY_CURRENT_USER,key_screen_full_screen.c_str());
-        reg_script_app.openKey(HKEY_CURRENT_USER, key_script_app.c_str());
+        reg_script_app.openKey(HKEY_CURRENT_USER, key_index_script_app.c_str());
+        reg_user_script.openKey(HKEY_CURRENT_USER, key_user_script.c_str());
         
         mbm::MONITOR my_monitor_selected;
         mbm::MONITOR_MANAGER manMonitor;
@@ -423,7 +439,7 @@ namespace mbm
         bool full_screen = allow_full_screen && full_screen_checked;
         int x_las_pos = 0;
         int y_las_pos = 0;
-		const int extra_height = size_app_run != 0 ? 30 : 0;
+		const int extra_height = size_app_run != 0 ? 60 : 0;
         const int width_screen_option = 400;
         const int height_screen_option = 350 + extra_height;
         const int regindex_monitor    = reg_index_monitor.getVal(key_index_monitor.c_str(),0xff);
@@ -561,11 +577,11 @@ namespace mbm
         w.setObjectContext(static_cast<void*>(&full_screen), 5);
         if(allow_full_screen)
         {
-            const int idFull =  w.addCheckBox(temp_full_screen_lbl, 10, 300, 200, 20, onSelectFullScreen);
+            const int idFull =  w.addCheckBox(temp_full_screen_lbl, 10, extra_height + 300, 200, 20, onSelectFullScreen);
             full_screen = reg_full_screen.getVal(key_screen_full_screen.c_str(),0) ? true : false;
             w.setCheckBox(full_screen, idFull);
         }
-        __auxSelectMonitor.idbntOk = w.addButton(temp_play_lbl, 310, 300, 70, 20, -1, __AUX_MONITOR_SELECT::__0_onPressOkMonitor);
+        __auxSelectMonitor.idbntOk = w.addButton(temp_play_lbl, 310, extra_height + 300, 70, 20, -1, __AUX_MONITOR_SELECT::__0_onPressOkMonitor);
         w.setCheckBox(false, __auxSelectMonitor.idChkAskAboutMonitor);
         w.askOnExit = false;
         w.hideConsoleWindow();
@@ -585,15 +601,19 @@ namespace mbm
         }
 
 		std::string script_app;
+        std::string custom_script;
 		int idAppSelection = -1;
+        int idCustomScript = -1;
 
         if (size_app_run > 0)
         {
-			const char* temp_app_label = "Application:";
+            const char* temp_app_label = "Application:";
+            const char* temp_app_custom = "Custom Script:";
             if (isPTbr)
-			{
+            {
                 temp_app_label = "Aplicativo:";
-			}
+                temp_app_custom = "Aplicativo Personalizado:";
+            }
             w.addLabel(temp_app_label, 10, 180, 380, 25);
             idAppSelection = w.addCombobox(10, 210, 380, 100, onSelectApplication);
             for (int i = 0; i < size_app_run; i++)
@@ -610,11 +630,22 @@ namespace mbm
             w.setObjectContext(static_cast<void*>(app_run), 6);
             w.setObjectContext(static_cast<void*>(&script_app), 7);
 
-            const int regindex_app = reg_script_app.getVal(key_script_app.c_str(), 0xff);
-            if (regindex_app != 0xff && regindex_app < size_app_run)
+            if (index_app_selected != nullptr && (*index_app_selected) == (size_app_run - 1))
             {
-                w.setSelectedIndex(idAppSelection, regindex_app);
+                w.setSelectedIndex(idAppSelection, *index_app_selected);
             }
+            else
+            {
+                const int regindex_app = reg_script_app.getVal(key_index_script_app.c_str(), 0xff);
+                if (regindex_app != 0xff && regindex_app < size_app_run)
+                {
+                    w.setSelectedIndex(idAppSelection, regindex_app);
+                }
+            }
+            
+            w.addLabel(temp_app_custom, 10, 260, 380, 25);
+            w.setObjectContext(static_cast<void*>(&custom_script), 8);
+            idCustomScript = w.addButton("...", 380-18, 260, 25, 20, -1, onSelectUserScript);
         }
 
         w.exitOnEsc = false;
@@ -637,11 +668,16 @@ namespace mbm
         if (size_app_run > 0)
         {
 			int local_index_app_selected = w.getSelectedIndex(idAppSelection);
-            reg_script_app.setVal(key_script_app.c_str(), local_index_app_selected);
+            reg_script_app.setVal(key_index_script_app.c_str(), local_index_app_selected);
             if(index_app_selected != nullptr)
             {
                 *index_app_selected = local_index_app_selected;
 			}
+            if(custom_script.length() > 0)
+            {
+				DWORD the_addres = reinterpret_cast<DWORD>(&custom_script[0]);
+                reg_user_script.setVal(key_user_script.c_str(), the_addres, custom_script.length());
+            }
         }
         reg_index_monitor.closeKey();
         reg_index_resolution.closeKey();

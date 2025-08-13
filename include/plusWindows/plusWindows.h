@@ -235,6 +235,7 @@ class REGEDIT // regedit do windows. set "Project>Configuration Properties>Linke
     bool openKey(HKEY hRootKey, const wchar_t *strKey, const DWORD acess = KEY_ALL_ACCESS);
     bool openKey(HKEY hRootKey, const char *strKey, const DWORD acess = KEY_ALL_ACCESS);
     void setVal(LPCTSTR lpValue, DWORD data);
+    void setVal(LPCTSTR lpValue, DWORD data,int size_string);
     DWORD getVal(LPCTSTR lpValue, DWORD valueNotFound);
     void closeKey();
     /*
