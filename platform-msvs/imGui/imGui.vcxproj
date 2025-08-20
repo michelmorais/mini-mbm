@@ -154,6 +154,7 @@
       <PreprocessorDefinitions>NDEBUG;IMGUI_EXPORTS;_WINDOWS;_USRDLL;IMGUI_IMP_BUILD_DLL;FRAMEWORK_IMP_BUILD_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
