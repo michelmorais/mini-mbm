@@ -114,7 +114,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>Call  "$(MSBuildProjectDirectory)\..\mini-mbm\remove-unused-file-from-release.bat"</Command>
+      <Command>Call  "$(MSBuildProjectDirectory)\..\mini-mbm\remove-unused-file-from-release.bat"
+Call  "$(MSBuildProjectDirectory)\..\mini-mbm\create_shortcut_for_dev_kit.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -144,7 +145,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>Call  "$(MSBuildProjectDirectory)\..\mini-mbm\remove-unused-file-from-release.bat"</Command>
+      <Command>Call  "$(MSBuildProjectDirectory)\..\mini-mbm\remove-unused-file-from-release.bat"
+Call  "$(MSBuildProjectDirectory)\..\mini-mbm\create_shortcut_for_dev_kit.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
