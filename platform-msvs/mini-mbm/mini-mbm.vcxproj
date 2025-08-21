@@ -147,8 +147,7 @@
       </ForceFileOutput>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat" "$(OutDir)"
-      </Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
@@ -176,6 +175,9 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
