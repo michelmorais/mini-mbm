@@ -395,18 +395,33 @@ namespace mbm
         return (hKey != 0);
     }
 
-    void REGEDIT::setVal(LPCTSTR lpValue, DWORD data)
+    void REGEDIT::setVal(LPCTSTR key, DWORD data)
     {
         if (hKey)
         {
-            LONG nError = RegSetValueEx(hKey, lpValue, 0, REG_DWORD, (LPBYTE)&data, sizeof(DWORD));
+            LONG nError = RegSetValueEx(hKey, key, 0, REG_DWORD, (LPBYTE)&data, sizeof(DWORD));
             if (nError)
-                std::cout << "Error: " << nError << " Could not set registry value: " << (char *)lpValue << std::endl;
+                std::cout << "Error: " << nError << " Could not set registry value: " << (char *)key << std::endl;
         }
         else
         {
             std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
         }
+    }
+
+    void REGEDIT::setString(LPCTSTR key, const std::string& value)
+    {
+        if (hKey)
+        {
+            LONG nError = RegSetValueEx(hKey, key, 0, REG_SZ, (LPBYTE)value.c_str(), value.length());
+
+            if (nError)
+                std::cout << "Error: " << nError << " Could not set registry value: " << (char *)key << std::endl;
+        }
+        else
+        {
+            std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
+		}
     }
 
     DWORD REGEDIT::getVal(LPCTSTR lpValue, DWORD valueNotFound)
@@ -428,6 +443,42 @@ namespace mbm
             std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
             return 0;
         }
+    }
+
+    std::string REGEDIT::getString(LPCTSTR key, const char* stringNotFound)
+    {
+        std::string buffer(stringNotFound ? stringNotFound : "");
+        if (hKey)
+        {
+            DWORD dataSize = 0;
+            DWORD type = 0;
+            LONG  nError = RegQueryValueEx(hKey, key, nullptr, &type, nullptr, &dataSize);
+            if (nError == ERROR_FILE_NOT_FOUND)
+            {
+                std::cout << "Error: " << nError << " Could not get registry value " << (char*)key << std::endl;
+            }
+            else if (type != REG_SZ && type != REG_EXPAND_SZ)
+            {
+                std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
+            }
+            else
+            {
+                buffer.resize(dataSize, '\0');
+                nError = RegQueryValueExA(hKey,key, nullptr, &type, (LPBYTE)(buffer.data()), &dataSize);
+                if (nError == ERROR_SUCCESS)
+                {
+                    if (dataSize > 0 && buffer[dataSize - 1] != '\0')
+                    {
+                        buffer.push_back('\0'); // Add null terminator
+                    }
+                }
+            }
+        }
+        else
+        {
+            std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
+        }
+        return buffer;
     }
 
     void REGEDIT::closeKey()

@@ -30,6 +30,8 @@
   #else
     #define LIB_IMP_API   __declspec(dllimport)
   #endif
+  #include <string>
+  #include <vector>
 #endif
 
 
@@ -42,7 +44,7 @@ extern "C"
 {
     namespace mbm
     {
-
+        // C style
         struct SCREEN_RESOLUTION
         {
             int width;
@@ -69,6 +71,13 @@ extern "C"
             {7680,    4320,  "8K UHD"},
             {15360,   8640,  "16K"}};
         */
+        // C style
+        struct APP_RUN
+        {
+            const char* name_eng;
+            const char* name_pt_br;
+			const char* script_path; // path to script file, e.g. "main.lua"
+        };
 
         // This is the main entry point for the engine. You probably will not use it since you could add your own args
         LIB_IMP_API int  forward_args_and_do_loop(const int argc,const char **argv,const int ID_ICON = 0);
@@ -101,7 +110,10 @@ extern "C"
         LIB_IMP_API HWND get_hwnd();// retrieve the HWND created for this application
         LIB_IMP_API void set_window_theme(const int id,const bool enable_border);//id range from 0 to 25. try some! is the border color arrangement.
         LIB_IMP_API void set_icon(DWORD ID_ICON);
-        LIB_IMP_API bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0,bool allow_full_screen = true,const bool full_screen_checked = true);// with no args provide the most common resolution, you can set your own resolution list
+		//C Stye, you can use it to select the resolution, monitor and app script to run.
+        LIB_IMP_API bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0, bool allow_full_screen = true,const bool full_screen_checked = true);// with no args provide the most common resolution, you can set your own resolution list
+        LIB_IMP_API bool select_app_and_resolution(APP_RUN* app_run = nullptr, int size_app_run = 0, int * index_app_selected = nullptr, SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0, bool allow_full_screen = true, const bool full_screen_checked = true);// with no args provide the most common resolution, you can set your own resolution list
+        
         #endif
 
 

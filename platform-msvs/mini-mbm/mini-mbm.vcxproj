@@ -43,14 +43,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -84,6 +84,7 @@
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\include\version;..\..\include\lua-interface\;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
+    <CustomBuildAfterTargets>FinalizeBuildStatus</CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -146,22 +147,15 @@
       </ForceFileOutput>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat" "$(OutDir)"
-      </Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" scene_editor scene_editor2d.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" sprite_maker sprite_maker.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" font_maker font_maker.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" particle_editor particle_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" physic_editor physic_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" shader_editor shader_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" asset_packager asset_packager.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" tilemap_editor tilemap_editor.lua "-w 1280 -h 800 -nosplash --showconsole"
-Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_packer.lua "-w 1280 -h 800 -nosplash --showconsole"
-
-</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
+    <CustomBuildStep>
+      <Command>Call  "$(MSBuildProjectDirectory)\remove-unused-file-from-release.bat"</Command>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -173,6 +167,7 @@ Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_p
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -180,6 +175,9 @@ Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_p
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PreBuildEvent>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -270,6 +268,8 @@ Call "$(MSBuildProjectDirectory)\create-short-cuts.bat" texture_packer texture_p
   </ItemGroup>
   <ItemGroup>
     <None Include="create-short-cuts.bat" />
+    <None Include="create_shortcut_from_here.bat" />
+    <None Include="remove-unused-file-from-release.bat" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

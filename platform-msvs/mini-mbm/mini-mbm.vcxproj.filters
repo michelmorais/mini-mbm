@@ -296,5 +296,11 @@
     <None Include="create-short-cuts.bat">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="remove-unused-file-from-release.bat">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="create_shortcut_from_here.bat">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
