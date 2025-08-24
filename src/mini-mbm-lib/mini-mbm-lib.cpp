@@ -606,7 +606,8 @@ namespace mbm
         }
 
         std::string script_app;
-        std::string custom_script;
+        static std::string custom_script;
+		custom_script.clear(); 
         int idAppSelection = -1;
         int idCustomScript = -1;
 
@@ -629,6 +630,7 @@ namespace mbm
                 {
                     custom_script = reg_user_script.getString(key_user_script.c_str(), "User specified script");
                     w.addText(idAppSelection, custom_script.c_str());
+					app_run[i].script_path = custom_script.c_str();
 				}
                 else if (isPTbr)
                 {

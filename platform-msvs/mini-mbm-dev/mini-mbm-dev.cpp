@@ -40,15 +40,8 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
     }
 }
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-    _In_opt_ HINSTANCE hPrevInstance,
-    _In_ LPWSTR    lpCmdLine,
-    _In_ int       nCmdShow)
+int main(const int argc,const char **argv)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-    UNREFERENCED_PARAMETER(nCmdShow);
-
     bool allowFullScreen = false;
     bool full_screen_checked = true;
 
@@ -110,7 +103,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             mbm::set_app_name(title_app.c_str());
         }
         //https://onlineconvertfree.com/convert/png/
-        mbm::set_icon(IDC_MINIMBMDEV);
+        mbm::set_icon(IDI_ICON1);
         mbm::set_window_resizable(parser.enableResizeWindow);
 
         mbm::set_window_theme(parser.window_theme, parser.enableBorder);//11 15 19 20 21 20, 24 is the default
@@ -132,7 +125,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     int ret = 0;
     
     
-	
+	mbm::set_verbose(true);
+	mbm::disable_splash();
+    mbm::push_arg("--showconsole","true");
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
     if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
     {
