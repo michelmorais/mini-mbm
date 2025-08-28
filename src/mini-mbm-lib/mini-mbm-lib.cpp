@@ -391,6 +391,7 @@ namespace mbm
         if (the_file)
         {
             *custom_script = the_file;
+            app_run[*size_app_run - 1].script_path = custom_script->c_str();
 			w->removeText(*idAppSelection, *size_app_run - 1);
 			w->addText(*idAppSelection, the_file);
             w->setSelectedIndex(*idAppSelection, *size_app_run - 1);
