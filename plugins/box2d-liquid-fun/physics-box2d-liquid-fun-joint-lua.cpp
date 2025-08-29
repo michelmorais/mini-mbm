@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include "physics-box-2d-joint-lua.h"
+#include "physics-box-2d-liquid-fun-joint-lua.h"
 #include "../plugin-helper/plugin-helper.h"
 #include <Box2D/Box2D.h>
 #include <core_mbm/util-interface.h>

@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include "box-2d-wrap.h"
+#include "box-2d-liquid-fun-wrap.h"
 #include <core_mbm/scene.h>
 #include <core_mbm/device.h>
 #include <core_mbm/renderizable.h>

@@ -17,17 +17,17 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef BOX_2D_IMPORTER_H
+#ifndef BOX_2D_LIQUID_FUN_IMPORTER_H
 
-#define BOX_2D_IMPORTER_H
+#define BOX_2D_LIQUID_FUN_IMPORTER_H
 
 #if defined (__GNUC__) 
-  #define BOX_2D_IMP_API  __attribute__ ((__visibility__("default")))
+  #define BOX_2D_LIQUID_FUN_API  __attribute__ ((__visibility__("default")))
 #elif defined (WIN32)
   #ifdef BOX_2D_BUILD_DLL
-    #define BOX_2D_IMP_API  __declspec(dllexport)
+    #define BOX_2D_LIQUID_FUN_API  __declspec(dllexport)
   #else
-    #define BOX_2D_IMP_API   __declspec(dllimport)
+    #define BOX_2D_LIQUID_FUN_API   __declspec(dllimport)
   #endif
 #endif
 
@@ -39,10 +39,10 @@ extern "C"
 }
 
 
-extern "C" BOX_2D_IMP_API int luaopen_box2d (lua_State * lua);
+extern "C" BOX_2D_LIQUID_FUN_API int luaopen_box2d (lua_State * lua);
 
-extern "C" BOX_2D_IMP_API int luaopen_libbox2d (lua_State *lua);
+extern "C" BOX_2D_LIQUID_FUN_API int luaopen_libbox2d (lua_State *lua);
 
 
-#endif // ! BOX_2D_IMPORTER_H
+#endif // ! BOX_2D_LIQUID_FUN_IMPORTER_H
 

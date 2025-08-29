@@ -17,8 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include "box2d-lua.h"
-#include "physics-box-2d-lua.h"
+#include "box2d-liquid-fun-lua.h"
+#include "physics-box-2d-liquid-fun-lua.h"
 
 int luaopen_box2d (lua_State * lua)
 {

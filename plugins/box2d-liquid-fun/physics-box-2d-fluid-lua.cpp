@@ -23,7 +23,7 @@
 #include <core_mbm/util-interface.h>
 #include <core_mbm/class-identifier.h>
 #include <render/steered_particle.h>
-#include <box-2d-wrap.h>
+#include <box-2d-liquid-fun-wrap.h>
 
 extern "C" 
 {

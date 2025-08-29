@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include "physics-box-2d-lua.h"
+#include "physics-box-2d-liquid-fun-lua.h"
 #include "../plugin-helper/plugin-helper.h"
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
@@ -25,7 +25,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/util-interface.h>
 #include <platform/mismatch-platform.h>
-#include "box-2d-wrap.h"
+#include "box-2d-liquid-fun-wrap.h"
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>
