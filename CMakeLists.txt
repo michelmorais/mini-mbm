@@ -120,7 +120,7 @@ function(SHOW_ANDROID_OPTIONS)
         message("-DUSE_LSQLITE3=0                       : use -DUSE_LSQLITE3=1 to build lsqlite3")
     endif()
     if(USE_BOX2D_LIQUID_FUN)
-        message("-DUSE_BOX2D_LIQUID_FUN=1               : Box2d is enabled")
+        message("-DUSE_BOX2D_LIQUID_FUN=1               : Box2d liquid fun is enabled")
     else()
         message("-DUSE_BOX2D_LIQUID_FUN=0               : use -DUSE_BOX2D_LIQUID_FUN=1 to build box2d liquid fun")
     endif()
@@ -550,6 +550,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         message(STATUS "*** RELEASE mode ***")
     endif()
 
+    add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
+    add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
+
+    if (USE_LUA)
+        add_definitions(-DUSE_LUA)
+        add_subdirectory(${LUA_LIB} 			${LUA_LIB})
+    endif()
+
     #plugins ################################################################################################
     # Plugins only make sense when use LUA
     if(USE_LUA)
@@ -596,13 +604,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
     #end plugins ############################################################################################
         
-    if (USE_LUA)
-        add_definitions(-DUSE_LUA)
-        add_subdirectory(${LUA_LIB} 			${LUA_LIB})
-    endif()
+    #if (USE_LUA)
+    #    add_definitions(-DUSE_LUA)
+    #    add_subdirectory(${LUA_LIB} 			${LUA_LIB})
+    #endif()
     
-    add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
-
     # in case you want a wrapper over portaudio uncomment this
     if (USE_PA_WRAPPER AND ${AUDIO} STREQUAL "portaudio" )
         add_subdirectory(${PORT_AUDIO_LIB} 			${PORT_AUDIO_LIB})
@@ -616,7 +622,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_subdirectory(${AUDIERE}                     ${AUDIERE})
     endif()
     
-    add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 
     find_program(LS ls
             HINTS /bin)
