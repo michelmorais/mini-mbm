@@ -603,12 +603,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         endif()
     endif()
     #end plugins ############################################################################################
-        
-    #if (USE_LUA)
-    #    add_definitions(-DUSE_LUA)
-    #    add_subdirectory(${LUA_LIB} 			${LUA_LIB})
-    #endif()
-    
+
     # in case you want a wrapper over portaudio uncomment this
     if (USE_PA_WRAPPER AND ${AUDIO} STREQUAL "portaudio" )
         add_subdirectory(${PORT_AUDIO_LIB} 			${PORT_AUDIO_LIB})
