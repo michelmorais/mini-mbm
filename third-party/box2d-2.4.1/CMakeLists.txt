@@ -8,15 +8,15 @@ project(box2d VERSION 2.4.1)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
-set(BOX2D_INCLUDE "./include")
-set(BOX2D_SRC "./src")
+set(BOX2D_LIQUID_FUN_INCLUDE "./include")
+set(BOX2D_LIQUID_FUN_SRC "./src")
 
 option(BOX2D_BUILD_UNIT_TESTS "Build the Box2D unit tests" OFF)
 option(BOX2D_BUILD_TESTBED "Build the Box2D testbed" OFF)
 option(BOX2D_BUILD_DOCS "Build the Box2D documentation" OFF)
 option(BOX2D_USER_SETTINGS "Override Box2D settings with b2UserSettings.h" OFF)
 
-option(BUILD_SHARED_LIBS "Build Box2D as a shared library" ON)
+option(BUILD_SHARED_LIBS "Build Box2D liquid fun as a shared library" ON)
 
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
@@ -63,6 +63,6 @@ if (BOX2D_BUILD_TESTBED)
 endif()
 
 install(
-  DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/box2d"
+  DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/box2d-liquid-fun"
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

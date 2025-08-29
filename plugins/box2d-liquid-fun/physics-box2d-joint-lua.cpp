@@ -34,7 +34,7 @@ namespace mbm
 {
     b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<b2Joint **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_JOINT));
+        auto **ud = static_cast<b2Joint **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF_JOINT));
         return *ud;
     }
 
@@ -958,7 +958,7 @@ namespace mbm
         *udata          = joint;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
-        const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D_JOINT);
+        const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D_LF_JOINT);
         luaL_getmetatable(lua,__userdata_name);
         lua_setmetatable(lua,-2);
         /* end trick */

@@ -17,8 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef PHYSICS_BOX2D_WRAP_H
-#define PHYSICS_BOX2D_WRAP_H
+#ifndef PHYSICS_BOX2D_LIQUID_FUN_WRAP_H
+#define PHYSICS_BOX2D_LIQUID_FUN_WRAP_H
 
 #include <vector>
 #include <core_mbm/physics.h>
@@ -65,15 +65,15 @@ struct VEC3;
         virtual ~INFO_JOINT()noexcept;
     };
 
-    class PHYSICS_BOX2D;
-    typedef void (* On_box2d_BeginContact)(PHYSICS_BOX2D*,SHAPE_INFO* info1,SHAPE_INFO* info2);
-    typedef void (* On_box2d_EndContact)(PHYSICS_BOX2D*,SHAPE_INFO* info1,SHAPE_INFO* info2);
-    typedef void (* On_box2d_PreSolve)(PHYSICS_BOX2D*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2Manifold* oldManifold);
-    typedef void (* On_box2d_PostSolve)(PHYSICS_BOX2D*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2ContactImpulse* impulse);
+    class PHYSICS_BOX2D_LIQUID_FUN;
+    typedef void (* On_box2d_BeginContact)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2);
+    typedef void (* On_box2d_EndContact)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2);
+    typedef void (* On_box2d_PreSolve)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2Manifold* oldManifold);
+    typedef void (* On_box2d_PostSolve)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2ContactImpulse* impulse);
     typedef void(*On_box2d_DestroyBodyFromList)(RENDERIZABLE* ptr);
 
 
-    class PHYSICS_BOX2D : public PHYSICS, public b2ContactListener
+    class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener
     {
     public:
         int32   velocityIterations;
@@ -87,8 +87,8 @@ struct VEC3;
         On_box2d_PostSolve    on_box2d_PostSolve;
         On_box2d_DestroyBodyFromList on_box2d_DestroyBodyFromList;
 
-        PHYSICS_BOX2D(SCENE* scene)noexcept;
-        virtual ~PHYSICS_BOX2D();
+        PHYSICS_BOX2D_LIQUID_FUN(SCENE* scene)noexcept;
+        virtual ~PHYSICS_BOX2D_LIQUID_FUN();
 
         void setScale(const float s)noexcept;
         float getScale() const noexcept;

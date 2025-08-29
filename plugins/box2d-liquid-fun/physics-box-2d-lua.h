@@ -17,8 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef BOX2D_TO_LUA_H
-#define BOX2D_TO_LUA_H
+#ifndef BOX2D_LIQUID_FUN_TO_LUA_H
+#define BOX2D_LIQUID_FUN_TO_LUA_H
 
 class b2Body;
 struct b2Vec2;
@@ -28,18 +28,18 @@ struct lua_State;
 
 namespace mbm
 {
-    class PHYSICS_BOX2D;
+    class PHYSICS_BOX2D_LIQUID_FUN;
     class RENDERIZABLE;
     struct SHAPE_INFO;
 
     enum EVENT_CONTACT_B2 : short;
 
-    void lua_box2d_BeginContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
-    void lua_box2d_EndContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
-    void lua_box2d_PreSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold);
-    void lua_box2d_PostSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2ContactImpulse *impulse);
+    void lua_box2d_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
+    void lua_box2d_EndContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
+    void lua_box2d_PreSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold);
+    void lua_box2d_PostSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2ContactImpulse *impulse);
 
-    PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    PHYSICS_BOX2D_LIQUID_FUN *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     b2Body *getBodyBox2dFromRawTable(lua_State *lua,const int rawi, const int indexTable);
     SHAPE_INFO *getShapeInfoFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     void lua_box2d_onBox2dDestroyBodyFromList(RENDERIZABLE* ptr);
@@ -91,7 +91,7 @@ namespace mbm
     int onGetWorldPointBox2d(lua_State *lua);
     int getVersionBox2d(lua_State *lua);
     int onGetWorldVectorBodyBox2d(lua_State *lua);
-    bool lua_callback_box2d_onQueryAABBBox2d(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1);
+    bool lua_callback_box2d_onQueryAABBBox2d(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1);
     int onQueryAABBBox2d(lua_State *lua);
     int onRayCastBox2d(lua_State *lua);
     int onGetJointBox2d(lua_State *lua);
@@ -106,12 +106,12 @@ namespace mbm
     int onCreateJointBox2d(lua_State *lua);
     int onDestroyBox2dLua(lua_State *lua);
     void registerClassBox2d(lua_State *lua);
-    void lua_box2d_EventContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
+    void lua_box2d_EventContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
                                        const b2Manifold *oldManifold, const b2ContactImpulse *impulse);
-    void lua_box2d_BeginContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
-    void lua_box2d_EndContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
-    void lua_box2d_PreSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold);
-    void lua_box2d_PostSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, const b2ContactImpulse *impulse);
+    void lua_box2d_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
+    void lua_box2d_EndContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);
+    void lua_box2d_PreSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold);
+    void lua_box2d_PostSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, const b2ContactImpulse *impulse);
 
 };
 

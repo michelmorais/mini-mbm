@@ -80,7 +80,7 @@ namespace mbm
     class SHAPE_MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
     {
       public:
-        friend class PHYSICS_BOX2D;
+        friend class PHYSICS_BOX2D_LIQUID_FUN;
 		typedef void (*OnRenderDynamicBuffer)(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicNormal,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only);
 
         API_IMPL SHAPE_MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen);

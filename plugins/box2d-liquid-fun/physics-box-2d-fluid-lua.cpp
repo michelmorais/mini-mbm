@@ -877,7 +877,7 @@ namespace mbm
         plugin_helper::getFieldPrimaryFromTable(lua,3,"sy",LUA_TNUMBER,&scale.y);
         plugin_helper::getFieldPrimaryFromTable(lua,3,"sz",LUA_TNUMBER,&scale.z);
 
-        const int32 iTotalParticleAdded = PHYSICS_BOX2D::addParticleToFluid(info,local_info_physics,position,scale,scalePhysics);
+        const int32 iTotalParticleAdded = PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(info,local_info_physics,position,scale,scalePhysics);
         lua_pushinteger(lua,iTotalParticleAdded);
         return 1;
     }

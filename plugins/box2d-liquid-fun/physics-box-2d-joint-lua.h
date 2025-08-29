@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2022      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,20 +17,19 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef BOX2D_FLUID_TO_LUA_H
-#define BOX2D_FLUID_TO_LUA_H
+#ifndef BOX2D_LIQUID_FUN_JOINT_TO_LUA_H
+#define BOX2D_LIQUID_FUN_JOINT_TO_LUA_H
 
 struct lua_State;
-class b2ParticleSystem;
+class b2Joint;
 
 namespace mbm
 {
-    class RENDERIZABLE;
-    class STEERED_PARTICLE;
-    b2ParticleSystem *getParticleSystemBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    STEERED_PARTICLE *getRenderizableFluidBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    int onGetParticleCountBox2d(lua_State *lua);
-    int onGetRenderizableFluidInterfaceBox2d(lua_State *lua,RENDERIZABLE * steered_particle);
+    b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    int onGetReactionForceJointBox2d(lua_State *lua);
+    int onGetReactionTorqueJointBox2d(lua_State *lua);
+    int onIsActiveJointBox2d(lua_State *lua);
+    int onGetJointLua(lua_State *lua, b2Joint *joint);
 };
 
 #endif

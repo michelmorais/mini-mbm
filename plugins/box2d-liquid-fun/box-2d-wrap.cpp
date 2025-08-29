@@ -64,7 +64,7 @@ namespace mbm
     = default;
 
     
-    PHYSICS_BOX2D::PHYSICS_BOX2D(SCENE* scene) noexcept:
+    PHYSICS_BOX2D_LIQUID_FUN::PHYSICS_BOX2D_LIQUID_FUN(SCENE* scene) noexcept:
     PHYSICS(scene->getIdScene())
     {
         this->world         =   nullptr;
@@ -83,7 +83,7 @@ namespace mbm
         this->on_box2d_DestroyBodyFromList = nullptr;
     }
         
-    PHYSICS_BOX2D::~PHYSICS_BOX2D()
+    PHYSICS_BOX2D_LIQUID_FUN::~PHYSICS_BOX2D_LIQUID_FUN()
     {
         if(this->world)
         {
@@ -127,7 +127,7 @@ namespace mbm
         device->removePhysics(this);
     }
 
-    void PHYSICS_BOX2D::setScale(const float s)noexcept
+    void PHYSICS_BOX2D_LIQUID_FUN::setScale(const float s)noexcept
     {
         if(s > 0.0f)
         {
@@ -135,12 +135,12 @@ namespace mbm
             this->scalePercentage = 1.0f / this->scale;
         }
     }
-    float PHYSICS_BOX2D::getScale() const noexcept
+    float PHYSICS_BOX2D_LIQUID_FUN::getScale() const noexcept
     {
         return this->scale;
     }
         
-    bool PHYSICS_BOX2D::testPoint(SHAPE_INFO* info,const b2Vec2& point)
+    bool PHYSICS_BOX2D_LIQUID_FUN::testPoint(SHAPE_INFO* info,const b2Vec2& point)
     {
         if(info && info->body)
         {
@@ -156,7 +156,7 @@ namespace mbm
         return false;
     }
         
-    bool PHYSICS_BOX2D::destroyBody(SHAPE_INFO* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::destroyBody(SHAPE_INFO* info)
     {
         const std::vector<SHAPE_INFO*>::size_type sr = this->ls2RemoveBody.size();
         for(std::vector<SHAPE_INFO*>::size_type i = 0; i < sr; ++i)
@@ -171,7 +171,7 @@ namespace mbm
         return true;
     }
         
-    bool PHYSICS_BOX2D::undoDestroyFluid(INFO_FLUID* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::undoDestroyFluid(INFO_FLUID* info)
     {
         const std::vector<INFO_FLUID*>::size_type sr = this->ls2RemoveFluid.size();
         for(std::vector<INFO_FLUID*>::size_type i = 0; i < sr; ++i)
@@ -186,7 +186,7 @@ namespace mbm
         return false;
     }
 
-    bool PHYSICS_BOX2D::undoDestroyBody(SHAPE_INFO* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::undoDestroyBody(SHAPE_INFO* info)
     {
         const std::vector<SHAPE_INFO*>::size_type sr = this->ls2RemoveBody.size();
         for(std::vector<SHAPE_INFO*>::size_type i = 0; i < sr; ++i)
@@ -201,7 +201,7 @@ namespace mbm
         return false;
     }
 
-    void PHYSICS_BOX2D::setActive(SHAPE_INFO* info,const bool enable)
+    void PHYSICS_BOX2D_LIQUID_FUN::setActive(SHAPE_INFO* info,const bool enable)
     {
         if (enable)
             this->lsActiveCollisionBody.push_back(info);
@@ -209,7 +209,7 @@ namespace mbm
             this->lsDisableCollisionBody.push_back(info);
     }
     
-    void PHYSICS_BOX2D::removeObject(RENDERIZABLE* ptr)
+    void PHYSICS_BOX2D_LIQUID_FUN::removeObject(RENDERIZABLE* ptr)
     {
         for(std::vector<INFO_JOINT*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
         {
@@ -236,7 +236,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::removeObjectByIdSceneScene(const int _idScene)
+    void PHYSICS_BOX2D_LIQUID_FUN::removeObjectByIdSceneScene(const int _idScene)
     {
         for(std::vector<INFO_JOINT*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
         {
@@ -264,7 +264,7 @@ namespace mbm
         }
     }
     
-    const b2Vec2 PHYSICS_BOX2D::getReactionForce(SHAPE_INFO* info,const float delta)
+    const b2Vec2 PHYSICS_BOX2D_LIQUID_FUN::getReactionForce(SHAPE_INFO* info,const float delta)
     {
         static b2Vec2 bRet(0,0);
         if(this->world && info)
@@ -282,7 +282,7 @@ namespace mbm
         return bRet;
     }
     
-    void PHYSICS_BOX2D::queryAABB(const b2AABB &b2aabb,b2QueryCallback* pB2QueryCallback)
+    void PHYSICS_BOX2D_LIQUID_FUN::queryAABB(const b2AABB &b2aabb,b2QueryCallback* pB2QueryCallback)
     {
         if(this->world)
         {
@@ -290,7 +290,7 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::rayCast(const b2Vec2 &p1,const b2Vec2 &p2,b2RayCastCallback* pb2RayCastCallback)
+    void PHYSICS_BOX2D_LIQUID_FUN::rayCast(const b2Vec2 &p1,const b2Vec2 &p2,b2RayCastCallback* pb2RayCastCallback)
     {
         if(this->world)
         {
@@ -298,7 +298,7 @@ namespace mbm
         }
     }
 
-    VEC2 PHYSICS_BOX2D::getGravity()
+    VEC2 PHYSICS_BOX2D_LIQUID_FUN::getGravity()
     {
         VEC2 result(0,0);
         if(world)
@@ -310,7 +310,7 @@ namespace mbm
         return result;
     }
     
-    void PHYSICS_BOX2D::setGravity(const VEC2 * gravity)
+    void PHYSICS_BOX2D_LIQUID_FUN::setGravity(const VEC2 * gravity)
     {
         if(world)
         {
@@ -318,7 +318,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::init(const VEC2 * gravity)
+    void PHYSICS_BOX2D_LIQUID_FUN::init(const VEC2 * gravity)
     {
         if(!this->world)
         {
@@ -327,7 +327,7 @@ namespace mbm
         }
     }
     
-    unsigned int PHYSICS_BOX2D::createJoint(SHAPE_INFO* info1,SHAPE_INFO* info2,b2JointDef & pjd)
+    unsigned int PHYSICS_BOX2D_LIQUID_FUN::createJoint(SHAPE_INFO* info1,SHAPE_INFO* info2,b2JointDef & pjd)
     {
         if(this->world && info1->body && info2->body)
         {
@@ -342,7 +342,7 @@ namespace mbm
         return 0xffffffff;
     }
 
-    INFO_JOINT * PHYSICS_BOX2D::getInfoJoint(SHAPE_INFO* info,const unsigned int index)
+    INFO_JOINT * PHYSICS_BOX2D_LIQUID_FUN::getInfoJoint(SHAPE_INFO* info,const unsigned int index)
     {
         if(this->world && info)
         {
@@ -361,7 +361,7 @@ namespace mbm
         return nullptr;
     }
 
-    void PHYSICS_BOX2D::setAngularDamping(SHAPE_INFO* info,const float angularDamping)
+    void PHYSICS_BOX2D_LIQUID_FUN::setAngularDamping(SHAPE_INFO* info,const float angularDamping)
     {
         if(this->world)
         {
@@ -383,7 +383,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setFilter(SHAPE_INFO* info,const b2Filter& filter)
+    void PHYSICS_BOX2D_LIQUID_FUN::setFilter(SHAPE_INFO* info,const b2Filter& filter)
     {
         if(this->world)
         {
@@ -419,7 +419,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setEnabled(SHAPE_INFO* info, const bool active)
+    void PHYSICS_BOX2D_LIQUID_FUN::setEnabled(SHAPE_INFO* info, const bool active)
     {
         if(this->world)
         {
@@ -438,13 +438,13 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setContactListener(b2ContactListener * ptrB2ContactListener)
+    void PHYSICS_BOX2D_LIQUID_FUN::setContactListener(b2ContactListener * ptrB2ContactListener)
     {
         if(this->world)
             this->world->SetContactListener(ptrB2ContactListener);
     }
     
-    SHAPE_INFO * PHYSICS_BOX2D::addStaticBody(RENDERIZABLE* controller,
+    SHAPE_INFO * PHYSICS_BOX2D_LIQUID_FUN::addStaticBody(RENDERIZABLE* controller,
                                 const float density ,
                                 const float friction,
                                 const float reduceX ,
@@ -456,7 +456,7 @@ namespace mbm
         return this->completeStaticBody(controller,density,friction,reduceX,reduceY,isSensor);
     }
     
-    SHAPE_INFO * PHYSICS_BOX2D::addDynamicBody( RENDERIZABLE* controller,
+    SHAPE_INFO * PHYSICS_BOX2D_LIQUID_FUN::addDynamicBody( RENDERIZABLE* controller,
                                     const float density ,
                                     const float friction ,
                                     const float restitution,
@@ -470,7 +470,7 @@ namespace mbm
         return this->completeDynamicBody(controller,density,friction,restitution,reduceX,reduceY,isSensor,false, isBullet);
     }
     
-    SHAPE_INFO * PHYSICS_BOX2D::addKinematicBody(   RENDERIZABLE* controller,
+    SHAPE_INFO * PHYSICS_BOX2D_LIQUID_FUN::addKinematicBody(   RENDERIZABLE* controller,
                                     const float density ,
                                     const float friction ,
                                     const float restitution,
@@ -483,7 +483,7 @@ namespace mbm
         return this->completeDynamicBody( controller, density, friction, restitution, reduceX, reduceY, isSensor, true,false);
     }
 
-    void PHYSICS_BOX2D::setFixedRotation(SHAPE_INFO* info, bool value)
+    void PHYSICS_BOX2D_LIQUID_FUN::setFixedRotation(SHAPE_INFO* info, bool value)
     {
         if(info && info->body)
         {
@@ -491,14 +491,14 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::setSleepingAllowed(SHAPE_INFO* info, bool value)
+    void PHYSICS_BOX2D_LIQUID_FUN::setSleepingAllowed(SHAPE_INFO* info, bool value)
     {
         if(info && info->body)
         {
             info->body->SetSleepingAllowed(value);
         }
     }
-    void PHYSICS_BOX2D::applyForce(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy)
+    void PHYSICS_BOX2D_LIQUID_FUN::applyForce(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy)
     {
         if(info && info->body)
         {
@@ -508,13 +508,13 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::applyTorque(SHAPE_INFO* info,const float torque,bool awake)
+    void PHYSICS_BOX2D_LIQUID_FUN::applyTorque(SHAPE_INFO* info,const float torque,bool awake)
     {
         if(info && info->body)
             info->body->ApplyTorque(torque, awake);
     }
     
-    void PHYSICS_BOX2D::setLinearVelocity(SHAPE_INFO* info,const float x,const float y)
+    void PHYSICS_BOX2D_LIQUID_FUN::setLinearVelocity(SHAPE_INFO* info,const float x,const float y)
     {
         if(info && info->body)
         {
@@ -523,7 +523,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::applyLinearImpulse(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy)
+    void PHYSICS_BOX2D_LIQUID_FUN::applyLinearImpulse(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy)
     {
         if(info && info->body)
         {
@@ -533,7 +533,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::applyAngularImpulse(SHAPE_INFO* info,const float impulse)
+    void PHYSICS_BOX2D_LIQUID_FUN::applyAngularImpulse(SHAPE_INFO* info,const float impulse)
     {
         if(info && info->body)
         {
@@ -541,7 +541,7 @@ namespace mbm
         }
     }
     
-    bool PHYSICS_BOX2D::isOnTheGround(SHAPE_INFO* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::isOnTheGround(SHAPE_INFO* info)
     {
         if(info && info->body)
         {
@@ -560,7 +560,7 @@ namespace mbm
         return false;
     }
     
-    void PHYSICS_BOX2D::setFriction(SHAPE_INFO* info,const float friction,const bool update_contact_list)
+    void PHYSICS_BOX2D_LIQUID_FUN::setFriction(SHAPE_INFO* info,const float friction,const bool update_contact_list)
     {
         if(info && info->body)
         {
@@ -582,7 +582,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setDensity(SHAPE_INFO* info,const float density,const bool reset_mass)
+    void PHYSICS_BOX2D_LIQUID_FUN::setDensity(SHAPE_INFO* info,const float density,const bool reset_mass)
     {
         if(info && info->body)
         {
@@ -597,7 +597,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setRestitution(SHAPE_INFO* info,const float restitution,const bool update_contact_list)
+    void PHYSICS_BOX2D_LIQUID_FUN::setRestitution(SHAPE_INFO* info,const float restitution,const bool update_contact_list)
     {
         if(info && info->body)
         {
@@ -619,7 +619,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::setMass(SHAPE_INFO* info,const float newMass)
+    void PHYSICS_BOX2D_LIQUID_FUN::setMass(SHAPE_INFO* info,const float newMass)
     {
         if(info && info->body)
         {
@@ -630,7 +630,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::interference(SHAPE_INFO* info)
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(SHAPE_INFO* info)
     {
         if(world && info)
         {
@@ -643,7 +643,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::interference(b2Body* body,const VEC2 * newPosition,const float newAngleDegree)
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(b2Body* body,const VEC2 * newPosition,const float newAngleDegree)
     {
         if(world)
         {
@@ -652,7 +652,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::interference(b2Body* body,const VEC3 * newPosition,const float newAngleDegree)
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(b2Body* body,const VEC3 * newPosition,const float newAngleDegree)
     {
         if(world)
         {
@@ -661,7 +661,7 @@ namespace mbm
         }
     }
 
-    bool PHYSICS_BOX2D::removeJoint(SHAPE_INFO* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::removeJoint(SHAPE_INFO* info)
     {
         const std::vector<SHAPE_INFO*>::size_type sj = this->ls2RemoveJoint.size();
         for(std::vector<SHAPE_INFO*>::size_type i = 0; i < sj; ++i)
@@ -676,7 +676,7 @@ namespace mbm
         return true;
     }
 
-    bool PHYSICS_BOX2D::destroyFluid(INFO_FLUID* info)
+    bool PHYSICS_BOX2D_LIQUID_FUN::destroyFluid(INFO_FLUID* info)
     {
         const std::vector<INFO_FLUID*>::size_type sj = this->ls2RemoveFluid.size();
         for(std::vector<INFO_FLUID*>::size_type i = 0; i < sj; ++i)
@@ -691,7 +691,7 @@ namespace mbm
         return true;
     }
 
-    void PHYSICS_BOX2D::update(const float fps,const float delta)
+    void PHYSICS_BOX2D_LIQUID_FUN::update(const float fps,const float delta)
     {
         if(!this->world || this->stopSimulate)
             return;
@@ -769,7 +769,7 @@ namespace mbm
         }
     }
     
-    SHAPE_INFO * PHYSICS_BOX2D::completeStaticBody( RENDERIZABLE* controller,
+    SHAPE_INFO * PHYSICS_BOX2D_LIQUID_FUN::completeStaticBody( RENDERIZABLE* controller,
                                     const float density,
                                     const float friction,
                                     const float reduceX,
@@ -900,7 +900,7 @@ namespace mbm
         return info;
     }
     
-    SHAPE_INFO * PHYSICS_BOX2D::completeDynamicBody(RENDERIZABLE* controller,
+    SHAPE_INFO * PHYSICS_BOX2D_LIQUID_FUN::completeDynamicBody(RENDERIZABLE* controller,
                                     const float density,
                                     const float friction,
                                     const float restitution,
@@ -1041,7 +1041,7 @@ namespace mbm
     }
 
 
-    INFO_FLUID * PHYSICS_BOX2D::createRenderizableFluid(const INFO_PHYSICS* const physics,
+    INFO_FLUID * PHYSICS_BOX2D_LIQUID_FUN::createRenderizableFluid(const INFO_PHYSICS* const physics,
                                         const VEC3 &position,
                                         const VEC3 &scale,
                                         const VEC2 &linearVelocity,
@@ -1105,7 +1105,7 @@ namespace mbm
         return info;
     }
 
-    int32 PHYSICS_BOX2D::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)
+    int32 PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)
     {
         int32 initialParticleCount = 0;
         if(info->pd.group != nullptr)
@@ -1178,7 +1178,7 @@ namespace mbm
         return 0;
     }
 
-    void PHYSICS_BOX2D::update_uv_fluid(INFO_FLUID* info)
+    void PHYSICS_BOX2D_LIQUID_FUN::update_uv_fluid(INFO_FLUID* info)
     {
         STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
         if(p_steered_particle->getSegmented())
@@ -1244,7 +1244,7 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::update_fluid(INFO_FLUID* info)
+    void PHYSICS_BOX2D_LIQUID_FUN::update_fluid(INFO_FLUID* info)
     {
         STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
         const uint32_t groupCount            = info->particleSystem->GetParticleGroupCount();
@@ -1300,7 +1300,7 @@ namespace mbm
     }
     
     //CallBack - b2ContactListener
-    void PHYSICS_BOX2D::BeginContact(b2Contact* contact)
+    void PHYSICS_BOX2D_LIQUID_FUN::BeginContact(b2Contact* contact)
     {
         if(this->on_box2d_BeginContact)
         {
@@ -1310,7 +1310,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::EndContact(b2Contact* contact)
+    void PHYSICS_BOX2D_LIQUID_FUN::EndContact(b2Contact* contact)
     {
         if(this->on_box2d_EndContact)
         {
@@ -1320,7 +1320,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::PreSolve(b2Contact* contact,const b2Manifold* oldManifold)
+    void PHYSICS_BOX2D_LIQUID_FUN::PreSolve(b2Contact* contact,const b2Manifold* oldManifold)
     {
         if(this->on_box2d_PreSolve)
         {
@@ -1331,7 +1331,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BOX2D::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
+    void PHYSICS_BOX2D_LIQUID_FUN::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
     {
         if(this->on_box2d_PostSolve)
         {
@@ -1341,7 +1341,7 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::safeDestroyBody(SHAPE_INFO* infoBox2d)
+    void PHYSICS_BOX2D_LIQUID_FUN::safeDestroyBody(SHAPE_INFO* infoBox2d)
     {
         if(infoBox2d && infoBox2d->body)
         {
@@ -1374,7 +1374,7 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::safeRemoveJoint(SHAPE_INFO* infoBox2d)
+    void PHYSICS_BOX2D_LIQUID_FUN::safeRemoveJoint(SHAPE_INFO* infoBox2d)
     {
         if(infoBox2d && infoBox2d->body)
         {
@@ -1394,7 +1394,7 @@ namespace mbm
         }
     }
 
-    void PHYSICS_BOX2D::safeDestroyFluid(INFO_FLUID* pInfoFluid)
+    void PHYSICS_BOX2D_LIQUID_FUN::safeDestroyFluid(INFO_FLUID* pInfoFluid)
     {
         if(pInfoFluid)
         {

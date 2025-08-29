@@ -51,9 +51,9 @@ namespace mbm
             case L_USER_TYPE_FONT                   :return "_usertype_font";
             case L_USER_TYPE_TEXT                   :return "_usertype_text";
             case L_USER_TYPE_BACKGROUND             :return "_usertype_background";
-            case L_USER_TYPE_BOX2D                  :return "_usertype_box2d";
-            case L_USER_TYPE_BOX2D_JOINT            :return "_usertype_box2d_joint";
-            case L_USER_TYPE_BOX2D_STEERED_PARTICLE :return "_usertype_box2d_steered_particle";
+            case L_USER_TYPE_BOX2D_LF                  :return "_usertype_box2d";
+            case L_USER_TYPE_BOX2D_LF_JOINT            :return "_usertype_box2d_joint";
+            case L_USER_TYPE_BOX2D_LF_STEERED_PARTICLE :return "_usertype_box2d_steered_particle";
             case L_USER_TYPE_BULLET3D               :return "_usertype_bullet3d";
             case L_USER_TYPE_TILE                   :return "_usertype_tile";
             case L_USER_TYPE_TILE_OBJ               :return "_usertype_tile_obj";

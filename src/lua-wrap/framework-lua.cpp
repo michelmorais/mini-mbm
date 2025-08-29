@@ -84,7 +84,7 @@ extern "C"
 #endif
 #endif
 
-#if defined USE_BOX2D
+#if defined USE_BOX2D_LIQUID_FUN
     #include <box2d/box2d-lua.h>
 #ifndef REQUIRE_EMBEDDED
     #define REQUIRE_EMBEDDED
@@ -3466,7 +3466,7 @@ namespace mbm
                 return luaopen_lsqlite3(lua);
         #endif
 
-        #if defined USE_BOX2D
+        #if defined USE_BOX2D_LIQUID_FUN
             if(strcmp(name,"box2d") == 0)
                 return luaopen_box2d(lua);
         #endif

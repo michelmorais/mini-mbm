@@ -43,7 +43,7 @@ namespace mbm
     int onGetJointLua(lua_State *lua, b2Joint *joint);
     extern b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     API_IMPL int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-	PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+	PHYSICS_BOX2D_LIQUID_FUN *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 
     struct USER_DATA_PHYSICS_2D : public REF_FUNCTION_LUA
     {
@@ -111,7 +111,7 @@ namespace mbm
 
     int onSetGravityBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         const VEC2     gravity(luaL_checknumber(lua, 2), luaL_checknumber(lua, 3));
         box2d->setGravity(&gravity);
         return 0;
@@ -127,7 +127,7 @@ namespace mbm
 
     int onGetGravityBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         const VEC2     ret(box2d->getGravity());
         lua_pushnumber(lua, ret.x);
         lua_pushnumber(lua, ret.y);
@@ -144,7 +144,7 @@ namespace mbm
     int onAddStaticBodyBox2d(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
@@ -188,7 +188,7 @@ namespace mbm
 
     int onAddBodyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr   = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
@@ -273,7 +273,7 @@ namespace mbm
     int onAddDynamicBodyBox2d(lua_State *lua)
     {
         const int             top         = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d   = static_cast<SHAPE_INFO *>(userData->extra);
@@ -440,7 +440,7 @@ namespace mbm
         {
             return plugin_helper::lua_error_debug(lua, "expected physics:(<renderizable> | <physics_table>, <info_fluid>)");
         }
-        PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        the_ptr     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
         INFO_PHYSICS  info_physics;
         INFO_PHYSICS*  local_info_physics = &info_physics;
@@ -634,7 +634,7 @@ namespace mbm
     int onAddKinematicBodyBox2d(lua_State *lua)
     {
         const int             top         = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto * infoBox2d                  = static_cast<SHAPE_INFO *>(userData->extra);
@@ -1121,7 +1121,7 @@ namespace mbm
 
     int onIsOnTheGroundBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         lua_pushboolean(lua, box2d->isOnTheGround(infoBox2d));
         return 1;
@@ -1130,7 +1130,7 @@ namespace mbm
     int onSetFrictionBox2d(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const float           friction  = luaL_checknumber(lua, 3);
         const bool update_contact_list  = top > 3 ? lua_toboolean(lua,4) : true;
@@ -1141,7 +1141,7 @@ namespace mbm
     int onSetRestitutionBox2d(lua_State *lua)
     {
         const int             top           = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d         = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d         = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d     = getShapeInfoFromRawTable(lua,1,2);
         const float           restitution   = luaL_checknumber(lua, 3);
         const bool update_contact_list      = top > 3 ? lua_toboolean(lua,4) : true;
@@ -1209,7 +1209,7 @@ namespace mbm
     int onSetDensityBox2d(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const float           density   = luaL_checknumber(lua, 3);
         const bool           reset_mass = top > 3 ? lua_toboolean(lua,4) : true;
@@ -1220,7 +1220,7 @@ namespace mbm
     int onInterfereBox2d(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *infoBox2d                 = static_cast<SHAPE_INFO *>(userData->extra);
@@ -1268,7 +1268,7 @@ namespace mbm
 
     int onSetEnabledBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const bool            bValue    = lua_toboolean(lua, 3) ? true : false;
         box2d->setEnabled(infoBox2d, bValue);
@@ -1277,7 +1277,7 @@ namespace mbm
 
     int onSetActiveCollisionBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const bool            bValue    = lua_toboolean(lua, 3) ? true : false;
         box2d->setActive(infoBox2d, bValue);
@@ -1310,7 +1310,7 @@ namespace mbm
         const int top = lua_gettop(lua);
         if (top > 1)
         {
-            PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+            PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
             USER_DATA_PHYSICS_2D *uData = box2d->userData;
             
             if (top > 1 && lua_type(lua,2) == LUA_TFUNCTION)
@@ -1356,14 +1356,14 @@ namespace mbm
 
     int onGetScaleBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
         lua_pushnumber(lua, box2d->getScale());
         return 1;
     }
 
     int onSetScaleBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
         const float scale = luaL_checknumber(lua, 2);
         box2d->setScale(scale);
         return 0;
@@ -1371,28 +1371,28 @@ namespace mbm
 
     int onGetMultiplyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
         lua_pushnumber(lua, box2d->multiplyStep);
         return 1;
     }
 
     static int onGetVelocityIterationsBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
         lua_pushinteger(lua, box2d->velocityIterations);
         return 1;
     }
 
     static int onGetPositionIterationsBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
         lua_pushinteger(lua, box2d->positionIterations);
         return 1;
     }
 
     int onSetMultiplyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
         const float multiplyStep = luaL_checknumber(lua, 2);
         box2d->multiplyStep = multiplyStep;
         return 0;
@@ -1497,13 +1497,13 @@ namespace mbm
         }
     };
 
-    class BOX2D_RAY_CAST : public b2RayCastCallback
+    class BOX2D_LIQUID_FUN_RAY_CAST : public b2RayCastCallback
     {
     public:
         USER_DATA_B2_CALL_BACK_LUA user_data_box2d;
-        PHYSICS_BOX2D * p_box2d;
+        PHYSICS_BOX2D_LIQUID_FUN * p_box2d;
         
-        BOX2D_RAY_CAST(lua_State * lua,PHYSICS_BOX2D * pbox2d):
+        BOX2D_LIQUID_FUN_RAY_CAST(lua_State * lua,PHYSICS_BOX2D_LIQUID_FUN * pbox2d):
         user_data_box2d(lua),
         p_box2d(pbox2d)
         {
@@ -1555,14 +1555,14 @@ namespace mbm
 
     int onRayCastBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         const float scale    = box2d->getScale();
         const b2Vec2 p1(luaL_checknumber(lua, 2) / scale, luaL_checknumber(lua, 3) / scale);
         const b2Vec2 p2(luaL_checknumber(lua, 4) / scale, luaL_checknumber(lua, 5) / scale);
         const b2Vec2 t(p1 - p2);
         if (t.Length() != 0.0f) //-V550
         {
-            BOX2D_RAY_CAST box2d_ray_cast(lua,box2d);
+            BOX2D_LIQUID_FUN_RAY_CAST box2d_ray_cast(lua,box2d);
             box2d_ray_cast.user_data_box2d.refFunctionLua(lua,6,&box2d_ray_cast.user_data_box2d.ref_CallBack);
             box2d->rayCast(p1, p2, &box2d_ray_cast);
         }
@@ -1575,13 +1575,13 @@ namespace mbm
         return 0;
     }
 
-    class BOX2D_QUERY_AABB : public b2QueryCallback
+    class BOX2D_LIQUID_FUN_QUERY_AABB : public b2QueryCallback
     {
     public:
         USER_DATA_B2_CALL_BACK_LUA user_data_box2d;
-        PHYSICS_BOX2D * p_box2d;
+        PHYSICS_BOX2D_LIQUID_FUN * p_box2d;
         
-        BOX2D_QUERY_AABB(lua_State * lua,PHYSICS_BOX2D * pbox2d):
+        BOX2D_LIQUID_FUN_QUERY_AABB(lua_State * lua,PHYSICS_BOX2D_LIQUID_FUN * pbox2d):
         user_data_box2d(lua),
         p_box2d(pbox2d)
         {
@@ -1626,14 +1626,14 @@ namespace mbm
 
     int onQueryAABBBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         const float scale    = box2d->getScale();
         b2AABB  b2aabb;
         b2aabb.lowerBound.x         = luaL_checknumber(lua, 2)  / scale;
         b2aabb.lowerBound.y         = luaL_checknumber(lua, 3)  / scale;
         b2aabb.upperBound.x         = luaL_checknumber(lua, 4)  / scale;
         b2aabb.upperBound.y         = luaL_checknumber(lua, 5)  / scale;
-        BOX2D_QUERY_AABB box2d_queryAABB(lua,box2d);
+        BOX2D_LIQUID_FUN_QUERY_AABB box2d_queryAABB(lua,box2d);
         box2d_queryAABB.user_data_box2d.refFunctionLua(lua,6,&box2d_queryAABB.user_data_box2d.ref_CallBack);
         box2d->queryAABB(b2aabb, &box2d_queryAABB);
         return 0;
@@ -1642,7 +1642,7 @@ namespace mbm
     int onGetJointBox2d(lua_State *lua)
     {
         const int     top               = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const unsigned int index        = top > 2 ? luaL_checkinteger(lua,3) - 1: 0;
         INFO_JOINT *          infoJoint = box2d->getInfoJoint(infoBox2d,index);
@@ -1655,21 +1655,21 @@ namespace mbm
 
     int onStopSimulateBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         box2d->stopSimulate  = true;
         return 0;
     }
 
     int onResumeSimulateBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
         box2d->stopSimulate = false;
         return 0;
     }
 
     int onDestroyBodyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
@@ -1680,7 +1680,7 @@ namespace mbm
 
     int onDestroyJointBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
@@ -1692,7 +1692,7 @@ namespace mbm
     
     int onDestroyFluidBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto * infoFluid                = static_cast<INFO_FLUID*>(userData->extra);
@@ -1703,7 +1703,7 @@ namespace mbm
 
     int onTestPointBodyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         b2Vec2 point(luaL_checknumber(lua, 3), luaL_checknumber(lua, 4));
         if (box2d->testPoint(infoBox2d, point))
@@ -1715,7 +1715,7 @@ namespace mbm
 
     int onSetFixedRotationBox2d  (lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d    = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *  infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const int      value    = lua_toboolean(lua, 3);
         box2d->setFixedRotation(infoBox2d,value);
@@ -1724,7 +1724,7 @@ namespace mbm
 
     int onSetSleepingAllowedBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D *box2d    = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *  infoBox2d = getShapeInfoFromRawTable(lua,1,2);
         const int      value    = lua_toboolean(lua, 3);
         box2d->setSleepingAllowed(infoBox2d,value);
@@ -1734,7 +1734,7 @@ namespace mbm
     int onSetFilterBox2d(lua_State *lua)
     {
         const int     top         = lua_gettop(lua);
-        PHYSICS_BOX2D *box2d      = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d      = getBox2dFromRawTable(lua, 1, 1);
         const char* message_error = 
         "\nExpected [body] for this case it will apply for all bodies."
         "\nExpected [table filter] box2d and [body], for this case it will apply this body. "
@@ -1787,7 +1787,7 @@ namespace mbm
     int onCreateJointBox2d(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
         SHAPE_INFO *          info1     = getShapeInfoFromRawTable(lua,1,2);
         SHAPE_INFO *          info2     = getShapeInfoFromRawTable(lua,1,3);
         const int             hasTable  = top > 3 ? lua_type(lua, 4) : 0;
@@ -2049,7 +2049,7 @@ namespace mbm
 
     int onDestroyBox2dLua(lua_State *lua)
     {
-        PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
         USER_DATA_PHYSICS_2D *uData = box2d->userData;
         uData->unrefAllTableLua(lua);
         delete uData;
@@ -2141,9 +2141,9 @@ namespace mbm
         luaL_newlib(lua, regBox2dMethods);
         luaL_getmetatable(lua, "_mbmBox2d");
         lua_setmetatable(lua, -2);
-        auto **udata     = static_cast<PHYSICS_BOX2D **>(lua_newuserdata(lua, sizeof(PHYSICS_BOX2D *)));
+        auto **udata     = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(lua_newuserdata(lua, sizeof(PHYSICS_BOX2D_LIQUID_FUN *)));
         DEVICE *   device		  = DEVICE::getInstance();
-        auto  box2d				  = new PHYSICS_BOX2D(device->scene);
+        auto  box2d				  = new PHYSICS_BOX2D_LIQUID_FUN(device->scene);
         box2d->userData           = new USER_DATA_PHYSICS_2D();
         *udata                    = box2d;
         box2d->setScale(scaleWorld);
@@ -2159,7 +2159,7 @@ namespace mbm
         box2d->on_box2d_DestroyBodyFromList = lua_box2d_onBox2dDestroyBodyFromList;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
-        const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D);
+        const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D_LF);
         luaL_getmetatable(lua,__userdata_name);
         lua_setmetatable(lua,-2);
         /* end trick */
@@ -2186,7 +2186,7 @@ namespace mbm
         T_B2_PostSolve    = 3,
     };
 
-    void lua_box2d_EventContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
+    void lua_box2d_EventContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
                                        const b2Manifold *oldManifold, const b2ContactImpulse *impulse)
     {
         if (info1 && info2)
@@ -2323,29 +2323,29 @@ namespace mbm
         }
     }
 
-    void lua_box2d_BeginContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
+    void lua_box2d_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
     {
         lua_box2d_EventContact(box2d, info1, info2, T_B2_BeginContact, nullptr, nullptr);
     }
 
-    void lua_box2d_EndContact(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
+    void lua_box2d_EndContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
     {
         lua_box2d_EventContact(box2d, info1, info2, T_B2_EndContact, nullptr, nullptr);
     }
 
-    void lua_box2d_PreSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold)
+    void lua_box2d_PreSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold)
     {
         lua_box2d_EventContact(box2d, info1, info2, T_B2_PreSolve, oldManifold, nullptr);
     }
 
-    void lua_box2d_PostSolve(PHYSICS_BOX2D *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, const b2ContactImpulse *impulse)
+    void lua_box2d_PostSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, const b2ContactImpulse *impulse)
     {
         lua_box2d_EventContact(box2d, info1, info2, T_B2_PostSolve, nullptr, impulse);
     }
 
-    PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    PHYSICS_BOX2D_LIQUID_FUN *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<PHYSICS_BOX2D **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
+        auto **ud = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF));
         return *ud;
     }
 }
