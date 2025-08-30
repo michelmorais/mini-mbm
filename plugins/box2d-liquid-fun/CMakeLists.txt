@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
-project(${BOX2D_LIQUID_FUN_LIBRARY})
+project(${BOX2D_LIQUID_FUN_LUA_LIBRARY})
 
 set(CORE_MBM_INCLUDES                        "../../include")
 set(PLUGIN_HELPER_INC                        "../plugin-helper")
@@ -43,8 +43,9 @@ file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQ
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${BOX2D_LIQUID_FUN_LIBRARY} SHARED ${SOURCES} )
+add_library(${BOX2D_LIQUID_FUN_LUA_LIBRARY} SHARED ${SOURCES} )
 
-target_link_libraries(${BOX2D_LIQUID_FUN_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${BOX2D_LIQUID_FUN_LIBRARY} ${CORE_MBM_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${LUA_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${BOX2D_LIQUID_FUN_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
 
