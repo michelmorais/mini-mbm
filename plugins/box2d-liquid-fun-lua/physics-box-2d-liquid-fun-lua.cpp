@@ -2139,7 +2139,7 @@ namespace mbm
                                         {"testPoint", onTestPointBodyBox2d },
                                         {nullptr, nullptr}};
         luaL_newlib(lua, regBox2dMethods);
-        luaL_getmetatable(lua, "_mbmBox2d");
+        luaL_getmetatable(lua, "_mbmBox2dLiquidFun");
         lua_setmetatable(lua, -2);
         auto **udata     = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(lua_newuserdata(lua, sizeof(PHYSICS_BOX2D_LIQUID_FUN *)));
         DEVICE *   device		  = DEVICE::getInstance();
@@ -2168,12 +2168,12 @@ namespace mbm
         return 1;
     }
 
-    void registerClassBox2d(lua_State *lua)
+    void registerClassBox2dLiquidFun(lua_State *lua)
     {
         luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d}, {nullptr, nullptr}};
-        luaL_newmetatable(lua, "_mbmBox2d");
+        luaL_newmetatable(lua, "_mbmBox2dLiquidFun");
         luaL_setfuncs(lua, regBox2dMMethods, 0);
-        lua_setglobal(lua, "box2d");
+        lua_setglobal(lua, "box2dliquidfun");
         lua_settop(lua,0);
     }
 

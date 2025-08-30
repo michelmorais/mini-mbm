@@ -105,7 +105,7 @@ namespace mbm
     int onSetSleepingAllowedBox2d(lua_State *lua);
     int onCreateJointBox2d(lua_State *lua);
     int onDestroyBox2dLua(lua_State *lua);
-    void registerClassBox2d(lua_State *lua);
+    void registerClassBox2dLiquidFun(lua_State *lua);
     void lua_box2d_EventContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
                                        const b2Manifold *oldManifold, const b2ContactImpulse *impulse);
     void lua_box2d_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2);

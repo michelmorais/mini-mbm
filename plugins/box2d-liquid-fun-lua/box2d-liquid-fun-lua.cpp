@@ -22,14 +22,14 @@
 
 int luaopen_box2dliquidfun (lua_State * lua)
 {
-    mbm::registerClassBox2d(lua);
+    mbm::registerClassBox2dLiquidFun(lua);
     lua_pushboolean(lua,1);
     return 1;
 }
 
 int luaopen_libbox2dliquidfun (lua_State *lua)
 {
-    mbm::registerClassBox2d(lua);
+    mbm::registerClassBox2dLiquidFun(lua);
     lua_pushboolean(lua,1);
     return 1;
 }
