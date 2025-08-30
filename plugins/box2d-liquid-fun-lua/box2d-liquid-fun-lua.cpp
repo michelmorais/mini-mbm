@@ -17,32 +17,20 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef BOX_2D_LIQUID_FUN_IMPORTER_H
+#include "box2d-liquid-fun-lua.h"
+#include "physics-box-2d-liquid-fun-lua.h"
 
-#define BOX_2D_LIQUID_FUN_IMPORTER_H
-
-#if defined (__GNUC__) 
-  #define BOX_2D_LIQUID_FUN_API  __attribute__ ((__visibility__("default")))
-#elif defined (WIN32)
-  #ifdef BOX_2D_BUILD_DLL
-    #define BOX_2D_LIQUID_FUN_API  __declspec(dllexport)
-  #else
-    #define BOX_2D_LIQUID_FUN_API   __declspec(dllimport)
-  #endif
-#endif
-
-extern "C"
+int luaopen_box2dliquidfun (lua_State * lua)
 {
-    #include <lualib.h>
-    #include <lauxlib.h>
-    #include <lua.h>
+    mbm::registerClassBox2d(lua);
+    lua_pushboolean(lua,1);
+    return 1;
 }
 
-
-extern "C" BOX_2D_LIQUID_FUN_API int luaopen_box2d (lua_State * lua);
-
-extern "C" BOX_2D_LIQUID_FUN_API int luaopen_libbox2d (lua_State *lua);
-
-
-#endif // ! BOX_2D_LIQUID_FUN_IMPORTER_H
+int luaopen_libbox2dliquidfun (lua_State *lua)
+{
+    mbm::registerClassBox2d(lua);
+    lua_pushboolean(lua,1);
+    return 1;
+}
 

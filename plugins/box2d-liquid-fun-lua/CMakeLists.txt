@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
-project(${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+project(lib-${BOX2D_LIQUID_FUN_LUA_LIBRARY})
 
 set(CORE_MBM_INCLUDES                        "../../include")
 set(PLUGIN_HELPER_INC                        "../plugin-helper")
