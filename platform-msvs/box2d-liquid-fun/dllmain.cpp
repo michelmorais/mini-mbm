@@ -1,8 +1,8 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include "pch.h"
 
-//#pragma comment(lib, "mini-mbm.lib")
-//#pragma comment(lib, "lua5.4.lib") 
+#pragma comment(lib, "mini-mbm.lib")
+#pragma comment(lib, "lua5.4.lib") 
 
 
 BOOL APIENTRY DllMain( HMODULE hModule,
