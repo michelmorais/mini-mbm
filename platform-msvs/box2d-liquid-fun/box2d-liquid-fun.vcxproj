@@ -24,6 +24,7 @@
     <ProjectGuid>{e8937462-0461-4150-88da-f26734172b0c}</ProjectGuid>
     <RootNamespace>box2dliquidfun</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>box2dLiquidFun</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -73,22 +74,22 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
-    <TargetName>box2dLiquidFun</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
-    <TargetName>box2dLiquidFun</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
-    <TargetName>box2dLiquidFun</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
-    <TargetName>box2dLiquidFun</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
