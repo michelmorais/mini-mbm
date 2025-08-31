@@ -3,7 +3,7 @@ cmake_policy(SET CMP0054 NEW)
 project(lib-${BOX2D_LIQUID_FUN_LUA_LIBRARY})
 
 set(CORE_MBM_INCLUDES                        "../../include")
-set(PLUGIN_HELPER_INC                        "../plugin-helper")
+set(PLUGIN_HELPER_INC                        "../")
 set(THIRD_PARTY                              ${CMAKE_SOURCE_DIR}/third-party)
 set(BOX2D_LIQUID_FUN_PATH                    ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
 set(LUA_INCLUDE                              ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
@@ -39,7 +39,7 @@ include_directories(  ${BOX2D_LIQUID_FUN_ROOT}
                       ${PLUGIN_HELPER_INC})
  
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}/*.cpp" "${PLUGIN_HELPER_INC}/*.cpp")
+file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}/*.cpp" )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
