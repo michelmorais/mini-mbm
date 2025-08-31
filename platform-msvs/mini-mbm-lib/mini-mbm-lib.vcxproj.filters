@@ -58,9 +58,6 @@
     <Filter Include="Header Files\platform">
       <UniqueIdentifier>{daab242d-21cd-49c7-84be-1ee3b905d4b9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\plugin">
-      <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\plusWindows">
       <UniqueIdentifier>{a602dd15-695f-47b1-ae69-a5ab97588afe}</UniqueIdentifier>
     </Filter>
@@ -93,6 +90,12 @@
     </Filter>
     <Filter Include="Source Files\wave">
       <UniqueIdentifier>{936000f7-150b-4850-8bea-f977d4b568ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\plugin-helper">
+      <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\plugin-helper">
+      <UniqueIdentifier>{349367e4-8ee4-43ef-9b8d-ac8bf68e453e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -745,6 +748,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\version\version.h">
       <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
+      <Filter>Header Files\plugin-helper</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

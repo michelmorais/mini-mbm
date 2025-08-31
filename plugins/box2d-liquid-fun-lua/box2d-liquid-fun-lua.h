@@ -24,7 +24,7 @@
 #if defined (__GNUC__) 
   #define BOX_2D_LIQUID_FUN_API  __attribute__ ((__visibility__("default")))
 #elif defined (WIN32)
-  #ifdef BOX_2D_BUILD_DLL
+  #ifdef BOX_2D_LIQUID_FUN_BUILD_DLL
     #define BOX_2D_LIQUID_FUN_API  __declspec(dllexport)
   #else
     #define BOX_2D_LIQUID_FUN_API   __declspec(dllimport)
@@ -39,9 +39,9 @@ extern "C"
 }
 
 
-extern "C" BOX_2D_LIQUID_FUN_API int luaopen_box2dliquidfun (lua_State * lua);
+extern "C" BOX_2D_LIQUID_FUN_API int luaopen_box2dLiquidFun (lua_State * lua);
 
-extern "C" BOX_2D_LIQUID_FUN_API int luaopen_libbox2dliquidfun (lua_State *lua);
+extern "C" BOX_2D_LIQUID_FUN_API int luaopen_libbox2dLiquidFun (lua_State *lua);
 
 
 #endif // ! BOX_2D_LIQUID_FUN_IMPORTER_H

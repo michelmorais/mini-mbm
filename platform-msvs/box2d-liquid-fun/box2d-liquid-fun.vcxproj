@@ -73,24 +73,28 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <TargetName>box2dLiquidFun</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <TargetName>box2dLiquidFun</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <TargetName>box2dLiquidFun</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <TargetName>box2dLiquidFun</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;BOX2DLIQUIDFUN_EXPORTS;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;BOX_2D_LIQUID_FUN_BUILD_DLL;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -109,12 +113,13 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;BOX2DLIQUIDFUN_EXPORTS;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;BOX_2D_LIQUID_FUN_BUILD_DLL;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>
       </PrecompiledHeader>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -126,7 +131,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;BOX2DLIQUIDFUN_EXPORTS;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;BOX_2D_LIQUID_FUN_BUILD_DLL;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -145,12 +150,13 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;BOX2DLIQUIDFUN_EXPORTS;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;BOX_2D_LIQUID_FUN_BUILD_DLL;NOMINMAX;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>
       </PrecompiledHeader>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -164,6 +170,7 @@
     <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.h" />
     <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-joint-lua.h" />
     <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.h" />
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Box2D.h" />
     <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2BroadPhase.h" />
     <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2Collision.h" />
@@ -230,6 +237,7 @@
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box2d-liquid-fun-joint-lua.cpp" />
+    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2BroadPhase.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideCircle.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideEdge.cpp" />

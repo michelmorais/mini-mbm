@@ -73,6 +73,12 @@
     <Filter Include="Source Files\box2d\Dynamics\Joints">
       <UniqueIdentifier>{86b2e6e3-028f-4999-aac6-aa69343aee17}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\plugin-helper">
+      <UniqueIdentifier>{59afdb16-19c6-4416-a515-f87ac1539d31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\plugin-helper">
+      <UniqueIdentifier>{2227341b-13e0-462a-89d6-980b04af3411}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.h">
@@ -267,6 +273,9 @@
     <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Rope\b2Rope.h">
       <Filter>Header Files\box2d\Rope</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
+      <Filter>Header Files\plugin-helper</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain-box2d-liquid-fun.cpp">
@@ -448,6 +457,9 @@
     </ClCompile>
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Rope\b2Rope.cpp">
       <Filter>Source Files\box2d\Rope</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
+      <Filter>Source Files\plugin-helper</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

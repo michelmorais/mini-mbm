@@ -109,6 +109,9 @@
     <Filter Include="Header Files\lua-wrap">
       <UniqueIdentifier>{5ee7658c-48e6-41ff-87b8-62653006d80b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\plugin-helper">
+      <UniqueIdentifier>{d266c9ac-2ee5-4043-bea2-7a914e162215}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\bullet-2.84\BulletCollision\CollisionShapes\btBox2dShape.h">
@@ -1239,7 +1242,7 @@
       <Filter>Source Files\lua-wrap</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
-      <Filter>Source Files\lua-wrap</Filter>
+      <Filter>Source Files\plugin-helper</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

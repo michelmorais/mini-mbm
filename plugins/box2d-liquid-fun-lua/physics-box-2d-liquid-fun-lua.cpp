@@ -2173,7 +2173,7 @@ namespace mbm
         luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d}, {nullptr, nullptr}};
         luaL_newmetatable(lua, "_mbmBox2dLiquidFun");
         luaL_setfuncs(lua, regBox2dMMethods, 0);
-        lua_setglobal(lua, "box2dliquidfun");
+        lua_setglobal(lua, "box2dLiquidFun");
         lua_settop(lua,0);
     }
 

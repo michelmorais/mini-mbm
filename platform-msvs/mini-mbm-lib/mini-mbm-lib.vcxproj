@@ -344,6 +344,7 @@
     <ClInclude Include="..\..\include\render\texture-view.h" />
     <ClInclude Include="..\..\include\render\tile.h" />
     <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
