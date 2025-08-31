@@ -18,12 +18,12 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "physics-box-2d-fluid-lua.h"
-#include <../plugin-helper/plugin-helper.h>
+#include <plugin-helper/plugin-helper.h>
 #include <Box2D/Box2D.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/class-identifier.h>
 #include <render/steered_particle.h>
-#include <box-2d-liquid-fun-wrap.h>
+#include "box-2d-liquid-fun-wrap.h"
 
 extern "C" 
 {

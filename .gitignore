@@ -42,6 +42,8 @@ platform-msvs/mini-mbm-dev/mini-mbm-dev.aps
 platform-msvs/mini-mbm-dev/mini-mbm-dev.vcxproj.user
 platform-msvs/mini-mbm-launcher/mini-mbm-launcher.aps
 platform-msvs/mini-mbm/mini-mbm.aps
+platform-msvs/box2d-liquid-fun/Debug/
+platform-msvs/box2d-liquid-fun/Release/
 .vscode/
 bin/
 build/

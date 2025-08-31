@@ -23,6 +23,7 @@
 #include <core_mbm/renderizable.h>
 #include <render/steered_particle.h>
 #include <limits>
+#include <algorithm>
 
 namespace mbm
 {

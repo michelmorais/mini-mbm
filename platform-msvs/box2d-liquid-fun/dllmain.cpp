@@ -3,6 +3,7 @@
 
 #pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "lua5.4.lib") 
+#pragma comment(lib, "core_mbm.lib")
 
 
 BOOL APIENTRY DllMain( HMODULE hModule,
