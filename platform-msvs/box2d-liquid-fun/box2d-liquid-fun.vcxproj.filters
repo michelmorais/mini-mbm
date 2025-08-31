@@ -15,10 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h">
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box-2d-liquid-fun-wrap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-joint-lua.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -26,7 +35,19 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box2d-liquid-fun-joint-lua.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\box-2d-liquid-fun-wrap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

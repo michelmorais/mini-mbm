@@ -1,5 +1,5 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
-#include "pch.h"
+#include <Windows.h>
 
 #pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "lua5.4.lib") 
