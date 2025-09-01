@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
 project(${BOX2D_LIQUID_FUN_LIBRARY})
 
+#DO NOT include this cmake, it is here in case you want to make the library not together with the wrapper (LUA)
+
 set(BOX2D_LIQUID_FUN_INCLUDE ".")
 set(BOX2D_LIQUID_FUN_SRC "./Box2D")
  
