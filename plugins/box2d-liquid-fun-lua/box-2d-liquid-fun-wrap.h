@@ -37,13 +37,13 @@ struct INFO_PHYSICS;
 struct VEC2;
 struct VEC3;
 
-    struct SHAPE_INFO
+    struct SHAPE_INFO_B2DLF
     {
         const b2BodyType typePhysics;
         RENDERIZABLE *   ptr;
         b2Body *         body;
-        SHAPE_INFO(RENDERIZABLE *ptrMesh, const b2BodyType newType) noexcept;
-        virtual ~SHAPE_INFO() noexcept;
+        SHAPE_INFO_B2DLF(RENDERIZABLE *ptrMesh, const b2BodyType newType) noexcept;
+        virtual ~SHAPE_INFO_B2DLF() noexcept;
     };
 
     struct INFO_FLUID
@@ -55,22 +55,22 @@ struct VEC3;
         virtual ~INFO_FLUID() noexcept;
     };
 
-    class INFO_JOINT
+    class INFO_JOINT_B2DLF
     {
     public:
-        SHAPE_INFO* infoA;
-        SHAPE_INFO* infoB;
+        SHAPE_INFO_B2DLF* infoA;
+        SHAPE_INFO_B2DLF* infoB;
         b2Joint*    joint;
-        INFO_JOINT(SHAPE_INFO*  info_a,SHAPE_INFO*  info_b,b2Joint* _joint)noexcept;
-        virtual ~INFO_JOINT()noexcept;
+        INFO_JOINT_B2DLF(SHAPE_INFO_B2DLF*  info_a,SHAPE_INFO_B2DLF*  info_b,b2Joint* _joint)noexcept;
+        virtual ~INFO_JOINT_B2DLF()noexcept;
     };
 
     class PHYSICS_BOX2D_LIQUID_FUN;
-    typedef void (* On_box2d_BeginContact)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2);
-    typedef void (* On_box2d_EndContact)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2);
-    typedef void (* On_box2d_PreSolve)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2Manifold* oldManifold);
-    typedef void (* On_box2d_PostSolve)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO* info1,SHAPE_INFO* info2,const b2ContactImpulse* impulse);
-    typedef void(*On_box2d_DestroyBodyFromList)(RENDERIZABLE* ptr);
+    typedef void (* On_box2d_BeginContactLF)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2);
+    typedef void (* On_box2d_EndContactLF)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2);
+    typedef void (* On_box2d_PreSolveLF)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2,const b2Manifold* oldManifold);
+    typedef void (* On_box2d_PostSolveLF)(PHYSICS_BOX2D_LIQUID_FUN*,SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2,const b2ContactImpulse* impulse);
+    typedef void(*On_box2d_DestroyBodyFromListLF)(RENDERIZABLE* ptr);
 
 
     class PHYSICS_BOX2D_LIQUID_FUN : public PHYSICS, public b2ContactListener
@@ -81,43 +81,43 @@ struct VEC3;
         float   multiplyStep;
         bool    stopSimulate;
 
-        On_box2d_BeginContact on_box2d_BeginContact;
-        On_box2d_EndContact   on_box2d_EndContact;
-        On_box2d_PreSolve     on_box2d_PreSolve ;
-        On_box2d_PostSolve    on_box2d_PostSolve;
-        On_box2d_DestroyBodyFromList on_box2d_DestroyBodyFromList;
+        On_box2d_BeginContactLF on_box2d_BeginContact;
+        On_box2d_EndContactLF   on_box2d_EndContact;
+        On_box2d_PreSolveLF     on_box2d_PreSolve ;
+        On_box2d_PostSolveLF    on_box2d_PostSolve;
+        On_box2d_DestroyBodyFromListLF on_box2d_DestroyBodyFromList;
 
         PHYSICS_BOX2D_LIQUID_FUN(SCENE* scene)noexcept;
         virtual ~PHYSICS_BOX2D_LIQUID_FUN();
 
         void setScale(const float s)noexcept;
         float getScale() const noexcept;
-        bool testPoint(SHAPE_INFO* info,const b2Vec2& point);
-        bool destroyBody(SHAPE_INFO* info);
-        bool undoDestroyBody(SHAPE_INFO* info);
+        bool testPoint(SHAPE_INFO_B2DLF* info,const b2Vec2& point);
+        bool destroyBody(SHAPE_INFO_B2DLF* info);
+        bool undoDestroyBody(SHAPE_INFO_B2DLF* info);
         bool undoDestroyFluid(INFO_FLUID* info);
-        void setActive(SHAPE_INFO* info,const bool enable);
+        void setActive(SHAPE_INFO_B2DLF* info,const bool enable);
         void removeObject(RENDERIZABLE* ptr);
         void removeObjectByIdSceneScene(const int _idScene);
-        INFO_JOINT* getInfoJoint(SHAPE_INFO* info,const unsigned int index);
-        const b2Vec2 getReactionForce(SHAPE_INFO* info,const float delta);
+        INFO_JOINT_B2DLF* getInfoJoint(SHAPE_INFO_B2DLF* info,const unsigned int index);
+        const b2Vec2 getReactionForce(SHAPE_INFO_B2DLF* info,const float delta);
         void queryAABB(const b2AABB &b2aabb,b2QueryCallback* pB2QueryCallback);
         void rayCast(const b2Vec2 &p1,const b2Vec2 &p2,b2RayCastCallback* pb2RayCastCallback);
         VEC2 getGravity();
         void setGravity(const VEC2 * gravity);
         void init(const VEC2 * gravity);
-        unsigned int createJoint(SHAPE_INFO* info1,SHAPE_INFO* info2,b2JointDef &pjd);
-        void setAngularDamping(SHAPE_INFO* info,const float angularDamping);
-        void setFilter(SHAPE_INFO* info,const b2Filter& filter);
-        void setEnabled(SHAPE_INFO* info, const bool active);
+        unsigned int createJoint(SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2,b2JointDef &pjd);
+        void setAngularDamping(SHAPE_INFO_B2DLF* info,const float angularDamping);
+        void setFilter(SHAPE_INFO_B2DLF* info,const b2Filter& filter);
+        void setEnabled(SHAPE_INFO_B2DLF* info, const bool active);
         void setContactListener(b2ContactListener * ptrB2ContactListener);
-        SHAPE_INFO* addStaticBody(RENDERIZABLE* controller,
+        SHAPE_INFO_B2DLF* addStaticBody(RENDERIZABLE* controller,
                                     const float density = 0.0f,
                                     const float friction = 0.3f,
                                     const float reduceX = 1.0f,
                                     const float reduceY = 1.0f,
                                     const bool  isSensor = false);
-        SHAPE_INFO* addDynamicBody( RENDERIZABLE* controller,
+        SHAPE_INFO_B2DLF* addDynamicBody( RENDERIZABLE* controller,
                                         const float density = 1.0f,
                                         const float friction = 10.0f,
                                         const float restitution = 0.1f,
@@ -125,7 +125,7 @@ struct VEC3;
                                         const float reduceY = 1.0f,
                                         const bool  isSensor = false,
                                         const bool isBullet = false);
-        SHAPE_INFO* addKinematicBody(   RENDERIZABLE* controller,
+        SHAPE_INFO_B2DLF* addKinematicBody(   RENDERIZABLE* controller,
                                         const float density = 1.0f,
                                         const float friction = 0.3f,
                                         const float restitution = 0.1f,
@@ -152,23 +152,23 @@ struct VEC3;
                                         const bool segmented,
                                         const float radiusScale);
         static int32 addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine);
-        void applyForce(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy);
-        void applyTorque(SHAPE_INFO* info,const float torque,bool awake);
-        void setLinearVelocity(SHAPE_INFO* info,const float x,const float y);
-        void applyLinearImpulse(SHAPE_INFO* info,const float x,const float y,const float wx,const float wy);
-        void applyAngularImpulse(SHAPE_INFO* info,const float impulse);
-        bool isOnTheGround(SHAPE_INFO* info);//is above any ground
-        void setFriction(SHAPE_INFO* info,const float friction,const bool update_contact_list = true);//Change the friction
-        void setDensity(SHAPE_INFO* info,const float density,const bool reset_mass);//Change the density
-        void setRestitution(SHAPE_INFO* info,const float restitution,const bool update_contact_list = true);//Change the restitution
-        void setMass(SHAPE_INFO* info,const float newMass);//Change the mass
-        void interference(SHAPE_INFO* info);
+        void applyForce(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy);
+        void applyTorque(SHAPE_INFO_B2DLF* info,const float torque,bool awake);
+        void setLinearVelocity(SHAPE_INFO_B2DLF* info,const float x,const float y);
+        void applyLinearImpulse(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy);
+        void applyAngularImpulse(SHAPE_INFO_B2DLF* info,const float impulse);
+        bool isOnTheGround(SHAPE_INFO_B2DLF* info);//is above any ground
+        void setFriction(SHAPE_INFO_B2DLF* info,const float friction,const bool update_contact_list = true);//Change the friction
+        void setDensity(SHAPE_INFO_B2DLF* info,const float density,const bool reset_mass);//Change the density
+        void setRestitution(SHAPE_INFO_B2DLF* info,const float restitution,const bool update_contact_list = true);//Change the restitution
+        void setMass(SHAPE_INFO_B2DLF* info,const float newMass);//Change the mass
+        void interference(SHAPE_INFO_B2DLF* info);
         void interference(b2Body* body,const VEC2 *newPosition,const float newAngleDegree);
         void interference(b2Body* body,const VEC3 *newPosition,const float newAngleDegree);
-        bool removeJoint(SHAPE_INFO* info);
+        bool removeJoint(SHAPE_INFO_B2DLF* info);
         bool destroyFluid(INFO_FLUID* info);
-        void setFixedRotation(SHAPE_INFO* info, bool value);
-        void setSleepingAllowed(SHAPE_INFO* info, bool value);
+        void setFixedRotation(SHAPE_INFO_B2DLF* info, bool value);
+        void setSleepingAllowed(SHAPE_INFO_B2DLF* info, bool value);
     
     protected:
         void update(const float fps,const float delta);
@@ -178,17 +178,17 @@ struct VEC3;
     private:
         float                           scale,scalePercentage;
         b2World*                        world;
-        std::vector<SHAPE_INFO*>        lsShape;
-        std::vector<INFO_JOINT*>        lsJoint;
+        std::vector<SHAPE_INFO_B2DLF*>        lsShape;
+        std::vector<INFO_JOINT_B2DLF*>        lsJoint;
         std::vector<INFO_FLUID*>        lsFluid;
         
-        SHAPE_INFO* completeStaticBody( RENDERIZABLE* controller,
+        SHAPE_INFO_B2DLF* completeStaticBody( RENDERIZABLE* controller,
                                         const float density,
                                         const float friction,
                                         const float reduceX,
                                         const float reduceY,
                                         const bool  isSensor);
-        SHAPE_INFO* completeDynamicBody(RENDERIZABLE* controller,
+        SHAPE_INFO_B2DLF* completeDynamicBody(RENDERIZABLE* controller,
                                         const float density,
                                         const float friction,
                                         const float restitution,
@@ -201,13 +201,13 @@ struct VEC3;
         void EndContact(b2Contact* contact);
         void PreSolve(b2Contact* contact,const b2Manifold* oldManifold);
         void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
-        void safeDestroyBody(SHAPE_INFO* infoBox2d);
-        void safeRemoveJoint(SHAPE_INFO* infoBox2d);
+        void safeDestroyBody(SHAPE_INFO_B2DLF* infoBox2d);
+        void safeRemoveJoint(SHAPE_INFO_B2DLF* infoBox2d);
         void safeDestroyFluid(INFO_FLUID* pInfoFluid);
-        std::vector<SHAPE_INFO*>            ls2RemoveBody;
-        std::vector<SHAPE_INFO*>            ls2RemoveJoint;
-        std::vector<SHAPE_INFO*>            lsActiveCollisionBody;
-        std::vector<SHAPE_INFO*>            lsDisableCollisionBody;
+        std::vector<SHAPE_INFO_B2DLF*>            ls2RemoveBody;
+        std::vector<SHAPE_INFO_B2DLF*>            ls2RemoveJoint;
+        std::vector<SHAPE_INFO_B2DLF*>            lsActiveCollisionBody;
+        std::vector<SHAPE_INFO_B2DLF*>            lsDisableCollisionBody;
         std::vector<INFO_FLUID*>            ls2RemoveFluid;
     };
 

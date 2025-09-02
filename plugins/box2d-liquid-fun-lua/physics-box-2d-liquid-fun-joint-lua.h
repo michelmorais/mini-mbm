@@ -25,11 +25,11 @@ class b2Joint;
 
 namespace mbm
 {
-    b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    int onGetReactionForceJointBox2d(lua_State *lua);
-    int onGetReactionTorqueJointBox2d(lua_State *lua);
-    int onIsActiveJointBox2d(lua_State *lua);
-    int onGetJointLua(lua_State *lua, b2Joint *joint);
+    b2Joint *getJointBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    int onGetReactionForceJointBox2dlf(lua_State *lua);
+    int onGetReactionTorqueJointBox2dlf(lua_State *lua);
+    int onIsActiveJointBox2dlf(lua_State *lua);
+    int onGetJointBox2dlfLua(lua_State *lua, b2Joint *joint);
 };
 
 #endif

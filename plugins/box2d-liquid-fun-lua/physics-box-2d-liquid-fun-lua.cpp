@@ -40,10 +40,10 @@ extern "C"
 
 namespace mbm
 {
-    int onGetJointLua(lua_State *lua, b2Joint *joint);
-    extern b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    int onGetJointBox2dlfLua(lua_State *lua, b2Joint *joint);
+    extern b2Joint *getJointBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     API_IMPL int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-	PHYSICS_BOX2D_LIQUID_FUN *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+	PHYSICS_BOX2D_LIQUID_FUN *getBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 
     struct USER_DATA_PHYSICS_2D : public REF_FUNCTION_LUA
     {
@@ -70,11 +70,11 @@ namespace mbm
 
 
 
-    b2Body *getBodyBox2dFromRawTable(lua_State *lua,const int rawi, const int indexTable)
+    b2Body *getBodyBox2dlfFromRawTable(lua_State *lua,const int rawi, const int indexTable)
     {
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
         {
             plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
@@ -83,17 +83,17 @@ namespace mbm
         return infoBox2d->body;
     }
 
-    SHAPE_INFO *getShapeInfoFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    SHAPE_INFO_B2DLF *getShapeInfobox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
             plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
         return infoBox2d;
     }
 
-    void lua_box2d_onBox2dDestroyBodyFromList(RENDERIZABLE* ptr)
+    void lua_box2d_onBox2dlfDestroyBodyFromList(RENDERIZABLE* ptr)
     {
         DEVICE * device = DEVICE::getInstance();
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
@@ -109,45 +109,45 @@ namespace mbm
         userData->extra = nullptr;
     }
 
-    int onSetGravityBox2d(lua_State *lua)
+    int onSetGravityBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const VEC2     gravity(luaL_checknumber(lua, 2), luaL_checknumber(lua, 3));
         box2d->setGravity(&gravity);
         return 0;
     }
 
-    int onSetGravityScaleBodyBox2d(lua_State *lua)
+    int onSetGravityScaleBodyBox2dlf(lua_State *lua)
     {
-        b2Body *    body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *    body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float n = luaL_checknumber(lua, 3);
         body->SetGravityScale(n); //-V522
         return 0;
     }
 
-    int onGetGravityBox2d(lua_State *lua)
+    int onGetGravityBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const VEC2     ret(box2d->getGravity());
         lua_pushnumber(lua, ret.x);
         lua_pushnumber(lua, ret.y);
         return 2;
     }
 
-    int onGetGravityScaleBodyBox2d(lua_State *lua)
+    int onGetGravityScaleBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_pushnumber(lua, body->GetGravityScale()); //-V522
         return 1;
     }
 
-    int onAddStaticBodyBox2d(lua_State *lua)
+    int onAddStaticBodyBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         const float           density   = top > 2 ? luaL_checknumber(lua, 3) : 0.0f;
         const float           friction  = top > 3 ? luaL_checknumber(lua, 4) : 0.3f;
         const float           reduceX   = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
@@ -172,7 +172,7 @@ namespace mbm
             }
             return 1;
         }
-        SHAPE_INFO *info = box2d->addStaticBody(ptr, density, friction, reduceX, reduceY, isSensor);
+        SHAPE_INFO_B2DLF *info = box2d->addStaticBody(ptr, density, friction, reduceX, reduceY, isSensor);
         if (info == nullptr || info->body == nullptr)
         {
             lua_pushboolean(lua, 0);
@@ -186,12 +186,12 @@ namespace mbm
         return 1;
     }
 
-    int onAddBodyBox2d(lua_State *lua)
+    int onAddBodyBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr   = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
+        auto *         infoBox2d  = static_cast<SHAPE_INFO_B2DLF*>(userData->extra);
         if (lua_type(lua, 3) != LUA_TTABLE)
         {
             return plugin_helper::lua_error_debug(lua, "expected info table physics ex.: {type='dynamic',mass=1.0,friction=0.3,sx=1.0,sy=1.0,...}");
@@ -215,7 +215,7 @@ namespace mbm
             }
             return 1;
         }
-        SHAPE_INFO *info = nullptr;
+        SHAPE_INFO_B2DLF *info = nullptr;
         constexpr int indexTable = 3;
         lua_getfield(lua, 3, "type");
         const char *type = lua_type(lua, 4) == LUA_TSTRING ? lua_tostring(lua, 4) : nullptr;
@@ -270,13 +270,13 @@ namespace mbm
         return 1;
     }
 
-    int onAddDynamicBodyBox2d(lua_State *lua)
+    int onAddDynamicBodyBox2dlf(lua_State *lua)
     {
         const int             top         = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d   = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d   = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
 
 
         const float           density     = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
@@ -305,7 +305,7 @@ namespace mbm
             }
             return 1;
         }
-        SHAPE_INFO *info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor, isBullet);
+        SHAPE_INFO_B2DLF *info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor, isBullet);
         if (info == nullptr || info->body == nullptr)
         {
             lua_pushboolean(lua, 0);
@@ -440,7 +440,7 @@ namespace mbm
         {
             return plugin_helper::lua_error_debug(lua, "expected physics:(<renderizable> | <physics_table>, <info_fluid>)");
         }
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        the_ptr     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
         INFO_PHYSICS  info_physics;
         INFO_PHYSICS*  local_info_physics = &info_physics;
@@ -627,17 +627,17 @@ namespace mbm
                     }
                 }
             }
-            return onGetRenderizableFluidInterfaceBox2d(lua, info->steered_particle);
+            return onGetRenderizableFluidInterfaceBox2dlf(lua, info->steered_particle);
         }
     }
 
-    int onAddKinematicBodyBox2d(lua_State *lua)
+    int onAddKinematicBodyBox2dlf(lua_State *lua)
     {
         const int             top         = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d       = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto * infoBox2d                  = static_cast<SHAPE_INFO *>(userData->extra);
+        auto * infoBox2d                  = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         const float           density     = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
         const float           friction    = top > 3 ? luaL_checknumber(lua, 4) : 10.0f;
         const float           restitution = top > 4 ? luaL_checknumber(lua, 5) : 0.1f;
@@ -663,7 +663,7 @@ namespace mbm
             }
             return 1;
         }
-        SHAPE_INFO *info = box2d->addKinematicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
+        SHAPE_INFO_B2DLF *info = box2d->addKinematicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
         if (info == nullptr || info->body == nullptr)
         {
             lua_pushboolean(lua, 0);
@@ -677,10 +677,10 @@ namespace mbm
         return 1;
     }
 
-    int onApplyForceBodyBox2d(lua_State *lua)
+    int onApplyForceBodyBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        b2Body *body                    = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body                    = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           x         = luaL_checknumber(lua, 3);
         const float           y         = luaL_checknumber(lua, 4);
         const b2Vec2 f(x, y);
@@ -698,9 +698,9 @@ namespace mbm
         return 0;
     }
 
-    int onApplyForceToCenterBodyBox2dFromBody(lua_State *lua)
+    int onApplyForceToCenterBodyBox2dlfFromBody(lua_State *lua)
     {
-        b2Body *    body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *    body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float x = luaL_checknumber(lua, 3);
         const float y = luaL_checknumber(lua, 4);
         const bool  awake = lua_toboolean(lua, 5) ? true : false;
@@ -708,9 +708,9 @@ namespace mbm
         return 0;
     }
 
-    int onSetLinearVelocityBox2d(lua_State *lua)
+    int onSetLinearVelocityBox2dlf(lua_State *lua)
     {
-        b2Body *body                    = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body                    = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           x         = luaL_checknumber(lua, 3);
         const float           y         = luaL_checknumber(lua, 4);
         const b2Vec2 v(x, y);
@@ -718,9 +718,9 @@ namespace mbm
         return 0;
     }
 
-    int onGetLinearVelocityBox2d(lua_State *lua)
+    int onGetLinearVelocityBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const b2Vec2  b(body->GetLinearVelocity()); //-V522
         lua_pushnumber(lua, b.x);
         lua_pushnumber(lua, b.y);
@@ -728,31 +728,31 @@ namespace mbm
     }
 
 
-    int onSetAngularVelocityBox2d(lua_State *lua)
+    int onSetAngularVelocityBox2dlf(lua_State *lua)
     {
-        b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           w = luaL_checknumber(lua, 3);
         body->SetAngularVelocity(w); //-V522
         return 0;
     }
 
-    int onGetAngularVelocityBox2d(lua_State *lua)
+    int onGetAngularVelocityBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_pushnumber(lua, body->GetAngularVelocity()); //-V522
         return 1;
     }
 
-    int onGetInertiaBox2dFromBody(lua_State *lua)
+    int onGetInertiaBox2dFromBodylf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_pushnumber(lua, body->GetInertia()); //-V522
         return 1;
     }
 
-    int onGetMassBox2d(lua_State *lua)
+    int onGetMassBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_pushnumber(lua,body->GetMass()); //-V522
         return 1;
     }
@@ -866,10 +866,10 @@ namespace mbm
         lua_setfield(lua, -2, "points");
     }
 
-    int onGetManifoldBox2d(lua_State *lua)
+    int onGetManifoldBox2dlf(lua_State *lua)
     {
         const int  top              = lua_gettop(lua);
-        const b2Body *body          = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body          = getBodyBox2dlfFromRawTable(lua,1,2);
         const bool checkIsTouching  = top > 2 ? lua_toboolean(lua,3) : false;
         const bool checkIsEnabled   = top > 3 ? lua_toboolean(lua,4) : false;
         lua_settop(lua,0);
@@ -913,9 +913,9 @@ namespace mbm
         return 1;
     }
 
-    int onGetWorldManifoldBox2d(lua_State *lua)
+    int onGetWorldManifoldBox2dlf(lua_State *lua)
     {
-        const b2Body *body          = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body          = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_settop(lua,0);
         lua_newtable(lua);
         const b2ContactEdge* c = body->GetContactList();
@@ -932,10 +932,10 @@ namespace mbm
         return 1;
     }
 
-    int onSetManifoldBox2d(lua_State *lua)
+    int onSetManifoldBox2dlf(lua_State *lua)
     {
         const int  top          = lua_gettop(lua);
-        const b2Body *body      = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body      = getBodyBox2dlfFromRawTable(lua,1,2);
         const int indexTable    = 3;
 
         if(lua_type(lua,indexTable) == LUA_TTABLE)
@@ -1062,29 +1062,29 @@ namespace mbm
         return 0;
     }
 
-    int onGetPositionBox2d(lua_State *lua)
+    int onGetPositionBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const b2Vec2  b(body->GetPosition()); //-V522
         lua_pushnumber(lua, b.x);
         lua_pushnumber(lua, b.y);
         return 2;
     }
 
-    int onApplyTorqueBodyBox2d(lua_State *lua)
+    int onApplyTorqueBodyBox2dlf(lua_State *lua)
     {
         const int             top     = lua_gettop(lua);
-        b2Body *body                  = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body                  = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           torque  = luaL_checknumber(lua, 3);
         const bool awake              = top > 3 ? lua_toboolean(lua,4) : true;
         body->ApplyTorque(torque,awake); //-V522
         return 0;
     }
 
-    int onApplyLinearImpulseBodyBox2d(lua_State *lua)
+    int onApplyLinearImpulseBodyBox2dlf(lua_State *lua)
     {
         const int             top   = lua_gettop(lua);
-        b2Body *body                = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body                = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           x     = luaL_checknumber(lua, 3);
         const float           y     = luaL_checknumber(lua, 4);
         if (top > 4)
@@ -1100,58 +1100,58 @@ namespace mbm
         return 0;
     }
     
-    int onApplyLinearImpulseToCenterBodyBox2d(lua_State *lua)
+    int onApplyLinearImpulseToCenterBodyBox2dlf(lua_State *lua)
     {
-        b2Body *body                = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body                = getBodyBox2dlfFromRawTable(lua,1,2);
         const float           x     = luaL_checknumber(lua, 3);
         const float           y     = luaL_checknumber(lua, 4);
         body->ApplyLinearImpulseToCenter(b2Vec2(x,y), true);
         return 0;
     }
 
-    int onApplyAngularImpulseBodyBox2d(lua_State *lua)
+    int onApplyAngularImpulseBodyBox2dlf(lua_State *lua)
     {
         const int top       = lua_gettop(lua);
-        b2Body *body        = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body        = getBodyBox2dlfFromRawTable(lua,1,2);
         const float impulse = luaL_checknumber(lua, 3);
         const bool awake    = top > 3 ? lua_toboolean(lua,4) : true;
         body->ApplyAngularImpulse(impulse,awake); //-V522
         return 0;
     }
 
-    int onIsOnTheGroundBox2d(lua_State *lua)
+    int onIsOnTheGroundBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         lua_pushboolean(lua, box2d->isOnTheGround(infoBox2d));
         return 1;
     }
 
-    int onSetFrictionBox2d(lua_State *lua)
+    int onSetFrictionBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const float           friction  = luaL_checknumber(lua, 3);
         const bool update_contact_list  = top > 3 ? lua_toboolean(lua,4) : true;
         box2d->setFriction(infoBox2d, friction, update_contact_list);
         return 0;
     }
 
-    int onSetRestitutionBox2d(lua_State *lua)
+    int onSetRestitutionBox2dlf(lua_State *lua)
     {
         const int             top           = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d         = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d     = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d         = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d     = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const float           restitution   = luaL_checknumber(lua, 3);
         const bool update_contact_list      = top > 3 ? lua_toboolean(lua,4) : true;
         box2d->setRestitution(infoBox2d, restitution, update_contact_list);
         return 0;
     }
 
-    int onSetTypeBodyBox2d(lua_State *lua)
+    int onSetTypeBodyBox2dlf(lua_State *lua)
     {
-        b2Body *  body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *  body = getBodyBox2dlfFromRawTable(lua,1,2);
         const int typeObj = lua_type(lua, 2);
         if (typeObj != LUA_TNUMBER && typeObj != LUA_TSTRING)
         {
@@ -1195,9 +1195,9 @@ namespace mbm
         return 0;
     }
 
-    int onSetMassBox2d(lua_State *lua)
+    int onSetMassBox2dlf(lua_State *lua)
     {
-        b2Body *body            = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body            = getBodyBox2dlfFromRawTable(lua,1,2);
         const float   mass      = luaL_checknumber(lua, 3);
         b2MassData b2Mass;
         body->GetMassData(&b2Mass); //-V522
@@ -1206,24 +1206,24 @@ namespace mbm
         return 0;
     }
 
-    int onSetDensityBox2d(lua_State *lua)
+    int onSetDensityBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const float           density   = luaL_checknumber(lua, 3);
         const bool           reset_mass = top > 3 ? lua_toboolean(lua,4) : true;
         box2d->setDensity(infoBox2d, density, reset_mass);
         return 0;
     }
 
-    int onInterfereBox2d(lua_State *lua)
+    int onInterfereBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *infoBox2d                 = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *infoBox2d                 = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         const float           x         = top > 2 ? luaL_checknumber(lua, 3) : ptr->position.x;
         const float           y         = top > 3 ? luaL_checknumber(lua, 4) : ptr->position.y;
         const float           z         = top > 4 ? luaL_checknumber(lua, 5) : ptr->angle.z;
@@ -1233,9 +1233,9 @@ namespace mbm
         return 0;
     }
 
-    int onIsActiveBodyBox2d(lua_State *lua)
+    int onIsActiveBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         if (body->IsActive()) //-V522
             lua_pushboolean(lua, 1);
         else
@@ -1243,42 +1243,42 @@ namespace mbm
         return 1;
     }
 
-    int onSetAwakeBox2d(lua_State *lua)
+    int onSetAwakeBox2dlf(lua_State *lua)
     {
-        b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const bool            bValue    = lua_toboolean(lua, 3) ? true : false;
         body->SetAwake(bValue); //-V522
         return 0;
     }
 
-    int onIsAwakeBox2d(lua_State *lua)
+    int onIsAwakeBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         lua_pushboolean(lua, body->IsAwake()); //-V522
         return 1;
     }
 
-    int onSetBulletBox2d(lua_State *lua)
+    int onSetBulletBox2dlf(lua_State *lua)
     {
-        b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const bool bValue    = lua_toboolean(lua, 3) ? true : false;
         body->SetBullet(bValue); //-V522
         return 0;
     }
 
-    int onSetEnabledBox2d(lua_State *lua)
+    int onSetEnabledBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const bool            bValue    = lua_toboolean(lua, 3) ? true : false;
         box2d->setEnabled(infoBox2d, bValue);
         return 0;
     }
 
-    int onSetActiveCollisionBox2d(lua_State *lua)
+    int onSetActiveCollisionBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const bool            bValue    = lua_toboolean(lua, 3) ? true : false;
         box2d->setActive(infoBox2d, bValue);
         return 0;
@@ -1305,12 +1305,12 @@ namespace mbm
     Outcome:
     PreSolve and PostSolve are called repeatedly
     */
-    int onSetContactListenerBox2d(lua_State *lua)
+    int onSetContactListenerBox2dlf(lua_State *lua)
     {
         const int top = lua_gettop(lua);
         if (top > 1)
         {
-            PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
+            PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dlfFromRawTable(lua, 1, 1);
             USER_DATA_PHYSICS_2D *uData = box2d->userData;
             
             if (top > 1 && lua_type(lua,2) == LUA_TFUNCTION)
@@ -1346,24 +1346,24 @@ namespace mbm
         return 0;
     }
 
-    int onSetAngularDumpingBox2d(lua_State *lua)
+    int onSetAngularDumpingBox2dlf(lua_State *lua)
     {
-        b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float angularDamping = luaL_checknumber(lua, 3);
         body->SetAngularDamping(angularDamping); //-V522
         return 0;
     }
 
-    int onGetScaleBox2d(lua_State *lua)
+    int onGetScaleBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dlfFromRawTable(lua, 1, 1);
         lua_pushnumber(lua, box2d->getScale());
         return 1;
     }
 
-    int onSetScaleBox2d(lua_State *lua)
+    int onSetScaleBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const float scale = luaL_checknumber(lua, 2);
         box2d->setScale(scale);
         return 0;
@@ -1371,45 +1371,45 @@ namespace mbm
 
     int onGetMultiplyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dlfFromRawTable(lua, 1, 1);
         lua_pushnumber(lua, box2d->multiplyStep);
         return 1;
     }
 
     static int onGetVelocityIterationsBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dlfFromRawTable(lua, 1, 1);
         lua_pushinteger(lua, box2d->velocityIterations);
         return 1;
     }
 
     static int onGetPositionIterationsBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d          = getBox2dlfFromRawTable(lua, 1, 1);
         lua_pushinteger(lua, box2d->positionIterations);
         return 1;
     }
 
     int onSetMultiplyBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const float multiplyStep = luaL_checknumber(lua, 2);
         box2d->multiplyStep = multiplyStep;
         return 0;
     }
 
-    int onGetLocalCenterBodyBox2d(lua_State *lua)
+    int onGetLocalCenterBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const b2Vec2  b(body->GetLocalCenter()); //-V522
         lua_pushnumber(lua, b.x);
         lua_pushnumber(lua, b.y);
         return 2;
     }
 
-    int onGetLocalPointBodyBox2d(lua_State *lua)
+    int onGetLocalPointBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float x = luaL_checknumber(lua, 3);
         const float y = luaL_checknumber(lua, 4);
         const b2Vec2      b(body->GetLocalPoint(b2Vec2(x, y))); //-V522
@@ -1418,9 +1418,9 @@ namespace mbm
         return 2;
     }
 
-    int onGetTypeBodyBox2d(lua_State *lua)
+    int onGetTypeBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         switch (body->GetType()) //-V522
         {
         case b2_staticBody:
@@ -1442,18 +1442,18 @@ namespace mbm
         return 1;
     }
 
-    int onGetWorldCenterBox2d(lua_State *lua)
+    int onGetWorldCenterBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const b2Vec2  b(body->GetWorldCenter()); //-V522
         lua_pushnumber(lua, b.x);
         lua_pushnumber(lua, b.y);
         return 2;
     }
 
-    int onGetWorldPointBox2d(lua_State *lua)
+    int onGetWorldPointBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float x    = luaL_checknumber(lua, 3);
         const float y    = luaL_checknumber(lua, 4);
         const b2Vec2      b(body->GetWorldPoint(b2Vec2(x, y))); //-V522
@@ -1462,15 +1462,15 @@ namespace mbm
         return 2;
     }
 
-    int getVersionBox2d(lua_State *lua)
+    int getVersionBox2dlf(lua_State *lua)
     {
         lua_pushfstring(lua,"%d.%d.%d %s",b2_version.major,b2_version.minor,b2_version.revision,b2_liquidFunVersionString);
         return 1;
     }
 
-    int onGetWorldVectorBodyBox2d(lua_State *lua)
+    int onGetWorldVectorBodyBox2dlf(lua_State *lua)
     {
-        const b2Body *body = getBodyBox2dFromRawTable(lua,1,2);
+        const b2Body *body = getBodyBox2dlfFromRawTable(lua,1,2);
         const float x = luaL_checknumber(lua, 3);
         const float y = luaL_checknumber(lua, 4);
         const b2Vec2      b(body->GetWorldVector(b2Vec2(x, y))); //-V522
@@ -1511,7 +1511,7 @@ namespace mbm
 
         virtual float32 ReportFixture(	b2Fixture* fixture, const b2Vec2& point,const b2Vec2& normal, float32 fraction)
         {
-            auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
+            auto* info = static_cast<SHAPE_INFO_B2DLF*>(fixture->GetBody()->GetUserData());
             if(info)
             {
                 auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->userData);
@@ -1553,9 +1553,9 @@ namespace mbm
 	    }
     };
 
-    int onRayCastBox2d(lua_State *lua)
+    int onRayCastBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const float scale    = box2d->getScale();
         const b2Vec2 p1(luaL_checknumber(lua, 2) / scale, luaL_checknumber(lua, 3) / scale);
         const b2Vec2 p2(luaL_checknumber(lua, 4) / scale, luaL_checknumber(lua, 5) / scale);
@@ -1589,7 +1589,7 @@ namespace mbm
 
         virtual bool ReportFixture(b2Fixture* fixture)
         {
-            auto* info = static_cast<SHAPE_INFO*>(fixture->GetBody()->GetUserData());
+            auto* info = static_cast<SHAPE_INFO_B2DLF*>(fixture->GetBody()->GetUserData());
             if(info)
             {
                 auto * userData              = static_cast<USER_DATA_RENDER_LUA *>(info->ptr->userData);
@@ -1624,9 +1624,9 @@ namespace mbm
         }
     };
 
-    int onQueryAABBBox2d(lua_State *lua)
+    int onQueryAABBBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         const float scale    = box2d->getScale();
         b2AABB  b2aabb;
         b2aabb.lowerBound.x         = luaL_checknumber(lua, 2)  / scale;
@@ -1639,40 +1639,40 @@ namespace mbm
         return 0;
     }
 
-    int onGetJointBox2d(lua_State *lua)
+    int onGetJointBox2dlf(lua_State *lua)
     {
         const int     top               = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const unsigned int index        = top > 2 ? luaL_checkinteger(lua,3) - 1: 0;
-        INFO_JOINT *          infoJoint = box2d->getInfoJoint(infoBox2d,index);
+        INFO_JOINT_B2DLF *          infoJoint = box2d->getInfoJoint(infoBox2d,index);
         if (infoJoint)
-            return onGetJointLua(lua, infoJoint->joint);
+            return onGetJointBox2dlfLua(lua, infoJoint->joint);
         else
             lua_pushnil(lua);
         return 1;
     }
 
-    int onStopSimulateBox2d(lua_State *lua)
+    int onStopSimulateBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         box2d->stopSimulate  = true;
         return 0;
     }
 
-    int onResumeSimulateBox2d(lua_State *lua)
+    int onResumeSimulateBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d = getBox2dlfFromRawTable(lua, 1, 1);
         box2d->stopSimulate = false;
         return 0;
     }
 
-    int onDestroyBodyBox2d(lua_State *lua)
+    int onDestroyBodyBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d       = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         if(infoBox2d)
             box2d->destroyBody(infoBox2d);
         return 0;
@@ -1680,10 +1680,10 @@ namespace mbm
 
     int onDestroyJointBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
-        auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
+        auto *          infoBox2d       = static_cast<SHAPE_INFO_B2DLF *>(userData->extra);
         if(infoBox2d)
             box2d->removeJoint(infoBox2d);
         return 0;
@@ -1692,7 +1692,7 @@ namespace mbm
     
     int onDestroyFluidBox2d(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
         RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto * infoFluid                = static_cast<INFO_FLUID*>(userData->extra);
@@ -1701,10 +1701,10 @@ namespace mbm
         return 0;
     }
 
-    int onTestPointBodyBox2d(lua_State *lua)
+    int onTestPointBodyBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         b2Vec2 point(luaL_checknumber(lua, 3), luaL_checknumber(lua, 4));
         if (box2d->testPoint(infoBox2d, point))
             lua_pushboolean(lua, 1);
@@ -1713,28 +1713,28 @@ namespace mbm
         return 1;
     }
 
-    int onSetFixedRotationBox2d  (lua_State *lua)
+    int onSetFixedRotationBox2dlf  (lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *  infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *  infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const int      value    = lua_toboolean(lua, 3);
         box2d->setFixedRotation(infoBox2d,value);
         return 0;
     }
 
-    int onSetSleepingAllowedBox2d(lua_State *lua)
+    int onSetSleepingAllowedBox2dlf(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *  infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d    = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *  infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
         const int      value    = lua_toboolean(lua, 3);
         box2d->setSleepingAllowed(infoBox2d,value);
         return 0;
     }
 
-    int onSetFilterBox2d(lua_State *lua)
+    int onSetFilterBox2dlf(lua_State *lua)
     {
         const int     top         = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *box2d      = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *box2d      = getBox2dlfFromRawTable(lua, 1, 1);
         const char* message_error = 
         "\nExpected [body] for this case it will apply for all bodies."
         "\nExpected [table filter] box2d and [body], for this case it will apply this body. "
@@ -1746,7 +1746,7 @@ namespace mbm
 
         if(top > 2)
         {
-            SHAPE_INFO *  infoBox2d = getShapeInfoFromRawTable(lua,1,2);
+            SHAPE_INFO_B2DLF *  infoBox2d = getShapeInfobox2dlfFromRawTable(lua,1,2);
             const int      hasTable = lua_type(lua, 3);
             if (hasTable == LUA_TTABLE)
             {
@@ -1784,12 +1784,12 @@ namespace mbm
         return 0;
     }
 
-    int onCreateJointBox2d(lua_State *lua)
+    int onCreateJointBox2dlf(lua_State *lua)
     {
         const int             top       = lua_gettop(lua);
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        SHAPE_INFO *          info1     = getShapeInfoFromRawTable(lua,1,2);
-        SHAPE_INFO *          info2     = getShapeInfoFromRawTable(lua,1,3);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d     = getBox2dlfFromRawTable(lua, 1, 1);
+        SHAPE_INFO_B2DLF *          info1     = getShapeInfobox2dlfFromRawTable(lua,1,2);
+        SHAPE_INFO_B2DLF *          info2     = getShapeInfobox2dlfFromRawTable(lua,1,3);
         const int             hasTable  = top > 3 ? lua_type(lua, 4) : 0;
         
         unsigned int result = 0xffffffff;
@@ -1835,7 +1835,7 @@ namespace mbm
 
                 const unsigned int index_1 = static_cast<unsigned int>(indexA) - 1;
                 const unsigned int index_2 = static_cast<unsigned int>(indexB) - 1;
-                INFO_JOINT * infoJoint = box2d->getInfoJoint(info1,index_1);
+                INFO_JOINT_B2DLF * infoJoint = box2d->getInfoJoint(info1,index_1);
                 def.joint1             = infoJoint ? infoJoint->joint : nullptr;
                              infoJoint = box2d->getInfoJoint(info2,index_2);
                 def.joint2             = infoJoint ? infoJoint->joint : nullptr;
@@ -2047,9 +2047,9 @@ namespace mbm
         return 1;
     }
 
-    int onDestroyBox2dLua(lua_State *lua)
+    int onDestroyBox2dlfLua(lua_State *lua)
     {
-        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dFromRawTable(lua, 1, 1);
+        PHYSICS_BOX2D_LIQUID_FUN *       box2d = getBox2dlfFromRawTable(lua, 1, 1);
         USER_DATA_PHYSICS_2D *uData = box2d->userData;
         uData->unrefAllTableLua(lua);
         delete uData;
@@ -2072,71 +2072,71 @@ namespace mbm
         const auto   positionIterations = (int)(top > 5 ? luaL_checkinteger(lua, 6) : 3);
         const float multiplyStep        =      (top > 6 ? luaL_checknumber(lua,   7) : 1.0f);
         lua_settop(lua, 0);
-        luaL_Reg regBox2dMethods[] = {  {"addStaticBody", onAddStaticBodyBox2d },
-                                        {"addDynamicBody", onAddDynamicBodyBox2d },
-                                        {"addKinematicBody", onAddKinematicBodyBox2d },
+        luaL_Reg regBox2dMethods[] = {  {"addStaticBody", onAddStaticBodyBox2dlf },
+                                        {"addDynamicBody", onAddDynamicBodyBox2dlf },
+                                        {"addKinematicBody", onAddKinematicBodyBox2dlf },
                                         {"createFluid", onCreateFluidBodyBox2d },
-                                        {"addBody", onAddBodyBox2d },
-                                        {"applyForce", onApplyForceBodyBox2d },
-                                        {"applyForceToCenter", onApplyForceToCenterBodyBox2dFromBody},
-                                        {"applyTorque", onApplyTorqueBodyBox2d },
-                                        {"applyAngularImpulse", onApplyAngularImpulseBodyBox2d },
-                                        {"applyLinearImpulse", onApplyLinearImpulseBodyBox2d },
-                                        {"applyLinearImpulseToCenter", onApplyLinearImpulseToCenterBodyBox2d },
-                                        {"destroyBody", onDestroyBodyBox2d},
+                                        {"addBody", onAddBodyBox2dlf },
+                                        {"applyForce", onApplyForceBodyBox2dlf },
+                                        {"applyForceToCenter", onApplyForceToCenterBodyBox2dlfFromBody},
+                                        {"applyTorque", onApplyTorqueBodyBox2dlf },
+                                        {"applyAngularImpulse", onApplyAngularImpulseBodyBox2dlf },
+                                        {"applyLinearImpulse", onApplyLinearImpulseBodyBox2dlf },
+                                        {"applyLinearImpulseToCenter", onApplyLinearImpulseToCenterBodyBox2dlf },
+                                        {"destroyBody", onDestroyBodyBox2dlf},
                                         {"destroyJoint", onDestroyJointBox2d},
                                         {"destroyFluid", onDestroyFluidBox2d},
-                                        {"getAngularVelocity", onGetAngularVelocityBox2d },
-                                        {"getInertia", onGetInertiaBox2dFromBody},
-                                        {"getJoint", onGetJointBox2d},
-                                        {"getLinearVelocity", onGetLinearVelocityBox2d },
-                                        {"getGravity", onGetGravityBox2d},
-                                        {"getGravityScale", onGetGravityScaleBodyBox2d},
-                                        {"getPosition", onGetPositionBox2d },
-                                        {"getMass", onGetMassBox2d },
-                                        {"getManifolds", onGetManifoldBox2d },
-                                        {"getWorldManifolds", onGetWorldManifoldBox2d },
-                                        {"getScale", onGetScaleBox2d},
-                                        {"getLocalCenter", onGetLocalCenterBodyBox2d},
-                                        {"getLocalPoint", onGetLocalPointBodyBox2d},
-                                        {"getType", onGetTypeBodyBox2d},
-                                        {"getWorldCenter", onGetWorldCenterBox2d },
-                                        {"getWorldPoint", onGetWorldPointBox2d },
-                                        {"getWorldVector", onGetWorldVectorBodyBox2d},
-                                        {"setTransform", onInterfereBox2d},
-                                        {"isActive", onIsActiveBodyBox2d},
-                                        {"isAwake", onIsAwakeBox2d},
-                                        {"isOnTheGround", onIsOnTheGroundBox2d},
-                                        {"joint", onCreateJointBox2d},
-                                        {"pause", onStopSimulateBox2d},
-                                        {"queryAABB", onQueryAABBBox2d},
-                                        {"rayCast", onRayCastBox2d},
-                                        {"setActive", onSetActiveCollisionBox2d },
-                                        {"setAngularVelocity", onSetAngularVelocityBox2d },
-                                        {"setAngularDamping", onSetAngularDumpingBox2d},
-                                        {"setAwake", onSetAwakeBox2d},
-                                        {"setBullet", onSetBulletBox2d},
-                                        {"setContactListener", onSetContactListenerBox2d},
-                                        {"setDensity", onSetDensityBox2d},
-                                        {"setEnable", onSetEnabledBox2d},
-                                        {"setFilter", onSetFilterBox2d},
-                                        {"setFixedRotation", onSetFixedRotationBox2d},
-                                        {"setSleepingAllowed",onSetSleepingAllowedBox2d},
-                                        {"setGravity", onSetGravityBox2d},
-                                        {"setGravityScale", onSetGravityScaleBodyBox2d},
-                                        {"setFriction", onSetFrictionBox2d},
-                                        {"setMass", onSetMassBox2d},
-                                        {"setManifolds", onSetManifoldBox2d },
-                                        {"setLinearVelocity", onSetLinearVelocityBox2d},
-                                        {"setRestitution", onSetRestitutionBox2d},
-                                        {"setScale", onSetScaleBox2d },
+                                        {"getAngularVelocity", onGetAngularVelocityBox2dlf },
+                                        {"getInertia", onGetInertiaBox2dFromBodylf},
+                                        {"getJoint", onGetJointBox2dlf},
+                                        {"getLinearVelocity", onGetLinearVelocityBox2dlf },
+                                        {"getGravity", onGetGravityBox2dlf},
+                                        {"getGravityScale", onGetGravityScaleBodyBox2dlf},
+                                        {"getPosition", onGetPositionBox2dlf },
+                                        {"getMass", onGetMassBox2dlf },
+                                        {"getManifolds", onGetManifoldBox2dlf },
+                                        {"getWorldManifolds", onGetWorldManifoldBox2dlf },
+                                        {"getScale", onGetScaleBox2dlf},
+                                        {"getLocalCenter", onGetLocalCenterBodyBox2dlf},
+                                        {"getLocalPoint", onGetLocalPointBodyBox2dlf},
+                                        {"getType", onGetTypeBodyBox2dlf},
+                                        {"getWorldCenter", onGetWorldCenterBox2dlf },
+                                        {"getWorldPoint", onGetWorldPointBox2dlf },
+                                        {"getWorldVector", onGetWorldVectorBodyBox2dlf},
+                                        {"setTransform", onInterfereBox2dlf},
+                                        {"isActive", onIsActiveBodyBox2dlf},
+                                        {"isAwake", onIsAwakeBox2dlf},
+                                        {"isOnTheGround", onIsOnTheGroundBox2dlf},
+                                        {"joint", onCreateJointBox2dlf},
+                                        {"pause", onStopSimulateBox2dlf},
+                                        {"queryAABB", onQueryAABBBox2dlf},
+                                        {"rayCast", onRayCastBox2dlf},
+                                        {"setActive", onSetActiveCollisionBox2dlf },
+                                        {"setAngularVelocity", onSetAngularVelocityBox2dlf },
+                                        {"setAngularDamping", onSetAngularDumpingBox2dlf},
+                                        {"setAwake", onSetAwakeBox2dlf},
+                                        {"setBullet", onSetBulletBox2dlf},
+                                        {"setContactListener", onSetContactListenerBox2dlf},
+                                        {"setDensity", onSetDensityBox2dlf},
+                                        {"setEnable", onSetEnabledBox2dlf},
+                                        {"setFilter", onSetFilterBox2dlf},
+                                        {"setFixedRotation", onSetFixedRotationBox2dlf},
+                                        {"setSleepingAllowed",onSetSleepingAllowedBox2dlf},
+                                        {"setGravity", onSetGravityBox2dlf},
+                                        {"setGravityScale", onSetGravityScaleBodyBox2dlf},
+                                        {"setFriction", onSetFrictionBox2dlf},
+                                        {"setMass", onSetMassBox2dlf},
+                                        {"setManifolds", onSetManifoldBox2dlf },
+                                        {"setLinearVelocity", onSetLinearVelocityBox2dlf},
+                                        {"setRestitution", onSetRestitutionBox2dlf},
+                                        {"setScale", onSetScaleBox2dlf },
                                         {"setMultiply", onSetMultiplyBox2d },
                                         {"getMultiply", onGetMultiplyBox2d },
                                         {"getVelocityIterations", onGetVelocityIterationsBox2d },
                                         {"getPositionIterations", onGetPositionIterationsBox2d },
-                                        {"start", onResumeSimulateBox2d },
-                                        {"setType", onSetTypeBodyBox2d},
-                                        {"testPoint", onTestPointBodyBox2d },
+                                        {"start", onResumeSimulateBox2dlf },
+                                        {"setType", onSetTypeBodyBox2dlf},
+                                        {"testPoint", onTestPointBodyBox2dlf },
                                         {nullptr, nullptr}};
         luaL_newlib(lua, regBox2dMethods);
         luaL_getmetatable(lua, "_mbmBox2dLiquidFun");
@@ -2152,11 +2152,11 @@ namespace mbm
         box2d->positionIterations = positionIterations;
         box2d->init(&gravity);
         // callbacks
-        box2d->on_box2d_BeginContact = lua_box2d_BeginContact;
-        box2d->on_box2d_EndContact   = lua_box2d_EndContact;
-        box2d->on_box2d_PostSolve    = lua_box2d_PostSolve;
-        box2d->on_box2d_PreSolve     = lua_box2d_PreSolve;
-        box2d->on_box2d_DestroyBodyFromList = lua_box2d_onBox2dDestroyBodyFromList;
+        box2d->on_box2d_BeginContact = lua_box2dlf_BeginContact;
+        box2d->on_box2d_EndContact   = lua_box2dlf_EndContact;
+        box2d->on_box2d_PostSolve    = lua_box2dlf_PostSolve;
+        box2d->on_box2d_PreSolve     = lua_box2dlf_PreSolve;
+        box2d->on_box2d_DestroyBodyFromList = lua_box2d_onBox2dlfDestroyBodyFromList;
 
         /* trick to ensure that we will receive the expected metatable type expected metatable type. */
         const char* __userdata_name = getUserTypeAsString(L_USER_TYPE_BOX2D_LF);
@@ -2170,7 +2170,7 @@ namespace mbm
 
     void registerClassBox2dLiquidFun(lua_State *lua)
     {
-        luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dLua}, {"getVersion", getVersionBox2d}, {nullptr, nullptr}};
+        luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dlfLua}, {"getVersion", getVersionBox2dlf}, {nullptr, nullptr}};
         luaL_newmetatable(lua, "_mbmBox2dLiquidFun");
         luaL_setfuncs(lua, regBox2dMMethods, 0);
         lua_setglobal(lua, "box2dLiquidFun");
@@ -2186,7 +2186,7 @@ namespace mbm
         T_B2_PostSolve    = 3,
     };
 
-    void lua_box2d_EventContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, EVENT_CONTACT_B2 idEvent,
+    void lua_box2dlf_EventContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO_B2DLF *info1, SHAPE_INFO_B2DLF *info2, EVENT_CONTACT_B2 idEvent,
                                        const b2Manifold *oldManifold, const b2ContactImpulse *impulse)
     {
         if (info1 && info2)
@@ -2323,27 +2323,27 @@ namespace mbm
         }
     }
 
-    void lua_box2d_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
+    void lua_box2dlf_BeginContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO_B2DLF *info1, SHAPE_INFO_B2DLF *info2)
     {
-        lua_box2d_EventContact(box2d, info1, info2, T_B2_BeginContact, nullptr, nullptr);
+        lua_box2dlf_EventContact(box2d, info1, info2, T_B2_BeginContact, nullptr, nullptr);
     }
 
-    void lua_box2d_EndContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2)
+    void lua_box2dlf_EndContact(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO_B2DLF *info1, SHAPE_INFO_B2DLF *info2)
     {
-        lua_box2d_EventContact(box2d, info1, info2, T_B2_EndContact, nullptr, nullptr);
+        lua_box2dlf_EventContact(box2d, info1, info2, T_B2_EndContact, nullptr, nullptr);
     }
 
-    void lua_box2d_PreSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2,const b2Manifold *oldManifold)
+    void lua_box2dlf_PreSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO_B2DLF *info1, SHAPE_INFO_B2DLF *info2,const b2Manifold *oldManifold)
     {
-        lua_box2d_EventContact(box2d, info1, info2, T_B2_PreSolve, oldManifold, nullptr);
+        lua_box2dlf_EventContact(box2d, info1, info2, T_B2_PreSolve, oldManifold, nullptr);
     }
 
-    void lua_box2d_PostSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO *info1, SHAPE_INFO *info2, const b2ContactImpulse *impulse)
+    void lua_box2dlf_PostSolve(PHYSICS_BOX2D_LIQUID_FUN *box2d, SHAPE_INFO_B2DLF *info1, SHAPE_INFO_B2DLF *info2, const b2ContactImpulse *impulse)
     {
-        lua_box2d_EventContact(box2d, info1, info2, T_B2_PostSolve, nullptr, impulse);
+        lua_box2dlf_EventContact(box2d, info1, info2, T_B2_PostSolve, nullptr, impulse);
     }
 
-    PHYSICS_BOX2D_LIQUID_FUN *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    PHYSICS_BOX2D_LIQUID_FUN *getBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF));
         return *ud;

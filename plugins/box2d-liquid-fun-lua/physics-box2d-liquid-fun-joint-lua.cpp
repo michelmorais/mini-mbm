@@ -32,7 +32,7 @@ extern "C"
 
 namespace mbm
 {
-    b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    b2Joint *getJointBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<b2Joint **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF_JOINT));
         return *ud;
@@ -67,9 +67,9 @@ namespace mbm
                     method_name ? method_name : "null");
     }
 
-    int onGetReactionForceJointBox2d(lua_State *lua)
+    int onGetReactionForceJointBox2dlf(lua_State *lua)
     {
-        b2Joint *    joint  = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *    joint  = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  delta  = luaL_checknumber(lua, 2);
         const b2Vec2 b      = joint->GetReactionForce(delta);
         lua_pushnumber(lua, b.x);
@@ -77,18 +77,18 @@ namespace mbm
         return 2;
     }
 
-    int onGetReactionTorqueJointBox2d(lua_State *lua)
+    int onGetReactionTorqueJointBox2dlf(lua_State *lua)
     {
-        b2Joint *   joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *   joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float delta = luaL_checknumber(lua, 2);
         const float ret   = joint->GetReactionTorque(delta);
         lua_pushnumber(lua, ret);
         return 1;
     }
 
-    int onIsActiveJointBox2d(lua_State *lua)
+    int onIsActiveJointBox2dlf(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         if (joint->IsActive())
             lua_pushboolean(lua, 1);
         else
@@ -98,7 +98,7 @@ namespace mbm
 
     int onSetActiveJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const bool activate = lua_toboolean(lua, 2) ? true : false;
         b2Body* body_a = joint->GetBodyA();
         b2Body* body_b = joint->GetBodyB();
@@ -109,7 +109,7 @@ namespace mbm
 
     int onSetMotorSpeedJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -142,7 +142,7 @@ namespace mbm
 
     int onGetMotorSpeedJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_revoluteJoint  :
@@ -184,7 +184,7 @@ namespace mbm
 
     int onSetMaxMotorTorqueJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -220,7 +220,7 @@ namespace mbm
 
     int onGetMaxMotorTorqueJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_revoluteJoint  :
@@ -262,7 +262,7 @@ namespace mbm
 
     int onGetRatioJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_distanceJoint  :
@@ -313,7 +313,7 @@ namespace mbm
 
     int onSetRatioJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -356,7 +356,7 @@ namespace mbm
 
     int onSetMaxForceJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -399,7 +399,7 @@ namespace mbm
 
     int onGetMaxForceJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_mouseJoint     :
@@ -450,7 +450,7 @@ namespace mbm
 
     int onSetFrequencyHzJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -486,7 +486,7 @@ namespace mbm
 
     int onGetFrequencyHzJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_distanceJoint  :
@@ -528,7 +528,7 @@ namespace mbm
 
     int onSetLengthJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         switch(joint->GetType())
         {
@@ -557,7 +557,7 @@ namespace mbm
 
     int onGetLengthJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_distanceJoint  :
@@ -590,7 +590,7 @@ namespace mbm
 
     int onSetTargetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  x = luaL_checknumber(lua, 2);
         const float  y = luaL_checknumber(lua, 3);
         const b2Vec2 v(x,y);
@@ -614,7 +614,7 @@ namespace mbm
 
     int onGetTargetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         switch(joint->GetType())
         {
             case e_mouseJoint:
@@ -646,7 +646,7 @@ namespace mbm
 
     int onGetAnchorA(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const b2Vec2 anchorA(joint->GetAnchorA());
         lua_pushnumber(lua,anchorA.x);
         lua_pushnumber(lua,anchorA.y);
@@ -655,7 +655,7 @@ namespace mbm
 
     int onGetAnchorB(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const b2Vec2 anchorB(joint->GetAnchorB());
         lua_pushnumber(lua,anchorB.x);
         lua_pushnumber(lua,anchorB.y);
@@ -664,7 +664,7 @@ namespace mbm
 
     int onEnableMotorJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const bool  v = lua_toboolean(lua, 2) ? true : false;
         switch(joint->GetType())
         {
@@ -700,7 +700,7 @@ namespace mbm
 
     int onSetCorrectionFactorJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  v = luaL_checknumber(lua, 2);
         if(joint->GetType() == e_motorJoint)
         {
@@ -717,7 +717,7 @@ namespace mbm
 
     int onGetCorrectionFactorJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         float  v = 0.0f;
         if(joint->GetType() == e_motorJoint)
         {
@@ -735,7 +735,7 @@ namespace mbm
 
     int onSetLinearOffsetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  x = luaL_checknumber(lua, 2);
         const float  y = luaL_checknumber(lua, 3);
         if(joint->GetType() == e_motorJoint)
@@ -756,7 +756,7 @@ namespace mbm
 
     int onGetLinearOffsetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         b2Vec2  v(0,0);
         if(joint->GetType() == e_motorJoint)
         {
@@ -775,7 +775,7 @@ namespace mbm
 
     int onSetAngularOffsetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  x = luaL_checknumber(lua, 2);
         if(joint->GetType() == e_motorJoint)
         {
@@ -792,7 +792,7 @@ namespace mbm
 
     int onGetAngularOffsetJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         float  v = 0.0f;
         if(joint->GetType() == e_motorJoint)
         {
@@ -810,7 +810,7 @@ namespace mbm
 
     int onEnableLimitJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const bool  v = lua_toboolean(lua, 2) ? true : false;
         switch(joint->GetType())
         {
@@ -839,7 +839,7 @@ namespace mbm
 
     int onSetLimitsJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         const float  lower = luaL_checknumber(lua, 2);
         const float  upper = luaL_checknumber(lua, 3);
         switch(joint->GetType())
@@ -869,7 +869,7 @@ namespace mbm
 
     int onGetLimitsJointBox2d(lua_State *lua)
     {
-        b2Joint *joint = getJointBox2dFromRawTable(lua, 1, 1);
+        b2Joint *joint = getJointBox2lfdFromRawTable(lua, 1, 1);
         float lower = 0.0f;
         float upper = 0.0f;
         switch(joint->GetType())
@@ -905,12 +905,12 @@ namespace mbm
         return 2;
     }
 
-    int onGetJointLua(lua_State *lua, b2Joint *joint)
+    int onGetJointBox2dlfLua(lua_State *lua, b2Joint *joint)
     {
         lua_settop(lua, 0);
-        luaL_Reg regMethods[] = {   {"getReactionForce", onGetReactionForceJointBox2d},
-                                    {"getReactionTorque", onGetReactionTorqueJointBox2d},
-                                    {"isActive", onIsActiveJointBox2d},
+        luaL_Reg regMethods[] = {   {"getReactionForce", onGetReactionForceJointBox2dlf},
+                                    {"getReactionTorque", onGetReactionTorqueJointBox2dlf},
+                                    {"isActive", onIsActiveJointBox2dlf},
                                     {"setActive", onSetActiveJointBox2d},
 
                                     {"getMotorSpeed", onGetMotorSpeedJointBox2d},

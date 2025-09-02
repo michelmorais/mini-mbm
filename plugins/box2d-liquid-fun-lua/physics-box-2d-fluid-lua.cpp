@@ -37,23 +37,23 @@ namespace mbm
     API_IMPL int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
     API_IMPL int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
 
-    STEERED_PARTICLE *getRenderizableFluidBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<mbm::STEERED_PARTICLE **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_STEERED_PARTICLE));
         return *ud;
     }
 
-    b2ParticleSystem* getParticleSystemBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    b2ParticleSystem* getParticleSystemBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,rawi,indexTable);
+        mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,rawi,indexTable);
         auto *userData         = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info = static_cast<mbm::INFO_FLUID*>(userData->extra);
         return info->particleSystem;
     }
 
-    int onGetParticleCountBox2d(lua_State *lua)
+    int onGetParticleCountBox2dlf(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 particleCount  = pSystem->GetParticleCount();
         lua_pushinteger(lua, particleCount);
         return 1;
@@ -61,7 +61,7 @@ namespace mbm
 
     int onGetMaxParticleCountBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 particleCount  = pSystem->GetMaxParticleCount();
         lua_pushinteger(lua, particleCount);
         return 1;
@@ -69,7 +69,7 @@ namespace mbm
 
     int onSetMaxParticleCountBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 particleCount  = luaL_checkinteger(lua,2);
         pSystem->SetMaxParticleCount(particleCount);
         return 0;
@@ -77,7 +77,7 @@ namespace mbm
 
     int onSetPausedParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const bool pause           = lua_toboolean(lua,2);
         pSystem->SetPaused(pause);
         return 0;
@@ -85,7 +85,7 @@ namespace mbm
 
     int onSetDensityParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 density      = luaL_checknumber(lua,2);
         pSystem->SetDensity(density);
         return 0;
@@ -93,7 +93,7 @@ namespace mbm
 
     int onGetDensityParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 density      = pSystem->GetDensity();
         lua_pushnumber(lua, density);
         return 1;
@@ -102,7 +102,7 @@ namespace mbm
 
     int onSetGravityScaleParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 gravityScale = luaL_checknumber(lua,2);
         pSystem->SetGravityScale(gravityScale);
         return 0;
@@ -110,7 +110,7 @@ namespace mbm
 
     int onGetGravityScaleParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 gravityScale = pSystem->GetGravityScale();
         lua_pushnumber(lua, gravityScale);
         return 1;
@@ -119,7 +119,7 @@ namespace mbm
     
     int onGetDampingParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 damping      = pSystem->GetDamping();
         lua_pushnumber(lua, damping);
         return 1;
@@ -127,7 +127,7 @@ namespace mbm
 
     int onSetDampingParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 damping      = luaL_checknumber(lua,2);
         pSystem->SetDamping(damping);
         return 0;
@@ -135,7 +135,7 @@ namespace mbm
     
     int onGetStaticPressureIterationsParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 iterations     = pSystem->GetStaticPressureIterations();
         lua_pushinteger(lua, iterations);
         return 1;
@@ -151,7 +151,7 @@ namespace mbm
     /// http://en.wikipedia.org/wiki/Static_pressure#Static_pressure_in_fluid_dynamics
     int onSetStaticPressureIterationsParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 iterations     = luaL_checkinteger(lua,2);
         pSystem->SetStaticPressureIterations(iterations);
         return 0;
@@ -159,7 +159,7 @@ namespace mbm
 
     int onGetRadiusParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const float32 radius       = pSystem->GetRadius();
         lua_pushnumber(lua, radius);
         return 1;
@@ -167,7 +167,7 @@ namespace mbm
 
     int onGetParticleLifetimeParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 index          = luaL_checkinteger(lua,2)-1;
         if(index < pSystem->GetParticleCount() && index >= 0)
         {
@@ -183,7 +183,7 @@ namespace mbm
 
     int onSetParticleLifetimeParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 index          = luaL_checkinteger(lua,2)-1;
         const float32 lifetime     = luaL_checknumber(lua,3);
         if(index < pSystem->GetParticleCount() && index >= 0)
@@ -195,7 +195,7 @@ namespace mbm
 
     int onDestroyParticleParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         const int32 index          = luaL_checkinteger(lua,2)-1;
         if(index < pSystem->GetParticleCount() && index >= 0)
         {
@@ -206,7 +206,7 @@ namespace mbm
 
     int onDestroyParticlesInShapeBox2d(lua_State *lua)
     {
-        mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE * p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         const int indexTable                       = 2;
         const int indexSubTable                    = lua_gettop(lua)+1;
         USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
@@ -335,7 +335,7 @@ namespace mbm
     {
         const int top              = lua_gettop(lua);
         const int indexTable       = top + 1;
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         int index =0;
         b2Vec2 impulse(0,0);
         if(lua_istable(lua,2))
@@ -371,7 +371,7 @@ namespace mbm
     
     int onApplyLinearImpulseBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         b2Vec2 impulse(0,0);
         int32 iFirstIndex          = luaL_checkinteger(lua,2) - 1;
         int32 iLastIndex           = luaL_checkinteger(lua,3) - 1;
@@ -396,7 +396,7 @@ namespace mbm
     {
         const int top              = lua_gettop(lua);
         const int indexTable       = top + 1;
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         int index =0;
         b2Vec2 impulse(0,0);
         if(lua_istable(lua,2))
@@ -431,7 +431,7 @@ namespace mbm
 
     int onApplyForceParticleBox2d(lua_State *lua)
     {
-        b2ParticleSystem* pSystem  = getParticleSystemBox2dFromRawTable(lua, 1, 1);
+        b2ParticleSystem* pSystem  = getParticleSystemBox2lfdFromRawTable(lua, 1, 1);
         b2Vec2 impulse(0,0);
         int32 iFirstIndex          = luaL_checkinteger(lua,2) - 1;
         int32 iLastIndex           = luaL_checkinteger(lua,3) - 1;
@@ -524,7 +524,7 @@ namespace mbm
         if(top == 6)
         {
             b2AABB b2_aabb;
-            mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+            mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
             USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
             mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
             b2ParticleSystem* pSystem                  = info->particleSystem;
@@ -554,7 +554,7 @@ namespace mbm
         {
             b2AABB b2_aabb;
             const int indexTable                       = top + 1;
-            mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+            mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
             RENDERIZABLE * the_ptr                     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
             USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
             mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
@@ -685,7 +685,7 @@ namespace mbm
     int onComputeAABBParticleBox2d(lua_State *lua)
     {
         b2AABB b2_aabb;
-        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
@@ -771,7 +771,7 @@ namespace mbm
 
     int onRayCastParticleBox2d(lua_State *lua)
     {
-        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
@@ -797,7 +797,7 @@ namespace mbm
 
     int onSetColorFluidParticleBox2d(lua_State *lua)
     {
-        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         COLOR c = p_steered_particle->getColor();
         if(lua_type(lua,2) == LUA_TTABLE)
         {
@@ -820,7 +820,7 @@ namespace mbm
 
     int onGetColorFluidParticleBox2d(lua_State *lua)
     {
-        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         COLOR c = p_steered_particle->getColor();
         lua_pushnumber(lua,c.r);
         lua_pushnumber(lua,c.g);
@@ -836,7 +836,7 @@ namespace mbm
         {
             return plugin_helper::lua_error_debug(lua, "expected fluid:([renderizable | physics],table ={x,y,z,sx,sy,sz} ). args received %d",top-1);
         }
-        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dFromRawTable(lua,1,1);
+        mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         RENDERIZABLE * the_ptr    = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
         auto *userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info    = static_cast<mbm::INFO_FLUID*>(userData->extra);
@@ -891,11 +891,11 @@ namespace mbm
 #endif
 
     
-    int onGetRenderizableFluidInterfaceBox2d(lua_State *lua,mbm::RENDERIZABLE * steered_particle)
+    int onGetRenderizableFluidInterfaceBox2dlf(lua_State *lua,mbm::RENDERIZABLE * steered_particle)
     {
         lua_settop(lua, 0);
         luaL_Reg regMethods[] = {   {"add",                         onAddParticleFluidBox2d},
-                                    {"getParticleCount",            onGetParticleCountBox2d},
+                                    {"getParticleCount",            onGetParticleCountBox2dlf},
                                     {"getMaxParticleCount",         onGetMaxParticleCountBox2d},
                                     {"setMaxParticleCount",         onSetMaxParticleCountBox2d},
                                     {"setColor",                    onSetColorFluidParticleBox2d},

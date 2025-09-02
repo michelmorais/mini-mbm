@@ -27,10 +27,10 @@ namespace mbm
 {
     class RENDERIZABLE;
     class STEERED_PARTICLE;
-    b2ParticleSystem *getParticleSystemBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    STEERED_PARTICLE *getRenderizableFluidBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    int onGetParticleCountBox2d(lua_State *lua);
-    int onGetRenderizableFluidInterfaceBox2d(lua_State *lua,RENDERIZABLE * steered_particle);
+    b2ParticleSystem *getParticleSystemBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    int onGetParticleCountBox2dlf(lua_State *lua);
+    int onGetRenderizableFluidInterfaceBox2dlf(lua_State *lua,RENDERIZABLE * steered_particle);
 };
 
 #endif
