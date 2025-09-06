@@ -266,7 +266,7 @@
     <ClInclude Include="..\..\third-party\box2d-2.4.1\src\dynamics\b2_polygon_contact.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="main.lua" />
+    <None Include="..\..\plugins\box2d\main.lua" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

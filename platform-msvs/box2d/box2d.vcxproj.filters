@@ -373,7 +373,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="main.lua">
+    <None Include="..\..\plugins\box2d\main.lua">
       <Filter>Header Files\example</Filter>
     </None>
   </ItemGroup>
