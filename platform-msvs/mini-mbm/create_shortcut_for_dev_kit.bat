@@ -2,7 +2,7 @@ rem -> Create shortcut for dev tool-kit :)
 rem -> Is expected all editors and executable in this same folder
 @echo on
 
-set nickName=Liquid-Fun-MiniMBM-dev-tool-kit
+set nickName=MiniMBM-dev-tool-kit
 
 echo "Creating shortcut on desktop for %nickName%"
 
