@@ -5,7 +5,7 @@ project(${BOX2D_LIBRARY})
 set(CORE_MBM_INCLUDES     "../../include")
 set(PLUGIN_HELPER_INC     "../plugin-helper")
 set(THIRD_PARTY           ${CMAKE_SOURCE_DIR}/third-party)
-set(BOX2D_PATH      	    ${THIRD_PARTY}/box2d-${BOX2D_LIB_VERSION})
+set(BOX2D_PATH      	    ${BOX2D_LIB})
 set(LUA_INCLUDE           ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(BOX2D_ROOT           "${BOX2D_PATH}")
 set(BOX2D_INCLUDE         "${BOX2D_PATH}/include")
@@ -32,6 +32,7 @@ endif()
 #Bring the headers, such as xxx.h into the project
 include_directories(  ${BOX2D_ROOT} 
                       ${BOX2D_INCLUDE}
+                      ${BOX2D_LUA_LIB}
                       ${BOX2D_PLUGIN_SOURCE}
                       ${THIRD_PARTY}
                       ${LUA_INCLUDE}

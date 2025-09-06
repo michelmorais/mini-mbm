@@ -119,6 +119,11 @@ function(SHOW_ANDROID_OPTIONS)
     else()
         message("-DUSE_LSQLITE3=0                       : use -DUSE_LSQLITE3=1 to build lsqlite3")
     endif()
+    if(USE_BOX2D)
+        message("-DUSE_BOX2D=1                          : Box2d is enabled")
+    else()
+        message("-DUSE_BOX2D=0                          : use -DUSE_BOX2D=1 to build box2d")
+    endif()
     if(USE_BOX2D_LIQUID_FUN)
         message("-DUSE_BOX2D_LIQUID_FUN=1               : Box2d liquid fun is enabled")
     else()
@@ -359,6 +364,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #set(CMAKE_VERBOSE_MAKEFILE on)
 
     set(LUA_LIB_VERSION               "5.4.1")
+    set(BOX2DLIB_VERSION              "2.4.1")
     set(BOX2D_LIQUID_FUN_LIB_VERSION  "2.3.1")
     set(BULLET_LIB_VERSION            "2.84")
     
@@ -376,10 +382,12 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(SQLITE_LIB 			       ${THIRD_PARTY}/lsqlite3)
     set(BULLET_LIB 			       ${PLUGINS}/bullet3d)
     set(IMGUI_LIB                  ${PLUGINS}/imGui)
+    set(BOX2D_LUA_LIB              ${PLUGINS}/box2d)
     set(BOX2D_LIQUID_FUN_LUA_LIB   ${PLUGINS}/box2d-liquid-fun-lua)
     set(TILED_LIB   		       ${PLUGINS}/tiled)
     set(AUDIERE                    ${THIRD_PARTY}/audiere-1.9.4)
     set(PORT_AUDIO_LIB 		       ${THIRD_PARTY}/portaudio)
+    set(BOX2D_LIB                  ${THIRD_PARTY}/box2d-${BOX2DLIB_VERSION})
     set(BOX2D_LIQUID_FUN_LIB       ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
     
     
@@ -388,6 +396,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(CORE_MBM_LIBRARY                core_mbm)
     set(SQLITE3_LUA_LIBRARY             lsqlite3)
     set(BULLET_3D_LIBRARY               bullet3d)
+    set(BOX2D_LIBRARY                   box2d-${BOX2DLIB_VERSION})
+    set(BOX2D_LUA_LIBRARY               box2d)
     set(BOX2D_LIQUID_FUN_LIBRARY        box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
     set(BOX2D_LIQUID_FUN_LUA_LIBRARY    box2dLiquidFun)
     set(IMGUI_LIBRARY                   ImGui)
@@ -422,6 +432,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(USE_EDITOR_FEATURES     1)
         set(USE_LUA                 1)
         if(PLAT_LOWER STREQUAL "android")
+            set(USE_BOX2D               1)
             set(USE_BOX2D_LIQUID_FUN    1)
             set(USE_IMGUI               1)
             set(USE_LSQLITE3            1)
@@ -563,50 +574,50 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     #plugins ################################################################################################
     # Plugins only make sense when use LUA
+    # For Android, we must lik them all, if we do not enable all, do not link and the package size will be smaller
+
     if(USE_LUA)
         if(PLAT_LOWER STREQUAL "android")
             if(USE_IMGUI)
                 add_subdirectory(${IMGUI_LIB} 		${IMGUI_LIB})
             endif()
-        else()
-            add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
-        endif()
-
-    #to be able to enable TILED_LIB it is needed enable USE_EDITOR_FEATURES
-    #The following plugins are supposed to be 'helpers' in editor. We are not going to buid it for Android
-        if(NOT PLAT_LOWER STREQUAL "android")
-            if(USE_EDITOR_FEATURES)
-                add_subdirectory(${TILED_LIB}       ${TILED_LIB})
+            if(USE_BOX2D)
+                add_subdirectory(${BOX2D_LUA_LIB}        ${BOX2D_LUA_LIB})
             endif()
-        endif()
-
-    
-        if(PLAT_LOWER STREQUAL "android")
             if(USE_BOX2D_LIQUID_FUN)
                 add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
-                #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
             endif()
-        else()
-            add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}            ${BOX2D_LIQUID_FUN_LUA_LIB})
-            #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}                ${BOX2D_LIQUID_FUN_LIB})
-        endif()
-    
-        if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
-            add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
-        endif()
-
-        if(PLAT_LOWER STREQUAL "android")
             if(USE_LSQLITE3)
                 add_subdirectory(${SQLITE_LIB} 		${SQLITE_LIB})
             endif()
         else()
-            add_subdirectory(${SQLITE_LIB} 			${SQLITE_LIB})
-        endif()
-
-        if(NOT PLAT_LOWER STREQUAL "android")
-            add_subdirectory(${MODULES}                     ${MODULES})
+            add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
+            add_subdirectory(${SQLITE_LIB} 		${SQLITE_LIB})
+            add_subdirectory(${BOX2D_LUA_LIB}        ${BOX2D_LUA_LIB})
+            #This is to build box2d-liquid-fun only (no LUA wrapper)
+            #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
+            add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
+            #This is to build box2d-liquid-fun only (no LUA wrapper)
+            #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
         endif()
     endif()
+
+    #to be able to enable TILED_LIB it is needed enable USE_EDITOR_FEATURES
+    #The following plugins are supposed to be 'helpers' in editor. We are not going to buid it for Android
+    if(NOT PLAT_LOWER STREQUAL "android")
+        if(USE_EDITOR_FEATURES)
+            add_subdirectory(${TILED_LIB}       ${TILED_LIB})
+        endif()
+    endif()
+
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+        add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
+    endif()
+
+    if(NOT PLAT_LOWER STREQUAL "android")
+        add_subdirectory(${MODULES}                     ${MODULES})
+    endif()
+    
     #end plugins ############################################################################################
 
     # in case you want a wrapper over portaudio uncomment this
@@ -628,7 +639,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if (LS)
         add_custom_target(  ls ALL
                             COMMAND ${LS} -lSh "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/*"
-                            DEPENDS ls mini-mbm ${SQLITE_LIB} ${BULLET_LIB} ${IMGUI_LIB} ${BOX2D_LIQUID_FUN_LUA_LIB})
+                            DEPENDS ls mini-mbm ${SQLITE_LIB} ${BULLET_LIB} ${IMGUI_LIB} ${BOX2D_LIQUID_FUN_LUA_LIB} ${BOX2D_LUA_LIB})
     else()
         message("NOT found ls command!")
     endif()
