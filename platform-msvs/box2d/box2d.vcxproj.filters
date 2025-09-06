@@ -49,7 +49,7 @@
     <Filter Include="Source Files\plugin-helper">
       <UniqueIdentifier>{dcd7ec6a-9b69-4ad2-b910-db55c6d3c088}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\example">
+    <Filter Include="Source Files\example">
       <UniqueIdentifier>{bc3ee3ed-cc82-4d67-a229-882597968757}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -373,8 +373,8 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\plugins\box2d\main.lua">
-      <Filter>Header Files\example</Filter>
+    <None Include="..\..\plugins\box2d\box2d_example.lua">
+      <Filter>Source Files\example</Filter>
     </None>
   </ItemGroup>
 </Project>

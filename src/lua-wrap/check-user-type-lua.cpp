@@ -38,6 +38,7 @@ namespace mbm
     void lua_userdata_register(lua_State *lua,const int value)
     {
         const char* __userdata_ = getUserTypeAsString(value);
+		_ASSERT(strcmp("_usertype_unknown",__userdata_) != 0, "L_USER_TYPE_BEGIN need to be less than L_USER_TYPE_END");
         luaL_newmetatable(lua, __userdata_);
         lua_pushinteger(lua,value);
         lua_rawseti(lua,-2,1);

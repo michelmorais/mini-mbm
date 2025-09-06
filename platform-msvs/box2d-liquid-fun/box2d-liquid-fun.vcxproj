@@ -296,6 +296,7 @@
     <ClCompile Include="dllmain-box2d-liquid-fun.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\plugins\box2d-liquid-fun-lua\box2d-fluid-example.lua" />
     <None Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleAssembly.neon.s" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

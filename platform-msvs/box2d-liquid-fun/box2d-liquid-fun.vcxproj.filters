@@ -79,6 +79,9 @@
     <Filter Include="Source Files\plugin-helper">
       <UniqueIdentifier>{2227341b-13e0-462a-89d6-980b04af3411}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\example">
+      <UniqueIdentifier>{06aa200f-a19d-4cdd-8354-03fc6e0dec98}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.h">
@@ -465,6 +468,9 @@
   <ItemGroup>
     <None Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleAssembly.neon.s">
       <Filter>Source Files\box2d\Particle</Filter>
+    </None>
+    <None Include="..\..\plugins\box2d-liquid-fun-lua\box2d-fluid-example.lua">
+      <Filter>Source Files\example</Filter>
     </None>
   </ItemGroup>
 </Project>
