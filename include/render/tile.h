@@ -65,7 +65,6 @@ namespace mbm
     class TILE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
     {
     public:
-        friend class PHYSICS_BOX2D_LIQUID_FUN;
         friend class RENDER_2_TEXTURE;
         API_IMPL TILE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
         API_IMPL virtual ~TILE();

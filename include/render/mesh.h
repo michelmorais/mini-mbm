@@ -35,7 +35,6 @@ namespace mbm
 class MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
 {
   public:
-    friend class PHYSICS_BOX2D_LIQUID_FUN;
     API_IMPL MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
     API_IMPL virtual ~MESH();
     API_IMPL void release();
