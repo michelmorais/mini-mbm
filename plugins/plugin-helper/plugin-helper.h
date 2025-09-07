@@ -56,52 +56,6 @@ namespace plugin_helper
     mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     void lua_create_metatable_identifier(lua_State *lua,const char* _metatable_plugin,const int value);
 }
-/*
-namespace mbm
-{
-    struct USER_DATA_AUDIO_LUA;
-    class TIMER_CALL_BACK;
-    
-    //this is created at mbm engine side. so, we copy exactly the struct from lib side. It needs to remove this... shame on this
-    struct USER_DATA_SCENE_LUA
-    {
-        lua_State *                        lua;
-        lua_CFunction                      oldPanicFunction;
-        std::vector<USER_DATA_AUDIO_LUA *> lsLuaCallBackStream;
-        std::vector<RENDERIZABLE *>        lsLuaCallBackOnTouchAsynchronous;
-        std::vector<RENDERIZABLE *>        lsLuaCallBackOnTouchSynchronous;
-        std::vector<TIMER_CALL_BACK *>     lsTimerCallBack;
-        std::map<std::string, DYNAMIC_VAR *> _lsDynamicVarCam2d;
-        std::map<std::string, DYNAMIC_VAR *> _lsDynamicVarCam3d;
-        USER_DATA_SCENE_LUA();
-        virtual ~USER_DATA_SCENE_LUA();
-        void remove(TIMER_CALL_BACK *obj);
-        void remove(RENDERIZABLE *obj);
-    };
 
-    struct REF_FUNCTION_LUA
-    {
-        constexpr REF_FUNCTION_LUA(){}
-        virtual ~REF_FUNCTION_LUA();
-        void refFunctionLua(lua_State *lua, const int index, int *ref_MeAsTable);
-        void refTableLua(lua_State *lua, const int index, int *ref_MeAsTable);
-        void unrefTableLua(lua_State *lua, int *ref_MeAsTable);
-        virtual void unrefAllTableLua(lua_State *lua) = 0; // destroy all
-    };
-
-    struct USER_DATA_RENDER_LUA : public REF_FUNCTION_LUA
-    {
-        float x, y, z; // where touch down
-        int   key;
-        int   ref_MeAsTable; // me as lua script
-        int   ref_CallBackAnimation;
-        int   ref_CallBackEffectShader;
-        int   ref_CallBackTouchDown;
-        void *extra;
-        USER_DATA_RENDER_LUA();
-        virtual ~USER_DATA_RENDER_LUA();
-        virtual void unrefAllTableLua(lua_State *lua);
-    };
-}*/
 
 #endif // !PLUGIN_HELPER

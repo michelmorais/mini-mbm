@@ -11,6 +11,8 @@ set(LUA_INCLUDE                              ${THIRD_PARTY}/lua-${LUA_LIB_VERSIO
 set(BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN      "${BOX2D_LIQUID_FUN_PATH}")
 set(BOX2D_SOURCE_LIQUID_FUN                  "${BOX2D_LIQUID_FUN_PATH}/Box2D")
 set(BOX2D_PLUGIN_LIQUID_FUN_SOURCE           "./")
+set(USER_DATA_INCLUDE                        ${CORE_MBM_INCLUDES}/lua-interface/lua-wrap)
+set(MBM_CORE_INCLUDE                         ${CORE_MBM_INCLUDES}/core_mbm)
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-unused-variable")
@@ -36,6 +38,8 @@ include_directories(  ${BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN}
                       ${LUA_INCLUDE}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
+                      ${USER_DATA_INCLUDE}
+                      ${MBM_CORE_INCLUDE}
                       ../${BOX2D_LIQUID_FUN_LIB})
  
 message(STATUS " BOX2D_SOURCE_LIQUID_FUN ${BOX2D_SOURCE_LIQUID_FUN}")

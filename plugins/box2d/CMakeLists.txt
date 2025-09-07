@@ -9,6 +9,9 @@ set(BOX2D_PATH      	    ${CMAKE_SOURCE_DIR}/third-party/box2d-${BOX2DLIB_VERSIO
 set(BOX2D_INCLUDE         ${BOX2D_PATH}/include)
 set(LUA_INCLUDE           ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(BOX2D_LUA_SOURCE      ${CMAKE_SOURCE_DIR}/plugins/box2d)
+set(USER_DATA_INCLUDE     ${CORE_MBM_INCLUDES}/lua-interface/lua-wrap)
+set(MBM_CORE_INCLUDE      ${CORE_MBM_INCLUDES}/core_mbm)
+
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-unused-variable")
@@ -31,7 +34,9 @@ endif()
 include_directories(  ${LUA_INCLUDE}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
-                      ${BOX2D_INCLUDE})
+                      ${BOX2D_INCLUDE}
+                      ${USER_DATA_INCLUDE}
+                      ${MBM_CORE_INCLUDE})
  
 #However, the file(GLOB...) allows for wildcard additions:
 file(GLOB_RECURSE SOURCES "${PLUGIN_HELPER_INC}/*.cpp" "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
