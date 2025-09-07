@@ -88,6 +88,10 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         add_definitions(-DUSE_BOX2D_LIQUID_FUN)
     endif()
 
+    if(USE_BOX2D)
+        add_definitions(-DUSE_BOX2D)
+    endif()
+
     if(USE_BULLET3D)
         add_definitions(-DUSE_BULLET3D)
     endif()
@@ -140,7 +144,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
     endif()
 
-    if(USE_BOX2D_LIQUID_FUN)
+    if(USE_BOX2D)
         target_link_libraries(mini-mbm ${BOX2D_LIBRARY})
     endif()
 
