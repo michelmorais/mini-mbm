@@ -24,6 +24,7 @@
 #include <core_mbm/device.h>
 #include <core_mbm/renderizable.h>
 #include <LinearMath/btVector3.h>
+#include <user-data-lua.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

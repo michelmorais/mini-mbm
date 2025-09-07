@@ -342,7 +342,7 @@ namespace plugin_helper
         lua_rawseti(lua,-2,1);
     }
 }
-
+/*
 namespace mbm
 {
     USER_DATA_SCENE_LUA::USER_DATA_SCENE_LUA()
@@ -446,4 +446,4 @@ namespace mbm
             *ref_MeAsTable = LUA_NOREF;
         }
     }
-}
+}*/

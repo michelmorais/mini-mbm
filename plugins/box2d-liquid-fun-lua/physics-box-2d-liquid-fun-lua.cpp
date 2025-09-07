@@ -26,6 +26,7 @@
 #include <core_mbm/util-interface.h>
 #include <platform/mismatch-platform.h>
 #include "box-2d-liquid-fun-wrap.h"
+#include <user-data-lua.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

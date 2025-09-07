@@ -12,6 +12,7 @@ platform-msvs/mini-mbm-lib/Release/
 platform-msvs/mini-mbm/Release/
 platform-msvs/mini-mbm/mini-mbm.vcxproj.user
 platform-msvs/tilemap/Release/
+platform-msvs/box2d/box2d.vcxproj.user
 platform-msvs/tiny-obj-loader/Release/
 platform-msvs/Debug/
 platform-msvs/box2d/Debug/

@@ -73,22 +73,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
-    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
-    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
-    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
-    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\plugins\;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

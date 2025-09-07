@@ -56,7 +56,7 @@ namespace plugin_helper
     mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     void lua_create_metatable_identifier(lua_State *lua,const char* _metatable_plugin,const int value);
 }
-
+/*
 namespace mbm
 {
     struct USER_DATA_AUDIO_LUA;
@@ -102,6 +102,6 @@ namespace mbm
         virtual ~USER_DATA_RENDER_LUA();
         virtual void unrefAllTableLua(lua_State *lua);
     };
-}
+}*/
 
 #endif // !PLUGIN_HELPER
