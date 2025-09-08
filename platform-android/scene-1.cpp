@@ -93,6 +93,10 @@ void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
 {
 }
 
+void MY_SCENE::onResizeWindow()
+{
+}
+
 
 MY_GAME::MY_GAME(JNIEnv *env, jobject obj)
 {

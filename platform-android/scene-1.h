@@ -49,6 +49,7 @@ class MY_SCENE : public mbm::SCENE
     void onKeyUpJoystick(int player, int key);
     void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
     void onInfoDeviceJoystick(int player, int maxNumberButton, const char * strDeviceName,const char * extraInfo);
+    void onResizeWindow();
 };
 
 class MY_GAME : public mbm::CORE_MANAGER
