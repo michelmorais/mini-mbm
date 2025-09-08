@@ -513,6 +513,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     
     if (USE_LUA)
+        # we always need plugin-helper when using LUA script
+        add_subdirectory(${PLUGIN_LIB}                   ${PLUGIN_LIB})
 
         message(STATUS "Using LUA script...")
         if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
@@ -578,7 +580,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     # Plugins only make sense when use LUA
     # For Android, we must lik them all, if we do not enable all, do not link and the package size will be smaller
 
-    if(USE_LUA)
+    if (USE_LUA)
         # we always need plugin-helper when using LUA script
         add_subdirectory(${PLUGIN_LIB}                   ${PLUGIN_LIB})
         if(PLAT_LOWER STREQUAL "android")
