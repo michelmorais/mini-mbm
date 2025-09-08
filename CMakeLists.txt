@@ -513,9 +513,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     
     if (USE_LUA)
-        # we always need plugin-helper when using LUA script
-        add_subdirectory(${PLUGIN_LIB}                   ${PLUGIN_LIB})
-
+    
         message(STATUS "Using LUA script...")
         if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
             if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
