@@ -9,10 +9,6 @@ set(INCLUDE                     ${CMAKE_SOURCE_DIR}/include)
 set(THIRD_PARTY                 ${CMAKE_SOURCE_DIR}/third-party)
 set(PLUGINS                     ${CMAKE_SOURCE_DIR}/plugins)
 set(CORE_MBM                    ${INCLUDE}/core_mbm)
-set(BOX2D_LIQUID_FUN_WRAP_SRC   box-2d-liquid-fun-wrap)
-set(BULLET3d_WRAP_SRC           bullet-3d-wrap)
-set(BOX2D_LIQUID_FUN_INC        ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
-set(BULLET_3D_INC               ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
 set(RENDER_INCLUDES             ${INCLUDE}/render)
 set(CORE_OPENGLES_INCLUDES      ${INCLUDE}/core_mbm)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
@@ -63,8 +59,6 @@ include_directories(${OPENGLES2_INCLUDE_DIR}
                     ${THIRD_PARTY}
                     ${LUA_WRAP}
                     ${LUA_INCLUDE}
-                    ${BOX2D_LIQUID_FUN_INC}
-                    ${BULLET_3D_INC}
                     ${PLUGINS})
 
  
