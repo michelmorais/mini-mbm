@@ -166,7 +166,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\plugins\tiled\brick.cpp" />
     <ClCompile Include="..\..\plugins\tiled\layer.cpp" />
     <ClCompile Include="..\..\plugins\tiled\tiled-lua.cpp" />

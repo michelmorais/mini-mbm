@@ -94,9 +94,6 @@
     <Filter Include="Header Files\plugin-helper">
       <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\plugin-helper">
-      <UniqueIdentifier>{349367e4-8ee4-43ef-9b8d-ac8bf68e453e}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c">

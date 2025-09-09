@@ -238,7 +238,6 @@
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box2d-liquid-fun-joint-lua.cpp" />
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2BroadPhase.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideCircle.cpp" />
     <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideEdge.cpp" />

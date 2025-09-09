@@ -109,8 +109,8 @@
     <Filter Include="Header Files\lua-wrap">
       <UniqueIdentifier>{5ee7658c-48e6-41ff-87b8-62653006d80b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\plugin-helper">
-      <UniqueIdentifier>{d266c9ac-2ee5-4043-bea2-7a914e162215}</UniqueIdentifier>
+    <Filter Include="Header Files\plugin-helper">
+      <UniqueIdentifier>{84ade97f-d0ea-4770-825f-a5b2e1d3ecde}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -793,7 +793,7 @@
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
-      <Filter>Header Files\lua-wrap</Filter>
+      <Filter>Header Files\plugin-helper</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1240,9 +1240,6 @@
     </ClCompile>
     <ClCompile Include="..\..\plugins\bullet3d\bullet-3d-lua.cpp">
       <Filter>Source Files\lua-wrap</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
-      <Filter>Source Files\plugin-helper</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

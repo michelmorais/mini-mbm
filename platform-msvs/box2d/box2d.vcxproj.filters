@@ -46,9 +46,6 @@
     <Filter Include="Header Files\plugin-helper">
       <UniqueIdentifier>{ab793e65-ab73-440a-949f-1e386d24f9e8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\plugin-helper">
-      <UniqueIdentifier>{dcd7ec6a-9b69-4ad2-b910-db55c6d3c088}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\example">
       <UniqueIdentifier>{bc3ee3ed-cc82-4d67-a229-882597968757}</UniqueIdentifier>
     </Filter>
@@ -203,9 +200,6 @@
     </ClCompile>
     <ClCompile Include="..\..\plugins\box2d\physics-box-2d-lua.cpp">
       <Filter>Source Files\lua-wrap</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
-      <Filter>Source Files\plugin-helper</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

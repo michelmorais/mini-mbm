@@ -161,7 +161,6 @@
     <ClCompile Include="..\..\plugins\box2d\box2d-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d\physics-box-2d-lua.cpp" />
     <ClCompile Include="..\..\plugins\box2d\physics-box2d-joint-lua.cpp" />
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\third-party\box2d-2.4.1\src\collision\b2_broad_phase.cpp" />
     <ClCompile Include="..\..\third-party\box2d-2.4.1\src\collision\b2_chain_shape.cpp" />
     <ClCompile Include="..\..\third-party\box2d-2.4.1\src\collision\b2_circle_shape.cpp" />

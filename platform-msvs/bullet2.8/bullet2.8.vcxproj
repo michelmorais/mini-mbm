@@ -381,7 +381,6 @@
     <ClCompile Include="..\..\plugins\bullet3d\physics-bullet-3d-lua.cpp" />
     <ClCompile Include="..\..\plugins\bullet3d\physics-bullet-3d-wrap.cpp" />
     <ClCompile Include="..\..\plugins\bullet3d\shape-info-bullet-3d.cpp" />
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\third-party\bullet-2.84\BulletCollision\BroadphaseCollision\btAxisSweep3.cpp" />
     <ClCompile Include="..\..\third-party\bullet-2.84\BulletCollision\BroadphaseCollision\btBroadphaseProxy.cpp" />
     <ClCompile Include="..\..\third-party\bullet-2.84\BulletCollision\BroadphaseCollision\btCollisionAlgorithm.cpp" />

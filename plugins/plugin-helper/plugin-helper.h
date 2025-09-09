@@ -21,6 +21,25 @@
 #ifndef PLUGIN_HELPER
 #define PLUGIN_HELPER
 
+
+#if defined (__GNUC__) 
+  #define PLUGIN_HELPER_API  __attribute__ ((__visibility__("default")))
+#elif defined (WIN32)
+  #ifdef PLUGIN_HELPER_BUILD_DLL
+    #define PLUGIN_HELPER_API  __declspec(dllexport)
+  #else
+    #define PLUGIN_HELPER_API   __declspec(dllimport)
+  #endif
+#endif
+
+extern "C"
+{
+    #include <lualib.h>
+    #include <lauxlib.h>
+    #include <lua.h>
+}
+
+
 extern "C"
 {
     #include <lualib.h>
@@ -32,29 +51,25 @@ extern "C"
 #include <core_mbm/renderizable.h>
 #include <vector>
 
+
+
 enum TYPE_LOG : char;
 
 namespace plugin_helper
 {
-    void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
-    int  lua_error_debug(lua_State *lua,  const char *format, ...);
-    void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
-    void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet);
-    void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet);
-    void getFieldIntegerFromTable(lua_State *lua, const int indexTable, const char *fieldName,int *ptrRet);
-    void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2);
-    void printStack(lua_State *lua, const char *fileName, const unsigned int numLine);
-    void *lua_check_userType (  lua_State *lua,
-                                const int rawi, 
-                                const int indexTable,
-                                const mbm::L_USER_TYPE expectedType);
-    void *lua_get_userType_no_throw (  lua_State *lua,
-                                const int rawi, 
-                                const int indexTable,
-                                const mbm::L_USER_TYPE expectedType);
-    mbm::RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    void lua_create_metatable_identifier(lua_State *lua,const char* _metatable_plugin,const int value);
+    extern "C" PLUGIN_HELPER_API void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
+    extern "C" PLUGIN_HELPER_API int  lua_error_debug(lua_State *lua,  const char *format, ...);
+    extern "C" PLUGIN_HELPER_API void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldIntegerFromTable(lua_State *lua, const int indexTable, const char *fieldName,int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2);
+    extern "C" PLUGIN_HELPER_API void printStack(lua_State *lua, const char *fileName, const unsigned int numLine);
+    extern "C" PLUGIN_HELPER_API void *lua_check_userType (  lua_State *lua, const int rawi, const int indexTable, const mbm::L_USER_TYPE expectedType);
+    extern "C" PLUGIN_HELPER_API void *lua_get_userType_no_throw (  lua_State *lua, const int rawi, const int indexTable, const mbm::L_USER_TYPE expectedType);
+    extern "C" PLUGIN_HELPER_API mbm::RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    extern "C" PLUGIN_HELPER_API mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    extern "C" PLUGIN_HELPER_API void lua_create_metatable_identifier(lua_State *lua,const char* _metatable_plugin,const int value);
 }
 
 
