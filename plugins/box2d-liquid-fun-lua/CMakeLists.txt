@@ -44,7 +44,7 @@ include_directories(  ${BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN}
  
 message(STATUS " BOX2D_SOURCE_LIQUID_FUN ${BOX2D_SOURCE_LIQUID_FUN}")
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}/*.cpp" "${PLUGIN_HELPER_SRC}/*.cpp")
+file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}/*.cpp" )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
@@ -52,4 +52,5 @@ add_library(${BOX2D_LIQUID_FUN_LUA_LIBRARY} SHARED ${SOURCES} )
 
 target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${LUA_LIBRARY})
 target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 

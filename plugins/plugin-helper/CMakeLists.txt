@@ -7,10 +7,6 @@ set(CORE_MBM_INCLUDES     ${CMAKE_SOURCE_DIR}/include)
 set(LUA_INCLUDE           ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(MBM_CORE_INCLUDE      ${CORE_MBM_INCLUDES}/core_mbm)
 set(PLUGIN_HELPER_INC     .)
-#set(BOX2D_PATH      	  ${CMAKE_SOURCE_DIR}/third-party/box2d-${BOX2DLIB_VERSION})
-#set(BOX2D_INCLUDE         ${BOX2D_PATH}/include)
-#set(BOX2D_LUA_SOURCE      ${CMAKE_SOURCE_DIR}/plugins/box2d)
-#set(USER_DATA_INCLUDE     ${CORE_MBM_INCLUDES}/lua-interface/lua-wrap)
 
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -35,6 +31,14 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
 add_library(${PLUGIN_HELPER_LIBRARY} SHARED ${SOURCES} )
 
+
 target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
+
+# For Linux / Windows we have the executable mini-mbm and the library ibcore_mbm.so
+# For Android we have libcore_mbm.so and libmini-mbm.so
+if(PLAT_LOWER STREQUAL "android")
+  target_link_libraries(${PLUGIN_HELPER_LIBRARY} mini-mbm)
+else()
+  target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
+endif()
 

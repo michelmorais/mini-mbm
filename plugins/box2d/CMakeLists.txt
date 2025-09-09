@@ -39,7 +39,7 @@ include_directories(  ${LUA_INCLUDE}
                       ${MBM_CORE_INCLUDE})
  
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB_RECURSE SOURCES "${PLUGIN_HELPER_INC}/*.cpp" "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
+file(GLOB_RECURSE SOURCES "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
@@ -47,4 +47,5 @@ add_library(${BOX2D_LUA_LIBRARY} SHARED ${SOURCES} )
 
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${LUA_LIBRARY})
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+target_link_libraries(${BOX2D_LUA_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 
