@@ -37,7 +37,8 @@ target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${LUA_LIBRARY})
 # For Linux / Windows we have the executable mini-mbm and the library ibcore_mbm.so
 # For Android we have libcore_mbm.so and libmini-mbm.so
 if(PLAT_LOWER STREQUAL "android")
-  target_link_libraries(${PLUGIN_HELPER_LIBRARY} mini-mbm)
+  #target_link_libraries(${PLUGIN_HELPER_LIBRARY} mini-mbm)
+  target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
 else()
   target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
 endif()

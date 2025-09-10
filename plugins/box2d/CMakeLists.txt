@@ -46,6 +46,7 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 add_library(${BOX2D_LUA_LIBRARY} SHARED ${SOURCES} )
 
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${BOX2D_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+#target_link_libraries(${BOX2D_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+target_link_libraries(${BOX2D_LUA_LIBRARY} mini-mbm)
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 

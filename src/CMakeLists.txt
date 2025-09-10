@@ -139,11 +139,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     endif()
 
     if(USE_BOX2D)
-        target_link_libraries(mini-mbm ${BOX2D_LIBRARY})
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
     if(USE_LIQUID_FUN_BOX2D)
-        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LIBRARY})
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
     endif()
 
     if(USE_BULLET3D)
