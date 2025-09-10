@@ -25,7 +25,7 @@ extern "C"
 }
 
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/current-scene-lua.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>

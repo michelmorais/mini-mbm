@@ -24,7 +24,7 @@ extern "C"
     #include <lualib.h>
 }
 
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <lua-wrap/render-table/background-lua.h>
 #include <lua-wrap/check-user-type-lua.h>

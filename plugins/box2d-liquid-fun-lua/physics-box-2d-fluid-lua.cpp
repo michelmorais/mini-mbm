@@ -24,7 +24,7 @@
 #include <core_mbm/class-identifier.h>
 #include <render/steered_particle.h>
 #include "box-2d-liquid-fun-wrap.h"
-#include <user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 
 extern "C" 
 {

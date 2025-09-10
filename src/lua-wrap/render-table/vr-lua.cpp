@@ -30,7 +30,7 @@ extern "C"
 
 #include <lua-wrap/render-table/render-2-texture-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/check-user-type-lua.h>
 #include <render/HMD.h>
 

@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/animation-lua.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/renderizable.h>

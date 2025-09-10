@@ -18,8 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "physics-box-2d-lua.h"
-#include "../plugin-helper/plugin-helper.h"
-#include <user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>

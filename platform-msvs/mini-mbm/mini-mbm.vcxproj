@@ -72,22 +72,26 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\plugins;..\..\include\version;</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
     <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\plugins;..\..\include\version;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
-    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\include\version;..\..\include\lua-interface\;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\plugins;..\..\include\version;</IncludePath>
     <TargetName>$(ProjectName)</TargetName>
     <CustomBuildAfterTargets>FinalizeBuildStatus</CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>..\..\include;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\plusWindows;..\..\src\mini-mbm-lib;..\..\plugins;..\..\include\version;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -208,7 +212,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec3-lua.h" />
     <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />

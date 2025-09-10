@@ -25,7 +25,7 @@ extern "C"
 }
 
 #include <lua-wrap/camera-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/vec3-lua.h>
 #include <lua-wrap/vec2-lua.h>
 #include <core_mbm/dynamic-var.h>

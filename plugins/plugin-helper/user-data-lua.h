@@ -23,8 +23,7 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <core-exports.h>
-
+#include "plugin-helper.h"
 
 extern "C" 
 {
@@ -48,20 +47,20 @@ class RENDERIZABLE;
         std::vector<TIMER_CALL_BACK *>     lsTimerCallBack;                 // CallBack para timers Lua
         std::map<std::string, DYNAMIC_VAR *> _lsDynamicVarCam2d;
         std::map<std::string, DYNAMIC_VAR *> _lsDynamicVarCam3d;
-        API_IMPL USER_DATA_SCENE_LUA();
-        API_IMPL virtual ~USER_DATA_SCENE_LUA();
-        API_IMPL void remove(TIMER_CALL_BACK *obj);
-        API_IMPL void remove(RENDERIZABLE *obj);
+        PLUGIN_HELPER_API USER_DATA_SCENE_LUA();
+        PLUGIN_HELPER_API virtual ~USER_DATA_SCENE_LUA();
+        PLUGIN_HELPER_API void remove(TIMER_CALL_BACK *obj);
+        PLUGIN_HELPER_API void remove(RENDERIZABLE *obj);
     };
 
     struct REF_FUNCTION_LUA
     {
-        API_IMPL constexpr REF_FUNCTION_LUA(){}
-        API_IMPL virtual ~REF_FUNCTION_LUA();
-        API_IMPL void refFunctionLua(lua_State *lua, const int index, int *ref_MeAsTable);
-        API_IMPL void refTableLua(lua_State *lua, const int index, int *ref_MeAsTable);
-        API_IMPL void unrefTableLua(lua_State *lua, int *ref_MeAsTable);
-        API_IMPL virtual void unrefAllTableLua(lua_State *lua) = 0; // destroy all
+        PLUGIN_HELPER_API constexpr REF_FUNCTION_LUA(){}
+        PLUGIN_HELPER_API virtual ~REF_FUNCTION_LUA();
+        PLUGIN_HELPER_API void refFunctionLua(lua_State *lua, const int index, int *ref_MeAsTable);
+        PLUGIN_HELPER_API void refTableLua(lua_State *lua, const int index, int *ref_MeAsTable);
+        PLUGIN_HELPER_API void unrefTableLua(lua_State *lua, int *ref_MeAsTable);
+        PLUGIN_HELPER_API virtual void unrefAllTableLua(lua_State *lua) = 0; // destroy all
     };
 
     struct USER_DATA_RENDER_LUA : public REF_FUNCTION_LUA
@@ -73,9 +72,9 @@ class RENDERIZABLE;
         int   ref_CallBackEffectShader;
         int   ref_CallBackTouchDown;
         void *extra;
-        API_IMPL USER_DATA_RENDER_LUA();
-        API_IMPL virtual ~USER_DATA_RENDER_LUA();
-        API_IMPL virtual void unrefAllTableLua(lua_State *lua);
+        PLUGIN_HELPER_API USER_DATA_RENDER_LUA();
+        PLUGIN_HELPER_API virtual ~USER_DATA_RENDER_LUA();
+        PLUGIN_HELPER_API virtual void unrefAllTableLua(lua_State *lua);
     };
 
     struct USER_DATA_AUDIO_LUA : public REF_FUNCTION_LUA
@@ -83,17 +82,17 @@ class RENDERIZABLE;
         int         ref_MeAsTable; // me as lua script
         int         ref_CallBackStream;
         std::string fileNameStream;
-        API_IMPL USER_DATA_AUDIO_LUA();
-        API_IMPL virtual ~USER_DATA_AUDIO_LUA();
-        API_IMPL void unrefAllTableLua(lua_State *lua);
+        PLUGIN_HELPER_API USER_DATA_AUDIO_LUA();
+        PLUGIN_HELPER_API virtual ~USER_DATA_AUDIO_LUA();
+        PLUGIN_HELPER_API void unrefAllTableLua(lua_State *lua);
     };
 
 	struct USER_DATA_SHAPE_LUA : public USER_DATA_RENDER_LUA
     {
         int         ref_CallBackEditVertexBuffer;
-        API_IMPL USER_DATA_SHAPE_LUA();
-        API_IMPL virtual ~USER_DATA_SHAPE_LUA();
-		API_IMPL virtual void unrefAllTableLua(lua_State *lua);
+        PLUGIN_HELPER_API USER_DATA_SHAPE_LUA();
+        PLUGIN_HELPER_API virtual ~USER_DATA_SHAPE_LUA();
+		PLUGIN_HELPER_API virtual void unrefAllTableLua(lua_State *lua);
     };
 
 };
