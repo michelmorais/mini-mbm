@@ -3,7 +3,7 @@ cmake_policy(SET CMP0054 NEW)
 project(${BULLET_3D_LIBRARY})
 
 set(CORE_MBM_INCLUDES                 "../../include")
-set(PLUGIN_HELPER_INC                 "../plugin-helper")
+set(PLUGIN_HELPER_INC                 ${CMAKE_SOURCE_DIR}/plugins)
 set(THIRD_PARTY                       ${CMAKE_SOURCE_DIR}/third-party)
 set(BULLET3D_PATH      	              ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
 set(LUA_INCLUDE                       ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})

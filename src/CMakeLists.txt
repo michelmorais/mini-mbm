@@ -129,6 +129,7 @@ endif()
 
 if (USE_LUA)
     target_link_libraries(mini-mbm ${LUA_LIBRARY})
+    target_link_libraries(mini-mbm ${PLUGIN_HELPER_LIBRARY})
 endif()
 
 # plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)

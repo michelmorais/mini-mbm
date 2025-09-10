@@ -3,7 +3,7 @@ cmake_policy(SET CMP0054 NEW)
 project(${BOX2D_LUA_LIBRARY})
 
 set(CORE_MBM_INCLUDES     ${CMAKE_SOURCE_DIR}/include)
-set(PLUGIN_HELPER_INC     ${CMAKE_SOURCE_DIR}/plugins/plugin-helper)
+set(PLUGIN_HELPER_INC     ${CMAKE_SOURCE_DIR}/plugins)
 set(THIRD_PARTY           ${CMAKE_SOURCE_DIR}/third-party)
 set(BOX2D_PATH      	    ${CMAKE_SOURCE_DIR}/third-party/box2d-${BOX2DLIB_VERSION})
 set(BOX2D_INCLUDE         ${BOX2D_PATH}/include)
@@ -47,6 +47,6 @@ add_library(${BOX2D_LUA_LIBRARY} SHARED ${SOURCES} )
 
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${LUA_LIBRARY})
 #target_link_libraries(${BOX2D_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
-target_link_libraries(${BOX2D_LUA_LIBRARY} mini-mbm)
+#target_link_libraries(${BOX2D_LUA_LIBRARY} mini-mbm)
 target_link_libraries(${BOX2D_LUA_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 
