@@ -143,7 +143,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
-    if(USE_LIQUID_FUN_BOX2D)
+    if(USE_BOX2D_LIQUID_FUN)
         target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
     endif()
 
