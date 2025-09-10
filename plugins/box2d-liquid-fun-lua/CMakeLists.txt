@@ -1,16 +1,14 @@
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
-project(lib-${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+project(${BOX2D_LIQUID_FUN_LUA_LIBRARY})
 
-set(CORE_MBM_INCLUDES                        "../../include")
-set(THIRD_PARTY                              ${CMAKE_SOURCE_DIR}/third-party)
+set(CORE_MBM_INCLUDES                        ${CMAKE_SOURCE_DIR}/include)
 set(PLUGIN_HELPER_INC                        ${CMAKE_SOURCE_DIR}/plugins)
-set(BOX2D_LIQUID_FUN_PATH                    ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
+set(THIRD_PARTY                              ${CMAKE_SOURCE_DIR}/third-party)
 set(LUA_INCLUDE                              ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
-set(BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN      "${BOX2D_LIQUID_FUN_PATH}")
-set(BOX2D_SOURCE_LIQUID_FUN                  "${BOX2D_LIQUID_FUN_PATH}/Box2D")
-set(BOX2D_PLUGIN_LIQUID_FUN_SOURCE           "./")
-set(USER_DATA_INCLUDE                        ${CORE_MBM_INCLUDES}/lua-interface/lua-wrap)
+set(BOX2D_LIQUID_FUN_PATH                    ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
+set(BOX2D_SOURCE_LIQUID_FUN                  ${BOX2D_LIQUID_FUN_PATH}/Box2D)
+set(BOX2D_PLUGIN_LIQUID_FUN_SOURCE           ${CMAKE_SOURCE_DIR}/plugins/box2d-liquid-fun-lua)
 set(MBM_CORE_INCLUDE                         ${CORE_MBM_INCLUDES}/core_mbm)
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -31,16 +29,15 @@ endif()
 #
 
 #Bring the headers, such as xxx.h into the project
-include_directories(  ${BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN}
+include_directories(  ${BOX2D_LIQUID_FUN_PATH}
                       ${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}
                       ${THIRD_PARTY}
                       ${LUA_INCLUDE}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
-                      ${USER_DATA_INCLUDE}
                       ${MBM_CORE_INCLUDE})
  
-message(STATUS " BOX2D_SOURCE_LIQUID_FUN ${BOX2D_SOURCE_LIQUID_FUN}")
+
 #However, the file(GLOB...) allows for wildcard additions:
 file(GLOB_RECURSE SOURCES "${BOX2D_SOURCE_LIQUID_FUN}/*.cpp" "${BOX2D_PLUGIN_LIQUID_FUN_SOURCE}/*.cpp" )
 
