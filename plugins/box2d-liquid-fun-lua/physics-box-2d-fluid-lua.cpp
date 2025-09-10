@@ -35,8 +35,8 @@ extern "C"
 
 namespace mbm
 {
-    API_IMPL int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-    API_IMPL int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
+    extern int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
+    extern int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
 
     STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
@@ -489,13 +489,13 @@ namespace mbm
         }
         /// Called for each fixture found in the query AABB.
 	    /// @return false to terminate the query.
-        virtual bool ReportFixture(b2Fixture*)
+        virtual bool ReportFixture(b2Fixture*) override
         {
             return false;
         }
         /// Called for each particle found in the query AABB.
         /// @return false to terminate the query.
-        virtual bool ReportParticle(const b2ParticleSystem* particleSystem,int32 index)
+        virtual bool ReportParticle(const b2ParticleSystem* particleSystem,int32 index) override
         {
             lua_State * lua              = user_data_fluid_lua.lua;
             lua_rawgeti(lua, LUA_REGISTRYINDEX, user_data_fluid_lua.ref_CallBack);
@@ -728,11 +728,11 @@ namespace mbm
         {
         }
 
-        virtual float32 ReportFixture(b2Fixture* ,const b2Vec2& ,const b2Vec2& ,float32 fraction)
+        virtual float32 ReportFixture(b2Fixture* ,const b2Vec2& ,const b2Vec2& ,float32 fraction) override
         {
             return fraction;
         }
-        virtual float32 ReportParticle(const b2ParticleSystem* particleSystem,int32 index, const b2Vec2& point,const b2Vec2& normal, float32 fraction)
+        virtual float32 ReportParticle(const b2ParticleSystem* particleSystem,int32 index, const b2Vec2& point,const b2Vec2& normal, float32 fraction) override
         {
             if(particleSystem != mSystem)
                 return fraction;
@@ -763,7 +763,7 @@ namespace mbm
             return fraction;
         }
 
-        virtual bool ShouldQueryParticleSystem(const b2ParticleSystem*)
+        virtual bool ShouldQueryParticleSystem(const b2ParticleSystem*) override
         {
             return true;
         }

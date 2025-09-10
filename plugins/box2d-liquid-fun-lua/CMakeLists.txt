@@ -5,7 +5,6 @@ project(lib-${BOX2D_LIQUID_FUN_LUA_LIBRARY})
 set(CORE_MBM_INCLUDES                        "../../include")
 set(THIRD_PARTY                              ${CMAKE_SOURCE_DIR}/third-party)
 set(PLUGIN_HELPER_INC                        ${CMAKE_SOURCE_DIR}/plugins)
-set(PLUGIN_HELPER_SRC                        ${PLUGIN_HELPER_INC}/plugin-helper)
 set(BOX2D_LIQUID_FUN_PATH                    ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
 set(LUA_INCLUDE                              ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN      "${BOX2D_LIQUID_FUN_PATH}")
@@ -39,8 +38,7 @@ include_directories(  ${BOX2D_LIQUID_FUN_INCLUDE_LIQUID_FUN}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
                       ${USER_DATA_INCLUDE}
-                      ${MBM_CORE_INCLUDE}
-                      ../${BOX2D_LIQUID_FUN_LIB})
+                      ${MBM_CORE_INCLUDE})
  
 message(STATUS " BOX2D_SOURCE_LIQUID_FUN ${BOX2D_SOURCE_LIQUID_FUN}")
 #However, the file(GLOB...) allows for wildcard additions:
