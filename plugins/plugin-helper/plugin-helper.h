@@ -52,7 +52,6 @@ extern "C"
 #include <vector>
 
 
-
 enum TYPE_LOG : char;
 
 namespace plugin_helper

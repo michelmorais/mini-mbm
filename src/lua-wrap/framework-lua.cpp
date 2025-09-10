@@ -41,7 +41,7 @@
 #include <miniz-wrap/miniz-wrap.h>
 #include <lodepng/lodepng.h>
 #include <lua-wrap/current-scene-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/check-user-type-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
 

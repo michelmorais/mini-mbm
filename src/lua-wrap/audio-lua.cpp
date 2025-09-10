@@ -28,7 +28,7 @@ extern "C"
 #include <core_mbm/audio.h>
 #include <core_mbm/log-util.h>
 #include <lua-wrap/audio-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/device.h>
 

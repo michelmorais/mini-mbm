@@ -294,9 +294,6 @@
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lua-wrap\user-data-lua.cpp">
-      <Filter>Source Files\Lua-wrapper</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>

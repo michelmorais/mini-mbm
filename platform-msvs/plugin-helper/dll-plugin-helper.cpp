@@ -1,7 +1,7 @@
 // dllmain.cpp : Defines the entry point for the DLL application.
 #include <Windows.h>
 
-#pragma comment(lib, "mini-mbm.lib")
+#pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "lua5.4.lib") 
 
 BOOL APIENTRY DllMain( HMODULE hModule,

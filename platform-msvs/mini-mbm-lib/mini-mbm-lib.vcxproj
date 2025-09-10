@@ -229,7 +229,6 @@
     <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\user-data-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
     <ClCompile Include="..\..\src\render\background.cpp" />

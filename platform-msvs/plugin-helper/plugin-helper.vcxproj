@@ -160,10 +160,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
+    <ClCompile Include="..\..\plugins\plugin-helper\user-data-lua.cpp" />
     <ClCompile Include="dll-plugin-helper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
+    <ClInclude Include="..\..\plugins\plugin-helper\user-data-lua.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

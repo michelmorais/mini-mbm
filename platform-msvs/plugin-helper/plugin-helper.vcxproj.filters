@@ -21,9 +21,15 @@
     <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\plugins\plugin-helper\user-data-lua.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\plugin-helper\user-data-lua.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

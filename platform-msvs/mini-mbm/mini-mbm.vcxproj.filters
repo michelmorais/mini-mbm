@@ -158,9 +158,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>

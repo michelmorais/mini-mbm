@@ -20,8 +20,8 @@
 #include <vector>
 #include <map>
 #include <core_mbm/renderizable.h>
-#include <lua-wrap/user-data-lua.h>
 #include <core_mbm/dynamic-var.h>
+#include "user-data-lua.h"
 
 extern "C" 
 {
@@ -30,8 +30,6 @@ extern "C"
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     USER_DATA_SCENE_LUA::USER_DATA_SCENE_LUA()
     {
         oldPanicFunction = nullptr;
@@ -125,7 +123,7 @@ namespace mbm
             break;
             default:
             {
-                lua_error_debug(lua, "expected [string 'name of function', function or nil]");
+                plugin_helper::lua_error_debug(lua, "expected [string 'name of function', function or nil]");
             }   
             break;
         }
