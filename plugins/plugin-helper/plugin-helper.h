@@ -40,13 +40,6 @@ extern "C"
 }
 
 
-extern "C"
-{
-    #include <lualib.h>
-    #include <lauxlib.h>
-    #include <lua.h>
-}
-
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
 #include <vector>

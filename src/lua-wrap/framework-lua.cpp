@@ -3463,27 +3463,33 @@ namespace mbm
         return 1;
     }
 #if defined REQUIRE_EMBEDDED
+    #pragma message("REQUIRE_EMBEDDED is enabled, one or more library is linked, usually this is for ANDROID")
+    #pragma message("plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)")
     //# plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)
     int __luaB_require_embedded(lua_State *lua)
     {
         const char* name     = luaL_checkstring(lua,1);
         (void)name;
         #if defined USE_LSQLITE3
+            #pragma message("Using USE_LSQLITE3 embeeded, usually this is for ANDROID")
             if(strcmp(name,"lsqlite3") == 0)
                 return luaopen_lsqlite3(lua);
         #endif
 
         #if defined USE_BOX2D
+            #pragma message("Using USE_BOX2D embeeded, usually this is for ANDROID")
             if(strcmp(name,"box2d") == 0)
                 return luaopen_box2d(lua);
         #endif
 
         #if defined USE_BOX2D_LIQUID_FUN
+            #pragma message("Using USE_BOX2D_LIQUID_FUN embeeded, usually this is for ANDROID")
             if(strcmp(name,"box2dLiquidFun") == 0)
                 return luaopen_box2dLiquidFun(lua);
         #endif
 
         #if defined USE_IMGUI
+            #pragma message("Using USE_IMGUI embeeded, usually this is for ANDROID")
             if(strcmp(name,"ImGui") == 0)
                 return luaopen_ImGui(lua);
         #endif

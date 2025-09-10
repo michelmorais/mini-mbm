@@ -136,22 +136,27 @@ endif()
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled, ${SQLITE3_LUA_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
     endif()
 
     if(USE_BOX2D)
+        message(STATUS "USE_BOX2D is enabled, ${BOX2D_LUA_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
     endif()
 
     if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled, ${BOX2D_LIQUID_FUN_LUA_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
     endif()
 
     if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled, ${BULLET_3D_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
     endif()
 
     if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled, ${IMGUI_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
