@@ -38,27 +38,6 @@ extern "C"
 
 namespace mbm
 {
-    
-    void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
-    {
-        std::string stack("\n**********************************"
-                          "\nState of stack at\n");
-        int top = lua_gettop(lua);
-        for (int i = 1, k = top; i <= top; i++, --k)
-        {
-            char str[255];
-            int  type = lua_type(lua, i);
-            sprintf(str, "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
-            stack += str;
-        }
-        stack += "**********************************\n\n";
-        ERROR_AT(numLine, fileName, stack.c_str());
-    }
-
-#ifndef DebugLuaStack 
-    #define DebugLuaStack printStack(lua,__FILE__,__LINE__);
-#endif 
-
     static const char * informationSetPhysics =  "\nExpected table physics's information\nExample:\n"
                 "{} unique table or array table as described bellow\n"
                 "{[1]={type='cube',    center={x=0,y=0,z=0},half={x=0,y=0,z=0}},[2]={...}} \n"

@@ -38,6 +38,7 @@
 #include "imgui-lua.h"
 #include <core_mbm/device.h>
 #include <core_mbm/texture-manager.h>
+#include <plugin-helper/plugin-helper.h>
 
 extern "C" 
 {
@@ -856,22 +857,6 @@ static const std::map<std::string,ImGuiCol_> ImGuiCol_map = {
     return texture_id;
 }*/
 
-void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
-{
-    std::string stack("\n**********************************"
-                        "\nState of Stack\n");
-    int top = lua_gettop(lua);
-    for (int i = 1, k = top; i <= top; i++, --k)
-    {
-        char str[255];
-        int  type = lua_type(lua, i);
-        snprintf(str, sizeof(str), "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
-        stack += str;
-    }
-    stack += "**********************************\n\n";
-    printf("%d:%s,%s", numLine, fileName, stack.c_str());
-}
-
 void lua_log_error(lua_State *lua,const char * message)
 {
     lua_Debug ar;
@@ -882,7 +867,7 @@ void lua_log_error(lua_State *lua,const char * message)
 		{
             static bool show_stack = false;
             if(show_stack == false)
-                printStack(lua,ar.short_src,ar.currentline);
+                mbm::printStack(lua,ar.short_src,ar.currentline);
             show_stack = true;
 			luaL_error(lua,"File[%s] line [%d] \n    %s",ar.short_src,ar.currentline,message);
 		}
@@ -1961,22 +1946,22 @@ void lua_push_ImVec4(lua_State *lua, const ImVec4 & in)
 void lua_push_ImFont(lua_State *lua, const ImFont & in)
 {
     lua_newtable(lua);
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
     lua_pushnumber(lua,in.FallbackAdvanceX);
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     lua_setfield(lua, -2, "FallbackAdvanceX");
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     lua_pushnumber(lua,in.FontSize);
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     lua_setfield(lua, -2, "FontSize");
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
     //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
     lua_push_ImFontGlyph_pointer(lua, in.FallbackGlyph);//TODO: 6 check here, apparently, "ImFont.FallbackGlyph" is a pointer and might be nullptr 
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     lua_setfield(lua, -2, "FallbackGlyph");
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
     lua_push_ImVec2(lua,in.DisplayOffset);
     lua_setfield(lua, -2, "DisplayOffset");
     lua_push_ImFontAtlas_pointer(lua, in.ContainerAtlas);//TODO: 6 check here, apparently, "ImFont.ContainerAtlas" is a pointer and might be nullptr 
@@ -1999,7 +1984,7 @@ void lua_push_ImFont(lua_State *lua, const ImFont & in)
     lua_setfield(lua, -2, "MetricsTotalSurface");
     lua_pushboolean(lua,in.DirtyLookupTables);
     lua_setfield(lua, -2, "DirtyLookupTables");
-    printStack(lua,__FILE__,__LINE__);
+    mbm::printStack(lua,__FILE__,__LINE__);
 }
 
 

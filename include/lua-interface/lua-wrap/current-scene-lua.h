@@ -38,7 +38,6 @@ namespace mbm
     struct INFO_PHYSICS;
     enum TYPE_CLASS : char;
 
-    void printStack(lua_State *lua, const char *fileName, const uint32_t numLine);
     void getArrayFromTablePixels(lua_State *lua, const int index, uint8_t *lsArrayOut, const uint32_t sizeBuffer);
     void getArrayFromTable(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeBuffer);
     std::vector<VEC3> getArrayXYZ_noZ_FromTable(lua_State *lua, const int index);

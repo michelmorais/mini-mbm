@@ -26,6 +26,22 @@
 
 namespace mbm
 {
+    void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
+    {
+        std::string stack("\n**********************************"
+                          "\nState of stack at\n");
+        int top = lua_gettop(lua);
+        for (int i = 1, k = top; i <= top; i++, --k)
+        {
+            char str[255];
+            int  type = lua_type(lua, i);
+            sprintf(str, "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
+            stack += str;
+        }
+        stack += "**********************************\n\n";
+        ERROR_AT(numLine, fileName, stack.c_str());
+    }
+
     void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...)
 	{
 		va_list va_args;
@@ -180,22 +196,6 @@ namespace plugin_helper
             getFieldPrimaryFromTable(lua, top, fieldName2, LUA_TNUMBER, out2);
         }
         lua_pop(lua, 1);
-    }
-
-    void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
-    {
-        std::string stack("\n**********************************"
-                            "\nState of Stack\n");
-        int top = lua_gettop(lua);
-        for (int i = 1, k = top; i <= top; i++, --k)
-        {
-            char str[255];
-            int  type = lua_type(lua, i);
-            snprintf(str, sizeof(str), "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
-            stack += str;
-        }
-        stack += "**********************************\n\n";
-        printf("%d:%s,%s", numLine, fileName, stack.c_str());
     }
 
     inline const char* getTypeMetaTableNameUserData(lua_State *lua, mbm::L_USER_TYPE* foundType)

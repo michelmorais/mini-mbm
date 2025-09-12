@@ -38,7 +38,6 @@ extern "C"
 namespace mbm
 {
 
-    extern void printStack(lua_State *lua, const char *fileName, const unsigned int numLine);
     extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     extern void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
     extern void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
