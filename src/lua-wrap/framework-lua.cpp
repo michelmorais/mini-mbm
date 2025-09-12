@@ -41,6 +41,7 @@
 #include <miniz-wrap/miniz-wrap.h>
 #include <lodepng/lodepng.h>
 #include <lua-wrap/current-scene-lua.h>
+#include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/check-user-type-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
@@ -145,41 +146,7 @@ namespace mbm
     }
     #endif
 
-	int lua_error_debug(lua_State *lua,  const char *format, ...)
-	{
-		va_list va_args;
-		va_start(va_args, format);
-		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
-		va_end(va_args);
-		va_start(va_args, format);
-		char * buffer = log_util::formatNewMessage(length, format, va_args);
-		va_end(va_args);
-		lua_Debug ar;
-		memset(&ar, 0, sizeof(lua_Debug));
-		if (lua_getstack(lua, 1, &ar))
-		{
-			if (lua_getinfo(lua, "nSl", &ar))
-			{
-				std::string buffer_2(buffer);
-				delete [] buffer;
-				return luaL_error(lua,"File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer_2.c_str());
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
-			}
-		}
-		else
-		{
-			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
-		}
-		std::string other_buffer(buffer);
-		ERROR_LOG("%s", buffer);
-		delete [] buffer;
-		return luaL_error(lua,"%s",other_buffer.c_str());
-	}
-
-    int enableTextureFilterLua(lua_State *lua)
+	int enableTextureFilterLua(lua_State *lua)
     {
         bool value = lua_toboolean(lua,1);
         TEXTURE::enableFilter(value);
@@ -209,53 +176,6 @@ namespace mbm
 		auto manager = AUDIO_MANAGER::getInstance();
 		manager->pauseAudioOnPauseGame = bPauseOnPauseAll;
 		return 0;
-	}
-
-	void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...)
-	{
-		va_list va_args;
-		va_start(va_args, format);
-		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
-		va_end(va_args);
-		va_start(va_args, format);
-		char * buffer = log_util::formatNewMessage(length, format, va_args);
-		va_end(va_args);
-		lua_Debug ar;
-		memset(&ar, 0, sizeof(lua_Debug));
-		if (lua_getstack(lua, 1, &ar))
-		{
-			if (lua_getinfo(lua, "nSl", &ar))
-			{
-				switch(type_log)
-				{
-					case TYPE_LOG_ERROR:
-					{
-						ERROR_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-					case TYPE_LOG_INFO:
-					{
-						INFO_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-					case TYPE_LOG_WARN:
-					{
-						WARN_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-
-				}
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file\n%s",buffer);
-			}
-		}
-		else
-		{
-			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA\n%s",buffer);
-		}
-		delete [] buffer;
 	}
 
     #if defined ANDROID

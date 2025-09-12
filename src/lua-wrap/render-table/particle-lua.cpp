@@ -44,7 +44,6 @@ namespace mbm
     extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
     extern int setVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
     extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
     PARTICLE *getParticleFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {

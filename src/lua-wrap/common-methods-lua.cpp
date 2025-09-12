@@ -52,8 +52,7 @@ namespace mbm
     extern int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
     extern int onForceEndAnimFxRenderizable(lua_State *lua);
     extern int onSetAnimationTypeLua(lua_State *lua);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
+	
     void getTypeWordRenderizableLua(lua_State * lua, const int index, bool & is2dw, bool & is2ds, bool & is3d)
     {
         const char *type = luaL_checkstring(lua, index);

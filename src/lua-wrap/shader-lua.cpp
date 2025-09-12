@@ -27,6 +27,7 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/texture-manager.h>
 #include <platform/mismatch-platform.h>
+#include <plugin-helper/plugin-helper.h>
 
 extern "C" 
 {
@@ -44,7 +45,6 @@ namespace mbm
 	extern FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	extern FX *getSafeFxFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
     extern int verifyDynamicCast(lua_State *lua, void *ptr, int line, const char *__file);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
 	int onLoadNewShaderLua(lua_State *lua)
     {

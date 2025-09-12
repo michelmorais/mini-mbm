@@ -77,7 +77,6 @@ namespace mbm
     extern void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
 	extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	extern int newNoGCFromRenderizable(lua_State * lua,RENDERIZABLE * renderizable);
-	extern void lua_print_line(lua_State *lua,TYPE_LOG type_log,const char *format, ...);
 
         LUA_MANAGER* LUA_MANAGER::pLuaManager = nullptr;
 

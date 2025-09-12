@@ -40,7 +40,6 @@ namespace mbm
     extern int onNewVec2LuaNoGC(lua_State *lua, VEC3 *vec3);
     extern int onNewVec3Lua(lua_State *lua);
     extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
     int getVariableFromCam(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
     {

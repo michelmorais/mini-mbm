@@ -49,7 +49,6 @@ namespace mbm
 	extern const unsigned int get_mode_draw_from_string(const char* str_mode_draw,const unsigned int default_mode_draw_ret);
 	extern const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face,const unsigned int default_mode_cull_face_ret);
 	extern const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const unsigned int default_mode_front_face_direction_ret);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
 
 	const char* options_shape = 

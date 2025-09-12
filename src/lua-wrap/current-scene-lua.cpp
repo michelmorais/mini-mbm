@@ -34,12 +34,11 @@ extern "C"
 #include <render/line-mesh.h>
 #include <lua-wrap/current-scene-lua.h>
 #include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/plugin-helper.h>
 
 namespace mbm
 {
-    extern int lua_error_debug(lua_State *lua, const char *format, ...);
-    extern void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
-
+    
     void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
     {
         std::string stack("\n**********************************"

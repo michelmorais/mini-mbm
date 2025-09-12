@@ -34,8 +34,6 @@ extern "C"
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     AUDIO *getAudioFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<AUDIO **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_AUDIO));

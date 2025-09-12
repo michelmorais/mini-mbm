@@ -128,8 +128,6 @@ namespace mbm
     int onAddShader(lua_State *lua);
     int onPanic(lua_State *lua);
     void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
-	int lua_error_debug(lua_State *lua, const char *format, ...);
-	void lua_print_line(lua_State *lua,TYPE_LOG type_log,const char *format, ...);
 	
 };
 

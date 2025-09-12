@@ -62,7 +62,7 @@ namespace mbm
             }
         };
 
-        plugin_helper::lua_print_line(lua,TYPE_LOG_WARN,"joint [%s] has no such a method [%s]",
+        lua_print_line(lua,TYPE_LOG_WARN,"joint [%s] has no such a method [%s]",
                     type_joint_as_const_char(joint),
                     method_name ? method_name : "null");
     }

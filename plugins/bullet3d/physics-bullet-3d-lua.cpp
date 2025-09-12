@@ -76,11 +76,11 @@ struct USER_DATA_PHYSICS_3D
             auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
             if (!ptr->isLoaded())
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
             }
             if (userData->extra)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             btRigidBody *info = bullet->addBody(ptr, mass, friction, reduceX, reduceY, reduceZ, isKinematic, isCharacter);
             if (info == nullptr)
@@ -117,11 +117,11 @@ struct USER_DATA_PHYSICS_3D
             auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
             if (!ptr->isLoaded())
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
             }
             if (userData->extra)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             btRigidBody *info = bullet->addBody(ptr, mass, friction, reduceX, reduceY, reduceZ, isKinematic, isCharacter);
             if (info == nullptr )
@@ -157,11 +157,11 @@ struct USER_DATA_PHYSICS_3D
             auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
             if (!ptr->isLoaded())
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
             }
             if (userData->extra)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             btRigidBody *info = bullet->addBody(ptr, 0.0f, friction, reduceX, reduceY, reduceZ, isKinematic, isCharacter);
             if (info == nullptr)
@@ -197,11 +197,11 @@ struct USER_DATA_PHYSICS_3D
             auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
             if (!ptr->isLoaded())
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] isnot loaded!!!", ptr->getTypeClassName());
             }
             if (userData->extra)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             btRigidBody *info = bullet->addBody(ptr, mass, friction, reduceX, reduceY, reduceZ, isKinematic);
             if (info == nullptr)
@@ -391,7 +391,7 @@ struct USER_DATA_PHYSICS_3D
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                 if (lua_pcall(lua, 2, 0, 0))
-                    plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
             }
         }
     }
@@ -412,7 +412,7 @@ struct USER_DATA_PHYSICS_3D
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                 if (lua_pcall(lua, 2, 0, 0))
-                    plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
             }
         }
     }
@@ -433,7 +433,7 @@ struct USER_DATA_PHYSICS_3D
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                 lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                 if (lua_pcall(lua, 2, 0, 0))
-                    plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
             }
         }
     }

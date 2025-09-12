@@ -42,9 +42,7 @@ namespace mbm
     extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     extern void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
     extern void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-    extern int lua_error_debug(lua_State *lua, const char *format, ...);
-    extern void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
-
+    
     TILE *getTileFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<TILE **>(lua_check_userType(lua, rawi, indexTable, L_USER_TYPE_TILE));

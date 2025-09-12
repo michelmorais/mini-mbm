@@ -41,6 +41,7 @@ extern "C"
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/physics.h>
+#include <plugin-helper/plugin-helper.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>
@@ -78,9 +79,7 @@ namespace mbm
 
 	extern const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const unsigned int default_mode_front_face_direction_ret);
 	extern const char * get_mode_front_face_direction_from_uint(const unsigned int mode_front_face_direction,const char * default_mode_front_face_direction_ret);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-	extern void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
-
+	
     class MESH_DEBUG_LUA
     {
       public:

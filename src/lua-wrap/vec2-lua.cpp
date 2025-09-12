@@ -28,6 +28,7 @@ extern "C"
 #include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/primitives.h>
 #include <core_mbm/device.h>
+#include <plugin-helper/plugin-helper.h>
 #include <cmath>
 #include <cstring>
 
@@ -37,7 +38,6 @@ extern "C"
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
     VEC2 *getVec2FromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {

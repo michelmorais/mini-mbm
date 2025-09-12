@@ -47,10 +47,15 @@ extern "C"
 
 enum TYPE_LOG : char;
 
-namespace plugin_helper
+namespace mbm
 {
     extern "C" PLUGIN_HELPER_API void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
     extern "C" PLUGIN_HELPER_API int  lua_error_debug(lua_State *lua,  const char *format, ...);
+}
+
+namespace plugin_helper
+{
+    
     extern "C" PLUGIN_HELPER_API void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
     extern "C" PLUGIN_HELPER_API void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet);
     extern "C" PLUGIN_HELPER_API void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet);

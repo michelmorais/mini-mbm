@@ -79,7 +79,7 @@ namespace mbm
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
         {
-            plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
+            lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
             return nullptr;
         }
         return infoBox2d->body;
@@ -91,7 +91,7 @@ namespace mbm
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
-            plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
+            lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
         return infoBox2d;
     }
 
@@ -157,7 +157,7 @@ namespace mbm
         const bool            isSensor  = top > 6 ? (lua_toboolean(lua, 7) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -170,7 +170,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -196,11 +196,11 @@ namespace mbm
         auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
         if (lua_type(lua, 3) != LUA_TTABLE)
         {
-            return plugin_helper::lua_error_debug(lua, "expected info table physics ex.: {type='dynamic',mass=1.0,friction=0.3,sx=1.0,sy=1.0,...}");
+            return lua_error_debug(lua, "expected info table physics ex.: {type='dynamic',mass=1.0,friction=0.3,sx=1.0,sy=1.0,...}");
         }
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -213,7 +213,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -223,7 +223,7 @@ namespace mbm
         const char *type = lua_type(lua, 4) == LUA_TSTRING ? lua_tostring(lua, 4) : nullptr;
         if (type == nullptr)
         {
-            return plugin_helper::lua_error_debug(lua, "expected type at infoPhysics, ex.: {type='dynamic', ...");
+            return lua_error_debug(lua, "expected type at infoPhysics, ex.: {type='dynamic', ...");
         }
         float  density = 1.0f;
         float  friction = strcasecmp(type, "static") == 0 ? 0.3f : 10.0f;
@@ -290,7 +290,7 @@ namespace mbm
         const bool            isBullet    = top > 8 ? (lua_toboolean(lua, 9) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -303,7 +303,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -336,7 +336,7 @@ namespace mbm
         const bool            isSensor    = top > 7 ? (lua_toboolean(lua, 8) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -349,7 +349,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -641,7 +641,7 @@ namespace mbm
 
             if(lenTable != lenManifolds)
             {
-                return plugin_helper::lua_error_debug(lua, "expected size of manifold [%d] to be same size as in the ContactList [%d]",lenManifolds,lenTable);
+                return lua_error_debug(lua, "expected size of manifold [%d] to be same size as in the ContactList [%d]",lenManifolds,lenTable);
             }
 
             int index = 1;
@@ -672,7 +672,7 @@ namespace mbm
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "type of <manifold> index [%d] unknown [%s] \n expected 'circles', 'face_a' or 'face_b' ",index,strType.c_str());
+                    return lua_error_debug(lua, "type of <manifold> index [%d] unknown [%s] \n expected 'circles', 'face_a' or 'face_b' ",index,strType.c_str());
                 }
 
                 float pointCount = static_cast<float>(manifold->pointCount);
@@ -687,7 +687,7 @@ namespace mbm
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <localNormal> in <manifold> index [%d]  ",index);
+                    return lua_error_debug(lua, "Expected table <localNormal> in <manifold> index [%d]  ",index);
                 }
                 lua_pop(lua, 1);
 
@@ -699,7 +699,7 @@ namespace mbm
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
+                    return lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
                 }
                 lua_pop(lua, 1);
 
@@ -722,7 +722,7 @@ namespace mbm
                             }
                             else
                             {
-                                return plugin_helper::lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
+                                return lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
                             }
                             lua_pop(lua, 1);
 
@@ -731,14 +731,14 @@ namespace mbm
                         }
                         else
                         {
-                            return plugin_helper::lua_error_debug(lua, "<points> index [1] is not a table. index manifold:[%d]",index);
+                            return lua_error_debug(lua, "<points> index [1] is not a table. index manifold:[%d]",index);
                         }
                         lua_pop(lua, 1);
                     }
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <points> in <manifold> index [%d][1]  ",index);
+                    return lua_error_debug(lua, "Expected table <points> in <manifold> index [%d][1]  ",index);
                 }
                 lua_pop(lua, 2);//points  & previous manifold
                 c = c->next;
@@ -747,7 +747,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "expected table <mesh> <manifolds>. \n use getManifolds() function to get it.");
+            return lua_error_debug(lua, "expected table <mesh> <manifolds>. \n use getManifolds() function to get it.");
         }
         return 0;
     }
@@ -845,7 +845,7 @@ namespace mbm
         const int typeObj = lua_type(lua, 2);
         if (typeObj != LUA_TNUMBER && typeObj != LUA_TSTRING)
         {
-            return plugin_helper::lua_error_debug(lua,"\nType expected as string \n %s ", 
+            return lua_error_debug(lua,"\nType expected as string \n %s ", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n");
@@ -855,7 +855,7 @@ namespace mbm
             const unsigned int t = lua_tointeger(lua, 2);
             if (t > 2)
             {
-                return plugin_helper::lua_error_debug(lua, "\nType expected as string or number  \n %s got [%d]", 
+                return lua_error_debug(lua, "\nType expected as string or number  \n %s got [%d]", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n",t);
@@ -876,7 +876,7 @@ namespace mbm
                 body->SetType(b2_dynamicBody);
             else
             {
-                return plugin_helper::lua_error_debug(lua, "\nType expected as string \n %s got [%s]", 
+                return lua_error_debug(lua, "\nType expected as string \n %s got [%s]", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n",str ? str : "nil");
@@ -1026,7 +1026,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "\nExpected at least one callback function:\n%s\n", 
+            return lua_error_debug(lua, "\nExpected at least one callback function:\n%s\n", 
                                                                                 "onBeginContact(tMesh_a,tMesh_b)\n"
                                                                                 "onEndContact(tMesh_a,  tMesh_b)\n"
                                                                                 "onPreSolve(tMesh_a,    tMesh_b,   tOldManifold)\n"
@@ -1217,7 +1217,7 @@ namespace mbm
                     lua_pushnumber(lua, fraction);
                     if (lua_pcall(lua, 6, 1, 0))
                     {
-                        plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                        lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                     }
                     else
                     {
@@ -1289,7 +1289,7 @@ namespace mbm
                     lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_MeAsTable);
                     if (lua_pcall(lua, 1, 1, 0))
                     {
-                        plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                        lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                     }
                     else
                     {
@@ -1436,7 +1436,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, message_error);
+                return lua_error_debug(lua, message_error);
             }
         }
         else if(top == 2)
@@ -1452,12 +1452,12 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, message_error);
+                return lua_error_debug(lua, message_error);
             }
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, message_error);
+            return lua_error_debug(lua, message_error);
         }
         return 0;
     }
@@ -1473,7 +1473,7 @@ namespace mbm
         unsigned int result = 0xffffffff;
         if (info1 == nullptr || info2 == nullptr)
         {
-            return plugin_helper::lua_error_debug(lua, "\nexpected box2d body");
+            return lua_error_debug(lua, "\nexpected box2d body");
         }
         if (hasTable == LUA_TTABLE)
         {
@@ -1481,7 +1481,7 @@ namespace mbm
             const char *name = lua_type(lua, 5) == LUA_TSTRING ? lua_tostring(lua, 5) : nullptr;
             if (name == nullptr)
             {
-                return plugin_helper::lua_error_debug(lua, "\nExpected field 'name', where:\n%s", 
+                return lua_error_debug(lua, "\nExpected field 'name', where:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1496,9 +1496,9 @@ namespace mbm
                                                                        );
             }
             if(info1 == nullptr || info1->body == nullptr)
-                return plugin_helper::lua_error_debug(lua,"Renderizable 1 has no body. Create a body first!");
+                return lua_error_debug(lua,"Renderizable 1 has no body. Create a body first!");
             if(info2 == nullptr || info2->body == nullptr)
-                return plugin_helper::lua_error_debug(lua,"Renderizable 2 has no body. Create a body first!");
+                return lua_error_debug(lua,"Renderizable 2 has no body. Create a body first!");
 
             if(strcasecmp(name,"gear") == 0) //done
             {
@@ -1519,11 +1519,11 @@ namespace mbm
                 def.joint2             = infoJoint ? infoJoint->joint : nullptr;
                 if(def.joint1 == nullptr)
                 {
-                    return plugin_helper::lua_error_debug(lua, "\nBody 1 has no joint with indexA [%d]",static_cast<unsigned int>(indexA));
+                    return lua_error_debug(lua, "\nBody 1 has no joint with indexA [%d]",static_cast<unsigned int>(indexA));
                 }
                 if(def.joint2 == nullptr)
                 {
-                    return plugin_helper::lua_error_debug(lua, "\nBody 2 has no joint with indexB [%d]",static_cast<unsigned int>(indexB));
+                    return lua_error_debug(lua, "\nBody 2 has no joint with indexB [%d]",static_cast<unsigned int>(indexB));
                 }
                 //has no member Initialize
                 result = box2d->createJoint(info1,info2,def);
@@ -1699,7 +1699,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "\nExpected field 'name', any of:\n%s", 
+                return lua_error_debug(lua, "\nExpected field 'name', any of:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1716,7 +1716,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "\nExpected a table joint of any of:\n%s", 
+            return lua_error_debug(lua, "\nExpected a table joint of any of:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1898,7 +1898,7 @@ namespace mbm
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                             if (lua_pcall(lua, 2, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -1914,7 +1914,7 @@ namespace mbm
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                             if (lua_pcall(lua, 2, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -1960,7 +1960,7 @@ namespace mbm
                             */
 
                             if (lua_pcall(lua, 3, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -2001,7 +2001,7 @@ namespace mbm
 
                             lua_setfield(lua, -2, "tangentImpulses");
                             if (lua_pcall(lua, 3, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }

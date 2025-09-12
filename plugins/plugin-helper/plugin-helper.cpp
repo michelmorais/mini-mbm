@@ -24,44 +24,9 @@
 #include <core_mbm/dynamic-var.h>
 #include "plugin-helper.h"
 
-namespace plugin_helper
+namespace mbm
 {
-
-	int lua_error_debug(lua_State *lua,  const char *format, ...)
-	{
-		va_list va_args;
-		va_start(va_args, format);
-		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
-		va_end(va_args);
-		va_start(va_args, format);
-		char * buffer = log_util::formatNewMessage(length, format, va_args);
-		va_end(va_args);
-		lua_Debug ar;
-		memset(&ar, 0, sizeof(lua_Debug));
-		if (lua_getstack(lua, 1, &ar))
-		{
-			if (lua_getinfo(lua, "nSl", &ar))
-			{
-				std::string buffer_2(buffer);
-				delete [] buffer;
-				return luaL_error(lua,"File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer_2.c_str());
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
-			}
-		}
-		else
-		{
-			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
-		}
-		std::string other_buffer(buffer);
-		ERROR_LOG("%s", buffer);
-		delete [] buffer;
-		return luaL_error(lua,"%s",other_buffer.c_str());
-	}
-
-	void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...)
+    void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...)
 	{
 		va_list va_args;
 		va_start(va_args, format);
@@ -106,6 +71,48 @@ namespace plugin_helper
 		}
 		delete [] buffer;
 	}
+
+    int lua_error_debug(lua_State *lua,  const char *format, ...)
+	{
+		va_list va_args;
+		va_start(va_args, format);
+		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
+		va_end(va_args);
+		va_start(va_args, format);
+		char * buffer = log_util::formatNewMessage(length, format, va_args);
+		va_end(va_args);
+		lua_Debug ar;
+		memset(&ar, 0, sizeof(lua_Debug));
+		if (lua_getstack(lua, 1, &ar))
+		{
+			if (lua_getinfo(lua, "nSl", &ar))
+			{
+				std::string buffer_2(buffer);
+				delete [] buffer;
+				return luaL_error(lua,"File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer_2.c_str());
+			}
+			else
+			{
+				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
+			}
+		}
+		else
+		{
+			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
+		}
+		std::string other_buffer(buffer);
+		ERROR_LOG("%s", buffer);
+		delete [] buffer;
+		return luaL_error(lua,"%s",other_buffer.c_str());
+	}
+}
+
+namespace plugin_helper
+{
+
+	using namespace mbm;
+
+	
 
 	void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet)
     {

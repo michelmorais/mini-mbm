@@ -42,7 +42,6 @@ namespace mbm
     struct INFO_PHYSICS;
     
     extern int onSetPhysicsFromTableLua(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
     LINE_MESH *getLineMeshFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {

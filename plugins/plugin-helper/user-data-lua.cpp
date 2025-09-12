@@ -123,7 +123,7 @@ namespace mbm
             break;
             default:
             {
-                plugin_helper::lua_error_debug(lua, "expected [string 'name of function', function or nil]");
+                lua_error_debug(lua, "expected [string 'name of function', function or nil]");
             }   
             break;
         }

@@ -221,7 +221,7 @@ namespace mbm
             const INFO_PHYSICS*  const_info_physics = the_ptr->getInfoPhysics();
             if(const_info_physics == nullptr)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
             }
             const b2Vec2 pos(the_ptr->position.x / scale,the_ptr->position.y / scale);
             int32 particles_destroyed = 0;
@@ -263,7 +263,7 @@ namespace mbm
             std::string strType;
             plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
             if (strType.size() == 0)
-                return plugin_helper::lua_error_debug(lua, "Failed to create shape from lua table");
+                return lua_error_debug(lua, "Failed to create shape from lua table");
             plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
             plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
             plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
@@ -278,9 +278,9 @@ namespace mbm
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
                 if(width <= 0.0f)
-                    return plugin_helper::lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
+                    return lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
                 if(height <= 0.0f)
-                    return plugin_helper::lua_error_debug(lua, "Invalid [height] [%f] for [rectangle]",height);
+                    return lua_error_debug(lua, "Invalid [height] [%f] for [rectangle]",height);
                 
                 bBox.SetAsBox(width / scale * 0.5f,height / scale * 0.5f);
                 bShape = &bBox;
@@ -291,7 +291,7 @@ namespace mbm
                 float ray = 0;
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
                 if(ray <= 0.0f)
-                    return plugin_helper::lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
+                    return lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
                 bCircle.m_radius  = ray / scale;
                 bCircle.m_p.Set(0,0);
                 bShape = &bCircle;
@@ -311,7 +311,7 @@ namespace mbm
                     }
                     else
                     {
-                        return plugin_helper::lua_error_debug(lua, "Missing field[%c] for [triangle]",'a' + static_cast<char>(j));
+                        return lua_error_debug(lua, "Missing field[%c] for [triangle]",'a' + static_cast<char>(j));
                     }
                     lua_pop(lua, 1);
                 }
@@ -324,7 +324,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "Unkown type[%s] ",myType);
+                return lua_error_debug(lua, "Unkown type[%s] ",myType);
             }
             const int32 particles_destroyed = pSystem->DestroyParticlesInShape(*bShape,bTransform);
             lua_pushinteger(lua,particles_destroyed);
@@ -379,7 +379,7 @@ namespace mbm
         impulse.x                  = luaL_checknumber(lua,4);
         impulse.y                  = luaL_checknumber(lua,5);
         if(iFirstIndex > iLastIndex)
-            return plugin_helper::lua_error_debug(lua, "First index [%d] cannot be greater then last index [%d]",iFirstIndex+1,iLastIndex+1);
+            return lua_error_debug(lua, "First index [%d] cannot be greater then last index [%d]",iFirstIndex+1,iLastIndex+1);
         if(iFirstIndex >= pSystem->GetParticleCount())
             iFirstIndex = pSystem->GetParticleCount() -1;
         else if(iFirstIndex < 0)
@@ -439,7 +439,7 @@ namespace mbm
         impulse.x                  = luaL_checknumber(lua,4);
         impulse.y                  = luaL_checknumber(lua,5);
         if(iFirstIndex > iLastIndex)
-            return plugin_helper::lua_error_debug(lua, "First index [%d] cannot be greater then last index [%d]",iFirstIndex+1,iLastIndex+1);
+            return lua_error_debug(lua, "First index [%d] cannot be greater then last index [%d]",iFirstIndex+1,iLastIndex+1);
         if(iFirstIndex >= pSystem->GetParticleCount())
             iFirstIndex = pSystem->GetParticleCount() -1;
         else if(iFirstIndex < 0)
@@ -505,7 +505,7 @@ namespace mbm
                 lua_pushinteger(lua,index+1);
                 if (lua_pcall(lua, 2, 1, 0))
                 {
-                    plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                 }
                 else
                 {
@@ -543,7 +543,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua,"expected <lower_bound_x>, <lower_bound_y>, <upper_bound_x>, <upper_bound_y>, <call_back_function>");
+            return lua_error_debug(lua,"expected <lower_bound_x>, <lower_bound_y>, <upper_bound_x>, <upper_bound_y>, <call_back_function>");
         }
         return 0;
     }
@@ -570,7 +570,7 @@ namespace mbm
                 const INFO_PHYSICS*  const_info_physics = the_ptr->getInfoPhysics();
                 if(const_info_physics == nullptr)
                 {
-                    return plugin_helper::lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
+                    return lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
                 }
                 const b2Vec2 pos(the_ptr->position.x / scale,the_ptr->position.y / scale);
                 bTransform.Set(pos,the_ptr->angle.z);
@@ -611,7 +611,7 @@ namespace mbm
                 std::string strType;
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
                 if (strType.size() == 0)
-                    return plugin_helper::lua_error_debug(lua, "Failed to create shape from lua table");
+                    return lua_error_debug(lua, "Failed to create shape from lua table");
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
                 plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
@@ -626,9 +626,9 @@ namespace mbm
                     plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
                     plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
                     if(width <= 0.0f)
-                        return plugin_helper::lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
+                        return lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
                     if(height <= 0.0f)
-                        return plugin_helper::lua_error_debug(lua, "Invalid [height] [%f] for [rectangle]",height);
+                        return lua_error_debug(lua, "Invalid [height] [%f] for [rectangle]",height);
                     
                     bBox.SetAsBox(width / scale * 0.5f,height / scale * 0.5f);
                     bShape = &bBox;
@@ -638,7 +638,7 @@ namespace mbm
                     float ray = 0;
                     plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
                     if(ray <= 0.0f)
-                        return plugin_helper::lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
+                        return lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
                     bCircle.m_radius  = ray / scale;
                     bCircle.m_p.Set(0,0);
                     bShape = &bCircle;
@@ -658,7 +658,7 @@ namespace mbm
                         }
                         else
                         {
-                            return plugin_helper::lua_error_debug(lua, "Missing field[%c] for [triangle]",'a' + static_cast<char>(j));
+                            return lua_error_debug(lua, "Missing field[%c] for [triangle]",'a' + static_cast<char>(j));
                         }
                         lua_pop(lua, 1);
                     }
@@ -671,14 +671,14 @@ namespace mbm
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Unkown type[%s] ",myType);
+                    return lua_error_debug(lua, "Unkown type[%s] ",myType);
                 }
                 pSystem->QueryShapeAABB(&fluid_query,*bShape,bTransform);
             }
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua,"expected <body | shape>, <call_back_function>");
+            return lua_error_debug(lua,"expected <body | shape>, <call_back_function>");
         }
         return 0;
     }
@@ -750,7 +750,7 @@ namespace mbm
                 lua_pushnumber(lua, fraction);
                 if (lua_pcall(lua, 7, 1, 0))
                 {
-                    plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                    lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                 }
                 else
                 {
@@ -835,7 +835,7 @@ namespace mbm
         const int top             =  lua_gettop(lua);
         if(top != 3)
         {
-            return plugin_helper::lua_error_debug(lua, "expected fluid:([renderizable | physics],table ={x,y,z,sx,sy,sz} ). args received %d",top-1);
+            return lua_error_debug(lua, "expected fluid:([renderizable | physics],table ={x,y,z,sx,sy,sz} ). args received %d",top-1);
         }
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
         RENDERIZABLE * the_ptr    = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
@@ -851,11 +851,11 @@ namespace mbm
             const INFO_PHYSICS*  const_info_physics = the_ptr->getInfoPhysics();
             if(const_info_physics == nullptr)
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] has no physics!", the_ptr->getTypeClassName());
             }
             if(local_info_physics->clone(const_info_physics) == false)
             {
-                return plugin_helper::lua_error_debug(lua, "Failed to clone phisics from [%s]", the_ptr->getTypeClassName());
+                return lua_error_debug(lua, "Failed to clone phisics from [%s]", the_ptr->getTypeClassName());
             }
             position = the_ptr->position;
             scale    = the_ptr->scale;
@@ -864,12 +864,12 @@ namespace mbm
         {
             if(onSetPhysicsFromTableLua(lua,2,local_info_physics) != 0)
             {
-                return plugin_helper::lua_error_debug(lua, "Failed to create physics from lua table");
+                return lua_error_debug(lua, "Failed to create physics from lua table");
             }
         }
         if(lua_type(lua,3) != LUA_TTABLE)
         {
-            return plugin_helper::lua_error_debug(lua, "expected 2 argument to be table ={x,y,z,sx,sy,sz} for position /scale. got %s",lua_typename(lua,3));
+            return lua_error_debug(lua, "expected 2 argument to be table ={x,y,z,sx,sy,sz} for position /scale. got %s",lua_typename(lua,3));
         }
         plugin_helper::getFieldPrimaryFromTable(lua,3,"x", LUA_TNUMBER,&position.x);
         plugin_helper::getFieldPrimaryFromTable(lua,3,"y", LUA_TNUMBER,&position.y);
@@ -886,7 +886,7 @@ namespace mbm
 #ifdef _DEBUG
     int onDestroyRenderizableFluidBox2dLua(lua_State *lua)
     {
-        plugin_helper::lua_print_line(lua,TYPE_LOG_WARN,"you no longer have control over fluid however, to be destroyed, box2d:destroyFluid() must be called\n");
+        lua_print_line(lua,TYPE_LOG_WARN,"you no longer have control over fluid however, to be destroyed, box2d:destroyFluid() must be called\n");
         return 0;
     }
 #endif

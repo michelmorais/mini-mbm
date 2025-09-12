@@ -28,15 +28,14 @@ extern "C"
 #include <core_mbm/renderizable.h>
 #include <core_mbm/class-identifier.h>
 #include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/plugin-helper.h>
 #include <cassert>
 
 
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
-    void lua_userdata_register(lua_State *lua,const int value)
+	void lua_userdata_register(lua_State *lua,const int value)
     {
         const char* __userdata_ = getUserTypeAsString(value);
 		assert(strcmp("_usertype_unknown",__userdata_) != 0);
