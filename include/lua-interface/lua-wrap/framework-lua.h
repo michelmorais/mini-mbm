@@ -65,7 +65,6 @@ namespace mbm
     int onGetDisplayMetrics(lua_State *lua);
     int onGetSizeBackBuffer(lua_State *lua);
     int onGetFps(lua_State *lua);
-    int onSetFps(lua_State *lua);
     int onQuitEngine(lua_State *);
     int onSetColorBackground(lua_State *lua);
     int onShowConsoleMbm(lua_State *lua);

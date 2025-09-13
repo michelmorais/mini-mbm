@@ -30,4 +30,4 @@ require "box2dLiquidFun"
          groupFlags  = {"solidParticleGroup"},
      })
 
-     local tShader = tFluid:getShader()
+local tShader = tFluid:getShader()
