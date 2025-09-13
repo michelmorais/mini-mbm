@@ -27,7 +27,6 @@ extern "C"
 #include <lua-wrap/render-table/line-mesh-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/current-scene-lua.h>
 #include <core_mbm/device.h>
 #include <render/line-mesh.h>
 #include <platform/mismatch-platform.h>

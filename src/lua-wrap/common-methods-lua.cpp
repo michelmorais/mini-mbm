@@ -30,7 +30,6 @@ extern "C"
 #include <plugin-helper/user-data-lua.h>
 #include <plugin-helper/plugin-helper.h>
 #include <lua-wrap/vec3-lua.h>
-#include <lua-wrap/current-scene-lua.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>
 #include <core_mbm/physics.h>

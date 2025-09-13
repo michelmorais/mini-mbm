@@ -53,7 +53,6 @@
 #include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <lodepng/lodepng.h>
-#include <lua-wrap/current-scene-lua.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
