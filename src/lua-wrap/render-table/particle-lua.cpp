@@ -39,11 +39,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int getVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern int setVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-
     PARTICLE *getParticleFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<PARTICLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_PARTICLE));

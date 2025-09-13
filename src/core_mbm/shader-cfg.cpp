@@ -29,8 +29,7 @@
 
 namespace util 
 {
-    extern void split(std::vector<std::string> &result, const char *in, const char delim);
-    extern const char * getFullPath(const char *fileName, bool *existsFile );
+    API_IMPL const char * getFullPath(const char *fileName, bool *existsFile );
 };
 
 enum TYPE_MMD

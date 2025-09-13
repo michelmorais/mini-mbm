@@ -50,7 +50,6 @@ namespace mbm
     class SHADER_CFG;
     class SCENE;
 
-	extern const std::vector<std::string> get_globals_lua();
 
     enum TYPE_VAR_PRINT : char
     {

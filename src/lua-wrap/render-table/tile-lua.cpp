@@ -36,10 +36,6 @@ extern "C"
 
 namespace mbm
 {
-
-    extern void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-    extern void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-    
     TILE *getTileFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<TILE **>(lua_check_userType(lua, rawi, indexTable, L_USER_TYPE_TILE));

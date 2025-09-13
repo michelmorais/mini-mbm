@@ -37,9 +37,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-	
     FONT_DRAW *getFontFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<FONT_DRAW **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_FONT));

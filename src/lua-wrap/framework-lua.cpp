@@ -28,6 +28,7 @@
 #include <lua-wrap/render-table/line-mesh-lua.h>
 #include <lua-wrap/render-table/particle-lua.h>
 #include <lua-wrap/render-table/render-2-texture-lua.h>
+#include <lua-wrap/manager-lua.h>
 #include <lua-wrap/timer-lua.h>
 #include <lua-wrap/audio-lua.h>
 #include <core_mbm/log-util.h>
@@ -56,6 +57,12 @@
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
+#include <lua-wrap/render-table/sprite-lua.h>
+#include <lua-wrap/render-table/mesh-lua.h>
+#include <lua-wrap/render-table/font-lua.h>
+#if defined USE_EDITOR_FEATURES
+    #include <lua-wrap/render-table/mesh-debug-lua.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -119,14 +126,6 @@ extern "C"
 
 namespace mbm 
 {
-    #if defined USE_EDITOR_FEATURES
-    extern void registerClassMeshDebug(lua_State *lua);
-    #endif
-    extern void registerClassSprite(lua_State *lua);
-	extern void registerClassTile(lua_State *lua);
-    extern void registerClassMesh(lua_State *lua);
-    extern void registerClassFont(lua_State *lua);
-	
     const char *__std_p()
     {
         return "passwd";

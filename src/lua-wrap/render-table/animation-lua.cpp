@@ -34,8 +34,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int verifyDynamicCast(lua_State *lua, void *ptr, int line, const char *__file);
-    
     ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable,RENDERIZABLE **renderizable)
     {
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi,indexTable);

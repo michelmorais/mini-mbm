@@ -27,7 +27,9 @@ extern "C"
 #include <lua-wrap/render-table/render-2-texture-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
+#include <plugin-helper/plugin-helper.h>
 #include <render/render-2-texture.h>
+#include <lua-wrap/vec3-lua.h>
 #include <platform/mismatch-platform.h>
 
 #if DEBUG_FREE_LUA
@@ -36,11 +38,6 @@ extern "C"
 
 namespace mbm
 {
-    struct VEC3;
-
-    extern const char *getRandomNameTexture();
-    extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
-
     RENDER_2_TEXTURE *getRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<RENDER_2_TEXTURE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_RENDER_2_TEXTURE));
