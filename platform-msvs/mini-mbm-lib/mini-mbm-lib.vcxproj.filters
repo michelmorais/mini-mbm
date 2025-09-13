@@ -282,9 +282,6 @@
     <ClCompile Include="..\..\src\lua-wrap\manager-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp">
-      <Filter>Source Files\Lua-wrapper</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
@@ -654,9 +651,6 @@
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h">

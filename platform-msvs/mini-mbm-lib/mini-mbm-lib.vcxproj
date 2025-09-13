@@ -225,7 +225,6 @@
     <ClCompile Include="..\..\src\lua-wrap\render-table\texture-view-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\tile-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
@@ -316,7 +315,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />

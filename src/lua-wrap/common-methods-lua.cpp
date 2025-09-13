@@ -26,7 +26,7 @@ extern "C"
 
 #include <lua-wrap/common-methods-lua.h>
 #include <lua-wrap/render-table/animation-lua.h>
-#include <lua-wrap/shader-lua.h>
+#include <plugin-helper/shader-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <plugin-helper/plugin-helper.h>
 #include <lua-wrap/vec3-lua.h>

@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <lua-wrap/shader-lua.h>
+#include "shader-lua.h"
 #include <core_mbm/device.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-var-cfg.h>
@@ -26,7 +26,6 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/texture-manager.h>
 #include <platform/mismatch-platform.h>
-#include <plugin-helper/plugin-helper.h>
 
 extern "C" 
 {

@@ -18,13 +18,14 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "physics-box-2d-fluid-lua.h"
-#include <plugin-helper/plugin-helper.h>
 #include <Box2D/Box2D.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/class-identifier.h>
 #include <render/steered_particle.h>
 #include "box-2d-liquid-fun-wrap.h"
+#include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
+#include <plugin-helper/shader-lua.h>
 
 extern "C" 
 {
@@ -35,8 +36,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
-
     STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<mbm::STEERED_PARTICLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_STEERED_PARTICLE));
