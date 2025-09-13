@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <lua-wrap/shader-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/device.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-var-cfg.h>

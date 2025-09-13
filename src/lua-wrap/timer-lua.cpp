@@ -28,7 +28,6 @@ extern "C"
 #include <map>
 
 #include <lua-wrap/timer-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/device.h>
 
 #if DEBUG_FREE_LUA

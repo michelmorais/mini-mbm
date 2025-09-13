@@ -30,7 +30,6 @@ extern "C"
 #include <core_mbm/renderizable.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 
 #include <lua-wrap/render-table/animation-lua.h>
 #include <lua-wrap/render-table/background-lua.h>
