@@ -276,9 +276,6 @@
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp">
-      <Filter>Source Files\Lua-wrapper</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
@@ -648,9 +645,6 @@
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h">

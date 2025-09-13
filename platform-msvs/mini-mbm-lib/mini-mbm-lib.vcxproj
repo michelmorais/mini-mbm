@@ -208,7 +208,6 @@
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\manager-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\animation-lua.cpp" />
@@ -299,7 +298,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h" />
