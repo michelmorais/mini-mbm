@@ -231,11 +231,11 @@ namespace mbm
         float  reduceY = 1.0f;
         bool   isSensor = false;
         float  restitution = 0.1f;
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "density",    LUA_TNUMBER, &density);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "friction",   LUA_TNUMBER, &friction);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "sx",         LUA_TNUMBER, &reduceX);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "sy",         LUA_TNUMBER, &reduceY);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "isSensor",   LUA_TBOOLEAN, &isSensor);
+        getFieldPrimaryFromTable(lua, indexTable, "density",    LUA_TNUMBER, &density);
+        getFieldPrimaryFromTable(lua, indexTable, "friction",   LUA_TNUMBER, &friction);
+        getFieldPrimaryFromTable(lua, indexTable, "sx",         LUA_TNUMBER, &reduceX);
+        getFieldPrimaryFromTable(lua, indexTable, "sy",         LUA_TNUMBER, &reduceY);
+        getFieldPrimaryFromTable(lua, indexTable, "isSensor",   LUA_TBOOLEAN, &isSensor);
         if (strcasecmp(type, "static") == 0)
         {
             info = box2d->addStaticBody(ptr, density, friction, reduceX, reduceY, isSensor);
@@ -243,20 +243,20 @@ namespace mbm
         else if (strcasecmp(type, "dynamic") == 0)
         {
             bool   isBullet = false;
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "isBullet", LUA_TBOOLEAN, &isBullet);
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "isBullet", LUA_TBOOLEAN, &isBullet);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor, isBullet);
         }
         else if (strcasecmp(type, "character") == 0)
         {
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
             box2d->setFixedRotation(info,true);
             box2d->setSleepingAllowed(info,false);
         }
         else if (strcasecmp(type, "kinematic") == 0)
         {
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addKinematicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
         }
         if (info == nullptr || info->body == nullptr)
@@ -653,7 +653,7 @@ namespace mbm
                 b2Manifold* manifold = c->contact->GetManifold();
                 lua_rawgeti(lua, indexTable, index); // next manifold, put in top + 1
 
-                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "type", LUA_TSTRING, &strType);
+                getFieldPrimaryFromTable(lua, top + 1, "type", LUA_TSTRING, &strType);
                 if(strType.compare("circles") == 0 )
                 {
                     manifold->type = b2Manifold::e_circles;
@@ -676,14 +676,14 @@ namespace mbm
                 }
 
                 float pointCount = static_cast<float>(manifold->pointCount);
-                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "pointCount", LUA_TNUMBER, &pointCount);
+                getFieldPrimaryFromTable(lua, top + 1, "pointCount", LUA_TNUMBER, &pointCount);
                 manifold->pointCount = static_cast<int32>(pointCount);
 
                 lua_getfield(lua, top + 1, "localNormal");
                 if(lua_type(lua,top + 2) == LUA_TTABLE)
                 {
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localNormal.x);
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localNormal.y);
+                    getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localNormal.x);
+                    getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localNormal.y);
                 }
                 else
                 {
@@ -694,8 +694,8 @@ namespace mbm
                 lua_getfield(lua, top + 1, "localPoint");
                 if(lua_type(lua,top + 2) == LUA_TTABLE)
                 {
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localPoint.x);
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localPoint.y);
+                    getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localPoint.x);
+                    getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localPoint.y);
                 }
                 else
                 {
@@ -717,8 +717,8 @@ namespace mbm
                             lua_getfield(lua, top + 3, "localPoint");
                             if(lua_type(lua,top + 4) == LUA_TTABLE)
                             {
-                                plugin_helper::getFieldPrimaryFromTable(lua, top + 4, "x", LUA_TNUMBER, &manifold->points[i].localPoint.x);
-                                plugin_helper::getFieldPrimaryFromTable(lua, top + 4, "y", LUA_TNUMBER, &manifold->points[i].localPoint.y);
+                                getFieldPrimaryFromTable(lua, top + 4, "x", LUA_TNUMBER, &manifold->points[i].localPoint.x);
+                                getFieldPrimaryFromTable(lua, top + 4, "y", LUA_TNUMBER, &manifold->points[i].localPoint.y);
                             }
                             else
                             {
@@ -726,8 +726,8 @@ namespace mbm
                             }
                             lua_pop(lua, 1);
 
-                            plugin_helper::getFieldPrimaryFromTable(lua, top + 3, "normalImpulse", LUA_TNUMBER,  &manifold->points[i].normalImpulse);
-                            plugin_helper::getFieldPrimaryFromTable(lua, top + 3, "tangentImpulse", LUA_TNUMBER, &manifold->points[i].tangentImpulse);
+                            getFieldPrimaryFromTable(lua, top + 3, "normalImpulse", LUA_TNUMBER,  &manifold->points[i].normalImpulse);
+                            getFieldPrimaryFromTable(lua, top + 3, "tangentImpulse", LUA_TNUMBER, &manifold->points[i].tangentImpulse);
                         }
                         else
                         {
@@ -1429,9 +1429,9 @@ namespace mbm
             if (hasTable == LUA_TTABLE)
             {
                 b2Filter              filter;
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 3, "categoryBits",  &filter.categoryBits);
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 3, "maskBits",      &filter.maskBits);
-                plugin_helper::getFieldSignedShortFromTable(lua, 3,   "groupIndex",    &filter.groupIndex);
+                getFieldUnsignedShortFromTable(lua, 3, "categoryBits",  &filter.categoryBits);
+                getFieldUnsignedShortFromTable(lua, 3, "maskBits",      &filter.maskBits);
+                getFieldSignedShortFromTable(lua, 3,   "groupIndex",    &filter.groupIndex);
                 box2d->setFilter(infoBox2d, filter);
             }
             else
@@ -1445,9 +1445,9 @@ namespace mbm
             if (hasTable == LUA_TTABLE)
             {
                 b2Filter              filter;
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 2, "categoryBits",  &filter.categoryBits);
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 2, "maskBits",      &filter.maskBits);
-                plugin_helper::getFieldSignedShortFromTable(lua, 2,   "groupIndex",    &filter.groupIndex);
+                getFieldUnsignedShortFromTable(lua, 2, "categoryBits",  &filter.categoryBits);
+                getFieldUnsignedShortFromTable(lua, 2, "maskBits",      &filter.maskBits);
+                getFieldSignedShortFromTable(lua, 2,   "groupIndex",    &filter.groupIndex);
                 box2d->setFilter(nullptr, filter);
             }
             else
@@ -1505,11 +1505,11 @@ namespace mbm
                 b2GearJointDef def;
                 float indexA = 1;
                 float indexB = 1;
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "collideConnected",  LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "indexA",            LUA_TNUMBER,    &indexA);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "indexB",            LUA_TNUMBER,    &indexB);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(       lua,4,  "collideConnected",  LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(       lua,4,  "indexA",            LUA_TNUMBER,    &indexA);
+                getFieldPrimaryFromTable(       lua,4,  "indexB",            LUA_TNUMBER,    &indexB);
+                getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
 
                 const unsigned int index_1 = static_cast<unsigned int>(indexA) - 1;
                 const unsigned int index_2 = static_cast<unsigned int>(indexB) - 1;
@@ -1532,12 +1532,12 @@ namespace mbm
             {
                 b2MotorJointDef def;
                 def.Initialize(info1->body, info2->body);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",    LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "correctionFactor",    LUA_TNUMBER,  &def.correctionFactor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "linearOffset","x", "y",             &def.linearOffset.x, &def.linearOffset.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "maxForce",            LUA_TNUMBER,  &def.maxForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "maxTorque",           LUA_TNUMBER,  &def.maxTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "angularOffset",       LUA_TNUMBER,  &def.angularOffset);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",    LUA_TBOOLEAN, &def.collideConnected);
+                getFieldPrimaryFromTable(lua,     4,  "correctionFactor",    LUA_TNUMBER,  &def.correctionFactor);
+                getFloat2FieldTableFromTable(lua, 4,  "linearOffset","x", "y",             &def.linearOffset.x, &def.linearOffset.y);
+                getFieldPrimaryFromTable(lua,     4,  "maxForce",            LUA_TNUMBER,  &def.maxForce);
+                getFieldPrimaryFromTable(lua,     4,  "maxTorque",           LUA_TNUMBER,  &def.maxTorque);
+                getFieldPrimaryFromTable(lua,     4,  "angularOffset",       LUA_TNUMBER,  &def.angularOffset);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "rope") == 0) // done
@@ -1548,23 +1548,23 @@ namespace mbm
                 //has no member Initialize
                 p1 -= p2;
                 def.maxLength = p1.Length();
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxLength",              LUA_TNUMBER,  &def.maxLength);
+                getFieldPrimaryFromTable(lua,     4, "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4, "maxLength",              LUA_TNUMBER,  &def.maxLength);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "friction") == 0) // done
             {
                 b2FrictionJointDef def;
                 b2Vec2 anchor(0,0);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "collideConnected",        LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",                  &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",                  &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxForce",                LUA_TNUMBER,    &def.maxForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxTorque",               LUA_TNUMBER,    &def.maxTorque);
+                getFieldPrimaryFromTable(lua,     4, "collideConnected",        LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",                  &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",                  &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4, "maxForce",                LUA_TNUMBER,    &def.maxForce);
+                getFieldPrimaryFromTable(lua,     4, "maxTorque",               LUA_TNUMBER,    &def.maxTorque);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "wheel") == 0 || strcasecmp(name, "line") == 0) //old line, done
@@ -1574,18 +1574,18 @@ namespace mbm
                 float dampingRatio = 0.7f;
                 b2Vec2 anchor(0.0f,0.0f);
                 b2Vec2 axis(0.0f,1.0f);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "axis", "x", "y",   &axis.x,   &axis.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "axis", "x", "y",   &axis.x,   &axis.y);
                 def.Initialize(info1->body, info2->body, anchor, axis);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "collideConnected",            LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorA", "x", "y",                      &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorB", "x", "y",                      &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "enableMotor",                 LUA_TBOOLEAN,   &def.enableMotor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAxisA", "x", "y",                        &def.localAxisA.x, &def.localAxisA.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "maxMotorTorque",              LUA_TNUMBER,    &def.maxMotorTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
+                getFieldPrimaryFromTable(lua,     4,     "collideConnected",            LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,     "localAnchorA", "x", "y",                      &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,     "localAnchorB", "x", "y",                      &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,     "enableMotor",                 LUA_TBOOLEAN,   &def.enableMotor);
+                getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &frequencyHz);
+                getFloat2FieldTableFromTable(lua, 4,     "localAxisA", "x", "y",                        &def.localAxisA.x, &def.localAxisA.y);
+                getFieldPrimaryFromTable(lua,     4,     "maxMotorTorque",              LUA_TNUMBER,    &def.maxMotorTorque);
+                getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1595,14 +1595,14 @@ namespace mbm
                 float frequencyHz = 5.0f;
 			    float dampingRatio = 0.7f;
                 b2Vec2 anchor(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",       LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                 &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                 &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",       LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                 &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                 &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
                 b2AngularStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1612,11 +1612,11 @@ namespace mbm
                 float frequencyHz = 5.0f;
 		        float dampingRatio = 0.7f;
                 //has no member Initialize
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "maxForce",            LUA_TNUMBER,    &def.maxForce);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "target", "x", "y",                    &def.target.x, &def.target.y);
+                getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua, 4,     "maxForce",            LUA_TNUMBER,    &def.maxForce);
+                getFloat2FieldTableFromTable(lua, 4, "target", "x", "y",                    &def.target.x, &def.target.y);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1625,18 +1625,18 @@ namespace mbm
                 b2PulleyJointDef def;
                 b2Vec2 anchorA(info1->body->GetPosition());
                 b2Vec2 anchorB(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchorA", "x", "y", &anchorA.x, &anchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchorB", "x", "y", &anchorB.x, &anchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);//default is 1
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "groundAnchorA", "x", "y",                    &def.groundAnchorA.x, &def.groundAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "groundAnchorB", "x", "y",                    &def.groundAnchorB.x, &def.groundAnchorB.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchorA", "x", "y", &anchorA.x, &anchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchorB", "x", "y", &anchorB.x, &anchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);//default is 1
+                getFloat2FieldTableFromTable(lua, 4,  "groundAnchorA", "x", "y",                    &def.groundAnchorA.x, &def.groundAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "groundAnchorB", "x", "y",                    &def.groundAnchorB.x, &def.groundAnchorB.y);
                 def.Initialize(info1->body, info2->body,def.groundAnchorA,def.groundAnchorB, anchorA,anchorB, def.ratio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",           LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                     &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                     &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "lengthA",                    LUA_TNUMBER,    &def.lengthA);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "lengthB",                    LUA_TNUMBER,    &def.lengthB);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",           LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                     &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                     &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "lengthA",                    LUA_TNUMBER,    &def.lengthA);
+                getFieldPrimaryFromTable(lua,     4,  "lengthB",                    LUA_TNUMBER,    &def.lengthB);
+                getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "distance") == 0) // done
@@ -1646,15 +1646,15 @@ namespace mbm
                 float dampingRatio = 0.7f;
                 b2Vec2 anchor1 (info1->body->GetPosition());
                 b2Vec2 anchor2 (info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor2", "x", "y", &anchor2.x, &anchor2.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor2", "x", "y", &anchor2.x, &anchor2.y);
                 def.Initialize(info1->body,info2->body,anchor1,anchor2);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",               LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                         &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                         &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",               LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                         &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                         &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1663,38 +1663,38 @@ namespace mbm
                 b2PrismaticJointDef def;
                 b2Vec2 axis(0.0f,1.0f);
                 b2Vec2 anchor(0,0);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "axis",   "x", "y", &axis.x,   &axis.y  );
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "axis",   "x", "y", &axis.x,   &axis.y  );
                 def.Initialize(info1->body, info2->body, anchor, axis);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "enableLimit",            LUA_TBOOLEAN, &def.enableLimit);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "enableMotor",            LUA_TBOOLEAN, &def.enableMotor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAxisA", "x", "y",                 &def.localAxisA.x, &def.localAxisA.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "lowerTranslation",       LUA_TNUMBER,  &def.lowerTranslation);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "maxMotorForce",          LUA_TNUMBER,  &def.maxMotorForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "motorSpeed",             LUA_TNUMBER,  &def.motorSpeed);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "referenceAngle",         LUA_TNUMBER,  &def.referenceAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "upperTranslation",       LUA_TNUMBER,  &def.upperTranslation);
+                getFieldPrimaryFromTable(lua,     4,    "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
+                getFieldPrimaryFromTable(lua,     4,    "enableLimit",            LUA_TBOOLEAN, &def.enableLimit);
+                getFieldPrimaryFromTable(lua,     4,    "enableMotor",            LUA_TBOOLEAN, &def.enableMotor);
+                getFloat2FieldTableFromTable(lua, 4,    "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,    "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
+                getFloat2FieldTableFromTable(lua, 4,    "localAxisA", "x", "y",                 &def.localAxisA.x, &def.localAxisA.y);
+                getFieldPrimaryFromTable(lua,     4,    "lowerTranslation",       LUA_TNUMBER,  &def.lowerTranslation);
+                getFieldPrimaryFromTable(lua,     4,    "maxMotorForce",          LUA_TNUMBER,  &def.maxMotorForce);
+                getFieldPrimaryFromTable(lua,     4,    "motorSpeed",             LUA_TNUMBER,  &def.motorSpeed);
+                getFieldPrimaryFromTable(lua,     4,    "referenceAngle",         LUA_TNUMBER,  &def.referenceAngle);
+                getFieldPrimaryFromTable(lua,     4,    "upperTranslation",       LUA_TNUMBER,  &def.upperTranslation);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "revolute") == 0) // done
             {
                 b2RevoluteJointDef def;
                 b2Vec2 anchor(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "enableLimit",         LUA_TBOOLEAN,   &def.enableLimit);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "enableMotor",         LUA_TBOOLEAN,   &def.enableMotor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",              &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",              &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "lowerAngle",          LUA_TNUMBER,    &def.lowerAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "maxMotorTorque",      LUA_TNUMBER,    &def.maxMotorTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "motorSpeed",          LUA_TNUMBER,    &def.motorSpeed);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "referenceAngle",      LUA_TNUMBER,    &def.referenceAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "upperAngle",          LUA_TNUMBER,    &def.upperAngle);
+                getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(lua, 4,     "enableLimit",         LUA_TBOOLEAN,   &def.enableLimit);
+                getFieldPrimaryFromTable(lua, 4,     "enableMotor",         LUA_TBOOLEAN,   &def.enableMotor);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",              &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",              &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua, 4,     "lowerAngle",          LUA_TNUMBER,    &def.lowerAngle);
+                getFieldPrimaryFromTable(lua, 4,     "maxMotorTorque",      LUA_TNUMBER,    &def.maxMotorTorque);
+                getFieldPrimaryFromTable(lua, 4,     "motorSpeed",          LUA_TNUMBER,    &def.motorSpeed);
+                getFieldPrimaryFromTable(lua, 4,     "referenceAngle",      LUA_TNUMBER,    &def.referenceAngle);
+                getFieldPrimaryFromTable(lua, 4,     "upperAngle",          LUA_TNUMBER,    &def.upperAngle);
                 result = box2d->createJoint(info1, info2, def);
             }
             else

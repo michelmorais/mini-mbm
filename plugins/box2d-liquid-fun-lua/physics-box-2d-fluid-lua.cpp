@@ -261,12 +261,12 @@ namespace mbm
             b2PolygonShape  bBox;
             b2Vec2 pos;
             std::string strType;
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
+            getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
             if (strType.size() == 0)
                 return lua_error_debug(lua, "Failed to create shape from lua table");
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
+            getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
+            getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
+            getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
             pos.x = pos.x / scale;
             pos.y = pos.y / scale;
             bTransform.Set(pos,angle);
@@ -275,8 +275,8 @@ namespace mbm
             {
                 float width = 0;
                 float height = 0;
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
+                getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
+                getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
                 if(width <= 0.0f)
                     return lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
                 if(height <= 0.0f)
@@ -289,7 +289,7 @@ namespace mbm
             else if (strcmp(myType, "circle") == 0)
             {
                 float ray = 0;
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
+                getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
                 if(ray <= 0.0f)
                     return lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
                 bCircle.m_radius  = ray / scale;
@@ -306,8 +306,8 @@ namespace mbm
                     lua_getfield(lua,indexTable,letter);
                     if(lua_istable(lua,indexSubTable))
                     {
-                        plugin_helper::getFieldPrimaryFromTable(lua, indexSubTable, "x", LUA_TNUMBER, &vertices[j].x);
-                        plugin_helper::getFieldPrimaryFromTable(lua, indexSubTable, "y", LUA_TNUMBER, &vertices[j].y);
+                        getFieldPrimaryFromTable(lua, indexSubTable, "x", LUA_TNUMBER, &vertices[j].x);
+                        getFieldPrimaryFromTable(lua, indexSubTable, "y", LUA_TNUMBER, &vertices[j].y);
                     }
                     else
                     {
@@ -345,9 +345,9 @@ namespace mbm
             for (std::size_t i=0; i<lenTable; ++i)
             {
                 lua_rawgeti(lua, 2, (i + 1));
-                plugin_helper::getFieldIntegerFromTable(lua, indexTable, "index",&index);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &impulse.x);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &impulse.y);
+                getFieldIntegerFromTable(lua, indexTable, "index",&index);
+                getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &impulse.x);
+                getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &impulse.y);
                 lua_pop(lua, 1);
                 if(index <= pSystem->GetParticleCount() && index > 0)
                 {
@@ -406,9 +406,9 @@ namespace mbm
             for (std::size_t i=0; i<lenTable; ++i)
             {
                 lua_rawgeti(lua, 2, (i + 1));
-                plugin_helper::getFieldIntegerFromTable(lua, indexTable, "index",&index);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &impulse.x);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &impulse.y);
+                getFieldIntegerFromTable(lua, indexTable, "index",&index);
+                getFieldPrimaryFromTable(lua, indexTable, "x", LUA_TNUMBER, &impulse.x);
+                getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &impulse.y);
                 lua_pop(lua, 1);
                 if(index <= pSystem->GetParticleCount() && index > 0)
                 {
@@ -609,12 +609,12 @@ namespace mbm
                 b2PolygonShape  bBox;
                 b2Vec2 pos;
                 std::string strType;
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
+                getFieldPrimaryFromTable(lua, indexTable, "type", LUA_TSTRING, &strType);
                 if (strType.size() == 0)
                     return lua_error_debug(lua, "Failed to create shape from lua table");
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
-                plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
+                getFieldPrimaryFromTable(lua, indexTable, "x",      LUA_TNUMBER, &pos.x);
+                getFieldPrimaryFromTable(lua, indexTable, "y",      LUA_TNUMBER, &pos.y);
+                getFieldPrimaryFromTable(lua, indexTable, "angle",  LUA_TNUMBER, &angle);
                 pos.x = pos.x / scale;
                 pos.y = pos.y / scale;
                 bTransform.Set(pos,angle);
@@ -623,8 +623,8 @@ namespace mbm
                 {
                     float width = 0;
                     float height = 0;
-                    plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
-                    plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
+                    getFieldPrimaryFromTable(lua, indexTable, "width",  LUA_TNUMBER, &width);
+                    getFieldPrimaryFromTable(lua, indexTable, "height", LUA_TNUMBER, &height);
                     if(width <= 0.0f)
                         return lua_error_debug(lua, "Invalid [width] [%f] for [rectangle]",width);
                     if(height <= 0.0f)
@@ -636,7 +636,7 @@ namespace mbm
                 else if (strcmp(myType, "circle") == 0)
                 {
                     float ray = 0;
-                    plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
+                    getFieldPrimaryFromTable(lua, indexTable, "ray",  LUA_TNUMBER, &ray);
                     if(ray <= 0.0f)
                         return lua_error_debug(lua, "Invalid [ray] [%f] for [circle]",ray);
                     bCircle.m_radius  = ray / scale;
@@ -653,8 +653,8 @@ namespace mbm
                         lua_getfield(lua,indexTable,letter);
                         if(lua_istable(lua,indexSubTable))
                         {
-                            plugin_helper::getFieldPrimaryFromTable(lua, indexSubTable, "x", LUA_TNUMBER, &vertices[j].x);
-                            plugin_helper::getFieldPrimaryFromTable(lua, indexSubTable, "y", LUA_TNUMBER, &vertices[j].y);
+                            getFieldPrimaryFromTable(lua, indexSubTable, "x", LUA_TNUMBER, &vertices[j].x);
+                            getFieldPrimaryFromTable(lua, indexSubTable, "y", LUA_TNUMBER, &vertices[j].y);
                         }
                         else
                         {
@@ -802,10 +802,10 @@ namespace mbm
         COLOR c = p_steered_particle->getColor();
         if(lua_type(lua,2) == LUA_TTABLE)
         {
-            plugin_helper::getFieldPrimaryFromTable(lua,2,"r",LUA_TNUMBER,&c.r);
-            plugin_helper::getFieldPrimaryFromTable(lua,2,"g",LUA_TNUMBER,&c.g);
-            plugin_helper::getFieldPrimaryFromTable(lua,2,"b",LUA_TNUMBER,&c.b);
-            plugin_helper::getFieldPrimaryFromTable(lua,2,"a",LUA_TNUMBER,&c.a);
+            getFieldPrimaryFromTable(lua,2,"r",LUA_TNUMBER,&c.r);
+            getFieldPrimaryFromTable(lua,2,"g",LUA_TNUMBER,&c.g);
+            getFieldPrimaryFromTable(lua,2,"b",LUA_TNUMBER,&c.b);
+            getFieldPrimaryFromTable(lua,2,"a",LUA_TNUMBER,&c.a);
         }
         else
         {
@@ -871,12 +871,12 @@ namespace mbm
         {
             return lua_error_debug(lua, "expected 2 argument to be table ={x,y,z,sx,sy,sz} for position /scale. got %s",lua_typename(lua,3));
         }
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"x", LUA_TNUMBER,&position.x);
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"y", LUA_TNUMBER,&position.y);
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"z", LUA_TNUMBER,&position.z);
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"sx",LUA_TNUMBER,&scale.x);
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"sy",LUA_TNUMBER,&scale.y);
-        plugin_helper::getFieldPrimaryFromTable(lua,3,"sz",LUA_TNUMBER,&scale.z);
+        getFieldPrimaryFromTable(lua,3,"x", LUA_TNUMBER,&position.x);
+        getFieldPrimaryFromTable(lua,3,"y", LUA_TNUMBER,&position.y);
+        getFieldPrimaryFromTable(lua,3,"z", LUA_TNUMBER,&position.z);
+        getFieldPrimaryFromTable(lua,3,"sx",LUA_TNUMBER,&scale.x);
+        getFieldPrimaryFromTable(lua,3,"sy",LUA_TNUMBER,&scale.y);
+        getFieldPrimaryFromTable(lua,3,"sz",LUA_TNUMBER,&scale.z);
 
         const int32 iTotalParticleAdded = PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(info,local_info_physics,position,scale,scalePhysics);
         lua_pushinteger(lua,iTotalParticleAdded);

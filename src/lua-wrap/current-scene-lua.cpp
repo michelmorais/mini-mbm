@@ -311,46 +311,6 @@ namespace mbm
         return getVariable(lua, ptr->lsDynamicVar, what);
     }
 
-    void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet)
-    {
-        lua_getfield(lua, indexTable, fieldName);
-        switch (LUA_TYPE)
-        {
-            case LUA_TBOOLEAN:
-            {
-                auto *b = static_cast<bool *>(ptrRet);
-                if (lua_type(lua, -1) == LUA_TBOOLEAN)
-                    *b = lua_toboolean(lua, -1) ? true : false;
-            }
-            break;
-            case LUA_TNUMBER:
-            {
-                auto *n = static_cast<float *>(ptrRet);
-                if (lua_type(lua, -1) == LUA_TNUMBER)
-                    *n = lua_tonumber(lua, -1);
-            }
-            break;
-            case LUA_TSTRING:
-            {
-                auto *s = static_cast<std::string *>(ptrRet);
-                if (lua_type(lua, -1) == LUA_TSTRING)
-                    *s = lua_tostring(lua, -1);
-            }
-            break;
-            default: {
-            }
-        }
-        lua_pop(lua, 1);
-    }
-
-    void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet)
-    {
-        lua_getfield(lua, indexTable, fieldName);
-        if (lua_type(lua, -1) == LUA_TNUMBER)
-            *ptrRet = (unsigned short int)lua_tointeger(lua, -1);
-        lua_pop(lua, 1);
-    }
-
     void getFieldUnsignedFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint32_t *ptrRet)
     {
         lua_getfield(lua, indexTable, fieldName);
@@ -359,33 +319,7 @@ namespace mbm
         lua_pop(lua, 1);
     }
 
-    void getFieldUnsigned8FromTable(lua_State *lua, const int indexTable, const char *fieldName,uint8_t *ptrRet)
-    {
-        lua_getfield(lua, indexTable, fieldName);
-        if (lua_type(lua, -1) == LUA_TNUMBER)
-            *ptrRet = (uint8_t)lua_tointeger(lua, -1);
-        lua_pop(lua, 1);
-    }
-
-    void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet)
-    {
-        lua_getfield(lua, indexTable, fieldName);
-        if (lua_type(lua, -1) == LUA_TNUMBER)
-            *ptrRet = (short int)lua_tointeger(lua, -1);
-        lua_pop(lua, 1);
-    }
-
-    void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2)
-    {
-        lua_getfield(lua, indexTable, fieldNameTable);
-        if (lua_type(lua, -1) == LUA_TTABLE)
-        {
-            const int top = lua_gettop(lua);
-            getFieldPrimaryFromTable(lua, top, fieldName1, LUA_TNUMBER, out1);
-            getFieldPrimaryFromTable(lua, top, fieldName2, LUA_TNUMBER, out2);
-        }
-        lua_pop(lua, 1);
-    }
+    
 
     void push_uint16_arrayFromTable(lua_State *lua, const uint16_t * lsArrayIn, const unsigned int sizeBuffer,const bool one_based)
     {

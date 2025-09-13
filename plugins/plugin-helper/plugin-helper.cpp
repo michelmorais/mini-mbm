@@ -204,16 +204,8 @@ namespace mbm
         }
         return user_type;
     }
-}
 
-namespace plugin_helper
-{
-
-	using namespace mbm;
-
-	
-
-	void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet)
+    void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet)
     {
         lua_getfield(lua, indexTable, fieldName);
         switch (LUA_TYPE)
@@ -242,6 +234,14 @@ namespace plugin_helper
             default: {
             }
         }
+        lua_pop(lua, 1);
+    }
+
+    void getFieldUnsigned8FromTable(lua_State *lua, const int indexTable, const char *fieldName,uint8_t *ptrRet)
+    {
+        lua_getfield(lua, indexTable, fieldName);
+        if (lua_type(lua, -1) == LUA_TNUMBER)
+            *ptrRet = (uint8_t)lua_tointeger(lua, -1);
         lua_pop(lua, 1);
     }
 
@@ -281,14 +281,18 @@ namespace plugin_helper
         lua_pop(lua, 1);
     }
 
-    inline const char* getTypeMetaTableNameUserData(lua_State *lua, mbm::L_USER_TYPE* foundType)
-    {
-        lua_rawgeti(lua,-1, 1);
-        const int p  = lua_tointeger(lua,-1);
-        lua_pop(lua, 1);
-        *foundType = (mbm::L_USER_TYPE)p;
-        return mbm::getUserTypeAsString(p);
-    }
+}
+
+namespace plugin_helper
+{
+
+	using namespace mbm;
+
+	
+
+	
+
+    
 
     
 

@@ -53,16 +53,17 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int  lua_error_debug(lua_State *lua,  const char *format, ...);
     extern "C" PLUGIN_HELPER_API void printStack(lua_State *lua, const char *fileName, const unsigned int numLine);
     extern "C" PLUGIN_HELPER_API void *lua_check_userType (  lua_State *lua, const int rawi, const int indexTable, const mbm::L_USER_TYPE expectedType);
+    extern "C" PLUGIN_HELPER_API void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldUnsigned8FromTable(lua_State *lua, const int indexTable, const char *fieldName,uint8_t *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFieldIntegerFromTable(lua_State *lua, const int indexTable, const char *fieldName,int *ptrRet);
+    extern "C" PLUGIN_HELPER_API void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2);
 }
 
 namespace plugin_helper
 {
     
-    extern "C" PLUGIN_HELPER_API void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
-    extern "C" PLUGIN_HELPER_API void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,unsigned short int *ptrRet);
-    extern "C" PLUGIN_HELPER_API void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, short int *ptrRet);
-    extern "C" PLUGIN_HELPER_API void getFieldIntegerFromTable(lua_State *lua, const int indexTable, const char *fieldName,int *ptrRet);
-    extern "C" PLUGIN_HELPER_API void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2);
     extern "C" PLUGIN_HELPER_API void *lua_get_userType_no_throw (  lua_State *lua, const int rawi, const int indexTable, const mbm::L_USER_TYPE expectedType);
     extern "C" PLUGIN_HELPER_API mbm::RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     extern "C" PLUGIN_HELPER_API mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable);

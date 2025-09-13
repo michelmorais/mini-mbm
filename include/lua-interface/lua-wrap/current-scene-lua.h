@@ -53,12 +53,8 @@ namespace mbm
 	ANIMATION *getSafeAnimFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
     int getVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
     int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    void getFieldPrimaryFromTable(lua_State *lua, const int indexTable, const char *fieldName, const int LUA_TYPE,void *ptrRet);
-    void getFieldUnsignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint16_t *ptrRet);
     void getFieldUnsignedFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint32_t *ptrRet);
-    void getFieldUnsigned8FromTable(lua_State *lua, const int indexTable, const char *fieldName,uint8_t *ptrRet);
-    void getFieldSignedShortFromTable(lua_State *lua, const int indexTable, const char *fieldName, int16_t *ptrRet);
-    void getFloat2FieldTableFromTable(lua_State *lua, const int indexTable, const char *fieldNameTable,const char *fieldName1, const char *fieldName2, float *out1, float *out2);
+    
 	void pushVectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b);
 	void pushVectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b, const char* field_c);
     void push_uint16_arrayFromTable(lua_State *lua, const uint16_t * lsArrayIn, const unsigned int sizeBuffer,const bool one_based);
