@@ -207,7 +207,6 @@
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\check-user-type-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp" />
@@ -299,7 +298,6 @@
     <ClInclude Include="..\..\include\joystick-win32\joystick.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />

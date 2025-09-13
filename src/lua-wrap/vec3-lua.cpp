@@ -25,7 +25,6 @@ extern "C"
 }
 
 #include <lua-wrap/vec3-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <core_mbm/primitives.h>
 #include <core_mbm/device.h>

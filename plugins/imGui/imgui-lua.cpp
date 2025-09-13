@@ -819,44 +819,6 @@ static const std::map<std::string,ImGuiCol_> ImGuiCol_map = {
                 {"ImGuiCol_NavWindowingDimBg"          , ImGuiCol_NavWindowingDimBg},
                 {"ImGuiCol_ModalWindowDimBg"           , ImGuiCol_ModalWindowDimBg}};
 
-/*const int get_texture_id(lua_State *lua,const char* texture_name,unsigned int & width_out, unsigned int & height_out)
-{
-    const int top  = lua_gettop(lua);
-    int texture_id = 0;
-    lua_getglobal(lua,"mbm");
-    if(lua_type(lua,-1) == LUA_TTABLE)
-    {
-        lua_getfield(lua,-1,"getTextureId");
-        if(lua_isfunction(lua,-1))
-        {
-            lua_pushstring(lua,texture_name);
-            lua_pushboolean(lua,true);
-            constexpr int nargs    = 2;
-            constexpr int nresults = 3;
-            if(lua_pcall(lua,nargs,nresults,0) == LUA_OK )
-            {
-                if(lua_type(lua,-1) == LUA_TNUMBER)
-                    texture_id = lua_tointeger(lua,-3);
-                if(lua_type(lua,-1) == LUA_TNUMBER)
-                    width_out = lua_tointeger(lua,-2);
-                if(lua_type(lua,-1) == LUA_TNUMBER)
-                    height_out = lua_tointeger(lua,-1);
-            }
-            else
-            {
-                lua_log_error(lua, lua_tostring(lua,-1));
-            }
-        }
-    }
-    const int total_in_stack = lua_gettop(lua);
-    if(total_in_stack > top)
-    {
-        const int total_pop = total_in_stack - top;
-        lua_pop(lua,total_pop);
-    }
-    return texture_id;
-}*/
-
 void lua_log_error(lua_State *lua,const char * message)
 {
     lua_Debug ar;

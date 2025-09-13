@@ -273,9 +273,6 @@
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\lua-wrap\check-user-type-lua.cpp">
-      <Filter>Source Files\Lua-wrapper</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
@@ -648,9 +645,6 @@
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">

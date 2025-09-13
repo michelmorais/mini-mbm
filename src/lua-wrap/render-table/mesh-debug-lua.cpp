@@ -30,7 +30,6 @@ extern "C"
 #include <string>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>

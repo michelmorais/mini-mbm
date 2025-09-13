@@ -40,7 +40,7 @@ namespace mbm
 
     STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<mbm::STEERED_PARTICLE **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_STEERED_PARTICLE));
+        auto **ud = static_cast<mbm::STEERED_PARTICLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_STEERED_PARTICLE));
         return *ud;
     }
 

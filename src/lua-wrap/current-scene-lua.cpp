@@ -33,7 +33,6 @@ extern "C"
 #include <core_mbm/util-interface.h>
 #include <render/line-mesh.h>
 #include <lua-wrap/current-scene-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <plugin-helper/plugin-helper.h>
 
 namespace mbm

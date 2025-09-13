@@ -43,7 +43,6 @@
 #include <lua-wrap/current-scene-lua.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
 
 #include <algorithm>
@@ -145,6 +144,25 @@ namespace mbm
         return 0;
     }
     #endif
+
+    void lua_userdata_register(lua_State *lua,const int value)
+    {
+        const char* __userdata_ = getUserTypeAsString(value);
+		assert(strcmp("_usertype_unknown",__userdata_) != 0);
+        luaL_newmetatable(lua, __userdata_);
+        lua_pushinteger(lua,value);
+        lua_rawseti(lua,-2,1);
+        lua_settop(lua,0);
+    }
+
+    void registerClassUsersData(lua_State *lua)
+    {
+        lua_settop(lua,0);
+        for(int i= L_USER_TYPE_BEGIN + 1; i < L_USER_TYPE_END; ++i)
+        {
+            lua_userdata_register(lua,i);
+        }
+    }
 
 	int enableTextureFilterLua(lua_State *lua)
     {

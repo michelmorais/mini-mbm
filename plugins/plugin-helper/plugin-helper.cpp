@@ -121,6 +121,89 @@ namespace mbm
 		delete [] buffer;
 		return luaL_error(lua,"%s",other_buffer.c_str());
 	}
+
+    inline const char* getTypeMetaTableNameUserData(lua_State *lua,L_USER_TYPE* foundType)
+    {
+        lua_rawgeti(lua,-1, 1);
+        const int p  = lua_tointeger(lua,-1);
+        lua_pop(lua, 1);
+        *foundType = (L_USER_TYPE)p;
+        return getUserTypeAsString(p);
+    }
+
+
+    inline void *lua_check_MT_userData (lua_State *lua, int ud,L_USER_TYPE* foundType) 
+    {
+        void *p = lua_touserdata(lua, ud);
+        if (p != nullptr) 
+        {  /* value is a userdata? */
+            if (lua_getmetatable(lua, ud)) 
+            {  /* does it have a metatable? */
+                const char * valid_for = getTypeMetaTableNameUserData(lua,foundType);
+                luaL_getmetatable(lua, valid_for);  /* get correct metatable */
+                if (!lua_rawequal(lua, -1, -2))  /* not the same? */
+                    p = nullptr;  /* value is a userdata with wrong metatable */
+                lua_pop(lua, 2);  /* remove both metatables */
+                return p;
+            }
+        }
+        return nullptr;  /* value is not a userdata with a metatable */
+    }
+
+    void *lua_check_userType (  lua_State *lua,
+                                const int rawi, 
+                                const int indexTable,
+                                const mbm::L_USER_TYPE expectedType) 
+    {
+        mbm::L_USER_TYPE foundType = mbm::L_USER_TYPE_END;
+        const int typeObj = lua_type(lua, indexTable);
+        if (typeObj != LUA_TTABLE)
+        {
+            if(typeObj == LUA_TNONE)
+                lua_error_debug(lua, "expected: [%s]. got [nil]",getUserTypeAsString(expectedType));
+            else
+                lua_error_debug(lua, "expected: [%s]. got [%s]",getUserTypeAsString(expectedType),lua_typename(lua, typeObj));
+        }
+        lua_rawgeti(lua, indexTable, rawi);
+
+        void * user_type = lua_check_MT_userData(lua,-1,&foundType);
+        if(user_type == nullptr)
+        {
+            if(foundType >  mbm::L_USER_TYPE_BEGIN && foundType < mbm::L_USER_TYPE_END)
+                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
+            else
+                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),lua_typename(lua, typeObj));
+        }
+        lua_pop(lua, 1);//remove userdata from stack
+        if(foundType != expectedType)
+        {
+            if(expectedType == mbm::L_USER_TYPE_RENDERIZABLE)
+            {
+                if(mbm::isRenderizableType(foundType))//cast from specific to base class renderizable is ok
+                    return user_type;
+                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
+                return nullptr;
+            }
+            else if(expectedType == mbm::L_USER_TYPE_VEC2 && foundType == mbm::L_USER_TYPE_VEC3)//cast from vec3 to vec2 is ok
+            {
+                return user_type;
+            }
+            else if((expectedType == mbm::L_USER_TYPE_VEC2 || expectedType == mbm::L_USER_TYPE_VEC3) && mbm::isRenderizableType(foundType))//get position from renderizable to vec3 or vec2 is ok
+            {
+                auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
+                auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
+                static mbm::VEC3 * p;
+                p = &(ptr->position);
+                return &p;
+            }
+            else 
+            {
+                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
+                return nullptr;
+            }
+        }
+        return user_type;
+    }
 }
 
 namespace plugin_helper
@@ -207,78 +290,9 @@ namespace plugin_helper
         return mbm::getUserTypeAsString(p);
     }
 
-    inline void *lua_check_MT_userData (lua_State *lua, int ud,mbm::L_USER_TYPE* foundType) 
-    {
-        void *p = lua_touserdata(lua, ud);
-        if (p != nullptr) 
-        {  /* value is a userdata? */
-            if (lua_getmetatable(lua, ud)) 
-            {  /* does it have a metatable? */
-                const char * valid_for = getTypeMetaTableNameUserData(lua,foundType);
-                luaL_getmetatable(lua, valid_for);  /* get correct metatable */
-                if (!lua_rawequal(lua, -1, -2))  /* not the same? */
-                    p = nullptr;  /* value is a userdata with wrong metatable */
-                lua_pop(lua, 2);  /* remove both metatables */
-                return p;
-            }
-        }
-        return nullptr;  /* value is not a userdata with a metatable */
-    }
+    
 
-    void *lua_check_userType (  lua_State *lua,
-                                const int rawi, 
-                                const int indexTable,
-                                const mbm::L_USER_TYPE expectedType) 
-    {
-        mbm::L_USER_TYPE foundType = mbm::L_USER_TYPE_END;
-        const int typeObj = lua_type(lua, indexTable);
-        if (typeObj != LUA_TTABLE)
-        {
-            if(typeObj == LUA_TNONE)
-                lua_error_debug(lua, "expected: [%s]. got [nil]",getUserTypeAsString(expectedType));
-            else
-                lua_error_debug(lua, "expected: [%s]. got [%s]",getUserTypeAsString(expectedType),lua_typename(lua, typeObj));
-        }
-        lua_rawgeti(lua, indexTable, rawi);
-
-        void * user_type = lua_check_MT_userData(lua,-1,&foundType);
-        if(user_type == nullptr)
-        {
-            if(foundType >  mbm::L_USER_TYPE_BEGIN && foundType < mbm::L_USER_TYPE_END)
-                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
-            else
-                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),lua_typename(lua, typeObj));
-        }
-        lua_pop(lua, 1);//remove userdata from stack
-        if(foundType != expectedType)
-        {
-            if(expectedType == mbm::L_USER_TYPE_RENDERIZABLE)
-            {
-                if(mbm::isRenderizableType(foundType))//cast from specific to base class renderizable is ok
-                    return user_type;
-                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
-                return nullptr;
-            }
-            else if(expectedType == mbm::L_USER_TYPE_VEC2 && foundType == mbm::L_USER_TYPE_VEC3)//cast from vec3 to vec2 is ok
-            {
-                return user_type;
-            }
-            else if((expectedType == mbm::L_USER_TYPE_VEC2 || expectedType == mbm::L_USER_TYPE_VEC3) && mbm::isRenderizableType(foundType))//get position from renderizable to vec3 or vec2 is ok
-            {
-                auto **ud = static_cast<mbm::RENDERIZABLE **>(user_type);
-                auto *ptr = static_cast<mbm::RENDERIZABLE *>(*ud); //-V522
-                static mbm::VEC3 * p;
-                p = &(ptr->position);
-                return &p;
-            }
-            else 
-            {
-                lua_error_debug(lua, "expected [%s]. got [%s]",getUserTypeAsString(expectedType),getUserTypeAsString(foundType));
-                return nullptr;
-            }
-        }
-        return user_type;
-    }
+    
 
     void *lua_get_userType_no_throw (  lua_State *lua,
                                 const int rawi, 
@@ -329,7 +343,7 @@ namespace plugin_helper
 
     mbm::RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<mbm::RENDERIZABLE **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,mbm::L_USER_TYPE_RENDERIZABLE));
+        auto **ud = static_cast<mbm::RENDERIZABLE **>(lua_check_userType(lua,rawi,indexTable,mbm::L_USER_TYPE_RENDERIZABLE));
         return *ud;        
     }
 

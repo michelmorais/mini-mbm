@@ -27,7 +27,6 @@ extern "C"
 #include <lua-wrap/render-table/gif-view-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/texture-manager.h>
 #include <render/gif-view.h>
 #include <platform/mismatch-platform.h>

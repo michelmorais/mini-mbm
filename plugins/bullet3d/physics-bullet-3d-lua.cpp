@@ -55,7 +55,7 @@ struct USER_DATA_PHYSICS_3D
 
     PHYSICS_BULLET *getBulletFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<PHYSICS_BULLET **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,mbm::L_USER_TYPE_BULLET3D));
+        auto **ud = static_cast<PHYSICS_BULLET **>(lua_check_userType(lua,rawi,indexTable,mbm::L_USER_TYPE_BULLET3D));
         return *ud;
     }
 

@@ -2033,7 +2033,7 @@ namespace mbm
 
     PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<PHYSICS_BOX2D **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
+        auto **ud = static_cast<PHYSICS_BOX2D **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
         return *ud;
     }
 }

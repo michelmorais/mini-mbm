@@ -2346,7 +2346,7 @@ namespace mbm
 
     PHYSICS_BOX2D_LIQUID_FUN *getBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF));
+        auto **ud = static_cast<PHYSICS_BOX2D_LIQUID_FUN **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D_LF));
         return *ud;
     }
 }
