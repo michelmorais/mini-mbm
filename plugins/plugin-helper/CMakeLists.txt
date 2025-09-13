@@ -20,6 +20,7 @@ endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(  ${LUA_INCLUDE}
+                      ${THIRD_PARTY}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
                       ${MBM_CORE_INCLUDE})
