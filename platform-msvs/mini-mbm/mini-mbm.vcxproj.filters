@@ -77,9 +77,6 @@
     <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h">
       <Filter>Header Files\lua</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
@@ -274,6 +271,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\version\version.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

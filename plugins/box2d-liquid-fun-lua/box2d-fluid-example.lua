@@ -29,3 +29,5 @@ require "box2dLiquidFun"
          flags       = "water",
          groupFlags  = {"solidParticleGroup"},
      })
+
+     local tShader = tFluid:getShader()
