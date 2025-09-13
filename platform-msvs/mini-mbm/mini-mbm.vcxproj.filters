@@ -86,9 +86,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>

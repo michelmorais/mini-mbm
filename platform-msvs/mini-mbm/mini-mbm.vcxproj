@@ -192,7 +192,6 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h" />
