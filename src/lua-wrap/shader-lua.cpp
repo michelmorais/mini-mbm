@@ -37,13 +37,6 @@ extern "C"
 
 namespace mbm
 {
-    extern ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern ANIMATION_MANAGER *getSafeAnimationManagerFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
-	extern ANIMATION *getSafeAnimFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
-	extern FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern FX *getSafeFxFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
-    extern int verifyDynamicCast(lua_State *lua, void *ptr, int line, const char *__file);
-
 	int onLoadNewShaderLua(lua_State *lua)
     {
         const int top = lua_gettop(lua);

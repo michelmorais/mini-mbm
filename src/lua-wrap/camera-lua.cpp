@@ -35,12 +35,7 @@ extern "C"
 
 namespace mbm
 {
-    extern void unrefTableByIdTableRef(DYNAMIC_VAR *dyVar, lua_State *lua);
-    extern int onNewVec2LuaNoGC(lua_State *lua, VEC2 *vec2);
-    extern int onNewVec2LuaNoGC(lua_State *lua, VEC3 *vec3);
-    extern int onNewVec3Lua(lua_State *lua);
-    extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
-
+    
     int getVariableFromCam(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
     {
         const char * strinChar = nullptr;

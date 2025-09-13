@@ -35,7 +35,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
     extern int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
 
     STEERED_PARTICLE *getRenderizableFluidBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable)

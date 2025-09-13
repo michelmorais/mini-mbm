@@ -71,18 +71,18 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins;..\..\third-party\gles</IncludePath>
     <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins;..\..\third-party\gles</IncludePath>
     <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins;..\..\third-party\gles</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\bullet-2.84;..\..\third-party\lua-5.4.1;..\..\include;..\..\include\lua-interface\lua-wrap;..\..\include\core_mbm;..\..\plugins;..\..\third-party\gles</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

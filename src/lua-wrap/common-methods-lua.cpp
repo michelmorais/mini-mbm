@@ -25,7 +25,11 @@ extern "C"
 }
 
 #include <lua-wrap/common-methods-lua.h>
+#include <lua-wrap/render-table/animation-lua.h>
+#include <lua-wrap/shader-lua.h>
 #include <plugin-helper/user-data-lua.h>
+#include <plugin-helper/plugin-helper.h>
+#include <lua-wrap/vec3-lua.h>
 #include <lua-wrap/current-scene-lua.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>
@@ -35,24 +39,7 @@ extern "C"
 
 namespace mbm
 {
-    extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
-    extern int onGetAnimationsManagerLua(lua_State *lua);
-    extern int onSetAnimationsManagerLua(lua_State *lua);
-    extern int onGetIndexFrameAnimationsManagerLua(lua_State *lua);
-    extern int onRestartAnimationsManagerLua(lua_State *lua);
-    extern int onIsEndedAnimationsManagerLua(lua_State *lua);
-    extern int setCallBackEndAnimationsManagerLua(lua_State *lua);
-    extern int setCallBackEndEffectLua(lua_State *lua);
-    extern int onSetTextureAnimationLua(lua_State *lua);
-    extern int onAddAnimationsManagerLua(lua_State *lua);
-    extern int onGetTotalFrameAnimationsManagerLua(lua_State *lua);
-    extern int onGetTotalAnimationsManagerLua(lua_State *lua);
-    extern int onSetRenderRenderizableState(lua_State *lua);
-    extern int onGetRenderRenderizableState(lua_State *lua);
-    extern int onGetShaderTableRenderizableLuaNoGC(lua_State *lua);
-    extern int onForceEndAnimFxRenderizable(lua_State *lua);
-    extern int onSetAnimationTypeLua(lua_State *lua);
-	
+    
     void getTypeWordRenderizableLua(lua_State * lua, const int index, bool & is2dw, bool & is2ds, bool & is3d)
     {
         const char *type = luaL_checkstring(lua, index);

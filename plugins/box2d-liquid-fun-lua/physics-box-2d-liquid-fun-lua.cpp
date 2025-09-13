@@ -43,8 +43,7 @@ namespace mbm
 {
     int onGetJointBox2dlfLua(lua_State *lua, b2Joint *joint);
     extern b2Joint *getJointBox2lfdFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    extern int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-	PHYSICS_BOX2D_LIQUID_FUN *getBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    PHYSICS_BOX2D_LIQUID_FUN *getBox2dlfFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 
     struct USER_DATA_PHYSICS_2D : public REF_FUNCTION_LUA
     {

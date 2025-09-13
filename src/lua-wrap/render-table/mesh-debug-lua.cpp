@@ -30,6 +30,13 @@ extern "C"
 #include <string>
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
+#include <lua-wrap/render-table/animation-lua.h>
+#include <lua-wrap/render-table/mesh-lua.h>
+#include <lua-wrap/render-table/sprite-lua.h>
+#include <lua-wrap/render-table/font-lua.h>
+#include <lua-wrap/render-table/gif-view-lua.h>
+#include <lua-wrap/render-table/texture-view-lua.h>
+#include <lua-wrap/render-table/particle-lua.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/animation.h>
@@ -49,31 +56,7 @@ extern "C"
 namespace mbm
 {
 	class LINE_MESH;
-    extern int getVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern int setVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable,RENDERIZABLE **renderizable);
-    extern void getArrayFromTablePixels(lua_State *lua, const int index, unsigned char *lsArrayOut, const unsigned int sizeBuffer);
-    extern void getArrayFromTable(lua_State *lua, const int index, float *lsArrayOut, const unsigned int sizeBuffer);
-    extern void getArrayFromTable(lua_State *lua, const int index, unsigned short int *lsArrayOut, const unsigned int sizeBuffer);
-    extern int verifyDynamicCast(lua_State *lua, void *ptr, int line, const char *__file);
-    extern int onSetPhysicsFromTableLua(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
-    extern int onNewMeshLua(lua_State *lua);
-    extern int onNewSpriteLua(lua_State *lua);
-    extern int onNewFontLua(lua_State *lua);
-    extern int onNewGifViewLua(lua_State *lua);
-    extern int onNewParticleLua(lua_State *lua);
-    extern int onNewTextureViewLua(lua_State *lua);
-	extern const unsigned int get_mode_draw_from_string(const char* str_mode_draw,const unsigned int default_mode_draw_ret);
-	extern const char * get_mode_draw_from_uint(const unsigned int mode_draw,const char * default_mode_draw_ret);
-
-	extern const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face,const unsigned int default_mode_cull_face_ret);
-	extern const char * get_mode_cull_face_from_uint(const unsigned int mode_cull_face,const char * default_mode_cull_face_ret);
-
-	extern const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const unsigned int default_mode_front_face_direction_ret);
-	extern const char * get_mode_front_face_direction_from_uint(const unsigned int mode_front_face_direction,const char * default_mode_front_face_direction_ret);
-	
+    
     class MESH_DEBUG_LUA
     {
       public:
@@ -318,7 +301,7 @@ namespace mbm
     int onSetPhysicsMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
-        return onSetPhysicsFromTableLua(lua,&meshDebug->mesh.infoPhysics,nullptr);
+        return onSetPhysicsFromTableLuaToLineMesh(lua,&meshDebug->mesh.infoPhysics,nullptr);
     }
 
     int onGetPhysicsMeshDebugLua(lua_State *lua)
@@ -1043,7 +1026,7 @@ namespace mbm
         else
         {
             std::vector<unsigned short int> pIndex(sTableIndex);
-            getArrayFromTable(lua, 4, const_cast<unsigned short int*>(pIndex.data()), sTableIndex);
+            getArrayUintFromTable(lua, 4, const_cast<unsigned short int*>(pIndex.data()), sTableIndex);
             char strErrorOut[255] = "";
 			for (unsigned int i=0; i < pIndex.size(); ++i)
 			{
@@ -1413,7 +1396,7 @@ namespace mbm
         */
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         const char *    what      = luaL_checkstring(lua, 2);
-        return setVariable(lua, meshDebug->lsDynamicVar, what);
+        return setDynamicVariable(lua, meshDebug->lsDynamicVar, what);
     }
 
     int onIndexMeshDebug(lua_State *lua) // leitura
@@ -1427,7 +1410,7 @@ namespace mbm
         */
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         const char *    what      = luaL_checkstring(lua, 2);
-        return getVariable(lua, meshDebug->lsDynamicVar, what);
+        return getDynamicVariable(lua, meshDebug->lsDynamicVar, what);
     }
 
 	static int onGetStaticExtensionLua(lua_State *lua)

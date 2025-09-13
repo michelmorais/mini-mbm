@@ -37,19 +37,7 @@ extern "C"
 #include <core_mbm/util-interface.h>
 namespace mbm
 {
-    extern void getArrayFromTable(lua_State *lua, const int index, float *lsArrayOut, const unsigned int sizeBuffer);
-    extern void getArrayFromTable(lua_State *lua, const int index, unsigned short int *lsArrayOut, const unsigned int sizeBuffer);
-	extern void pushVectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b);
-	extern void pushVectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b, const char* field_c);
-    extern void push_uint16_arrayFromTable(lua_State *lua, const uint16_t * lsArrayIn, const unsigned int sizeBuffer,const bool one_based);
-	extern void getArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const unsigned int sizeArray,const char * field_a,const char * field_b);
-	extern void getArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const unsigned int sizeArray,const char * field_a,const char * field_b,const char * field_c);
-	extern const unsigned int get_mode_draw_from_string(const char* str_mode_draw,const unsigned int default_mode_draw_ret);
-	extern const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face,const unsigned int default_mode_cull_face_ret);
-	extern const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const unsigned int default_mode_front_face_direction_ret);
-
-
-	const char* options_shape = 
+    const char* options_shape = 
 				"create (type_of_shape, width, height, dynamic_mode, nick_name) \n"
 				"        type_of_shape: 'CIRCLE', 'RECTANGLE', 'TRIANGLE' \n"
 				"        ps.: for 'CIRCLE' there are 5 options: \n"
@@ -269,16 +257,16 @@ namespace mbm
                 }
             }
             vertex.ls_xyz = new float[sTableXYZ];
-            getArrayFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
+            getArrayFloatFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
             if (sTableUV)
             {
                 vertex.ls_uv = new float[sTableUV];
-                getArrayFromTable(lua, 3, vertex.ls_uv, sTableUV);
+                getArrayFloatFromTable(lua, 3, vertex.ls_uv, sTableUV);
             }
             if (sTableNormal)
             {
                 vertex.ls_normal = new float[sTableNormal];
-                getArrayFromTable(lua, 4, vertex.ls_normal, sTableNormal);
+                getArrayFloatFromTable(lua, 4, vertex.ls_normal, sTableNormal);
             }
         }
         else
@@ -299,12 +287,12 @@ namespace mbm
                 }
             }
             vertex.ls_xyz = new float[sTableXYZ];
-            getArrayFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
+            getArrayFloatFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
 
             if (sTableUV)
             {
                 vertex.ls_uv = new float[sTableUV];
-                getArrayFromTable(lua, 3, vertex.ls_uv, sTableUV);
+                getArrayFloatFromTable(lua, 3, vertex.ls_uv, sTableUV);
             }
         }
 
@@ -374,18 +362,18 @@ namespace mbm
                 }
             }
             ls_xyz.resize(sTableXYZ);
-            getArrayFromTable(lua, 2, ls_xyz.data(), sTableXYZ);
+            getArrayFloatFromTable(lua, 2, ls_xyz.data(), sTableXYZ);
             ls_index.reset(new unsigned short int[sTableIndex]);
-            getArrayFromTable(lua, 3, ls_index.get(), sTableIndex);
+            getArrayUintFromTable(lua, 3, ls_index.get(), sTableIndex);
             if (sTableUV)
             {
                 ls_uv.resize(sTableUV);
-                getArrayFromTable(lua, 4, ls_uv.data(), sTableUV);
+                getArrayFloatFromTable(lua, 4, ls_uv.data(), sTableUV);
             }
             if (sTableNormal)
             {
                 ls_normal.resize(sTableNormal);
-                getArrayFromTable(lua, 5, ls_normal.data(), sTableNormal);
+                getArrayFloatFromTable(lua, 5, ls_normal.data(), sTableNormal);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
             for (unsigned short int i = 0; i < sizeArray; ++i)
@@ -425,13 +413,13 @@ namespace mbm
                 }
             }
             ls_xyz.resize(sTableXYZ);
-            getArrayFromTable(lua, 2, ls_xyz.data(), sTableXYZ);
+            getArrayFloatFromTable(lua, 2, ls_xyz.data(), sTableXYZ);
             ls_index.reset(new unsigned short int[sTableIndex]);
-            getArrayFromTable(lua, 3, ls_index.get(), sTableIndex);
+            getArrayUintFromTable(lua, 3, ls_index.get(), sTableIndex);
             if (sTableUV)
             {
                 ls_uv.resize(sTableUV);
-                getArrayFromTable(lua, 4, ls_uv.data(), sTableUV);
+                getArrayFloatFromTable(lua, 4, ls_uv.data(), sTableUV);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 2);
             for (unsigned short int i = 0; i < sizeIndex; ++i)
@@ -522,18 +510,18 @@ namespace mbm
                 }
             }
             vertex.ls_xyz = new float[sTableXYZ];
-            getArrayFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
+            getArrayFloatFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
             vertex.ls_index = new unsigned short int[sTableIndex];
-            getArrayFromTable(lua, 3, vertex.ls_index, sTableIndex);
+            getArrayUintFromTable(lua, 3, vertex.ls_index, sTableIndex);
             if (sTableUV)
             {
                 vertex.ls_uv = new float[sTableUV];
-                getArrayFromTable(lua, 4, vertex.ls_uv, sTableUV);
+                getArrayFloatFromTable(lua, 4, vertex.ls_uv, sTableUV);
             }
             if (sTableNormal)
             {
                 vertex.ls_normal = new float[sTableNormal];
-                getArrayFromTable(lua, 5, vertex.ls_normal, sTableNormal);
+                getArrayFloatFromTable(lua, 5, vertex.ls_normal, sTableNormal);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
             for (unsigned short int i = 0; i < vertex.sizeIndex; ++i)
@@ -573,13 +561,13 @@ namespace mbm
                 }
             }
             vertex.ls_xyz = new float[sTableXYZ];
-            getArrayFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
+            getArrayFloatFromTable(lua, 2, vertex.ls_xyz, sTableXYZ);
             vertex.ls_index = new unsigned short int[sTableIndex];
-            getArrayFromTable(lua, 3, vertex.ls_index, sTableIndex);
+            getArrayUintFromTable(lua, 3, vertex.ls_index, sTableIndex);
             if (sTableUV)
             {
                 vertex.ls_uv = new float[sTableUV];
-                getArrayFromTable(lua, 4, vertex.ls_uv, sTableUV);
+                getArrayFloatFromTable(lua, 4, vertex.ls_uv, sTableUV);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 2);
             for (unsigned short int i = 0; i < vertex.sizeIndex; ++i)
@@ -655,15 +643,15 @@ namespace mbm
 			constexpr int nresults = 3;
 			lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_MeAsTable);
 
-			pushVectorArrayToTableWithField(lua,dynamicVertex,"x","y","z");
+			push3VectorArrayToTableWithField(lua,dynamicVertex,"x","y","z");
 			lua_pushstring(lua,"vertex");
 			lua_setfield(lua,-2,"name");
 
-			pushVectorArrayToTableWithField(lua,dynamicNormal,"nx","ny","nz");
+			push3VectorArrayToTableWithField(lua,dynamicNormal,"nx","ny","nz");
 			lua_pushstring(lua,"normal");
 			lua_setfield(lua,-2,"name");
 
-			pushVectorArrayToTableWithField(lua,dynamicUV,"u","v");
+			push2VectorArrayToTableWithField(lua,dynamicUV,"u","v");
 			lua_pushstring(lua,"uv");
 			lua_setfield(lua,-2,"name");
 
@@ -693,17 +681,17 @@ namespace mbm
                     lua_pop(lua,1);
 					if(strcasecmp(name,"vertex") == 0)
 					{
-						getArrayFromTableWithField(lua,index,dynamicVertex.data(),dynamicVertex.size(),"x","y","z");
+						get3ArrayFromTableWithField(lua,index,dynamicVertex.data(),dynamicVertex.size(),"x","y","z");
 						++index_iteration;
 					}
 					else if(strcasecmp(name,"normal") == 0)
 					{
-						getArrayFromTableWithField(lua,index,dynamicNormal.data(),dynamicNormal.size(),"nx","ny","nz");
+						get3ArrayFromTableWithField(lua,index,dynamicNormal.data(),dynamicNormal.size(),"nx","ny","nz");
 						++index_iteration;
 					}
 					else if(strcasecmp(name,"uv") == 0)
 					{
-						getArrayFromTableWithField(lua,index,dynamicUV.data(),dynamicUV.size(),"u","v");
+						get2ArrayFromTableWithField(lua,index,dynamicUV.data(),dynamicUV.size(),"u","v");
 						++index_iteration;
 					}
 				}

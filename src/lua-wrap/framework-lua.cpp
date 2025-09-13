@@ -18,6 +18,18 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <lua-wrap/framework-lua.h>
+#include <lua-wrap/camera-lua.h>
+#include <lua-wrap/vec2-lua.h>
+#include <lua-wrap/vec3-lua.h>
+#include <lua-wrap/render-table/texture-view-lua.h>
+#include <lua-wrap/render-table/gif-view-lua.h>
+#include <lua-wrap/render-table/shape-lua.h>
+#include <lua-wrap/render-table/background-lua.h>
+#include <lua-wrap/render-table/line-mesh-lua.h>
+#include <lua-wrap/render-table/particle-lua.h>
+#include <lua-wrap/render-table/render-2-texture-lua.h>
+#include <lua-wrap/timer-lua.h>
+#include <lua-wrap/audio-lua.h>
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
 #include <core_mbm/util-interface.h>
@@ -107,21 +119,6 @@ extern "C"
 
 namespace mbm 
 {
-    extern int onGetCamera(lua_State *lua);
-    extern void registerClassVec2(lua_State *lua);
-    extern void registerClassVec2NoGc(lua_State *lua);
-    extern void registerClassVec3(lua_State *lua);
-    extern void registerClassVec3NoGc(lua_State *lua);
-    extern void registerClassTextureView(lua_State *lua);
-    extern void registerClassGifView(lua_State *lua);
-    extern void registerClassShapeMesh(lua_State *lua);
-    extern void registerClassBackGround(lua_State *lua);
-    extern void registerClassCamera(lua_State *lua);
-    extern void registerClassAudio(lua_State *lua);
-    extern void registerClassCallBackTimer(lua_State *lua);
-    extern void registerClassLineMesh(lua_State *lua);
-    extern void registerClassParticle(lua_State *lua);
-    extern void registerClassRender2TextureTarget(lua_State *lua);
     #if defined USE_EDITOR_FEATURES
     extern void registerClassMeshDebug(lua_State *lua);
     #endif
