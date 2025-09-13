@@ -63,7 +63,7 @@ struct USER_DATA_PHYSICS_3D
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BULLET *      bullet      = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         const float           mass        = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
         const float           friction    = top > 3 ? luaL_checknumber(lua, 4) : 0.3f;
         const float           reduceX     = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
@@ -104,7 +104,7 @@ struct USER_DATA_PHYSICS_3D
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BULLET *      bullet      = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         const float           mass        = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
         const float           friction    = top > 3 ? luaL_checknumber(lua, 4) : 0.3f;
         const float           reduceX     = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
@@ -145,7 +145,7 @@ struct USER_DATA_PHYSICS_3D
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BULLET *      bullet      = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         const float           friction    = top > 2 ? luaL_checknumber(lua, 3) : 0.3f;
         const float           reduceX     = top > 3 ? luaL_checknumber(lua, 4) : 1.0f;
         const float           reduceY     = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
@@ -185,7 +185,7 @@ struct USER_DATA_PHYSICS_3D
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BULLET *      bullet      = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         const float           mass        = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
         const float           friction    = top > 3 ? luaL_checknumber(lua, 4) : 0.3f;
         const float           reduceX     = top > 4 ? luaL_checknumber(lua, 5) : 1.0f;
@@ -242,7 +242,7 @@ struct USER_DATA_PHYSICS_3D
     int onApplyForceBodyBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
@@ -255,7 +255,7 @@ struct USER_DATA_PHYSICS_3D
     int onApplyTorqueBodyBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
@@ -268,7 +268,7 @@ struct USER_DATA_PHYSICS_3D
     int onApplyImpulseBodyBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
@@ -281,7 +281,7 @@ struct USER_DATA_PHYSICS_3D
     int onSetLinearVelocityBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           x          = luaL_checknumber(lua, 3);
@@ -294,7 +294,7 @@ struct USER_DATA_PHYSICS_3D
     int onSetFrictionBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           f          = luaL_checknumber(lua, 3);
@@ -305,7 +305,7 @@ struct USER_DATA_PHYSICS_3D
     int onSetRestituitionBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           r          = luaL_checknumber(lua, 3);
@@ -316,7 +316,7 @@ struct USER_DATA_PHYSICS_3D
     int onSetMassBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const float           mass       = luaL_checknumber(lua, 3);
@@ -331,7 +331,7 @@ struct USER_DATA_PHYSICS_3D
     {
         const int             top        = lua_gettop(lua);
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData); //-V595
         const float           x          = top >= 3 ? luaL_checknumber(lua, 3) : ptr->position.x;
         const float           y          = top >= 4 ? luaL_checknumber(lua, 4) : ptr->position.y;
@@ -356,7 +356,7 @@ struct USER_DATA_PHYSICS_3D
     int onSetAwakeBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const bool            bValue     = lua_toboolean(lua, 3) ? true : false;
@@ -367,7 +367,7 @@ struct USER_DATA_PHYSICS_3D
     int onIsAwakeBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         const bool            bValue     = bullet->isAwake(infoBullet);
@@ -467,7 +467,7 @@ struct USER_DATA_PHYSICS_3D
     int onIsOnTheGroundBullet3d(lua_State *lua)
     {
         PHYSICS_BULLET *      bullet     = getBulletFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr        = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr        = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *       infoBullet = static_cast<SHAPE_INFO_3D *>(userData->extra);
         lua_pushboolean(lua, bullet->isOnTheGround(infoBullet) ? 1 : 0);

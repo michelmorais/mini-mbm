@@ -49,12 +49,6 @@ namespace mbm
                 "{[1]={type='sphere',  center={x=0,y=0,z=0},ray=1},[2]={...}} \n"
                 "{[1]={type='complex', a={x=0,y=0,z=0},b={x=0,y=0,z=0},c={x=0,y=0,z=0},d={x=0,y=0,z=0},e={x=0,y=0,z=0},f={x=0,y=0,z=0},g={x=0,y=0,z=0},h={x=0,y=0,z=0}},[2]={...}} \n";
 
-    RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable)
-    {
-        auto **ud = static_cast<RENDERIZABLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_RENDERIZABLE));
-        return *ud;
-    }
-
     ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<RENDERIZABLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_RENDERIZABLE));

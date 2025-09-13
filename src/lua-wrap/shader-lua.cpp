@@ -37,8 +37,7 @@ extern "C"
 
 namespace mbm
 {
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    extern ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	extern ANIMATION_MANAGER *getSafeAnimationManagerFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
 	extern ANIMATION *getSafeAnimFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
 	extern FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);

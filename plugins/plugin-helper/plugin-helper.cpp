@@ -281,23 +281,6 @@ namespace mbm
         lua_pop(lua, 1);
     }
 
-}
-
-namespace plugin_helper
-{
-
-	using namespace mbm;
-
-	
-
-	
-
-    
-
-    
-
-    
-
     void *lua_get_userType_no_throw (  lua_State *lua,
                                 const int rawi, 
                                 const int indexTable,
@@ -345,16 +328,15 @@ namespace plugin_helper
         return user_type;
     }
 
-    mbm::RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<mbm::RENDERIZABLE **>(lua_check_userType(lua,rawi,indexTable,mbm::L_USER_TYPE_RENDERIZABLE));
         return *ud;        
     }
 
-    
-    mbm::RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    RENDERIZABLE * getRenderizableNoThrowFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<mbm::RENDERIZABLE **>(plugin_helper::lua_get_userType_no_throw(lua,rawi,indexTable,mbm::L_USER_TYPE_RENDERIZABLE));
+        auto **ud = static_cast<mbm::RENDERIZABLE **>(lua_get_userType_no_throw(lua,rawi,indexTable,mbm::L_USER_TYPE_RENDERIZABLE));
         if(ud == nullptr)
             return nullptr;
         return *ud;        
@@ -366,4 +348,5 @@ namespace plugin_helper
         lua_pushinteger(lua,value);
         lua_rawseti(lua,-2,1);
     }
+
 }

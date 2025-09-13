@@ -45,8 +45,7 @@ namespace mbm
     void getArrayFromTable(lua_State *lua, const int index, uint16_t *lsArrayOut, const uint32_t sizeBuffer);
 	void getArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b);
 	void getArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b,const char * field_c);
-    RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	ANIMATION_MANAGER *getSafeAnimationManagerFromRenderizable(lua_State *lua,RENDERIZABLE * renderizable);
 	FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	FX *getSafeFxFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);

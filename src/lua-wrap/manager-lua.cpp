@@ -75,7 +75,6 @@ namespace mbm
     extern void onEndStreamCallBackFromSceneThread(lua_State *lua, USER_DATA_AUDIO_LUA *userData);
     extern void onEndStreamCallBack(const char *fileNameStream, USER_DATA_AUDIO_LUA *userData);
     extern void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
-	extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 	extern int newNoGCFromRenderizable(lua_State * lua,RENDERIZABLE * renderizable);
 
         LUA_MANAGER* LUA_MANAGER::pLuaManager = nullptr;

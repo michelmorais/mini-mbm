@@ -1908,7 +1908,7 @@ int onNewTileEditorLua(lua_State *lua)
     else
     {
         lua_pop(lua, 1);
-        plugin_helper::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
+        mbm::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
     }
     lua_setmetatable(lua,-2);
     /* end plugin code*/

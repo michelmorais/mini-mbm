@@ -39,7 +39,6 @@ namespace mbm
     struct VEC3;
 
     extern const char *getRandomNameTexture();
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
 
     RENDER_2_TEXTURE *getRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable)

@@ -213,7 +213,7 @@ namespace mbm
         USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
         b2ParticleSystem* pSystem                  = info->particleSystem;
-        RENDERIZABLE * the_ptr                     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, indexTable);
+        RENDERIZABLE * the_ptr                     = getRenderizableNoThrowFromRawTable(lua, 1, indexTable);
         const float scale                          = p_steered_particle->getScalePhysicsEngine();
         b2Transform bTransform;
         if(the_ptr != nullptr)
@@ -556,7 +556,7 @@ namespace mbm
             b2AABB b2_aabb;
             const int indexTable                       = top + 1;
             mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-            RENDERIZABLE * the_ptr                     = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
+            RENDERIZABLE * the_ptr                     = getRenderizableNoThrowFromRawTable(lua, 1, 2);
             USER_DATA_RENDER_LUA * userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
             mbm::INFO_FLUID*  info                     = static_cast<mbm::INFO_FLUID*>(userData->extra);
             b2ParticleSystem* pSystem                  = info->particleSystem;
@@ -838,7 +838,7 @@ namespace mbm
             return lua_error_debug(lua, "expected fluid:([renderizable | physics],table ={x,y,z,sx,sy,sz} ). args received %d",top-1);
         }
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-        RENDERIZABLE * the_ptr    = plugin_helper::getRenderizableNoThrowFromRawTable(lua, 1, 2);
+        RENDERIZABLE * the_ptr    = getRenderizableNoThrowFromRawTable(lua, 1, 2);
         auto *userData            = static_cast<USER_DATA_RENDER_LUA *>(p_steered_particle->userData);
         mbm::INFO_FLUID*  info    = static_cast<mbm::INFO_FLUID*>(userData->extra);
         const float scalePhysics  = p_steered_particle->getScalePhysicsEngine();

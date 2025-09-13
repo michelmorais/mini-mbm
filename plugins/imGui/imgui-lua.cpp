@@ -6951,13 +6951,6 @@ int onIsAnyWindowHoveredImGuiLua(lua_State *lua)
     return 1;
 }
 
-void lua_create_metatable_identifier(lua_State *lua,const char* _metatable_plugin,const int value)
-{
-    luaL_newmetatable(lua, _metatable_plugin);
-    lua_pushinteger(lua,value);
-    lua_rawseti(lua,-2,1);
-}
-
 int onHelpMarkerLua(lua_State *lua)
 {
     const int top       = lua_gettop(lua);
@@ -7965,7 +7958,7 @@ int onNewimguiLua(lua_State *lua)
     else
     {
         lua_pop(lua, 1);
-        lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
+        mbm::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
     }
     lua_setmetatable(lua,-2);
     /* end plugin code*/

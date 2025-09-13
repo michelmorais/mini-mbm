@@ -49,7 +49,6 @@ extern "C"
 namespace mbm
 {
 	class LINE_MESH;
-    extern RENDERIZABLE * getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
     extern int getVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
     extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
     extern int setVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);

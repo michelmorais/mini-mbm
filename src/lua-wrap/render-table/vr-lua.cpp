@@ -39,8 +39,7 @@ extern "C"
 
 namespace mbm
 {
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-
+    
     HMD *getVRFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<HMD **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_VR));

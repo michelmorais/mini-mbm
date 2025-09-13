@@ -74,7 +74,7 @@ namespace mbm
 
     b2Body *getBodyBox2dFromRawTable(lua_State *lua,const int rawi, const int indexTable)
     {
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
@@ -87,7 +87,7 @@ namespace mbm
 
     SHAPE_INFO *getShapeInfoFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
@@ -147,7 +147,7 @@ namespace mbm
     {
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density   = top > 2 ? luaL_checknumber(lua, 3) : 0.0f;
@@ -191,7 +191,7 @@ namespace mbm
     int onAddBodyBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr   = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr   = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
         if (lua_type(lua, 3) != LUA_TTABLE)
@@ -276,7 +276,7 @@ namespace mbm
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d   = static_cast<SHAPE_INFO *>(userData->extra);
 
@@ -325,7 +325,7 @@ namespace mbm
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto * infoBox2d                  = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density     = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
@@ -910,7 +910,7 @@ namespace mbm
     {
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *infoBox2d                 = static_cast<SHAPE_INFO *>(userData->extra);
         const float           x         = top > 2 ? luaL_checknumber(lua, 3) : ptr->position.x;
@@ -1359,7 +1359,7 @@ namespace mbm
     int onDestroyBodyBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
@@ -1370,7 +1370,7 @@ namespace mbm
     int onDestroyJointBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
