@@ -25,7 +25,7 @@ extern "C"
 }
 
 #include <lua-wrap/vec3-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/primitives.h>
 #include <core_mbm/device.h>
 #include <cstring>
@@ -36,7 +36,6 @@ extern "C"
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
     VEC3 *getVec3FromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {

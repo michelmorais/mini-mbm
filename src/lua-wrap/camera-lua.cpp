@@ -25,7 +25,7 @@ extern "C"
 }
 
 #include <lua-wrap/camera-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/vec3-lua.h>
 #include <lua-wrap/vec2-lua.h>
 #include <core_mbm/dynamic-var.h>
@@ -35,13 +35,7 @@ extern "C"
 
 namespace mbm
 {
-    extern void unrefTableByIdTableRef(DYNAMIC_VAR *dyVar, lua_State *lua);
-    extern int onNewVec2LuaNoGC(lua_State *lua, VEC2 *vec2);
-    extern int onNewVec2LuaNoGC(lua_State *lua, VEC3 *vec3);
-    extern int onNewVec3Lua(lua_State *lua);
-    extern int onNewVec3LuaNoGC(lua_State *lua, VEC3 *vec3);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
+    
     int getVariableFromCam(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what)
     {
         const char * strinChar = nullptr;

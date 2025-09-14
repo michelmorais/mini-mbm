@@ -25,10 +25,8 @@ extern "C"
 }
 
 #include <lua-wrap/render-table/line-mesh-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
-#include <lua-wrap/current-scene-lua.h>
 #include <core_mbm/device.h>
 #include <render/line-mesh.h>
 #include <platform/mismatch-platform.h>
@@ -41,9 +39,7 @@ namespace mbm
 {
     struct INFO_PHYSICS;
     
-    extern int onSetPhysicsFromTableLua(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
+    
     LINE_MESH *getLineMeshFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<LINE_MESH **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_LINE));
@@ -96,12 +92,14 @@ namespace mbm
         }
         if (lineMesh->is3D)
         {
-            std::vector<VEC3> xyz = getArrayXYZ_FromTable(lua,2);
+            std::vector<VEC3> xyz;
+            getArrayXYZ_FromTable(lua,2,xyz);
             ret = lineMesh->add(std::move(xyz));
         }
         else
         {
-            std::vector<VEC3> xyz = getArrayXYZ_noZ_FromTable(lua,2);
+            std::vector<VEC3> xyz;
+            getArrayXYZ_noZ_FromTable(lua,2,xyz);
             ret = lineMesh->add(std::move(xyz));
         }
         if (ret == 0xffffffff)
@@ -144,12 +142,14 @@ namespace mbm
         }
         if (lineMesh->is3D)
         {
-            std::vector<VEC3> xyz = getArrayXYZ_FromTable(lua,2);
+            std::vector<VEC3> xyz;
+            getArrayXYZ_FromTable(lua,2, xyz);
             ret = lineMesh->set(std::move(xyz), indexLine);
         }
         else
         {
-            std::vector<VEC3> ls_xy = getArrayXYZ_noZ_FromTable(lua,2);
+            std::vector<VEC3> ls_xy;
+            getArrayXYZ_noZ_FromTable(lua,2,ls_xy);
             ret = lineMesh->set(std::move(ls_xy), indexLine);
         }
         if (ret == 0xffffffff)
@@ -199,7 +199,7 @@ namespace mbm
 			}
 			lua_settop(lua,2);
 		}
-		onSetPhysicsFromTableLua(lua,infoPhysics,pLineMesh);
+		onSetPhysicsFromTableLuaToLineMesh(lua,infoPhysics,pLineMesh);
         if(infoPhysics->lsCube.size() || infoPhysics->lsSphere.size() || infoPhysics->lsTriangle.size() || infoPhysics->lsCubeComplex.size())
             lua_pushboolean(lua,1);
         else

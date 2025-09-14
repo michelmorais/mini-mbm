@@ -32,7 +32,6 @@ namespace mbm
 class SPRITE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
 {
   public:
-    friend class PHYSICS_BOX2D;
     friend class RENDER_2_TEXTURE;
     API_IMPL SPRITE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
     API_IMPL virtual ~SPRITE();

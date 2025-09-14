@@ -2,14 +2,16 @@ cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
 project(${BULLET_3D_LIBRARY})
 
-set(CORE_MBM_INCLUDES     "../../include")
-set(PLUGIN_HELPER_INC     "../plugin-helper")
-set(THIRD_PARTY           ${CMAKE_SOURCE_DIR}/third-party)
-set(BULLET3D_PATH      	  ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
-set(LUA_INCLUDE           ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
-set(BULLET3D_INCLUDE      "${BULLET3D_PATH}")
-set(BULLET3D_SOURCE       "${BULLET3D_PATH}")
-set(BULLET3D_PLUGIN_SOURCE   "./")
+set(CORE_MBM_INCLUDES                 "../../include")
+set(PLUGIN_HELPER_INC                 ${CMAKE_SOURCE_DIR}/plugins)
+set(THIRD_PARTY                       ${CMAKE_SOURCE_DIR}/third-party)
+set(BULLET3D_PATH      	              ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
+set(LUA_INCLUDE                       ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
+set(BULLET3D_INCLUDE                  "${BULLET3D_PATH}")
+set(BULLET3D_SOURCE                   "${BULLET3D_PATH}")
+set(BULLET3D_PLUGIN_SOURCE            "./")
+set(USER_DATA_INCLUDE                 ${CORE_MBM_INCLUDES}/lua-interface/lua-wrap)
+set(MBM_CORE_INCLUDE                  ${CORE_MBM_INCLUDES}/core_mbm)
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-unused-variable")
@@ -24,10 +26,12 @@ include_directories(  ${BULLET3D_INCLUDE}
                       ${BULLET3D_PLUGIN_SOURCE} 
                       ${LUA_INCLUDE}
                       ${CORE_MBM_INCLUDES}
+                      ${USER_DATA_INCLUDE}
+                      ${MBM_CORE_INCLUDE}
                       ${PLUGIN_HELPER_INC})
  
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB_RECURSE SOURCES "${BULLET3D_SOURCE}/*.cpp" "${BULLET3D_PLUGIN_SOURCE}/*.cpp" "${PLUGIN_HELPER_INC}/*.cpp")
+file(GLOB_RECURSE SOURCES "${BULLET3D_SOURCE}/*.cpp" "${BULLET3D_PLUGIN_SOURCE}/*.cpp" )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
@@ -35,4 +39,5 @@ add_library(${BULLET_3D_LIBRARY} SHARED ${SOURCES} )
 
 target_link_libraries(${BULLET_3D_LIBRARY} ${LUA_LIBRARY})
 target_link_libraries(${BULLET_3D_LIBRARY} ${CORE_MBM_LIBRARY})
+target_link_libraries(${BULLET_3D_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 

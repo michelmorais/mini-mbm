@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
 project(${IMGUI_LIBRARY})
 
-set(SRC_INCLUDES            "../../include")
-set(IMGUI_INCLUDE ".")
-set(IMGUI_SRC ".")
-set(THIRD_PARTY                 ${CMAKE_SOURCE_DIR}/third-party)
-set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
+set(SRC_INCLUDES            ${CMAKE_SOURCE_DIR}/include)
+set(PLUGIN_HELPER_INC          ${CMAKE_SOURCE_DIR}/plugins)
+set(IMGUI_INCLUDE           ".")
+set(IMGUI_SRC               ".")
+set(THIRD_PARTY             ${CMAKE_SOURCE_DIR}/third-party)
+set(LUA_INCLUDE             ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
  
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-char-subscripts")
@@ -40,7 +41,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
   endif()
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${IMGUI_INCLUDE} ${LUA_INCLUDE} ${SRC_INCLUDES} ${THIRD_PARTY})
+include_directories(  ${IMGUI_INCLUDE}
+                      ${LUA_INCLUDE}
+                      ${SRC_INCLUDES}
+                      ${PLUGIN_HELPER_INC}
+                      ${THIRD_PARTY})
  
 # Included stuff
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/src/cmake-modules/")
@@ -68,4 +73,5 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 endif()
 
 target_link_libraries(${IMGUI_LIBRARY} ${LUA_LIBRARY})
+target_link_libraries(${IMGUI_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 target_link_libraries(${IMGUI_LIBRARY} ${CORE_MBM_LIBRARY})

@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "physics-box-2d-lua.h"
-#include "../plugin-helper/plugin-helper.h"
+#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>
@@ -43,9 +43,7 @@ class b2ParticleSystem;
 namespace mbm
 {
     int onGetJointLua(lua_State *lua, b2Joint *joint);
-    extern b2Joint *getJointBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    API_IMPL int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-	PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable);
 
     struct USER_DATA_PHYSICS_2D : public REF_FUNCTION_LUA
     {
@@ -74,12 +72,12 @@ namespace mbm
 
     b2Body *getBodyBox2dFromRawTable(lua_State *lua,const int rawi, const int indexTable)
     {
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
         {
-            plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
+            lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
             return nullptr;
         }
         return infoBox2d->body;
@@ -87,11 +85,11 @@ namespace mbm
 
     SHAPE_INFO *getShapeInfoFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, rawi, indexTable);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi, indexTable);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d == nullptr || infoBox2d->body == nullptr)
-            plugin_helper::lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
+            lua_error_debug(lua, "object [%s] doesn't have a body", ptr->getTypeClassName());
         return infoBox2d;
     }
 
@@ -147,7 +145,7 @@ namespace mbm
     {
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density   = top > 2 ? luaL_checknumber(lua, 3) : 0.0f;
@@ -157,7 +155,7 @@ namespace mbm
         const bool            isSensor  = top > 6 ? (lua_toboolean(lua, 7) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -170,7 +168,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -191,16 +189,16 @@ namespace mbm
     int onAddBodyBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr   = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr   = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *         infoBox2d  = static_cast<SHAPE_INFO*>(userData->extra);
         if (lua_type(lua, 3) != LUA_TTABLE)
         {
-            return plugin_helper::lua_error_debug(lua, "expected info table physics ex.: {type='dynamic',mass=1.0,friction=0.3,sx=1.0,sy=1.0,...}");
+            return lua_error_debug(lua, "expected info table physics ex.: {type='dynamic',mass=1.0,friction=0.3,sx=1.0,sy=1.0,...}");
         }
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -213,7 +211,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -223,7 +221,7 @@ namespace mbm
         const char *type = lua_type(lua, 4) == LUA_TSTRING ? lua_tostring(lua, 4) : nullptr;
         if (type == nullptr)
         {
-            return plugin_helper::lua_error_debug(lua, "expected type at infoPhysics, ex.: {type='dynamic', ...");
+            return lua_error_debug(lua, "expected type at infoPhysics, ex.: {type='dynamic', ...");
         }
         float  density = 1.0f;
         float  friction = strcasecmp(type, "static") == 0 ? 0.3f : 10.0f;
@@ -231,11 +229,11 @@ namespace mbm
         float  reduceY = 1.0f;
         bool   isSensor = false;
         float  restitution = 0.1f;
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "density",    LUA_TNUMBER, &density);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "friction",   LUA_TNUMBER, &friction);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "sx",         LUA_TNUMBER, &reduceX);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "sy",         LUA_TNUMBER, &reduceY);
-        plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "isSensor",   LUA_TBOOLEAN, &isSensor);
+        getFieldPrimaryFromTable(lua, indexTable, "density",    LUA_TNUMBER, &density);
+        getFieldPrimaryFromTable(lua, indexTable, "friction",   LUA_TNUMBER, &friction);
+        getFieldPrimaryFromTable(lua, indexTable, "sx",         LUA_TNUMBER, &reduceX);
+        getFieldPrimaryFromTable(lua, indexTable, "sy",         LUA_TNUMBER, &reduceY);
+        getFieldPrimaryFromTable(lua, indexTable, "isSensor",   LUA_TBOOLEAN, &isSensor);
         if (strcasecmp(type, "static") == 0)
         {
             info = box2d->addStaticBody(ptr, density, friction, reduceX, reduceY, isSensor);
@@ -243,20 +241,20 @@ namespace mbm
         else if (strcasecmp(type, "dynamic") == 0)
         {
             bool   isBullet = false;
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "isBullet", LUA_TBOOLEAN, &isBullet);
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "isBullet", LUA_TBOOLEAN, &isBullet);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor, isBullet);
         }
         else if (strcasecmp(type, "character") == 0)
         {
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addDynamicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
             box2d->setFixedRotation(info,true);
             box2d->setSleepingAllowed(info,false);
         }
         else if (strcasecmp(type, "kinematic") == 0)
         {
-            plugin_helper::getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
+            getFieldPrimaryFromTable(lua, indexTable, "restitution", LUA_TNUMBER, &restitution);
             info = box2d->addKinematicBody(ptr, density, friction, restitution, reduceX, reduceY, isSensor);
         }
         if (info == nullptr || info->body == nullptr)
@@ -276,7 +274,7 @@ namespace mbm
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData    = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d   = static_cast<SHAPE_INFO *>(userData->extra);
 
@@ -290,7 +288,7 @@ namespace mbm
         const bool            isBullet    = top > 8 ? (lua_toboolean(lua, 9) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -303,7 +301,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -325,7 +323,7 @@ namespace mbm
     {
         const int             top         = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d       = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr         = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr         = getRenderizableFromRawTable(lua, 1, 2);
         auto * userData                   = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto * infoBox2d                  = static_cast<SHAPE_INFO *>(userData->extra);
         const float           density     = top > 2 ? luaL_checknumber(lua, 3) : 1.0f;
@@ -336,7 +334,7 @@ namespace mbm
         const bool            isSensor    = top > 7 ? (lua_toboolean(lua, 8) ? true : false) : false;
         if (!ptr->isLoaded())
         {
-            return plugin_helper::lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
+            return lua_error_debug(lua, "object [%s] is not loaded!!!", ptr->getTypeClassName());
         }
         if (infoBox2d)
         {
@@ -349,7 +347,7 @@ namespace mbm
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
+                return lua_error_debug(lua, "object [%s] already has a body", ptr->getTypeClassName());
             }
             return 1;
         }
@@ -641,7 +639,7 @@ namespace mbm
 
             if(lenTable != lenManifolds)
             {
-                return plugin_helper::lua_error_debug(lua, "expected size of manifold [%d] to be same size as in the ContactList [%d]",lenManifolds,lenTable);
+                return lua_error_debug(lua, "expected size of manifold [%d] to be same size as in the ContactList [%d]",lenManifolds,lenTable);
             }
 
             int index = 1;
@@ -653,7 +651,7 @@ namespace mbm
                 b2Manifold* manifold = c->contact->GetManifold();
                 lua_rawgeti(lua, indexTable, index); // next manifold, put in top + 1
 
-                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "type", LUA_TSTRING, &strType);
+                getFieldPrimaryFromTable(lua, top + 1, "type", LUA_TSTRING, &strType);
                 if(strType.compare("circles") == 0 )
                 {
                     manifold->type = b2Manifold::e_circles;
@@ -672,34 +670,34 @@ namespace mbm
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "type of <manifold> index [%d] unknown [%s] \n expected 'circles', 'face_a' or 'face_b' ",index,strType.c_str());
+                    return lua_error_debug(lua, "type of <manifold> index [%d] unknown [%s] \n expected 'circles', 'face_a' or 'face_b' ",index,strType.c_str());
                 }
 
                 float pointCount = static_cast<float>(manifold->pointCount);
-                plugin_helper::getFieldPrimaryFromTable(lua, top + 1, "pointCount", LUA_TNUMBER, &pointCount);
+                getFieldPrimaryFromTable(lua, top + 1, "pointCount", LUA_TNUMBER, &pointCount);
                 manifold->pointCount = static_cast<int32>(pointCount);
 
                 lua_getfield(lua, top + 1, "localNormal");
                 if(lua_type(lua,top + 2) == LUA_TTABLE)
                 {
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localNormal.x);
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localNormal.y);
+                    getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localNormal.x);
+                    getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localNormal.y);
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <localNormal> in <manifold> index [%d]  ",index);
+                    return lua_error_debug(lua, "Expected table <localNormal> in <manifold> index [%d]  ",index);
                 }
                 lua_pop(lua, 1);
 
                 lua_getfield(lua, top + 1, "localPoint");
                 if(lua_type(lua,top + 2) == LUA_TTABLE)
                 {
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localPoint.x);
-                    plugin_helper::getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localPoint.y);
+                    getFieldPrimaryFromTable(lua, top + 2, "x", LUA_TNUMBER, &manifold->localPoint.x);
+                    getFieldPrimaryFromTable(lua, top + 2, "y", LUA_TNUMBER, &manifold->localPoint.y);
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
+                    return lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
                 }
                 lua_pop(lua, 1);
 
@@ -717,28 +715,28 @@ namespace mbm
                             lua_getfield(lua, top + 3, "localPoint");
                             if(lua_type(lua,top + 4) == LUA_TTABLE)
                             {
-                                plugin_helper::getFieldPrimaryFromTable(lua, top + 4, "x", LUA_TNUMBER, &manifold->points[i].localPoint.x);
-                                plugin_helper::getFieldPrimaryFromTable(lua, top + 4, "y", LUA_TNUMBER, &manifold->points[i].localPoint.y);
+                                getFieldPrimaryFromTable(lua, top + 4, "x", LUA_TNUMBER, &manifold->points[i].localPoint.x);
+                                getFieldPrimaryFromTable(lua, top + 4, "y", LUA_TNUMBER, &manifold->points[i].localPoint.y);
                             }
                             else
                             {
-                                return plugin_helper::lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
+                                return lua_error_debug(lua, "Expected table <localPoint> in <manifold> index [%d]  ",index);
                             }
                             lua_pop(lua, 1);
 
-                            plugin_helper::getFieldPrimaryFromTable(lua, top + 3, "normalImpulse", LUA_TNUMBER,  &manifold->points[i].normalImpulse);
-                            plugin_helper::getFieldPrimaryFromTable(lua, top + 3, "tangentImpulse", LUA_TNUMBER, &manifold->points[i].tangentImpulse);
+                            getFieldPrimaryFromTable(lua, top + 3, "normalImpulse", LUA_TNUMBER,  &manifold->points[i].normalImpulse);
+                            getFieldPrimaryFromTable(lua, top + 3, "tangentImpulse", LUA_TNUMBER, &manifold->points[i].tangentImpulse);
                         }
                         else
                         {
-                            return plugin_helper::lua_error_debug(lua, "<points> index [1] is not a table. index manifold:[%d]",index);
+                            return lua_error_debug(lua, "<points> index [1] is not a table. index manifold:[%d]",index);
                         }
                         lua_pop(lua, 1);
                     }
                 }
                 else
                 {
-                    return plugin_helper::lua_error_debug(lua, "Expected table <points> in <manifold> index [%d][1]  ",index);
+                    return lua_error_debug(lua, "Expected table <points> in <manifold> index [%d][1]  ",index);
                 }
                 lua_pop(lua, 2);//points  & previous manifold
                 c = c->next;
@@ -747,7 +745,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "expected table <mesh> <manifolds>. \n use getManifolds() function to get it.");
+            return lua_error_debug(lua, "expected table <mesh> <manifolds>. \n use getManifolds() function to get it.");
         }
         return 0;
     }
@@ -845,7 +843,7 @@ namespace mbm
         const int typeObj = lua_type(lua, 2);
         if (typeObj != LUA_TNUMBER && typeObj != LUA_TSTRING)
         {
-            return plugin_helper::lua_error_debug(lua,"\nType expected as string \n %s ", 
+            return lua_error_debug(lua,"\nType expected as string \n %s ", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n");
@@ -855,7 +853,7 @@ namespace mbm
             const unsigned int t = lua_tointeger(lua, 2);
             if (t > 2)
             {
-                return plugin_helper::lua_error_debug(lua, "\nType expected as string or number  \n %s got [%d]", 
+                return lua_error_debug(lua, "\nType expected as string or number  \n %s got [%d]", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n",t);
@@ -876,7 +874,7 @@ namespace mbm
                 body->SetType(b2_dynamicBody);
             else
             {
-                return plugin_helper::lua_error_debug(lua, "\nType expected as string \n %s got [%s]", 
+                return lua_error_debug(lua, "\nType expected as string \n %s got [%s]", 
                     "0 - 'static'\n"
                     "1 - 'kinematic'\n"
                     "2 - 'dynamic'\n",str ? str : "nil");
@@ -910,7 +908,7 @@ namespace mbm
     {
         const int             top       = lua_gettop(lua);
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *infoBox2d                 = static_cast<SHAPE_INFO *>(userData->extra);
         const float           x         = top > 2 ? luaL_checknumber(lua, 3) : ptr->position.x;
@@ -1026,7 +1024,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "\nExpected at least one callback function:\n%s\n", 
+            return lua_error_debug(lua, "\nExpected at least one callback function:\n%s\n", 
                                                                                 "onBeginContact(tMesh_a,tMesh_b)\n"
                                                                                 "onEndContact(tMesh_a,  tMesh_b)\n"
                                                                                 "onPreSolve(tMesh_a,    tMesh_b,   tOldManifold)\n"
@@ -1217,7 +1215,7 @@ namespace mbm
                     lua_pushnumber(lua, fraction);
                     if (lua_pcall(lua, 6, 1, 0))
                     {
-                        plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                        lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                     }
                     else
                     {
@@ -1289,7 +1287,7 @@ namespace mbm
                     lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_MeAsTable);
                     if (lua_pcall(lua, 1, 1, 0))
                     {
-                        plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                        lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                     }
                     else
                     {
@@ -1359,7 +1357,7 @@ namespace mbm
     int onDestroyBodyBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
@@ -1370,7 +1368,7 @@ namespace mbm
     int onDestroyJointBox2d(lua_State *lua)
     {
         PHYSICS_BOX2D *       box2d     = getBox2dFromRawTable(lua, 1, 1);
-        RENDERIZABLE *        ptr       = plugin_helper::getRenderizableFromRawTable(lua, 1, 2);
+        RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, 1, 2);
         auto *userData                  = static_cast<USER_DATA_RENDER_LUA *>(ptr->userData);
         auto *          infoBox2d       = static_cast<SHAPE_INFO *>(userData->extra);
         if(infoBox2d)
@@ -1429,14 +1427,14 @@ namespace mbm
             if (hasTable == LUA_TTABLE)
             {
                 b2Filter              filter;
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 3, "categoryBits",  &filter.categoryBits);
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 3, "maskBits",      &filter.maskBits);
-                plugin_helper::getFieldSignedShortFromTable(lua, 3,   "groupIndex",    &filter.groupIndex);
+                getFieldUnsignedShortFromTable(lua, 3, "categoryBits",  &filter.categoryBits);
+                getFieldUnsignedShortFromTable(lua, 3, "maskBits",      &filter.maskBits);
+                getFieldSignedShortFromTable(lua, 3,   "groupIndex",    &filter.groupIndex);
                 box2d->setFilter(infoBox2d, filter);
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, message_error);
+                return lua_error_debug(lua, message_error);
             }
         }
         else if(top == 2)
@@ -1445,19 +1443,19 @@ namespace mbm
             if (hasTable == LUA_TTABLE)
             {
                 b2Filter              filter;
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 2, "categoryBits",  &filter.categoryBits);
-                plugin_helper::getFieldUnsignedShortFromTable(lua, 2, "maskBits",      &filter.maskBits);
-                plugin_helper::getFieldSignedShortFromTable(lua, 2,   "groupIndex",    &filter.groupIndex);
+                getFieldUnsignedShortFromTable(lua, 2, "categoryBits",  &filter.categoryBits);
+                getFieldUnsignedShortFromTable(lua, 2, "maskBits",      &filter.maskBits);
+                getFieldSignedShortFromTable(lua, 2,   "groupIndex",    &filter.groupIndex);
                 box2d->setFilter(nullptr, filter);
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, message_error);
+                return lua_error_debug(lua, message_error);
             }
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, message_error);
+            return lua_error_debug(lua, message_error);
         }
         return 0;
     }
@@ -1473,7 +1471,7 @@ namespace mbm
         unsigned int result = 0xffffffff;
         if (info1 == nullptr || info2 == nullptr)
         {
-            return plugin_helper::lua_error_debug(lua, "\nexpected box2d body");
+            return lua_error_debug(lua, "\nexpected box2d body");
         }
         if (hasTable == LUA_TTABLE)
         {
@@ -1481,7 +1479,7 @@ namespace mbm
             const char *name = lua_type(lua, 5) == LUA_TSTRING ? lua_tostring(lua, 5) : nullptr;
             if (name == nullptr)
             {
-                return plugin_helper::lua_error_debug(lua, "\nExpected field 'name', where:\n%s", 
+                return lua_error_debug(lua, "\nExpected field 'name', where:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1496,20 +1494,20 @@ namespace mbm
                                                                        );
             }
             if(info1 == nullptr || info1->body == nullptr)
-                return plugin_helper::lua_error_debug(lua,"Renderizable 1 has no body. Create a body first!");
+                return lua_error_debug(lua,"Renderizable 1 has no body. Create a body first!");
             if(info2 == nullptr || info2->body == nullptr)
-                return plugin_helper::lua_error_debug(lua,"Renderizable 2 has no body. Create a body first!");
+                return lua_error_debug(lua,"Renderizable 2 has no body. Create a body first!");
 
             if(strcasecmp(name,"gear") == 0) //done
             {
                 b2GearJointDef def;
                 float indexA = 1;
                 float indexB = 1;
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "collideConnected",  LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "indexA",            LUA_TNUMBER,    &indexA);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "indexB",            LUA_TNUMBER,    &indexB);
-                plugin_helper::getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(       lua,4,  "collideConnected",  LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(       lua,4,  "indexA",            LUA_TNUMBER,    &indexA);
+                getFieldPrimaryFromTable(       lua,4,  "indexB",            LUA_TNUMBER,    &indexB);
+                getFieldPrimaryFromTable(       lua,4,  "ratio",             LUA_TNUMBER,    &def.ratio);
 
                 const unsigned int index_1 = static_cast<unsigned int>(indexA) - 1;
                 const unsigned int index_2 = static_cast<unsigned int>(indexB) - 1;
@@ -1519,11 +1517,11 @@ namespace mbm
                 def.joint2             = infoJoint ? infoJoint->joint : nullptr;
                 if(def.joint1 == nullptr)
                 {
-                    return plugin_helper::lua_error_debug(lua, "\nBody 1 has no joint with indexA [%d]",static_cast<unsigned int>(indexA));
+                    return lua_error_debug(lua, "\nBody 1 has no joint with indexA [%d]",static_cast<unsigned int>(indexA));
                 }
                 if(def.joint2 == nullptr)
                 {
-                    return plugin_helper::lua_error_debug(lua, "\nBody 2 has no joint with indexB [%d]",static_cast<unsigned int>(indexB));
+                    return lua_error_debug(lua, "\nBody 2 has no joint with indexB [%d]",static_cast<unsigned int>(indexB));
                 }
                 //has no member Initialize
                 result = box2d->createJoint(info1,info2,def);
@@ -1532,12 +1530,12 @@ namespace mbm
             {
                 b2MotorJointDef def;
                 def.Initialize(info1->body, info2->body);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",    LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "correctionFactor",    LUA_TNUMBER,  &def.correctionFactor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "linearOffset","x", "y",             &def.linearOffset.x, &def.linearOffset.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "maxForce",            LUA_TNUMBER,  &def.maxForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "maxTorque",           LUA_TNUMBER,  &def.maxTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "angularOffset",       LUA_TNUMBER,  &def.angularOffset);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",    LUA_TBOOLEAN, &def.collideConnected);
+                getFieldPrimaryFromTable(lua,     4,  "correctionFactor",    LUA_TNUMBER,  &def.correctionFactor);
+                getFloat2FieldTableFromTable(lua, 4,  "linearOffset","x", "y",             &def.linearOffset.x, &def.linearOffset.y);
+                getFieldPrimaryFromTable(lua,     4,  "maxForce",            LUA_TNUMBER,  &def.maxForce);
+                getFieldPrimaryFromTable(lua,     4,  "maxTorque",           LUA_TNUMBER,  &def.maxTorque);
+                getFieldPrimaryFromTable(lua,     4,  "angularOffset",       LUA_TNUMBER,  &def.angularOffset);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "rope") == 0) // done
@@ -1548,23 +1546,23 @@ namespace mbm
                 //has no member Initialize
                 p1 -= p2;
                 def.maxLength = p1.Length();
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxLength",              LUA_TNUMBER,  &def.maxLength);
+                getFieldPrimaryFromTable(lua,     4, "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4, "maxLength",              LUA_TNUMBER,  &def.maxLength);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "friction") == 0) // done
             {
                 b2FrictionJointDef def;
                 b2Vec2 anchor(0,0);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "collideConnected",        LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",                  &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",                  &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxForce",                LUA_TNUMBER,    &def.maxForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4, "maxTorque",               LUA_TNUMBER,    &def.maxTorque);
+                getFieldPrimaryFromTable(lua,     4, "collideConnected",        LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",                  &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",                  &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4, "maxForce",                LUA_TNUMBER,    &def.maxForce);
+                getFieldPrimaryFromTable(lua,     4, "maxTorque",               LUA_TNUMBER,    &def.maxTorque);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "wheel") == 0 || strcasecmp(name, "line") == 0) //old line, done
@@ -1574,18 +1572,18 @@ namespace mbm
                 float dampingRatio = 0.7f;
                 b2Vec2 anchor(0.0f,0.0f);
                 b2Vec2 axis(0.0f,1.0f);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "axis", "x", "y",   &axis.x,   &axis.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "axis", "x", "y",   &axis.x,   &axis.y);
                 def.Initialize(info1->body, info2->body, anchor, axis);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "collideConnected",            LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorA", "x", "y",                      &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAnchorB", "x", "y",                      &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "enableMotor",                 LUA_TBOOLEAN,   &def.enableMotor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,     "localAxisA", "x", "y",                        &def.localAxisA.x, &def.localAxisA.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "maxMotorTorque",              LUA_TNUMBER,    &def.maxMotorTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
+                getFieldPrimaryFromTable(lua,     4,     "collideConnected",            LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,     "localAnchorA", "x", "y",                      &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,     "localAnchorB", "x", "y",                      &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,     "dampingRatio",                LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,     "enableMotor",                 LUA_TBOOLEAN,   &def.enableMotor);
+                getFieldPrimaryFromTable(lua,     4,     "frequencyHz",                 LUA_TNUMBER,    &frequencyHz);
+                getFloat2FieldTableFromTable(lua, 4,     "localAxisA", "x", "y",                        &def.localAxisA.x, &def.localAxisA.y);
+                getFieldPrimaryFromTable(lua,     4,     "maxMotorTorque",              LUA_TNUMBER,    &def.maxMotorTorque);
+                getFieldPrimaryFromTable(lua,     4,     "motorSpeed",                  LUA_TNUMBER,    &def.motorSpeed);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1595,14 +1593,14 @@ namespace mbm
                 float frequencyHz = 5.0f;
 			    float dampingRatio = 0.7f;
                 b2Vec2 anchor(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",       LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                 &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                 &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",       LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                 &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                 &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "dampingRatio",           LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,  "frequencyHz",            LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua,     4,  "referenceAngle",         LUA_TNUMBER,    &def.referenceAngle);
                 b2AngularStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1612,11 +1610,11 @@ namespace mbm
                 float frequencyHz = 5.0f;
 		        float dampingRatio = 0.7f;
                 //has no member Initialize
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "maxForce",            LUA_TNUMBER,    &def.maxForce);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "target", "x", "y",                    &def.target.x, &def.target.y);
+                getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(lua, 4,     "dampingRatio",        LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua, 4,     "frequencyHz",         LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua, 4,     "maxForce",            LUA_TNUMBER,    &def.maxForce);
+                getFloat2FieldTableFromTable(lua, 4, "target", "x", "y",                    &def.target.x, &def.target.y);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1625,18 +1623,18 @@ namespace mbm
                 b2PulleyJointDef def;
                 b2Vec2 anchorA(info1->body->GetPosition());
                 b2Vec2 anchorB(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchorA", "x", "y", &anchorA.x, &anchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchorB", "x", "y", &anchorB.x, &anchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);//default is 1
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "groundAnchorA", "x", "y",                    &def.groundAnchorA.x, &def.groundAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "groundAnchorB", "x", "y",                    &def.groundAnchorB.x, &def.groundAnchorB.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchorA", "x", "y", &anchorA.x, &anchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchorB", "x", "y", &anchorB.x, &anchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);//default is 1
+                getFloat2FieldTableFromTable(lua, 4,  "groundAnchorA", "x", "y",                    &def.groundAnchorA.x, &def.groundAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "groundAnchorB", "x", "y",                    &def.groundAnchorB.x, &def.groundAnchorB.y);
                 def.Initialize(info1->body, info2->body,def.groundAnchorA,def.groundAnchorB, anchorA,anchorB, def.ratio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",           LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                     &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                     &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "lengthA",                    LUA_TNUMBER,    &def.lengthA);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "lengthB",                    LUA_TNUMBER,    &def.lengthB);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",           LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                     &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                     &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "lengthA",                    LUA_TNUMBER,    &def.lengthA);
+                getFieldPrimaryFromTable(lua,     4,  "lengthB",                    LUA_TNUMBER,    &def.lengthB);
+                getFieldPrimaryFromTable(lua,     4,  "ratio",                      LUA_TNUMBER,    &def.ratio);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "distance") == 0) // done
@@ -1646,15 +1644,15 @@ namespace mbm
                 float dampingRatio = 0.7f;
                 b2Vec2 anchor1 (info1->body->GetPosition());
                 b2Vec2 anchor2 (info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor2", "x", "y", &anchor2.x, &anchor2.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor1", "x", "y", &anchor1.x, &anchor1.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor2", "x", "y", &anchor2.x, &anchor2.y);
                 def.Initialize(info1->body,info2->body,anchor1,anchor2);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "collideConnected",               LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                         &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                         &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &dampingRatio);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
+                getFieldPrimaryFromTable(lua,     4,  "collideConnected",               LUA_TBOOLEAN,   &def.collideConnected);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorA", "x", "y",                         &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,  "localAnchorB", "x", "y",                         &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua,     4,  "dampingRatio",                   LUA_TNUMBER,    &dampingRatio);
+                getFieldPrimaryFromTable(lua,     4,  "frequencyHz",                    LUA_TNUMBER,    &frequencyHz);
+                getFieldPrimaryFromTable(lua,     4,  "length",                         LUA_TNUMBER,    &def.length);
                 b2LinearStiffness(def.stiffness, def.damping, frequencyHz, dampingRatio, info1->body, info2->body);
                 result = box2d->createJoint(info1, info2, def);
             }
@@ -1663,43 +1661,43 @@ namespace mbm
                 b2PrismaticJointDef def;
                 b2Vec2 axis(0.0f,1.0f);
                 b2Vec2 anchor(0,0);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "axis",   "x", "y", &axis.x,   &axis.y  );
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "axis",   "x", "y", &axis.x,   &axis.y  );
                 def.Initialize(info1->body, info2->body, anchor, axis);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "enableLimit",            LUA_TBOOLEAN, &def.enableLimit);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "enableMotor",            LUA_TBOOLEAN, &def.enableMotor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4,    "localAxisA", "x", "y",                 &def.localAxisA.x, &def.localAxisA.y);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "lowerTranslation",       LUA_TNUMBER,  &def.lowerTranslation);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "maxMotorForce",          LUA_TNUMBER,  &def.maxMotorForce);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "motorSpeed",             LUA_TNUMBER,  &def.motorSpeed);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "referenceAngle",         LUA_TNUMBER,  &def.referenceAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua,     4,    "upperTranslation",       LUA_TNUMBER,  &def.upperTranslation);
+                getFieldPrimaryFromTable(lua,     4,    "collideConnected",       LUA_TBOOLEAN, &def.collideConnected);
+                getFieldPrimaryFromTable(lua,     4,    "enableLimit",            LUA_TBOOLEAN, &def.enableLimit);
+                getFieldPrimaryFromTable(lua,     4,    "enableMotor",            LUA_TBOOLEAN, &def.enableMotor);
+                getFloat2FieldTableFromTable(lua, 4,    "localAnchorA", "x", "y",               &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4,    "localAnchorB", "x", "y",               &def.localAnchorB.x, &def.localAnchorB.y);
+                getFloat2FieldTableFromTable(lua, 4,    "localAxisA", "x", "y",                 &def.localAxisA.x, &def.localAxisA.y);
+                getFieldPrimaryFromTable(lua,     4,    "lowerTranslation",       LUA_TNUMBER,  &def.lowerTranslation);
+                getFieldPrimaryFromTable(lua,     4,    "maxMotorForce",          LUA_TNUMBER,  &def.maxMotorForce);
+                getFieldPrimaryFromTable(lua,     4,    "motorSpeed",             LUA_TNUMBER,  &def.motorSpeed);
+                getFieldPrimaryFromTable(lua,     4,    "referenceAngle",         LUA_TNUMBER,  &def.referenceAngle);
+                getFieldPrimaryFromTable(lua,     4,    "upperTranslation",       LUA_TNUMBER,  &def.upperTranslation);
                 result = box2d->createJoint(info1, info2, def);
             }
             else if (strcasecmp(name, "revolute") == 0) // done
             {
                 b2RevoluteJointDef def;
                 b2Vec2 anchor(info2->body->GetPosition());
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
+                getFloat2FieldTableFromTable(lua, 4, "anchor", "x", "y", &anchor.x, &anchor.y);
                 def.Initialize(info1->body, info2->body,anchor);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "enableLimit",         LUA_TBOOLEAN,   &def.enableLimit);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "enableMotor",         LUA_TBOOLEAN,   &def.enableMotor);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",              &def.localAnchorA.x, &def.localAnchorA.y);
-                plugin_helper::getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",              &def.localAnchorB.x, &def.localAnchorB.y);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "lowerAngle",          LUA_TNUMBER,    &def.lowerAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "maxMotorTorque",      LUA_TNUMBER,    &def.maxMotorTorque);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "motorSpeed",          LUA_TNUMBER,    &def.motorSpeed);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "referenceAngle",      LUA_TNUMBER,    &def.referenceAngle);
-                plugin_helper::getFieldPrimaryFromTable(lua, 4,     "upperAngle",          LUA_TNUMBER,    &def.upperAngle);
+                getFieldPrimaryFromTable(lua, 4,     "collideConnected",    LUA_TBOOLEAN,   &def.collideConnected);
+                getFieldPrimaryFromTable(lua, 4,     "enableLimit",         LUA_TBOOLEAN,   &def.enableLimit);
+                getFieldPrimaryFromTable(lua, 4,     "enableMotor",         LUA_TBOOLEAN,   &def.enableMotor);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorA", "x", "y",              &def.localAnchorA.x, &def.localAnchorA.y);
+                getFloat2FieldTableFromTable(lua, 4, "localAnchorB", "x", "y",              &def.localAnchorB.x, &def.localAnchorB.y);
+                getFieldPrimaryFromTable(lua, 4,     "lowerAngle",          LUA_TNUMBER,    &def.lowerAngle);
+                getFieldPrimaryFromTable(lua, 4,     "maxMotorTorque",      LUA_TNUMBER,    &def.maxMotorTorque);
+                getFieldPrimaryFromTable(lua, 4,     "motorSpeed",          LUA_TNUMBER,    &def.motorSpeed);
+                getFieldPrimaryFromTable(lua, 4,     "referenceAngle",      LUA_TNUMBER,    &def.referenceAngle);
+                getFieldPrimaryFromTable(lua, 4,     "upperAngle",          LUA_TNUMBER,    &def.upperAngle);
                 result = box2d->createJoint(info1, info2, def);
             }
             else
             {
-                return plugin_helper::lua_error_debug(lua, "\nExpected field 'name', any of:\n%s", 
+                return lua_error_debug(lua, "\nExpected field 'name', any of:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1716,7 +1714,7 @@ namespace mbm
         }
         else
         {
-            return plugin_helper::lua_error_debug(lua, "\nExpected a table joint of any of:\n%s", 
+            return lua_error_debug(lua, "\nExpected a table joint of any of:\n%s", 
                                                                        "distance    \n"
                                                                        "friction    \n"
                                                                        "line        \n"
@@ -1898,7 +1896,7 @@ namespace mbm
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                             if (lua_pcall(lua, 2, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -1914,7 +1912,7 @@ namespace mbm
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData1->ref_MeAsTable);
                             lua_rawgeti(lua, LUA_REGISTRYINDEX, userData2->ref_MeAsTable);
                             if (lua_pcall(lua, 2, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -1960,7 +1958,7 @@ namespace mbm
                             */
 
                             if (lua_pcall(lua, 3, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -2001,7 +1999,7 @@ namespace mbm
 
                             lua_setfield(lua, -2, "tangentImpulses");
                             if (lua_pcall(lua, 3, 0, 0))
-                                plugin_helper::lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
+                                lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
                         }
                     }
                 }
@@ -2033,7 +2031,7 @@ namespace mbm
 
     PHYSICS_BOX2D *getBox2dFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<PHYSICS_BOX2D **>(plugin_helper::lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
+        auto **ud = static_cast<PHYSICS_BOX2D **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_BOX2D));
         return *ud;
     }
 }

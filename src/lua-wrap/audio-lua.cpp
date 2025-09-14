@@ -28,14 +28,11 @@ extern "C"
 #include <core_mbm/audio.h>
 #include <core_mbm/log-util.h>
 #include <lua-wrap/audio-lua.h>
-#include <lua-wrap/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/device.h>
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     AUDIO *getAudioFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<AUDIO **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_AUDIO));

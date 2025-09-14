@@ -25,7 +25,7 @@
 #include <core_mbm/scene.h>
 #include <core_mbm/primitives.h>
 #include <core_mbm/core-manager.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 
 struct lua_State;
 

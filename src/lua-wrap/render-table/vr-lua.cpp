@@ -30,8 +30,7 @@ extern "C"
 
 #include <lua-wrap/render-table/render-2-texture-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <render/HMD.h>
 
 #if DEBUG_FREE_LUA
@@ -40,8 +39,7 @@ extern "C"
 
 namespace mbm
 {
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-
+    
     HMD *getVRFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<HMD **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_VR));

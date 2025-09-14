@@ -74,13 +74,13 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -96,7 +96,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -115,7 +115,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
       <PrecompiledHeader>
       </PrecompiledHeader>
@@ -204,12 +204,11 @@
     <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
     <ClCompile Include="..\..\src\core_mbm\util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\vigenere.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\check-user-type-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\current-scene-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\manager-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\animation-lua.cpp" />
@@ -227,9 +226,7 @@
     <ClCompile Include="..\..\src\lua-wrap\render-table\texture-view-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\tile-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\render-table\vr-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\shader-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
-    <ClCompile Include="..\..\src\lua-wrap\user-data-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
     <ClCompile Include="..\..\src\render\background.cpp" />
@@ -300,9 +297,7 @@
     <ClInclude Include="..\..\include\joystick-win32\joystick.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\current-scene-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\framework-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\launcher-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\manager-lua.h" />
@@ -321,7 +316,7 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\texture-view-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\require_embedded.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />
@@ -344,6 +339,7 @@
     <ClInclude Include="..\..\include\render\texture-view.h" />
     <ClInclude Include="..\..\include\render\tile.h" />
     <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />

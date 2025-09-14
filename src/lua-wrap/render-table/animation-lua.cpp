@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/animation-lua.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/renderizable.h>
@@ -34,10 +34,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int verifyDynamicCast(lua_State *lua, void *ptr, int line, const char *__file);
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable,RENDERIZABLE **renderizable)
     {
         RENDERIZABLE *        ptr       = getRenderizableFromRawTable(lua, rawi,indexTable);

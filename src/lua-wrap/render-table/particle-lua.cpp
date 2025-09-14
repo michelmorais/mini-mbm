@@ -26,8 +26,7 @@ extern "C"
 
 #include <lua-wrap/render-table/particle-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/header-mesh.h>
 #include <core_mbm/util-interface.h>
@@ -40,12 +39,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int getVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern int setVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
-    extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     PARTICLE *getParticleFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<PARTICLE **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_PARTICLE));

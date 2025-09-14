@@ -20,7 +20,7 @@
 
 #include "tiled-lua.h"
 #include "tile_editor.hpp"
-#include "../plugin-helper/plugin-helper.h"
+#include <plugin-helper/plugin-helper.h>
 
 extern "C" 
 {
@@ -45,12 +45,12 @@ mbm::TILE_EDITOR *getTileEditorFromRawTable(lua_State *lua, const int rawi, cons
     if (typeObj != LUA_TTABLE)
     {
         if(typeObj == LUA_TNONE)
-            plugin_helper::lua_error_debug(lua, "expected: [plugin]. got [nil]");
+            mbm::lua_error_debug(lua, "expected: [plugin]. got [nil]");
         else
         {
             char message[255] = "";
             snprintf(message,sizeof(message),"expected: [plugin]. got [%s]",lua_typename(lua, typeObj));
-            plugin_helper::lua_error_debug(lua, message);
+            mbm::lua_error_debug(lua, message);
         }
         return nullptr;
     }
@@ -86,7 +86,7 @@ void lua_check_is_table(lua_State *lua, const int index,const char * table_name)
 {
     if (lua_type(lua,index) != LUA_TTABLE)
     {
-        plugin_helper::lua_error_debug(lua,"Expected table [%s]",table_name);
+        mbm::lua_error_debug(lua,"Expected table [%s]",table_name);
     }
 }
 
@@ -127,7 +127,7 @@ void lua_push_properties(lua_State * lua, const std::map<std::string,std::shared
             break;
             default:
             {
-                plugin_helper::lua_error_debug(lua,"Not expected type of property [%d]",property.second->type);
+                mbm::lua_error_debug(lua,"Not expected type of property [%d]",property.second->type);
             }
             break;
         }
@@ -201,7 +201,7 @@ void lua_set_properties(lua_State * lua, int index,std::map<std::string,std::sha
         break;
         default:
         {
-            plugin_helper::lua_error_debug(lua,"Value expected [number,string,boolean], got [%s]",lua_typename(lua,type));
+            mbm::lua_error_debug(lua,"Value expected [number,string,boolean], got [%s]",lua_typename(lua,type));
         }
         break;
     }
@@ -495,7 +495,7 @@ static int onGetNameShaderLayerTiledEditorLua(lua_State * lua)
     uint32_t index                 = luaL_checkinteger(lua,2);
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     lua_pushstring(lua,tileEditor->getNamePsShaderLayer(index));
@@ -508,12 +508,12 @@ static int onGetLayerTiledEditorLua(lua_State * lua)
     uint32_t index                 = luaL_checkinteger(lua,2);
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     if(index >= tileEditor->getTotalLayer())
     {
-        plugin_helper::lua_error_debug(lua,"index one based out of range for layer. Got [%d]",index);
+        mbm::lua_error_debug(lua,"index one based out of range for layer. Got [%d]",index);
     }
     lua_newtable(lua);
 
@@ -552,7 +552,7 @@ static int onUpdateLayerTiledEditorLua(lua_State * lua)
     lua_check_is_table(lua, 3, "{visible,minTint,maxTint,offset,tintAnimType,tintAnimTime}");
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     
@@ -613,7 +613,7 @@ static int onDeleteLayerTiledEditorLua(lua_State * lua)
     uint32_t index                 = luaL_checkinteger(lua,2);
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     tileEditor->eraseLayer(index);
@@ -626,7 +626,7 @@ static int onGetLayerPropertiesTiledEditorLua(lua_State * lua)
     uint32_t index                 = luaL_checkinteger(lua,2);
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     if (tileEditor->existLayer(index))
@@ -636,7 +636,7 @@ static int onGetLayerPropertiesTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Layer [%d] not found",index);
+        mbm::lua_error_debug(lua,"Layer [%d] not found",index);
         lua_pushnil(lua);
     }
     return 1;
@@ -649,7 +649,7 @@ static int onSetLayerPropertiesTiledEditorLua(lua_State * lua)
     uint32_t index                 = luaL_checkinteger(lua,2);
     if(index == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
     }
     index--;
     if (tileEditor->existLayer(index))
@@ -659,7 +659,7 @@ static int onSetLayerPropertiesTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Layer [%d] not found",index+1);
+        mbm::lua_error_debug(lua,"Layer [%d] not found",index+1);
     }
     return 0;
 }
@@ -676,7 +676,7 @@ static int onGetBrickPropertiesTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
+        mbm::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
     }
     return 1;
 }
@@ -704,7 +704,7 @@ static int onSetBrickPropertiesTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
+        mbm::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
     }
     return 0;
 }
@@ -736,7 +736,7 @@ static int onNewTileSetTiledEditorLua(lua_State * lua)
         break;
         default:
         {
-            plugin_helper::lua_error_debug(lua,"Expected file_name of texture to the tileset");
+            mbm::lua_error_debug(lua,"Expected file_name of texture to the tileset");
         }
     }
     mbm::VEC2 min_bound;
@@ -769,9 +769,9 @@ static int onGetTileSetNameTiledEditorLua(lua_State * lua)
     mbm::TILE_EDITOR * tileEditor  = getTileEditorFromRawTable(lua,1,1);
     const uint32_t index           = luaL_checkinteger(lua,2);
     if(index == 0)
-        plugin_helper::lua_error_debug(lua,"Expected index one based ");
+        mbm::lua_error_debug(lua,"Expected index one based ");
     else if( index > tileEditor->getTotalTileSet())
-        plugin_helper::lua_error_debug(lua,"Index major then the availables tileset [%u/%u]",index,tileEditor->getTotalTileSet());
+        mbm::lua_error_debug(lua,"Index major then the availables tileset [%u/%u]",index,tileEditor->getTotalTileSet());
     else
         lua_pushstring(lua,tileEditor->getTileSetName(index-1));
     return 1;
@@ -884,7 +884,7 @@ void lua_update_brick(lua_State * lua,std::shared_ptr<mbm::BRICK> & brick,const 
     lua_pop(lua, 1);
     if(brick == nullptr || id != brick->id)
     {
-        plugin_helper::lua_error_debug(lua,"Brick Id expected [%u] got [%u]",brick != nullptr ? brick->id : 0,id);
+        mbm::lua_error_debug(lua,"Brick Id expected [%u] got [%u]",brick != nullptr ? brick->id : 0,id);
     }
 
     brick->backup();
@@ -944,9 +944,9 @@ static int onGetBrickTiledEditorLua(lua_State * lua)
     if(brick == nullptr)
     {
         if(filterTileSet)
-            plugin_helper::lua_error_debug(lua,"Not found brick for absolute index [%u] filter [%s] ",index, filterTileSet);
+            mbm::lua_error_debug(lua,"Not found brick for absolute index [%u] filter [%s] ",index, filterTileSet);
         else
-            plugin_helper::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
+            mbm::lua_error_debug(lua,"Not found brick for Brick id [%u] filter [none] ",index);
     }
     else
         lua_push_brick(lua,brick);
@@ -959,7 +959,7 @@ static int onUpdateBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id [%u] out of range ",id);
     else
         lua_update_brick(lua,brick,3);
     return 1;
@@ -971,7 +971,7 @@ static int onUndoChangesBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"index [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"index [%u] out of range ",id);
     else
     {
         brick->restore_backup();
@@ -986,7 +986,7 @@ static int onExpandBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id  [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id  [%u] out of range ",id);
     else
     {
         const bool inside          = lua_toboolean(lua,3);
@@ -1004,7 +1004,7 @@ static int onExpandVBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id  [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id  [%u] out of range ",id);
     else
     {
         const bool inside          = lua_toboolean(lua,3);
@@ -1022,7 +1022,7 @@ static int onExpandHBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id  [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id  [%u] out of range ",id);
     else
     {
         const bool inside          = lua_toboolean(lua,3);
@@ -1195,7 +1195,7 @@ static int onGetPhysicsBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id  [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id  [%u] out of range ",id);
     else
     {
         int index = 1;
@@ -1232,7 +1232,7 @@ static int onSetPhysicsBrickTiledEditorLua(lua_State * lua)
     const uint32_t id              = luaL_checkinteger(lua,2);
     auto brick                     = tileEditor->getBrick(id,nullptr);
     if(brick == nullptr)
-        plugin_helper::lua_error_debug(lua,"id  [%u] out of range ",id);
+        mbm::lua_error_debug(lua,"id  [%u] out of range ",id);
     else
     {
         mbm::FREE_PHYSICS freePhysics;
@@ -1263,7 +1263,7 @@ static int onSetPhysicsBrickTiledEditorLua(lua_State * lua)
             }
             else
             {
-                plugin_helper::lua_error_debug(lua,"expected array of table to physics");
+                mbm::lua_error_debug(lua,"expected array of table to physics");
             }
             lua_pop(lua,1);
         }
@@ -1283,7 +1283,7 @@ static int onDeleteObjectMapTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
+        mbm::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
     }
     return 0;
 }
@@ -1334,7 +1334,7 @@ static int onAddObjectMapTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Expected <table {type = rectangle,triangle,circle,point,line}>");
+        mbm::lua_error_debug(lua,"Expected <table {type = rectangle,triangle,circle,point,line}>");
     }
     return 0;
 }
@@ -1374,7 +1374,7 @@ static int onGetObjectMapTiledEditorLua(lua_State * lua)
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
+        mbm::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
     }
     return 1;
 }
@@ -1429,12 +1429,12 @@ static int onSetObjectMapTiledEditorLua(lua_State * lua)
         }
         else
         {
-            plugin_helper::lua_error_debug(lua,"Expected <index> , <table {type = rectangle,triangle,circle,point,line}>");
+            mbm::lua_error_debug(lua,"Expected <index> , <table {type = rectangle,triangle,circle,point,line}>");
         }
     }
     else
     {
-        plugin_helper::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
+        mbm::lua_error_debug(lua,"Index [%u] out of range [%u]",index_object,objects.size());
     }
     return 0;
 }
@@ -1611,12 +1611,12 @@ static int onMoveLayerUpTiledEditorLua(lua_State * lua)
     uint32_t index_layer           = luaL_checkinteger(lua,2);
     if(index_layer == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index one based. Got [%d]",index_layer);
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index_layer);
     }
     index_layer--;
     if(index_layer >= tileEditor->getTotalLayer())
     {
-        plugin_helper::lua_error_debug(lua,"index one based out of range for layer. Got [%d]",index_layer +1);
+        mbm::lua_error_debug(lua,"index one based out of range for layer. Got [%d]",index_layer +1);
     }
     tileEditor->moveLayerUp(index_layer);
     return 0;
@@ -1628,12 +1628,12 @@ static int onMoveLayerDownTiledEditorLua(lua_State * lua)
     uint32_t index_layer           = luaL_checkinteger(lua,2);
     if(index_layer == 0 )
     {
-        plugin_helper::lua_error_debug(lua,"expected index layer one based. Got [%d]",index_layer);
+        mbm::lua_error_debug(lua,"expected index layer one based. Got [%d]",index_layer);
     }
     index_layer--;
     if(index_layer >= tileEditor->getTotalLayer())
     {
-        plugin_helper::lua_error_debug(lua,"index layer one based out of range for layer. Got [%d]",index_layer +1);
+        mbm::lua_error_debug(lua,"index layer one based out of range for layer. Got [%d]",index_layer +1);
     }
     tileEditor->moveLayerDown(index_layer);
     return 0;
@@ -1908,7 +1908,7 @@ int onNewTileEditorLua(lua_State *lua)
     else
     {
         lua_pop(lua, 1);
-        plugin_helper::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
+        mbm::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
     }
     lua_setmetatable(lua,-2);
     /* end plugin code*/

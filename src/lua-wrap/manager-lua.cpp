@@ -27,6 +27,9 @@ extern "C"
 #include <lua-wrap/manager-lua.h>
 #include <lua-wrap/timer-lua.h>
 #include <lua-wrap/launcher-lua.h>
+#include <lua-wrap/render-table/no-gc-renderizable-lua.h>
+#include <lua-wrap/audio-lua.h>
+#include <lua-wrap/framework-lua.h>
 #include <core_mbm/device.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/util-interface.h>
@@ -72,13 +75,7 @@ enum ARGS_LUA
 
 namespace mbm
 {
-    extern void onEndStreamCallBackFromSceneThread(lua_State *lua, USER_DATA_AUDIO_LUA *userData);
-    extern void onEndStreamCallBack(const char *fileNameStream, USER_DATA_AUDIO_LUA *userData);
-    extern void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
-	extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern int newNoGCFromRenderizable(lua_State * lua,RENDERIZABLE * renderizable);
-	extern void lua_print_line(lua_State *lua,TYPE_LOG type_log,const char *format, ...);
-
+    
         LUA_MANAGER* LUA_MANAGER::pLuaManager = nullptr;
 
         SCENE_SCRIPT::SCENE_SCRIPT(const char *nameFileScriptLua, const bool _noSplash,RENDERIZABLE * previousSplash) :

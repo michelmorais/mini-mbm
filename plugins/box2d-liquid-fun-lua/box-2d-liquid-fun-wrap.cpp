@@ -1,0 +1,1418 @@
+/*-----------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|                                                                                                                        |
+|-----------------------------------------------------------------------------------------------------------------------*/
+
+#include "box-2d-liquid-fun-wrap.h"
+#include <core_mbm/scene.h>
+#include <core_mbm/device.h>
+#include <core_mbm/renderizable.h>
+#include <render/steered_particle.h>
+#include <limits>
+#include <algorithm>
+
+namespace mbm
+{
+    
+    SHAPE_INFO_B2DLF::SHAPE_INFO_B2DLF(RENDERIZABLE* ptrMesh,const b2BodyType newType) noexcept:
+        typePhysics(newType),
+        ptr(ptrMesh)
+    {
+        this->body              =  nullptr;
+    }
+
+    SHAPE_INFO_B2DLF::~SHAPE_INFO_B2DLF()noexcept
+    {
+        this->body              =   nullptr;
+    }
+
+    INFO_FLUID::INFO_FLUID(const bool is3d,const bool is2dScreen,const bool segmented,const float* _scale_physics_engine) noexcept
+    {
+        DEVICE * device = DEVICE::getInstance();
+        this->particleSystem =  nullptr;
+        this->steered_particle = new STEERED_PARTICLE(device->scene,is3d,is2dScreen,segmented,_scale_physics_engine);
+    }
+
+    INFO_FLUID::~INFO_FLUID()noexcept
+    {
+        this->particleSystem =   nullptr;
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(this->steered_particle);
+        delete p_steered_particle;
+    }
+
+    INFO_JOINT_B2DLF::INFO_JOINT_B2DLF(SHAPE_INFO_B2DLF*  info_a,SHAPE_INFO_B2DLF*  info_b,b2Joint* _joint) noexcept
+    {
+        this->infoA =   info_a;
+        this->infoB =   info_b;
+        this->joint =   _joint;
+    }
+        
+    INFO_JOINT_B2DLF::~INFO_JOINT_B2DLF()noexcept
+    = default;
+
+    
+    PHYSICS_BOX2D_LIQUID_FUN::PHYSICS_BOX2D_LIQUID_FUN(SCENE* scene) noexcept:
+    PHYSICS(scene->getIdScene())
+    {
+        this->world         =   nullptr;
+        this->stopSimulate  =   false;
+        DEVICE* device = DEVICE::getInstance();
+        device->addPhysics(this);
+        this->velocityIterations = 8;
+        this->positionIterations = 3;
+        this->scale = 10.0f;
+        this->scalePercentage = 1.0f / this->scale;
+        this->multiplyStep = 1.0f;
+        this->on_box2d_BeginContact = nullptr;
+        this->on_box2d_EndContact   = nullptr;
+        this->on_box2d_PreSolve     = nullptr;
+        this->on_box2d_PostSolve    = nullptr;
+        this->on_box2d_DestroyBodyFromList = nullptr;
+    }
+        
+    PHYSICS_BOX2D_LIQUID_FUN::~PHYSICS_BOX2D_LIQUID_FUN()
+    {
+        if(this->world)
+        {
+            this->world->SetContactListener(nullptr);
+            const std::vector<INFO_JOINT_B2DLF*>::size_type sj = this->lsJoint.size();
+            for(std::vector<INFO_JOINT_B2DLF*>::size_type i=0; i < sj; ++i)
+            {
+                INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+                if(infoJoint->joint)
+                    this->world->DestroyJoint(infoJoint->joint);
+                delete infoJoint;
+            }
+            this->lsJoint.clear();
+            const std::vector<SHAPE_INFO_B2DLF*>::size_type ss = this->lsShape.size();
+            for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < ss; ++i)
+            {
+                SHAPE_INFO_B2DLF* info = this->lsShape[i];
+                world->DestroyBody(info->body);
+                delete info;
+            }
+            this->lsShape.clear();
+
+            const std::vector<SHAPE_INFO_B2DLF*>::size_type sf = this->lsFluid.size();
+            for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < sf; ++i)
+            {
+                INFO_FLUID* info = this->lsFluid[i];
+                if(info->particleSystem)
+                    world->DestroyParticleSystem(info->particleSystem);
+                delete info;
+            }
+            this->lsFluid.clear();
+            delete world;
+        }
+        this->on_box2d_BeginContact = nullptr;
+        this->on_box2d_EndContact   = nullptr;
+        this->on_box2d_PreSolve     = nullptr;
+        this->on_box2d_PostSolve    = nullptr;
+        this->on_box2d_DestroyBodyFromList = nullptr;
+        world = nullptr;
+        DEVICE* device = DEVICE::getInstance();
+        device->removePhysics(this);
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::setScale(const float s)noexcept
+    {
+        if(s > 0.0f)
+        {
+            this->scale = s;
+            this->scalePercentage = 1.0f / this->scale;
+        }
+    }
+    float PHYSICS_BOX2D_LIQUID_FUN::getScale() const noexcept
+    {
+        return this->scale;
+    }
+        
+    bool PHYSICS_BOX2D_LIQUID_FUN::testPoint(SHAPE_INFO_B2DLF* info,const b2Vec2& point)
+    {
+        if(info && info->body)
+        {
+            b2Fixture* bFix = info->body->GetFixtureList();
+            b2Vec2 point_scaled(point.x / this->scale, point.y / this->scale);
+            while (bFix)
+            {
+                if (bFix->TestPoint(point_scaled))
+                    return true;
+                bFix = bFix->GetNext();
+            }
+        }
+        return false;
+    }
+        
+    bool PHYSICS_BOX2D_LIQUID_FUN::destroyBody(SHAPE_INFO_B2DLF* info)
+    {
+        const std::vector<SHAPE_INFO_B2DLF*>::size_type sr = this->ls2RemoveBody.size();
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < sr; ++i)
+        {
+            SHAPE_INFO_B2DLF* otherInfo = this->ls2RemoveBody[i];
+            if (otherInfo == info)
+            {
+                return false;
+            }
+        }
+        this->ls2RemoveBody.push_back(info);
+        return true;
+    }
+        
+    bool PHYSICS_BOX2D_LIQUID_FUN::undoDestroyFluid(INFO_FLUID* info)
+    {
+        const std::vector<INFO_FLUID*>::size_type sr = this->ls2RemoveFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sr; ++i)
+        {
+            INFO_FLUID* otherInfo = this->ls2RemoveFluid[i];
+            if (otherInfo == info)
+            {
+                this->ls2RemoveFluid.erase(this->ls2RemoveFluid.begin() + i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool PHYSICS_BOX2D_LIQUID_FUN::undoDestroyBody(SHAPE_INFO_B2DLF* info)
+    {
+        const std::vector<SHAPE_INFO_B2DLF*>::size_type sr = this->ls2RemoveBody.size();
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < sr; ++i)
+        {
+            SHAPE_INFO_B2DLF* otherInfo = this->ls2RemoveBody[i];
+            if (otherInfo == info)
+            {
+                this->ls2RemoveBody.erase(this->ls2RemoveBody.begin() + i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::setActive(SHAPE_INFO_B2DLF* info,const bool enable)
+    {
+        if (enable)
+            this->lsActiveCollisionBody.push_back(info);
+        else
+            this->lsDisableCollisionBody.push_back(info);
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::removeObject(RENDERIZABLE* ptr)
+    {
+        for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
+        {
+            INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+            if(infoJoint->infoA->ptr == ptr)
+            {
+                if(infoJoint->joint)
+                    this->world->DestroyJoint(infoJoint->joint);
+                delete infoJoint;
+                this->lsJoint.erase(this->lsJoint.begin() + i);
+                i--;
+            }
+        }
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < this->lsShape.size(); ++i)//must be size()
+        {
+            SHAPE_INFO_B2DLF* info = this->lsShape[i];
+            if(ptr == info->ptr)
+            {
+                world->DestroyBody(info->body);
+                this->lsShape.erase(this->lsShape.begin() + i);
+                delete info;
+                i--;
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::removeObjectByIdSceneScene(const int _idScene)
+    {
+        for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
+        {
+            INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+            if(infoJoint->infoA->ptr->getIdScene() == _idScene)
+            {
+                if(infoJoint->joint)
+                    this->world->DestroyJoint(infoJoint->joint);
+                infoJoint->joint = nullptr;
+                delete infoJoint;
+                this->lsJoint.erase(this->lsJoint.begin() + i);
+                i--;
+            }
+        }
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < this->lsShape.size(); ++i)//must be size()
+        {
+            SHAPE_INFO_B2DLF* info = this->lsShape[i];
+            if(info->ptr->getIdScene() == _idScene)
+            {
+                world->DestroyBody(info->body);
+                this->lsShape.erase(this->lsShape.begin() + i);
+                delete info;
+                i--;
+            }
+        }
+    }
+    
+    const b2Vec2 PHYSICS_BOX2D_LIQUID_FUN::getReactionForce(SHAPE_INFO_B2DLF* info,const float delta)
+    {
+        static b2Vec2 bRet(0,0);
+        if(this->world && info)
+        {
+            const std::vector<INFO_JOINT_B2DLF*>::size_type sj = this->lsJoint.size();
+            for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < sj; ++i)
+            {
+                INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+                if(infoJoint->infoA == info || infoJoint->infoB == info)
+                {
+                    return infoJoint->joint->GetReactionForce(delta);
+                }
+            }
+        }
+        return bRet;
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::queryAABB(const b2AABB &b2aabb,b2QueryCallback* pB2QueryCallback)
+    {
+        if(this->world)
+        {
+            this->world->QueryAABB(pB2QueryCallback,b2aabb);
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::rayCast(const b2Vec2 &p1,const b2Vec2 &p2,b2RayCastCallback* pb2RayCastCallback)
+    {
+        if(this->world)
+        {
+            this->world->RayCast(pb2RayCastCallback,p1,p2);
+        }
+    }
+
+    VEC2 PHYSICS_BOX2D_LIQUID_FUN::getGravity()
+    {
+        VEC2 result(0,0);
+        if(world)
+        {
+            b2Vec2 gravity  =   world->GetGravity();
+            result.x        =   gravity.x;
+            result.y        =   gravity.y;
+        }
+        return result;
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setGravity(const VEC2 * gravity)
+    {
+        if(world)
+        {
+            world->SetGravity(b2Vec2(gravity->x,gravity->y));
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::init(const VEC2 * gravity)
+    {
+        if(!this->world)
+        {
+            b2Vec2 b2Gravity(gravity->x,gravity->y);
+            this->world = new b2World(b2Gravity);
+        }
+    }
+    
+    unsigned int PHYSICS_BOX2D_LIQUID_FUN::createJoint(SHAPE_INFO_B2DLF* info1,SHAPE_INFO_B2DLF* info2,b2JointDef & pjd)
+    {
+        if(this->world && info1->body && info2->body)
+        {
+            pjd.bodyA = info1->body;
+            pjd.bodyB = info2->body;
+            b2Joint* m_joint = this->world->CreateJoint(&pjd);
+            INFO_JOINT_B2DLF*  infoJoint = new INFO_JOINT_B2DLF(info1,info2,m_joint);
+            m_joint->SetUserData(info1);
+            this->lsJoint.push_back(infoJoint);
+            return this->lsJoint.size();
+        }
+        return 0xffffffff;
+    }
+
+    INFO_JOINT_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::getInfoJoint(SHAPE_INFO_B2DLF* info,const unsigned int index)
+    {
+        if(this->world && info)
+        {
+            if(index < this->lsJoint.size())
+                return this->lsJoint[index];
+            const std::vector<INFO_JOINT_B2DLF*>::size_type sj = this->lsJoint.size();
+            for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < sj; ++i)
+            {
+                INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+                if(infoJoint->infoA == info || infoJoint->infoB == info)
+                {
+                    return infoJoint;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::setAngularDamping(SHAPE_INFO_B2DLF* info,const float angularDamping)
+    {
+        if(this->world)
+        {
+            if(info)
+            {
+                if(info->body)
+                    info->body->SetAngularDamping(angularDamping);
+            }
+            else
+            {
+                const std::vector<SHAPE_INFO_B2DLF*>::size_type ss = this->lsShape.size();
+                for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < ss; ++i)
+                {
+                    info = this->lsShape[i];
+                    if(info->body)
+                        info->body->SetAngularDamping(angularDamping);
+                }
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setFilter(SHAPE_INFO_B2DLF* info,const b2Filter& filter)
+    {
+        if(this->world)
+        {
+            if(info)
+            {
+                if(info->body)
+                {
+                    b2Fixture* bFix =  info->body->GetFixtureList();
+                    while(bFix)
+                    {
+                        bFix->SetFilterData(filter);
+                        bFix = bFix->GetNext();
+                    }
+                }
+            }
+            else
+            {
+                const std::vector<SHAPE_INFO_B2DLF*>::size_type ss = this->lsShape.size();
+                for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < ss; ++i)
+                {
+                    info = this->lsShape[i];
+                    if(info->body)
+                    {
+                        b2Fixture* bFix =  info->body->GetFixtureList();
+                        while(bFix)
+                        {
+                            bFix->SetFilterData(filter);
+                            bFix = bFix->GetNext();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setEnabled(SHAPE_INFO_B2DLF* info, const bool active)
+    {
+        if(this->world)
+        {
+            if (info && info->body)
+            {
+                const uint16 maskBits = active ? 0xFFFF : 0;
+                b2Fixture* fixtureList = info->body->GetFixtureList();
+                while (fixtureList)
+                {
+                    b2Filter oldFilter(fixtureList->GetFilterData());
+                    oldFilter.maskBits = maskBits;
+                    fixtureList->SetFilterData(oldFilter);
+                    fixtureList = fixtureList->GetNext();
+                }
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setContactListener(b2ContactListener * ptrB2ContactListener)
+    {
+        if(this->world)
+            this->world->SetContactListener(ptrB2ContactListener);
+    }
+    
+    SHAPE_INFO_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::addStaticBody(RENDERIZABLE* controller,
+                                const float density ,
+                                const float friction,
+                                const float reduceX ,
+                                const float reduceY ,
+                                const bool  isSensor )
+    {
+        if(controller == nullptr || controller->isLoaded() == false)
+            return nullptr;
+        return this->completeStaticBody(controller,density,friction,reduceX,reduceY,isSensor);
+    }
+    
+    SHAPE_INFO_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::addDynamicBody( RENDERIZABLE* controller,
+                                    const float density ,
+                                    const float friction ,
+                                    const float restitution,
+                                    const float reduceX,
+                                    const float reduceY,
+                                    const bool  isSensor,
+                                    const bool isBullet)
+    {
+        if(controller == nullptr || controller->isLoaded() == false)
+            return nullptr;
+        return this->completeDynamicBody(controller,density,friction,restitution,reduceX,reduceY,isSensor,false, isBullet);
+    }
+    
+    SHAPE_INFO_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::addKinematicBody(   RENDERIZABLE* controller,
+                                    const float density ,
+                                    const float friction ,
+                                    const float restitution,
+                                    const float reduceX,
+                                    const float reduceY,
+                                    const bool  isSensor)
+    {
+        if(controller == nullptr || controller->isLoaded() == false)
+            return nullptr;
+        return this->completeDynamicBody( controller, density, friction, restitution, reduceX, reduceY, isSensor, true,false);
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::setFixedRotation(SHAPE_INFO_B2DLF* info, bool value)
+    {
+        if(info && info->body)
+        {
+            info->body->SetFixedRotation(value);
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::setSleepingAllowed(SHAPE_INFO_B2DLF* info, bool value)
+    {
+        if(info && info->body)
+        {
+            info->body->SetSleepingAllowed(value);
+        }
+    }
+    void PHYSICS_BOX2D_LIQUID_FUN::applyForce(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy)
+    {
+        if(info && info->body)
+        {
+            const b2Vec2 f = info->body->GetWorldVector(b2Vec2(x,y));
+            const b2Vec2 p = info->body->GetWorldPoint(b2Vec2(wx,wy));
+            info->body->ApplyForce(f,p,true);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::applyTorque(SHAPE_INFO_B2DLF* info,const float torque,bool awake)
+    {
+        if(info && info->body)
+            info->body->ApplyTorque(torque, awake);
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setLinearVelocity(SHAPE_INFO_B2DLF* info,const float x,const float y)
+    {
+        if(info && info->body)
+        {
+            const b2Vec2 v(x,y);
+            info->body->SetLinearVelocity(v);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::applyLinearImpulse(SHAPE_INFO_B2DLF* info,const float x,const float y,const float wx,const float wy)
+    {
+        if(info && info->body)
+        {
+            const b2Vec2 i = info->body->GetWorldVector(b2Vec2(x,y));
+            const b2Vec2 p = info->body->GetWorldPoint(b2Vec2(wx,wy));
+            info->body->ApplyLinearImpulse(i,p,true);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::applyAngularImpulse(SHAPE_INFO_B2DLF* info,const float impulse)
+    {
+        if(info && info->body)
+        {
+            info->body->ApplyAngularImpulse(impulse,true);
+        }
+    }
+    
+    bool PHYSICS_BOX2D_LIQUID_FUN::isOnTheGround(SHAPE_INFO_B2DLF* info)
+    {
+        if(info && info->body)
+        {
+            const b2ContactEdge* c = info->body->GetContactList();
+            while(c)
+            {
+                if(c->contact->IsTouching())
+                {
+                    b2Manifold* m = c->contact->GetManifold();
+                    if(m->localNormal.y < 0.0f)
+                        return true;
+                }
+                c = c->next;
+            }
+        }
+        return false;
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setFriction(SHAPE_INFO_B2DLF* info,const float friction,const bool update_contact_list)
+    {
+        if(info && info->body)
+        {
+            b2Fixture* fix =  info->body->GetFixtureList();
+            while(fix)
+            {
+                fix->SetFriction(friction);
+                fix = fix->GetNext();
+            }
+            if(update_contact_list)
+            {
+                const b2ContactEdge* c = info->body->GetContactList();
+                while(c)
+                {
+                    c->contact->SetFriction(friction);
+                    c = c->next;
+                }
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setDensity(SHAPE_INFO_B2DLF* info,const float density,const bool reset_mass)
+    {
+        if(info && info->body)
+        {
+            b2Fixture* fix =  info->body->GetFixtureList();
+            while(fix)
+            {
+                fix->SetDensity(density);
+                fix = fix->GetNext();
+            }
+            if(reset_mass)
+                info->body->ResetMassData();
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setRestitution(SHAPE_INFO_B2DLF* info,const float restitution,const bool update_contact_list)
+    {
+        if(info && info->body)
+        {
+            b2Fixture* fix =  info->body->GetFixtureList();
+            while(fix)
+            {
+                fix->SetRestitution(restitution);
+                fix = fix->GetNext();
+            }
+            if(update_contact_list)
+            {
+                const b2ContactEdge* c = info->body->GetContactList();
+                while(c)
+                {
+                    c->contact->SetRestitution(restitution);
+                    c = c->next;
+                }
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::setMass(SHAPE_INFO_B2DLF* info,const float newMass)
+    {
+        if(info && info->body)
+        {
+            b2MassData mass;
+            info->body->GetMassData(&mass);
+            mass.mass = newMass;
+            info->body->SetMassData(&mass);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(SHAPE_INFO_B2DLF* info)
+    {
+        if(world && info)
+        {
+            if(info->body)
+            {
+                const b2Vec2 position(info->ptr->position.x * this->scalePercentage,info->ptr->position.y * this->scalePercentage);
+                info->body->SetTransform(position,info->ptr->angle.z);
+                info->body->SetAwake(true);
+            }
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(b2Body* body,const VEC2 * newPosition,const float newAngleDegree)
+    {
+        if(world)
+        {
+            const b2Vec2 position(newPosition->x * this->scalePercentage,newPosition->y * this->scalePercentage);
+            body->SetTransform(position,newAngleDegree);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::interference(b2Body* body,const VEC3 * newPosition,const float newAngleDegree)
+    {
+        if(world)
+        {
+            const b2Vec2 position(newPosition->x * this->scalePercentage,newPosition->y * this->scalePercentage);
+            body->SetTransform(position,newAngleDegree);
+        }
+    }
+
+    bool PHYSICS_BOX2D_LIQUID_FUN::removeJoint(SHAPE_INFO_B2DLF* info)
+    {
+        const std::vector<SHAPE_INFO_B2DLF*>::size_type sj = this->ls2RemoveJoint.size();
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < sj; ++i)
+        {
+            const SHAPE_INFO_B2DLF* otherInfo = this->ls2RemoveJoint[i];
+            if (otherInfo == info)
+            {
+                return false;
+            }
+        }
+        this->ls2RemoveJoint.push_back(info);
+        return true;
+    }
+
+    bool PHYSICS_BOX2D_LIQUID_FUN::destroyFluid(INFO_FLUID* info)
+    {
+        const std::vector<INFO_FLUID*>::size_type sj = this->ls2RemoveFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sj; ++i)
+        {
+            const INFO_FLUID* otherInfo = this->ls2RemoveFluid[i];
+            if (otherInfo == info)
+            {
+                return false;
+            }
+        }
+        this->ls2RemoveFluid.push_back(info);
+        return true;
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::update(const float fps,const float delta)
+    {
+        if(!this->world || this->stopSimulate)
+            return;
+        const std::vector<SHAPE_INFO_B2DLF*>::size_type ss = this->lsShape.size();
+        for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < ss; ++i)
+        {
+            SHAPE_INFO_B2DLF* info  = this->lsShape[i];
+            if(info->typePhysics != b2_staticBody)
+            {
+                const b2Vec2 pos        =   info->body->GetPosition();
+                info->ptr->position.x   =   pos.x * this->scale;
+                info->ptr->position.y   =   pos.y * this->scale;
+                info->ptr->angle.z      =   info->body->GetAngle();
+            }
+        }
+        const std::vector<INFO_FLUID*>::size_type sf = this->lsFluid.size();
+        for(std::vector<INFO_FLUID*>::size_type i = 0; i < sf; ++i)
+        {
+            INFO_FLUID* info  = this->lsFluid[i];
+            {
+                if(info->steered_particle && info->particleSystem && info->steered_particle->typeClass == mbm::TYPE_CLASS_STEERED_PARTICLE)
+                {
+                    update_fluid(info);
+                }
+            }
+        }
+        
+        // Instruct the world to perform a single step of simulation.
+        // It is generally best to keep the time step and iterations fixed.
+        //const float delta = fps == 0.0f  ? 0.0f : 1.0f / fps;
+        //world->Step(delta, this->velocityIterations, this->positionIterations);
+        if(fps == 0.0f) //-V550
+            world->Step(0.0f, this->velocityIterations, this->positionIterations);
+        else
+            world->Step(delta * this->multiplyStep, this->velocityIterations, this->positionIterations);
+
+
+        while(this->ls2RemoveBody.size())
+        {
+            SHAPE_INFO_B2DLF* info = this->ls2RemoveBody[0];
+            RENDERIZABLE* ptr = info->ptr;
+            this->safeDestroyBody(info);
+            if(this->on_box2d_DestroyBodyFromList)
+                this->on_box2d_DestroyBodyFromList(ptr);
+            this->ls2RemoveBody.erase(this->ls2RemoveBody.begin());
+        }
+
+        while(this->ls2RemoveFluid.size())
+        {
+            INFO_FLUID* info = this->ls2RemoveFluid[0];
+            this->safeDestroyFluid(info);
+            this->ls2RemoveFluid.erase(this->ls2RemoveFluid.begin());
+        }
+
+        while(this->ls2RemoveJoint.size())
+        {
+            SHAPE_INFO_B2DLF* info = this->ls2RemoveJoint[0];
+            this->safeRemoveJoint(info);
+            this->ls2RemoveJoint.erase(this->ls2RemoveJoint.begin());
+        }
+
+        while(this->lsActiveCollisionBody.size())
+        {
+            SHAPE_INFO_B2DLF* info = this->lsActiveCollisionBody[0];
+            if (info && info->body)
+                info->body->SetActive(true);
+            this->lsActiveCollisionBody.erase(this->lsActiveCollisionBody.begin());
+        }
+        while (this->lsDisableCollisionBody.size())
+        {
+            SHAPE_INFO_B2DLF* info = this->lsDisableCollisionBody[0];
+            if (info && info->body)
+                info->body->SetActive(false);
+            this->lsDisableCollisionBody.erase(this->lsDisableCollisionBody.begin());
+        }
+    }
+    
+    SHAPE_INFO_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::completeStaticBody( RENDERIZABLE* controller,
+                                    const float density,
+                                    const float friction,
+                                    const float reduceX,
+                                    const float reduceY,
+                                    const bool  isSensor)
+    {
+        b2FixtureDef    fd;
+        fd.density      = density;
+        fd.friction     = friction;
+        fd.isSensor     = isSensor;
+        
+        auto  info = new SHAPE_INFO_B2DLF(controller,b2_staticBody);
+        const mbm::INFO_PHYSICS* infoPhysics = controller->getInfoPhysics();
+        if(infoPhysics == nullptr)
+        {
+            delete info;
+            return nullptr;
+        }
+        if(infoPhysics->lsCube.size())
+        {
+            const std::vector<CUBE*>::size_type sizeSubset = infoPhysics->lsCube.size();
+            for(std::vector<CUBE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                b2PolygonShape  groundBox;
+                b2BodyDef       groundBodyDef;
+                fd.shape        = &groundBox; //-V506
+                const CUBE* cube =  infoPhysics->lsCube[i];
+                groundBodyDef.type = b2_staticBody;
+                
+                b2Vec2 center(cube->absCenter.x * this->scalePercentage,cube->absCenter.y * this->scalePercentage);
+                groundBox.SetAsBox( cube->halfDim.x * controller->scale.x * this->scalePercentage * reduceX,
+                                    cube->halfDim.y * controller->scale.y * this->scalePercentage * reduceY,
+                                    center ,0);
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                info->body = world->CreateBody(&groundBodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsSphere.size())
+        {
+            const std::vector<SPHERE*>::size_type sizeSubset = infoPhysics->lsSphere.size();
+            for(std::vector<SPHERE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const SPHERE* sphere =  infoPhysics->lsSphere[i];
+                b2CircleShape   shape;
+                fd.shape        = &shape; //-V506
+                shape.m_radius  = sphere->ray * controller->scale.x * this->scalePercentage * reduceX;
+                shape.m_p.Set(  sphere->absCenter[0] * controller->scale.x * this->scalePercentage,
+                                sphere->absCenter[1] * controller->scale.y * this->scalePercentage);
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                        
+                b2BodyDef       bodyDef;
+                bodyDef.type    = b2_staticBody;
+                info->body = world->CreateBody(&bodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsCubeComplex.size())
+        {
+            const std::vector<CUBE_COMPLEX*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
+            for(std::vector<CUBE_COMPLEX*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
+                b2PolygonShape  groundPolygn;
+                b2Vec2 vertices[4];
+                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controller->scale.x,cube->a.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controller->scale.x,cube->b.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controller->scale.x,cube->c.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controller->scale.x,cube->d.y * this->scalePercentage * reduceY * controller->scale.y);
+                groundPolygn.Set(vertices, 4);
+                                
+                b2BodyDef       groundBodyDef;
+                fd.shape = &groundPolygn; //-V506
+                groundBodyDef.type = b2_staticBody;
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                info->body = world->CreateBody(&groundBodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsTriangle.size())
+        {
+            const std::vector<TRIANGLE*>::size_type sizeSubset = infoPhysics->lsTriangle.size();
+            for(std::vector<TRIANGLE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const TRIANGLE* triangle = infoPhysics->lsTriangle[i];
+                b2PolygonShape  groundTriangle;
+                b2Vec2 vertices[3];
+                vertices[0].Set(triangle->point[0].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[0].y * this->scalePercentage * reduceY* controller->scale.y);
+                vertices[1].Set(triangle->point[1].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[1].y * this->scalePercentage * reduceY* controller->scale.y);
+                vertices[2].Set(triangle->point[2].x * this->scalePercentage  * reduceX * controller->scale.x,triangle->point[2].y * this->scalePercentage * reduceY* controller->scale.y);
+                groundTriangle.Set(vertices, 3);
+                        
+                b2BodyDef       groundBodyDef;
+                fd.shape = &groundTriangle; //-V506
+                groundBodyDef.type = b2_staticBody;
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                info->body = world->CreateBody(&groundBodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(info->body == nullptr)
+        {
+            delete info;
+            return nullptr;
+        }
+        this->lsShape.push_back(info);
+        info->body->SetUserData(info);
+        return info;
+    }
+    
+    SHAPE_INFO_B2DLF * PHYSICS_BOX2D_LIQUID_FUN::completeDynamicBody(RENDERIZABLE* controller,
+                                    const float density,
+                                    const float friction,
+                                    const float restitution,
+                                    const float reduceX,
+                                    const float reduceY,
+                                    const bool  isSensor,
+                                    const bool iskinematicBody,
+                                    const bool isBullet)
+    {
+        b2FixtureDef    fd;
+        fd.density      =   density;
+        fd.friction     =   friction;
+        fd.restitution  =   restitution;
+        fd.isSensor     =   isSensor;
+        auto  info = new SHAPE_INFO_B2DLF(controller, iskinematicBody ? b2_kinematicBody : b2_dynamicBody);
+        const mbm::INFO_PHYSICS* infoPhysics = controller->getInfoPhysics();
+        if(infoPhysics == nullptr)
+        {
+            delete info;
+            return nullptr;
+        }
+        if(infoPhysics->lsCube.size())
+        {
+            const std::vector<CUBE*>::size_type sizeSubset = infoPhysics->lsCube.size();
+            for(std::vector<CUBE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const CUBE* cube = infoPhysics->lsCube[i];
+                b2PolygonShape  dynamicBox;
+                fd.shape        = &dynamicBox; //-V506
+                b2Vec2 center(  cube->absCenter.x * controller->scale.x * this->scalePercentage,
+                                cube->absCenter.y * controller->scale.y * this->scalePercentage);
+                dynamicBox.SetAsBox(cube->halfDim.x * controller->scale.x * this->scalePercentage * reduceX,
+                                    cube->halfDim.y * controller->scale.y * this->scalePercentage * reduceY,
+                    center,0);
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                b2BodyDef       bodyDef;
+                bodyDef.bullet = isBullet;
+                bodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
+                bodyDef.position.Set(info->ptr->position.x * this->scalePercentage,info->ptr->position.y * this->scalePercentage);
+                info->body = world->CreateBody(&bodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsSphere.size())
+        {
+            const std::vector<SPHERE*>::size_type sizeSubset = infoPhysics->lsSphere.size();
+            for(std::vector<SPHERE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const mbm::SPHERE* sphere = infoPhysics->lsSphere[i];
+                b2CircleShape   shape;
+                fd.shape        = &shape; //-V506
+                shape.m_radius  = sphere->ray * controller->scale.x * this->scalePercentage  * reduceX;
+                shape.m_p.Set(  sphere->absCenter[0] * controller->scale.x * this->scalePercentage,
+                                sphere->absCenter[1] * controller->scale.y * this->scalePercentage);
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                b2BodyDef       bodyDef;
+                bodyDef.bullet = isBullet;
+                bodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
+                bodyDef.position.Set(   info->ptr->position.x * this->scalePercentage,
+                                        info->ptr->position.y * this->scalePercentage);
+                info->body = world->CreateBody(&bodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsCubeComplex.size())
+        {
+            const std::vector<CUBE_COMPLEX*>::size_type sizeSubset = infoPhysics->lsCubeComplex.size();
+            for(std::vector<CUBE_COMPLEX*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const CUBE_COMPLEX* cube = infoPhysics->lsCubeComplex[i];
+                b2PolygonShape  groundPolygn;
+                b2Vec2 vertices[4];
+                vertices[0].Set(cube->a.x * this->scalePercentage * reduceX * controller->scale.x,cube->a.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[1].Set(cube->b.x * this->scalePercentage * reduceX * controller->scale.x,cube->b.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[2].Set(cube->c.x * this->scalePercentage * reduceX * controller->scale.x,cube->c.y * this->scalePercentage * reduceY * controller->scale.y);
+                vertices[3].Set(cube->d.x * this->scalePercentage * reduceX * controller->scale.x,cube->d.y * this->scalePercentage * reduceY * controller->scale.y);
+                groundPolygn.Set(vertices, 4);
+                                
+                b2BodyDef       groundBodyDef;
+                groundBodyDef.bullet = isBullet;
+                fd.shape = &groundPolygn; //-V506
+                groundBodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                info->body = world->CreateBody(&groundBodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(infoPhysics->lsTriangle.size())
+        {
+            const std::vector<TRIANGLE*>::size_type sizeSubset = infoPhysics->lsTriangle.size();
+            for(std::vector<TRIANGLE*>::size_type i = 0; i < sizeSubset; ++i)
+            {
+                const TRIANGLE* triangle = infoPhysics->lsTriangle[i];
+                b2PolygonShape  groundTriangle;
+                b2Vec2 vertices[3];
+                vertices[0].Set(triangle->point[0].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[0].y* this->scalePercentage * reduceY * controller->scale.y);
+                vertices[1].Set(triangle->point[1].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[1].y* this->scalePercentage * reduceY * controller->scale.y);
+                vertices[2].Set(triangle->point[2].x* this->scalePercentage * reduceX * controller->scale.x,triangle->point[2].y* this->scalePercentage * reduceY * controller->scale.y);
+                groundTriangle.Set(vertices, 3);
+            
+                b2BodyDef       groundBodyDef;
+                groundBodyDef.bullet = isBullet;
+                fd.shape = &groundTriangle; //-V506
+                groundBodyDef.type = iskinematicBody ? b2_kinematicBody : b2_dynamicBody;
+                if(info->body)
+                {
+                    info->body->CreateFixture(&fd);
+                    continue;
+                }
+                info->body = world->CreateBody(&groundBodyDef);
+                info->body->CreateFixture(&fd);
+                interference(info);
+            }
+        }
+        if(info->body == nullptr)
+        {
+            delete info;
+            return nullptr;
+        }
+        this->lsShape.push_back(info);
+        info->body->SetUserData(info);
+        return info;
+    }
+
+
+    INFO_FLUID * PHYSICS_BOX2D_LIQUID_FUN::createRenderizableFluid(const INFO_PHYSICS* const physics,
+                                        const VEC3 &position,
+                                        const VEC3 &scale,
+                                        const VEC2 &linearVelocity,
+                                        const float angularVelocity,
+                                        const float angle,
+                                        const char* texture,
+                                        const COLOR* color,
+                                        const b2ParticleFlag flags,
+                                        const b2ParticleGroupFlag groupFlags,
+                                        const float lifetime,
+                                        const float radius,
+                                        const float damping,
+                                        const float strength,
+                                        const float stride,
+                                        const bool is3d,
+                                        const bool is2dScreen,
+                                        const bool segmented,
+                                        const float radiusScale)
+    {
+        if(physics == nullptr)
+            return nullptr;
+        auto  info = new INFO_FLUID(is3d,is2dScreen,segmented, &this->scale);
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        if(p_steered_particle == nullptr || p_steered_particle->load(texture,color,physics) == false)
+        {
+            delete info;
+            return nullptr;
+        }
+        if(position.z != 0.0)
+            p_steered_particle->position.z = position.z;
+        auto infoPhysics = p_steered_particle->getInfoPhysics();
+        
+        const b2ParticleSystemDef particleSystemDef;
+        
+        b2ParticleSystem* pParticleSystem = this->world->CreateParticleSystem(&particleSystemDef);
+        info->particleSystem = pParticleSystem;
+
+        pParticleSystem->SetRadius(radius);
+        pParticleSystem->SetDamping(damping);
+        p_steered_particle->setRadiusScale(radiusScale);
+
+        info->pd.flags            = flags;
+        info->pd.groupFlags       = groupFlags;
+        info->pd.lifetime         = lifetime;
+        info->pd.strength         = strength;
+        info->pd.stride           = stride;
+        info->pd.linearVelocity.x = linearVelocity.x;
+        info->pd.linearVelocity.y = linearVelocity.y;
+        info->pd.angularVelocity  = angularVelocity;
+        info->pd.angle            = angle;
+
+        if(addParticleToFluid(info,infoPhysics, position, scale,this->scale) == 0)
+        {
+            delete info;
+            this->world->DestroyParticleSystem(pParticleSystem);
+            return nullptr;
+        }
+        update_fluid(info);
+        update_uv_fluid(info);
+        this->lsFluid.push_back(info);
+        return info;
+    }
+
+    int32 PHYSICS_BOX2D_LIQUID_FUN::addParticleToFluid(INFO_FLUID* info,const INFO_PHYSICS* const infoPhysics, const VEC3 &position, const VEC3 &scale,const float scaleEngine)
+    {
+        int32 initialParticleCount = 0;
+        if(info->pd.group != nullptr)
+        {
+            initialParticleCount     = info->pd.group->GetParticleCount();
+        }
+        const float scalePercentage = scaleEngine != 0 ? 1.0f / scaleEngine : 1.0f;
+        for(const CUBE* cube : infoPhysics->lsCube)
+        {
+            b2PolygonShape  dynamicBox;
+            b2Vec2 center(  cube->absCenter.x * scale.x * scalePercentage,
+                            cube->absCenter.y * scale.y * scalePercentage);
+            dynamicBox.SetAsBox(cube->halfDim.x * scale.x * scalePercentage,
+                                cube->halfDim.y * scale.y * scalePercentage,center,0);
+            info->pd.shape            = &dynamicBox;
+            info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const SPHERE * sphere : infoPhysics->lsSphere)
+        {
+            b2CircleShape   shape;
+            b2Vec2 center(  sphere->absCenter[0] * scale.x * scalePercentage,
+                            sphere->absCenter[1] * scale.y * scalePercentage);
+            shape.m_radius  = sphere->ray * scale.x * scalePercentage;
+            shape.m_p.Set(  sphere->absCenter[0] * scale.x * scalePercentage,
+                            sphere->absCenter[1] * scale.y * scalePercentage);
+            info->pd.shape = &shape;
+            info->pd.position.Set(center.x + (position.x * scalePercentage),center.y + (position.y * scalePercentage));
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const TRIANGLE * triangle : infoPhysics->lsTriangle)
+        {
+            b2PolygonShape  groundTriangle;
+            b2Vec2 vertices[3];
+            vertices[0].Set(triangle->point[0].x* scalePercentage * scale.x,triangle->point[0].y* scalePercentage * scale.y);
+            vertices[1].Set(triangle->point[1].x* scalePercentage * scale.x,triangle->point[1].y* scalePercentage * scale.y);
+            vertices[2].Set(triangle->point[2].x* scalePercentage * scale.x,triangle->point[2].y* scalePercentage * scale.y);
+            groundTriangle.Set(vertices, 3);
+            info->pd.shape = &groundTriangle;
+            info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        for(const CUBE_COMPLEX * cube : infoPhysics->lsCubeComplex)
+        {
+            b2PolygonShape  groundPolygn;
+            b2Vec2 vertices[4];
+            vertices[0].Set(cube->a.x * scalePercentage * scale.x,cube->a.y * scalePercentage * scale.y);
+            vertices[1].Set(cube->b.x * scalePercentage * scale.x,cube->b.y * scalePercentage * scale.y);
+            vertices[2].Set(cube->c.x * scalePercentage * scale.x,cube->c.y * scalePercentage * scale.y);
+            vertices[3].Set(cube->d.x * scalePercentage * scale.x,cube->d.y * scalePercentage * scale.y);
+            groundPolygn.Set(vertices, 4);
+            info->pd.shape = &groundPolygn;
+            info->pd.position.Set(position.x * scalePercentage,position.y * scalePercentage);
+            b2ParticleGroup * const group = info->particleSystem->CreateParticleGroup(info->pd);
+            info->pd.group = group;
+        }
+
+        if(info->pd.group != nullptr)
+        {
+            const int32 particleCount       = info->pd.group->GetParticleCount();
+            const int32 iTotalParticleAdded = particleCount - initialParticleCount;
+            return iTotalParticleAdded;
+        }
+        return 0;
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::update_uv_fluid(INFO_FLUID* info)
+    {
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        if(p_steered_particle->getSegmented())
+        {
+            float width         = 0;
+            float height        = 0;
+            uint32_t width_tex  = 0;
+            uint32_t height_tex = 0;
+            p_steered_particle->getAABB(&width,&height);
+            p_steered_particle->getSizeTexture(width_tex,height_tex);
+            if(width > 0 && height > 0)
+            {
+                const uint32_t iTotalGroup = p_steered_particle->getTotalGroup();
+                float min_x = std::numeric_limits<float>::max();
+                float min_y = std::numeric_limits<float>::max();
+                float max_x = std::numeric_limits<float>::min();
+                float max_y = std::numeric_limits<float>::min();
+
+                const b2ParticleGroup* group = info->particleSystem->GetParticleGroupList();
+                const b2Vec2* positionBuffer = info->particleSystem->GetPositionBuffer();
+                while (group)
+                {
+                    const int32 particleCount     = group->GetParticleCount();
+                    const int32 groupStart        = group->GetBufferIndex();
+                    const int32 groupEnd          = groupStart + particleCount;
+
+                    for (int32 j = 0; j < groupEnd; j++)
+                    {
+                        const uint32_t iPos = groupStart + j;
+                        min_x = positionBuffer[iPos].x < min_x ? positionBuffer[iPos].x : min_x;
+                        min_y = positionBuffer[iPos].y < min_y ? positionBuffer[iPos].y : min_y;
+                        max_x = positionBuffer[iPos].x > max_x ? positionBuffer[iPos].x : max_x;
+                        max_y = positionBuffer[iPos].y > max_y ? positionBuffer[iPos].y : max_y;
+                    }
+                    group = group->GetNext();
+                }
+                const float dx       = (max_x - min_x);
+                const float dy       = (max_y - min_y);
+                
+                for(uint32_t i=0; i < iTotalGroup; ++i)
+                {
+                    mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(i);
+                    const float up       = fluidGroup->aSizeParticle / width_tex  * 0.5f;
+                    const float vp       = fluidGroup->aSizeParticle / height_tex * 0.5f;
+                    const VEC2 halParticleSizeInUv(up, vp);
+                    const float dist_x   = dx + halParticleSizeInUv.x * 2.0f;
+                    const float dist_y   = dy + halParticleSizeInUv.y * 2.0f;
+                    const float factor_x = dx / (dx + (fluidGroup->aSizeParticle / this->scale) * 0.5f);
+                    const float factor_y = dy / (dy + (fluidGroup->aSizeParticle / this->scale) * 0.5f);
+
+                    for (uint32_t iPos = 0; iPos < fluidGroup->totalParticleToRender; ++iPos)
+                    {
+                        const float x = (positionBuffer[iPos].x - min_x) * factor_x;
+                        const float y = (positionBuffer[iPos].y - min_y) * factor_y;
+                        const float u = (x / dist_x) ;
+                        const float v = 1.0f - (y / dist_y) ;
+                        const VEC2 pos(u + up * 0.5f,v - vp * 0.5f);
+                        mbm::VEC2* uv = &fluidGroup->uv[iPos * 4];
+                        fluidGroup->setUv(uv,pos,halParticleSizeInUv);
+                    }
+                }
+            }
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::update_fluid(INFO_FLUID* info)
+    {
+        STEERED_PARTICLE* p_steered_particle = static_cast<STEERED_PARTICLE*>(info->steered_particle);
+        const uint32_t groupCount            = info->particleSystem->GetParticleGroupCount();
+        const b2ParticleGroup* group         = info->particleSystem->GetParticleGroupList();
+        while(group)
+        {
+            while(groupCount != p_steered_particle->getTotalGroup())
+            {
+                if(groupCount < p_steered_particle->getTotalGroup())
+                    p_steered_particle->removeGroup(0);
+                else
+                {
+                    uint32_t index_this_group = p_steered_particle->addGroup();
+                    mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(index_this_group-1);
+                    fluidGroup->aSizeParticle = info->particleSystem->GetRadius() * this->scale * 2;
+                    
+                }
+            }
+            group = group->GetNext();
+        }
+        group = info->particleSystem->GetParticleGroupList();
+        if(group)
+        {
+            const b2Vec2* positionBuffer = info->particleSystem->GetPositionBuffer();
+            uint32_t index_group         = 0;
+            while (group)
+            {
+                mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(index_group);
+                const int32 particleCount     = group->GetParticleCount();
+                const int32 groupStart        = group->GetBufferIndex();
+                //const int32 groupEnd          = groupStart + particleCount;
+
+                fluidGroup->resizeParticleData(particleCount);
+                for (int32 j = 0; j < particleCount; j++)
+                {
+                    auto iPos = groupStart + j;
+                    fluidGroup->particle_positions[j].x = positionBuffer[iPos].x * this->scale;
+                    fluidGroup->particle_positions[j].y = positionBuffer[iPos].y * this->scale;
+                }
+                index_group++;
+                group = group->GetNext();
+            }
+        }
+        else
+        {
+            const uint32_t iTotal = p_steered_particle->getTotalGroup();
+            for(uint32_t i=0; i < iTotal; ++i)
+            {
+                mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(i);
+                fluidGroup->resizeParticleData(0);
+            }
+        }
+    }
+    
+    //CallBack - b2ContactListener
+    void PHYSICS_BOX2D_LIQUID_FUN::BeginContact(b2Contact* contact)
+    {
+        if(this->on_box2d_BeginContact)
+        {
+            auto* info1 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureA()->GetBody()->GetUserData());
+            auto* info2 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureB()->GetBody()->GetUserData());
+            this->on_box2d_BeginContact(this,info1,info2);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::EndContact(b2Contact* contact)
+    {
+        if(this->on_box2d_EndContact)
+        {
+            auto* info1 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureA()->GetBody()->GetUserData());
+            auto* info2 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureB()->GetBody()->GetUserData());
+            this->on_box2d_EndContact(this,info1,info2);
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::PreSolve(b2Contact* contact,const b2Manifold* oldManifold)
+    {
+        if(this->on_box2d_PreSolve)
+        {
+            auto* info1 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureA()->GetBody()->GetUserData());
+            auto* info2 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureB()->GetBody()->GetUserData());
+            this->on_box2d_PreSolve(this,info1,info2,oldManifold);
+            
+        }
+    }
+    
+    void PHYSICS_BOX2D_LIQUID_FUN::PostSolve(b2Contact* contact, const b2ContactImpulse* impulse)
+    {
+        if(this->on_box2d_PostSolve)
+        {
+            auto* info1 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureA()->GetBody()->GetUserData());
+            auto* info2 = static_cast<SHAPE_INFO_B2DLF*>(contact->GetFixtureB()->GetBody()->GetUserData());
+            this->on_box2d_PostSolve(this,info1,info2,impulse);
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::safeDestroyBody(SHAPE_INFO_B2DLF* infoBox2d)
+    {
+        if(infoBox2d && infoBox2d->body)
+        {
+            for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
+            {
+                INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+                if(infoJoint->infoA->ptr == infoBox2d->ptr)
+                {
+                    if(infoJoint->joint)
+                        this->world->DestroyJoint(infoJoint->joint);
+                    infoJoint->joint = nullptr;
+                    delete infoJoint;
+                    this->lsJoint.erase(this->lsJoint.begin() + i);
+                    --i;
+                }
+            }
+            for(std::vector<SHAPE_INFO_B2DLF*>::size_type i = 0; i < this->lsShape.size(); ++i)//must be size()
+            {
+                SHAPE_INFO_B2DLF* infoShape = this->lsShape[i];
+                if(infoBox2d->ptr == infoShape->ptr)
+                {
+                    world->DestroyBody(infoShape->body);
+                    infoShape->body = nullptr;
+                    this->lsShape.erase(this->lsShape.begin() + i);
+                    delete infoShape;
+                    --i;
+                }
+            }
+            infoBox2d= nullptr;
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::safeRemoveJoint(SHAPE_INFO_B2DLF* infoBox2d)
+    {
+        if(infoBox2d && infoBox2d->body)
+        {
+            for(std::vector<INFO_JOINT_B2DLF*>::size_type i = 0; i < this->lsJoint.size(); ++i)//must be size()
+            {
+                INFO_JOINT_B2DLF* infoJoint = this->lsJoint[i];
+                if(infoJoint->infoA->ptr == infoBox2d->ptr)
+                {
+                    if(infoJoint->joint)
+                        this->world->DestroyJoint(infoJoint->joint);
+                    infoJoint->joint = nullptr;
+                    delete infoJoint;
+                    this->lsJoint.erase(this->lsJoint.begin() + i);
+                    --i;
+                }
+            }
+        }
+    }
+
+    void PHYSICS_BOX2D_LIQUID_FUN::safeDestroyFluid(INFO_FLUID* pInfoFluid)
+    {
+        if(pInfoFluid)
+        {
+            for(std::vector<INFO_FLUID*>::size_type i = 0; i < this->lsFluid.size(); ++i)//must be size()
+            {
+                INFO_FLUID* infoFluid = this->lsFluid[i];
+                if(infoFluid == pInfoFluid)
+                {
+                    if(infoFluid->particleSystem)
+                        this->world->DestroyParticleSystem(infoFluid->particleSystem);
+                    infoFluid->particleSystem = nullptr;
+                    delete infoFluid;
+                    this->lsFluid.erase(this->lsFluid.begin() + i);
+                    break;
+                }
+            }
+        }
+    }
+};
+

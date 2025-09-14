@@ -72,22 +72,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;..\..\plugins</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;..\..\plugins</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;..\..\plugins</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;..\..\plugins</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -166,7 +166,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp" />
     <ClCompile Include="..\..\plugins\tiled\brick.cpp" />
     <ClCompile Include="..\..\plugins\tiled\layer.cpp" />
     <ClCompile Include="..\..\plugins\tiled\tiled-lua.cpp" />
