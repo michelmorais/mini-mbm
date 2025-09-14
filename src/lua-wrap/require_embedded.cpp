@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <string.h>
 #include <lua-wrap/require_embedded.h>
 
 //Basically Plugins Android, workaround however could be in other platforms as well
