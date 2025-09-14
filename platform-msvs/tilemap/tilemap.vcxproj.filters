@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\plugin-helper">
+      <UniqueIdentifier>{6d4c9478-3f0a-4bf5-9814-381048e6ac81}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\plugins\tiled\brick.cpp">
@@ -31,9 +34,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\tiled\util_tiled.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\plugins\plugin-helper\plugin-helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\tiled\layer.cpp">
@@ -60,11 +60,11 @@
     <ClInclude Include="..\..\plugins\tiled\util_tiled.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\plugins\tiled\tile_editor.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
+      <Filter>Header Files\plugin-helper</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

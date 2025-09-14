@@ -1,0 +1,470 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\lua-wrap">
+      <UniqueIdentifier>{bd6c2534-796d-46bc-a7a9-c5fca30c04b0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\lua-wrap">
+      <UniqueIdentifier>{1a344955-4e3a-4bc1-9fca-17653cf8777b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d">
+      <UniqueIdentifier>{b3e37da7-75ce-4f0c-9f5f-1319222b8184}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d">
+      <UniqueIdentifier>{0d12e290-18e7-41e6-beb1-769df592f5a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Collision">
+      <UniqueIdentifier>{467304de-d246-496f-b5a4-25dde4527e72}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Collision">
+      <UniqueIdentifier>{d66d25c6-93bb-4872-83d8-3a08ead3b49a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Common">
+      <UniqueIdentifier>{eb8b53cb-a752-4947-931b-da29818afd77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Common">
+      <UniqueIdentifier>{d223f447-9ea3-4e72-9d20-9f68c0f94840}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Dynamics">
+      <UniqueIdentifier>{cddf4ee8-e755-4d63-8903-1e916717deda}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Dynamics">
+      <UniqueIdentifier>{fcb55b7e-f916-46c6-9bde-42c1bb4d046e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Particle">
+      <UniqueIdentifier>{beceb831-68ba-4cb8-be75-625681caa4d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Particle">
+      <UniqueIdentifier>{fb156ad1-d20e-4541-90ba-c54a6842ba99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Rope">
+      <UniqueIdentifier>{54e04cc3-6028-4fda-87d5-d2b45d64f434}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Rope">
+      <UniqueIdentifier>{41a95c28-4553-4224-874a-0faca993b8e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Collision\Shapes">
+      <UniqueIdentifier>{f7a6621d-a071-49e6-a2c4-111753be2497}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Collision\Shapes">
+      <UniqueIdentifier>{f59f1a86-4435-41df-8cd9-245fb0bc57d6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Dynamics\Contacts">
+      <UniqueIdentifier>{23aefdf9-8d6f-4eb0-bb3b-91b49913b557}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Dynamics\Contacts">
+      <UniqueIdentifier>{34cc3e69-a124-4f5d-ac18-28dead7587a1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\box2d\Dynamics\Joints">
+      <UniqueIdentifier>{b86fed5f-d243-475a-9e56-7229dfb4deaa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\box2d\Dynamics\Joints">
+      <UniqueIdentifier>{86b2e6e3-028f-4999-aac6-aa69343aee17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\plugin-helper">
+      <UniqueIdentifier>{59afdb16-19c6-4416-a515-f87ac1539d31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\example">
+      <UniqueIdentifier>{06aa200f-a19d-4cdd-8354-03fc6e0dec98}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\box-2d-liquid-fun-wrap.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-joint-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Box2D.h">
+      <Filter>Header Files\box2d</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2ChainShape.h">
+      <Filter>Header Files\box2d\Collision\Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2CircleShape.h">
+      <Filter>Header Files\box2d\Collision\Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2EdgeShape.h">
+      <Filter>Header Files\box2d\Collision\Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2PolygonShape.h">
+      <Filter>Header Files\box2d\Collision\Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2Shape.h">
+      <Filter>Header Files\box2d\Collision\Shapes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2BroadPhase.h">
+      <Filter>Header Files\box2d\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2Collision.h">
+      <Filter>Header Files\box2d\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2Distance.h">
+      <Filter>Header Files\box2d\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2DynamicTree.h">
+      <Filter>Header Files\box2d\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2TimeOfImpact.h">
+      <Filter>Header Files\box2d\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2BlockAllocator.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Draw.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2FreeList.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2GrowableBuffer.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2GrowableStack.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2IntrusiveList.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Math.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Settings.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2SlabAllocator.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2StackAllocator.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Stat.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Timer.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2TrackedBlock.h">
+      <Filter>Header Files\box2d\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ChainAndCircleContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ChainAndPolygonContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2CircleContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2Contact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ContactSolver.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2EdgeAndCircleContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2EdgeAndPolygonContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2PolygonAndCircleContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2PolygonContact.h">
+      <Filter>Header Files\box2d\Dynamics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2DistanceJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2FrictionJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2GearJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2Joint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2MotorJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2MouseJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2PrismaticJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2PulleyJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2RevoluteJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2RopeJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2WeldJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2WheelJoint.h">
+      <Filter>Header Files\box2d\Dynamics\Joints</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Body.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2ContactManager.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Fixture.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Island.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2TimeStep.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2World.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2WorldCallbacks.h">
+      <Filter>Header Files\box2d\Dynamics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2Particle.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleAssembly.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleGroup.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleSystem.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2StackQueue.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2VoronoiDiagram.h">
+      <Filter>Header Files\box2d\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Rope\b2Rope.h">
+      <Filter>Header Files\box2d\Rope</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
+      <Filter>Header Files\plugin-helper</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain-box2d-liquid-fun.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\box2d-liquid-fun-lua.cpp">
+      <Filter>Source Files\lua-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\box-2d-liquid-fun-wrap.cpp">
+      <Filter>Source Files\lua-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-fluid-lua.cpp">
+      <Filter>Source Files\lua-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box2d-liquid-fun-joint-lua.cpp">
+      <Filter>Source Files\lua-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\box2d-liquid-fun-lua\physics-box-2d-liquid-fun-lua.cpp">
+      <Filter>Source Files\lua-wrap</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2ChainShape.cpp">
+      <Filter>Source Files\box2d\Collision\Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2CircleShape.cpp">
+      <Filter>Source Files\box2d\Collision\Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2EdgeShape.cpp">
+      <Filter>Source Files\box2d\Collision\Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\Shapes\b2PolygonShape.cpp">
+      <Filter>Source Files\box2d\Collision\Shapes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2BroadPhase.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideCircle.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollideEdge.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2CollidePolygon.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2Collision.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2Distance.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2DynamicTree.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Collision\b2TimeOfImpact.cpp">
+      <Filter>Source Files\box2d\Collision</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2BlockAllocator.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Draw.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2FreeList.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Math.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Settings.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2StackAllocator.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Stat.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2Timer.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Common\b2TrackedBlock.cpp">
+      <Filter>Source Files\box2d\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ChainAndCircleContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ChainAndPolygonContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2CircleContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2Contact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2ContactSolver.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2EdgeAndCircleContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2EdgeAndPolygonContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2PolygonAndCircleContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Contacts\b2PolygonContact.cpp">
+      <Filter>Source Files\box2d\Dynamics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2DistanceJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2FrictionJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2GearJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2Joint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2MotorJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2MouseJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2PrismaticJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2PulleyJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2RevoluteJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2RopeJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2WeldJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\Joints\b2WheelJoint.cpp">
+      <Filter>Source Files\box2d\Dynamics\Joints</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Body.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2ContactManager.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Fixture.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2Island.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2World.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Dynamics\b2WorldCallbacks.cpp">
+      <Filter>Source Files\box2d\Dynamics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2Particle.cpp">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleAssembly.cpp">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleGroup.cpp">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleSystem.cpp">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2VoronoiDiagram.cpp">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Rope\b2Rope.cpp">
+      <Filter>Source Files\box2d\Rope</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\third-party\box2d-liquid-fun-2.3.1\Box2D\Particle\b2ParticleAssembly.neon.s">
+      <Filter>Source Files\box2d\Particle</Filter>
+    </None>
+    <None Include="..\..\plugins\box2d-liquid-fun-lua\box2d-fluid-example.lua">
+      <Filter>Source Files\example</Filter>
+    </None>
+  </ItemGroup>
+</Project>

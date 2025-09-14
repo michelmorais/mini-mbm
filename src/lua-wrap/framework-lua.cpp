@@ -18,6 +18,19 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <lua-wrap/framework-lua.h>
+#include <lua-wrap/camera-lua.h>
+#include <lua-wrap/vec2-lua.h>
+#include <lua-wrap/vec3-lua.h>
+#include <lua-wrap/render-table/texture-view-lua.h>
+#include <lua-wrap/render-table/gif-view-lua.h>
+#include <lua-wrap/render-table/shape-lua.h>
+#include <lua-wrap/render-table/background-lua.h>
+#include <lua-wrap/render-table/line-mesh-lua.h>
+#include <lua-wrap/render-table/particle-lua.h>
+#include <lua-wrap/render-table/render-2-texture-lua.h>
+#include <lua-wrap/manager-lua.h>
+#include <lua-wrap/timer-lua.h>
+#include <lua-wrap/audio-lua.h>
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
 #include <core_mbm/util-interface.h>
@@ -40,10 +53,15 @@
 #include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <lodepng/lodepng.h>
-#include <lua-wrap/current-scene-lua.h>
-#include <lua-wrap/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/plugin-helper.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/render-table/tile-lua.h>
+#include <lua-wrap/render-table/sprite-lua.h>
+#include <lua-wrap/render-table/mesh-lua.h>
+#include <lua-wrap/render-table/font-lua.h>
+#if defined USE_EDITOR_FEATURES
+    #include <lua-wrap/render-table/mesh-debug-lua.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -73,56 +91,10 @@ extern "C"
     #include <lua-wrap/render-table/vr-lua.h>
 #endif
 
-//Basically Plugins Android, workaround however could be in other platforms as well
-#if defined USE_LSQLITE3
-extern "C" 
-{
-    #include <lsqlite3/lsqlite3.h>
-}
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
 
-#if defined USE_BOX2D
-    #include <box2d/box2d-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
-
-#if defined USE_IMGUI
-    #include <imGui/imgui-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
 
 namespace mbm 
 {
-    extern int onGetCamera(lua_State *lua);
-    extern void registerClassVec2(lua_State *lua);
-    extern void registerClassVec2NoGc(lua_State *lua);
-    extern void registerClassVec3(lua_State *lua);
-    extern void registerClassVec3NoGc(lua_State *lua);
-    extern void registerClassTextureView(lua_State *lua);
-    extern void registerClassGifView(lua_State *lua);
-    extern void registerClassShapeMesh(lua_State *lua);
-    extern void registerClassBackGround(lua_State *lua);
-    extern void registerClassCamera(lua_State *lua);
-    extern void registerClassAudio(lua_State *lua);
-    extern void registerClassCallBackTimer(lua_State *lua);
-    extern void registerClassLineMesh(lua_State *lua);
-    extern void registerClassParticle(lua_State *lua);
-    extern void registerClassRender2TextureTarget(lua_State *lua);
-    #if defined USE_EDITOR_FEATURES
-    extern void registerClassMeshDebug(lua_State *lua);
-    #endif
-    extern void registerClassSprite(lua_State *lua);
-	extern void registerClassTile(lua_State *lua);
-    extern void registerClassMesh(lua_State *lua);
-    extern void registerClassFont(lua_State *lua);
-	
     const char *__std_p()
     {
         return "passwd";
@@ -138,41 +110,26 @@ namespace mbm
     }
     #endif
 
-	int lua_error_debug(lua_State *lua,  const char *format, ...)
-	{
-		va_list va_args;
-		va_start(va_args, format);
-		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
-		va_end(va_args);
-		va_start(va_args, format);
-		char * buffer = log_util::formatNewMessage(length, format, va_args);
-		va_end(va_args);
-		lua_Debug ar;
-		memset(&ar, 0, sizeof(lua_Debug));
-		if (lua_getstack(lua, 1, &ar))
-		{
-			if (lua_getinfo(lua, "nSl", &ar))
-			{
-				std::string buffer_2(buffer);
-				delete [] buffer;
-				return luaL_error(lua,"File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer_2.c_str());
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
-			}
-		}
-		else
-		{
-			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
-		}
-		std::string other_buffer(buffer);
-		ERROR_LOG("%s", buffer);
-		delete [] buffer;
-		return luaL_error(lua,"%s",other_buffer.c_str());
-	}
+    void lua_userdata_register(lua_State *lua,const int value)
+    {
+        const char* __userdata_ = getUserTypeAsString(value);
+		assert(strcmp("_usertype_unknown",__userdata_) != 0);
+        luaL_newmetatable(lua, __userdata_);
+        lua_pushinteger(lua,value);
+        lua_rawseti(lua,-2,1);
+        lua_settop(lua,0);
+    }
 
-    int enableTextureFilterLua(lua_State *lua)
+    void registerClassUsersData(lua_State *lua)
+    {
+        lua_settop(lua,0);
+        for(int i= L_USER_TYPE_BEGIN + 1; i < L_USER_TYPE_END; ++i)
+        {
+            lua_userdata_register(lua,i);
+        }
+    }
+
+	int enableTextureFilterLua(lua_State *lua)
     {
         bool value = lua_toboolean(lua,1);
         TEXTURE::enableFilter(value);
@@ -202,53 +159,6 @@ namespace mbm
 		auto manager = AUDIO_MANAGER::getInstance();
 		manager->pauseAudioOnPauseGame = bPauseOnPauseAll;
 		return 0;
-	}
-
-	void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...)
-	{
-		va_list va_args;
-		va_start(va_args, format);
-		const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
-		va_end(va_args);
-		va_start(va_args, format);
-		char * buffer = log_util::formatNewMessage(length, format, va_args);
-		va_end(va_args);
-		lua_Debug ar;
-		memset(&ar, 0, sizeof(lua_Debug));
-		if (lua_getstack(lua, 1, &ar))
-		{
-			if (lua_getinfo(lua, "nSl", &ar))
-			{
-				switch(type_log)
-				{
-					case TYPE_LOG_ERROR:
-					{
-						ERROR_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-					case TYPE_LOG_INFO:
-					{
-						INFO_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-					case TYPE_LOG_WARN:
-					{
-						WARN_LOG("File[%s] line[%d]\n%s", log_util::basename(ar.short_src), ar.currentline,buffer);
-					};
-					break;
-
-				}
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get the line and file\n%s",buffer);
-			}
-		}
-		else
-		{
-			ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA\n%s",buffer);
-		}
-		delete [] buffer;
 	}
 
     #if defined ANDROID
@@ -777,11 +687,11 @@ namespace mbm
                     #endif
                 }
                 break;
-                case LUA_TTABLE: { return lua_error_debug(lua, "global variable [%s] not allowed", what);}
-                case LUA_TFUNCTION: { return lua_error_debug(lua, "global variable [%s] function not allowed", what);}
-                case LUA_TUSERDATA: { return lua_error_debug(lua, "global variable [%s] userdata not allowed", what);}
-                case LUA_TTHREAD: { return lua_error_debug(lua, "global variable [%s] thread not allowed", what);}
-                case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "global variable [%s] light userdata not allowed", what);}
+                case LUA_TTABLE: { return lua_error_debug(lua, "global variable [%s] not possible", what);}
+                case LUA_TFUNCTION: { return lua_error_debug(lua, "global variable [%s] function not possible", what);}
+                case LUA_TUSERDATA: { return lua_error_debug(lua, "global variable [%s] userdata not possible", what);}
+                case LUA_TTHREAD: { return lua_error_debug(lua, "global variable [%s] thread not possible", what);}
+                case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "global variable [%s] light userdata not possible", what);}
                 default: { return lua_error_debug(lua, "global variable [%s] unknown", what);}
             }
         }
@@ -3455,29 +3365,6 @@ namespace mbm
         }
         return 1;
     }
-#if defined REQUIRE_EMBEDDED
-    //# plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)
-    int __luaB_require_embedded(lua_State *lua)
-    {
-        const char* name     = luaL_checkstring(lua,1);
-        (void)name;
-        #if defined USE_LSQLITE3
-            if(strcmp(name,"lsqlite3") == 0)
-                return luaopen_lsqlite3(lua);
-        #endif
-
-        #if defined USE_BOX2D
-            if(strcmp(name,"box2d") == 0)
-                return luaopen_box2d(lua);
-        #endif
-        #if defined USE_IMGUI
-            if(strcmp(name,"ImGui") == 0)
-                return luaopen_ImGui(lua);
-        #endif
-        lua_pushnil(lua);
-        return 1;
-    }
-#endif
 
     static int _checkload (lua_State *L, int stat, const char *filename) 
     {

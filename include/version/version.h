@@ -59,10 +59,12 @@
     3.4   refactoried files on LUA wrapper
     3.5   Frozen box 2d (2.3.2)
     3.6   Migrated to box2d (2.4.1)
-    3.8   Migrate IMGUI 1.88
-    4.0   LiquidFun for box 2d, 
+    4.0   LiquidFun for box 2d, this version forces to drawback Box2D to 2.3.0.
+    4.1   LiquidFun for box 2d 2.3.0 and box 2d 2.4.1 in library separated
+    4.2   Reorganized framework, moved needed function to plugins, LiquidFun and Box2d Available.
+    4.3   Migrate IMGUI 1.88
 */
-#define MBM_VERSION "3.8"
+#define MBM_VERSION "4.3"
 #endif
 
 #endif

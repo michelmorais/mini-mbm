@@ -35,14 +35,13 @@ namespace mbm
 class MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
 {
   public:
-    friend class PHYSICS_BOX2D;
     API_IMPL MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
     API_IMPL virtual ~MESH();
     API_IMPL void release();
     API_IMPL bool load(const char *fileName);
     API_IMPL const char *getFileName() const;
-	API_IMPL FX*  getFx() const override;
-	API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+    API_IMPL FX*  getFx() const override;
+	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
 
   private:
     bool                     render() override;

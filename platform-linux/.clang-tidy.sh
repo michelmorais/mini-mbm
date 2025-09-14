@@ -10,9 +10,9 @@ THIRD_PARTY=${CORE_HOME}/../third-party
 LUA_WRAP="${SRC}/lua-wrap"
 MINIZ=${CORE_OPENGL}/miniz
 DEF="-DUSE_OPENGL_ES -DUSE_DEPRECATED_2_MINOR -DUSE_SQLITE3 -DUSE_VR -D_DEBUG -DLUA_COMPAT_ALL -DLUA_ANSI -DUSE_EDITOR_FEATURES -std=c++11 -pthread"
-BOX2D_INC=-I${THIRD_PARTY}/box2d-2.3.1
+BOX2D_LIQUID_FUN_INC=-I${THIRD_PARTY}/box2d-liquid-fun-2.3.1
 BULLET_3D_WRAP=-I${THIRD_PARTY}/bullet-2.84
-INCLUDES="${INCLUDES} ${BOX2D_INC} ${BULLET_3D_WRAP}"
+INCLUDES="${INCLUDES} ${BOX2D_LIQUID_FUN_INC} ${BULLET_3D_WRAP}"
 
 modernize_list='modernize-loop-convert,modernize-make-unique,modernize-pass-by-value,modernize-redundant-void-arg,modernize-replace-auto-ptr,modernize-shrink-to-fit,modernize-use-auto,modernize-use-default,modernize-use-nullptr,modernize-use-override'
 modernize_list='modernize-use-auto'

@@ -50,7 +50,6 @@ namespace mbm
     class SHADER_CFG;
     class SCENE;
 
-	extern const std::vector<std::string> get_globals_lua();
 
     enum TYPE_VAR_PRINT : char
     {
@@ -66,7 +65,6 @@ namespace mbm
     int onGetDisplayMetrics(lua_State *lua);
     int onGetSizeBackBuffer(lua_State *lua);
     int onGetFps(lua_State *lua);
-    int onSetFps(lua_State *lua);
     int onQuitEngine(lua_State *);
     int onSetColorBackground(lua_State *lua);
     int onShowConsoleMbm(lua_State *lua);
@@ -128,8 +126,6 @@ namespace mbm
     int onAddShader(lua_State *lua);
     int onPanic(lua_State *lua);
     void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
-	int lua_error_debug(lua_State *lua, const char *format, ...);
-	void lua_print_line(lua_State *lua,TYPE_LOG type_log,const char *format, ...);
 	
 };
 

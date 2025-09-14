@@ -2,27 +2,26 @@ cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
 project(core_mbm)
 
-set(SRC_INCLUDES            "../../include")
-set(CORE_OPENGLES_SRC       ${CMAKE_CURRENT_SOURCE_DIR})
-set(RENDER_SRC              "../render")
-set(THIRD_PARTY             "../../third-party")
-set(RENDER_INCLUDE          ${SRC_INCLUDES}/render)
-set(CORE_OPENGLES_INCLUDE   ${SRC_INCLUDES}/core_mbm)
-set(BOX2D_WRAP_INCLUDE      ${SRC_INCLUDES}/box-2d-wrap)
-set(BOX2D_WRAP_SRC          box-2d-wrap)
-set(BULLET3d_WRAP_INCLUDE   ${SRC_INCLUDES}/bullet-3d-wrap)
-set(BULLET3d_WRAP_SRC       bullet-3d-wrap)
-set(CORE_OPENGLES_MINIZ     ${CORE_OPENGLES_SRC}/miniz)
-set(CORE_OPENGLES_PLATFORM  ${CORE_OPENGLES_SRC}/platform)
-set(STB_DIR                 ${THIRD_PARTY}/stb)
-set(MINIZ_DIR               ${THIRD_PARTY}/miniz)
-set(LODE_PNG_DIR            ${THIRD_PARTY}/lodepng)
-set(BOX2D_INC               ${THIRD_PARTY}/box2d-${BOX2D_LIB_VERSION})
-set(BULLET_3D_INC           ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
-set(TINYFILEDIALOGS_DIR     ${THIRD_PARTY}/tinyfiledialogs)
-set(PORT_AUDIO_SRC          ${THIRD_PARTY}/portaudio/src)
-set(PORT_AUDIO_INCLUDE      ${THIRD_PARTY}/portaudio/include)
-set(WAVE_SRC                ${THIRD_PARTY}/wave)
+set(SRC_INCLUDES               "../../include")
+set(CORE_OPENGLES_SRC          ${CMAKE_CURRENT_SOURCE_DIR})
+set(RENDER_SRC                 "../render")
+set(THIRD_PARTY                "../../third-party")
+set(RENDER_INCLUDE             ${SRC_INCLUDES}/render)
+set(CORE_OPENGLES_INCLUDE      ${SRC_INCLUDES}/core_mbm)
+set(BOX2D_LIQUID_FUN_WRAP_SRC  box-2d-liquid-fun-wrap)
+set(BULLET3d_WRAP_INCLUDE      ${SRC_INCLUDES}/bullet-3d-wrap)
+set(BULLET3d_WRAP_SRC          bullet-3d-wrap)
+set(CORE_OPENGLES_MINIZ        ${CORE_OPENGLES_SRC}/miniz)
+set(CORE_OPENGLES_PLATFORM     ${CORE_OPENGLES_SRC}/platform)
+set(STB_DIR                    ${THIRD_PARTY}/stb)
+set(MINIZ_DIR                  ${THIRD_PARTY}/miniz)
+set(LODE_PNG_DIR               ${THIRD_PARTY}/lodepng)
+set(BOX2D_LIQUID_FUN_INC       ${THIRD_PARTY}/box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
+set(BULLET_3D_INC              ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
+set(TINYFILEDIALOGS_DIR        ${THIRD_PARTY}/tinyfiledialogs)
+set(PORT_AUDIO_SRC             ${THIRD_PARTY}/portaudio/src)
+set(PORT_AUDIO_INCLUDE         ${THIRD_PARTY}/portaudio/include)
+set(WAVE_SRC                   ${THIRD_PARTY}/wave)
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ")
@@ -42,8 +41,8 @@ include_directories(${CORE_OPENGLES_INCLUDE}
                     ${SRC_INCLUDES} 
                     ${STB_DIR} 
                     ${THIRD_PARTY} 
-                    ${BOX2D_WRAP_INCLUDE} 
-                    ${BOX2D_INC}
+                    ${BOX2D_LIQUID_FUN_WRAP_INCLUDE} 
+                    ${BOX2D_LIQUID_FUN_INC}
                     ${BULLET_3D_INC}
                     ${PORT_AUDIO_INCLUDE}
                     ${WAVE_SRC})

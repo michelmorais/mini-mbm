@@ -26,8 +26,7 @@ extern "C"
 
 #include <lua-wrap/render-table/tile-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/user-data-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <render/tile.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/header-mesh.h>
@@ -37,14 +36,6 @@ extern "C"
 
 namespace mbm
 {
-
-    extern void printStack(lua_State *lua, const char *fileName, const unsigned int numLine);
-    extern RENDERIZABLE *getRenderizableFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    extern void doOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-    extern void undoOffsetIfText(RENDERIZABLE *ptr,const float w,const float h);
-    extern int lua_error_debug(lua_State *lua, const char *format, ...);
-    extern void lua_print_line(lua_State *lua, TYPE_LOG type_log, const char *format, ...);
-
     TILE *getTileFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<TILE **>(lua_check_userType(lua, rawi, indexTable, L_USER_TYPE_TILE));

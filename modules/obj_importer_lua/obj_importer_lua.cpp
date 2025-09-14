@@ -5,26 +5,6 @@
 #include <obj_importer_lua/tiny_obj_loader.h>
 
 
-void printStack(lua_State *lua, const char *fileName, const unsigned int numLine)
-{
-    std::string stack("\n**********************************"
-                        "\nState of stack at\n");
-    int top = lua_gettop(lua);
-    for (int i = 1, k = top; i <= top; i++, --k)
-    {
-        char str[255];
-        int  type = lua_type(lua, i);
-        sprintf(str, "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
-        stack += str;
-    }
-    stack += "**********************************\n\n";
-    printf("%d:%s,%s", numLine, fileName, stack.c_str());
-}
-
-#ifndef DebugLuaStack 
-	#define DebugLuaStack printStack(lua,__FILE__,__LINE__);
-#endif
-
 unsigned int color_unsigned_float(const float r,const float g, const float b)
 {
     const unsigned int dwR = r >= 1.0f ? 0xff : r <= 0.0f ? 0x00 : static_cast<unsigned int>((r * 255.0f + 0.5f));

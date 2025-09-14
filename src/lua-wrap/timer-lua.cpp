@@ -28,7 +28,6 @@ extern "C"
 #include <map>
 
 #include <lua-wrap/timer-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/device.h>
 
 #if DEBUG_FREE_LUA
@@ -37,7 +36,6 @@ extern "C"
 
 namespace mbm
 {
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
 
 TIMER_CALL_BACK::TIMER_CALL_BACK(const int functionNameCallBackRef, const float afterTimer, const int lua_LUA_NOREF)
     : timerElapsed(afterTimer)
