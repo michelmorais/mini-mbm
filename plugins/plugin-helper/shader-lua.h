@@ -27,10 +27,7 @@ struct lua_State;
 
 namespace mbm
 {
-    class FX;
-    class ANIMATION;
     struct VAR_SHADER;
-	class RENDERIZABLE;
 
     extern "C" PLUGIN_HELPER_API int onLoadNewShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onSetPixelShaderLua(lua_State *lua);

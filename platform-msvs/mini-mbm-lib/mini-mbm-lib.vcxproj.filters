@@ -354,6 +354,9 @@
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">
@@ -727,6 +730,9 @@
     </ClInclude>
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h">
       <Filter>Header Files\plugin-helper</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\require_embedded.h">
+      <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

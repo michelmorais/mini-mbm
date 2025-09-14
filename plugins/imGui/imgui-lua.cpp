@@ -7952,6 +7952,7 @@ int onNewimguiLua(lua_State *lua)
     if(lua_type(lua,-1) == LUA_TTABLE) //Yes
     {
         lua_rawgeti(lua,-1, 1);
+        //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
         PLUGIN_IDENTIFIER  = lua_tointeger(lua,-1);//update the identifier of pluging
         lua_pop(lua,1);
     }

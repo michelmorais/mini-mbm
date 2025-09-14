@@ -91,37 +91,7 @@ extern "C"
     #include <lua-wrap/render-table/vr-lua.h>
 #endif
 
-//Basically Plugins Android, workaround however could be in other platforms as well
-#if defined USE_LSQLITE3
-extern "C" 
-{
-    #include <lsqlite3/lsqlite3.h>
-}
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
 
-#if defined USE_BOX2D_LIQUID_FUN
-    #include <box2d-liquid-fun-lua/box2d-liquid-fun-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
-
-#if defined USE_BOX2D
-    #include <box2d/box2d-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
-
-#if defined USE_IMGUI
-    #include <imGui/imgui-lua.h>
-#ifndef REQUIRE_EMBEDDED
-    #define REQUIRE_EMBEDDED
-#endif
-#endif
 
 namespace mbm 
 {
@@ -717,11 +687,11 @@ namespace mbm
                     #endif
                 }
                 break;
-                case LUA_TTABLE: { return lua_error_debug(lua, "global variable [%s] not allowed", what);}
-                case LUA_TFUNCTION: { return lua_error_debug(lua, "global variable [%s] function not allowed", what);}
-                case LUA_TUSERDATA: { return lua_error_debug(lua, "global variable [%s] userdata not allowed", what);}
-                case LUA_TTHREAD: { return lua_error_debug(lua, "global variable [%s] thread not allowed", what);}
-                case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "global variable [%s] light userdata not allowed", what);}
+                case LUA_TTABLE: { return lua_error_debug(lua, "global variable [%s] not possible", what);}
+                case LUA_TFUNCTION: { return lua_error_debug(lua, "global variable [%s] function not possible", what);}
+                case LUA_TUSERDATA: { return lua_error_debug(lua, "global variable [%s] userdata not possible", what);}
+                case LUA_TTHREAD: { return lua_error_debug(lua, "global variable [%s] thread not possible", what);}
+                case LUA_TLIGHTUSERDATA: { return lua_error_debug(lua, "global variable [%s] light userdata not possible", what);}
                 default: { return lua_error_debug(lua, "global variable [%s] unknown", what);}
             }
         }
@@ -3395,41 +3365,6 @@ namespace mbm
         }
         return 1;
     }
-#if defined REQUIRE_EMBEDDED
-    #pragma message("REQUIRE_EMBEDDED is enabled, one or more library is linked, usually this is for ANDROID")
-    #pragma message("plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)")
-    //# plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)
-    int __luaB_require_embedded(lua_State *lua)
-    {
-        const char* name     = luaL_checkstring(lua,1);
-        (void)name;
-        #if defined USE_LSQLITE3
-            #pragma message("Using USE_LSQLITE3 embeeded, usually this is for ANDROID")
-            if(strcmp(name,"lsqlite3") == 0)
-                return luaopen_lsqlite3(lua);
-        #endif
-
-        #if defined USE_BOX2D
-            #pragma message("Using USE_BOX2D embeeded, usually this is for ANDROID")
-            if(strcmp(name,"box2d") == 0)
-                return luaopen_box2d(lua);
-        #endif
-
-        #if defined USE_BOX2D_LIQUID_FUN
-            #pragma message("Using USE_BOX2D_LIQUID_FUN embeeded, usually this is for ANDROID")
-            if(strcmp(name,"box2dLiquidFun") == 0)
-                return luaopen_box2dLiquidFun(lua);
-        #endif
-
-        #if defined USE_IMGUI
-            #pragma message("Using USE_IMGUI embeeded, usually this is for ANDROID")
-            if(strcmp(name,"ImGui") == 0)
-                return luaopen_ImGui(lua);
-        #endif
-        lua_pushnil(lua);
-        return 1;
-    }
-#endif
 
     static int _checkload (lua_State *L, int stat, const char *filename) 
     {
