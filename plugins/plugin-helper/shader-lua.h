@@ -42,11 +42,7 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int onGetVertexShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onSetBlendOperationLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetBlendOperationLua(lua_State *lua);
-    #ifdef USE_OPENGL_ES
     extern "C" PLUGIN_HELPER_API void pushVarShader(lua_State *lua, std::vector<VAR_SHADER *> *lsVars);
-    #else
-    extern "C" PLUGIN_HELPER_API void pushVarShader(lua_State *lua, std::vector<VAR_SHADER *> *lsVars);
-    #endif
     extern "C" PLUGIN_HELPER_API int onGetVarsShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetCodeShaderLua(lua_State *lua);
     extern "C" PLUGIN_HELPER_API int onGetNamesShaderLua(lua_State *lua);

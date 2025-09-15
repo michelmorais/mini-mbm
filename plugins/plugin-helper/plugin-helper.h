@@ -71,19 +71,19 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API void getArrayXYZ_noZ_FromTable(lua_State *lua, const int index, std::vector<VEC3> & xyz_out);
     extern "C" PLUGIN_HELPER_API void getArrayXYZ_FromTable(lua_State *lua, const int index, std::vector<VEC3> & xyz_out);
     extern "C" PLUGIN_HELPER_API void getArrayUintFromTable(lua_State *lua, const int index, uint16_t *lsArrayOut, const uint32_t sizeBuffer);
-	extern "C" PLUGIN_HELPER_API void get2ArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b);
-	extern "C" PLUGIN_HELPER_API void get3ArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b,const char * field_c);
+    extern "C" PLUGIN_HELPER_API void get2ArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b);
+    extern "C" PLUGIN_HELPER_API void get3ArrayFromTableWithField(lua_State *lua, const int index, float *lsArrayOut, const uint32_t sizeArray,const char * field_a,const char * field_b,const char * field_c);
     extern "C" PLUGIN_HELPER_API ANIMATION_MANAGER *getAnimationManagerFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern "C" PLUGIN_HELPER_API ANIMATION_MANAGER *getSafeAnimationManagerFromRenderizable(lua_State *lua,RENDERIZABLE * renderizable);
-	extern "C" PLUGIN_HELPER_API FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-	extern "C" PLUGIN_HELPER_API FX *getSafeFxFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
-	extern "C" PLUGIN_HELPER_API ANIMATION *getSafeAnimFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
+    extern "C" PLUGIN_HELPER_API ANIMATION_MANAGER *getSafeAnimationManagerFromRenderizable(lua_State *lua,RENDERIZABLE * renderizable);
+    extern "C" PLUGIN_HELPER_API FX *getFxFromRawTable(lua_State *lua, const int rawi, const int indexTable);
+    extern "C" PLUGIN_HELPER_API FX *getSafeFxFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
+    extern "C" PLUGIN_HELPER_API ANIMATION *getSafeAnimFromRenderizable(lua_State *lua, RENDERIZABLE * renderizable);
     extern "C" PLUGIN_HELPER_API int getDynamicVariable(lua_State *lua, std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar, const char *what);
     extern "C" PLUGIN_HELPER_API int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
     extern "C" PLUGIN_HELPER_API void getFieldUnsignedFromTable(lua_State *lua, const int indexTable, const char *fieldName,uint32_t *ptrRet);
     
-	extern "C" PLUGIN_HELPER_API void push2VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b);
-	extern "C" PLUGIN_HELPER_API void push3VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b, const char* field_c);
+    extern "C" PLUGIN_HELPER_API void push2VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b);
+    extern "C" PLUGIN_HELPER_API void push3VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b, const char* field_c);
     extern "C" PLUGIN_HELPER_API void push_uint16_arrayFromTable(lua_State *lua, const uint16_t * lsArrayIn, const unsigned int sizeBuffer,const bool one_based);
     extern "C" PLUGIN_HELPER_API void unrefTableByIdTableRef(DYNAMIC_VAR *dyVar, lua_State *lua);
     extern "C" PLUGIN_HELPER_API void setDynamicVar(const char *nameVar, DYNAMIC_VAR *    nDvar,std::map<std::string, DYNAMIC_VAR *> &lsDynamicVar);
@@ -94,14 +94,14 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int errorLuaPushFalse(lua_State *lua,const char* msg);
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLuaToLineMesh(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-	extern "C" PLUGIN_HELPER_API const uint32_t get_mode_draw_from_string(const char* str_mode_draw,const uint32_t default_mode_draw_ret);
-	extern "C" PLUGIN_HELPER_API const char * get_mode_draw_from_uint(const uint32_t mode_draw,const char * default_mode_draw_ret);
+    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_draw_from_string(const char* str_mode_draw,const uint32_t default_mode_draw_ret);
+    extern "C" PLUGIN_HELPER_API const char * get_mode_draw_from_uint(const uint32_t mode_draw,const char * default_mode_draw_ret);
 
-	extern "C" PLUGIN_HELPER_API const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face,const uint32_t default_mode_cull_face_ret);
-	extern "C" PLUGIN_HELPER_API const char * get_mode_cull_face_from_uint(const uint32_t mode_cull_face,const char * default_mode_cull_face_ret);
+    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face,const uint32_t default_mode_cull_face_ret);
+    extern "C" PLUGIN_HELPER_API const char * get_mode_cull_face_from_uint(const uint32_t mode_cull_face,const char * default_mode_cull_face_ret);
 
-	extern "C" PLUGIN_HELPER_API const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const uint32_t default_mode_front_face_direction_ret);
-	extern "C" PLUGIN_HELPER_API const char * get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction,const char * default_mode_front_face_direction_ret);
+    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const uint32_t default_mode_front_face_direction_ret);
+    extern "C" PLUGIN_HELPER_API const char * get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction,const char * default_mode_front_face_direction_ret);
 
 }
 
