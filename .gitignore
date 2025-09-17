@@ -48,6 +48,22 @@ platform-msvs/box2d-liquid-fun/Release/
 platform-msvs/plugin-helper/Debug/
 platform-msvs/plugin-helper/Release/
 platform-msvs/plugin-helper/plugin-helper.vcxproj.user
+platform-msvs/box2d-liquid-fun/x64/
+platform-msvs/box2d/x64/
+platform-msvs/bullet2.8/x64/
+platform-msvs/core_mbm/x64/
+platform-msvs/imGui/x64/
+platform-msvs/libTest/x64/
+platform-msvs/lsqlite3/x64/
+platform-msvs/lua5.4/x64/
+platform-msvs/mini-mbm-dev/x64/
+platform-msvs/mini-mbm-launcher/x64/
+platform-msvs/mini-mbm-lib/x64/
+platform-msvs/mini-mbm/x64/
+platform-msvs/plugin-helper/x64/
+platform-msvs/tilemap/x64/
+platform-msvs/tiny-obj-loader/x64/
+platform-msvs/x64/
 
 .vscode/
 bin/

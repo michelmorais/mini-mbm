@@ -80,8 +80,12 @@
     </CustomBuildAfterTargets>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\rapidxml;$(IncludePath)</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;$(IncludePath)</IncludePath>
+    <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -162,7 +166,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;AUDIO_ENGINE_AUDIERE;CORE_EXPORTS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
