@@ -175,7 +175,7 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)" "x64"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

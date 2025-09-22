@@ -28,7 +28,6 @@
 
 #include <vector>
 #include <string>
-#include <string.h>
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4786)
