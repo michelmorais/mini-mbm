@@ -40,6 +40,8 @@ namespace mbm
 		#if defined(AUDIO_ENGINE_AUDIERE)
 		if (!AUDIO_MANAGER::audioDevice)
 			AUDIO_MANAGER::audioDevice = OpenDevice();
+		if (!AUDIO_MANAGER::audioDevice)
+			ERROR_LOG("Failed opening Audiere audio device");
 		AUDIO_MANAGER::audioDevice->registerCallback(new AUDIO_MANAGER::STOP_AUDIERE());//leak*** :( for some reason if we destroy callback from audiere before detach it (DLL), it crashes. so, we make this leak.
 		#elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 		m_directSound = nullptr;
