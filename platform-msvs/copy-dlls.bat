@@ -1,6 +1,6 @@
 rem -> expected destination folder
 rem -> command line: Call $(SolutionDir)copy-dlls.bat $(OutDir)
-@echo off
+
 setlocal enabledelayedexpansion
 
 set destinationFolder=%1
@@ -51,92 +51,47 @@ COPY "!libEGLv2_dll!" "!destinationFolder!"
     echo "32 bits build"
     echo "Copying needed 32 bits DLLs (for Windows) to  %destinationFolder%"
 
-    rem -> get current path
-    pushd %~dp0
-    set mypath=%CD%
-    popd
+    set audiere_source=%mypath%\third-party\audiere-1.9.4\bin\audiere.dll
+    set audiere_lib=%mypath%\third-party\audiere-1.9.4\lib\audiere.lib
 
-    rem -> get d3dcompiler_source path
-    pushd %mypath%\..\third-party\gles\bin\
-    set d3dcompiler_source=%CD%\d3dcompiler_47.dll
-    popd
+    set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
+    set libEGL_source=%mypath%\third-party\gles\libs\libEGL.dll.lib
 
-    rem -> get libEGL path
-    pushd %mypath%\..\third-party\gles\bin\
-    set libEGL_source=%CD%\libEGL.dll
-    popd
+    set libEGLv2_dll=%mypath%\third-party\gles\bin\libGLESv2.dll
+    set libEGLv2_source=%mypath%\third-party\gles\libs\libGLESv2.dll.lib
 
-    rem -> get libGLESv2 path
-    pushd %mypath%\..\third-party\gles\bin\
-    set libGLESv2_source=%CD%\libGLESv2.dll
-    popd
+    set d3dcompiler_source=%mypath%\third-party\gles\bin\d3dcompiler_47.dll
 
-    rem -> get audiere path
-    pushd %mypath%\..\third-party\audiere-1.9.4\bin
-    set audiere_source=%CD%\audiere.dll
-    popd
+    set mini_mbm_lib_source=%mypath%\src\mini-mbm-lib\mini-mbm-lib.h
 
-    rem -> get mini-mbm-lib.h path
-    pushd %mypath%\mini-mbm-launcher\
-    set mini_mbm_lib_source=%CD%\mini-mbm-lib.h
-    popd
+    set editor_source=%mypath%\editor
 
-    rem -> get editor path
-    pushd %mypath%\..\editor\
-    set editor_source=%CD%\
-    popd
+    echo "COPY !audiere_source! !destinationFolder!"
+    COPY "!audiere_source!" "!destinationFolder!"
 
-    rem -> destination -------------------------------
+    echo "COPY !audiere_lib! !destinationFolder!"
+    COPY "!audiere_lib!" "!destinationFolder!"
 
-    rem -> set d3dcompiler_destin path
-    pushd %destinationFolder%
-    set d3dcompiler_destin=%CD%\d3dcompiler_47.dll
-    popd
+    echo "COPY !libEGL_source! !destinationFolder!"
+    COPY "!libEGL_source!" "!destinationFolder!"
 
-    rem -> set libEGL_destin path
-    pushd %destinationFolder%
-    set libEGL_destin=%CD%\libEGL.dll
-    popd
+    echo "COPY !libEGL_dll! !destinationFolder!"
+    COPY "!libEGL_dll!" "!destinationFolder!"
 
-    rem -> set libGLESv2_destin path
-    pushd %destinationFolder%
-    set libGLESv2_destin=%CD%\libGLESv2.dll
-    popd
+    echo "COPY !libEGLv2_source! !destinationFolder!"
+    COPY "!libEGLv2_source!" "!destinationFolder!"
 
-    rem -> set audiere_destin path
-    pushd %destinationFolder%
-    set audiere_destin=%CD%\audiere.dll
-    popd
+    echo "COPY !libEGLv2_dll! !destinationFolder!"
+    COPY "!libEGLv2_dll!" "!destinationFolder!"
 
-    rem -> set mini_mbm_lib path
-    pushd %destinationFolder%
-    set mini_mbm_lib_destin=%CD%\mini-mbm-lib.h
-    popd
+    echo "COPY !d3dcompiler_source! !destinationFolder!"
+    COPY "!d3dcompiler_source!" "!destinationFolder!"
 
-    rem -> set editor path
-    pushd %destinationFolder%
-    set editor_destin=%CD%\
-    popd
+    echo "COPY !mini_mbm_lib_source! !destinationFolder!"
+    COPY "!mini_mbm_lib_source!" "!destinationFolder!"
 
-    echo "COPY %d3dcompiler_source% %d3dcompiler_destin%"
-    COPY "%d3dcompiler_source%" "%d3dcompiler_destin%"
-
-    echo "COPY %libEGL_source% %libEGL_destin%"
-    COPY "%libEGL_source%" "%libEGL_destin%"
-
-    echo "COPY %libGLESv2_source% %libGLESv2_destin%"
-    COPY "%libGLESv2_source%" "%libGLESv2_destin%"
-
-    echo "COPY %audiere_source% %audiere_destin%"
-    COPY "%audiere_source%" "%audiere_destin%"
-
-    echo "COPY %mini_mbm_lib_source% %mini_mbm_lib_dest%"
-    COPY "%mini_mbm_lib_source%" "%mini_mbm_lib_destin%"
-
-    echo "Copying Editor LUA to  %destinationFolder%"
-
-    echo "XCOPY %editor_source% %editor_dest%"
-    XCOPY "%editor_source%" "%editor_destin%" /E /I /Y
+    echo "XCOPY !editor_source! !destinationFolder!"
+    XCOPY "!editor_source!" "!destinationFolder!" /E /I /Y
 )
 
 

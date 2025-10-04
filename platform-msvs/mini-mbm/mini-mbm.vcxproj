@@ -151,7 +151,8 @@
       </ForceFileOutput>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"  "x32"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
