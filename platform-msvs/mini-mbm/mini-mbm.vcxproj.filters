@@ -77,16 +77,10 @@
     <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h">
       <Filter>Header Files\lua</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\camera-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\check-user-type-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\common-methods-lua.h">
@@ -156,9 +150,6 @@
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h">
-      <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\shader-lua.h">
@@ -281,6 +272,9 @@
     <ClInclude Include="..\..\include\version\version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\animation-lua.h">
+      <Filter>Header Files\lua-wrap\render-table</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="mini-mbm.ico">
@@ -294,6 +288,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="create-short-cuts.bat">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="remove-unused-file-from-release.bat">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="create_shortcut_from_here.bat">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

@@ -25,9 +25,8 @@ extern "C"
 }
 
 #include <lua-wrap/render-table/font-lua.h>
-#include <lua-wrap/user-data-lua.h>
+#include <plugin-helper/user-data-lua.h>
 #include <lua-wrap/common-methods-lua.h>
-#include <lua-wrap/check-user-type-lua.h>
 #include <core_mbm/mesh-manager.h>
 #include <render/font.h>
 #include <platform/mismatch-platform.h>
@@ -38,10 +37,6 @@ extern "C"
 
 namespace mbm
 {
-    extern int setVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-    extern int getVariable(lua_State *lua, RENDERIZABLE *ptr, const char *what);
-	extern int lua_error_debug(lua_State *lua, const char *format, ...);
-
     FONT_DRAW *getFontFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
         auto **ud = static_cast<FONT_DRAW **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_FONT));

@@ -29,38 +29,41 @@ namespace mbm
     {
         switch(value)
         {
-            case L_USER_TYPE_BEGIN                  :return "_userType_begin";
-            case L_USER_TYPE_VEC2                   :return "_usertype_vec2";
-            case L_USER_TYPE_VEC3                   :return "_usertype_vec3";
-            case L_USER_TYPE_RENDERIZABLE           :return "_usertype_renderizable";
-            case L_USER_TYPE_TIMER                  :return "_usertype_timer";
-            case L_USER_TYPE_SHADER                 :return "_usertype_shader";
-            case L_USER_TYPE_AUDIO                  :return "_usertype_audio";
-            case L_USER_TYPE_VR                     :return "_usertype_vr";
-            case L_USER_TYPE_TEXTURE                :return "_usertype_texture";
-            case L_USER_TYPE_SPRITE                 :return "_usertype_sprite";
-            case L_USER_TYPE_CAMERA_TARGET          :return "_usertype_camera_2_target";
-            case L_USER_TYPE_RENDER_2_TEXTURE       :return "_usertype_render_2_texture";
-            case L_USER_TYPE_PARTICLE               :return "_usertype_particle";
-            case L_USER_TYPE_STEERED_PARTICLE       :return "_usertype_steered_particle";
-            case L_USER_TYPE_MESH                   :return "_usertype_mesh";
-            case L_USER_TYPE_MESH_DEBUG             :return "_usertype_mesh_debug";
-            case L_USER_TYPE_LINE                   :return "_usertype_line";
-            case L_USER_TYPE_GIF                    :return "_usertype_gif";
-            case L_USER_TYPE_SHAPE_MESH             :return "_usertype_frame_mesh";
-            case L_USER_TYPE_FONT                   :return "_usertype_font";
-            case L_USER_TYPE_TEXT                   :return "_usertype_text";
-            case L_USER_TYPE_BACKGROUND             :return "_usertype_background";
-            case L_USER_TYPE_BOX2D                  :return "_usertype_box2d";
-            case L_USER_TYPE_BOX2D_JOINT            :return "_usertype_box2d_joint";
-            case L_USER_TYPE_BOX2D_STEERED_PARTICLE :return "_usertype_box2d_steered_particle";
-            case L_USER_TYPE_BULLET3D               :return "_usertype_bullet3d";
-            case L_USER_TYPE_TILE                   :return "_usertype_tile";
-            case L_USER_TYPE_TILE_OBJ               :return "_usertype_tile_obj";
-            case L_USER_TYPE_PLUGIN                 :return "_usertype_plugin";
-            case L_USER_TYPE_NEW_WRAPPER            :return "_usertype_new_wrapper";
-            case L_USER_TYPE_END                    :return "_usertype_end";
-            default                                 :return "_usertype_unknown"; 
+            case L_USER_TYPE_BEGIN                      :return "_userType_begin";
+            case L_USER_TYPE_VEC2                       :return "_usertype_vec2";
+            case L_USER_TYPE_VEC3                       :return "_usertype_vec3";
+            case L_USER_TYPE_RENDERIZABLE               :return "_usertype_renderizable";
+            case L_USER_TYPE_TIMER                      :return "_usertype_timer";
+            case L_USER_TYPE_SHADER                     :return "_usertype_shader";
+            case L_USER_TYPE_AUDIO                      :return "_usertype_audio";
+            case L_USER_TYPE_VR                         :return "_usertype_vr";
+            case L_USER_TYPE_TEXTURE                    :return "_usertype_texture";
+            case L_USER_TYPE_SPRITE                     :return "_usertype_sprite";
+            case L_USER_TYPE_CAMERA_TARGET              :return "_usertype_camera_2_target";
+            case L_USER_TYPE_RENDER_2_TEXTURE           :return "_usertype_render_2_texture";
+            case L_USER_TYPE_PARTICLE                   :return "_usertype_particle";
+            case L_USER_TYPE_STEERED_PARTICLE           :return "_usertype_steered_particle";
+            case L_USER_TYPE_MESH                       :return "_usertype_mesh";
+            case L_USER_TYPE_MESH_DEBUG                 :return "_usertype_mesh_debug";
+            case L_USER_TYPE_LINE                       :return "_usertype_line";
+            case L_USER_TYPE_GIF                        :return "_usertype_gif";
+            case L_USER_TYPE_SHAPE_MESH                 :return "_usertype_frame_mesh";
+            case L_USER_TYPE_FONT                       :return "_usertype_font";
+            case L_USER_TYPE_TEXT                       :return "_usertype_text";
+            case L_USER_TYPE_BACKGROUND                 :return "_usertype_background";
+            case L_USER_TYPE_BOX2D                      :return "_usertype_box2d";
+            case L_USER_TYPE_BOX2D_JOINT                :return "_usertype_box2d_joint";
+			case L_USER_TYPE_BOX2D_STEERED_PARTICLE     :return "_usertype_box2d_steered_particle";
+            case L_USER_TYPE_BOX2D_LF                   :return "_usertype_box2d_liquidfluid";
+            case L_USER_TYPE_BOX2D_LF_JOINT             :return "_usertype_box2d_joint_liquidfluid";
+            case L_USER_TYPE_BOX2D_LF_STEERED_PARTICLE  :return "_usertype_box2d_steered_particle_liquidfluid";
+            case L_USER_TYPE_BULLET3D                   :return "_usertype_bullet3d";
+            case L_USER_TYPE_TILE                       :return "_usertype_tile";
+            case L_USER_TYPE_TILE_OBJ                   :return "_usertype_tile_obj";
+            case L_USER_TYPE_PLUGIN                     :return "_usertype_plugin";
+            case L_USER_TYPE_NEW_WRAPPER                :return "_usertype_new_wrapper";
+            case L_USER_TYPE_END                        :return "_usertype_end";
+            default                                     :return "_usertype_unknown"; 
         }
     }
 

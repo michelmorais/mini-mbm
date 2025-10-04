@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0054 NEW)
 project(${TILED_LIBRARY})
 
-set(SRC_INCLUDES            "../../include")
-set(CUSTOM_RENDER_INCLUDE ".")
-set(CUSTOM_RENDER_LIB_SRC ".")
+set(CORE_MBM_INCLUDES          ${CMAKE_SOURCE_DIR}/include)
+set(PLUGIN_HELPER_INC          ${CMAKE_SOURCE_DIR}/plugins)
+set(CUSTOM_RENDER_INCLUDE       ".")
+set(CUSTOM_RENDER_LIB_SRC       ".")
 set(THIRD_PARTY                 ${CMAKE_SOURCE_DIR}/third-party)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(PLUGIN_HELPER_SRC          "${CUSTOM_RENDER_LIB_SRC}/../plugin-helper")
@@ -23,9 +24,10 @@ message(STATUS "Building ${TILED_LIBRARY} lib...")
 file(GLOB_RECURSE RENDERER_SOURCES        "${CUSTOM_RENDER_LIB_SRC}/*.cpp" "${PLUGIN_HELPER_SRC}/*.cpp")
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${CUSTOM_RENDER_INCLUDE} 
+include_directories(${CUSTOM_RENDER_INCLUDE}
+                    ${PLUGIN_HELPER_INC}
                     ${LUA_INCLUDE}
-                    ${SRC_INCLUDES}
+                    ${CORE_MBM_INCLUDES}
                     ${PLUGIN_HELPER_SRC}
                     ${THIRD_PARTY})
  
@@ -37,4 +39,5 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 add_library(${TILED_LIBRARY} SHARED ${RENDERER_SOURCES})
 
 target_link_libraries(${TILED_LIBRARY} ${LUA_LIBRARY})
+target_link_libraries(${TILED_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
 target_link_libraries(${TILED_LIBRARY} ${CORE_MBM_LIBRARY})

@@ -25,10 +25,9 @@
 #ifndef AUDIERE_H
 #define AUDIERE_H
 
-
+#include <cstring>
 #include <vector>
 #include <string>
-#include <cstring>
 
 #ifdef _MSC_VER
 #pragma warning(push)

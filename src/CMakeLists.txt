@@ -9,10 +9,6 @@ set(INCLUDE                     ${CMAKE_SOURCE_DIR}/include)
 set(THIRD_PARTY                 ${CMAKE_SOURCE_DIR}/third-party)
 set(PLUGINS                     ${CMAKE_SOURCE_DIR}/plugins)
 set(CORE_MBM                    ${INCLUDE}/core_mbm)
-set(BOX2D_WRAP_SRC              box-2d-wrap)
-set(BULLET3d_WRAP_SRC           bullet-3d-wrap)
-set(BOX2D_INC                   ${THIRD_PARTY}/box2d-${BOX2D_LIB_VERSION})
-set(BULLET_3D_INC               ${THIRD_PARTY}/bullet-${BULLET_LIB_VERSION})
 set(RENDER_INCLUDES             ${INCLUDE}/render)
 set(CORE_OPENGLES_INCLUDES      ${INCLUDE}/core_mbm)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
@@ -63,8 +59,6 @@ include_directories(${OPENGLES2_INCLUDE_DIR}
                     ${THIRD_PARTY}
                     ${LUA_WRAP}
                     ${LUA_INCLUDE}
-                    ${BOX2D_INC}
-                    ${BULLET_3D_INC}
                     ${PLUGINS})
 
  
@@ -84,6 +78,10 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         add_definitions(-DUSE_LSQLITE3)
     endif()
 
+    if(USE_BOX2D_LIQUID_FUN)
+        add_definitions(-DUSE_BOX2D_LIQUID_FUN)
+    endif()
+
     if(USE_BOX2D)
         add_definitions(-DUSE_BOX2D)
     endif()
@@ -98,7 +96,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     add_library(mini-mbm  SHARED  ${MAIN}
                             ${SOURCES}
-                            ${BOX2D_WRAP_SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP})
 
@@ -108,7 +106,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 
     add_executable(mini-mbm ${MAIN}
                         ${SOURCES}
-                        ${BOX2D_WRAP_SOURCES}
+                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                         ${BULLET3D_WRAP_SOURCES}
                         ${TINYFILEDIALOGS_SOURCES}
                         ${SCENE_CPP})
@@ -118,7 +116,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     add_executable(mini-mbm ${MAIN}
                         ${SOURCES}
-                        ${BOX2D_WRAP_SOURCES}
+                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                         ${BULLET3D_WRAP_SOURCES}
                         ${TINYFILEDIALOGS_SOURCES}
                         ${SCENE_CPP})
@@ -131,24 +129,34 @@ endif()
 
 if (USE_LUA)
     target_link_libraries(mini-mbm ${LUA_LIBRARY})
+    target_link_libraries(mini-mbm ${PLUGIN_HELPER_LIBRARY})
 endif()
 
 # plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled, ${SQLITE3_LUA_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
     endif()
 
     if(USE_BOX2D)
-        target_link_libraries(mini-mbm ${BOX2D_LIBRARY})
+        message(STATUS "USE_BOX2D is enabled, ${BOX2D_LUA_LIBRARY} for ANDROID will be linked as workaround")
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled, ${BOX2D_LIQUID_FUN_LUA_LIBRARY} for ANDROID will be linked as workaround")
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
     endif()
 
     if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled, ${BULLET_3D_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
     endif()
 
     if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled, ${IMGUI_LIBRARY} for ANDROID will be linked as workaround")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 

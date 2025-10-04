@@ -31,7 +31,7 @@
 namespace util
 {
 
-    extern const char *getPathFromFullPathName(const char *fileNamePath);
+    API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
     #if defined   _WIN32
     API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
     API_IMPL char *toChar(const WCHAR *wstr, char *outText);
@@ -39,19 +39,19 @@ namespace util
 
     API_IMPL float degreeToRadian(const float degree);
     API_IMPL float radianToDegree(const float radian);
-    extern void setRandomSeed();
-    extern float getHeightMaxWithInitialSpeed(const float gravity, const float speedInitial) noexcept;
-    extern float getHeightWithTime(const float gravity, const float time) noexcept;
-    extern float getTimeWithMaxHeight(const float gravity, const float heigth) noexcept;
-    extern float getSpeedWithTimeFall(const float gravity, const float time) noexcept;
-    extern float getSpeedWithHeight(const float gravity, const float heigth) noexcept;
+    API_IMPL void setRandomSeed();
+    API_IMPL float getHeightMaxWithInitialSpeed(const float gravity, const float speedInitial) noexcept;
+    API_IMPL float getHeightWithTime(const float gravity, const float time) noexcept;
+    API_IMPL float getTimeWithMaxHeight(const float gravity, const float heigth) noexcept;
+    API_IMPL float getSpeedWithTimeFall(const float gravity, const float time) noexcept;
+    API_IMPL float getSpeedWithHeight(const float gravity, const float heigth) noexcept;
 
     API_IMPL int getRandomInt(const int min, const int max) noexcept;
     API_IMPL char getRandomChar(const char min, const char max) noexcept;
     API_IMPL float getRandomFloat(const float min, const float max) noexcept;
-    extern uint32_t FloatToDWORD(float &Float) noexcept;
+    API_IMPL uint32_t FloatToDWORD(float &Float) noexcept;
     API_IMPL const char* getBaseName(const char *fileName);
-    extern float getByteProp(); // 1 / 255
+    API_IMPL float getByteProp(); // 1 / 255
 	API_IMPL void base_64_decode(const std::string & str_encoded, std::string & result);
     API_IMPL void getAABB(const float halfDimInOut[2], const float angleRadian, float *widthOut, float *heightOut) noexcept;
     API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);

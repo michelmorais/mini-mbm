@@ -78,18 +78,18 @@ namespace mbm
 
     void push_arg(const char * name,const char * value)
     {
-	    std::string var_name(name ? name : "");
-	    std::string var_value(value ? value : "");
-	    my_args.emplace_back(var_name);
-	    my_args.emplace_back(var_value);
+        std::string var_name(name ? name : "");
+        std::string var_value(value ? value : "");
+        my_args.emplace_back(var_name);
+        my_args.emplace_back(var_value);
     }
 
     void set_string_to_execute(const char * string_lua)
     {
         if(string_lua)
         {
-	        my_args.emplace_back("-execute");
-	        my_args.emplace_back(string_lua);
+            my_args.emplace_back("-execute");
+            my_args.emplace_back(string_lua);
         }
         else
         {
@@ -101,7 +101,7 @@ namespace mbm
     {
         if(path)
         {
-	        util::addPath(path);
+            util::addPath(path);
         }
         else
         {
@@ -114,7 +114,7 @@ namespace mbm
         if(width > 0)
         {
             my_args.emplace_back("-w");
-	        my_args.emplace_back(std::to_string(width));
+            my_args.emplace_back(std::to_string(width));
         }
         else
         {
@@ -123,7 +123,7 @@ namespace mbm
         if(height > 0)
         {
             my_args.emplace_back("-h");
-	        my_args.emplace_back(std::to_string(height));
+            my_args.emplace_back(std::to_string(height));
         }
         else
         {
@@ -145,7 +145,7 @@ namespace mbm
         if(expected_width > 0)
         {
             my_args.emplace_back("-ew");
-	        my_args.emplace_back(std::to_string(expected_width));
+            my_args.emplace_back(std::to_string(expected_width));
         }
         else
         {
@@ -154,7 +154,7 @@ namespace mbm
         if(expected_height > 0)
         {
             my_args.emplace_back("-eh");
-	        my_args.emplace_back(std::to_string(expected_height));
+            my_args.emplace_back(std::to_string(expected_height));
         }
         else
         {
@@ -165,9 +165,9 @@ namespace mbm
     void set_window_position(const int x,const int y)
     {
         my_args.emplace_back("-x");
-	    my_args.emplace_back(std::to_string(x));
+        my_args.emplace_back(std::to_string(x));
         my_args.emplace_back("-y");
-	    my_args.emplace_back(std::to_string(y));
+        my_args.emplace_back(std::to_string(y));
     }
 
     void set_window_maximized(const bool value)
@@ -256,47 +256,47 @@ namespace mbm
     {
         if(args.size() <= 1 ||  (args.size() > 1 && args[1].find("help") != std::string::npos))
         {
-		    help(util::getBaseName(args[0].c_str()));
+            help(util::getBaseName(args[0].c_str()));
         }
         if(_my_theme_selected == false)
             mbm::setTheme(22, true);
-	    mbm::LUA_MANAGER luaCore(args);
+        mbm::LUA_MANAGER luaCore(args);
         if(luaCore.device && luaCore.device->verbose)
-	        log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
-	
+            log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
+    
         luaCore.onDoNativeCommand = externalDoNativeCommand;
-	    luaCore.idIcon = ID_ICON;
-	    DisableProcessWindowsGhosting();
-	    if (luaCore.initializeSceneLua(luaCore.noBorder == false))
-	    {
-	        luaCore.device->window.askOnExit = false;
-	        luaCore.device->window.exitOnEsc = false;
-	
+        luaCore.idIcon = ID_ICON;
+        DisableProcessWindowsGhosting();
+        if (luaCore.initializeSceneLua(luaCore.noBorder == false))
+        {
+            luaCore.device->window.askOnExit = false;
+            luaCore.device->window.exitOnEsc = false;
+    
     #ifndef _DEBUG 
-		    bool hideConsole = true;
-		    for (const auto & arg : args)
-		    {
+            bool hideConsole = true;
+            for (const auto & arg : args)
+            {
                 if (arg.find("--showconsole") != std::string::npos)
-			    {
-				    hideConsole = false;
-				    break;
-			    }
-		    }
-		    if(hideConsole)
-			    mbm::hideConsoleWindow();
+                {
+                    hideConsole = false;
+                    break;
+                }
+            }
+            if(hideConsole)
+                mbm::hideConsoleWindow();
     #endif
-	        const int ret = luaCore.run();
-		    return mbm::DEVICE::returnCodeApp ? mbm::DEVICE::returnCodeApp : ret;
-	    }
-	    else
-	    {
-	        PRINT_IF_DEBUG("Failed to load Mini Mbm %s Opengles", MBM_VERSION);
-	        fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
-	        fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
-	        fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");
-		    std::getchar();
-	        return -1;
-	    }
+            const int ret = luaCore.run();
+            return mbm::DEVICE::returnCodeApp ? mbm::DEVICE::returnCodeApp : ret;
+        }
+        else
+        {
+            PRINT_IF_DEBUG("Failed to load Mini Mbm %s Opengles", MBM_VERSION);
+            fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
+            fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
+            fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");
+            std::getchar();
+            return -1;
+        }
     }
 
 
@@ -371,6 +371,33 @@ namespace mbm
         * selected_height          = resolutions[index].height;
     }
 
+    static void onSelectApplication(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
+    {
+        APP_RUN * app_run = static_cast<APP_RUN *>(w->getObjectContext(6));
+        std::string* script_app = static_cast<std::string*>(w->getObjectContext(7));
+        int index = dataEvent.getAsInt();
+        *script_app = app_run[index].script_path;
+    }
+
+    
+    static void onSelectUserScript(mbm::WINDOW* w, mbm::DATA_EVENT& dataEvent)
+    {
+        APP_RUN* app_run = static_cast<APP_RUN*>(w->getObjectContext(6));
+        int * idAppSelection = static_cast<int*>(w->getObjectContext(8));
+        std::string* custom_script = static_cast<std::string*>(w->getObjectContext(9));
+		int* size_app_run = static_cast<int*>(w->getObjectContext(10));
+        char file_selected[1024] = {};
+        char* the_file = mbm::openFileBox("*.lua", "Script", true, false, w->getHwnd(), custom_script->c_str(), file_selected);
+        if (the_file)
+        {
+            *custom_script = the_file;
+            app_run[*size_app_run - 1].script_path = custom_script->c_str();
+			w->removeText(*idAppSelection, *size_app_run - 1);
+			w->addText(*idAppSelection, the_file);
+            w->setSelectedIndex(*idAppSelection, *size_app_run - 1);
+        }
+    }
+
     static void onSelectMonitor(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
     {
         __AUX_MONITOR_SELECT *__auxSelectMonitor = static_cast<__AUX_MONITOR_SELECT *>(w->getObjectContext(0));
@@ -391,19 +418,25 @@ namespace mbm
         *p_is_full_screen = dataEvent.getAsBool();
     }
 
-    bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list,bool allow_full_screen,const bool full_screen_checked)
+    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
-        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen;
+        mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app, reg_user_script;
         const char * strKeyName = my_app_name.length() > 0 ? my_app_name.c_str() : "Mini-Mbm";
         std::string key_index_monitor(strKeyName);
         std::string key_resolution(strKeyName);
         std::string key_screen_full_screen(strKeyName);
+        std::string key_index_script_app(strKeyName);
+        std::string key_user_script(strKeyName);
         key_index_monitor       += "\\index-monoitor";
         key_resolution          += "\\index-resolution";
         key_screen_full_screen  += "\\full-screen";
+        key_index_script_app    += "\\script-app";
+        key_user_script         += "\\user-script";
         reg_index_monitor.openKey(HKEY_CURRENT_USER,key_index_monitor.c_str());
         reg_index_resolution.openKey(HKEY_CURRENT_USER,key_resolution.c_str());
         reg_full_screen.openKey(HKEY_CURRENT_USER,key_screen_full_screen.c_str());
+        reg_script_app.openKey(HKEY_CURRENT_USER, key_index_script_app.c_str());
+        reg_user_script.openKey(HKEY_CURRENT_USER, key_user_script.c_str());
         
         mbm::MONITOR my_monitor_selected;
         mbm::MONITOR_MANAGER manMonitor;
@@ -412,8 +445,9 @@ namespace mbm
         bool full_screen = allow_full_screen && full_screen_checked;
         int x_las_pos = 0;
         int y_las_pos = 0;
+        const int extra_height = size_app_run != 0 ? 60 : 0;
         const int width_screen_option = 400;
-        const int height_screen_option = 350;
+        const int height_screen_option = 350 + extra_height;
         const int regindex_monitor    = reg_index_monitor.getVal(key_index_monitor.c_str(),0xff);
         if(regindex_monitor != 0xff && manMonitor.getMonitor(regindex_monitor, &my_monitor_selected))
         {
@@ -549,11 +583,11 @@ namespace mbm
         w.setObjectContext(static_cast<void*>(&full_screen), 5);
         if(allow_full_screen)
         {
-            const int idFull =  w.addCheckBox(temp_full_screen_lbl, 10, 300, 200, 20, onSelectFullScreen);
+            const int idFull =  w.addCheckBox(temp_full_screen_lbl, 10, extra_height + 300, 200, 20, onSelectFullScreen);
             full_screen = reg_full_screen.getVal(key_screen_full_screen.c_str(),0) ? true : false;
             w.setCheckBox(full_screen, idFull);
         }
-        __auxSelectMonitor.idbntOk = w.addButton(temp_play_lbl, 310, 300, 70, 20, -1, __AUX_MONITOR_SELECT::__0_onPressOkMonitor);
+        __auxSelectMonitor.idbntOk = w.addButton(temp_play_lbl, 310, extra_height + 300, 70, 20, -1, __AUX_MONITOR_SELECT::__0_onPressOkMonitor);
         w.setCheckBox(false, __auxSelectMonitor.idChkAskAboutMonitor);
         w.askOnExit = false;
         w.hideConsoleWindow();
@@ -571,6 +605,65 @@ namespace mbm
             selected_width  = screen_resolution_list[regindex_resolution].width;
             selected_height = screen_resolution_list[regindex_resolution].height;
         }
+
+        std::string script_app;
+        static std::string custom_script;
+		custom_script.clear(); 
+        int idAppSelection = -1;
+        int idCustomScript = -1;
+
+        if (size_app_run > 0)
+        {
+            const char* temp_app_label = "Application:";
+            const char* temp_app_custom = "Custom Script...";
+			int adjusted_custom = 90;
+            if (isPTbr)
+            {
+                temp_app_label = "Aplicativo:";
+                temp_app_custom = "Aplicativo Personalizado...";
+				adjusted_custom = 150;
+            }
+            w.addLabel(temp_app_label, 10, 180, 380, 25);
+            idAppSelection = w.addCombobox(10, 210, 380, 100, onSelectApplication);
+            for (int i = 0; i < size_app_run; i++)
+            {
+                if(i == size_app_run - 1)
+                {
+                    custom_script = reg_user_script.getString(key_user_script.c_str(), "User specified script");
+                    w.addText(idAppSelection, custom_script.c_str());
+					app_run[i].script_path = custom_script.c_str();
+				}
+                else if (isPTbr)
+                {
+                    w.addText(idAppSelection, app_run[i].name_pt_br ? app_run[i].name_pt_br : "Sem nome");
+                }
+                else
+                {
+                    w.addText(idAppSelection, app_run[i].name_eng ? app_run[i].name_eng : "No name");
+                }
+            }
+            w.setObjectContext(static_cast<void*>(app_run), 6);
+            w.setObjectContext(static_cast<void*>(&script_app), 7);
+            w.setObjectContext(static_cast<void*>(&idAppSelection), 8);
+
+            if (index_app_selected != nullptr && (*index_app_selected) == (size_app_run - 1))
+            {
+                w.setSelectedIndex(idAppSelection, *index_app_selected);
+            }
+            else
+            {
+                const int regindex_app = reg_script_app.getVal(key_index_script_app.c_str(), 0xff);
+                if (regindex_app != 0xff && regindex_app < size_app_run)
+                {
+                    w.setSelectedIndex(idAppSelection, regindex_app);
+                }
+            }
+            
+            w.setObjectContext(static_cast<void*>(&custom_script), 9);
+            w.setObjectContext(static_cast<void*>(&size_app_run), 10);
+            idCustomScript = w.addButton(temp_app_custom, 380 + 10 - adjusted_custom, 180, adjusted_custom, 20, -1, onSelectUserScript);
+        }
+
         w.exitOnEsc = false;
         w.enterLoop(nullptr);
         w.run = false;
@@ -588,9 +681,28 @@ namespace mbm
         reg_index_monitor.setVal(key_index_monitor.c_str(),my_monitor_selected.index);
         reg_index_resolution.setVal(key_resolution.c_str(),w.getSelectedIndex(idResolution));
         reg_full_screen.setVal(key_screen_full_screen.c_str(),full_screen ? 1 : 0);
+        if (size_app_run > 0)
+        {
+            int local_index_app_selected = w.getSelectedIndex(idAppSelection);
+            reg_script_app.setVal(key_index_script_app.c_str(), local_index_app_selected);
+            if(index_app_selected != nullptr)
+            {
+                *index_app_selected = local_index_app_selected;
+            }
+            if(custom_script.length() > 0)
+            {
+                reg_user_script.setString(key_user_script.c_str(), custom_script);
+            }
+        }
         reg_index_monitor.closeKey();
         reg_index_resolution.closeKey();
         reg_full_screen.closeKey();
+		reg_user_script.closeKey();
         return true;
+    }
+
+    bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
+    {
+        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked);
     }
 }

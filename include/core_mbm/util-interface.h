@@ -55,20 +55,20 @@ namespace util
     #endif
     API_IMPL const char* getDirSeparator();
     API_IMPL const char  getCharDirSeparator();
-    extern const char *getPathFromFullPathName(const char *fileNamePath);
+    API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
     API_IMPL float degreeToRadian(const float degree);
     API_IMPL float radianToDegree(const float radian);
-    extern void setRandomSeed();
-    extern float getHeightMaxWithInitialSpeed(const float gravity, const float speedInitial) noexcept;
-    extern float getHeightWithTime(const float gravity, const float time) noexcept;
-    extern float getTimeWithMaxHeight(const float gravity, const float heigth) noexcept;
-    extern float getSpeedWithTimeFall(const float gravity, const float time) noexcept;
-    extern float getSpeedWithHeight(const float gravity, const float heigth) noexcept;
+    API_IMPL void setRandomSeed();
+    API_IMPL float getHeightMaxWithInitialSpeed(const float gravity, const float speedInitial) noexcept;
+    API_IMPL float getHeightWithTime(const float gravity, const float time) noexcept;
+    API_IMPL float getTimeWithMaxHeight(const float gravity, const float heigth) noexcept;
+    API_IMPL float getSpeedWithTimeFall(const float gravity, const float time) noexcept;
+    API_IMPL float getSpeedWithHeight(const float gravity, const float heigth) noexcept;
     API_IMPL int getRandomInt(const int min, const int max) noexcept;
     API_IMPL char getRandomChar(const char min, const char max) noexcept;
     API_IMPL float getRandomFloat(const float min, const float max) noexcept;
-    extern uint32_t FloatToDWORD(float &Float) noexcept;
-    extern float getByteProp(); // 1 / 255
+    API_IMPL uint32_t FloatToDWORD(float &Float) noexcept;
+    API_IMPL float getByteProp(); // 1 / 255
     API_IMPL void getAABB(const float halfDimInOut[2], const float angleRadian, float *widthOut, float *heightOut) noexcept;
     API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
     API_IMPL FILE* openFile(const char *fileName, const char *mode);
@@ -82,7 +82,7 @@ namespace util
     API_IMPL bool directoy_exists(const char * folder_base_name);
     API_IMPL bool create_tmp_directoy(const char * folder_name,char* folder_name_output,const int size_folder_name_output);
     API_IMPL void remove_directory(const char * folder);
-    extern const char * getDecompressModelFileName();
+    API_IMPL const char * getDecompressModelFileName();
     API_IMPL const char* getBaseName(const char *fileName);
 	API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
 }

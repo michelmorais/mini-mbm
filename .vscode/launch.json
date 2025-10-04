@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    {
+        "name": "C/C++ Debug (gdb Attach)",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+        "args": ["/home/michel/tower-defense/main.lua", "-w", "1920", "-h", "1080", "-ew", "1920", "-eh", "1080"],
+        "MIMode": "gdb",
+        "cwd": "/home/michel/mini-mbm/bin/debug/linux_x86/",
+        "setupCommands": [
+            {
+                "description": "Enable pretty-printing for gdb",
+                "text": "-enable-pretty-printing",
+                "ignoreFailures": true
+            }
+        ]
+    }
+    ]
+}
