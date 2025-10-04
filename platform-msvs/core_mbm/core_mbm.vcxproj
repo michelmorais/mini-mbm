@@ -116,7 +116,7 @@
       </Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"  "x32"</Command>
     </PreBuildEvent>
     <CustomBuildStep>
       <Command>
@@ -155,7 +155,7 @@
       </Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"  "x32"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

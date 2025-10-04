@@ -110,7 +110,7 @@
       </ForceFileOutput>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"  "x32"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
@@ -151,7 +151,7 @@
       </ForceFileOutput>
     </Link>
     <PreBuildEvent>
-      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"</Command>
+      <Command>"$(SolutionDir)copy-dlls.bat"  "$(OutDir)"  "x32"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>
