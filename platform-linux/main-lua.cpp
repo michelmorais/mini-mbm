@@ -41,7 +41,8 @@ int main(const int argc,const char **argv)
     if (luaCore.initializeSceneLua(luaCore.noBorder == false))
     {
         const int ret = luaCore.run();
-        return mbm::DEVICE::returnCodeApp ? mbm::DEVICE::returnCodeApp : ret;
+        const int returnCode = luaCore.device->getAppReturnCode();
+        return returnCode ? returnCode : ret;
     }
     else
     {
