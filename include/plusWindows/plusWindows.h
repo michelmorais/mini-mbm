@@ -105,6 +105,8 @@
 #include <commdlg.h>
 #include <thread>
 
+#include "core-exports.h"
+
 #ifdef __MINGW32__
 #define TOOLINFO TTTOOLINFO
 #define BS_PUSHBOX 0x0000000AL
@@ -159,7 +161,7 @@ int c99_snprintf(char *outBuf, size_t size, const char *format, ...);
 #endif
 
 void __destroyMenu(void *extraParams);
-const int __getTabStopPixelSize(HWND hwnd);
+API_IMPL const int __getTabStopPixelSize(HWND hwnd);
 
 namespace mbm
 {
@@ -203,14 +205,14 @@ class __NC_BORDERS
     void Defaultresult(int ret);
 };
 
-WCHAR *toWchar(const char *str, WCHAR *outText);
-char *toChar(const WCHAR *wstr, char *outText);
-void destroyListComBetweenWindows(HWND hwnd);
+API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
+API_IMPL char *toChar(const WCHAR *wstr, char *outText);
+API_IMPL void destroyListComBetweenWindows(HWND hwnd);
 
 class STATIC_IMAGE_RESOURCE
 {
   public:
-    STATIC_IMAGE_RESOURCE(const uint32_t w, const uint32_t h, const uint32_t s, const char *nickName_,const uint32_t *d, const uint32_t c);
+      API_IMPL STATIC_IMAGE_RESOURCE(const uint32_t w, const uint32_t h, const uint32_t s, const char *nickName_,const uint32_t *d, const uint32_t c);
     const uint32_t  width;
     const uint32_t  height;
     const uint32_t  size;
@@ -220,25 +222,25 @@ class STATIC_IMAGE_RESOURCE
 };
 
 
-void split(std::vector<std::string> &result, const char *in, const char delim);
-const char *getLastErrWindows(const char *where, char *outMessage);
-bool startUpWindows64(const char *name);
-bool startUpWindows(const char *name);
+API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
+API_IMPL const char *getLastErrWindows(const char *where, char *outMessage);
+API_IMPL bool startUpWindows64(const char *name);
+API_IMPL bool startUpWindows(const char *name);
 
 class REGEDIT // regedit do windows. set "Project>Configuration Properties>Linker>Manifest File>UAC Execution Level" to
               // requireAdministrator
 {
   public:
-    REGEDIT();
-    virtual ~REGEDIT();
+    API_IMPL REGEDIT();
+    API_IMPL virtual ~REGEDIT();
     
-    bool openKey(HKEY hRootKey, const wchar_t *strKey, const DWORD acess = KEY_ALL_ACCESS);
-    bool openKey(HKEY hRootKey, const char *strKey, const DWORD acess = KEY_ALL_ACCESS);
-    void setVal(LPCTSTR key, DWORD value);
-    void setString(LPCTSTR key, const std::string &value);
-    DWORD getVal(LPCTSTR key, DWORD valueNotFound);
-    std::string getString(LPCTSTR key, const char * stringNotFound);
-    void closeKey();
+    API_IMPL bool openKey(HKEY hRootKey, const wchar_t *strKey, const DWORD acess = KEY_ALL_ACCESS);
+    API_IMPL bool openKey(HKEY hRootKey, const char *strKey, const DWORD acess = KEY_ALL_ACCESS);
+    API_IMPL void setVal(LPCTSTR key, DWORD value);
+    API_IMPL void setString(LPCTSTR key, const std::string &value);
+    API_IMPL DWORD getVal(LPCTSTR key, DWORD valueNotFound);
+    API_IMPL std::string getString(LPCTSTR key, const char * stringNotFound);
+    API_IMPL void closeKey();
     /*
      //sample:
      DWORD v1, v2;
@@ -257,9 +259,9 @@ class REGEDIT // regedit do windows. set "Project>Configuration Properties>Linke
     bool printLastErrWindows(const char *where = nullptr);
 };
 
-int getRandomInt(const int min, const int max);
-char getRandomChar(const char min, const char max);
-float getRandomFloat(const float min, const float max);
+API_IMPL int getRandomInt(const int min, const int max);
+API_IMPL char getRandomChar(const char min, const char max);
+API_IMPL float getRandomFloat(const float min, const float max);
 
 }
 namespace mbm
@@ -267,16 +269,16 @@ namespace mbm
     void __destroyOnExitAllListComBetweenWindows();
 };
 
-void __initRandomSeed();
+API_IMPL void __initRandomSeed();
 
 #ifndef PURE
     #define PURE = 0;
 #endif
 
 #if UNICODE
-WCHAR *getNextClassNameWindow();
+API_IMPL WCHAR *getNextClassNameWindow();
 #else
-char *getNextClassNameWindow();
+API_IMPL char *getNextClassNameWindow();
 #endif
 
 struct __TAB_GROUP_DESC
@@ -302,7 +304,7 @@ struct __TAB_GROUP_DESC
     std::vector<__TAB_GROUP_DESC *> lsTabChilds;
     std::vector<HWND *>             lsHwndComponents;
     //--------------------------------------------------------------------------------------------
-    __TAB_GROUP_DESC(const int _index, const int _idDest);
+    API_IMPL __TAB_GROUP_DESC(const int _index, const int _idDest);
 };
 
 struct TRACK_BAR_INFO
@@ -317,7 +319,7 @@ struct TRACK_BAR_INFO
     float increment;
     bool  isVertical;
     bool  invertMinMaxText;
-    TRACK_BAR_INFO();
+    API_IMPL TRACK_BAR_INFO();
 };
 
 struct PROGRESS_BAR_INFO
@@ -326,7 +328,7 @@ struct PROGRESS_BAR_INFO
     float      minRange;
     float      maxRange;
     float      position;
-    PROGRESS_BAR_INFO(const bool vertical_);
+    API_IMPL PROGRESS_BAR_INFO(const bool vertical_);
 };
 
 struct __HEADER_BMP
@@ -362,41 +364,41 @@ struct __HEADER_BMP
     uint8_t colors[4];
     uint8_t importantsColors[4];
     //------------------------------------------------------------------------------------------------------------------
-    uint32_t getAsUintFromCharPointer(uint8_t *adress);
+    API_IMPL uint32_t getAsUintFromCharPointer(uint8_t *adress);
 };
 
 namespace mbm
 {
 class WINDOW;
-WINDOW *getWindow(HWND hwnd);
-WINDOW *getLastWindow();
-WINDOW *getFirstWindow();
-void    closeAllWindows();
+API_IMPL WINDOW *getWindow(HWND hwnd);
+API_IMPL WINDOW *getLastWindow();
+API_IMPL WINDOW *getFirstWindow();
+API_IMPL void    closeAllWindows();
 
 class BMP
 {
   public:
-    BMP();
-    virtual ~BMP();
-    void release();
-    bool load(HWND hwnd, const int ID_RESOURCE);
-    bool loadTrueColor(const char *fileName);
-    bool load(const char *fileNameBitmap);
-    bool load(mbm::STATIC_IMAGE_RESOURCE &imageResource);
-    const int isLoaded()const;
-    const int getWidth() const;
-    const int getHeight() const;
-    void draw(HDC hdc);
-    void draw(HDC hdc, const int x, const int y);
-    void draw(HDC hdc, const RECT &rect);
-    void draw(HDC hdc, const int xPosition, const int yPosition, const int xSource, const int ySource,
+    API_IMPL BMP();
+    API_IMPL virtual ~BMP();
+    API_IMPL void release();
+    API_IMPL bool load(HWND hwnd, const int ID_RESOURCE);
+    API_IMPL bool loadTrueColor(const char *fileName);
+    API_IMPL bool load(const char *fileNameBitmap);
+    API_IMPL bool load(mbm::STATIC_IMAGE_RESOURCE &imageResource);
+    API_IMPL const int isLoaded()const;
+    API_IMPL const int getWidth() const;
+    API_IMPL const int getHeight() const;
+    API_IMPL void draw(HDC hdc);
+    API_IMPL void draw(HDC hdc, const int x, const int y);
+    API_IMPL void draw(HDC hdc, const RECT &rect);
+    API_IMPL void draw(HDC hdc, const int xPosition, const int yPosition, const int xSource, const int ySource,
                      const int width, const int height);
-    bool createBitmap(int width, int heigth);
-    bool createBitmap(int width, int heigth, const uint8_t *dataImage);
-    bool updateData();
-    HBITMAP getHBitmap() const;
-    BITMAP *getBitmapInfo();
-    uint8_t *getData() const;//RGB
+    API_IMPL bool createBitmap(int width, int heigth);
+    API_IMPL bool createBitmap(int width, int heigth, const uint8_t *dataImage);
+    API_IMPL bool updateData();
+    API_IMPL HBITMAP getHBitmap() const;
+    API_IMPL BITMAP *getBitmapInfo();
+    API_IMPL uint8_t *getData() const;//RGB
     
   private:
     
@@ -413,28 +415,28 @@ class EVENTS
 {
   public:
     //--------------------------------------------------------------------------------------------
-    virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
+      API_IMPL virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
+      API_IMPL virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onTouchMove(HWND w, float x, float y) PURE;
+      API_IMPL virtual void onTouchMove(HWND w, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onTouchZoom(HWND w, float zoom) PURE;
+      API_IMPL virtual void onTouchZoom(HWND w, float zoom) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onKeyDown(HWND w, int key) PURE;
+      API_IMPL virtual void onKeyDown(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onKeyUp(HWND w, int key) PURE;
+      API_IMPL virtual void onKeyUp(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-    virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
+      API_IMPL virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
     //--------------------------------------------------------------------------------------------
 
-    virtual void onResizeWindow(HWND w, int width, int height) PURE;
+      API_IMPL virtual void onResizeWindow(HWND w, int width, int height) PURE;
 };
 
 struct TIMER;
@@ -500,17 +502,17 @@ class DATA_EVENT
     const TYPE_WINDOWS_WINPLUS type;
     int                        idComponent;
     USER_DRAWER *              userDrawer;
-    DATA_EVENT();
-    DATA_EVENT(int idComponent_, void *Data, USER_DRAWER *UserDrawer, const TYPE_WINDOWS_WINPLUS type_, const char *_myString);
-    const int getAsInt();
-    const float getAsFloat();
-    const bool getAsBool();
-    const char *getAsString();
-    TIMER *getAsTimer();
-    TRACK_BAR_INFO *getAsTrackBar();
-    RADIO_GROUP *getAsRadio();
-    SPIN_PARAMSi *getAsSpin();
-    SPIN_PARAMSf *getAsSpinf();
+    API_IMPL DATA_EVENT();
+    API_IMPL DATA_EVENT(int idComponent_, void *Data, USER_DRAWER *UserDrawer, const TYPE_WINDOWS_WINPLUS type_, const char *_myString);
+    API_IMPL const int getAsInt();
+    API_IMPL const float getAsFloat();
+    API_IMPL const bool getAsBool();
+    API_IMPL const char *getAsString();
+    API_IMPL TIMER *getAsTimer();
+    API_IMPL TRACK_BAR_INFO *getAsTrackBar();
+    API_IMPL RADIO_GROUP *getAsRadio();
+    API_IMPL SPIN_PARAMSi *getAsSpin();
+    API_IMPL SPIN_PARAMSf *getAsSpinf();
 
   private:
     const int   getInt();
@@ -533,12 +535,12 @@ typedef void(__cdecl *OnMouseEvent)(WINDOW *window, int x, int y);
 typedef void(__cdecl *OnMouseEventScroll)(WINDOW *window, bool increment);
 typedef int(__cdecl *OnParseRawInput)(WINDOW *window, HRAWINPUT phRawInput);
 
-const bool isNumeric(const char letter);
-bool isNum(const char *numberAsString);
-bool isNum(const WCHAR *numberAsString);
-char *trimRight(char *stringSource);
-char *trimLeft(char *stringSource);
-char *trim(char *stringSource);
+API_IMPL const bool isNumeric(const char letter);
+API_IMPL bool isNum(const char *numberAsString);
+API_IMPL bool isNum(const WCHAR *numberAsString);
+API_IMPL char *trimRight(char *stringSource);
+API_IMPL char *trimLeft(char *stringSource);
+API_IMPL char *trim(char *stringSource);
 
 struct MONITOR
 {
@@ -550,7 +552,7 @@ struct MONITOR
     bool  isPrimary;
     DWORD index;
     //---------------------------------------------------------------------------------------------------------------
-    MONITOR();
+    API_IMPL MONITOR();
 };
 
 class MONITOR_MANAGER
@@ -560,16 +562,16 @@ class MONITOR_MANAGER
 
   public:
     //---------------------------------------------------------------------------------------------------------------
-    MONITOR_MANAGER();
-    virtual ~MONITOR_MANAGER();
-    void updateMonitors();
-    long getWidthWindow(const DWORD indexMonitor = 0);
-    long getHeightWindow(const DWORD indexMonitor = 0);
-    POINT getPositionWindow(const DWORD indexMonitor = 0);
-    DWORD getIndexMainMonitor();
-    bool getMonitor(const DWORD indexMonitor, mbm::MONITOR *monitorOut);
-    bool isMainMonitor(const DWORD indexMonitor = 0);
-    DWORD getTotalMonitor();
+    API_IMPL MONITOR_MANAGER();
+    API_IMPL virtual ~MONITOR_MANAGER();
+    API_IMPL void updateMonitors();
+    API_IMPL long getWidthWindow(const DWORD indexMonitor = 0);
+    API_IMPL long getHeightWindow(const DWORD indexMonitor = 0);
+    API_IMPL POINT getPositionWindow(const DWORD indexMonitor = 0);
+    API_IMPL DWORD getIndexMainMonitor();
+    API_IMPL bool getMonitor(const DWORD indexMonitor, mbm::MONITOR *monitorOut);
+    API_IMPL bool isMainMonitor(const DWORD indexMonitor = 0);
+    API_IMPL DWORD getTotalMonitor();
 };
 
 struct SPIN_PARAMSi
@@ -588,7 +590,7 @@ struct SPIN_PARAMSf
     float increment;
     float currentPosition;
     int   precision;
-    SPIN_PARAMSf(float minValue, float maxValue, float increment_, float currentPosition_, int precision_);
+    API_IMPL SPIN_PARAMSf(float minValue, float maxValue, float increment_, float currentPosition_, int precision_);
 };
 
 struct RADIO_GROUP
@@ -597,8 +599,8 @@ struct RADIO_GROUP
     const int     idParent;
     std::set<int> lsRadioGroup;
     bool          checked;
-    RADIO_GROUP(const int id, const int _idParent);
-    ~RADIO_GROUP();
+    API_IMPL RADIO_GROUP(const int id, const int _idParent);
+    API_IMPL ~RADIO_GROUP();
 };
 
 struct TIMER
@@ -607,7 +609,7 @@ struct TIMER
     int            times;
     int            idTimer;
     OnEventWinPlus onEventTimer;
-    TIMER(int timeElapsed_inMiliSeconds, int idTimer_, OnEventWinPlus onEventTimer_);
+    API_IMPL TIMER(int timeElapsed_inMiliSeconds, int idTimer_, OnEventWinPlus onEventTimer_);
 };
 
 struct EDIT_TEXT_DATA
@@ -617,9 +619,9 @@ struct EDIT_TEXT_DATA
     const int          id;
     char *             text;
     uint32_t       len;
-    EDIT_TEXT_DATA(const int _id);
-    EDIT_TEXT_DATA(mbm::SPIN_PARAMSi *_spin, mbm::SPIN_PARAMSf *_spinf, const int _id);
-    ~EDIT_TEXT_DATA();
+    API_IMPL EDIT_TEXT_DATA(const int _id);
+    API_IMPL EDIT_TEXT_DATA(mbm::SPIN_PARAMSi *_spin, mbm::SPIN_PARAMSf *_spinf, const int _id);
+    API_IMPL ~EDIT_TEXT_DATA();
 };
 
 class COM_BETWEEN_WINP
@@ -629,27 +631,27 @@ class COM_BETWEEN_WINP
     friend class KEY_BOARD_STATE;
     friend class DRAW;
     friend void        __destroyOnExitAllListComBetweenWindows();
-    friend void destroyListComBetweenWindows(HWND hwnd);
-    friend void destroyAlTimers(HWND hwnd);
-    friend void destroyTimer(HWND hwnd, const int idTimer);
-    friend WINDOW *getWindow(HWND hwnd);
-    friend WINDOW *getLastWindow();
-    friend WINDOW *getFirstWindow();
-    friend void    closeAllWindows();
-    friend RECT getMenuRect(int idWindow, int myId);
-    friend COM_BETWEEN_WINP *getComBetweenWinp(const int id);
-    friend COM_BETWEEN_WINP *getComBetweenWinp(const HWND hwnd);
-    friend COM_BETWEEN_WINP *getComBetweenWinp(const HWND owerHwnd, const int id);
-    friend COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
-    friend COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
+    friend API_IMPL void destroyListComBetweenWindows(HWND hwnd);
+    friend API_IMPL void destroyAlTimers(HWND hwnd);
+    friend API_IMPL void destroyTimer(HWND hwnd, const int idTimer);
+    friend API_IMPL WINDOW *getWindow(HWND hwnd);
+    friend API_IMPL WINDOW *getLastWindow();
+    friend API_IMPL WINDOW *getFirstWindow();
+    friend API_IMPL void    closeAllWindows();
+    friend API_IMPL RECT getMenuRect(int idWindow, int myId);
+    friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const int id);
+    friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const HWND hwnd);
+    friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const HWND owerHwnd, const int id);
+    friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
+    friend API_IMPL COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
                                                      TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
                                                      USER_DRAWER *UserDrawer);
 
   public:
-    int getId() const;
-    mbm::WINDOW *getWindow();
-    TYPE_WINDOWS_WINPLUS getType();
-    HWND getHwnd();
+    API_IMPL int getId() const;
+    API_IMPL mbm::WINDOW *getWindow();
+    API_IMPL TYPE_WINDOWS_WINPLUS getType();
+    API_IMPL HWND getHwnd();
     USER_DRAWER *userDrawer;
 
   private:
@@ -668,19 +670,19 @@ class COM_BETWEEN_WINP
     WNDPROC                                _oldProc;
     std::set<COM_BETWEEN_WINP *>           myChilds;
   
-    COM_BETWEEN_WINP(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *win, TYPE_WINDOWS_WINPLUS typeMe,
+    API_IMPL COM_BETWEEN_WINP(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *win, TYPE_WINDOWS_WINPLUS typeMe,
                      void *extraParams_, const int idOwner_, USER_DRAWER *UserDrawer);
-    COM_BETWEEN_WINP(COM_BETWEEN_WINP *ncCopy);
-    virtual ~COM_BETWEEN_WINP();
+    API_IMPL COM_BETWEEN_WINP(COM_BETWEEN_WINP *ncCopy);
+    API_IMPL virtual ~COM_BETWEEN_WINP();
 };
 
-COM_BETWEEN_WINP *getComBetweenWinp(const int id);
-COM_BETWEEN_WINP *getComBetweenWinp(const HWND owerHwnd, const int id);
-COM_BETWEEN_WINP *getComBetweenWinp(const HWND hwnd);
-COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
-void destroyListComBetweenWindows(HWND hwnd);
-void destroyAlTimers(HWND hwnd);
-void destroyTimer(HWND hwnd, const int idTimer);
+API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const int id);
+API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const HWND owerHwnd, const int id);
+API_IMPL COM_BETWEEN_WINP *getComBetweenWinp(const HWND hwnd);
+API_IMPL COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
+API_IMPL void destroyListComBetweenWindows(HWND hwnd);
+API_IMPL void destroyAlTimers(HWND hwnd);
+API_IMPL void destroyTimer(HWND hwnd, const int idTimer);
 
 class COMPONENT_INFO;
 typedef void(__cdecl *OnRenderComponent)(mbm::COMPONENT_INFO &component);
@@ -689,20 +691,20 @@ struct USER_DRAWER
 {
     bool              enableHover;
     bool              enablePressed;
-    virtual bool      render(COMPONENT_INFO & component) = 0;
+    API_IMPL virtual bool      render(COMPONENT_INFO & component) = 0;
     void *            that;
     DRAW *            draw;
-    USER_DRAWER(void *That = nullptr, DRAW *Draw = nullptr);
+    API_IMPL USER_DRAWER(void *That = nullptr, DRAW *Draw = nullptr);
 };
 
 struct USER_DATA :public USER_DRAWER
 {
-    USER_DATA();
-    USER_DATA(void* newData);
-    USER_DATA(void* newData,DRAW *Draw);
-    virtual bool      render(COMPONENT_INFO & component);
-    void setData(void* newData);
-    void* getData();
+    API_IMPL USER_DATA();
+    API_IMPL USER_DATA(void* newData);
+    API_IMPL USER_DATA(void* newData,DRAW *Draw);
+    API_IMPL virtual bool      render(COMPONENT_INFO & component);
+    API_IMPL void setData(void* newData);
+    API_IMPL void* getData();
 };
 //-----------------------------------------------------------------------------------------------------------------
 class COMPONENT_INFO
@@ -720,7 +722,7 @@ class COMPONENT_INFO
     COMPONENT_INFO(COM_BETWEEN_WINP *ptr, RECT *rect, const HDC validHDC, const bool _isHover, const bool _isPressed,
                    USER_DRAWER *UserDrawer);
   public:
-    virtual ~COMPONENT_INFO();
+      API_IMPL virtual ~COMPONENT_INFO();
     const OnEventWinPlus       onEventWinPlus;
     const HWND                 hwnd;
     const HWND                 owerHwnd;
@@ -751,9 +753,9 @@ class DRAW : public USER_DRAWER
     struct COLOR
     {
         uint8_t red, green, blue;
-        COLOR();
-        COLOR(const COLORREF &c);
-        COLOR(const uint8_t r, const uint8_t g, const uint8_t b);
+        API_IMPL COLOR();
+        API_IMPL COLOR(const COLORREF &c);
+        API_IMPL COLOR(const uint8_t r, const uint8_t g, const uint8_t b);
         COLORREF operator=(const COLOR &) noexcept
         {
             return COLORREF(RGB(red, green, blue));
@@ -771,87 +773,87 @@ class DRAW : public USER_DRAWER
         }
     };
     int dwRop;
-    DRAW();
-    DRAW(mbm::COMPONENT_INFO *component);
-    virtual ~DRAW();
-    HBRUSH createBrush(uint8_t r, uint8_t g, uint8_t b);
-    void release(HBRUSH &hbrush);
-    HPEN createPen(uint8_t r, uint8_t g, uint8_t b, int _stylePen = PS_SOLID, int width = 0);
-    HPEN createPen(COLORREF color);
-    void release(HPEN &hpen);
-    HBRUSH createGradientBrush(COLORREF fromColor, COLORREF toColor, const RECT &rc, const bool horizontal = true,
+    API_IMPL DRAW();
+    API_IMPL DRAW(mbm::COMPONENT_INFO *component);
+    API_IMPL virtual ~DRAW();
+    API_IMPL HBRUSH createBrush(uint8_t r, uint8_t g, uint8_t b);
+    API_IMPL void release(HBRUSH &hbrush);
+    API_IMPL HPEN createPen(uint8_t r, uint8_t g, uint8_t b, int _stylePen = PS_SOLID, int width = 0);
+    API_IMPL HPEN createPen(COLORREF color);
+    API_IMPL void release(HPEN &hpen);
+    API_IMPL HBRUSH createGradientBrush(COLORREF fromColor, COLORREF toColor, const RECT &rc, const bool horizontal = true,
                                const bool power2 = true, const bool reflected = true);
-    void drawLine(const int initialX, const int initialY, const int finalX, const int finalY);
-    void drawLine(const POINT &initialPoint, const POINT &finalPoint);
-    void drawRectangle(const RECT &REct);
-    void drawRectangle(const int x, const int y, const int w, const int h);
-    void drawCircle(const POINT &point, const int ray);
-    void drawCircle(const int initialX, const int initialY, const int ray);
-    void drawElipse(const RECT &rect);
-    HDC setHDC(HDC newHdc);
-    void setFont(HFONT _hfont);
-    static HFONT createFont(const char *pszFaceName = "Times New Roman", const int cHeight = 20, const int cWidth = 5,
+    API_IMPL void drawLine(const int initialX, const int initialY, const int finalX, const int finalY);
+    API_IMPL void drawLine(const POINT &initialPoint, const POINT &finalPoint);
+    API_IMPL void drawRectangle(const RECT &REct);
+    API_IMPL void drawRectangle(const int x, const int y, const int w, const int h);
+    API_IMPL void drawCircle(const POINT &point, const int ray);
+    API_IMPL void drawCircle(const int initialX, const int initialY, const int ray);
+    API_IMPL void drawElipse(const RECT &rect);
+    API_IMPL HDC setHDC(HDC newHdc);
+    API_IMPL void setFont(HFONT _hfont);
+    API_IMPL static HFONT createFont(const char *pszFaceName = "Times New Roman", const int cHeight = 20, const int cWidth = 5,
                             const int cEscapement = 0, const int cOrientation = 0, const int cWeight = FW_NORMAL,
                             const DWORD bItalic = 0, const DWORD bUnderline = 0, const DWORD bStrikeOut = 0);
-    void drawText(RECT *rect, const char *text, const bool bakgroundTransparente = true);
-    void drawText(const int x, const int y, const char *text, const bool bakgroundTransparente = true);
-    void drawTextRotated(const int x, const int y, HWND hwnd, const char *text, DWORD color_text, int angle,
+    API_IMPL void drawText(RECT *rect, const char *text, const bool bakgroundTransparente = true);
+    API_IMPL void drawText(const int x, const int y, const char *text, const bool bakgroundTransparente = true);
+    API_IMPL void drawTextRotated(const int x, const int y, HWND hwnd, const char *text, DWORD color_text, int angle,
                          const bool bakgroundTransparente = true);
-    void drawText(const int x, const int y, const DWORD color, const char *text,
+    API_IMPL void drawText(const int x, const int y, const DWORD color, const char *text,
                          const bool bakgroundTransparente = true);
-    void drawText(const RECT &rect, const DWORD color, const char *text, const bool bakgroundTransparente = true);
-    void drawText(const int x, const int y, const uint8_t red, const uint8_t green,
+    API_IMPL void drawText(const RECT &rect, const DWORD color, const char *text, const bool bakgroundTransparente = true);
+    API_IMPL void drawText(const int x, const int y, const uint8_t red, const uint8_t green,
                          const uint8_t blue, const char *text, const bool bakgroundTransparente = true);
-    void drawText(const int x, const int y, const uint8_t red, const uint8_t green,
+    API_IMPL void drawText(const int x, const int y, const uint8_t red, const uint8_t green,
                          const uint8_t blue, const uint8_t redBack, const uint8_t greenBack,
                          const uint8_t blueBack, const char *text);
-    void drawPoygon(const POINT *lpPoints, const int nCount);
-    void drawRoundRect(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
+    API_IMPL void drawPoygon(const POINT *lpPoints, const int nCount);
+    API_IMPL void drawRoundRect(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
                               const int nWidth, const int nHeight);
-    void drawRoundRect(const RECT &rect, const int nWidth, const int nHeight);
-    void drawPie(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
+    API_IMPL void drawRoundRect(const RECT &rect, const int nWidth, const int nHeight);
+    API_IMPL void drawPie(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
                         const int nXRadial1, const int nYRadial1, const int nXRadial2, const int nYRadial2);
-    void selectRect(const RECT &rect);
-    void drawFrameRect(const RECT &rect, HBRUSH brushColor);
-    void drawChord(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
+    API_IMPL void selectRect(const RECT &rect);
+    API_IMPL void drawFrameRect(const RECT &rect, HBRUSH brushColor);
+    API_IMPL void drawChord(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
                           const int nXRadial1, const int nYRadial1, const int nXRadial2, const int nYRadial2);
-    void drawArc(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
+    API_IMPL void drawArc(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
                         const int nXStartArc, const int nYStartArc, const int nXEndArc, const int nYEndArc);
-    void drawArcTo(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
+    API_IMPL void drawArcTo(const int nLeftRect, const int nTopRect, const int nRightRect, const int nBottomRect,
                           const int nXStartArc, const int nYStartArc, const int nXEndArc, const int nYEndArc);
-    void drawEdge(RECT rect, uint32_t edge = (BDR_RAISEDOUTER | BDR_SUNKENINNER), uint32_t flags = BF_RECT);
-    void setArcDirection(const bool CLOCKWISE);
-    void drawAngleArc(const int x, const int y, DWORD dwRadius, const float eStartAngle, const float eSweepAngle);
-    void drawPolyBezier(const POINT *lppt, const DWORD cCount);
-    void drawPolyBezierTo(const POINT *lppt, DWORD cCount);
-    void setPenStyle(int style = PS_SOLID);
-    void drawBmp(mbm::BMP &bmp, const int xPosition, const int yPosition);
-    void drawBmp(mbm::BMP &bmp, const int xPosition, const int yPosition, const int xSource, const int ySource,
+    API_IMPL void drawEdge(RECT rect, uint32_t edge = (BDR_RAISEDOUTER | BDR_SUNKENINNER), uint32_t flags = BF_RECT);
+    API_IMPL void setArcDirection(const bool CLOCKWISE);
+    API_IMPL void drawAngleArc(const int x, const int y, DWORD dwRadius, const float eStartAngle, const float eSweepAngle);
+    API_IMPL void drawPolyBezier(const POINT *lppt, const DWORD cCount);
+    API_IMPL void drawPolyBezierTo(const POINT *lppt, DWORD cCount);
+    API_IMPL void setPenStyle(int style = PS_SOLID);
+    API_IMPL void drawBmp(mbm::BMP &bmp, const int xPosition, const int yPosition);
+    API_IMPL void drawBmp(mbm::BMP &bmp, const int xPosition, const int yPosition, const int xSource, const int ySource,
                         const int _width, const int _height);
-    static SIZE getSizeText(const char *text, HWND hwnd);
+    API_IMPL static SIZE getSizeText(const char *text, HWND hwnd);
   private:
     long _drawSingleLine(std::string &parcialText, int cx, const int cy);
     void _drawEndLineText(int x, int y, const char *text);
     void release();
 
   public:
-    HGDIOBJ selectFontColor(const uint8_t red, const uint8_t green, const uint8_t blue);
-    HGDIOBJ selectFontColor(const DWORD color);
-    HGDIOBJ setDefaultColor(const uint8_t red = 255, const uint8_t green = 255,
+    API_IMPL HGDIOBJ selectFontColor(const uint8_t red, const uint8_t green, const uint8_t blue);
+    API_IMPL HGDIOBJ selectFontColor(const DWORD color);
+    API_IMPL HGDIOBJ setDefaultColor(const uint8_t red = 255, const uint8_t green = 255,
                                    const uint8_t blue = 255);
-    HGDIOBJ selectPenColor(const uint8_t red, const uint8_t green, const uint8_t blue);
-    HPEN setPen(HPEN _myPen);
-    HGDIOBJ setBrush(HGDIOBJ oldBrush);
-    HGDIOBJ setBrush(HBRUSH _myBrush);
-    HGDIOBJ selectBrushColor(const uint8_t red, const uint8_t green, const uint8_t blue);
-    virtual bool render(COMPONENT_INFO &component) PURE;
-    virtual bool eraseBackGround(COMPONENT_INFO *);// if true draw background (calls twice, 1° check component is null and  you must to return true, 2° check the component is not null, draw and return true.
-    virtual int measureItem(COM_BETWEEN_WINP *, MEASUREITEMSTRUCT *);
-    virtual void setCtlColor(HDC hdcStatic);
-    void redrawWindow(HWND hwnd, BOOL eraseBck = 0);
-    COMPONENT_INFO *getCurrentComponent();
-    void present(HDC hdcDest, const int width, const int height);
-    void present(HDC hdcDest, const int x, const int y, const int width, const int height);
+    API_IMPL HGDIOBJ selectPenColor(const uint8_t red, const uint8_t green, const uint8_t blue);
+    API_IMPL HPEN setPen(HPEN _myPen);
+    API_IMPL HGDIOBJ setBrush(HGDIOBJ oldBrush);
+    API_IMPL HGDIOBJ setBrush(HBRUSH _myBrush);
+    API_IMPL HGDIOBJ selectBrushColor(const uint8_t red, const uint8_t green, const uint8_t blue);
+    API_IMPL virtual bool render(COMPONENT_INFO &component) PURE;
+    API_IMPL virtual bool eraseBackGround(COMPONENT_INFO *);// if true draw background (calls twice, 1° check component is null and  you must to return true, 2° check the component is not null, draw and return true.
+    API_IMPL virtual int measureItem(COM_BETWEEN_WINP *, MEASUREITEMSTRUCT *);
+    API_IMPL virtual void setCtlColor(HDC hdcStatic);
+    API_IMPL void redrawWindow(HWND hwnd, BOOL eraseBck = 0);
+    API_IMPL COMPONENT_INFO *getCurrentComponent();
+    API_IMPL void present(HDC hdcDest, const int width, const int height);
+    API_IMPL void present(HDC hdcDest, const int x, const int y, const int width, const int height);
   private:
     //-----------------------------------------------------------------------------------------------------------
     HBRUSH brush;
@@ -881,20 +883,20 @@ class WINDOW
 {
     friend class DEVICE;
     friend void ::__destroyMenu(void *extraParams);
-    friend WCHAR *saveFileBoxW(WCHAR *extension, WCHAR *title, bool enableReturnExtencion, bool enableAllFileType,
+    friend API_IMPL WCHAR *saveFileBoxW(WCHAR *extension, WCHAR *title, bool enableReturnExtencion, bool enableAllFileType,
                                       HWND hwnd, const WCHAR *defaultNameInDialog);
-    friend WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion,
+    friend API_IMPL WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion,
                                       bool enableAllFileType, HWND hwnd, const WCHAR *defaultNameInDialog);
-    friend std::vector<std::string> &openFileBoxMult(const char *extension_, const char *title,
+    friend API_IMPL void openFileBoxMult(std::vector<std::string>& result,const char *extension_, const char *title,
                                                             bool enableReturnExtencion, bool enableAllFileType, HWND hwnd,
                                                             const char *defaultNameInDialog);
-    friend COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
+    friend API_IMPL COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
                                                      TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
                                                      USER_DRAWER *UserDrawer = nullptr);
 
   public:
-    WINDOW();
-    virtual ~WINDOW();
+      API_IMPL WINDOW();
+      API_IMPL virtual ~WINDOW();
     
     volatile bool run;
     bool          neverClose;
@@ -903,34 +905,34 @@ class WINDOW
     bool          exitOnEsc;
     
 
-    bool init(mbm::MONITOR &monitor, const char *nameApp, const bool enableResize = false,
+    API_IMPL bool init(mbm::MONITOR &monitor, const char *nameApp, const bool enableResize = false,
                      const bool enableMaximizeButton = false, const bool enableMinimizeButton = false,
                      const bool maximized = false, OnEventWinPlus onEventWinPlus = nullptr, const bool withoutBorder = false,
                      DWORD ID_RESOURCE_ICON_APP = 0,
                     const bool doubleBuffer = true);
 
-    bool init(const char *nameApp = nullptr, const int width = 0, const int height = 0, const long positionX = 0xffffff,
+    API_IMPL bool init(const char *nameApp = nullptr, const int width = 0, const int height = 0, const long positionX = 0xffffff,
                      const long positionY = 0xffffff, const bool enableResize = false, const bool enableMaximizeButton = false,
                      const bool enableMinimizeButton = false, const bool maximized = false,
                      OnEventWinPlus onEventWinPlus = nullptr, const bool withoutBorder = false,
                      DWORD ID_RESOURCE_ICON_APP = 0,const bool doubleBuffer = true);
-    void setNameAplication(const char *nameApp);
-    const char *getNameAplication() const;
-    static bool isEnableRender(HWND hwndIgnore);
-    static void disableRender(HWND hwndIgnore);
-    DRAW *getGrafics(const int idComponent) const;
-    void setCallEventsManager(EVENTS *ptrCallEventsManager);
-    uint32_t setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index);
-    void *getObjectContext(const uint32_t index);
-    void setCursor(WINPLUS_TYPE_CURSOR TYPE);
-    WINPLUS_TYPE_CURSOR getCursor();
-    void setNextCursor();
-    void startTimerHover();
+    API_IMPL void setNameAplication(const char *nameApp);
+    API_IMPL const char *getNameAplication() const;
+    API_IMPL static bool isEnableRender(HWND hwndIgnore);
+    API_IMPL static void disableRender(HWND hwndIgnore);
+    API_IMPL DRAW *getGrafics(const int idComponent) const;
+    API_IMPL void setCallEventsManager(EVENTS *ptrCallEventsManager);
+    API_IMPL uint32_t setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index);
+    API_IMPL void *getObjectContext(const uint32_t index);
+    API_IMPL void setCursor(WINPLUS_TYPE_CURSOR TYPE);
+    API_IMPL WINPLUS_TYPE_CURSOR getCursor();
+    API_IMPL void setNextCursor();
+    API_IMPL void startTimerHover();
 
-    virtual int enterLoop(OnEventWinPlus ptrLogic);
-    virtual void doEvents();
-    void refresh(const uint32_t idComponent, const int eraseBK);
-    void refresh(const int eraseBK);
+    API_IMPL virtual int enterLoop(OnEventWinPlus ptrLogic);
+    API_IMPL virtual void doEvents();
+    API_IMPL void refresh(const uint32_t idComponent, const int eraseBK);
+    API_IMPL void refresh(const int eraseBK);
 
   private:
     static HHOOK hookMsgProc;
@@ -938,19 +940,19 @@ class WINDOW
     static LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam);
     static DWORD WINAPI ThreadModal(LPVOID OBJECT);
   public:
-    virtual void doModal(mbm::WINDOW *parent, OnDoModal onDoModal = nullptr, const bool threadModal = true,
+      API_IMPL virtual void doModal(mbm::WINDOW *parent, OnDoModal onDoModal = nullptr, const bool threadModal = true,
                          const bool disabelParentWindow = true);
-    HWND getHwnd(const int id = -1) const;
-    bool setDrawer(mbm::DRAW *draw, const int idComponent);
-    bool setDrawer(mbm::DRAW *draw, const mbm::TYPE_WINDOWS_WINPLUS typeWindowWinPlus);
-    bool setDrawer(mbm::DRAW *draw);
-    void setTheme(mbm::DRAW *theme);
-    mbm::DRAW *getDrawer(const int id);
-    int addWindowChild(const char *title, long x, long y, long width, long height,
+    API_IMPL HWND getHwnd(const int id = -1) const;
+    API_IMPL bool setDrawer(mbm::DRAW *draw, const int idComponent);
+    API_IMPL bool setDrawer(mbm::DRAW *draw, const mbm::TYPE_WINDOWS_WINPLUS typeWindowWinPlus);
+    API_IMPL bool setDrawer(mbm::DRAW *draw);
+    API_IMPL void setTheme(mbm::DRAW *theme);
+    API_IMPL mbm::DRAW *getDrawer(const int id);
+    API_IMPL int addWindowChild(const char *title, long x, long y, long width, long height,
                               OnEventWinPlus onEventWinPlus = nullptr, const bool enableResize = true,
                               const bool enableMaximizeButton = true, const int idDest = -1, USER_DRAWER *UserDrawer = nullptr);
-    int addLabel(const char *title, long x, long y, long width, long height, const int idDest = -1,OnEventWinPlus onGotClickeOrFocus = nullptr, USER_DRAWER *userDrawer = nullptr);
-    bool isLoaded();
+    API_IMPL int addLabel(const char *title, long x, long y, long width, long height, const int idDest = -1,OnEventWinPlus onGotClickeOrFocus = nullptr, USER_DRAWER *userDrawer = nullptr);
+    API_IMPL bool isLoaded();
     struct __MENU_DRAW
     {
         OnEventWinPlus           onSelectedSubMenu;
@@ -970,77 +972,77 @@ class WINDOW
         uint32_t             sizeSubMenuDrawed;
         int                      indexClickedMenu;
 
-        __MENU_DRAW(const int idDest_);
-        virtual ~__MENU_DRAW();
+        API_IMPL __MENU_DRAW(const int idDest_);
+        API_IMPL virtual ~__MENU_DRAW();
 
-        void hideSubMenu();
-        bool showSubMenu();
-        bool show(HWND parentHwnd_, const int myId, const int width, const int height, const int diff_x, const int diff_y);
+        API_IMPL void hideSubMenu();
+        API_IMPL bool showSubMenu();
+        API_IMPL bool show(HWND parentHwnd_, const int myId, const int width, const int height, const int diff_x, const int diff_y);
     };
     
-    const __MENU_DRAW *getMenuInfo(const int idMenu);
-    static void refreshMenu();
-    static const bool isAnyMenuVisible();
-    int addMenu(const char *title, OnEventWinPlus onSelectedSubMenu, const int idDest = -1, USER_DRAWER *UserDrawer = nullptr);
-    int addSubMenu(const char *title, const int idMenu);
-    int addStatusBar(const char *textStatusBar0, const uint32_t numberPartsIntoStatusBar,
+    API_IMPL const __MENU_DRAW *getMenuInfo(const int idMenu);
+    API_IMPL static void refreshMenu();
+    API_IMPL static const bool isAnyMenuVisible();
+    API_IMPL int addMenu(const char *title, OnEventWinPlus onSelectedSubMenu, const int idDest = -1, USER_DRAWER *UserDrawer = nullptr);
+    API_IMPL int addSubMenu(const char *title, const int idMenu);
+    API_IMPL int addStatusBar(const char *textStatusBar0, const uint32_t numberPartsIntoStatusBar,
                             const int idDest = -1, USER_DRAWER * UserDrawer = nullptr);
-    int addSpinInt(long x, long y, long width, long height, const int idDest = -1, long widthSpin = 0,
+    API_IMPL int addSpinInt(long x, long y, long width, long height, const int idDest = -1, long widthSpin = 0,
                           long heightSpin = 0, OnEventWinPlus onChangeValue = nullptr, int minValue = 0, int maxValue = 10,
                           int increment = 1, int currentPosition = 0, bool vertical = true, const bool enableWrite = true,
                           USER_DRAWER * UserDrawer = nullptr);
-    int addSpinFloat(long x, long y, long width, long height, const int idDest, long widthSpin = 0,
+    API_IMPL int addSpinFloat(long x, long y, long width, long height, const int idDest, long widthSpin = 0,
                             long heightSpin = 0, float minValue = 0.0f, float maxValue = 10.0f, float increment = 0.5f,
                             float currentPosition = 1.0f, int precision = 2, bool vertical = true,
                             const bool enableWrite = true, OnEventWinPlus onChangedValue = nullptr, USER_DRAWER * UserDrawer = nullptr);
-    int addScroll(long x, long y, long width, long height, int scrollSize = 10,
+    API_IMPL int addScroll(long x, long y, long width, long height, int scrollSize = 10,
                          OnEventWinPlus onEventWindow = nullptr, const int idDest = -1, USER_DRAWER * UserDrawer = nullptr); // doesnt work
-    int addTrayIcon(const int ID_RESOURCE_ICON, OnEventWinPlus onEventWindowByIdMenu, const char *tip,USER_DRAWER * UserDrawer = nullptr);
-    int addTrayIcon(const char *fileNameIcon, OnEventWinPlus onEventWindowByIdMenu, const char *tip,
+    API_IMPL int addTrayIcon(const int ID_RESOURCE_ICON, OnEventWinPlus onEventWindowByIdMenu, const char *tip,USER_DRAWER * UserDrawer = nullptr);
+    API_IMPL int addTrayIcon(const char *fileNameIcon, OnEventWinPlus onEventWindowByIdMenu, const char *tip,
                            USER_DRAWER * UserDrawer = nullptr);
-    int addTrayIcon(OnEventWinPlus onEventWindowByIdMenu, const char *tip, USER_DRAWER * UserDrawer = nullptr);
-    int addMenuTrayIcon(const char *str, const int idMenuTryIcon = -1, const bool hasSubMenu = false,
+    API_IMPL int addTrayIcon(OnEventWinPlus onEventWindowByIdMenu, const char *tip, USER_DRAWER * UserDrawer = nullptr);
+    API_IMPL int addMenuTrayIcon(const char *str, const int idMenuTryIcon = -1, const bool hasSubMenu = false,
                                const int position = 0, const bool doubleClicked = false, const bool breakMenu = false,
                                const bool checked = false, USER_DRAWER * UserDrawer = nullptr);
-    int addSubMenuTrayIcon(const char *str, const int position = 0, USER_DRAWER * UserDrawer = nullptr);
-    bool showBallonTrayIcon(const char *title, const char *message, int uTimeout, DWORD dwIcon = NIIF_INFO);
-    bool setTextTrayIcon(const char *text);
-    bool printLastErrWindows(const char *where = nullptr);
-    int addToolTip(const char *tip, const int idDest = -1, USER_DRAWER *dataToolTip = nullptr);
-    int addButton(const char *title, long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addSubMenuTrayIcon(const char *str, const int position = 0, USER_DRAWER * UserDrawer = nullptr);
+    API_IMPL bool showBallonTrayIcon(const char *title, const char *message, int uTimeout, DWORD dwIcon = NIIF_INFO);
+    API_IMPL bool setTextTrayIcon(const char *text);
+    API_IMPL bool printLastErrWindows(const char *where = nullptr);
+    API_IMPL int addToolTip(const char *tip, const int idDest = -1, USER_DRAWER *dataToolTip = nullptr);
+    API_IMPL int addButton(const char *title, long x, long y, long width, long height, const int idDest = -1,
                          OnEventWinPlus onPressedByType = nullptr, USER_DRAWER * UserDrawer = nullptr);
-    int addRadioButton(const char *title, long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addRadioButton(const char *title, long x, long y, long width, long height, const int idDest = -1,
                               OnEventWinPlus onPressedByType = nullptr, USER_DRAWER * UserDrawer = nullptr);
-    int addGroupBox(const char *title, long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addGroupBox(const char *title, long x, long y, long width, long height, const int idDest = -1,
                            OnEventWinPlus onGotClickeOrFocus = nullptr,USER_DRAWER * UserDrawer = nullptr);
-    void killTimer(const int idTimer);
-    int addTimer(uint32_t timeMilliseconds, OnEventWinPlus onElapseTimer, USER_DRAWER * UserDrawer = nullptr);
-    void setPositionProgressBar(const int IdComponent, int position);
-    int getPositionProgressBar(const int IdComponent);
-    int addProgressBar(long x, long y, long width, long height, const int idDest = -1, const bool vertical = false,
+    API_IMPL void killTimer(const int idTimer);
+    API_IMPL int addTimer(uint32_t timeMilliseconds, OnEventWinPlus onElapseTimer, USER_DRAWER * UserDrawer = nullptr);
+    API_IMPL void setPositionProgressBar(const int IdComponent, int position);
+    API_IMPL int getPositionProgressBar(const int IdComponent);
+    API_IMPL int addProgressBar(long x, long y, long width, long height, const int idDest = -1, const bool vertical = false,
                               USER_DRAWER * UserDrawer = nullptr);
-    void setDefaultPositionTrackBar(const int idTrackBar, const short defaultPosition);
-    void setTrackBar(const int idTrackBar, const float position);
-    void setMaxPositionTrackBar(const int idTrackBar, const short maxPosition);
-    TRACK_BAR_INFO *getInfoTrack(const int idTrackBar);
-    float getPositionTrackBar(const int idTrackBar);
-    int addCombobox(long x, long y, long width, long height, OnEventWinPlus onPressedByType = nullptr,
+    API_IMPL void setDefaultPositionTrackBar(const int idTrackBar, const short defaultPosition);
+    API_IMPL void setTrackBar(const int idTrackBar, const float position);
+    API_IMPL void setMaxPositionTrackBar(const int idTrackBar, const short maxPosition);
+    API_IMPL TRACK_BAR_INFO *getInfoTrack(const int idTrackBar);
+    API_IMPL float getPositionTrackBar(const int idTrackBar);
+    API_IMPL int addCombobox(long x, long y, long width, long height, OnEventWinPlus onPressedByType = nullptr,
                            const int idDest = -1, USER_DRAWER * UserDrawer = nullptr);
-    int addCheckBox(const char *title, long x, long y, long width, long height,
+    API_IMPL int addCheckBox(const char *title, long x, long y, long width, long height,
                            OnEventWinPlus onPressedByType = nullptr, const int idDest = -1, USER_DRAWER * UserDrawer = nullptr);
-    int addRichText(const char *textIntoRichText, long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addRichText(const char *textIntoRichText, long x, long y, long width, long height, const int idDest = -1,
                            OnEventWinPlus onPressedByType = nullptr, const bool vScroll = true, const bool hScroll = false,
                            USER_DRAWER * UserDrawer = nullptr);
-    int addTextBox(const char *textIntoTextBox, long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addTextBox(const char *textIntoTextBox, long x, long y, long width, long height, const int idDest = -1,
                           OnEventWinPlus onPressedByType = nullptr, const bool isPassword = false, USER_DRAWER * UserDrawer = nullptr);
-    int addListBox(long x, long y, long width, long height, OnEventWinPlus onPressedByType = nullptr,
+    API_IMPL int addListBox(long x, long y, long width, long height, OnEventWinPlus onPressedByType = nullptr,
                           const int idDest = -1, USER_DRAWER * UserDrawer = nullptr);
-    int addTrackBar(long x, long y, long width, long height, const int idDest = -1,
+    API_IMPL int addTrackBar(long x, long y, long width, long height, const int idDest = -1,
                            OnEventWinPlus onChangeValue = nullptr, float minPosition = 0.0f, float maxPosition = 100.0f,
                            float defaultPosition = 50.0f, float tickSmall = 10.0f, float tickLarge = 25.0f,
                            const bool invertValueText = false, const bool trackBarVertical = false, USER_DRAWER * UserDrawer = nullptr);
-    void SetWindowTrans(int percent);
-    void RemoveWindowTrans();
+    API_IMPL void SetWindowTrans(int percent);
+    API_IMPL void RemoveWindowTrans();
   private:
     void hideDestinyNotVisible(const int id, HWND myHwnd);
 
@@ -1050,7 +1052,7 @@ class WINDOW
         mbm::WINDOW *parent;
         OnDoModal    onDoModal;
         const bool   disabelParentWindow;
-        __DO_MODAL_OBJ(mbm::WINDOW *me, mbm::WINDOW *myParent, OnDoModal onDoModalParent, const bool disabelParentWindow_);
+        API_IMPL __DO_MODAL_OBJ(mbm::WINDOW *me, mbm::WINDOW *myParent, OnDoModal onDoModalParent, const bool disabelParentWindow_);
     };
     static LRESULT __stdcall TrackProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
     static LRESULT __stdcall StatusProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
@@ -1065,82 +1067,82 @@ class WINDOW
     static LRESULT __stdcall EditProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
     static void _onTimeHover(mbm::WINDOW *w, DATA_EVENT &);
   public:
-    void setUserDrawer(int idComponent, USER_DRAWER *userDrawer); // user drawer para o componente
-    USER_DRAWER *getUserDrawer(int idComponent); // recupera user drawer para do componente
-    void setIndexTabByGroup(const int idTabControlByGroup, const int index,
+    API_IMPL void setUserDrawer(int idComponent, USER_DRAWER *userDrawer); // user drawer para o componente
+    API_IMPL USER_DRAWER *getUserDrawer(int idComponent); // recupera user drawer para do componente
+    API_IMPL void setIndexTabByGroup(const int idTabControlByGroup, const int index,
                                    const bool callOnEventWindowByType = true);
-    int addTabControlByGroup(long x, long y, long width, long height, long widthButton, long heightButton,
+    API_IMPL int addTabControlByGroup(long x, long y, long width, long height, long widthButton, long heightButton,
                                     OnEventWinPlus onEventWindowByIndexTab = nullptr, const int idDest = -1,
                                     const bool enableVisibleGroups = true, USER_DRAWER * UserDrawer = nullptr);
-    int addTabByGroup(const char *title, const int idTabControlByGroup, const bool newCloumn = false,
+    API_IMPL int addTabByGroup(const char *title, const int idTabControlByGroup, const bool newCloumn = false,
                              const long newWidth = 0, USER_DRAWER *UserDataButton = nullptr, USER_DRAWER *UserDrawerGroup = nullptr);
-    bool clear(const int idComponent);
-    bool getRadioButtonState(const int idRadioButton);
-    bool setNextFocus(const int idComponent, const int idComponentNextFocus);
-    bool setRadioButtonState(const int idRadioButton);
-    bool setCheckBox(const bool checked, const int idCheckBox);
-    bool getCheckBoxState(const int idCheckBox);
-    bool addText(const int idComponent, const char *text);
-    bool removeText(const int idComponent, const int indexString);
-    bool setSelectedIndex(const int idComponent, const int indexString);
-    int getSelectedIndex(const int idComponent);
-    int getTextCount(const int idComponent);
-    mbm::SPIN_PARAMSf *getSpinf(const int idSpinf);
-    mbm::SPIN_PARAMSi *getSpin(const int idSpin);
-    bool updateSpin(const int idSpin);
-    bool setFocus(const int idComponent = -1);
-    void forceFocus();
-    bool setText(const int IdComponent, const char *stringSource, int index = -1);
-    bool getText(const int IdComponent, char *stringOut, const WORD sizeStringOut, int index = -1);
-    int getTextLength(const int IdComponent, int index = -1);
-    std::vector<std::string> *getStatusBar(const int idComponent);
-    void setOnKeyboardDown(OnKeyboardEvent function);
-    void setOnKeyboardUp(OnKeyboardEvent function);
-    bool setOnParserRawInput(OnParseRawInput function);
-    void setOnMoveMouseEvent(OnMouseEvent function);
-    void setOnClickLeftMouse(OnMouseEvent function);
-    void setOnReleaseLeftMouse(OnMouseEvent function);
-    void setOnClickRightMouse(OnMouseEvent function);
-    void setOnReleaseRightMouse(OnMouseEvent function);
-    void setOnClickMiddleMouse(OnMouseEvent function);
-    void setOnReleaseMiddleMouse(OnMouseEvent function);
-    void setOnScrollMouseEvent(OnMouseEventScroll function);
-    bool setMaxLength(const int idComponent, const uint32_t maxLength);
-    bool setReadOnlyToRichText(const int idRichText, const bool value);
-    void setAlwaysOnTop(const bool value, const bool hideMe = false);
-    void setAlwaysOnTop(mbm::WINDOW *hwndParent);
-    void setColorKeying(const uint8_t red, const uint8_t green, const uint8_t blue);
-    void setColorKeying(const uint8_t red, const uint8_t green, const uint8_t blue,const int idComponent);
-    void setPosition(const int x, const int y, const int id = -1);
-    long getWidth(const int id = -1);
-    WINDOW *getWindow(const HWND hwnd_);
-    long getHeight(const int id = -1);
-    RECT getRect(const int id = -1);
-    RECT getRectAbsolute(const int id = -1);
-    RECT getRectRelativeWindow(const int id = -1);
-    void setSize(RECT &source, const bool inner = true);
-    void resize(const int idComponent, const int x, const int y, const int new_width, const int new_height);
-    void resize(const int idComponent, const int new_width, const int new_height);
-    static void resize(HWND hwnd2move, const int new_width, const int new_height, bool incrementSize = false);
-    void hideConsoleWindow();
-    void showConsoleWindow();
-    void closeWindow();
-    void hide(const HWND hwnd_);
-    void hide(const int id = -1, int flag = SW_HIDE);
-    void show(const int id = -1, int flag = SW_SHOW);
-    void show(const HWND hwnd_);
-    void showMaximized(const int idWindow = -1);
-    void showMinimized(const int idWindow = -1);
-    void setMinSizeAllowed(const int width,const int height);
-    void setMaxSizeAllowed(const int width,const int height);
-    bool loadTextFileToRichEdit(const int idRichText, WCHAR *fileName);
-    bool loadTextFileToRichEdit(HWND hwndRichText, WCHAR *fileName);
-    bool loadTextFileToRichEdit(const int idRichText, const WCHAR *filter = nullptr);
-    bool saveTextFileFromRichText(const int idRichText, WCHAR *fileName);
-    bool messageBoxQuestion(const char *format, ...);
-    void messageBox(const char *format, ...);
-    const int getTabStopPixelSize();
-    const void setTabStopPixelSize(int characters = 1, const int idComponent = -1);
+    API_IMPL bool clear(const int idComponent);
+    API_IMPL bool getRadioButtonState(const int idRadioButton);
+    API_IMPL bool setNextFocus(const int idComponent, const int idComponentNextFocus);
+    API_IMPL bool setRadioButtonState(const int idRadioButton);
+    API_IMPL bool setCheckBox(const bool checked, const int idCheckBox);
+    API_IMPL bool getCheckBoxState(const int idCheckBox);
+    API_IMPL bool addText(const int idComponent, const char *text);
+    API_IMPL bool removeText(const int idComponent, const int indexString);
+    API_IMPL bool setSelectedIndex(const int idComponent, const int indexString);
+    API_IMPL int getSelectedIndex(const int idComponent);
+    API_IMPL int getTextCount(const int idComponent);
+    API_IMPL mbm::SPIN_PARAMSf *getSpinf(const int idSpinf);
+    API_IMPL mbm::SPIN_PARAMSi *getSpin(const int idSpin);
+    API_IMPL bool updateSpin(const int idSpin);
+    API_IMPL bool setFocus(const int idComponent = -1);
+    API_IMPL void forceFocus();
+    API_IMPL bool setText(const int IdComponent, const char *stringSource, int index = -1);
+    API_IMPL bool getText(const int IdComponent, char *stringOut, const WORD sizeStringOut, int index = -1);
+    API_IMPL int getTextLength(const int IdComponent, int index = -1);
+    API_IMPL std::vector<std::string> *getStatusBar(const int idComponent);
+    API_IMPL void setOnKeyboardDown(OnKeyboardEvent function);
+    API_IMPL void setOnKeyboardUp(OnKeyboardEvent function);
+    API_IMPL bool setOnParserRawInput(OnParseRawInput function);
+    API_IMPL void setOnMoveMouseEvent(OnMouseEvent function);
+    API_IMPL void setOnClickLeftMouse(OnMouseEvent function);
+    API_IMPL void setOnReleaseLeftMouse(OnMouseEvent function);
+    API_IMPL void setOnClickRightMouse(OnMouseEvent function);
+    API_IMPL void setOnReleaseRightMouse(OnMouseEvent function);
+    API_IMPL void setOnClickMiddleMouse(OnMouseEvent function);
+    API_IMPL void setOnReleaseMiddleMouse(OnMouseEvent function);
+    API_IMPL void setOnScrollMouseEvent(OnMouseEventScroll function);
+    API_IMPL bool setMaxLength(const int idComponent, const uint32_t maxLength);
+    API_IMPL bool setReadOnlyToRichText(const int idRichText, const bool value);
+    API_IMPL void setAlwaysOnTop(const bool value, const bool hideMe = false);
+    API_IMPL void setAlwaysOnTop(mbm::WINDOW *hwndParent);
+    API_IMPL void setColorKeying(const uint8_t red, const uint8_t green, const uint8_t blue);
+    API_IMPL void setColorKeying(const uint8_t red, const uint8_t green, const uint8_t blue,const int idComponent);
+    API_IMPL void setPosition(const int x, const int y, const int id = -1);
+    API_IMPL long getWidth(const int id = -1);
+    API_IMPL WINDOW *getWindow(const HWND hwnd_);
+    API_IMPL long getHeight(const int id = -1);
+    API_IMPL RECT getRect(const int id = -1);
+    API_IMPL RECT getRectAbsolute(const int id = -1);
+    API_IMPL RECT getRectRelativeWindow(const int id = -1);
+    API_IMPL void setSize(RECT &source, const bool inner = true);
+    API_IMPL void resize(const int idComponent, const int x, const int y, const int new_width, const int new_height);
+    API_IMPL void resize(const int idComponent, const int new_width, const int new_height);
+    API_IMPL static void resize(HWND hwnd2move, const int new_width, const int new_height, bool incrementSize = false);
+    API_IMPL void hideConsoleWindow();
+    API_IMPL void showConsoleWindow();
+    API_IMPL void closeWindow();
+    API_IMPL void hide(const HWND hwnd_);
+    API_IMPL void hide(const int id = -1, int flag = SW_HIDE);
+    API_IMPL void show(const int id = -1, int flag = SW_SHOW);
+    API_IMPL void show(const HWND hwnd_);
+    API_IMPL void showMaximized(const int idWindow = -1);
+    API_IMPL void showMinimized(const int idWindow = -1);
+    API_IMPL void setMinSizeAllowed(const int width,const int height);
+    API_IMPL void setMaxSizeAllowed(const int width,const int height);
+    API_IMPL bool loadTextFileToRichEdit(const int idRichText, WCHAR *fileName);
+    API_IMPL bool loadTextFileToRichEdit(HWND hwndRichText, WCHAR *fileName);
+    API_IMPL bool loadTextFileToRichEdit(const int idRichText, const WCHAR *filter = nullptr);
+    API_IMPL bool saveTextFileFromRichText(const int idRichText, WCHAR *fileName);
+    API_IMPL bool messageBoxQuestion(const char *format, ...);
+    API_IMPL void messageBox(const char *format, ...);
+    API_IMPL const int getTabStopPixelSize();
+    API_IMPL const void setTabStopPixelSize(int characters = 1, const int idComponent = -1);
   private:
     void moveHWND(HWND hwndToMove, int x, int y);
     void moveHWNDMeAndChilds(HWND hwndToMove, int x, int y);
@@ -1160,8 +1162,8 @@ class WINDOW
     bool doModalMode;
     bool preventMenuAlwaysShowing;
     HWND hwndInsertAfter;
-    void getCursorPos(POINT *p);
-    bool isUsingDoubleBuffer()const;
+    API_IMPL void getCursorPos(POINT *p);
+    API_IMPL bool isUsingDoubleBuffer()const;
   protected:
     bool usingDoubleBuffer;
     int  dialogunitTabStopInPixel;
@@ -1198,37 +1200,35 @@ class WINDOW
     int min_size_width,min_size_height;
     int max_size_width,max_size_height;
 };
-WINDOW *getWindow(HWND hwnd);
-WINDOW *getLastWindow();
-WINDOW *getFirstWindow();
-const char *selectetDirectory(HWND hwnd, char *outDir);
-std::vector<std::string> &openFileBoxMult(const char *extension_, const char *title,
+API_IMPL WINDOW *getWindow(HWND hwnd);
+API_IMPL WINDOW *getLastWindow();
+API_IMPL WINDOW *getFirstWindow();
+API_IMPL const char *selectetDirectory(HWND hwnd, char *outDir);
+API_IMPL std::vector<std::string> &openFileBoxMult(const char *extension_, const char *title,
                                                  bool enableReturnExtencion = true, bool enableAllFileType = false,
                                                  HWND hwnd = nullptr, const char *defaultNameInDialog = nullptr);
-WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion = true,
+API_IMPL WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion = true,
                            bool enableAllFileType = false, HWND hwnd = nullptr, const WCHAR *defaultNameInDialog = nullptr);
-char *openFileBox(const char *extension_, const char *title_, bool enableReturnExtencion, bool enableAllFileType,
+API_IMPL char *openFileBox(const char *extension_, const char *title_, bool enableReturnExtencion, bool enableAllFileType,
                          HWND hwnd, const char *defaultNameInDialog_, char *outFileName);
-WCHAR *saveFileBoxW(WCHAR *extension, WCHAR *title, bool enableReturnExtencion = true,
+API_IMPL WCHAR *saveFileBoxW(WCHAR *extension, WCHAR *title, bool enableReturnExtencion = true,
                            bool enableAllFileType = false, HWND hwnd = nullptr, const WCHAR *defaultNameInDialog = nullptr);
-char *saveFileBox(const char *extension_, const char *title_, const bool enableReturnExtencion,
+API_IMPL char *saveFileBox(const char *extension_, const char *title_, const bool enableReturnExtencion,
                          const bool enableAllFileType, HWND hwnd, const char *defaultNameInDialog_, char *outFileName);
-bool getColorFromDialogBox(uint8_t &red, uint8_t &green, uint8_t &blue, HWND hwnd = nullptr);
-bool getFontFromDialogBox(LOGFONTA *fontOut, HWND hwnd = nullptr);
-bool getFontFromDialogBox(LOGFONTW *fontOut, HWND hwnd = nullptr);
-RECT getMenuRect(int idWindow, int myId);
-COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus_, WINDOW *me,
-                                          TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
-                                          USER_DRAWER *userDrawer);
-char *getNameFromPath(const char *fileNamePath, const bool removeCharacterInvalids, char *primaryPartFromPath,
+API_IMPL bool getColorFromDialogBox(uint8_t &red, uint8_t &green, uint8_t &blue, HWND hwnd = nullptr);
+API_IMPL bool getFontFromDialogBox(LOGFONTA *fontOut, HWND hwnd = nullptr);
+API_IMPL bool getFontFromDialogBox(LOGFONTW *fontOut, HWND hwnd = nullptr);
+API_IMPL RECT getMenuRect(int idWindow, int myId);
+
+API_IMPL char *getNameFromPath(const char *fileNamePath, const bool removeCharacterInvalids, char *primaryPartFromPath,
                              char *outFileName);
-const char *getHeaderToResource();
+API_IMPL const char *getHeaderToResource();
 
-bool saveToFileBinary(const char *fileName, void *header, DWORD sizeOfHeader, void *dataIn, DWORD sizeOfDataIn);
+API_IMPL bool saveToFileBinary(const char *fileName, void *header, DWORD sizeOfHeader, void *dataIn, DWORD sizeOfDataIn);
 
-bool loadFromFileBynary(const char *fileName, void *header, DWORD sizeOfHeader, void *dataOut, DWORD sizeOfDataOut);
-bool loadHeaderFromFileBynary(const char *fileName, void *header, DWORD sizeOfHeader);
-void closeAllWindows();
+API_IMPL bool loadFromFileBynary(const char *fileName, void *header, DWORD sizeOfHeader, void *dataOut, DWORD sizeOfDataOut);
+API_IMPL bool loadHeaderFromFileBynary(const char *fileName, void *header, DWORD sizeOfHeader);
+API_IMPL void closeAllWindows();
 }
 
 struct __AUX_MONITOR_SELECT
@@ -1239,10 +1239,10 @@ struct __AUX_MONITOR_SELECT
     int           idChkAskAboutMonitor;
     bool          askMeAgain;
     mbm::MONITOR *monitor;
-    __AUX_MONITOR_SELECT();
-    static void __0_onProcess(mbm::WINDOW *, mbm::DATA_EVENT &dataEvent);
-    static void __0_onPressOkMonitor(mbm::WINDOW *w, mbm::DATA_EVENT &);
-    static void __1_onCheckedDontAskAgain(mbm::WINDOW *w, mbm::DATA_EVENT &);
+    API_IMPL __AUX_MONITOR_SELECT();
+    API_IMPL static void __0_onProcess(mbm::WINDOW *, mbm::DATA_EVENT &dataEvent);
+    API_IMPL static void __0_onPressOkMonitor(mbm::WINDOW *w, mbm::DATA_EVENT &);
+    API_IMPL static void __1_onCheckedDontAskAgain(mbm::WINDOW *w, mbm::DATA_EVENT &);
 };
 
 namespace mbm
@@ -1268,12 +1268,12 @@ class LAYOUT
     bool           enableReziseWindow;
     bool           withoutBorder;
     OnEventWinPlus onEventWindow;
-    bool init(const char *nameApp, mbm::WINDOW &window, int adjustRendererWidth = 0, int adjustRendererHeight = 0,
+    API_IMPL bool init(const char *nameApp, mbm::WINDOW &window, int adjustRendererWidth = 0, int adjustRendererHeight = 0,
                      const bool hasMenu = false, const bool leftToRight = false, const int idResourceIcon = 0);
 
-    LAYOUT();
-    virtual ~LAYOUT();
-    HWND getHwndRenderer();
+    API_IMPL LAYOUT();
+    API_IMPL virtual ~LAYOUT();
+    API_IMPL HWND getHwndRenderer();
     int idGroupRender;
   private:
     HWND hwndRenderer;
@@ -1289,11 +1289,11 @@ class __DRAW_SPLASH : public mbm::DRAW
     mbm::BMP      bmpSplash;
     mbm::BMP      bmpProgress;
     int           coutDownTimeOut;
-    __DRAW_SPLASH(const int ID_IMAGE_RESOURCE, mbm::STATIC_IMAGE_RESOURCE *imageResource);
-    virtual ~__DRAW_SPLASH();
-    bool eraseBackGround(mbm::COMPONENT_INFO* component);
-    bool render(mbm::COMPONENT_INFO &component);
-    static void onTimeOutSplah(mbm::WINDOW *w, mbm::DATA_EVENT &);
+    API_IMPL __DRAW_SPLASH(const int ID_IMAGE_RESOURCE, mbm::STATIC_IMAGE_RESOURCE *imageResource);
+    API_IMPL virtual ~__DRAW_SPLASH();
+    API_IMPL bool eraseBackGround(mbm::COMPONENT_INFO* component);
+    API_IMPL bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL static void onTimeOutSplah(mbm::WINDOW *w, mbm::DATA_EVENT &);
   private:
     mbm::STATIC_IMAGE_RESOURCE *resource;
 };
@@ -1303,17 +1303,17 @@ void __destroyMenu(void *extraParams);
 namespace mbm
 {
 
-void splash(const DWORD timeMiliSec, STATIC_IMAGE_RESOURCE &imageResource, uint8_t rgbProgres[3] = nullptr,
+    API_IMPL void splash(const DWORD timeMiliSec, STATIC_IMAGE_RESOURCE &imageResource, uint8_t rgbProgres[3] = nullptr,
                    uint8_t colorKeiyng[3] = nullptr);
-void splash(const DWORD timeMiliSec, int ID_IMAGE_RESOURCE, uint8_t rgbProgres[3] = nullptr,
+    API_IMPL void splash(const DWORD timeMiliSec, int ID_IMAGE_RESOURCE, uint8_t rgbProgres[3] = nullptr,
                    uint8_t colorKeiyng[3] = nullptr);
-void splash(const DWORD timeMiliSec, int ID_IMAGE_RESOURCE, int ID_IMAGE_PROGRESS,
+    API_IMPL void splash(const DWORD timeMiliSec, int ID_IMAGE_RESOURCE, int ID_IMAGE_PROGRESS,
                    uint8_t colorKeiyng[3] = nullptr);
-void splash(const int widthWindow, const int heightWindow, const DWORD timeMiliSec, int ID_IMAGE_RESOURCE,
+    API_IMPL void splash(const int widthWindow, const int heightWindow, const DWORD timeMiliSec, int ID_IMAGE_RESOURCE,
                    int ID_IMAGE_PROGRESS, uint8_t colorKeiyng[3] = nullptr);
 }
 
-const int __getTabStopPixelSize(HWND hwnd);
+API_IMPL const int __getTabStopPixelSize(HWND hwnd);
 namespace mbm
 {
 void __destroyOnExitAllListComBetweenWindows();

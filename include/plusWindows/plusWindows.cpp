@@ -9030,7 +9030,7 @@ namespace mbm
         }
         return nullptr;
     }
-std::vector<std::string> &openFileBoxMult(const char *extension_, const char *title,
+void openFileBoxMult(std::vector<std::string>& ret, const char *extension_, const char *title,
                                                  bool enableReturnExtencion , bool enableAllFileType ,
                                                  HWND hwnd, const char *defaultNameInDialog)
 {
@@ -9094,14 +9094,13 @@ std::vector<std::string> &openFileBoxMult(const char *extension_, const char *ti
     {
         strcpy(dialogBox.lpstrFile, defaultNameInDialog);
     }
-    static std::vector<std::string> ret;
     ret.clear();
 
     if (!GetOpenFileNameA(&dialogBox))
-        return ret;
+        return;
 
     if (path[0] == 0)
-        return ret;
+        return;
     char *directory = path;
     int   lenStr    = strlen(directory);
     while (lenStr + 1 < sizeof(path) && path[lenStr + 1])
@@ -9144,7 +9143,6 @@ std::vector<std::string> &openFileBoxMult(const char *extension_, const char *ti
         }
         ret.push_back(directory);
     }
-    return ret;
 }
     WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion ,
                            bool enableAllFileType , HWND hwnd, const WCHAR *defaultNameInDialog)

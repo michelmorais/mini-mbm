@@ -286,7 +286,8 @@ namespace mbm
                 mbm::hideConsoleWindow();
     #endif
             const int ret = luaCore.run();
-            return mbm::DEVICE::returnCodeApp ? mbm::DEVICE::returnCodeApp : ret;
+			const int code_quit = luaCore.device->getAppReturnCode();
+            return code_quit ? code_quit : ret;
         }
         else
         {

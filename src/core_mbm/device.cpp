@@ -64,6 +64,16 @@ namespace mbm
     }
 #endif
 
+    API_IMPL void DEVICE::setAppReturnCode(const int returnCode) noexcept
+    {
+		returnCodeApp = returnCode;
+    }
+
+    API_IMPL int DEVICE::getAppReturnCode() const noexcept
+    {
+        return returnCodeApp;
+    }
+
     void DEVICE::quit()
     {
         TEXTURE_MANAGER::release();
@@ -813,11 +823,10 @@ namespace mbm
         __percXcam2dScale          = 1.0f;
         __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
+		returnCodeApp              = 0;
 		audioInterface			   = nullptr;
     }
 
-	int DEVICE::returnCodeApp = 0;
-    
     DEVICE::~DEVICE()
     {
         for (const auto & i : this->lsDynamicVarGlobal)

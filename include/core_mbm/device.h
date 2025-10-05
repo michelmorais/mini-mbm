@@ -82,7 +82,7 @@ namespace mbm
         CORE_MANAGER *      ptrManager;
         SCENE *             scene;
         bool                clearBackGround;
-		API_IMPL static int	returnCodeApp;
+		
         mbm::ORDER_RENDER   orderRender;
         int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
@@ -92,6 +92,8 @@ namespace mbm
         void callQuitInJava();
         void streamStopped(const int indexJNI);
     #endif
+		API_IMPL void setAppReturnCode(const int returnCode) noexcept;
+		API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
@@ -140,6 +142,7 @@ namespace mbm
 	API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
 	API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
       private:
+        int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;

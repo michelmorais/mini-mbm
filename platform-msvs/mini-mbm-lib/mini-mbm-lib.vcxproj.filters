@@ -16,20 +16,11 @@
     <Filter Include="Header Files\tinyfiledialogs">
       <UniqueIdentifier>{4ea432e1-0cd0-40e3-aa5f-b13b6becdee2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\tinyfiledialogs">
-      <UniqueIdentifier>{6e7cf924-0f7d-4363-b17d-b8b5617875ce}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\core_mbm">
-      <UniqueIdentifier>{0f329974-b955-4080-88b0-7352dc3a7f11}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\core_mbm">
       <UniqueIdentifier>{e82c49f9-766e-40e0-8d93-95ec26ba2e46}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\joystick-win32">
       <UniqueIdentifier>{057712cc-2695-44b2-ad78-3fe251458bb4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\joystick-win32">
-      <UniqueIdentifier>{29a8f1c2-16a9-4f87-881d-6fa64987cfcb}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Lua-wrapper">
       <UniqueIdentifier>{32eb21be-443e-41ae-ab8d-f1840639543b}</UniqueIdentifier>
@@ -40,20 +31,11 @@
     <Filter Include="Header Files\lodepng">
       <UniqueIdentifier>{a19c95a1-88be-486c-9487-41e8ff9f60ac}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\lodepng">
-      <UniqueIdentifier>{d4e23d2b-f506-4221-9683-652560c3cf5e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\miniz">
       <UniqueIdentifier>{0fd12ddb-cf2f-4a3e-8227-d72cd0226a75}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\miniz">
-      <UniqueIdentifier>{ad53d976-8079-4e2b-8122-75e44f2f13c8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\miniz-wrap">
       <UniqueIdentifier>{40d4a28e-4a8a-4f78-ac97-f869c9f26c4a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\miniz-wrap">
-      <UniqueIdentifier>{ae7c5cd8-33ed-442b-911c-92044523ac4e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\platform">
       <UniqueIdentifier>{daab242d-21cd-49c7-84be-1ee3b905d4b9}</UniqueIdentifier>
@@ -61,20 +43,11 @@
     <Filter Include="Header Files\plusWindows">
       <UniqueIdentifier>{a602dd15-695f-47b1-ae69-a5ab97588afe}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\plusWindows">
-      <UniqueIdentifier>{80e2e00c-ff6f-4606-b9d9-ecd5b6b65630}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\render">
       <UniqueIdentifier>{a49ca146-1a54-41f3-a440-8e4f860772a3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\render">
-      <UniqueIdentifier>{0a24ae85-928d-4848-85af-6e07e9f8c4e3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\stb">
       <UniqueIdentifier>{6fa3a3bb-1514-432e-86e2-d925582c2ba5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\stb">
-      <UniqueIdentifier>{7e2158e8-6d8e-4239-af94-a52818bf4de0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\lua">
       <UniqueIdentifier>{8dae6266-5a5c-4dbe-bb15-b48e16f446ee}</UniqueIdentifier>
@@ -96,177 +69,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c">
-      <Filter>Source Files\tinyfiledialogs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\animation.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\blend.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\camera.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\device.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\file-util.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\frustum.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\gles-debug.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\image-resource.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\log-util.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\order-render.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\physics.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\primitives.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\renderizable.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\scene.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shapes.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\time-control.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\uber-image.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\util.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\vigenere.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\lodepng\lodepng_util.cpp">
-      <Filter>Source Files\lodepng</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
-      <Filter>Source Files\lodepng</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp">
-      <Filter>Source Files\joystick-win32</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\miniz\miniz_zip.c">
-      <Filter>Source Files\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c">
-      <Filter>Source Files\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\miniz\miniz_tdef.c">
-      <Filter>Source Files\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\miniz\miniz.c">
-      <Filter>Source Files\miniz</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp">
-      <Filter>Source Files\miniz-wrap</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp">
-      <Filter>Source Files\plusWindows</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp">
-      <Filter>Source Files\plusWindows</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\background.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\font.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\gif-view.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\HMD.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\line-mesh.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\mesh.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\particle.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\render-2-texture.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\renderizable-clone.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\shape-mesh.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\sprite.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\texture-view.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\tile.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\stb\stb.c">
-      <Filter>Source Files\stb</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
@@ -342,17 +144,11 @@
     <ClCompile Include="dllmain-mini-mbm-lib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\third-party\wave\WAVE.cpp">
       <Filter>Source Files\wave</Filter>
     </ClCompile>
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
       <Filter>Source Files\wave</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\steered_particle.cpp">
-      <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>

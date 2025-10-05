@@ -39,7 +39,7 @@ namespace mbm
         return idScene;
     }
 
-	DEVICE * COMMON_DEVICE::device = nullptr;
+    DEVICE *COMMON_DEVICE::device = nullptr;
 
     COMMON_DEVICE::COMMON_DEVICE()
     {
