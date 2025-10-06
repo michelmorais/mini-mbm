@@ -27,14 +27,15 @@
 #include <set>
 #include <platform/mismatch-platform.h>
 #include <cstdarg>
-
+#include <core_mbm/scene.h>
 
 namespace mbm
 {
 
     TEXT_DRAW::~TEXT_DRAW()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -60,7 +61,8 @@ namespace mbm
         this->spaceYCharacter       = 0.0f;
         this->wildCardChangeAnim      = 0;
         this->aligned               = ALIGN_LEFT;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device         = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
         this->text = "Hello Font!";
     }
 
@@ -79,7 +81,8 @@ namespace mbm
         this->spaceYCharacter       = 0.0f;
         this->wildCardChangeAnim      = 0;
         this->aligned               = ALIGN_LEFT;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device         = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
         if (newText)
             this->text = newText;
         else
@@ -100,9 +103,10 @@ namespace mbm
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
         this->spaceYCharacter       = 0.0f;
-        this->wildCardChangeAnim      = 0;
+        this->wildCardChangeAnim    = 0;
         this->aligned               = ALIGN_LEFT;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device         = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
         if (newText)
             this->text = newText;
         else
@@ -122,15 +126,16 @@ namespace mbm
         this->endText               = VEC2(0, 0);
         this->spaceXCharacter       = 0.0f;
         this->spaceYCharacter       = 0.0f;
-        this->wildCardChangeAnim      = 0;
+        this->wildCardChangeAnim    = 0;
         this->aligned               = ALIGN_LEFT;
+        mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         if (newText)
             this->text = newText;
         else
             this->text        = "Hello Font!";
         this->onRestoreFont   = ptrOnRestoreFont;
         this->parentFONT_DRAW = _parentFONT_DRAW;
-        this->device->addRenderizable(this);
+        device->addRenderizable(this);
     }
 
 	unsigned char TEXT_DRAW::withoutBOM2Map(unsigned char index, const unsigned char mapBoom) noexcept
@@ -325,6 +330,7 @@ namespace mbm
         float w, h, d;
         this->getAABB(&w, &h, &d);
         VEC3 p1, p2;
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->transformeScreen2dToWorld3d_scaled(x, y, &p1, 100);
         device->transformeScreen2dToWorld3d_scaled(x, y, &p2, 1000);
         const VEC3 dir(p2 - p1);
@@ -357,6 +363,7 @@ namespace mbm
     {
         float w, h;
         this->getAABB(&w, &h);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
         const VEC3 pos(this->position.x + halfDim.x, this->position.y - halfDim.y, this->position.z);
@@ -369,6 +376,7 @@ namespace mbm
     {
         float w, h;
         this->getAABB(&w, &h);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         const VEC2 point(x, y);
         VEC2       halfDim(w * 0.5f, h * 0.5f);
         const VEC3 pos(this->position.x + halfDim.x , this->position.y + halfDim.y, this->position.z);
@@ -412,7 +420,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
             return ret;
@@ -424,9 +433,10 @@ namespace mbm
     {
         if (this->mesh && this->isLoaded() && this->indexCurrentAnimation < this->lsAnimation.size())
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
             if (doRender)
-                anim->updateAnimation(this->device->delta,this,this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
 			const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
 			if(infoFont == nullptr)
 				return false;
@@ -437,7 +447,7 @@ namespace mbm
                 posTemp2d = this->position;
             else if (this->is2dS)
             {
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, posTemp2d);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, posTemp2d);
                 posTemp2d.x -= this->widthFirstLetter * this->scale.x;
                 posTemp2d.z = this->position.z;
             }
@@ -608,7 +618,7 @@ namespace mbm
                                 if (doRender && lsUpdateAnimation.find(indexNewAnim) == lsUpdateAnimation.end())
                                 {
                                     lsUpdateAnimation.insert(indexNewAnim);
-                                    anim->updateAnimation(this->device->delta, this, this->onEndAnimation,this->onEndFx);
+                                    anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
                                 }
                             }
                         }
@@ -630,10 +640,10 @@ namespace mbm
                                     #endif
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &this->device->camera.matrixPerspective);
+                                                       &device->camera.matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &this->device->camera.matrixPerspective2d);
+                                                       &device->camera.matrixPerspective2d);
                                     #ifdef USE_EDITOR_FEATURES
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];

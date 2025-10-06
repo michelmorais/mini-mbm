@@ -645,7 +645,7 @@ class COM_BETWEEN_WINP
     friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
     friend API_IMPL COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
                                                      TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
-                                                     USER_DRAWER *UserDrawer);
+                                                     USER_DRAWER *UserDrawer = nullptr);
 
   public:
     API_IMPL int getId() const;
@@ -892,7 +892,7 @@ class WINDOW
                                                             const char *defaultNameInDialog);
     friend API_IMPL COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
                                                      TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
-                                                     USER_DRAWER *UserDrawer = nullptr);
+                                                     USER_DRAWER *UserDrawer);
 
   public:
       API_IMPL WINDOW();

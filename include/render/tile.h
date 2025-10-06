@@ -62,7 +62,7 @@ namespace mbm
         MESH_MBM *  ptr_Mesh;
     };
 
-    class TILE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TILE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
     public:
         friend class RENDER_2_TEXTURE;

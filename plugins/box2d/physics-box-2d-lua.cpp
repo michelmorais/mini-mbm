@@ -22,6 +22,7 @@
 #include <core_mbm/class-identifier.h>
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>
+#include <core_mbm/scene.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/util-interface.h>
 #include <platform/mismatch-platform.h>

@@ -47,6 +47,7 @@ extern "C"
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/physics.h>
+#include <core_mbm/scene.h>
 #include <plugin-helper/plugin-helper.h>
 
 #if DEBUG_FREE_LUA

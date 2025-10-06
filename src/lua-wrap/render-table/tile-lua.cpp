@@ -30,6 +30,7 @@ extern "C"
 #include <render/tile.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/header-mesh.h>
+#include <core_mbm/scene.h>
 #include <platform/mismatch-platform.h>
 #include <utility>//pair
 

@@ -77,7 +77,7 @@ namespace mbm
         }
     };
     
-    class SHAPE_MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class SHAPE_MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         typedef void (*OnRenderDynamicBuffer)(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicNormal,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only);

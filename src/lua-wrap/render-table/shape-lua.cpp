@@ -30,6 +30,7 @@ extern "C"
 #include <render/shape-mesh.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/header-mesh.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

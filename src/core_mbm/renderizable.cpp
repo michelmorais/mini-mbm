@@ -20,6 +20,7 @@
 #include <renderizable.h>
 #include <dynamic-var.h>
 #include <device.h>
+#include <scene.h>
 #include <physics.h>
 #include <util-interface.h>
 #include <gles-debug.h>

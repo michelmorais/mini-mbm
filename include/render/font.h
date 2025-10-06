@@ -39,7 +39,7 @@ namespace mbm
     class TEXT_DRAW;
     typedef bool (*OnRestoreFont)(FONT_DRAW *FONT_DRAW, TEXT_DRAW *TEXT_DRAW_ptr);
 
-    class TEXT_DRAW : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TEXT_DRAW : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         friend class FONT_DRAW;
@@ -87,7 +87,7 @@ namespace mbm
         VEC2      endText;
     };
 
-    class FONT_DRAW : public COMMON_DEVICE
+    class FONT_DRAW
     {
       public:
         std::string fontName; // font's name

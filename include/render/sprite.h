@@ -26,10 +26,11 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 
+
 namespace mbm
 {
 
-class SPRITE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
     friend class RENDER_2_TEXTURE;

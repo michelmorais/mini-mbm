@@ -45,7 +45,7 @@ namespace mbm
         std::vector<VEC3> arrayLinesVec3;
     };
 
-    class LINE_MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class LINE_MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         mbm::COLOR color;

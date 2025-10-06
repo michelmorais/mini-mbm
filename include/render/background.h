@@ -35,7 +35,7 @@ namespace util
 namespace mbm
 {
 
-    class BACKGROUND : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class BACKGROUND : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
     

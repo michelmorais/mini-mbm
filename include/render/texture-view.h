@@ -31,7 +31,7 @@ namespace mbm
 {
     struct IMAGE_RESOURCE;
 
-    class TEXTURE_VIEW : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TEXTURE_VIEW : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL TEXTURE_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen);

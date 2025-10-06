@@ -24,6 +24,7 @@
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/dynamic-var.h>
+#include <core_mbm/scene.h>
 #include <algorithm>
 
 template< typename T >
@@ -81,12 +82,14 @@ namespace mbm
         textureTileSetPreview      = nullptr;
         line_tileSetPreview        = nullptr;
         iLastIndexBrickOver        = std::numeric_limits<uint16_t>::max()-1;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     TILE_EDITOR::~TILE_EDITOR()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
         this->clearHistory();
     }
@@ -708,8 +711,11 @@ namespace mbm
             
             if(textureTileSetPreview && loadBufferGl(tileSetPreview))
             {
-                if(line_tileSetPreview == nullptr)
-                    line_tileSetPreview = new mbm::LINE_MESH(this->device->scene,false,false);
+                if (line_tileSetPreview == nullptr)
+                {
+                    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                    line_tileSetPreview = new mbm::LINE_MESH(device->scene, false, false);
+                }
 
                 line_tileSetPreview->release();
                 std::vector<VEC3> arrayLines;
@@ -779,6 +785,7 @@ namespace mbm
 
     bool TILE_EDITOR::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION *anim = this->getAnimation(0);
         if(anim == nullptr)
         {
@@ -796,12 +803,12 @@ namespace mbm
         }
 
         this->blend.set(anim->blendState);
-        anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
         switch (render_what)
         {
             case RENDER_MAP:
@@ -897,9 +904,10 @@ namespace mbm
                 backGround_scale.y   += height_tile;
                 backGroundPosition.x += width_tile * 0.25f;
             }
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
             MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &this->angle, &backGround_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             if(shader->render(&this->backGroundMap) == false)
                 return false;
         }
@@ -923,6 +931,7 @@ namespace mbm
     }
     bool TILE_EDITOR::renderTileSet()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if(textureTileSetPreview)
         {
             if(line_tileSetPreview)
@@ -940,7 +949,7 @@ namespace mbm
             line_tileSetPreview->scale.x = this->scale_tile.x;
             line_tileSetPreview->scale.y = this->scale_tile.y;
             MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &tex_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             if(shader->render(&this->tileSetPreview) == false)
                 return false;
             return true;
@@ -1004,7 +1013,7 @@ namespace mbm
 
                         SHADER::modelView._41 = position.x;
                         SHADER::modelView._42 = position.y;
-                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&this->device->camera.matrixPerspective2d);
+                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->camera.matrixPerspective2d);
 
                         brick->render(&anim->fx.shader,0);
                         position.x += (brick->width * this->scale.x) + 5;
@@ -1033,6 +1042,7 @@ namespace mbm
     {
         if(index_layer < tileMap.layers.size())
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             auto & layer              = tileMap.layers[index_layer];
             if(layer->visible == false)
                 return true;
@@ -1225,6 +1235,7 @@ namespace mbm
                                      const bool enable_highlights,
                                      const bool transparency)
     {
+        mbm::DEVICE* device       = mbm::DEVICE::getInstance();
         ANIMATION *anim_normal    = lsAnimation[0];
         ANIMATION *anim_selected  = lsAnimation[1];
         ANIMATION *anim_over      = lsAnimation[2];
@@ -1257,7 +1268,7 @@ namespace mbm
             {
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
                 MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 if(renderEmptyBrick(&anim_normal->fx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
             }
@@ -1265,13 +1276,13 @@ namespace mbm
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             const bool bSelected  = enable_highlights && selectedBrick[index];
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one
             {
                 this->blend.set(anim_over->blendState);
-                anim_over->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim_over->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                 anim_over->fx.setBlendOp();
                 anim_over->fx.shader.update();
                 if(brick->render(&anim_over->fx.shader,idTexStage2) == false)
@@ -1283,7 +1294,7 @@ namespace mbm
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
-                    anim_selected->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                    anim_selected->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                     anim_selected->fx.setBlendOp();
                     anim_selected->fx.shader.update();
                 }
@@ -1338,6 +1349,7 @@ namespace mbm
     {
         if((render_what == RENDER_LAYER || render_what == RENDER_MAP) && index_render_what < tileMap.layers.size())
         {
+            mbm::DEVICE* device     = mbm::DEVICE::getInstance();
             const int total         = tileMap.count_width_tile * tileMap.count_height_tile;
             const auto & layer      = tileMap.layers[index_render_what];
             VEC2 pos;
@@ -1792,6 +1804,7 @@ namespace mbm
     bool TILE_EDITOR::createAnim()
     {
         this->releaseAnimation();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         for (int i=0; i < 3; ++i)
         {
             auto anim = new mbm::ANIMATION();

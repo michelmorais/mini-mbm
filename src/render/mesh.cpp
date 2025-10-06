@@ -22,6 +22,7 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <file-util.h>
+#include <core_mbm/scene.h>
 
 
 namespace mbm
@@ -32,12 +33,14 @@ namespace mbm
     {
         this->indexCurrentAnimation = 0;
         this->mesh                  = nullptr;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     MESH::~MESH()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -92,24 +95,25 @@ namespace mbm
         if (this->indexCurrentAnimation < this->lsAnimation.size())
         {
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
-            anim->updateAnimation(this->device->delta,this,this->onEndAnimation,this->onEndFx);
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
             anim->fx.shader.update();
@@ -160,7 +164,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }

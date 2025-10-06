@@ -30,6 +30,7 @@ extern "C"
 #include <lua-wrap/vec2-lua.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/device.h>
+#include <core_mbm/scene.h>
 #include <core_mbm/primitives.h>
 #include <platform/mismatch-platform.h>
 

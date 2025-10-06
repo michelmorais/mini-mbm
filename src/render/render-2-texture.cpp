@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <platform/mismatch-platform.h>
 #include <gles-debug.h>
+#include <core_mbm/scene.h>
 
 namespace mbm
 {
@@ -58,16 +59,18 @@ namespace mbm
         RENDERIZABLE_TO_TARGET(scene, TYPE_CLASS_RENDER_2_TEX, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->modeTextureOnly = false;
-        this->device->addRenderizable(this);
-        this->device->addObjectRender2Texture(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
+        device->addObjectRender2Texture(this);
         this->isRender2Texture = false;
         this->texture          = nullptr;
     }
     
     RENDER_2_TEXTURE::~RENDER_2_TEXTURE()
     {
-        this->device->removeObjectRender2Texture(this);
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeObjectRender2Texture(this);
+        device->removeRenderizable(this);
     }
     
     void RENDER_2_TEXTURE::removeFromRender2Texture(RENDERIZABLE *ptr)
@@ -350,29 +353,30 @@ namespace mbm
         {
             if (this->modeTextureOnly)
                 return true;
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             if (anim)
             {
                 this->blend.set(anim->blendState);
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
@@ -389,10 +393,11 @@ namespace mbm
     {
         if (this->lsObjects3dRender.size())
         {
+            mbm::DEVICE* device     = mbm::DEVICE::getInstance();
             const CUBE *cube        = this->infoPhysics.lsCube[0];
             const float widthFrame  = cube->halfDim.x * 2.0f;
             const float heightFrame = cube->halfDim.y * 2.0f;
-            this->camera3d.enableMode3D(this->device, widthFrame, heightFrame);
+            this->camera3d.enableMode3D(device, widthFrame, heightFrame);
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
@@ -417,7 +422,8 @@ namespace mbm
         }
         if (this->lsObjects2dRender.size())
         {
-            this->camera2d.enableMode2D(this->device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            this->camera2d.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr   = lsObjects2dRender[i];
@@ -453,7 +459,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }

@@ -48,7 +48,7 @@ namespace mbm
         API_IMPL void setUv(VEC2 pUv[4], const VEC2 & pos,const VEC2 & halParticleSizeInUv);
     };
     
-    class STEERED_PARTICLE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class STEERED_PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL STEERED_PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen,const bool b_segmented,const float* _scale_physics_engine);

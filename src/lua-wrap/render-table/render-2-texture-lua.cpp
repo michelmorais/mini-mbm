@@ -31,6 +31,7 @@ extern "C"
 #include <render/render-2-texture.h>
 #include <lua-wrap/vec3-lua.h>
 #include <platform/mismatch-platform.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

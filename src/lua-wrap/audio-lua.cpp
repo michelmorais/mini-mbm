@@ -30,6 +30,7 @@ extern "C"
 #include <lua-wrap/audio-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <core_mbm/device.h>
+#include <core_mbm/scene.h>
 
 namespace mbm
 {

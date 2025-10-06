@@ -28,6 +28,7 @@ extern "C"
 
 #include <platform/mismatch-platform.h>
 #include <core_mbm/renderizable.h>
+#include <core_mbm/scene.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
 

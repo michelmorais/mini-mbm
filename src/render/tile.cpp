@@ -24,6 +24,7 @@
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/header-mesh.h>
+#include <core_mbm/scene.h>
 #include <cmath>
 
 namespace mbm
@@ -35,12 +36,14 @@ namespace mbm
         , backgroundTextureMap(nullptr)
     {
         this->mesh = nullptr;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     TILE::~TILE()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -215,7 +218,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }
@@ -230,6 +234,7 @@ namespace mbm
             auto * anim               = this->getAnimation(0);
             if(loadBufferBackGroundTexture() && anim)
             {
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
@@ -245,7 +250,7 @@ namespace mbm
                 }
 
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 if(anim->fx.shader.render(&this->backGroundMap) == false)
                     return false;
             }
@@ -281,7 +286,9 @@ namespace mbm
         const float offset_x           = layer->offset[0] * scale.x;
         const float offset_y           = layer->offset[1] * scale.y;
 
-        anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+
+        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.shader.update();
         this->blend.set(anim->blendState);
         anim->fx.setBlendOp();
@@ -292,20 +299,20 @@ namespace mbm
         if (this->is3D)
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-            matrixPerspective = &this->device->camera.matrixPerspective;
+            matrixPerspective = &device->camera.matrixPerspective;
         }
         else if(this->is2dS)
         {
-            thePosBrick = VEC3(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-            this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
+            thePosBrick = VEC3(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+            device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
-            matrixPerspective = &this->device->camera.matrixPerspective2d;
+            matrixPerspective = &device->camera.matrixPerspective2d;
         }
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &scale);
-            matrixPerspective = &this->device->camera.matrixPerspective2d;
+            matrixPerspective = &device->camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
@@ -592,6 +599,7 @@ namespace mbm
             return std::numeric_limits<uint16_t>::max();
         if(index_layer >= ptr_cTileInfo->map.layerCount)
             return std::numeric_limits<uint16_t>::max();
+        mbm::DEVICE* device     = mbm::DEVICE::getInstance();
         const int total         = ptr_cTileInfo->map.count_width_tile * ptr_cTileInfo->map.count_height_tile;
         const auto * layer      = &ptr_cTileInfo->layers[index_layer];
         VEC2 pos;

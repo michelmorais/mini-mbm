@@ -29,6 +29,7 @@ extern "C"
 #include <lua-wrap/common-methods-lua.h>
 #include <render/mesh.h>
 #include <platform/mismatch-platform.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

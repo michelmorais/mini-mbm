@@ -24,6 +24,7 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
+#include <core_mbm/scene.h>
 #include <climits>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
@@ -86,13 +87,15 @@ namespace mbm
 
         this->vboIndexBuffer        = 0;
         this->_operatorShader       = '+';
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     PARTICLE::~PARTICLE()
     {
         this->release();
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
     }
     
     void PARTICLE::release()
@@ -499,8 +502,9 @@ namespace mbm
         if (this->lenArrayParticlesData && this->totalAlive)
         {
             const VEC2  dim(maxv - minv);
-            const float w5 = this->device->getScaleBackBufferWidth() * 0.5f;
-            const float h5 = this->device->getScaleBackBufferHeight() * 0.5f;
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            const float w5 = device->getScaleBackBufferWidth() * 0.5f;
+            const float h5 = device->getScaleBackBufferHeight() * 0.5f;
             if ((dim.x * this->scale.x) > (w5))
                 this->alwaysRenderize = true;
             else if ((dim.y * this->scale.y) > (h5))
@@ -511,9 +515,9 @@ namespace mbm
                 {
                     const float sw = this->wTexture * this->scale.x * 0.5f;
                     const float sh = this->hTexture * this->scale.y * 0.5f;
-                    if (this->device->isSphereAtFrustum(this->position, sw > sh ? sw : sh))
+                    if (device->isSphereAtFrustum(this->position, sw > sh ? sw : sh))
                         return true;
-                    if (this->device->isSphereAtFrustum(this->position, dim.x > dim.y ? dim.x : dim.y))
+                    if (device->isSphereAtFrustum(this->position, dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
@@ -524,12 +528,12 @@ namespace mbm
                     base.halfDim.x = sw;
                     base.halfDim.y = sh;
                     base.halfDim.z = sw > sh ? sw : sh;
-                    if (this->device->isCubeAtFrustum(this->position, this->scale, base))
+                    if (device->isCubeAtFrustum(this->position, this->scale, base))
                         return true;
                     base.halfDim.x = dim.x;
                     base.halfDim.y = dim.y;
                     base.halfDim.z = dim.x > dim.y ? dim.x : dim.y;
-                    if (this->device->isCubeAtFrustum(this->position, this->scale, base))
+                    if (device->isCubeAtFrustum(this->position, this->scale, base))
                         return true;
                 }
             }
@@ -539,20 +543,20 @@ namespace mbm
                 {
                     const float sw = this->wTexture * this->scale.x * 0.5f;
                     const float sh = this->hTexture * this->scale.y * 0.5f;
-                    if (this->device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                         sw > sh ? sw : sh))
                         return true;
-                    if (this->device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                         dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
                 {
-                    if (this->device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                            this->wTexture * this->scale.x,
                                                                            this->hTexture * this->scale.y))
                         return true;
-                    if (this->device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                            dim.x * this->scale.x, dim.y * this->scale.y))
                         return true;
                 }
@@ -563,20 +567,20 @@ namespace mbm
                 {
                     const float sw = this->wTexture * this->scale.x * 0.5f;
                     const float sh = this->hTexture * this->scale.y * 0.5f;
-                    if (this->device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                        sw > sh ? sw : sh))
                         return true;
-                    if (this->device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                        dim.x > dim.y ? dim.x : dim.y))
                         return true;
                 }
                 else
                 {
-                    if (this->device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                           this->wTexture * this->scale.x,
                                                                           this->hTexture * this->scale.y))
                         return true;
-                    if (this->device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
+                    if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                           dim.x * this->scale.x, dim.y * this->scale.y))
                         return true;
                 }
@@ -589,23 +593,24 @@ namespace mbm
     {
         if (this->totalAlive)
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             
             if (this->indexStage < this->lsParticleStage.size())
@@ -629,12 +634,13 @@ namespace mbm
             ANIMATION* anim = this->getAnimation();
             if (this->indexStage < this->lsParticleStage.size())
             {
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 const util::STAGE_PARTICLE* sPart = this->lsParticleStage[this->indexStage];
                 const float prev = this->currentTimeArise;
-                this->currentTimeArise += this->device->delta;
+                this->currentTimeArise += device->delta;
                 if (this->totalAlive < sPart->totalParticle)
                 {
-                    if (this->currentTimeArise <= sPart->ariseTime || prev <= this->device->delta)
+                    if (this->currentTimeArise <= sPart->ariseTime || prev <= device->delta)
                     {
                         if (prev <= 0.0f && sPart->ariseTime <= 0.0f)
                         {
@@ -666,7 +672,7 @@ namespace mbm
                     }
                 }
                 if (anim->currentWayGrowingOfAnimation == false &&
-                    this->currentTimeArise > this->device->delta &&
+                    this->currentTimeArise > device->delta &&
                     this->totalAlive == 0)
                 {
                     anim->currentWayGrowingOfAnimation = true;
@@ -774,9 +780,10 @@ namespace mbm
     bool PARTICLE::renderParticle(const util::STAGE_PARTICLE * sPart)
     {
         ANIMATION *  anim   = this->getAnimation();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         anim->fx.shader.update();
         anim->fx.setBlendOp();
-        anim->updateAnimation(this->device->delta, this, nullptr, this->onEndFx);
+        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         const VEC2  dist(maxv - minv);
         const float diffSize = sPart->maxSizeParticle - sPart->minSizeParticle;
         const float rDiff    = sPart->maxColor.x - sPart->minColor.x;
@@ -786,7 +793,7 @@ namespace mbm
         {
             ATT_PARTICLE *   particle = &this->particles[i];
             VERTEX_PARTICLE *vertex   = &this->buffer[i * 4];
-            particle->timeLifeCurrent += this->device->delta;
+            particle->timeLifeCurrent += device->delta;
             if (particle->timeLifeCurrent > particle->timeLife)
             {
                 if (sPart->revive)
@@ -803,15 +810,15 @@ namespace mbm
             }
             else
             {
-                const float x        = particle->direction.x * this->device->delta * particle->speed;
-                const float y        = particle->direction.y * this->device->delta * particle->speed;
-                const float z        = particle->direction.z * this->device->delta * particle->speed;
+                const float x        = particle->direction.x * device->delta * particle->speed;
+                const float y        = particle->direction.y * device->delta * particle->speed;
+                const float z        = particle->direction.z * device->delta * particle->speed;
                 float       incrSize = 0.0f;
                 if (sPart->sizeMin2Max)//grow
                 {
                     if (particle->aSize < sPart->maxSizeParticle)
                     {
-                        incrSize        = (diffSize / particle->timeLife) * this->device->delta;
+                        incrSize        = (diffSize / particle->timeLife) * device->delta;
                         particle->aSize = vertex[2].x - vertex[0].x;
                         float perc      = (particle->aSize - sPart->minSizeParticle) / diffSize;
                         particle->a     = perc; // 0 -> 0,99
@@ -824,7 +831,7 @@ namespace mbm
                 {
                     if (particle->aSize > sPart->minSizeParticle)
                     {
-                        incrSize        = -(diffSize / particle->timeLife) * this->device->delta;
+                        incrSize        = -(diffSize / particle->timeLife) * device->delta;
                         particle->aSize = vertex[2].x - vertex[0].x;
                         float perc      = 1.0f - ((particle->aSize - sPart->minSizeParticle) / diffSize);
                         particle->a     = perc; // 0,99 -> 0,0 => 0 -> 0,99

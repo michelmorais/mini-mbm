@@ -29,6 +29,7 @@ extern "C"
 
 #include <lua-wrap/timer-lua.h>
 #include <core_mbm/device.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

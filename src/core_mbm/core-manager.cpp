@@ -19,6 +19,7 @@
 
 #include <core-manager.h>
 #include <device.h>
+#include <scene.h>
 #include <renderizable.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>

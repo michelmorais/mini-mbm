@@ -37,7 +37,7 @@ namespace mbm
     struct ATT_PARTICLE;
     struct VERTEX_PARTICLE;
     
-    class PARTICLE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);

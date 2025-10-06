@@ -30,6 +30,7 @@ extern "C"
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/header-mesh.h>
 #include <core_mbm/util-interface.h>
+#include <core_mbm/scene.h>
 #include <render/particle.h>
 #include <lua-wrap/vec3-lua.h>
 

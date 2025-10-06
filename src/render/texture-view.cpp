@@ -23,6 +23,7 @@
 #include <gles-debug.h>
 #include <util.h>
 #include <util-interface.h>
+#include <core_mbm/scene.h>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
     #include <log-util.h>
@@ -36,7 +37,8 @@ namespace mbm
     {
         this->texture      = nullptr;
         this->enableRender = true;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
 
     TEXTURE_VIEW::TEXTURE_VIEW(const bool _is3d, const bool _is2dScreen)
@@ -50,7 +52,8 @@ namespace mbm
     TEXTURE_VIEW::~TEXTURE_VIEW()
     {
         this->enableRender = false;
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -243,7 +246,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }
@@ -254,27 +258,28 @@ namespace mbm
     {
         if (this->bufferGL.isLoadedBuffer())
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             ANIMATION *anim = this->getAnimation();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
                 VEC3 positionScreen(this->position.x, this->position.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
-            anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+            anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             anim->fx.setBlendOp();
             anim->fx.shader.update();
             if (anim->fx.textureOverrideStage2)

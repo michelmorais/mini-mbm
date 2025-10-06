@@ -47,7 +47,7 @@ namespace mbm
     
     };
     //is not right --- must be investigate
-    class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public ANIMATION_MANAGER
     {
       public:
         CAMERA_TARGET               camera2d, camera3d;

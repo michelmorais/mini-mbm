@@ -54,7 +54,7 @@ namespace mbm
 
     typedef std::map<std::string,std::shared_ptr<DYNAMIC_VAR>> PROPERTY;
 
-    class TILE_EDITOR : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TILE_EDITOR : public RENDERIZABLE, public ANIMATION_MANAGER
     {
     private:
         /* data */

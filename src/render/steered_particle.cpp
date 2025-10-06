@@ -24,6 +24,7 @@
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
+#include <core_mbm/scene.h>
 #include <climits>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
@@ -178,13 +179,15 @@ namespace mbm
         this->enableRender          = true;
         this->texture               = nullptr;
         this->vboIndexBuffer        = 0;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device         = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     STEERED_PARTICLE::~STEERED_PARTICLE()
     {
         this->release();
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         infoPhysics.release();
     }
 
@@ -345,23 +348,24 @@ namespace mbm
     {
         if (this->getTotalParticleToRender() > 0)
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             for (FLUID_GROUP* pGroup : this->lsParticleGroup)
             {
@@ -426,9 +430,10 @@ namespace mbm
             VEC3 *vertex           = &pGroup->vertex_particle[i * 4];
             pGroup->setVertex( particle, vertex);
         }
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION *  anim   = this->getAnimation();
         this->blend.set(anim->blendState);
-        anim->updateAnimation(this->device->delta, this, nullptr, this->onEndFx);
+        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
         GLDisable(GL_DEPTH_TEST);

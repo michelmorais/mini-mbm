@@ -19,6 +19,7 @@
 
 #include <audio.h>
 #include <device.h>
+#include <scene.h>
 #include <core-manager.h>
 #include <util-interface.h>
 

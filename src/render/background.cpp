@@ -24,7 +24,7 @@
 #include <util.h>
 #include <header-mesh.h>
 #include <font.h>
-
+#include <core_mbm/scene.h>
 
 namespace mbm
 {
@@ -41,14 +41,16 @@ namespace mbm
         this->type              = util::TYPE_MESH_UNKNOWN;
         this->mesh              = nullptr;
         this->lasIndexAnimation = 0xffffffff;
-        this->position.z        = this->device->orderRender.getNextZOrderControl2dBackground();
+        mbm::DEVICE* device     = mbm::DEVICE::getInstance();
+        this->position.z        = device->orderRender.getNextZOrderControl2dBackground();
         this->isFrontGround     = false;
-        this->device->addRenderizable(this);
+        device->addRenderizable(this);
     }
     
     BACKGROUND::~BACKGROUND()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -247,20 +249,21 @@ namespace mbm
         }
         if (this->indexCurrentAnimation >= this->lsAnimation.size())
             return false;
-        const float w = this->device->getScaleBackBufferWidth() * 0.5f;
-        const float h = this->device->getScaleBackBufferHeight() * 0.5f;
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        const float w = device->getScaleBackBufferWidth() * 0.5f;
+        const float h = device->getScaleBackBufferHeight() * 0.5f;
         if (this->is3D)
         {
             if (this->isFrontGround)
-                this->device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, 60);
+                device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, 60);
             else
-                this->device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, this->howFar3d);
+                device->transformeScreen2dToWorld3d_scaled(w, h, &this->position, this->howFar3d);
         }
         else
         {
             this->position.x = w;
             this->position.y = h;
-            this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, this->position);
+            device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, this->position);
         }
         if (this->isRender2Texture)
             return false;
@@ -274,9 +277,10 @@ namespace mbm
             if (this->isOnFrustum() == false)
                 return false;
         }
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION *animation = this->getAnimation();
         if (animation)
-            animation->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+            animation->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         else
             return false;
         switch (this->type)
@@ -285,14 +289,14 @@ namespace mbm
             {
                 if (this->is3D)
                 {
-                    this->device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
                 }
                 else
                 {
                     const VEC3 positionWorld(this->position.x, this->position.y, this->position.z);
                     MatrixTranslationRotationScale(&SHADER::modelView, &positionWorld, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -314,13 +318,13 @@ namespace mbm
             {
                 if (this->is3D)
                 {
-                    this->device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -342,13 +346,13 @@ namespace mbm
             {
                 if (this->is3D)
                 {
-                    this->device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                    device->setBillboard(&SHADER::modelView, &this->position, &this->scale);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
                 }
                 else
                 {
                     MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                    MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 }
                 this->blend.set(animation->blendState);
                 animation->fx.shader.update(); // glUseProgram
@@ -372,7 +376,7 @@ namespace mbm
                 static VEC3     posTemp2d(0, 0, 0);
 
                 if (this->is3D)
-                    this->device->setBillboard(&SHADER::modelView, &posTemp2d, &this->scale);
+                    device->setBillboard(&SHADER::modelView, &posTemp2d, &this->scale);
                 else
                     MatrixTranslationRotationScale(&SHADER::modelView, &posTemp2d, &this->angle, &this->scale);
                 this->blend.set(animation->blendState);
@@ -432,10 +436,10 @@ namespace mbm
                                     SHADER::modelView._41 += curWidthLetter;
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &this->device->camera.matrixPerspective);
+                                                       &device->camera.matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
-                                                       &this->device->camera.matrixPerspective2d);
+                                                       &device->camera.matrixPerspective2d);
                                     animation->fx.shader.update(); // glUseProgram
                                     animation->fx.setBlendOp();
                                     if (animation->fx.textureOverrideStage2)
@@ -559,6 +563,7 @@ namespace mbm
 
 	bool BACKGROUND::setScale(const bool majorScale)
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         switch (this->type)
         {
             // Aqui buscamos preencher baseado no maior bounding box que representa o objeto como todo.
@@ -718,7 +723,7 @@ namespace mbm
         if (this->is3D)
         {
             VEC3 dimNear, dimFar;
-            this->device->getDimFromFrustum(&dimNear, &dimFar);
+            device->getDimFromFrustum(&dimNear, &dimFar);
 
             const float percX = (this->isFrontGround ? dimNear.x : dimFar.x) / (this->bound.halfDim.x * 2.0f);
             const float percY = (this->isFrontGround ? dimNear.y : dimFar.y) / (this->bound.halfDim.y * 2.0f);
@@ -751,8 +756,8 @@ namespace mbm
         }
         else
         {
-            const float w     = this->device->getScaleBackBufferWidth();
-            const float h     = this->device->getScaleBackBufferHeight();
+            const float w     = device->getScaleBackBufferWidth();
+            const float h     = device->getScaleBackBufferHeight();
             const float percX = w / (this->bound.halfDim.x * 2.0f);
             const float percY = h / (this->bound.halfDim.y * 2.0f);
             if (majorScale)

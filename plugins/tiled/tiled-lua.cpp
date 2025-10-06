@@ -780,23 +780,24 @@ static int onGetTileSetNameTiledEditorLua(lua_State * lua)
 
 static int onSetRenderModeTiledEditorLua(lua_State * lua)
 {
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
     mbm::TILE_EDITOR * tileEditor  = getTileEditorFromRawTable(lua,1,1);
     const char * name              = luaL_checkstring(lua,2);
     switch (tileEditor->render_what)
     {
         case mbm::RENDER_MAP:
         {
-            tileEditor->cam_map_pos  =  tileEditor->device->camera.position2d;
+            tileEditor->cam_map_pos  =  device->camera.position2d;
         }
         break;
         case mbm::RENDER_LAYER:
         {
-            tileEditor->cam_layer_pos =  tileEditor->device->camera.position2d;
+            tileEditor->cam_layer_pos =  device->camera.position2d;
         }
         break;
         case mbm::RENDER_TILE_SET:
         {
-            tileEditor->cam_tileset_pos =  tileEditor->device->camera.position2d;
+            tileEditor->cam_tileset_pos =  device->camera.position2d;
         }
         break;
         default:{}
@@ -808,14 +809,14 @@ static int onSetRenderModeTiledEditorLua(lua_State * lua)
         if(tileEditor->index_render_what >= tileEditor->getTotalTileSet())
             tileEditor->index_render_what = 0;
         lua_pushinteger(lua,tileEditor->index_render_what + 1);
-        tileEditor->device->camera.position2d = tileEditor->cam_tileset_pos;
+        device->camera.position2d = tileEditor->cam_tileset_pos;
     }
     else if(strcmp(name,"map") == 0)
     {
         tileEditor->render_what       = mbm::RENDER_MAP;
         tileEditor->index_render_what = 0;
         lua_pushinteger(lua,tileEditor->index_render_what);
-        tileEditor->device->camera.position2d = tileEditor->cam_map_pos;
+        device->camera.position2d = tileEditor->cam_map_pos;
     }
     else if(strcmp(name,"layer") == 0)
     {
@@ -824,7 +825,7 @@ static int onSetRenderModeTiledEditorLua(lua_State * lua)
         if(tileEditor->index_render_what >= tileEditor->getTotalLayer())
             tileEditor->index_render_what = 0;
         lua_pushinteger(lua,tileEditor->index_render_what+1);
-        tileEditor->device->camera.position2d = tileEditor->cam_layer_pos;
+        device->camera.position2d = tileEditor->cam_layer_pos;
     }
     else if(strcmp(name,"brick") == 0)
     {
@@ -833,8 +834,8 @@ static int onSetRenderModeTiledEditorLua(lua_State * lua)
         if(tileEditor->index_render_what > tileEditor->getTotalBricks(nullptr))
             tileEditor->index_render_what = 1;
         lua_pushinteger(lua,tileEditor->index_render_what);
-        tileEditor->device->camera.position2d.x = 0;
-        tileEditor->device->camera.position2d.y = 0;
+        device->camera.position2d.x = 0;
+        device->camera.position2d.y = 0;
     }
     
     return 1;

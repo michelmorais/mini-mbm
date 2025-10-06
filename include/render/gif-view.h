@@ -28,10 +28,9 @@
 #include <core_mbm/physics.h>
 
 
-
 namespace mbm
 {
-    class GIF_VIEW : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class GIF_VIEW : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL GIF_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen);

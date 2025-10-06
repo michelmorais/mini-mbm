@@ -38,15 +38,7 @@ namespace mbm
     {
         return idScene;
     }
-
-    DEVICE *COMMON_DEVICE::device = nullptr;
-
-    COMMON_DEVICE::COMMON_DEVICE()
-    {
-        COMMON_DEVICE::device = DEVICE::getInstance();
-    }
-    
-    
+   
     SCENE::SCENE() noexcept
     {
         this->nextScene        = nullptr;
