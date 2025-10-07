@@ -117,8 +117,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -283,6 +282,11 @@
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.crypt.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aescrypt.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\sha256.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\version.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
     <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h" />

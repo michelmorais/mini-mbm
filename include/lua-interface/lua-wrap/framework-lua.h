@@ -125,7 +125,7 @@ namespace mbm
     bool fillVarShadersFromMap(std::map<std::string, std::vector<float> *> &lsMapVars, const char *minMaxDefault,std::vector<std::string> &out);
     int onSortShader(lua_State *);
     int onAddShader(lua_State *lua);
-    API_IMPL int onPanic(lua_State *lua);
+    int onPanic(lua_State *lua);
     void registerNamespaceMBM(lua_State *lua, SCENE *scene, lua_CFunction OnNewScene, lua_CFunction OnGetSplash);
 	
 };
