@@ -7,6 +7,7 @@
 #include "parse_laucher_args.hpp"
 #include "resource.h"
 
+#pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "libEGL.dll.lib")
 #pragma comment(lib, "libGLESv2.dll.lib")
