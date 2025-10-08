@@ -61,9 +61,6 @@
     <Filter Include="Header Files\wave">
       <UniqueIdentifier>{6805884d-2516-4f8e-b7c3-703d3f336aa0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\wave">
-      <UniqueIdentifier>{936000f7-150b-4850-8bea-f977d4b568ed}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\plugin-helper">
       <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
     </Filter>
@@ -146,12 +143,6 @@
     </ClCompile>
     <ClCompile Include="dllmain-mini-mbm-lib.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\wave\WAVE.cpp">
-      <Filter>Source Files\wave</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
-      <Filter>Source Files\wave</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>

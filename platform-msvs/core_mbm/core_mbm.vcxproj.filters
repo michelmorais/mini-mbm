@@ -73,6 +73,15 @@
     <Filter Include="Header Files\tinyfiledialogs">
       <UniqueIdentifier>{22ca7b3a-ee2a-438e-a3cf-865d11dbc4d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\wave">
+      <UniqueIdentifier>{1244ad94-d36a-42bd-99a1-384b25a3d06a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\wave">
+      <UniqueIdentifier>{2e890af5-5209-488a-b217-30d02c39c2d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\audio">
+      <UniqueIdentifier>{ff0fea83-aad9-4de6-b7c1-331d6beeff22}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h">
@@ -282,6 +291,12 @@
     <ClInclude Include="..\..\include\version\version.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\third-party\wave\rifffile.h">
+      <Filter>Header Files\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\third-party\wave\WAVE.h">
+      <Filter>Header Files\wave</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -455,14 +470,23 @@
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c">
       <Filter>Source Files\tinyfiledialogs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
       <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
+      <Filter>Source Files\wave</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\wave\WAVE.cpp">
+      <Filter>Source Files\wave</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
+      <Filter>Source Files\audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

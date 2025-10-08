@@ -191,8 +191,6 @@
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
-    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
-    <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />
     <ClCompile Include="dllmain-mini-mbm-lib.cpp" />
   </ItemGroup>
   <ItemGroup>

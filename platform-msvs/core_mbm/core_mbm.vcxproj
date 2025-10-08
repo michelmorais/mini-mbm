@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows\;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>C:\Program Files (x86)\Microsoft Visual Studio 14.0\Team Tools\Static Analysis Tools\Rule Sets\NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <LibraryPath>$(LibraryPath);$(Outdir);$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs</LibraryPath>
@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -250,11 +250,14 @@
     <ClInclude Include="..\..\third-party\stb\stb_image.h" />
     <ClInclude Include="..\..\third-party\stb\stb_truetype.h" />
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
+    <ClInclude Include="..\..\third-party\wave\rifffile.h" />
+    <ClInclude Include="..\..\third-party\wave\WAVE.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
     <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
     <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
@@ -311,6 +314,8 @@
     <ClCompile Include="..\..\third-party\miniz\miniz_zip.c" />
     <ClCompile Include="..\..\third-party\stb\stb.c" />
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
+    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
+    <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />
     <ClCompile Include="core_mbm.cpp" />
   </ItemGroup>
   <ItemGroup>
