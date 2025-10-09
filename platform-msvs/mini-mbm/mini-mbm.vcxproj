@@ -160,7 +160,7 @@
       </Command>
     </PostBuildEvent>
     <CustomBuildStep>
-      <Command>Call  "$(MSBuildProjectDirectory)\remove-unused-file-from-release.bat"</Command>
+      <Command>cp  "$(MSBuildProjectDirectory)\remove-unused-files.bat "</Command>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -274,7 +274,7 @@
   <ItemGroup>
     <None Include="create-short-cuts.bat" />
     <None Include="create_shortcut_from_here.bat" />
-    <None Include="remove-unused-file-from-release.bat" />
+    <None Include="remove-unused-files.bat" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
