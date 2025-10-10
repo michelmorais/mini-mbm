@@ -75,11 +75,18 @@
     #include <X11/Xutil.h>
 #endif
 
+#ifdef USE_AESCRYPT
+
 #ifdef _WIN32
     #include <AESCrypt/win32/aes.crypt.h>
 #else
     #include <AESCrypt/linux/aes.crypt.h>
 #endif
+
+#elif defined USE_PLUSAES
+    #include "plusaes/plusaes.hpp"
+#endif
+
 
 extern "C" 
 {
@@ -95,9 +102,25 @@ extern "C"
 
 namespace mbm 
 {
-    const char *__std_p()
+    inline const char* __std_p()
     {
-        return "passwd";
+		static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.YZ");
+        static char _p[17] = {
+            'M', 'i', 'N', 'i', 'M', 'b', 'M', '-',
+            MBM_VERSION[0], MBM_VERSION[1], MBM_VERSION[2],
+            '#', ' ', 'W', 'M', 'W', 
+            '\0'
+        };
+        return _p;
+    }
+
+    inline const unsigned char* __iv_p()
+    {
+        static const unsigned char iv[16] = {
+        'm', 'I', 'n', 'I', '-', 'M', 'b', 'M',
+        0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+        };
+		return iv;
     }
 
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
@@ -2083,6 +2106,228 @@ namespace mbm
 		}
         return 0;
     }
+#if defined USE_PLUSAES
+    const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (* passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
+    {
+        // encrypt
+		size_t read_bytes = 0;
+        if (util::getSizeFile(infp, &read_bytes))
+        {
+            std::vector<unsigned char> raw_data(read_bytes);
+
+            if (fread(raw_data.data(), 1, read_bytes, infp) == read_bytes)
+            {
+                const unsigned long encrypted_size = plusaes::get_padded_encrypted_size(raw_data.size());
+                std::vector<unsigned char> encrypted(encrypted_size);
+
+                const std::vector<unsigned char> key = plusaes::key_from_string(passwd); // 16-char = 128-bit
+
+                plusaes::Error error = plusaes::encrypt_cbc((unsigned char*)raw_data.data(), raw_data.size(), key.data(), key.size(), iv, encrypted.data(), encrypted.size(), true);
+                switch (error)
+                {
+                    case plusaes::Error::kErrorOk:
+                    {
+                        // we do not write padding
+                        if (fwrite(encrypted.data(), 1, read_bytes, outfp) == read_bytes)
+                        {
+                            return true;
+                        }
+                        else
+                        {
+                            if (errorOut)
+                            {
+                                snprintf(errorOut, 511, "plusaes::Error: failed to write file");
+                            }
+                            return false;
+                        }
+                    }
+                    case plusaes::Error::kErrorInvalidDataSize:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: invalid data size");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidKeySize:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: invalid key size, key_size != 16 && key_size != 24 && key_size != 32");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidBufferSize:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Invalid buffer size");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidKey:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Invalid key");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorDeprecated:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Error deprecated");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidIvSize:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Invalid Iv Size");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidTagSize:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Invalid tag size");
+                        }
+                        return false;
+                    case plusaes::Error::kErrorInvalidTag:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: Invalid tag");
+                        }
+                        return false;
+                    default:
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "unknown error");
+                        }
+                        return false;
+				}
+            }
+            else
+            {
+                if (errorOut)
+                {
+                    snprintf(errorOut, 511, "failed to read file");
+                }
+                return false;
+			}
+        }
+        else
+        {
+            if (errorOut)
+            {
+                snprintf(errorOut, 511, "failed to get size file");
+            }
+            return false;
+        }
+
+    }
+    const bool decrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (*passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
+    {
+        size_t read_bytes = 0;
+        if (util::getSizeFile(infp, &read_bytes))
+        {
+            std::vector<unsigned char> encrypted(read_bytes);
+
+            if (fread(encrypted.data(), 1, read_bytes, infp) == read_bytes)
+            {
+                // decrypt
+                unsigned long padded_size = 0;
+                const unsigned long encrypted_size = plusaes::get_padded_encrypted_size(encrypted.size());
+
+                std::vector<unsigned char> decrypted(encrypted_size);
+
+                const std::vector<unsigned char> key = plusaes::key_from_string(passwd); // 16-char = 128-bit
+
+                plusaes::Error error = plusaes::decrypt_cbc(encrypted.data(), encrypted.size(), key.data(), key.size(), iv, decrypted.data(), decrypted.size(), &padded_size);
+                switch (error)
+                {
+                case plusaes::Error::kErrorOk:
+                {
+					// we do not write padding
+                    if (fwrite(decrypted.data(), 1, read_bytes, outfp) == read_bytes)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        if (errorOut)
+                        {
+                            snprintf(errorOut, 511, "plusaes::Error: failed to write file");
+                        }
+                        return false;
+					}
+                    return true;
+                }
+                case plusaes::Error::kErrorInvalidDataSize:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: invalid data size");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidKeySize:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: invalid key size, key_size != 16 && key_size != 24 && key_size != 32");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidBufferSize:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Invalid buffer size");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidKey:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Invalid key");
+                    }
+                    return false;
+                case plusaes::Error::kErrorDeprecated:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Error deprecated");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidIvSize:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Invalid Iv Size");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidTagSize:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Invalid tag size");
+                    }
+                    return false;
+                case plusaes::Error::kErrorInvalidTag:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "plusaes::Error: Invalid tag");
+                    }
+                    return false;
+                default:
+                    if (errorOut)
+                    {
+                        snprintf(errorOut, 511, "unknown error");
+                    }
+                    return false;
+                }
+            }
+            else
+            {
+                if (errorOut)
+                {
+                    snprintf(errorOut, 511, "failed to read file");
+                }
+                return false;
+            }
+        }
+        else
+        {
+            if (errorOut)
+            {
+                snprintf(errorOut, 511, "failed to get size file");
+            }
+            return false;
+        }
+    }
+#endif
 
     int onEncryptFile(lua_State *lua)
     {
@@ -2096,16 +2341,26 @@ namespace mbm
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
 
+#if defined USE_PLUSAES
+        const unsigned char* iv = __iv_p();
+        if (top > 3)
+        {
+            size_t len = 0;
+            const char* strIv = luaL_checklstring(lua, 4, &len);
+            if (len != 16)
+            {
+                return lua_error_debug(lua, "when using custom iv it must be 16 bytes length");
+			}
+			iv = reinterpret_cast<const unsigned char*>(strIv);
+        }
+#endif
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
         const int passlen = strlen(password);
-        if (passlen <= 4)
-        {
-            lua_print_line(lua,TYPE_LOG_WARN,"weak password [%s]", password);
-            lua_pushboolean(lua, 0);
-            return 1;
-        }
+        char good_password[17] = {0};
+        memcpy(good_password, __std_p(), sizeof(good_password) - 1);
+        memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
         FILE *fp1 = util::openFile(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
@@ -2120,7 +2375,8 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-        if (encrypt_stream(fp1, fp2, password, passlen, strErr))
+#ifdef USE_AESCRYPT
+        if (encrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -2150,6 +2406,40 @@ namespace mbm
             lua_print_line(lua,TYPE_LOG_ERROR,"failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
+#elif defined USE_PLUSAES
+		if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        {
+            fclose(fp1);
+            fclose(fp2);
+            if (strcasecmp(fileNameOut, fileNameIn) == 0)
+            {
+                if (remove(fileNameIn))
+                    lua_print_line(lua, TYPE_LOG_WARN, "failed on rename file [%s].", fileNameIn);
+                if (rename(strOut.c_str(), fileNameIn))
+                {
+                    lua_pushboolean(lua, 0);
+                    lua_print_line(lua, TYPE_LOG_ERROR, "failed on rename file [%s].", fileNameIn);
+                }
+                else
+                {
+                    lua_pushboolean(lua, 1);
+                }
+            }
+            else
+            {
+                lua_pushboolean(lua, 1);
+            }
+        }
+        else
+        {
+            fclose(fp1);
+            fclose(fp2);
+            lua_print_line(lua, TYPE_LOG_ERROR, "failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
+            lua_pushboolean(lua, 0);
+        }
+#else
+    #error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
+#endif
         return 1;
     }
 
@@ -2164,11 +2454,27 @@ namespace mbm
         const char *fileNameIn  = luaL_checkstring(lua, 1);
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
+#if defined USE_PLUSAES
+        const unsigned char* iv = __iv_p();
+        if (top > 3)
+        {
+            size_t len = 0;
+            const char* strIv = luaL_checklstring(lua, 4, &len);
+            if (len != 16)
+            {
+                return lua_error_debug(lua, "when using custom iv it must be 16 bytes length");
+            }
+            iv = reinterpret_cast<const unsigned char*>(strIv);
+        }
+#endif
 
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
         const int passlen = strlen(password);
+        char good_password[17] = { 0 };
+        memcpy(good_password, __std_p(), sizeof(good_password) - 1);
+        memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
         FILE *    fp1     = util::openFile(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
@@ -2183,7 +2489,8 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-        if (decrypt_stream(fp1, fp2, password, passlen, strErr))
+#ifdef USE_AESCRYPT
+        if (decrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -2213,6 +2520,40 @@ namespace mbm
             lua_print_line(lua,TYPE_LOG_ERROR,"failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
+#elif defined USE_PLUSAES
+        if (decrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        {
+            fclose(fp1);
+            fclose(fp2);
+            if (strcasecmp(fileNameOut, fileNameIn) == 0)
+            {
+                if (remove(fileNameIn))
+                    lua_print_line(lua, TYPE_LOG_WARN, "failed on rename file [%s].", fileNameIn);
+                if (rename(strOut.c_str(), fileNameIn))
+                {
+                    lua_pushboolean(lua, 0);
+                    lua_print_line(lua, TYPE_LOG_ERROR, "failed on rename file [%s].", fileNameIn);
+                }
+                else
+                {
+                    lua_pushboolean(lua, 1);
+                }
+            }
+            else
+            {
+                lua_pushboolean(lua, 1);
+            }
+        }
+        else
+        {
+            fclose(fp1);
+            fclose(fp2);
+            lua_print_line(lua, TYPE_LOG_ERROR, "failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
+            lua_pushboolean(lua, 0);
+        }
+#else
+#error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
+#endif
         return 1;
     }
 
@@ -3238,8 +3579,8 @@ namespace mbm
             return lua_error_debug(lua, "expected: mbm.loadTexture(string file_name_texture,boolean * alpha = true)");
         const char* file_name_texture      = luaL_checkstring(lua,1);
         const bool  alpha                  = top > 1 ? lua_toboolean(lua,2) : true;
-        uint32 width                       = 0;
-        uint32 height                      = 0;
+        uint32_t width                     = 0;
+        uint32_t height                    = 0;
         TEXTURE_MANAGER * texture_manager  = TEXTURE_MANAGER::getInstance();
         TEXTURE * tex                      = texture_manager->load(file_name_texture,alpha);
         if(tex)
