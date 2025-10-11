@@ -465,6 +465,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     set(USE_OPENGL_ES    1)
     #default definitions: opengl, deprecated version, VR, lua options default compatibility
+    set(USE_PLUSAES      1)
     if(NOT USE_VR AND DISABLE_VR)
         message(STATUS " Disabling VR class")
         add_definitions(-DUSE_OPENGL_ES -DLUA_COMPAT_ALL -DLUA_ANSI)
@@ -476,6 +477,10 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     if(USE_EDITOR_FEATURES)
         add_definitions(-DUSE_EDITOR_FEATURES)
+    endif()
+
+    if(USE_PLUSAES)
+        add_definitions(-DUSE_PLUSAES)
     endif()
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
