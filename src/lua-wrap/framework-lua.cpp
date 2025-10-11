@@ -2122,13 +2122,13 @@ namespace mbm
 
                 const std::vector<unsigned char> key = plusaes::key_from_string(passwd); // 16-char = 128-bit
 
-                plusaes::Error error = plusaes::encrypt_cbc((unsigned char*)raw_data.data(), raw_data.size(), key.data(), key.size(), iv, encrypted.data(), encrypted.size(), true);
+                plusaes::Error error = plusaes::encrypt_cbc(raw_data.data(), raw_data.size(), key.data(), key.size(), iv, encrypted.data(), encrypted.size(), true);
                 switch (error)
                 {
                     case plusaes::Error::kErrorOk:
                     {
                         // we do not write padding
-                        if (fwrite(encrypted.data(), 1, read_bytes, outfp) == read_bytes)
+                        if (fwrite(encrypted.data(), 1, encrypted_size, outfp) == encrypted_size)
                         {
                             return true;
                         }
@@ -2227,9 +2227,8 @@ namespace mbm
             {
                 // decrypt
                 unsigned long padded_size = 0;
-                const unsigned long encrypted_size = plusaes::get_padded_encrypted_size(encrypted.size());
 
-                std::vector<unsigned char> decrypted(encrypted_size);
+                std::vector<unsigned char> decrypted(read_bytes);
 
                 const std::vector<unsigned char> key = plusaes::key_from_string(passwd); // 16-char = 128-bit
 
@@ -2239,7 +2238,8 @@ namespace mbm
                 case plusaes::Error::kErrorOk:
                 {
 					// we do not write padding
-                    if (fwrite(decrypted.data(), 1, read_bytes, outfp) == read_bytes)
+					const size_t new_size = read_bytes - padded_size;
+                    if (fwrite(decrypted.data(), 1, new_size, outfp) == new_size)
                     {
                         return true;
                     }
