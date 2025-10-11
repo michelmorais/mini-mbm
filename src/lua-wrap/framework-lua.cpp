@@ -76,7 +76,7 @@
 #endif
 
 #ifdef USE_AESCRYPT
-
+    #error ("Recommend not to use AESCrypt, you can remove this error if you insist on using it")
 #ifdef _WIN32
     #include <AESCrypt/win32/aes.crypt.h>
 #else
