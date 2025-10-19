@@ -466,7 +466,7 @@ function draw_best_fit_algorithm()
     local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
     local rightBound  =  tRender.width * 0.5
     local bottomBound = -tRender.height * 0.5
-    
+
     local placed = {} -- list of placed rectangles (using inflated dims to account spacing)
     local iTotalIn = 0
     local iTotalSelected = 0
@@ -566,27 +566,38 @@ function draw_grid_based_placement_algorithm()
     local cell_w = tTextureOptions.fWidth  / gx
     local cell_h = tTextureOptions.fHeight / gy
 
-    -- total available cells
-    local totalCells = gx * gy
-    local nextCell = 1
-
-    -- helper to compute cell row/col depending on axis orientation
-    local function cell_coord(index)
-        -- index is 1-based
-        index = index - 1
-        if tTextureOptions.bAxisY then
-            -- fill columns top->bottom, left->right
-            local col = math.floor(index / gy)
-            local row = index % gy
-            return row, col
-        else
-            -- fill rows left->right, top->bottom
-            local row = math.floor(index / gx)
-            local col = index % gx
-            return row, col
+    -- occupancy grid (rows 0..gy-1, cols 0..gx-1) false = free, true = occupied
+    local occ = {}
+    for r=0, gy-1 do
+        occ[r] = {}
+        for c=0, gx-1 do
+            occ[r][c] = false
         end
     end
 
+    local function fits_and_mark(row,col,needR,needC)
+        -- check bounds
+        if row < 0 or col < 0 or (row + needR) > gy or (col + needC) > gx then
+            return false
+        end
+        -- check occupancy
+        for rr = row, row + needR - 1 do
+            for cc = col, col + needC - 1 do
+                if occ[rr][cc] then
+                    return false
+                end
+            end
+        end
+        -- mark occupied
+        for rr = row, row + needR - 1 do
+            for cc = col, col + needC - 1 do
+                occ[rr][cc] = true
+            end
+        end
+        return true
+    end
+
+    -- choose ordering: when AxisY true fill columns top->bottom then left->right
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
@@ -601,37 +612,108 @@ function draw_grid_based_placement_algorithm()
                 width, height = getBiggerTextureSize()
             end
 
-            -- if exceeded grid capacity or max tile count, cannot place
-            if nextCell > totalCells or (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) then
+            -- required cells to cover texture (ceil to allow spanning multiple cells)
+            local needCellsX = math.max(1, math.ceil(width  / cell_w))
+            local needCellsY = math.max(1, math.ceil(height / cell_h))
+
+            -- if exceeds total cells capacity, cannot place
+            if bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount then
                 tRender:remove(tTex)
                 tTex.visible = false
             else
-                local row, col = cell_coord(nextCell)
-                -- cell center in render coordinates
-                local center_x = leftBound + (cell_w * 0.5) + (col * cell_w)
-                local center_y = topBound  - (cell_h * 0.5) - (row * cell_h)
+                local placed = false
 
-                -- apply per-texture manual offsets
-                center_x = center_x + (tTexture.iOffsetPerTextureX or 0)
-                center_y = center_y + (tTexture.iOffsetPerTextureY or 0)
+                if tTextureOptions.bAxisY then
+                    -- iterate columns (left->right) and rows (top->bottom)
+                    for col = 0, gx-1 do
+                        if placed then break end
+                        for row = 0, gy-1 do
+                            -- top-left cell is (row, col), but row 0 is top
+                            local startRow = row
+                            local startCol = col
+                            -- convert startRow/startCol to index where top is 0
+                            -- check if block fits in grid and is free
+                            if fits_and_mark(startRow, startCol, needCellsY, needCellsX) then
+                                -- compute center of covered area in render coordinates
+                                local left_cell_edge  = leftBound + (startCol * cell_w)
+                                local top_cell_edge   = topBound  - (startRow * cell_h)
+                                local covered_w = cell_w * needCellsX
+                                local covered_h = cell_h * needCellsY
+                                local center_x = left_cell_edge + (covered_w * 0.5)
+                                local center_y = top_cell_edge  - (covered_h * 0.5)
 
-                -- check if texture fits into render bounds (considering its real size)
-                local left  = center_x - (width * 0.5)
-                local right = center_x + (width * 0.5)
-                local top   = center_y + (height * 0.5)
-                local bottom= center_y - (height * 0.5)
+                                -- apply per-texture manual offsets
+                                center_x = center_x + (tTexture.iOffsetPerTextureX or 0)
+                                center_y = center_y + (tTexture.iOffsetPerTextureY or 0)
 
-                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
-                    tTex:setPos(center_x, center_y)
-                    iTotalIn = iTotalIn + 1
-                    iCountMaxTile = iCountMaxTile + 1
+                                -- final bounds check using actual texture size (should be OK since we reserved enough cells)
+                                local left  = center_x - (width * 0.5)
+                                local right = center_x + (width * 0.5)
+                                local top   = center_y + (height * 0.5)
+                                local bottom= center_y - (height * 0.5)
+
+                                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                                    tTex:setPos(center_x, center_y)
+                                    iTotalIn = iTotalIn + 1
+                                    iCountMaxTile = iCountMaxTile + 1
+                                    placed = true
+                                    break
+                                else
+                                    -- if bounds failed, unmark those cells
+                                    for rr = startRow, startRow + needCellsY - 1 do
+                                        for cc = startCol, startCol + needCellsX - 1 do
+                                            occ[rr][cc] = false
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
                 else
-                    -- doesn't fit in cell/render: hide it
+                    -- iterate rows (top->bottom) then cols (left->right)
+                    for row = 0, gy-1 do
+                        if placed then break end
+                        for col = 0, gx-1 do
+                            local startRow = row
+                            local startCol = col
+                            if fits_and_mark(startRow, startCol, needCellsY, needCellsX) then
+                                local left_cell_edge  = leftBound + (startCol * cell_w)
+                                local top_cell_edge   = topBound  - (startRow * cell_h)
+                                local covered_w = cell_w * needCellsX
+                                local covered_h = cell_h * needCellsY
+                                local center_x = left_cell_edge + (covered_w * 0.5)
+                                local center_y = top_cell_edge  - (covered_h * 0.5)
+
+                                center_x = center_x + (tTexture.iOffsetPerTextureX or 0)
+                                center_y = center_y + (tTexture.iOffsetPerTextureY or 0)
+
+                                local left  = center_x - (width * 0.5)
+                                local right = center_x + (width * 0.5)
+                                local top   = center_y + (height * 0.5)
+                                local bottom= center_y - (height * 0.5)
+
+                                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                                    tTex:setPos(center_x, center_y)
+                                    iTotalIn = iTotalIn + 1
+                                    iCountMaxTile = iCountMaxTile + 1
+                                    placed = true
+                                    break
+                                else
+                                    for rr = startRow, startRow + needCellsY - 1 do
+                                        for cc = startCol, startCol + needCellsX - 1 do
+                                            occ[rr][cc] = false
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                if not placed then
                     tRender:remove(tTex)
                     tTex.visible = false
                 end
-
-                nextCell = nextCell + 1
             end
 
             iTotalSelected = iTotalSelected + 1
@@ -766,7 +848,12 @@ function showTextureOptions()
                 tTextureOptions.iMaxTileCount = iValue
             end
 
-            tImGui.Text('Grid X')
+            local gx = math.max(1, tTextureOptions.iGridX or 1)
+            local gy = math.max(1, tTextureOptions.iGridY or 1)
+            local cell_w = tTextureOptions.fWidth  / gx
+            local cell_h = tTextureOptions.fHeight / gy
+
+            tImGui.Text(string.format('Grid X %dpx',cell_w))
             tImGui.SameLine()
             tImGui.HelpMarker('Visual grid on X axis to help to preview the sprite sheet')
             tImGui.SameLine()
@@ -776,8 +863,8 @@ function showTextureOptions()
             if result and iValue >= 1 and iValue <= (tTextureOptions.fWidth /2) then
                 tTextureOptions.iGridX = iValue
             end
-
-            tImGui.Text('Grid Y')
+            
+            tImGui.Text(string.format('Grid Y %dpx',cell_h)    )
             tImGui.SameLine()
             tImGui.HelpMarker('Visual grid on Y axis to help to preview the sprite sheet')
             tImGui.SameLine()
@@ -879,8 +966,7 @@ function showTextureOptions()
                 end
                 tImGui.EndTooltip()
             end
-
-
+            
             tImGui.NewLine()
             local step       =  1
             local step_fast  =  10
