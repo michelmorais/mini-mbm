@@ -80,7 +80,8 @@
     <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
     <LibraryPath>$(OutDir);$(SolutionDir)..\third-party\gles\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>

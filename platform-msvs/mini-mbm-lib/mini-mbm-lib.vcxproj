@@ -78,7 +78,8 @@
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>

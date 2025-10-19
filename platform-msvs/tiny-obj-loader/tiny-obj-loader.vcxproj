@@ -82,7 +82,8 @@
     <IncludePath>../third-party/lua-5.4.1;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <IncludePath>..\..\third-party\lua-5.4.1;..\..\modules;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>

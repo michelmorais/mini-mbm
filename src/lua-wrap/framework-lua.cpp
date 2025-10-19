@@ -2115,7 +2115,7 @@ namespace mbm
         {
             std::vector<unsigned char> raw_data(read_bytes);
 
-            if (fread(raw_data.data(), 1, read_bytes, infp) == read_bytes)
+            if (fread(raw_data.data(), read_bytes, 1, infp) == 1)
             {
                 const unsigned long encrypted_size = plusaes::get_padded_encrypted_size(raw_data.size());
                 std::vector<unsigned char> encrypted(encrypted_size);
@@ -2223,7 +2223,7 @@ namespace mbm
         {
             std::vector<unsigned char> encrypted(read_bytes);
 
-            if (fread(encrypted.data(), 1, read_bytes, infp) == read_bytes)
+            if (fread(encrypted.data(), read_bytes, 1, infp) == 1)
             {
                 // decrypt
                 unsigned long padded_size = 0;

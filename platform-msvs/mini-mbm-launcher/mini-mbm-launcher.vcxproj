@@ -76,7 +76,8 @@
     <IncludePath>..\..\include;..\..\src\mini-mbm-lib;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
     <IncludePath>..\..\include;..\..\src\mini-mbm-lib;$(IncludePath)</IncludePath>
   </PropertyGroup>

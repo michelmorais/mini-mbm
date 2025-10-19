@@ -75,7 +75,8 @@ function onInitScene()
                         bGridVisibleX = true,
                         bGridVisibleY = true,
                         iMaxTileCount  = 0,
-                        bAxisY    = false,
+                        bAxisY     = false,
+                        first_Fit  = false,
                         bBiggerTex = true,
                         bFilter   = true,
                         scaleImage= 1,
@@ -224,6 +225,95 @@ function getBiggerTextureSize()
     return width, height
 end
 
+function draw_first_fit_algorithm()
+    if #tTexturesToEditor == 0 then return end
+
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+
+    local placed = {} -- list of placed rectangles (using inflated dims to account spacing)
+    local iTotalIn = 0
+    local iTotalSelected = 0
+
+    local step = 1 -- scan resolution in pixels
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            tRender:add(tTex)
+            tTex.visible = true
+            tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
+                          (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
+
+            local width, height = tTex:getSize()
+            if tTextureOptions.bBiggerTex then
+                width, height = getBiggerTextureSize()
+            end
+
+            -- Include spacing when checking collisions, but center placement uses real size
+            local checkW = width + (tTextureOptions.iSpaceX or 0)
+            local checkH = height + (tTextureOptions.iSpaceY or 0)
+
+            local placed_this = false
+            local outer_break = false
+
+            -- scan top (topBound) to bottom (bottomBound + checkH) stepping downwards
+            for cy = topBound, (bottomBound + checkH), -step do
+                if outer_break then break end
+                -- scan left to right
+                for cx = leftBound, (rightBound - checkW), step do
+                    -- candidate inflated rect
+                    local left  = cx
+                    local right = cx + checkW
+                    local top   = cy
+                    local bottom= cy - checkH
+
+                    -- check within bounds
+                    if left >= leftBound and right <= rightBound and bottom >= bottomBound then
+                        -- check collisions
+                        local collide = false
+                        for _, pr in ipairs(placed) do
+                            if not (pr.right <= left or pr.left >= right or pr.bottom >= top or pr.top <= bottom) then
+                                collide = true
+                                break
+                            end
+                        end
+                        if not collide then
+                            -- place texture: compute center using real width/height and per-texture offsets
+                            local center_x = left + (width * 0.5) + (tTexture.iOffsetPerTextureX or 0)
+                            local center_y = top  - (height * 0.5) + (tTexture.iOffsetPerTextureY or 0)
+                            tTex:setPos(center_x, center_y)
+
+                            -- store inflated rect to reserve spacing area
+                            table.insert(placed, { left = left, right = right, top = top, bottom = bottom })
+
+                            placed_this = true
+                            outer_break = true
+                            break
+                        end
+                    end
+                end
+            end
+
+            if placed_this then
+                iTotalIn = iTotalIn + 1
+            else
+                -- couldn't place: hide/remove
+                tRender:remove(tTex)
+                tTex.visible = false
+            end
+            iTotalSelected = iTotalSelected + 1
+        elseif tTex then
+            -- unselected textures should not be in render
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+end
+
 function drawSpriteSheet()
     if #tTexturesToEditor > 0 then
 
@@ -236,97 +326,107 @@ function drawSpriteSheet()
         local iTotalSelected      = 0
         local iCountMaxTile       = 0
         local bCheckTile          = tTextureOptions.iMaxTileCount > 0
+        local bAnyAlgorithmUsed   = false
 
-        if tTextureOptions.bAxisY then
-            for i=1, #tTexturesToEditor do
-                local tTexture = tTexturesToEditor[i]
-                local tTex     = tTexture.tTex
-                if tTex and tTexture.isSelected then
-                    tRender:add(tTex)
-                    tTex.visible = true
-                    tTex:setScale(tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
-                    local width, height  = tTex:getSize()
+        if tTextureOptions.first_Fit then
+           tTextureOptions.bAxisY = false
+           bAnyAlgorithmUsed = true
+           draw_first_fit_algorithm()
+        end
 
-                    if tTextureOptions.bBiggerTex then
-                        width, height = getBiggerTextureSize()
-                    end
-                    
-                    if i == 1 then
-                        local half_width_tex  = width  * 0.5
-                        local half_height_tex = height * 0.5
-                        x = x + half_width_tex
-                        y = y - half_height_tex
-                    end
+        if not bAnyAlgorithmUsed then
+            if tTextureOptions.bAxisY then
+                for i=1, #tTexturesToEditor do
+                    local tTexture = tTexturesToEditor[i]
+                    local tTex     = tTexture.tTex
+                    if tTex and tTexture.isSelected then
+                        tRender:add(tTex)
+                        tTex.visible = true
+                        tTex:setScale(  tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,
+                                        tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
+                        local width, height  = tTex:getSize()
 
-                    x = x + (tTexture.iOffsetPerTextureX or 0)
-                    y = y + (tTexture.iOffsetPerTextureY or 0)
-                    tTex:setPos(x,y)
+                        if tTextureOptions.bBiggerTex then
+                            width, height = getBiggerTextureSize()
+                        end
+                        
+                        if i == 1 then
+                            local half_width_tex  = width  * 0.5
+                            local half_height_tex = height * 0.5
+                            x = x + half_width_tex
+                            y = y - half_height_tex
+                        end
 
-                    if tTextureOptions.iMaxTileCount > 0 then
-                        iCountMaxTile = iCountMaxTile + 1
-                    end
+                        x = x + (tTexture.iOffsetPerTextureX or 0)
+                        y = y + (tTexture.iOffsetPerTextureY or 0)
+                        tTex:setPos(x,y)
 
-                    if (x + (width  * 0.5)) <= x_final and
-                        not ((y + (height  * 0.5)) < y_final) then
-                            iTotalIn = iTotalIn + 1
-                    end
-                    
-                    y = y - height - tTextureOptions.iSpaceY
+                        if tTextureOptions.iMaxTileCount > 0 then
+                            iCountMaxTile = iCountMaxTile + 1
+                        end
 
-                    if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((y - (height  * 0.5)) < y_final) then
-                        x = x + width + tTextureOptions.iSpaceX
-                        y = y_initial - (height  * 0.5)
-                        iCountMaxTile = 0
-                    end
-                    iTotalSelected = iTotalSelected + 1
-                elseif tTex then
-                    tRender:remove(tTex)
-                    tTex.visible = false
-                end
-            end
-        else
-            for i=1, #tTexturesToEditor do
-                local tTexture = tTexturesToEditor[i]
-                local tTex     = tTexture.tTex
-                if tTex and tTexture.isSelected then
-                    tRender:add(tTex)
-                    tTex.visible = true
-                    tTex:setScale(tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
-                    local width, height  = tTex:getSize()
-
-                    if tTextureOptions.bBiggerTex then
-                        width, height = getBiggerTextureSize()
-                    end
-                    
-                    if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((x - (width  * 0.5) ) > x_final) then
-                        local half_width_tex = width * 0.5
-                        x = x_initial + half_width_tex
+                        if (x + (width  * 0.5)) <= x_final and
+                            not ((y + (height  * 0.5)) < y_final) then
+                                iTotalIn = iTotalIn + 1
+                        end
+                        
                         y = y - height - tTextureOptions.iSpaceY
-                        iCountMaxTile = 0
-                    end
-                    if i == 1 then
-                        local half_width_tex  = width * 0.5
-                        local half_height_tex = height * 0.5
-                        x = half_width_tex  + x
-                        y = y - half_height_tex
-                    end
 
-                    x = x + (tTexture.iOffsetPerTextureX or 0)
-                    y = y + (tTexture.iOffsetPerTextureY or 0)
-                    tTex:setPos(x,y)
-
-                    if tTextureOptions.iMaxTileCount > 0 then
-                        iCountMaxTile = iCountMaxTile + 1
+                        if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((y - (height  * 0.5)) < y_final) then
+                            x = x + width + tTextureOptions.iSpaceX
+                            y = y_initial - (height  * 0.5)
+                            iCountMaxTile = 0
+                        end
+                        iTotalSelected = iTotalSelected + 1
+                    elseif tTex then
+                        tRender:remove(tTex)
+                        tTex.visible = false
                     end
+                end
+            else
+                for i=1, #tTexturesToEditor do
+                    local tTexture = tTexturesToEditor[i]
+                    local tTex     = tTexture.tTex
+                    if tTex and tTexture.isSelected then
+                        tRender:add(tTex)
+                        tTex.visible = true
+                        tTex:setScale(tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
+                        local width, height  = tTex:getSize()
 
-                    if (x + (width  * 0.5)) <= x_final and (y - (height  * 0.5)) >= y_final then
-                        iTotalIn = iTotalIn + 1
+                        if tTextureOptions.bBiggerTex then
+                            width, height = getBiggerTextureSize()
+                        end
+                        
+                        if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((x - (width  * 0.5) ) > x_final) then
+                            local half_width_tex = width * 0.5
+                            x = x_initial + half_width_tex
+                            y = y - height - tTextureOptions.iSpaceY
+                            iCountMaxTile = 0
+                        end
+                        if i == 1 then
+                            local half_width_tex  = width * 0.5
+                            local half_height_tex = height * 0.5
+                            x = half_width_tex  + x
+                            y = y - half_height_tex
+                        end
+
+                        x = x + (tTexture.iOffsetPerTextureX or 0)
+                        y = y + (tTexture.iOffsetPerTextureY or 0)
+                        tTex:setPos(x,y)
+
+                        if tTextureOptions.iMaxTileCount > 0 then
+                            iCountMaxTile = iCountMaxTile + 1
+                        end
+
+                        if (x + (width  * 0.5)) <= x_final and (y - (height  * 0.5)) >= y_final then
+                            iTotalIn = iTotalIn + 1
+                        end
+                        iTotalSelected = iTotalSelected + 1
+                        x = x + width + tTextureOptions.iSpaceX
+                    elseif tTex then
+                        tRender:remove(tTex)
+                        tTex.visible = false
                     end
-                    iTotalSelected = iTotalSelected + 1
-                    x = x + width + tTextureOptions.iSpaceX
-                elseif tTex then
-                    tRender:remove(tTex)
-                    tTex.visible = false
                 end
             end
         end
@@ -494,6 +594,13 @@ function showTextureOptions()
             tTextureOptions.bAxisY    = tImGui.Checkbox('Axis Y## Axis Y',tTextureOptions.bAxisY)
 
             tTextureOptions.bBiggerTex    = tImGui.Checkbox('Follow bigger Texture## Bigger Tex',tTextureOptions.bBiggerTex)
+
+            tTextureOptions.first_Fit    = tImGui.Checkbox('First Fit algorithm## First Fit',tTextureOptions.first_Fit)
+
+            if tTextureOptions.first_Fit then
+                tTextureOptions.bAxisY = false
+                tTextureOptions.bBiggerTex = false
+            end
 
             tImGui.NewLine()
             local step       =  1
