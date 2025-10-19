@@ -76,6 +76,10 @@ function onInitScene()
                         bGridVisibleY = true,
                         iMaxTileCount  = 0,
                         bAxisY     = false,
+                        iIndexSortOption = 1,
+                        bSortByName = false,
+                        bSortBySizeAscending = false,
+                        bSortBySizeDescending= false,
                         bBiggerTex = false,
                         iCurrentAlgorithm = 1,
                         bFilter   = true,
@@ -733,10 +737,23 @@ function drawSpriteSheet()
         adjustTextureSize()
 
         if tTextureOptions.iCurrentAlgorithm ~= 6 and tTextureOptions.iCurrentAlgorithm ~= 4 then
-            --- Sort textures by texture name
-            table.sort(tTexturesToEditor, function(a, b)
-                return a.file_name < b.file_name
-            end)
+            if tTextureOptions.bSortByName then
+                table.sort(tTexturesToEditor, function(a, b)
+                    return a.file_name < b.file_name
+                end)
+            elseif tTextureOptions.bSortBySizeAscending then
+                    table.sort(tTexturesToEditor, function(a, b)
+                        local aw, ah = a.tTex:getSize()
+                        local bw, bh = b.tTex:getSize()
+                        return (aw * ah) < (bw * bh)
+                    end)
+            elseif tTextureOptions.bSortBySizeDescending then
+                    table.sort(tTexturesToEditor, function(a, b)
+                        local aw, ah = a.tTex:getSize()
+                        local bw, bh = b.tTex:getSize()
+                        return (aw * ah) > (bw * bh)
+                    end)
+            end
         end
 
         if tTextureOptions.iCurrentAlgorithm == 1 then -- 'None'
@@ -757,6 +774,31 @@ function drawSpriteSheet()
 
         tLine:setScale(scale,scale)
         showPendingTextureMessage(iTotalIn == iTotalSelected, 'Status of Texture',string.format('%d of %d are inside.\nTotal existent %d',iTotalIn,iTotalSelected,#tTexturesToEditor))
+    end
+end
+
+function disableSortOptions()
+    tTextureOptions.bSortByName           = false
+    tTextureOptions.bSortBySizeAscending  = false
+    tTextureOptions.bSortBySizeDescending = false
+    tTextureOptions.iIndexSortOption      = 0
+end
+
+function showSortOptions()
+    tImGui.Text('Sort Textures By:')
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by name', tTextureOptions.iIndexSortOption, 1)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Ascending', tTextureOptions.iIndexSortOption, 2)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Descending', tTextureOptions.iIndexSortOption, 3)
+
+    tTextureOptions.bSortByName = false
+    tTextureOptions.bSortBySizeAscending = false
+    tTextureOptions.bSortBySizeDescending = false
+    if tTextureOptions.iIndexSortOption == 1 then
+        tTextureOptions.bSortByName = true
+    elseif tTextureOptions.iIndexSortOption == 2 then
+        tTextureOptions.bSortBySizeAscending = true
+    elseif tTextureOptions.iIndexSortOption == 3 then
+        tTextureOptions.bSortBySizeDescending = true
     end
 end
 
@@ -966,7 +1008,26 @@ function showTextureOptions()
                 end
                 tImGui.EndTooltip()
             end
-            
+
+            tImGui.NewLine()
+
+            -- Check the applicable flags for each algorithm
+            if tTextureOptions.iCurrentAlgorithm == 1 then -- None
+                showSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger Texture'
+                showSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
+                showSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'First Fit Decreasing algorithm'
+                disableSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Best Fit algorithm' 
+                showSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Best Fit Decreasing algorithm'
+                disableSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
+                showSortOptions()
+            end
+
             tImGui.NewLine()
             local step       =  1
             local step_fast  =  10
