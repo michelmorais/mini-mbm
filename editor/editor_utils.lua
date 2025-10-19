@@ -320,7 +320,9 @@ tUtil.loadInfoImagesFromFolderToTable  = function(dirname,tTexturesIn)
                 print(string.format('File [%s] skipped',file_name))
             end
         end
-        f.close()
+        if mbm.is("windows") then
+            f.close()
+        end
         return tUtil.loadInfoImagesToTable(tFiles,tTexturesIn)
     end
     return tTexturesIn
