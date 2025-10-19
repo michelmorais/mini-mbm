@@ -109,6 +109,9 @@ function onInitScene()
                         'Follow bigger Texture',        -- 2
                         'First-Fit (FF)',               -- 3
                         'First-Fit Decreasing (FFD)',   -- 4
+                        'Best-Fit (BF)' ,               -- 5
+                        'Best-Fit Decreasing (BFD):' ,  -- 6
+                        'Grid-based placement',         -- 7
                         }
 end
 
@@ -267,10 +270,7 @@ function draw_first_fit_algorithm()
                           (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
 
             local width, height = tTex:getSize()
-            if tTextureOptions.bBiggerTex then
-                width, height = getBiggerTextureSize()
-            end
-
+            
             -- Include spacing when checking collisions, but center placement uses real size
             local checkW = width + (tTextureOptions.iSpaceX or 0)
             local checkH = height + (tTextureOptions.iSpaceY or 0)
@@ -342,6 +342,17 @@ function draw_first_fit_decreasing_algorithm()
     end)
     return draw_first_fit_algorithm()
 end
+
+function draw_best_fit_decreasing_algorithm()
+    -- Sort textures by decreasing area
+    table.sort(tTexturesToEditor, function(a, b)
+        local aw, ah = a.tTex:getSize()
+        local bw, bh = b.tTex:getSize()
+        return (aw * ah) > (bw * bh)
+    end)
+    return draw_best_fit_algorithm()
+end
+
 
 function draw_none_algorithm()
     local x_initial,y_initial = tTextureOptions.iOffsetX - (tRender.width * 0.5),(tRender.height * 0.5) - tTextureOptions.iOffsetY
@@ -449,20 +460,126 @@ function draw_none_algorithm()
     return iTotalIn, iTotalSelected
 end
 
+function draw_best_fit_algorithm()
+    
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+    
+    local placed = {} -- list of placed rectangles (using inflated dims to account spacing)
+    local iTotalIn = 0
+    local iTotalSelected = 0
+
+    local step_w, step_h = findLowerTextureSize() -- scan resolution in pixels
+    if step_w <= 0 then step_w = 1 end
+    if step_h <= 0 then step_h = 1 end
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            tRender:add(tTex)
+            tTex.visible = true
+            tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
+                          (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
+
+            local width, height = tTex:getSize()
+            
+            local checkW = width + (tTextureOptions.iSpaceX or 0)
+            local checkH = height + (tTextureOptions.iSpaceY or 0)
+
+            local bestCandidate = nil
+            local bestTop = -math.huge
+            local bestLeft = math.huge
+
+            -- evaluate all candidate positions (try to pick the one closest to top, then left)
+            for cy = topBound, (bottomBound + checkH), -step_h do
+                for cx = leftBound, (rightBound - checkW), step_w do
+                    local left  = cx
+                    local right = cx + checkW
+                    local top   = cy
+                    local bottom= cy - checkH
+
+                    -- within bounds
+                    if left >= leftBound and right <= rightBound and bottom >= bottomBound then
+                        local collide = false
+                        for _, pr in ipairs(placed) do
+                            if not (pr.right <= left or pr.left >= right or pr.bottom >= top or pr.top <= bottom) then
+                                collide = true
+                                break
+                            end
+                        end
+                        if not collide then
+                            -- prefer candidate with highest top (closest to top bound),
+                            -- tie-breaker: smallest left (closest to left bound)
+                            if top > bestTop or (top == bestTop and left < bestLeft) then
+                                bestTop = top
+                                bestLeft = left
+                                bestCandidate = { left = left, right = right, top = top, bottom = bottom }
+                            end
+                        end
+                    end
+                end
+            end
+
+            if bestCandidate then
+                -- compute actual center using real width/height and per-texture offsets
+                local center_x = bestCandidate.left + (width * 0.5) + (tTexture.iOffsetPerTextureX or 0)
+                local center_y = bestCandidate.top  - (height * 0.5) + (tTexture.iOffsetPerTextureY or 0)
+                tTex:setPos(center_x, center_y)
+
+                table.insert(placed, bestCandidate)
+                iTotalIn = iTotalIn + 1
+            else
+                -- couldn't place: hide/remove
+                tRender:remove(tTex)
+                tTex.visible = false
+            end
+
+            iTotalSelected = iTotalSelected + 1
+        elseif tTex then
+            -- unselected textures should not be in render
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+
+    return iTotalIn, iTotalSelected
+end
+
+function draw_grid_based_placement_algorithm()
+    
+    
+end
+
 function drawSpriteSheet()
     if #tTexturesToEditor > 0 then
         local iTotalIn, iTotalSelected = 0,0
 
         adjustTextureSize()
 
-        if tTextureOptions.iCurrentAlgorithm == 1 then
+        if tTextureOptions.iCurrentAlgorithm ~= 6 and tTextureOptions.iCurrentAlgorithm ~= 4 then
+            --- Sort textures by texture name
+            table.sort(tTexturesToEditor, function(a, b)
+                return a.file_name < b.file_name
+            end)
+        end
+
+        if tTextureOptions.iCurrentAlgorithm == 1 then -- 'None'
             iTotalIn, iTotalSelected = draw_none_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 2 then
+        elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger Texture'
             iTotalIn, iTotalSelected = draw_none_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 3 then
+        elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
             iTotalIn, iTotalSelected = draw_first_fit_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 4 then
+        elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'First Fit Decreasing algorithm'
             iTotalIn, iTotalSelected = draw_first_fit_decreasing_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Best Fit algorithm'
+            iTotalIn, iTotalSelected = draw_best_fit_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Best Fit Decreasing algorithm'
+            iTotalIn, iTotalSelected = draw_best_fit_decreasing_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
+            iTotalIn, iTotalSelected = draw_grid_based_placement_algorithm()
         end
 
         tLine:setScale(scale,scale)
@@ -662,6 +779,12 @@ function showTextureOptions()
                     tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
                 elseif tTextureOptions.iCurrentAlgorithm == 4 then
                     tImGui.Text('Note: Textures are arranged using First Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
+                elseif tTextureOptions.iCurrentAlgorithm == 5 then
+                    tImGui.Text('Note: Textures are arranged using Best Fit algorithm to try to fit more textures inside the sprite sheet.')
+                elseif tTextureOptions.iCurrentAlgorithm == 6 then
+                    tImGui.Text('Note: Textures are arranged using Best Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
+                elseif tTextureOptions.iCurrentAlgorithm == 7 then
+                    tImGui.Text('Note: Textures are arranged grid-based placement (for uniform distribution).')
                 end
                 tImGui.EndTooltip()
             end
