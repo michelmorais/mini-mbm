@@ -550,7 +550,98 @@ end
 
 function draw_grid_based_placement_algorithm()
     
-    
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+
+    local iTotalIn = 0
+    local iTotalSelected = 0
+    local iCountMaxTile = 0
+    local bCheckTile = tTextureOptions.iMaxTileCount > 0
+
+    local gx = math.max(1, tTextureOptions.iGridX or 1)
+    local gy = math.max(1, tTextureOptions.iGridY or 1)
+
+    local cell_w = tTextureOptions.fWidth  / gx
+    local cell_h = tTextureOptions.fHeight / gy
+
+    -- total available cells
+    local totalCells = gx * gy
+    local nextCell = 1
+
+    -- helper to compute cell row/col depending on axis orientation
+    local function cell_coord(index)
+        -- index is 1-based
+        index = index - 1
+        if tTextureOptions.bAxisY then
+            -- fill columns top->bottom, left->right
+            local col = math.floor(index / gy)
+            local row = index % gy
+            return row, col
+        else
+            -- fill rows left->right, top->bottom
+            local row = math.floor(index / gx)
+            local col = index % gx
+            return row, col
+        end
+    end
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            tRender:add(tTex)
+            tTex.visible = true
+            tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
+                          (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
+
+            local width, height = tTex:getSize()
+            if tTextureOptions.bBiggerTex then
+                width, height = getBiggerTextureSize()
+            end
+
+            -- if exceeded grid capacity or max tile count, cannot place
+            if nextCell > totalCells or (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) then
+                tRender:remove(tTex)
+                tTex.visible = false
+            else
+                local row, col = cell_coord(nextCell)
+                -- cell center in render coordinates
+                local center_x = leftBound + (cell_w * 0.5) + (col * cell_w)
+                local center_y = topBound  - (cell_h * 0.5) - (row * cell_h)
+
+                -- apply per-texture manual offsets
+                center_x = center_x + (tTexture.iOffsetPerTextureX or 0)
+                center_y = center_y + (tTexture.iOffsetPerTextureY or 0)
+
+                -- check if texture fits into render bounds (considering its real size)
+                local left  = center_x - (width * 0.5)
+                local right = center_x + (width * 0.5)
+                local top   = center_y + (height * 0.5)
+                local bottom= center_y - (height * 0.5)
+
+                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                    tTex:setPos(center_x, center_y)
+                    iTotalIn = iTotalIn + 1
+                    iCountMaxTile = iCountMaxTile + 1
+                else
+                    -- doesn't fit in cell/render: hide it
+                    tRender:remove(tTex)
+                    tTex.visible = false
+                end
+
+                nextCell = nextCell + 1
+            end
+
+            iTotalSelected = iTotalSelected + 1
+        elseif tTex then
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+
+    return iTotalIn, iTotalSelected
 end
 
 function drawSpriteSheet()
@@ -784,7 +875,7 @@ function showTextureOptions()
                 elseif tTextureOptions.iCurrentAlgorithm == 6 then
                     tImGui.Text('Note: Textures are arranged using Best Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
                 elseif tTextureOptions.iCurrentAlgorithm == 7 then
-                    tImGui.Text('Note: Textures are arranged grid-based placement (for uniform distribution).')
+                    tImGui.Text('Note: Textures are arranged Grid (x) (Y) -based placement (for uniform distribution).')
                 end
                 tImGui.EndTooltip()
             end
