@@ -244,8 +244,7 @@ function findLowerTextureSize()
 end
 
 function draw_first_fit_algorithm()
-    if #tTexturesToEditor == 0 then return end
-
+    
     local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
     local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
     local rightBound  =  tRender.width * 0.5
