@@ -105,9 +105,10 @@ function onInitScene()
     iNextNickName = 0
     tStatusMessageSize = {x=0,y=0}
     sFileNameTexture = ''
-    tComboAlgorithm = {'None',                      -- 1
-                        'Follow bigger Texture',    -- 2
-                        'First Fit algorithm'       -- 3
+    tComboAlgorithm = {'None',                          -- 1
+                        'Follow bigger Texture',        -- 2
+                        'First-Fit (FF)',               -- 3
+                        'First-Fit Decreasing (FFD)',   -- 4
                         }
 end
 
@@ -332,6 +333,16 @@ function draw_first_fit_algorithm()
     return iTotalIn, iTotalSelected
 end
 
+function draw_first_fit_decreasing_algorithm()
+    -- Sort textures by decreasing area
+    table.sort(tTexturesToEditor, function(a, b)
+        local aw, ah = a.tTex:getSize()
+        local bw, bh = b.tTex:getSize()
+        return (aw * ah) > (bw * bh)
+    end)
+    return draw_first_fit_algorithm()
+end
+
 function draw_none_algorithm()
     local x_initial,y_initial = tTextureOptions.iOffsetX - (tRender.width * 0.5),(tRender.height * 0.5) - tTextureOptions.iOffsetY
     local x_final,  y_final   = tRender.width * 0.5, tRender.height * -0.5
@@ -450,6 +461,8 @@ function drawSpriteSheet()
             iTotalIn, iTotalSelected = draw_none_algorithm()
         elseif tTextureOptions.iCurrentAlgorithm == 3 then
             iTotalIn, iTotalSelected = draw_first_fit_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 4 then
+            iTotalIn, iTotalSelected = draw_first_fit_decreasing_algorithm()
         end
 
         tLine:setScale(scale,scale)
@@ -647,6 +660,8 @@ function showTextureOptions()
                     tImGui.Text('Note: Textures are arranged following the size of the bigger texture.')
                 elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
                     tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
+                elseif tTextureOptions.iCurrentAlgorithm == 4 then
+                    tImGui.Text('Note: Textures are arranged using First Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
                 end
                 tImGui.EndTooltip()
             end
