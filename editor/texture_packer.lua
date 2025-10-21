@@ -717,8 +717,6 @@ function draw_grid_force_fit_placement_algorithm()
     local rightBound  =  tRender.width * 0.5
     local bottomBound = -tRender.height * 0.5
 
-    local iTotalIn = 0
-    local iTotalSelected = 0
     local iCountMaxTile = 0
     local bCheckTile = tTextureOptions.iMaxTileCount > 0
 
@@ -737,7 +735,6 @@ function draw_grid_force_fit_placement_algorithm()
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
         if tTex and tTexture.isSelected then
-            iTotalSelected = iTotalSelected + 1
 
             if bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount then
                 -- reached max tile count: remove/hide remaining textures
@@ -801,7 +798,6 @@ function draw_grid_force_fit_placement_algorithm()
                     end
                     tTex:setPos(center_x, center_y)
 
-                    iTotalIn = iTotalIn + 1
                     iCountMaxTile = iCountMaxTile + 1
                     nextCell = nextCell + 1
                 end
@@ -821,6 +817,30 @@ function draw_grid_force_fit_placement_algorithm()
             end
         end
         tTextureOptions.scaleImage = fMinScale
+    end
+
+    -- need to re-count total in/selected in case some textures were hidden due to scaling
+    local iTotalIn = 0
+    local iTotalSelected = 0
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            iTotalSelected = iTotalSelected + 1
+            if tTex.visible then
+                local w,h    = tTex:getSize()
+                local x      = tTex.x
+                local y      = tTex.y
+                local left   = x - (w * 0.5)
+                local right  = x + (w * 0.5)
+                local top    = y + (h * 0.5)
+                local bottom = y - (h * 0.5)
+                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                    iTotalIn = iTotalIn + 1
+                end
+            end
+        end
     end
 
     return iTotalIn, iTotalSelected
