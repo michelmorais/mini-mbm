@@ -83,6 +83,8 @@ function onInitScene()
                         bBiggerTex = false,
                         iCurrentAlgorithm = 1,
                         bFilter   = true,
+                        bGridForceFitScale = false, 
+                        bLastGridForceFitScaleWasEnabled = false,
                         scaleImage= 1,
                         sumScaleImageX=0,
                         sumScaleImageY=0,
@@ -116,6 +118,7 @@ function onInitScene()
                         'Best-Fit (BF)' ,               -- 5
                         'Best-Fit Decreasing (BFD):' ,  -- 6
                         'Grid-based placement',         -- 7
+                        'Grid-force fit placement',     -- 8
                         }
 end
 
@@ -730,6 +733,122 @@ function draw_grid_based_placement_algorithm()
     return iTotalIn, iTotalSelected
 end
 
+function draw_grid_force_fit_placement_algorithm()
+    
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+
+    local iTotalIn = 0
+    local iTotalSelected = 0
+    local iCountMaxTile = 0
+    local bCheckTile = tTextureOptions.iMaxTileCount > 0
+
+    local gx = math.max(1, tTextureOptions.iGridX or 1)
+    local gy = math.max(1, tTextureOptions.iGridY or 1)
+
+    local cell_w = tTextureOptions.fWidth  / gx
+    local cell_h = tTextureOptions.fHeight / gy
+
+    local totalCells = gx * gy
+    local nextCell = 0
+    local fMinScale = math.huge
+
+    -- iterate textures in the chosen order; each texture is forced into the next free cell
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            iTotalSelected = iTotalSelected + 1
+
+            if bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount then
+                -- reached max tile count: remove/hide remaining textures
+                tRender:remove(tTex)
+                tTex.visible = false
+            else
+                -- find next available cell
+                if nextCell >= totalCells then
+                    -- no more cells available
+                    tRender:remove(tTex)
+                    tTex.visible = false
+                else
+                    if tTextureOptions.bGridForceFitScale == false then
+                        tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
+                                      (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
+                    end
+
+                    -- compute cell coords depending on AxisY option
+                    local col, row
+                    if tTextureOptions.bAxisY then
+                        col = math.floor(nextCell / gy)
+                        row = nextCell % gy
+                    else
+                        row = math.floor(nextCell / gx)
+                        col = nextCell % gx
+                    end
+
+                    -- compute center of cell in render coordinates (cell center)
+                    local center_x = leftBound + (col + 0.5) * cell_w
+                    local center_y = topBound  - (row + 0.5) * cell_h
+
+                    -- apply per-texture manual offsets
+                    center_x = center_x + (tTexture.iOffsetPerTextureX or 0)
+                    center_y = center_y + (tTexture.iOffsetPerTextureY or 0)
+
+                    -- add to render and make visible
+                    tRender:add(tTex)
+                    tTex.visible = true
+
+                    -- compute scaling to force-fit into cell (respect spacing)
+                    local avail_w = math.max(1, cell_w - (tTextureOptions.iSpaceX or 0))
+                    local avail_h = math.max(1, cell_h - (tTextureOptions.iSpaceY or 0))
+                    local w,h = tTex:getSize()
+                    local fitScale = 1
+                    if w > 0 and h > 0 then
+                        fitScale = math.min(avail_w / w, avail_h / h)
+                        if fitScale <= 0 then fitScale = 0.0001 end
+                    end
+                    
+                    if tTextureOptions.bGridForceFitScale then
+                        -- combine user scale settings (keep aspect by applying same factor to both axes)
+                        local userScaleX = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0)
+                        local userScaleY = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0)
+                        -- choose average user scale to keep aspect ratio
+                        local userAvgScale = (userScaleX + userScaleY) * 0.5
+
+                        local finalScale = fitScale * userAvgScale
+                        -- avoid negative or zero scale
+                        if finalScale <= 0 then finalScale = 0.0001 end
+                        fMinScale = math.min(fMinScale, finalScale)
+                    end
+                    tTex:setPos(center_x, center_y)
+
+                    iTotalIn = iTotalIn + 1
+                    iCountMaxTile = iCountMaxTile + 1
+                    nextCell = nextCell + 1
+                end
+            end
+        elseif tTex then
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+
+    if tTextureOptions.bGridForceFitScale then
+        for i=1, #tTexturesToEditor do
+            local tTexture = tTexturesToEditor[i]
+            local tTex     = tTexture.tTex
+            if tTex and tTexture.isSelected and tTex.visible then
+                tTex:setScale(fMinScale, fMinScale)
+            end
+        end
+        tTextureOptions.scaleImage = fMinScale
+    end
+
+    return iTotalIn, iTotalSelected
+end
+
 function drawSpriteSheet()
     if #tTexturesToEditor > 0 then
         local iTotalIn, iTotalSelected = 0,0
@@ -770,6 +889,8 @@ function drawSpriteSheet()
             iTotalIn, iTotalSelected = draw_best_fit_decreasing_algorithm()
         elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
             iTotalIn, iTotalSelected = draw_grid_based_placement_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 8 then -- 'Grid-force fit placement'
+            iTotalIn, iTotalSelected = draw_grid_force_fit_placement_algorithm()
         end
 
         tLine:setScale(scale,scale)
@@ -924,6 +1045,7 @@ function showTextureOptions()
             local result, fValue = tImGui.InputFloat('##ScaleImageRect', tTextureOptions.scaleImage, step, step_fast, format, flags)
             if result and fValue > 0 then
                 tTextureOptions.scaleImage = fValue
+                tTextureOptions.bGridForceFitScale = false
             end
 
             tImGui.Text('Adjust scale on X')
@@ -1005,6 +1127,8 @@ function showTextureOptions()
                     tImGui.Text('Note: Textures are arranged using Best Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
                 elseif tTextureOptions.iCurrentAlgorithm == 7 then
                     tImGui.Text('Note: Textures are arranged Grid (x) (Y) -based placement (for uniform distribution).')
+                elseif tTextureOptions.iCurrentAlgorithm == 8 then
+                    tImGui.Text('Note: Textures are arranged using MaxRects algorithm to try to fit more textures inside the sprite sheet.')
                 end
                 tImGui.EndTooltip()
             end
@@ -1025,6 +1149,18 @@ function showTextureOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Best Fit Decreasing algorithm'
                 disableSortOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
+                showSortOptions()
+            elseif tTextureOptions.iCurrentAlgorithm == 8 then -- 'MaxRects algorithm'
+                tTextureOptions.bGridForceFitScale = tImGui.Checkbox('Auto scale to fit##GridForceFitScale',tTextureOptions.bGridForceFitScale)
+                if tTextureOptions.bGridForceFitScale == false and tTextureOptions.bLastGridForceFitScaleWasEnabled then
+                    tTextureOptions.scaleImage = 1.0
+                end
+                if tTextureOptions.bGridForceFitScale then
+                    tTextureOptions.bLastGridForceFitScaleWasEnabled = true
+                else
+                    tTextureOptions.bLastGridForceFitScaleWasEnabled = false
+                end
+                tImGui.NewLine()
                 showSortOptions()
             end
 
