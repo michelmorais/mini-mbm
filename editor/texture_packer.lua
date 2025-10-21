@@ -862,15 +862,29 @@ function drawSpriteSheet()
                 end)
             elseif tTextureOptions.bSortBySizeAscending then
                     table.sort(tTexturesToEditor, function(a, b)
-                        local aw, ah = a.tTex:getSize()
-                        local bw, bh = b.tTex:getSize()
-                        return (aw * ah) < (bw * bh)
+                        local aw, ah = 0,0
+                        local bw, bh = 0,0
+                        if a.tTex then aw, ah = a.tTex:getSize() end
+                        if b.tTex then bw, bh = b.tTex:getSize() end
+                        local aa = aw * ah
+                        local bb = bw * bh
+                        if aa ~= bb then
+                            return aa < bb
+                        end
+                        return (a.file_name or '') < (b.file_name or '')
                     end)
-            elseif tTextureOptions.bSortBySizeDescending then
+    elseif tTextureOptions.bSortBySizeDescending then
                     table.sort(tTexturesToEditor, function(a, b)
-                        local aw, ah = a.tTex:getSize()
-                        local bw, bh = b.tTex:getSize()
-                        return (aw * ah) > (bw * bh)
+                        local aw, ah = 0,0
+                        local bw, bh = 0,0
+                        if a.tTex then aw, ah = a.tTex:getSize() end
+                        if b.tTex then bw, bh = b.tTex:getSize() end
+                        local aa = aw * ah
+                        local bb = bw * bh
+                        if aa ~= bb then
+                            return aa > bb
+                        end
+                        return (a.file_name or '') < (b.file_name or '')
                     end)
             end
         end
