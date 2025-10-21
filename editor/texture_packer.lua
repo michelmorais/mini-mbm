@@ -114,11 +114,9 @@ function onInitScene()
     tComboAlgorithm = {'None',                          -- 1
                         'Follow bigger Texture',        -- 2
                         'First-Fit (FF)',               -- 3
-                        'First-Fit Decreasing (FFD)',   -- 4
-                        'Best-Fit (BF)' ,               -- 5
-                        'Best-Fit Decreasing (BFD):' ,  -- 6
-                        'Grid-based placement',         -- 7
-                        'Grid-force fit placement',     -- 8
+                        'Best-Fit (BF)' ,               -- 4
+                        'Grid-based placement',         -- 5
+                        'Grid-force fit placement',     -- 6
                         }
 end
 
@@ -339,27 +337,6 @@ function draw_first_fit_algorithm()
     end
     return iTotalIn, iTotalSelected
 end
-
-function draw_first_fit_decreasing_algorithm()
-    -- Sort textures by decreasing area
-    table.sort(tTexturesToEditor, function(a, b)
-        local aw, ah = a.tTex:getSize()
-        local bw, bh = b.tTex:getSize()
-        return (aw * ah) > (bw * bh)
-    end)
-    return draw_first_fit_algorithm()
-end
-
-function draw_best_fit_decreasing_algorithm()
-    -- Sort textures by decreasing area
-    table.sort(tTexturesToEditor, function(a, b)
-        local aw, ah = a.tTex:getSize()
-        local bw, bh = b.tTex:getSize()
-        return (aw * ah) > (bw * bh)
-    end)
-    return draw_best_fit_algorithm()
-end
-
 
 function draw_none_algorithm()
     local x_initial,y_initial = tTextureOptions.iOffsetX - (tRender.width * 0.5),(tRender.height * 0.5) - tTextureOptions.iOffsetY
@@ -855,38 +832,36 @@ function drawSpriteSheet()
 
         adjustTextureSize()
 
-        if tTextureOptions.iCurrentAlgorithm ~= 6 and tTextureOptions.iCurrentAlgorithm ~= 4 then
-            if tTextureOptions.bSortByName then
+        if tTextureOptions.bSortByName then
+            table.sort(tTexturesToEditor, function(a, b)
+                return a.file_name < b.file_name
+            end)
+        elseif tTextureOptions.bSortBySizeAscending then
                 table.sort(tTexturesToEditor, function(a, b)
-                    return a.file_name < b.file_name
+                    local aw, ah = 0,0
+                    local bw, bh = 0,0
+                    if a.tTex then aw, ah = a.tTex:getSize() end
+                    if b.tTex then bw, bh = b.tTex:getSize() end
+                    local aa = aw * ah
+                    local bb = bw * bh
+                    if aa ~= bb then
+                        return aa < bb
+                    end
+                    return (a.file_name or '') < (b.file_name or '')
                 end)
-            elseif tTextureOptions.bSortBySizeAscending then
-                    table.sort(tTexturesToEditor, function(a, b)
-                        local aw, ah = 0,0
-                        local bw, bh = 0,0
-                        if a.tTex then aw, ah = a.tTex:getSize() end
-                        if b.tTex then bw, bh = b.tTex:getSize() end
-                        local aa = aw * ah
-                        local bb = bw * bh
-                        if aa ~= bb then
-                            return aa < bb
-                        end
-                        return (a.file_name or '') < (b.file_name or '')
-                    end)
-    elseif tTextureOptions.bSortBySizeDescending then
-                    table.sort(tTexturesToEditor, function(a, b)
-                        local aw, ah = 0,0
-                        local bw, bh = 0,0
-                        if a.tTex then aw, ah = a.tTex:getSize() end
-                        if b.tTex then bw, bh = b.tTex:getSize() end
-                        local aa = aw * ah
-                        local bb = bw * bh
-                        if aa ~= bb then
-                            return aa > bb
-                        end
-                        return (a.file_name or '') < (b.file_name or '')
-                    end)
-            end
+elseif tTextureOptions.bSortBySizeDescending then
+                table.sort(tTexturesToEditor, function(a, b)
+                    local aw, ah = 0,0
+                    local bw, bh = 0,0
+                    if a.tTex then aw, ah = a.tTex:getSize() end
+                    if b.tTex then bw, bh = b.tTex:getSize() end
+                    local aa = aw * ah
+                    local bb = bw * bh
+                    if aa ~= bb then
+                        return aa > bb
+                    end
+                    return (a.file_name or '') < (b.file_name or '')
+                end)
         end
 
         if tTextureOptions.iCurrentAlgorithm == 1 then -- 'None'
@@ -895,28 +870,17 @@ function drawSpriteSheet()
             iTotalIn, iTotalSelected = draw_none_algorithm()
         elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
             iTotalIn, iTotalSelected = draw_first_fit_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'First Fit Decreasing algorithm'
-            iTotalIn, iTotalSelected = draw_first_fit_decreasing_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Best Fit algorithm'
+        elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Best Fit algorithm'
             iTotalIn, iTotalSelected = draw_best_fit_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Best Fit Decreasing algorithm'
-            iTotalIn, iTotalSelected = draw_best_fit_decreasing_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
+        elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Grid-based placement'
             iTotalIn, iTotalSelected = draw_grid_based_placement_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 8 then -- 'Grid-force fit placement'
+        elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Grid-force fit placement'
             iTotalIn, iTotalSelected = draw_grid_force_fit_placement_algorithm()
         end
 
         tLine:setScale(scale,scale)
         showPendingTextureMessage(iTotalIn == iTotalSelected, 'Status of Texture',string.format('%d of %d are inside.\nTotal existent %d',iTotalIn,iTotalSelected,#tTexturesToEditor))
     end
-end
-
-function disableSortOptions()
-    tTextureOptions.bSortByName           = false
-    tTextureOptions.bSortBySizeAscending  = false
-    tTextureOptions.bSortBySizeDescending = false
-    tTextureOptions.iIndexSortOption      = 0
 end
 
 function showSortOptions()
@@ -1134,14 +1098,10 @@ function showTextureOptions()
                 elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
                     tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
                 elseif tTextureOptions.iCurrentAlgorithm == 4 then
-                    tImGui.Text('Note: Textures are arranged using First Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
-                elseif tTextureOptions.iCurrentAlgorithm == 5 then
                     tImGui.Text('Note: Textures are arranged using Best Fit algorithm to try to fit more textures inside the sprite sheet.')
-                elseif tTextureOptions.iCurrentAlgorithm == 6 then
-                    tImGui.Text('Note: Textures are arranged using Best Fit Decreasing algorithm to try to fit more textures inside the sprite sheet.')
-                elseif tTextureOptions.iCurrentAlgorithm == 7 then
+                elseif tTextureOptions.iCurrentAlgorithm == 5 then
                     tImGui.Text('Note: Textures are arranged Grid (x) (Y) -based placement (for uniform distribution).')
-                elseif tTextureOptions.iCurrentAlgorithm == 8 then
+                elseif tTextureOptions.iCurrentAlgorithm == 6 then
                     tImGui.Text('Note: Textures are arranged using MaxRects algorithm to try to fit more textures inside the sprite sheet.')
                 end
                 tImGui.EndTooltip()
@@ -1156,15 +1116,11 @@ function showTextureOptions()
                 showSortOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
                 showSortOptions()
-            elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'First Fit Decreasing algorithm'
-                disableSortOptions()
-            elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Best Fit algorithm' 
+            elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Best Fit algorithm' 
                 showSortOptions()
-            elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'Best Fit Decreasing algorithm'
-                disableSortOptions()
-            elseif tTextureOptions.iCurrentAlgorithm == 7 then -- 'Grid-based placement'
+            elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Grid-based placement'
                 showSortOptions()
-            elseif tTextureOptions.iCurrentAlgorithm == 8 then -- 'MaxRects algorithm'
+            elseif tTextureOptions.iCurrentAlgorithm == 6 then -- 'MaxRects algorithm'
                 tTextureOptions.bGridForceFitScale = tImGui.Checkbox('Auto scale to fit##GridForceFitScale',tTextureOptions.bGridForceFitScale)
                 if tTextureOptions.bGridForceFitScale == false and tTextureOptions.bLastGridForceFitScaleWasEnabled then
                     tTextureOptions.scaleImage = 1.0
