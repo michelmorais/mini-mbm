@@ -102,6 +102,7 @@ function onInitScene()
                             bEditVertex = false,
                             iSizeFrameWidth = 100,
                             iSizeFrameHeight = 100,
+                            iSortBySelection = 1,
                             tFramesEnableSpriteSheet = {},
                             iFramesEnableSpriteSheetHover = 0,
                             bInvertUFrameOptions = false,
@@ -2090,7 +2091,8 @@ function showFrameAdd()
             if tRects == nil then
                 tUtil.showMessageWarn('Invalid Rectangles!',2.5)
             else
-
+                -- e.g, 3 x9 = 27 rectangles
+                -- tFrameAddOptions.tFramesEnableSpriteSheet = {true,true,true,...27 times
                 if #tFrameAddOptions.tFramesEnableSpriteSheet ~= #tRects then
                     while #tFrameAddOptions.tFramesEnableSpriteSheet < #tRects do
                         table.insert(tFrameAddOptions.tFramesEnableSpriteSheet,true)
@@ -2105,6 +2107,7 @@ function showFrameAdd()
                     if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
                         iTotalSelected = iTotalSelected + 1
                     end
+                    tRects[i].index = i
                 end
 
                 local sFrameSubset = 'Frames'
@@ -2116,41 +2119,100 @@ function showFrameAdd()
                 if tFrameAddOptions.bAddAsSubset then
                     if tImGui.Button(sSelectedFrames, tSizeBtn) then
                         if tFrameAddOptions.tSelectedTexture then
-                            local bHasFrame = false
+                            local iTotalSubsetAdded = 0
                             local tTexture  = tFrameAddOptions.tSelectedTexture
                             local tFrame    = tFrameList[tFrameList.indexSelectedFrameNode]
                             tFrameList.indexSelectedFrameNodeToExpand = tFrameList.indexSelectedFrameNode
-                            for i=1, #tRects do
-                                if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
-                                    local tSubset = newRectFrameFromFrameAddOptions(tTexture,tRects[i].tMin,tRects[i].tMax)
+
+                            local tRectsSorted = {}
+                            if tFrameAddOptions.iSortBySelection == 1 then
+                                --sort by X and Y
+                                for i=1, #tRects do
+                                    if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                        table.insert(tRectsSorted,tRects[i])
+                                    end
+                                end
+                                table.sort(tRectsSorted, function(a,b) 
+                                    if a.tMin.x == b.tMin.x then
+                                        return a.tMin.y < b.tMin.y
+                                    end
+                                    return a.tMin.x < b.tMin.x 
+                                end)
+                            elseif tFrameAddOptions.iSortBySelection == 2 then
+                                --sort by Y and X
+                                for i=1, #tRects do
+                                    if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                        table.insert(tRectsSorted,tRects[i])
+                                    end
+                                end
+                                table.sort(tRectsSorted, function(a,b)
+                                    if a.tMin.y == b.tMin.y then
+                                        return a.tMin.x < b.tMin.x
+                                    end 
+                                    return a.tMin.y < b.tMin.y
+                                end)
+                            end
+
+                            for i=1, #tRectsSorted do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRectsSorted[i].index] then -- sanity check, already checked while sorting
+                                    local tSubset = newRectFrameFromFrameAddOptions(tTexture,tRectsSorted[i].tMin,tRectsSorted[i].tMax)
                                     table.insert(tFrame.tSubsetList,tSubset)
-                                    bHasFrame = true
+                                    iTotalSubsetAdded = iTotalSubsetAdded + 1
                                 end
                             end
-                            if bHasFrame then
+                            if iTotalSubsetAdded > 0 then
                                 bShowFrameList = true
                                 unCollapse(tWindowsTitle.title_frame_list)
-                                tUtil.showMessage(string.format('Added %d Subset(s)!',#tRects),3)
+                                tUtil.showMessage(string.format('Added %d Subset(s)!',iTotalSubsetAdded),3)
                             else
-                                tUtil.showMessageWarn('There is no frame enabled!',2.5)
+                                tUtil.showMessageWarn('There is no subset enabled!',2.5)
                             end
                         end
                     end
                 elseif tImGui.Button(sSelectedFrames, tSizeBtn) then
                     if tFrameAddOptions.tSelectedTexture then
-                        local bHasFrame = false
+                        local iTotalFrameAdded = 0
                         local tTexture = tFrameAddOptions.tSelectedTexture
-                        for i=1, #tRects do
-                            if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
-                                local tFrame = newRectFrameFromFrameAddOptions(tTexture,tRects[i].tMin,tRects[i].tMax)
+                        local tRectsSorted = {}
+                        if tFrameAddOptions.iSortBySelection == 1 then
+                            --sort by X and Y
+                            for i=1, #tRects do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                    table.insert(tRectsSorted,tRects[i])
+                                end
+                            end
+                            table.sort(tRectsSorted, function(a,b) 
+                                if a.tMin.x == b.tMin.x then
+                                    return a.tMin.y < b.tMin.y
+                                end
+                                return a.tMin.x < b.tMin.x 
+                            end)
+                        elseif tFrameAddOptions.iSortBySelection == 2 then
+                            --sort by Y and X
+                            for i=1, #tRects do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                    table.insert(tRectsSorted,tRects[i])
+                                end
+                            end
+                            table.sort(tRectsSorted, function(a,b)
+                                if a.tMin.y == b.tMin.y then
+                                    return a.tMin.x < b.tMin.x
+                                end 
+                                return a.tMin.y < b.tMin.y
+                            end)
+                        end
+
+                        for i=1, #tRectsSorted do
+                            if tFrameAddOptions.tFramesEnableSpriteSheet[tRectsSorted[i].index] then -- sanity check, already checked while sorting
+                                local tFrame = newRectFrameFromFrameAddOptions(tTexture,tRectsSorted[i].tMin,tRectsSorted[i].tMax)
                                 table.insert(tFrameList,tFrame)
-                                bHasFrame = true
+                                iTotalFrameAdded = iTotalFrameAdded + 1
                             end
                         end
-                        if bHasFrame then
+                        if iTotalFrameAdded > 0 then
                             bShowFrameList = true
                             unCollapse(tWindowsTitle.title_frame_list)
-                            tUtil.showMessage(string.format('Added %d Frame(s)!',#tRects),3)
+                            tUtil.showMessage(string.format('Added %d Frame(s)!',iTotalFrameAdded),3)
                         else
                             tUtil.showMessageWarn('There is no frame enabled!',2.5)
                         end
@@ -2158,6 +2220,9 @@ function showFrameAdd()
                         tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
                     end
                 end
+
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by X",sFrameSubset), tFrameAddOptions.iSortBySelection, 1)
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by Y",sFrameSubset), tFrameAddOptions.iSortBySelection, 2)
 
                 if tImGui.TreeNode('##select_frames_from_sprite_sheet', string.format('%s Options', sFrameSubset)) then
                     tFrameAddOptions.iFramesEnableSpriteSheetHover = 0
