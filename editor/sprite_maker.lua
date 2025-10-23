@@ -1965,6 +1965,8 @@ function showFrameAdd()
                         tFrameAddOptions.tSelectedTexture         = tTexture
                         tFrameAddOptions.tFramesEnableSpriteSheet = {}
                         unCollapse(tWindowsTitle.title_frame_preview)
+                        tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
                     end
                     if pushed_color > 0 then
                         tImGui.PopStyleColor(pushed_color)
@@ -2047,10 +2049,14 @@ function showFrameAdd()
             local result, iValue = tImGui.InputFloat('Column', tFrameAddOptions.iNumColumn, step, step_fast,format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iNumColumn = iValue
+                tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
             local result, iValue = tImGui.InputFloat('Lines', tFrameAddOptions.iNumLines, step, step_fast,format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iNumLines = iValue
+                tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
 
             local result, iValue = tImGui.InputFloat('Marg. X', tFrameAddOptions.iMarginX, step, step_fast,format, flags)
