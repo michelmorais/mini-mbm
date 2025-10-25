@@ -2350,7 +2350,7 @@ end
 
 function applyZoomFrameAnimation()
     local tUvZoom = tAnimationOptions.tUvZoom
-    if tImGui.IsItemHovered(0) then
+    if tImGui.IsItemHovered(0) and keyControlPressed then
         local zoom = tImGui.GetZoom()
         if zoom ~= 0 then
             local inc = (zoom * 0.02)
@@ -2386,7 +2386,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local texture_id, _ = getTextureIdForAnimImage(tFrame, iNumImage)
     tImGui.Image(texture_id,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,line_color)
     applyZoomFrameAnimation()
-    tImGui.HelpMarker('Use scroll to zoom it!')
+    tImGui.HelpMarker('Use Control+scroll to zoom it!')
     
 end
 
@@ -2533,7 +2533,7 @@ function showAnimationAdd(delta)
 
             tImGui.PopItemWidth()
 
-            if tImGui.TreeNode('##Animations', 'Animations') then
+            if tImGui.TreeNode('##Animations', string.format("%s (%d)",'Animations',#tAnimationList)) then
                 local flag_node      = 0
                 local tSizeBtn     = {x=0,y=0}
                 for i=1, #tAnimationList do
