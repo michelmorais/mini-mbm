@@ -261,7 +261,7 @@ tUtil.loadInfoImagesToTable = function(tFiles,tTexturesIn)
     elseif type(tFiles) == 'string' then
         local width,height,id,alpha = mbm.loadTexture(tFiles)
         if id ~= 0 then
-            local base_file_name = tUtil.getBaseFileName(tFiles[i])
+            local base_file_name = tUtil.getBaseFileName(tFiles)
             table.insert(tTexturesIn,{file_name = tFiles,width = width, height = height, alpha = alpha,id = id , base_file_name = base_file_name})
         else
             print('Could not load texture:',tFiles)

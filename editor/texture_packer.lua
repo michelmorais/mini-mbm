@@ -111,6 +111,7 @@ function onInitScene()
     iNextNickName = 0
     tStatusMessageSize = {x=0,y=0}
     sFileNameTexture = ''
+    sFileNameTextureCfg = ''
     tComboAlgorithm = {'None',                          -- 1
                         'Follow bigger Texture',        -- 2
                         'First-Fit (FF)',               -- 3
@@ -128,6 +129,103 @@ function onSaveTexture()
             tUtil.showMessage('Texture Saved Successfully!')
         else
             tUtil.showMessageWarn('Failed to Save Texture File!')
+        end
+    end
+end
+
+function onLoadTextureConfiguration()
+    local sFileName = mbm.openFile(sFileNameTextureCfg,'*.texturecfg')
+    if sFileName then
+        if mbm.include(sFileName) then
+            sFileNameTextureCfg = sFileName
+            adjustTextureSize()
+            local tTexturesToEditorLoaded = tTexturesToEditor
+            tTexturesToEditor = {}
+            for i=1, #tTexturesToEditorLoaded do
+                local tDesc = tTexturesToEditorLoaded[i]
+                tTexturesToEditor = tUtil.loadInfoImagesToTable(tostring(tDesc.file_name),tTexturesToEditor)
+            end
+            for i=1, #tTexturesToEditor do
+                local tDesc = tTexturesToEditor[i]
+                tDesc.isSelected = true
+                local tTex   = texture:new('2dw')
+                tTex:load(tDesc.file_name,tDesc.width,tDesc.height)
+                tTexturesToEditor[i].tTex = tTex
+                tTexturesToEditor[i].isSelected = tTexturesToEditorLoaded[i].isSelected
+                tTexturesToEditor[i].iOffsetPerTextureX = tTexturesToEditorLoaded[i].iOffsetPerTextureX
+                tTexturesToEditor[i].iOffsetPerTextureY = tTexturesToEditorLoaded[i].iOffsetPerTextureY
+                tTexturesToEditor[i].iAnglePerTextureRX = tTexturesToEditorLoaded[i].iAnglePerTextureRX
+                tTexturesToEditor[i].iAnglePerTextureRY = tTexturesToEditorLoaded[i].iAnglePerTextureRY
+                tTexturesToEditor[i].iAnglePerTextureRZ = tTexturesToEditorLoaded[i].iAnglePerTextureRZ
+                tRender:add(tTex)
+            end
+            bTextureViewOpened = true
+            bViewTextureOptions = true
+            tUtil.showMessage('Texture Configuration Editor Loaded Successfully!')
+        else
+            tUtil.showMessageWarn('Failed to Load Texture Configuration Editor File!')
+        end
+    end
+end
+
+function onSaveTextureConfiguration()
+    local sFileName = mbm.saveFile(sFileNameTextureCfg,'*.texturecfg')
+    if sFileName then
+        local fp = io.open(sFileName,"w")
+        if fp == nil then
+            tUtil.showMessageWarn(string.format('Failed to Save Texture Configuration Editor File\n %s',sFileName))
+        else
+            fp:write(string.format("tTextureOptions = {}\n"))
+            fp:write(string.format("tTextureOptions.fWidth = %d\n",  tTextureOptions.fWidth))
+            fp:write(string.format("tTextureOptions.fHeight = %d\n",  tTextureOptions.fHeight))
+            fp:write(string.format("tTextureOptions.bPowerOf2 = %s\n",  tTextureOptions.bPowerOf2))
+            fp:write(string.format("tTextureOptions.iSpaceX = %d\n",  tTextureOptions.iSpaceX))
+            fp:write(string.format("tTextureOptions.iSpaceY = %d\n",  tTextureOptions.iSpaceY))
+            fp:write(string.format("tTextureOptions.iOffsetX = %d\n",  tTextureOptions.iOffsetX))
+            fp:write(string.format("tTextureOptions.iOffsetY = %d\n",  tTextureOptions.iOffsetY))
+            fp:write(string.format("tTextureOptions.iGridX = %d\n",  tTextureOptions.iGridX))
+            fp:write(string.format("tTextureOptions.iGridY = %d\n",  tTextureOptions.iGridY))
+            fp:write(string.format("tTextureOptions.bGridVisibleX = %s\n",  tTextureOptions.bGridVisibleX))
+            fp:write(string.format("tTextureOptions.bGridVisibleY = %s\n",  tTextureOptions.bGridVisibleY))
+            fp:write(string.format("tTextureOptions.iMaxTileCount = %d\n",  tTextureOptions.iMaxTileCount))
+            fp:write(string.format("tTextureOptions.bAxisY = %s\n",  tTextureOptions.bAxisY))
+            fp:write(string.format("tTextureOptions.iIndexSortOption = %d\n",  tTextureOptions.iIndexSortOption))
+            fp:write(string.format("tTextureOptions.bSortByName = %s\n",  tTextureOptions.bSortByName))
+            fp:write(string.format("tTextureOptions.bSortBySizeAscending = %s\n",  tTextureOptions.bSortBySizeAscending))
+            fp:write(string.format("tTextureOptions.bSortBySizeDescending = %s\n",  tTextureOptions.bSortBySizeDescending))
+            fp:write(string.format("tTextureOptions.bBiggerTex = %s\n",  tTextureOptions.bBiggerTex))
+            fp:write(string.format("tTextureOptions.iCurrentAlgorithm = %d\n",  tTextureOptions.iCurrentAlgorithm))
+            fp:write(string.format("tTextureOptions.bFilter = %s\n",  tTextureOptions.bFilter))
+            fp:write(string.format("tTextureOptions.bGridForceFitScale = %s\n",  tTextureOptions.bGridForceFitScale))
+            fp:write(string.format("tTextureOptions.bLastGridForceFitScaleWasEnabled = %s\n",  tTextureOptions.bLastGridForceFitScaleWasEnabled))
+            fp:write(string.format("tTextureOptions.scaleImage = %f\n",  tTextureOptions.scaleImage))
+            fp:write(string.format("tTextureOptions.sumScaleImageX = %f\n",  tTextureOptions.sumScaleImageX))
+            fp:write(string.format("tTextureOptions.sumScaleImageY = %f\n",  tTextureOptions.sumScaleImageY))
+            local stRgba = string.format("{ r = %f, g = %f, b = %f, a = %f}",
+                                        tTextureOptions.tRgba.r,
+                                        tTextureOptions.tRgba.g,
+                                        tTextureOptions.tRgba.b,
+                                        tTextureOptions.tRgba.a)
+            fp:write(string.format("tTextureOptions.tRgba = %s\n", stRgba ))
+            fp:write(string.format("tTextureOptions.bAlpha = %s\n",  tTextureOptions.bAlpha))
+            fp:write(string.format("\n"))
+            fp:write(string.format("tTexturesToEditor = {}\n\n"))
+            
+            for i=1, #tTexturesToEditor do
+                local tTexDesc = tTexturesToEditor[i]
+                fp:write(string.format("tTexturesToEditor[%d] = {}\n",i))
+                fp:write(string.format("tTexturesToEditor[%d].file_name = \"%s\"\n", i, tTexDesc.file_name))
+                fp:write(string.format("tTexturesToEditor[%d].isSelected = %s\n", i, tostring(tTexDesc.isSelected)))
+                fp:write(string.format("tTexturesToEditor[%d].iOffsetPerTextureX = %d\n", i, tTexDesc.iOffsetPerTextureX or 0))
+                fp:write(string.format("tTexturesToEditor[%d].iOffsetPerTextureY = %d\n", i, tTexDesc.iOffsetPerTextureY or 0))
+                fp:write(string.format("tTexturesToEditor[%d].iAnglePerTextureRX = %d\n", i, tTexDesc.iAnglePerTextureRX or 0))
+                fp:write(string.format("tTexturesToEditor[%d].iAnglePerTextureRY = %d\n", i, tTexDesc.iAnglePerTextureRY or 0))
+                fp:write(string.format("tTexturesToEditor[%d].iAnglePerTextureRZ = %d\n", i, tTexDesc.iAnglePerTextureRZ or 0))
+                fp:write(string.format("\n"))
+            end
+            fp:close()
+            sFileNameTextureCfg = sFileName
+            tUtil.showMessage('Texture Configuration Editor Saved Successfully!')
         end
     end
 end
@@ -898,8 +996,20 @@ elseif tTextureOptions.bSortBySizeDescending then
             iTotalIn, iTotalSelected = draw_grid_force_fit_placement_algorithm()
         end
 
+        applyRotationToTextures()
+
         tLine:setScale(scale,scale)
         showPendingTextureMessage(iTotalIn == iTotalSelected, 'Status of Texture',string.format('%d of %d are inside.\nTotal existent %d',iTotalIn,iTotalSelected,#tTexturesToEditor))
+    end
+end
+
+function applyRotationToTextures()
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            tTex:setAngle(math.rad(tTexture.iAnglePerTextureRX or 0),math.rad(tTexture.iAnglePerTextureRY or 0),math.rad(tTexture.iAnglePerTextureRZ or 0))
+        end
     end
 end
 
@@ -1158,10 +1268,11 @@ function showTextureOptions()
             local step       =  1
             local step_fast  =  10
 
-            if tImGui.TreeNode('id_OffsetPerTexture',"Manual Offset") then
+            if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
                 for i=1, #tTexturesToEditor do
                     local sShortName   = tUtil.getShortName(tTexturesToEditor[i].file_name)
                     if tImGui.TreeNode('id_OffsetPerTexture_' .. tostring(i),sShortName) then
+                        tImGui.Text('Offset Per Texture')
                         local result, iValue = tImGui.InputInt('X##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureX = iValue
@@ -1170,6 +1281,37 @@ function showTextureOptions()
                         local result, iValue = tImGui.InputInt('Y##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
+                        end
+
+                        tImGui.Text('Rotation Per Texture')
+                        local result, iValue = tImGui.InputInt('RX##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
+                        if result then
+                            if iValue >= 360 then
+                                iValue = 360
+                            elseif iValue <= -360 then
+                                iValue = -360
+                            end
+                            tTexturesToEditor[i].iAnglePerTextureRX = iValue
+                        end
+
+                        local result, iValue = tImGui.InputInt('RY##RotationPerTextureY' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRY or 0, step, step_fast, flags)
+                        if result then
+                            if iValue >= 360 then
+                                iValue = 360
+                            elseif iValue <= -360 then
+                                iValue = -360
+                            end
+                            tTexturesToEditor[i].iAnglePerTextureRY = iValue
+                        end
+
+                        local result, iValue = tImGui.InputInt('RZ##RotationPerTextureZ' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRZ or 0, step, step_fast, flags)
+                        if result then
+                            if iValue >= 360 then
+                                iValue = 360
+                            elseif iValue <= -360 then
+                                iValue = -360
+                            end
+                            tTexturesToEditor[i].iAnglePerTextureRZ = iValue
                         end
                         tImGui.TreePop()
                     end
@@ -1240,6 +1382,21 @@ function main_menu_texture_packer()
                 else
                     tUtil.showMessageWarn('There is no texture loaded!')
                 end
+            end
+
+            tImGui.Separator()
+            local pressed,checked = tImGui.MenuItem("Save Texture configuration", nil, false)
+            if pressed then
+                if tRender:isLoaded() then
+                    onSaveTextureConfiguration()
+                else
+                    tUtil.showMessageWarn('There is no texture loaded!')
+                end
+            end
+
+            local pressed,checked = tImGui.MenuItem("Load Texture configuration", "Ctrl+L", false)
+            if pressed then 
+                onLoadTextureConfiguration()
             end
 
             tImGui.Separator()
