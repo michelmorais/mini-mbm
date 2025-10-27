@@ -111,7 +111,7 @@ function onInitScene()
     iNextNickName = 0
     tStatusMessageSize = {x=0,y=0}
     sFileNameTexture = ''
-    sFileNameTextureCfg = ''
+    sFileNameTextureCfg = nil
     tComboAlgorithm = {'None',                          -- 1
                         'Follow bigger Texture',        -- 2
                         'First-Fit (FF)',               -- 3
@@ -134,7 +134,7 @@ function onSaveTexture()
 end
 
 function onLoadTextureConfiguration()
-    local sFileName = mbm.openFile(sFileNameTextureCfg,'*.texturecfg')
+    local sFileName = mbm.openFile(sFileNameTextureCfg or '','*.texturecfg')
     if sFileName then
         if mbm.include(sFileName) then
             sFileNameTextureCfg = sFileName
@@ -169,7 +169,10 @@ function onLoadTextureConfiguration()
 end
 
 function onSaveTextureConfiguration()
-    local sFileName = mbm.saveFile(sFileNameTextureCfg,'*.texturecfg')
+    local sFileName =sFileNameTextureCfg
+    if sFileNameTextureCfg == nil then
+        sFileName = mbm.saveFile(sFileNameTextureCfg,'*.texturecfg')
+    end
     if sFileName then
         local fp = io.open(sFileName,"w")
         if fp == nil then
