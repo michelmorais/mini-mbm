@@ -1358,12 +1358,12 @@ function main_menu_texture_packer()
         if tImGui.BeginMenu("File") then
 
             if mbm.is('Windows') then
-                local pressed,checked = tImGui.MenuItem("Load Texture (Max 32 files)", "Ctrl+O", false)
+                local pressed,checked = tImGui.MenuItem("Load Texture (Max 32 files)", "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
             else
-                local pressed,checked = tImGui.MenuItem("Load Texture", "Ctrl+O", false)
+                local pressed,checked = tImGui.MenuItem("Load Texture", "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
@@ -1375,7 +1375,7 @@ function main_menu_texture_packer()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture (png)", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem("Save Texture (png)", nil, false)
             if pressed then
                 if tRender:isLoaded() then
                     onSaveTexture()
@@ -1385,7 +1385,7 @@ function main_menu_texture_packer()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture configuration", nil, false)
+            local pressed,checked = tImGui.MenuItem("Save Texture configuration", "Ctrl+S", false)
             if pressed then
                 if tRender:isLoaded() then
                     onSaveTextureConfiguration()
@@ -1394,7 +1394,7 @@ function main_menu_texture_packer()
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Texture configuration", "Ctrl+L", false)
+            local pressed,checked = tImGui.MenuItem("Load Texture configuration", "Ctrl+O", false)
             if pressed then 
                 onLoadTextureConfiguration()
             end
@@ -1639,8 +1639,10 @@ function onKeyDown(key)
         keyControlPressed = true
     elseif keyControlPressed then
         if key == mbm.getKeyCode('S') then -- Ctrl+S
-            onSaveTexture()
+            onSaveTextureConfiguration()
         elseif key == mbm.getKeyCode('O') then -- Ctrl+O
+            onLoadTextureConfiguration()
+        elseif key == mbm.getKeyCode('I') then -- Ctrl+I
             onOpenTextures()
         end
     end
