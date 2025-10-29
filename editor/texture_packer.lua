@@ -72,6 +72,7 @@ function onInitScene()
                         iOffsetY  = 0,
                         iGridX    = 1,
                         iGridY    = 1,
+                        bOnlySelectedTextures = true,
                         bGridVisibleX = true,
                         bGridVisibleY = true,
                         iMaxTileCount  = 0,
@@ -204,6 +205,8 @@ function onSaveTextureConfiguration()
             fp:write(string.format("tTextureOptions.scaleImage = %f\n",  tTextureOptions.scaleImage))
             fp:write(string.format("tTextureOptions.sumScaleImageX = %f\n",  tTextureOptions.sumScaleImageX))
             fp:write(string.format("tTextureOptions.sumScaleImageY = %f\n",  tTextureOptions.sumScaleImageY))
+            fp:write(string.format("tTextureOptions.bOnlySelectedTextures = %s\n",  tTextureOptions.bOnlySelectedTextures))
+            
             local stRgba = string.format("{ r = %f, g = %f, b = %f, a = %f}",
                                         tTextureOptions.tRgba.r,
                                         tTextureOptions.tRgba.g,
@@ -1197,6 +1200,7 @@ function showTextureOptions()
             end
 
             tTextureOptions.bAxisY    = tImGui.Checkbox('Axis Y## Axis Y',tTextureOptions.bAxisY)
+            tTextureOptions.bAlpha    = tImGui.Checkbox('Enable Alpha##AlphaTex',tTextureOptions.bAlpha)
 
             tImGui.NewLine()
             tImGui.Text('Algorithm')
@@ -1272,7 +1276,14 @@ function showTextureOptions()
             local step_fast  =  10
 
             if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
+                local label  = 'Only Selected Textures##OverrideAdjustsPerTexture'
+                tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
                 for i=1, #tTexturesToEditor do
+                    if tTextureOptions.bOnlySelectedTextures then
+                        if tTexturesToEditor[i].isSelected == false then
+                            goto continue
+                        end
+                    end
                     local sShortName   = tUtil.getShortName(tTexturesToEditor[i].file_name)
                     if tImGui.TreeNode('id_OffsetPerTexture_' .. tostring(i),sShortName) then
                         tImGui.Text('Offset Per Texture')
@@ -1318,10 +1329,10 @@ function showTextureOptions()
                         end
                         tImGui.TreePop()
                     end
+                    ::continue::
                 end
                 tImGui.TreePop()
             end
-            --tTextureOptions.bAlpha    = tImGui.Checkbox('Enable Alpha##AlphaTex',tTextureOptions.bAlpha)
         end
         if closed_clicked then
             bViewTextureOptions = false
