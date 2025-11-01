@@ -102,6 +102,7 @@ function onInitScene()
                             bEditVertex = false,
                             iSizeFrameWidth = 100,
                             iSizeFrameHeight = 100,
+                            bRatioTextureLocked = true,
                             iSortBySelection = 1,
                             tFramesEnableSpriteSheet = {},
                             iFramesEnableSpriteSheetHover = 0,
@@ -145,6 +146,7 @@ function onInitScene()
         self.iSpacingy            = 0
         self.iSizeFrameWidth      = 100
         self.iSizeFrameHeight     = 100
+        self.bRatioTextureLocked  = true
         self.bStretch             = false
         self.bInvertUFrameOptions  = false
         self.bInvertVFrameOptions  = false
@@ -2085,10 +2087,20 @@ function showFrameAdd()
             local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
             if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iSizeFrameWidth = iValue
+                if tFrameAddOptions.bRatioTextureLocked then
+                    local ratio = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.tSelectedTexture.width
+                    tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.iSizeFrameWidth * ratio
+                end
             end
+
+            tFrameAddOptions.bRatioTextureLocked = tImGui.Checkbox('Lock Ratio ',tFrameAddOptions.bRatioTextureLocked)
             local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
             if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iSizeFrameHeight = iValue
+                if tFrameAddOptions.bRatioTextureLocked then
+                    local ratio = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.tSelectedTexture.width
+                    tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.iSizeFrameHeight / ratio
+                end
             end
 
             tFrameAddOptions.bStretch = tImGui.Checkbox('Stretch anyway',tFrameAddOptions.bStretch)
