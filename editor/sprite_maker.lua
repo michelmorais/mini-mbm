@@ -102,14 +102,13 @@ function onInitScene()
                             bEditVertex = false,
                             iSizeFrameWidth = 100,
                             iSizeFrameHeight = 100,
-                            bRatioTextureLocked = true,
+                            iRatioSelection  = 1,
                             iSortBySelection = 1,
                             tFramesEnableSpriteSheet = {},
                             iFramesEnableSpriteSheetHover = 0,
                             bInvertUFrameOptions = false,
                             bInvertVFrameOptions = false,
                             tSelectedTexture = nil,
-                            bStretch = false,
                             tShapeEdit = nil, --edit vertex
                             bAddAsSubset=false,
                             iIndexSelectedNode = 0}
@@ -146,8 +145,7 @@ function onInitScene()
         self.iSpacingy            = 0
         self.iSizeFrameWidth      = 100
         self.iSizeFrameHeight     = 100
-        self.bRatioTextureLocked  = true
-        self.bStretch             = false
+        self.iRatioSelection      = 1
         self.bInvertUFrameOptions  = false
         self.bInvertVFrameOptions  = false
         self.bEditVertex          = false
@@ -2081,30 +2079,49 @@ function showFrameAdd()
             tImGui.Text('Expected Size of Frame')
             tImGui.SameLine()
             tImGui.HelpMarker('If the rectangle is not square it will be calculated the width/height according to do not stretch!')
+
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on X",sFrameSubset), tFrameAddOptions.iRatioSelection, 1)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on Y",sFrameSubset), tFrameAddOptions.iRatioSelection, 2)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio disabled",sFrameSubset), tFrameAddOptions.iRatioSelection, 3)
+
+            local bRatioOnXTextureLocked = (tFrameAddOptions.iRatioSelection == 1)
+            local bRatioOnYTextureLocked = (tFrameAddOptions.iRatioSelection == 2)
+            local bNoLock = (tFrameAddOptions.iRatioSelection == 3)
+
             local step       =  1
             local step_fast  =  10
             local format     = "%.3f"
-            local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
-            if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.width then
-                tFrameAddOptions.iSizeFrameWidth = iValue
-                if tFrameAddOptions.bRatioTextureLocked then
-                    local ratio = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.tSelectedTexture.width
-                    tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.iSizeFrameWidth * ratio
+            if bNoLock or bRatioOnXTextureLocked then
+                local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
+                if result and iValue > 0 then
+                    tFrameAddOptions.iSizeFrameWidth = iValue
+                    if bRatioOnXTextureLocked then
+                        local iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        local iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines
+                        local ratio = iSizeFrameHeight / iSizeFrameWidth
+                        tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.iSizeFrameWidth * ratio
+                    end
                 end
+            else
+                tImGui.Text(string.format('Width: %.3f',tFrameAddOptions.iSizeFrameWidth))
             end
 
-            tFrameAddOptions.bRatioTextureLocked = tImGui.Checkbox('Lock Ratio ',tFrameAddOptions.bRatioTextureLocked)
-            local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
-            if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.height then
-                tFrameAddOptions.iSizeFrameHeight = iValue
-                if tFrameAddOptions.bRatioTextureLocked then
-                    local ratio = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.tSelectedTexture.width
-                    tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.iSizeFrameHeight / ratio
+            if bNoLock or bRatioOnYTextureLocked then
+                local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
+                if result and iValue > 0 then
+                    tFrameAddOptions.iSizeFrameHeight = iValue
+                    if bRatioOnYTextureLocked then
+                        local iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        local iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines
+                        local ratio = iSizeFrameWidth / iSizeFrameHeight
+                        tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.iSizeFrameHeight * ratio
+                    end
                 end
+            else
+                tImGui.Text(string.format('Height: %.3f',tFrameAddOptions.iSizeFrameHeight))
             end
 
-            tFrameAddOptions.bStretch = tImGui.Checkbox('Stretch anyway',tFrameAddOptions.bStretch)
-
+            
             local tRects = calcRectForSpriteSheet(tFrameAddOptions.tSelectedTexture)
             if tRects == nil then
                 tUtil.showMessageWarn('Invalid Rectangles!',2.5)
@@ -3472,7 +3489,7 @@ function newRectFrameFromFrameAddOptions(tTexture,tMin,tMax)
     tFrame.type         = 'rectangle'
     tFrame.iNumElements = tFrameAddOptions.iNumElements
     tFrame.tTexture     = tTexture
-    if tFrameAddOptions.bStretch then
+    if tFrameAddOptions.iRatioSelection == 3 then --exact size
         tFrame.width        = tFrameAddOptions.iSizeFrameWidth
         tFrame.height       = tFrameAddOptions.iSizeFrameHeight
     else
