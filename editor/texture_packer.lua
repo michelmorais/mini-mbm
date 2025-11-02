@@ -1378,8 +1378,9 @@ function showTextureOptions()
                 if tTexturesToEditor[i].isSelected == true and tImGui.IsItemHovered(0) then
                     local tDesc = tTexturesToEditor[i]
                     local tTex = tTexturesToEditor[i].tTex
+                    local w,h = tTex:getSize()
                     tShapeHoverImage.visible = true
-                    tShapeHoverImage:setScale(tDesc.width,tDesc.height)
+                    tShapeHoverImage:setScale(w,h)
                     tShapeHoverImage:setPos(tTex.x, tTex.y, tTex.z - 1)
                     tImGui.BeginTooltip()
                     tImGui.Text(string.format('Name: %s\nwidth: %d\nheight: %d',tUtil.getShortName(tDesc.file_name),tDesc.width, tDesc.height))
@@ -1441,29 +1442,43 @@ function showTextureOptions()
                             tTexturesToEditor[i].iAnglePerTextureRZ = iValue
                         end
 
-                        --if tTextureOptions.iCurrentAlgorithm ~= 5 or tTextureOptions.bGridForceFitScale == false then
-                        --    tImGui.Text('Scale Per Texture')
---
-                        --    local result, fValue = tImGui.InputFloat('SX##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
-                        --    if result then
-                        --        if fValue >= 10 then
-                        --            fValue = 10
-                        --        elseif fValue <= -10 then
-                        --            fValue = -10
-                        --        end
-                        --        tTexturesToEditor[i].fScalePerTextureSX = fValue
-                        --    end
---
-                        --    local result, fValue = tImGui.InputFloat('SY##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
-                        --    if result then
-                        --        if fValue >= 10 then
-                        --            fValue = 10
-                        --        elseif fValue <= -10 then
-                        --            fValue = -10
-                        --        end
-                        --        tTexturesToEditor[i].fScalePerTextureSY = fValue
-                        --    end
-                        --end
+                        if tTextureOptions.iCurrentAlgorithm ~= 5 or tTextureOptions.bGridForceFitScale == false then
+                        
+                            tImGui.Text('Scale Per Texture')
+
+                            local result, fValue = tImGui.InputFloat('SX##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
+                            if tTextureOptions.iIndexSortOption ~= 1 then
+                                if tImGui.IsItemHovered(0) then
+                                    tImGui.BeginTooltip()
+                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.EndTooltip()
+                                end
+                            elseif result then
+                                if fValue >= 10 then
+                                    fValue = 10
+                                elseif fValue <= -10 then
+                                    fValue = -10
+                                end
+                                tTexturesToEditor[i].fScalePerTextureSX = fValue
+                            end
+
+                            local result, fValue = tImGui.InputFloat('SY##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
+                            if tTextureOptions.iIndexSortOption ~= 1 then
+                                if tImGui.IsItemHovered(0) then
+                                    tImGui.BeginTooltip()
+                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.EndTooltip()
+                                end
+                            elseif result then
+                                if fValue >= 10 then
+                                    fValue = 10
+                                elseif fValue <= -10 then
+                                    fValue = -10
+                                end
+                                tTexturesToEditor[i].fScalePerTextureSY = fValue
+                            end
+                            
+                        end
                         tImGui.TreePop()
                     end
                     showTextureHoverImage(i)
