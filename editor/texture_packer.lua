@@ -81,7 +81,7 @@ function onInitScene()
                         bSortByName = false,
                         bSortBySizeAscending = false,
                         bSortBySizeDescending= false,
-                        bBiggerTex = false,
+                        indexReferenceTexture = 1,
                         iCurrentAlgorithm = 1,
                         bFilter   = true,
                         bGridForceFitScale = false, 
@@ -200,7 +200,7 @@ function onSaveTextureConfiguration()
             fp:write(string.format("tTextureOptions.bSortByName = %s\n",  tTextureOptions.bSortByName))
             fp:write(string.format("tTextureOptions.bSortBySizeAscending = %s\n",  tTextureOptions.bSortBySizeAscending))
             fp:write(string.format("tTextureOptions.bSortBySizeDescending = %s\n",  tTextureOptions.bSortBySizeDescending))
-            fp:write(string.format("tTextureOptions.bBiggerTex = %s\n",  tTextureOptions.bBiggerTex))
+            fp:write(string.format("tTextureOptions.indexReferenceTexture = %d\n",  tTextureOptions.indexReferenceTexture))
             fp:write(string.format("tTextureOptions.iCurrentAlgorithm = %d\n",  tTextureOptions.iCurrentAlgorithm))
             fp:write(string.format("tTextureOptions.bFilter = %s\n",  tTextureOptions.bFilter))
             fp:write(string.format("tTextureOptions.bGridForceFitScale = %s\n",  tTextureOptions.bGridForceFitScale))
@@ -350,6 +350,20 @@ function getBiggerTextureSize()
     return width, height
 end
 
+function getLowerTextureSize()
+    local width, height = math.huge, math.huge
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            local w, h  = tTex:getSize()
+            width  = math.min(w,width)
+            height = math.min(h,height)
+        end
+    end
+    return width, height
+end
+
 function findLowerTextureSize()
     local width, height = math.huge, math.huge
     for i=1, #tTexturesToEditor do
@@ -377,6 +391,13 @@ function draw_first_fit_algorithm()
 
     local step_w, step_h = findLowerTextureSize() -- scan resolution in pixels
 
+    local width, height = 0,0
+    if tTextureOptions.indexReferenceTexture == 1 then
+        width, height = getBiggerTextureSize()
+    elseif tTextureOptions.indexReferenceTexture == 2 then
+        width, height = getLowerTextureSize()
+    end
+
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
@@ -386,7 +407,9 @@ function draw_first_fit_algorithm()
             tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
                           (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
 
-            local width, height = tTex:getSize()
+            if tTextureOptions.indexReferenceTexture == 3 then
+                width, height  = tTex:getSize()
+            end
             
             -- Include spacing when checking collisions, but center placement uses real size
             local checkW = width + (tTextureOptions.iSpaceX or 0)
@@ -459,6 +482,13 @@ function draw_none_algorithm()
     local iCountMaxTile       = 0
     local bCheckTile          = tTextureOptions.iMaxTileCount > 0
 
+    local width, height = 0,0
+    if tTextureOptions.indexReferenceTexture == 1 then
+        width, height = getBiggerTextureSize()
+    elseif tTextureOptions.indexReferenceTexture == 2 then
+        width, height = getLowerTextureSize()
+    end
+
     if tTextureOptions.bAxisY then
         for i=1, #tTexturesToEditor do
             local tTexture = tTexturesToEditor[i]
@@ -468,10 +498,8 @@ function draw_none_algorithm()
                 tTex.visible = true
                 tTex:setScale(  tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,
                                 tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
-                local width, height  = tTex:getSize()
-
-                if tTextureOptions.bBiggerTex then
-                    width, height = getBiggerTextureSize()
+                if tTextureOptions.indexReferenceTexture == 3 then
+                    width, height  = tTex:getSize()
                 end
                 
                 if i == 1 then
@@ -515,10 +543,9 @@ function draw_none_algorithm()
                 tRender:add(tTex)
                 tTex.visible = true
                 tTex:setScale(tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
-                local width, height  = tTex:getSize()
 
-                if tTextureOptions.bBiggerTex then
-                    width, height = getBiggerTextureSize()
+                if tTextureOptions.indexReferenceTexture == 3 then
+                    width, height  = tTex:getSize()
                 end
                 
                 if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((x - (width  * 0.5) ) > x_final) then
@@ -556,6 +583,136 @@ function draw_none_algorithm()
     return iTotalIn, iTotalSelected
 end
 
+function draw_followed_by_bigger_or_lower_texture_algorithm()
+    local x_initial,y_initial = tTextureOptions.iOffsetX - (tRender.width * 0.5),(tRender.height * 0.5) - tTextureOptions.iOffsetY
+    local x_final,  y_final   = tRender.width * 0.5, tRender.height * -0.5
+    local x,y                 = x_initial,y_initial
+    local iCountMaxTile       = 0
+    local bCheckTile          = tTextureOptions.iMaxTileCount > 0
+
+    local width, height = 0,0
+
+    if tTextureOptions.indexReferenceTexture == 1 then
+        width, height = getBiggerTextureSize()
+    elseif tTextureOptions.indexReferenceTexture == 2 then
+        width, height = getLowerTextureSize()
+    end
+
+    if tTextureOptions.bAxisY then
+        for i=1, #tTexturesToEditor do
+            local tTexture = tTexturesToEditor[i]
+            local tTex     = tTexture.tTex
+            if tTex and tTexture.isSelected then
+                tRender:add(tTex)
+                tTex.visible = true
+                tTex:setScale(  tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,
+                                tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
+                if tTextureOptions.indexReferenceTexture == 3 then
+                    width, height = tTex:getSize()
+                end
+                if i == 1 then
+                    local half_width_tex  = width  * 0.5
+                    local half_height_tex = height * 0.5
+                    x = x + half_width_tex
+                    y = y - half_height_tex
+                end
+
+                tTex:setPos(x,y)
+
+                if tTextureOptions.iMaxTileCount > 0 then
+                    iCountMaxTile = iCountMaxTile + 1
+                end
+
+                y = y - height - tTextureOptions.iSpaceY
+
+                if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((y - (height  * 0.5)) < y_final) then
+                    x = x + width + tTextureOptions.iSpaceX
+                    y = y_initial - (height  * 0.5)
+                    iCountMaxTile = 0
+                end
+            elseif tTex then
+                tRender:remove(tTex)
+                tTex.visible = false
+            end
+        end
+    else
+        for i=1, #tTexturesToEditor do
+            local tTexture = tTexturesToEditor[i]
+            local tTex     = tTexture.tTex
+            if tTex and tTexture.isSelected then
+                tRender:add(tTex)
+                tTex.visible = true
+                tTex:setScale(tTextureOptions.scaleImage + tTextureOptions.sumScaleImageX,tTextureOptions.scaleImage + tTextureOptions.sumScaleImageY)
+                if tTextureOptions.indexReferenceTexture == 3 then
+                    width, height = tTex:getSize()
+                end
+                
+                if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((x - (width  * 0.5) ) > x_final) then
+                    local half_width_tex = width * 0.5
+                    x = x_initial + half_width_tex
+                    y = y - height - tTextureOptions.iSpaceY
+                    iCountMaxTile = 0
+                end
+                if i == 1 then
+                    local half_width_tex  = width * 0.5
+                    local half_height_tex = height * 0.5
+                    x = half_width_tex  + x
+                    y = y - half_height_tex
+                end
+
+                tTex:setPos(x,y)
+
+                if tTextureOptions.iMaxTileCount > 0 then
+                    iCountMaxTile = iCountMaxTile + 1
+                end
+
+                x = x + width + tTextureOptions.iSpaceX
+            elseif tTex then
+                tRender:remove(tTex)
+                tTex.visible = false
+            end
+        end
+    end
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        x = tTex.x + (tTexture.iOffsetPerTextureX or 0)
+        y = tTex.y + (tTexture.iOffsetPerTextureY or 0)
+        tTex:setPos(x,y)
+    end
+
+    -- need to re-count total in/selected in case some textures were hidden due to scaling
+    local iTotalIn = 0
+    local iTotalSelected = 0
+
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            iTotalSelected = iTotalSelected + 1
+            if tTex.visible then
+                local w,h    = tTex:getSize()
+                local x      = tTex.x
+                local y      = tTex.y
+                local left   = x - (w * 0.5)
+                local right  = x + (w * 0.5)
+                local top    = y + (h * 0.5)
+                local bottom = y - (h * 0.5)
+                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                    iTotalIn = iTotalIn + 1
+                end
+            end
+        end
+    end
+    return iTotalIn, iTotalSelected
+end
+
 function draw_best_fit_algorithm()
     
     local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
@@ -571,6 +728,13 @@ function draw_best_fit_algorithm()
     if step_w <= 0 then step_w = 1 end
     if step_h <= 0 then step_h = 1 end
 
+    local width, height = 0,0
+    if tTextureOptions.indexReferenceTexture == 1 then
+        width, height = getBiggerTextureSize()
+    elseif tTextureOptions.indexReferenceTexture == 2 then
+        width, height = getLowerTextureSize()
+    end
+
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
@@ -580,7 +744,9 @@ function draw_best_fit_algorithm()
             tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
                           (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
 
-            local width, height = tTex:getSize()
+            if tTextureOptions.indexReferenceTexture == 3 then
+                width, height = tTex:getSize()
+            end
             
             local checkW = width + (tTextureOptions.iSpaceX or 0)
             local checkH = height + (tTextureOptions.iSpaceY or 0)
@@ -693,6 +859,13 @@ function draw_grid_based_placement_algorithm()
         return true
     end
 
+    local width, height = 0,0
+    if tTextureOptions.indexReferenceTexture == 1 then
+        width, height = getBiggerTextureSize()
+    elseif tTextureOptions.indexReferenceTexture == 2 then
+        width, height = getLowerTextureSize()
+    end
+
     -- choose ordering: when AxisY true fill columns top->bottom then left->right
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
@@ -703,9 +876,8 @@ function draw_grid_based_placement_algorithm()
             tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0),
                           (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0))
 
-            local width, height = tTex:getSize()
-            if tTextureOptions.bBiggerTex then
-                width, height = getBiggerTextureSize()
+            if tTextureOptions.indexReferenceTexture == 3 then
+                width, height = tTex:getSize()
             end
 
             -- required cells to cover texture (ceil to allow spanning multiple cells)
@@ -890,6 +1062,7 @@ function draw_grid_force_fit_placement_algorithm()
                     local avail_w = math.max(1, cell_w - (tTextureOptions.iSpaceX or 0))
                     local avail_h = math.max(1, cell_h - (tTextureOptions.iSpaceY or 0))
                     local w,h = tTex:getSize()
+                    
                     local fitScale = 1
                     if w > 0 and h > 0 then
                         fitScale = math.min(avail_w / w, avail_h / h)
@@ -998,8 +1171,8 @@ elseif tTextureOptions.bSortBySizeDescending then
 
         if tTextureOptions.iCurrentAlgorithm == 1 then -- 'None'
             iTotalIn, iTotalSelected = draw_none_algorithm()
-        elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger Texture'
-            iTotalIn, iTotalSelected = draw_none_algorithm()
+        elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger or lower Texture'
+            iTotalIn, iTotalSelected = draw_followed_by_bigger_or_lower_texture_algorithm()
         elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
             iTotalIn, iTotalSelected = draw_first_fit_algorithm()
         elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Best Fit algorithm'
@@ -1218,15 +1391,22 @@ function showTextureOptions()
                 tImGui.EndTooltip()
             end
             local height_in_items  =  -1
+
+            local sDirection = ''
+            if tTextureOptions.indexReferenceTexture == 1 then
+                sDirection = 'bigger'
+            elseif tTextureOptions.indexReferenceTexture == 2 then
+                sDirection = 'lower'
+            else
+                sDirection = 'texture size'
+            end
+            tComboAlgorithm[2] = string.format('Follow %s Texture',sDirection)
             local ret, current_item, item_as_string = tImGui.Combo('##Algorithm', tTextureOptions.iCurrentAlgorithm, tComboAlgorithm, height_in_items)
             if ret then
                 tTextureOptions.iCurrentAlgorithm = current_item --number of item selected
-                tTextureOptions.bBiggerTex = false
-                if tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger Texture'
-                    tTextureOptions.bBiggerTex = true
-                elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
+                if tTextureOptions.iCurrentAlgorithm >= 3 then
                     tTextureOptions.bAxisY = false
-                    tTextureOptions.bBiggerTex = false
+                    tTextureOptions.indexReferenceTexture = 3 -- Texture size reference
                 end
             end
 
@@ -1238,8 +1418,8 @@ function showTextureOptions()
                     else
                         tImGui.Text('Note: Textures are arranged from left to right and top to bottom.')
                     end
-                elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger Texture'
-                    tImGui.Text('Note: Textures are arranged following the size of the bigger texture.')
+                elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'Follow bigger or lower Texture'
+                    tImGui.Text(string.format('Note: Textures are arranged following the size of the %s texture.',sDirection))
                 elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'First Fit algorithm'
                     tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
                 elseif tTextureOptions.iCurrentAlgorithm == 4 then
@@ -1254,6 +1434,19 @@ function showTextureOptions()
 
             tImGui.NewLine()
 
+            if tTextureOptions.iCurrentAlgorithm ~= 6 then
+                tImGui.Text('Reference Texture Size')
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Bigger texture reference', tTextureOptions.indexReferenceTexture or 1, 1)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Lower texture reference', tTextureOptions.indexReferenceTexture, 2)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Texture size reference', tTextureOptions.indexReferenceTexture, 3)
+                if tTextureOptions.indexReferenceTexture < 1 then
+                    tTextureOptions.indexReferenceTexture = 1
+                elseif tTextureOptions.indexReferenceTexture > 3 then
+                    tTextureOptions.indexReferenceTexture = 3
+                end
+
+                tImGui.NewLine()
+            end
             -- Check the applicable flags for each algorithm
             if tTextureOptions.iCurrentAlgorithm == 1 then -- None
                 showSortOptions()
