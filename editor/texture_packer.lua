@@ -96,6 +96,9 @@ function onInitScene()
     tRender = render2texture:new('2dw')
     tRender:setColor(tTextureOptions.tRgba.r,tTextureOptions.tRgba.g,tTextureOptions.tRgba.b,tTextureOptions.tRgba.a)
     tShape = shape:new('2dw')
+    tShapeHoverImage = shape:new('2dw')
+    tShapeHoverImage:create('rectangle',1,1)
+    tShapeHoverImage.visible = false
     tLine  = line:new('2dw',0,0,-100)
     tLineGridX  = line:new('2dw',0,0,-100)
     tLineGridY  = line:new('2dw',0,0,-100)
@@ -305,6 +308,11 @@ function adjustTextureSize()
         local result, texture_name, id = tRender:create(tTextureOptions.fWidth,tTextureOptions.fHeight,tTextureOptions.bAlpha,getNextNickName())
         if result then
             tRender:enableFrame(false)
+            tShapeHoverImage:destroy()
+            tShapeHoverImage = shape:new('2dw')
+            tShapeHoverImage:create('rectangle',1,1)
+            tShapeHoverImage.visible = false
+            tRender:add(tShapeHoverImage)
             tShape:destroy()
             tShape = shape:new('2dw')
             local half_width  = tTextureOptions.fWidth  * 0.5
@@ -1275,6 +1283,21 @@ function showTextureOptions()
             local step       =  1
             local step_fast  =  10
 
+            tShapeHoverImage.visible = false
+            
+            local function showTextureHoverImage(i)
+                if tTexturesToEditor[i].isSelected == true and tImGui.IsItemHovered(0) then
+                    local tDesc = tTexturesToEditor[i]
+                    local tTex = tTexturesToEditor[i].tTex
+                    tShapeHoverImage.visible = true
+                    tShapeHoverImage:setScale(tDesc.width,tDesc.height)
+                    tShapeHoverImage:setPos(tTex.x, tTex.y, tTex.z - 1)
+                    tImGui.BeginTooltip()
+                    tImGui.Text(string.format('Name: %s\nwidth: %d\nheight: %d',tUtil.getShortName(tDesc.file_name),tDesc.width, tDesc.height))
+                    tImGui.EndTooltip()
+                end
+            end
+
             if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
                 local label  = 'Only Selected Textures##OverrideAdjustsPerTexture'
                 tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
@@ -1286,6 +1309,7 @@ function showTextureOptions()
                     end
                     local sShortName   = tUtil.getShortName(tTexturesToEditor[i].file_name)
                     if tImGui.TreeNode('id_OffsetPerTexture_' .. tostring(i),sShortName) then
+                        showTextureHoverImage(i)
                         tImGui.Text('Offset Per Texture')
                         local result, iValue = tImGui.InputInt('X##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
                         if result then
@@ -1329,6 +1353,7 @@ function showTextureOptions()
                         end
                         tImGui.TreePop()
                     end
+                    showTextureHoverImage(i)
                     ::continue::
                 end
                 tImGui.TreePop()
@@ -1392,6 +1417,7 @@ function main_menu_texture_packer()
             local pressed,checked = tImGui.MenuItem("Save Texture (png)", nil, false)
             if pressed then
                 if tRender:isLoaded() then
+                    --TODO: 
                     onSaveTexture()
                 else
                     tUtil.showMessageWarn('There is no texture loaded!')
