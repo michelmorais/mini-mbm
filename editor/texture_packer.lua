@@ -389,9 +389,7 @@ function draw_first_fit_algorithm()
     local bottomBound = -tRender.height * 0.5
     
     local placed = {} -- list of placed rectangles (using inflated dims to account spacing)
-    local iTotalIn = 0
-    local iTotalSelected = 0
-
+    
     local step_w, step_h = findLowerTextureSize() -- scan resolution in pixels
 
     local width, height = 0,0
@@ -458,21 +456,18 @@ function draw_first_fit_algorithm()
                 end
             end
 
-            if placed_this then
-                iTotalIn = iTotalIn + 1
-            else
+            if placed_this == false then
                 -- couldn't place: hide/remove
                 tRender:remove(tTex)
                 tTex.visible = false
             end
-            iTotalSelected = iTotalSelected + 1
         elseif tTex then
             -- unselected textures should not be in render
             tRender:remove(tTex)
             tTex.visible = false
         end
     end
-    return iTotalIn, iTotalSelected
+    return countTotalInOut()
 end
 
 function apply_scale_for_tex(i)
@@ -482,6 +477,41 @@ function apply_scale_for_tex(i)
         tTex:setScale((tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0) + (tTexturesToEditor[i].fScalePerTextureSX or 0),
                       (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0) + (tTexturesToEditor[i].fScalePerTextureSY or 0))
     end
+end
+
+function countTotalInOut()
+    -- need to re-count total in/selected in case some textures were hidden due to scaling
+    local iTotalIn = 0
+    local iTotalSelected = 0
+
+    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
+    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
+    local rightBound  =  tRender.width * 0.5
+    local bottomBound = -tRender.height * 0.5
+
+    for i=1, #tTexturesToEditor do
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            iTotalSelected = iTotalSelected + 1
+            if tTex.visible then
+                local w,h    = tTex:getSize()
+                local x      = tTex.x
+                local y      = tTex.y
+                local left   = x - (w * 0.5)
+                local right  = x + (w * 0.5)
+                local top    = y + (h * 0.5)
+                local bottom = y - (h * 0.5)
+                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                    iTotalIn = iTotalIn + 1
+                    tTexture.isOutOfBounds = false
+                else
+                    tTexture.isOutOfBounds = true
+                end
+            end
+        end
+    end
+    return iTotalIn, iTotalSelected
 end
 
 function draw_followed_by_bigger_or_lower_texture_algorithm()
@@ -582,35 +612,7 @@ function draw_followed_by_bigger_or_lower_texture_algorithm()
         tTex:setPos(x,y)
     end
 
-    -- need to re-count total in/selected in case some textures were hidden due to scaling
-    local iTotalIn = 0
-    local iTotalSelected = 0
-
-    local leftBound   = -tRender.width * 0.5 + (tTextureOptions.iOffsetX or 0)
-    local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
-    local rightBound  =  tRender.width * 0.5
-    local bottomBound = -tRender.height * 0.5
-
-    for i=1, #tTexturesToEditor do
-        local tTexture = tTexturesToEditor[i]
-        local tTex     = tTexture.tTex
-        if tTex and tTexture.isSelected then
-            iTotalSelected = iTotalSelected + 1
-            if tTex.visible then
-                local w,h    = tTex:getSize()
-                local x      = tTex.x
-                local y      = tTex.y
-                local left   = x - (w * 0.5)
-                local right  = x + (w * 0.5)
-                local top    = y + (h * 0.5)
-                local bottom = y - (h * 0.5)
-                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
-                    iTotalIn = iTotalIn + 1
-                end
-            end
-        end
-    end
-    return iTotalIn, iTotalSelected
+    return countTotalInOut()
 end
 
 function draw_best_fit_algorithm()
@@ -621,9 +623,7 @@ function draw_best_fit_algorithm()
     local bottomBound = -tRender.height * 0.5
 
     local placed = {} -- list of placed rectangles (using inflated dims to account spacing)
-    local iTotalIn = 0
-    local iTotalSelected = 0
-
+    
     local step_w, step_h = findLowerTextureSize() -- scan resolution in pixels
     if step_w <= 0 then step_w = 1 end
     if step_h <= 0 then step_h = 1 end
@@ -691,14 +691,12 @@ function draw_best_fit_algorithm()
                 tTex:setPos(center_x, center_y)
 
                 table.insert(placed, bestCandidate)
-                iTotalIn = iTotalIn + 1
             else
                 -- couldn't place: hide/remove
                 tRender:remove(tTex)
                 tTex.visible = false
             end
 
-            iTotalSelected = iTotalSelected + 1
         elseif tTex then
             -- unselected textures should not be in render
             tRender:remove(tTex)
@@ -706,7 +704,7 @@ function draw_best_fit_algorithm()
         end
     end
 
-    return iTotalIn, iTotalSelected
+    return countTotalInOut()
 end
 
 function draw_grid_based_placement_algorithm()
@@ -716,8 +714,6 @@ function draw_grid_based_placement_algorithm()
     local rightBound  =  tRender.width * 0.5
     local bottomBound = -tRender.height * 0.5
 
-    local iTotalIn = 0
-    local iTotalSelected = 0
     local iCountMaxTile = 0
     local bCheckTile = tTextureOptions.iMaxTileCount > 0
 
@@ -820,7 +816,6 @@ function draw_grid_based_placement_algorithm()
 
                                 if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
                                     tTex:setPos(center_x, center_y)
-                                    iTotalIn = iTotalIn + 1
                                     iCountMaxTile = iCountMaxTile + 1
                                     placed = true
                                     break
@@ -860,7 +855,6 @@ function draw_grid_based_placement_algorithm()
 
                                 if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
                                     tTex:setPos(center_x, center_y)
-                                    iTotalIn = iTotalIn + 1
                                     iCountMaxTile = iCountMaxTile + 1
                                     placed = true
                                     break
@@ -882,14 +876,13 @@ function draw_grid_based_placement_algorithm()
                 end
             end
 
-            iTotalSelected = iTotalSelected + 1
         elseif tTex then
             tRender:remove(tTex)
             tTex.visible = false
         end
     end
 
-    return iTotalIn, iTotalSelected
+    return countTotalInOut()
 end
 
 function draw_grid_force_fit_placement_algorithm()
@@ -1001,31 +994,7 @@ function draw_grid_force_fit_placement_algorithm()
         tTextureOptions.scaleImage = fMinScale
     end
 
-    -- need to re-count total in/selected in case some textures were hidden due to scaling
-    local iTotalIn = 0
-    local iTotalSelected = 0
-
-    for i=1, #tTexturesToEditor do
-        local tTexture = tTexturesToEditor[i]
-        local tTex     = tTexture.tTex
-        if tTex and tTexture.isSelected then
-            iTotalSelected = iTotalSelected + 1
-            if tTex.visible then
-                local w,h    = tTex:getSize()
-                local x      = tTex.x
-                local y      = tTex.y
-                local left   = x - (w * 0.5)
-                local right  = x + (w * 0.5)
-                local top    = y + (h * 0.5)
-                local bottom = y - (h * 0.5)
-                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
-                    iTotalIn = iTotalIn + 1
-                end
-            end
-        end
-    end
-
-    return iTotalIn, iTotalSelected
+    return countTotalInOut()
 end
 
 function drawSpriteSheet()
@@ -1388,6 +1357,8 @@ function showTextureOptions()
                 end
             end
 
+            local tOutOfBoundsColor = {r=1,g=0.3,b=0.3,a=0.8}
+
             if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
                 local label  = 'Only Selected Textures##OverrideAdjustsPerTexture'
                 tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
@@ -1398,7 +1369,13 @@ function showTextureOptions()
                         end
                     end
                     local sShortName   = tUtil.getShortName(tTexturesToEditor[i].file_name)
+                    if tTexturesToEditor[i].isOutOfBounds then
+                        tImGui.PushStyleColor('ImGuiCol_Text',tOutOfBoundsColor)
+                    end
                     if tImGui.TreeNode('id_OffsetPerTexture_' .. tostring(i),sShortName) then
+                        if tTexturesToEditor[i].isOutOfBounds then
+                            tImGui.PopStyleColor(1)
+                        end
                         showTextureHoverImage(i)
                         tImGui.Text('Offset Per Texture')
                         local result, iValue = tImGui.InputInt('X##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
@@ -1479,7 +1456,14 @@ function showTextureOptions()
                             end
                             
                         end
+                        if tTexturesToEditor[i].isOutOfBounds then
+                            tImGui.TextColored(tOutOfBoundsColor,'Texture is out of bounds!')
+                        end
                         tImGui.TreePop()
+                    else
+                        if tTexturesToEditor[i].isOutOfBounds then
+                            tImGui.PopStyleColor(1)
+                        end
                     end
                     showTextureHoverImage(i)
                     ::continue::
