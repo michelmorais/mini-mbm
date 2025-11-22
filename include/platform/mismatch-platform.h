@@ -49,6 +49,9 @@
     #elif defined(__linux__)
         #include <unistd.h>
         #define access_file access
+    #elif defined(__APPLE__)
+        #include <unistd.h>
+        #define access_file access
     #else
         #error "unknown platform"
     #endif

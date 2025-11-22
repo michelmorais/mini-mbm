@@ -13,7 +13,7 @@
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
 
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 4.0.0)
 cmake_policy(SET CMP0054 NEW)
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
@@ -337,7 +337,20 @@ else()
         
     elseif(PLAT_LOWER STREQUAL "apple")
 
-        message(SEND_ERROR " Platform NOT working yet: ${PLAT}")
+        set(CMAKE_SYSTEM_NAME           "Darwin")
+        set(ENGINE_TARGET_PLATFORM      "Apple")
+        set(FOLDER_ARCHITECTURE         "Apple_x86")
+        #success
+        set(CMAKE_SUCCESS_SET_PLAT           1)
+
+        if(NOT USE_VR AND NOT DISABLE_VR)
+            set(USE_VR 1)
+            add_definitions(-DUSE_VR)
+        endif()
+
+        #if(NOT AUDIO)
+            set(AUDIO none)
+        #endif()
 
     else()
 
@@ -493,7 +506,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         message(STATUS " Configuration for Linux (Debian, ubuntu,...) is set...")
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-        message(STATUS " Configuration for Apple (not working yet!!!) is set...")
+        message(STATUS " Configuration for Apple (MacOs, Darwin ) is set...")
     endif()
 
 

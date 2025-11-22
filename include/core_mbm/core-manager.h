@@ -33,7 +33,7 @@
 //    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
-#elif defined __linux__ && !defined ANDROID
+#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
     #include <X11/Xlib.h>
     #include <EGL/egl.h>
 #endif
@@ -104,7 +104,7 @@ namespace mbm
                                   const char *_extraInfo);
     };
 
-    #if defined(ANDROID) || defined(__linux__)
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
 
 
     class API_IMPL EVENTS
@@ -126,7 +126,7 @@ namespace mbm
     };
     #endif
 
-    #if defined(ANDROID) || defined(__linux__)
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
     class CORE_MANAGER : public EVENTS
     #else
     class CORE_MANAGER : public EVENTS, public JOYSTICK
@@ -150,7 +150,7 @@ namespace mbm
     #else
         API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
     #endif
-    #if defined(__linux__) && !defined(ANDROID)
+    #if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
         Window     win;
         EGLSurface egl_surf;
         EGLContext egl_ctx;
@@ -170,7 +170,7 @@ namespace mbm
         API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #elif defined (ANDROID)
         API_IMPL bool initGl(const int width = 800, const int height = 600);
-    #elif defined __linux__
+    #elif defined  (__linux__) || defined(__APPLE__) && !defined(ANDROID)
         API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
     #else
         #error "undefined platform"
@@ -179,7 +179,7 @@ namespace mbm
 
     #ifdef ANDROID
         API_IMPL int loop(JNIEnv *, jobject);
-    #elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__)) && !defined(ANDROID)
+    #elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL int loop();
     #else
     #error "platform not suported!"
@@ -225,7 +225,7 @@ namespace mbm
         API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
         API_IMPL void onResizeWindow(int width, int height);
     
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
       public:
         API_IMPL void onTouchDown(int key, float x, float y);
         API_IMPL void onTouchUp(int key, float x, float y);

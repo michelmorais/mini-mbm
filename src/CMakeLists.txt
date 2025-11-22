@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 4.0.0)
 cmake_policy(SET CMP0054 NEW)
 project(mini-mbm)
 
@@ -124,7 +124,13 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    message( SEND_ERROR "Not configurated for Apple src/CMakeList.txt")
+    add_executable(mini-mbm ${MAIN}
+                        ${SOURCES}
+                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                        ${BULLET3D_WRAP_SOURCES}
+                        ${TINYFILEDIALOGS_SOURCES}
+                        ${SCENE_CPP})
+    target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 endif()
 
 if (USE_LUA)

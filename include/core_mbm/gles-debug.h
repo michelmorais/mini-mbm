@@ -40,7 +40,8 @@
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
 #else
-    #error unknown platform
+    #include <EGL/egl.h>
+    #include <GLES2/gl2.h>
 #endif
 
 

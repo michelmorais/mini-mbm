@@ -34,6 +34,8 @@
     #include <GLES2/gl2.h>
 #elif defined __linux__
     #include <GLES2/gl2.h>
+#elif defined __APPLE__
+    #include <GLES2/gl2.h>
 #endif
 
 namespace util
