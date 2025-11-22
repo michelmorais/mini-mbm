@@ -116,7 +116,7 @@ namespace mbm
     #ifdef ANDROID
         LUA_MANAGER(JNIEnv *env, jobject obj);
         
-    #elif defined _WIN32 || defined __linux__
+    #elif defined _WIN32 || defined __linux__  || defined(__APPLE__)
         LUA_MANAGER();
         LUA_MANAGER(const int argc,const char **argv);
         LUA_MANAGER(const std::vector<std::string> & args);

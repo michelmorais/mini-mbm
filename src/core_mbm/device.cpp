@@ -33,7 +33,7 @@
     #include <platform/common-jni.h>
 #elif defined _WIN32
     #include <plusWindows/defaultThemePlusWindows.h>
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
     #include <X11/Xutil.h>
 #endif
 
@@ -736,7 +736,7 @@ namespace mbm
         this->window.setMinSizeAllowed(min_x,min_y);
         this->window.setMaxSizeAllowed(max_x,max_y);
     }
-    #elif defined(__linux__) && !defined(ANDROID)
+    #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
     void DEVICE::setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
         XSizeHints xsize;
@@ -779,7 +779,7 @@ namespace mbm
         xsize.y             = 0;
         XSetWMNormalHints(display,win,&xsize);
     }
-    #elif defined(__linux__) && defined(ANDROID)
+    #elif defined(ANDROID)
     void DEVICE::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
         INFO_LOG("setMinMaxSizeWindow (%d,%d,%d,%d) has not effect on this ANDROID platform.",min_x,min_y,max_x,max_y);

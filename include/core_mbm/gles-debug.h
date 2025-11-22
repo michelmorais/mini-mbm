@@ -36,10 +36,7 @@
     #ifndef strcasecmp
         #define strcasecmp strcmpi
     #endif
-#elif defined __linux__
-    #include <EGL/egl.h>
-    #include <GLES2/gl2.h>
-#else
+#elif defined __linux__  || defined(__APPLE__)
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
 #endif

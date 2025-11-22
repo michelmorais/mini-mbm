@@ -275,7 +275,7 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
             }
             break;
         }
-    #elif defined(__linux__) && !defined(ANDROID)
+    #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
 
         switch(type_log)
         {
@@ -417,7 +417,7 @@ void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format
                 fprintf(stdout, " %s\n", buffer);
                 SetConsoleTextAttribute(hConsoleSTD, 15);
             }
-        #elif defined(__linux__) && !defined(ANDROID)
+        #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
             static const std::map<COLOR_TERMINAL,std::string> map_color =
             {
                 {COLOR_TERMINAL_WHITE,   ""},

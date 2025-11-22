@@ -185,7 +185,7 @@ namespace mbm
     #error "platform not suported!"
     #endif
 
-    #if defined(__linux__) && !defined(ANDROID)
+    #if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);
     #endif
     
