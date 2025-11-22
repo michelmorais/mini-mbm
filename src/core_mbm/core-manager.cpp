@@ -948,8 +948,12 @@ void printGLString(const char *name, GLenum s)
             printf("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
             return false;
         }
-
-        egl_dpy = eglGetDisplay(this->display);
+    #ifdef __APPLE__
+        //egl_dpy = eglGetDisplay(eglGetDisplay(EGL_DEFAULT_DISPLAY));
+        #pragma message("Check if this is correct for MacOS")
+    #else
+        egl_dpy = eglGetDisplay((EGLNativeDisplayType) this->display);
+    #endif
         if (!egl_dpy)
         {
             printf("Error: eglGetDisplay() failed\n");

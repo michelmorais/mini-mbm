@@ -34,7 +34,7 @@ endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(${CORE_OPENGLES_INCLUDE} 
-                    ${GLES_INCLUDE}
+                    #${GLES_INCLUDE}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 

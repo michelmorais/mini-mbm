@@ -53,7 +53,7 @@ file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
 #Bring the headers, such as xxx.h into the project
 include_directories(${OPENGLES2_INCLUDE_DIR} 
                     ${INCLUDE}
-                    ${GLES_INCLUDE}
+                    #${GLES_INCLUDE}
                     ${RENDER_INCLUDES} 
                     ${CORE_OPENGLES_INCLUDES} 
                     ${THIRD_PARTY}
