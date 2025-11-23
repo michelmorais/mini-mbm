@@ -586,7 +586,7 @@ void printGLString(const char *name, GLenum s)
         }
         #endif
         const EGLint *attrib_list = nullptr;
-        *surfRet = eglCreateWindowSurface(egl_dpy, config, &win, attrib_list);
+        *surfRet = eglCreateWindowSurface(egl_dpy, config, win, attrib_list);
         if (!*surfRet)
         {
             printf("Error: eglCreateWindowSurface failed\n");

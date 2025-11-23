@@ -11,9 +11,9 @@
 #add_compile_options(-fsanitize=address,undefined)
 #add_compile_options(-fno-omit-frame-pointer)
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+set(CMAKE_VERSION_MAJOR "3.25.1")
 
-
-cmake_minimum_required(VERSION 4.0.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
@@ -639,13 +639,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         endif()
     endif()
 
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
-        add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
-    endif()
+    # TODO: Check bullet3d plugin and module
+    #if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+    #    add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
+    #endif()
 
-    if(NOT PLAT_LOWER STREQUAL "android")
-        add_subdirectory(${MODULES}                     ${MODULES})
-    endif()
+    #if(NOT PLAT_LOWER STREQUAL "android")
+    #    add_subdirectory(${MODULES}                     ${MODULES})
+    #endif()
     
     #end plugins ############################################################################################
 
