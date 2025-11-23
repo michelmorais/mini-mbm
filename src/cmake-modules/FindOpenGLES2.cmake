@@ -32,9 +32,6 @@ if(WIN32)
 		endif()
 	endif()
 elseif(APPLE)
-	#create_search_paths(/Developer/Platforms)
-	#findpkg_framework(OpenGLES2)
-	#set(OPENGLES2_LIBRARY "-framework OpenGLES")
 	find_path(OPENGLES2_INCLUDE_DIR GLES2/gl2.h 
 	    PATHS ${ANGLE}/include
 		/opt/homebrew/include
@@ -43,8 +40,68 @@ elseif(APPLE)
 		PATHS ${ANGLE}/include
 		/opt/homebrew/include
 	)
-	#find_library(OPENGLES2_LIBRARY OpenGLES REQUIRED) # framework
+	
 	include_directories(${OPENGLES2_INCLUDE_DIR} ${EGL_INCLUDE_DIR})
+
+	find_library(OPENGLES2_LIBRARY
+		NAMES GLESv2
+		PATHS /opt/homebrew/lib/
+			${ANGLE}/lib
+	)
+
+	message(STATUS "Found OPENGLES2_LIBRARY at ${OPENGLES2_LIBRARY}")
+
+	set(GOOGLE_CHROME_FRAMEWORK_LIBS
+		"/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/Current/Libraries/libGLESv2.dylib"
+	)
+	# On MacOS, Google Chrome ships its own ANGLE build inside the app bundle.
+	# We can try to link against those libraries if they exist.
+	# Note that this is not a standard location, so this is more of a
+	# convenience for developers who have Google Chrome installed.
+	# If you have your own ANGLE build, you can set the ANGLE variable
+	# to point to your build directory, and this script will pick up the
+	# libraries from there instead.
+	# Example:
+	#   set(ANGLE /path/to/your/angle/build)
+	#   cmake ..
+	# This will make the script look for libraries in
+	#
+	#   $OGL_FOR_MAC/lib
+	#
+	
+	find_library(OPENGLES1_gl_LIBRARY
+		NAMES GLESv1_CM
+		PATHS PATHS /opt/homebrew/lib/
+			${ANGLE}/lib
+			${GOOGLE_CHROME_FRAMEWORK_LIBS}
+			${OGL_FOR_MAC}/lib
+	)
+
+	message(STATUS "Found OPENGLES1_gl_LIBRARY at ${OPENGLES1_gl_LIBRARY}")
+
+	find_library(EGL_LIBRARY
+			NAMES EGL
+			PATHS PATHS /opt/homebrew/lib/
+			${ANGLE}/lib
+			${GOOGLE_CHROME_FRAMEWORK_LIBS}
+			${OGL_FOR_MAC}/lib
+	)
+
+	message(STATUS "Found EGL_LIBRARY at ${EGL_LIBRARY}")
+
+	# On Unix OpenGL usually requires X11.
+		# It doesn't require X11 on OSX.
+
+		if(OPENGLES2_LIBRARY)
+			if(NOT X11_FOUND)
+				message(STATUS "Looking for X11 for MacOS")
+				include(FindX11)
+			endif()
+			if(X11_FOUND)
+				message(STATUS "Included X11 for MacOS")
+				set(OPENGLES2_LIBRARIES ${X11_LIBRARIES})
+			endif()
+		endif()
 
 	set(EGL_LIBRARIES)
 	set(OPENGLES2_FOUND TRUE)
