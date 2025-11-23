@@ -17,6 +17,8 @@ elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_LINUX)
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     message(STATUS " CMAkE sqlite3 Configuration for Apple (not working yet!!!) is set...")
+else()
+  message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
 
 add_definitions(-DSQLITE_CORE) #statically link extension of sqlite
@@ -34,7 +36,7 @@ endif()
 #Bring the headers, such as xxx.h into the project
 include_directories(${SQLITE_INCLUDE} ${SRC_INCLUDES} ${LUA_INCLUDE})
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
