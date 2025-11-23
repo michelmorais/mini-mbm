@@ -46,6 +46,11 @@
     #include <GLES2/gl2ext.h>
 #endif
 
+#ifdef __APPLE__
+//#include <X11/extensions/Xcomposite.h>
+//#include <X11/Xmu/WinUtil.h>
+#endif
+
 #include <plugin-callback.h>
 #include <dynamic-var.h>
 
@@ -586,7 +591,7 @@ void printGLString(const char *name, GLenum s)
         }
         #endif
         const EGLint *attrib_list = nullptr;
-        *surfRet = eglCreateWindowSurface(egl_dpy, config, win, attrib_list);
+        *surfRet = eglCreateWindowSurface(egl_dpy, config, reinterpret_cast<EGLNativeWindowType>(win), attrib_list);
         if (!*surfRet)
         {
             printf("Error: eglCreateWindowSurface failed\n");
