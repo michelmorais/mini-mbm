@@ -103,6 +103,18 @@ elseif(APPLE)
 			endif()
 		endif()
 
+		find_library(VULKAN_LIBRARY
+             NAMES vulkan.1
+             HINTS /opt/homebrew/lib/
+				   /usr/local/lib/
+				   /usr/lib/
+             REQUIRED)
+
+		set(OPENGLES2_LIBRARIES ${OPENGLES2_LIBRARIES} ${VULKAN_LIBRARY})
+		message(STATUS "Found Vulkan_LIBRARIES at ${VULKAN_LIBRARY}")
+
+		message(STATUS "Set OPENGLES2_LIBRARIES to ${OPENGLES2_LIBRARIES}")
+
 	set(EGL_LIBRARIES)
 	set(OPENGLES2_FOUND TRUE)
 else()

@@ -954,7 +954,7 @@ void printGLString(const char *name, GLenum s)
             return false;
         }
     #ifdef __APPLE__
-        //egl_dpy = eglGetDisplay(eglGetDisplay(EGL_DEFAULT_DISPLAY));
+        egl_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         #pragma message("Check if this is correct for MacOS")
     #else
         egl_dpy = eglGetDisplay((EGLNativeDisplayType) this->display);

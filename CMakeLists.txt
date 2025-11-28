@@ -339,7 +339,7 @@ else()
 
         set(CMAKE_SYSTEM_NAME           "Darwin")
         set(ENGINE_TARGET_PLATFORM      "Apple")
-        set(FOLDER_ARCHITECTURE         "Apple_x86")
+        set(FOLDER_ARCHITECTURE          "arm64") #macos with M1, M2, M3, M4 ...
         #success
         set(CMAKE_SUCCESS_SET_PLAT           1)
 
