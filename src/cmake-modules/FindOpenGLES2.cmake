@@ -105,7 +105,8 @@ elseif(APPLE)
 
 		find_library(VULKAN_LIBRARY
              NAMES vulkan.1
-             HINTS /opt/homebrew/lib/
+             HINTS /Users/michel/VulkanSDK/1.4.328.1/macOS/lib
+			       /opt/homebrew/lib/
 				   /usr/local/lib/
 				   /usr/lib/
              REQUIRED)
