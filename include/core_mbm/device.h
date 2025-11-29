@@ -135,7 +135,7 @@ namespace mbm
         API_IMPL bool renderToRestore(RENDERIZABLE * renderizable);
         #if defined _WIN32 || defined(ANDROID)
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
-        #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
         #endif
 

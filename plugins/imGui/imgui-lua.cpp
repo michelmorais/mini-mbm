@@ -24,7 +24,7 @@
 
 #if defined _WIN32
     #include "imgui_impl_win32.h"
-#elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+#elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
     #ifndef XK_MISCELLANY
         #define XK_MISCELLANY
     #endif
@@ -936,7 +936,7 @@ void lua_push_ImVec4_pointer(lua_State *lua,const ImVec4 * p_ImVec4);
 
 
 
-#if defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+#if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
     #define VKL_TAB          0x09
     #define VKL_LEFT         0x25
     #define VKL_RIGHT        0x27
@@ -992,7 +992,7 @@ public:
     ImVec2 MousePos,MousePosPrev;
 
     ImGuiContext*   imGuiContext;
-    #if defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
         Display*    context;
     #elif defined(_WIN32)
         HWND        context;
@@ -1023,7 +1023,7 @@ public:
             #if defined _WIN32
                 context = static_cast<HWND>(_context);
                 ImGui_ImplWin32_Init(context);
-            #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 context = static_cast<Display*>(_context);
             #endif
 
@@ -1069,7 +1069,7 @@ public:
             imGuIo.KeyMap[ImGuiKey_X]           = 0x58;
             imGuIo.KeyMap[ImGuiKey_Y]           = 0x59;
             imGuIo.KeyMap[ImGuiKey_Z]           = 0x5A;
-        #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             imGuIo.KeyMap[ImGuiKey_Tab]         = VKL_TAB;//XK_Tab;
             imGuIo.KeyMap[ImGuiKey_LeftArrow]   = VKL_LEFT;//XK_Left;
             imGuIo.KeyMap[ImGuiKey_RightArrow]  = VKL_RIGHT;//XK_Right;
@@ -1170,7 +1170,7 @@ public:
             {
                 key_mouse::KeysDown[key]   = true;
             }
-            #if defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             else
             {
                 switch(key)
@@ -1299,7 +1299,7 @@ public:
                         imGuIo.AddInputCharacter(']');
                 };
             };
-            #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             switch(key)
             {
                 case XK_Control_L:
@@ -1708,7 +1708,7 @@ public:
                 }
             }
         }
-        #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
         Window w = 0;
         int current_focus_state = 0;
         if(XGetInputFocus(context,&w,&current_focus_state) != RevertToNone && w != 0)

@@ -33,7 +33,7 @@
 //    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
-#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
+#elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
     #include <EGL/egl.h>
 #endif
@@ -150,7 +150,7 @@ namespace mbm
     #else
         API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
     #endif
-    #if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         Window     win;
         EGLSurface egl_surf;
         EGLContext egl_ctx;
@@ -170,7 +170,7 @@ namespace mbm
         API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #elif defined (ANDROID)
         API_IMPL bool initGl(const int width = 800, const int height = 600);
-    #elif defined  (__linux__) || defined(__APPLE__) && !defined(ANDROID)
+    #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
     #else
         #error "undefined platform"
@@ -185,7 +185,7 @@ namespace mbm
     #error "platform not suported!"
     #endif
 
-    #if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);
     #endif
     

@@ -81,7 +81,6 @@ namespace mbm
         SCENE_SCRIPT::SCENE_SCRIPT(const char *nameFileScriptLua, const bool _noSplash,RENDERIZABLE * previousSplash) :
             scriptLua(nameFileScriptLua), noSplash(_noSplash)
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             this->lua                   = nullptr;
 			this->wasError              = false;
             this->textureLogo           = nullptr;

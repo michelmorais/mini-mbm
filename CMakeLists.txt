@@ -586,9 +586,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     if (CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-        message(STATUS " *** DEBUG mode ***")
+        message(STATUS " *** CMAKE_BUILD_TYPE_LOWER=Debug mode ***")
     else()
-        message(STATUS "*** RELEASE mode ***")
+        message(STATUS "*** CMAKE_BUILD_TYPE_LOWER=Release mode ***")
     endif()
 
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
@@ -602,6 +602,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #plugins ################################################################################################
     # Plugins only make sense when use LUA
     # For Android, we must lik them all, if we do not enable all, do not link and the package size will be smaller
+    message(STATUS "Checking plugins...")
 
     if (USE_LUA)
         # we always need plugin-helper when using LUA script
@@ -617,9 +618,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                 add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
             endif()
             if(USE_LSQLITE3)
+                message(STATUS "Added SQLITE3 for android")
                 add_subdirectory(${SQLITE_LIB} 		${SQLITE_LIB})
             endif()
         else()
+            message(STATUS "LUA nOT defined plugins...")
             add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
             add_subdirectory(${SQLITE_LIB} 		    ${SQLITE_LIB})
             add_subdirectory(${BOX2D_LUA_LIB}       ${BOX2D_LUA_LIB})
@@ -629,6 +632,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             #This is to build box2d-liquid-fun only (no LUA wrapper)
             #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
         endif()
+    else()
+        message(STATUS "LUA NOT defined for ANDROID plugins...")
     endif()
 
     #to be able to enable TILED_LIB it is needed enable USE_EDITOR_FEATURES

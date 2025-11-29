@@ -736,7 +736,7 @@ namespace mbm
         this->window.setMinSizeAllowed(min_x,min_y);
         this->window.setMaxSizeAllowed(max_x,max_y);
     }
-    #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+    #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     void DEVICE::setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
         XSizeHints xsize;

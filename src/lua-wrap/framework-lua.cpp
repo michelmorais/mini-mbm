@@ -169,7 +169,7 @@ namespace mbm
         DEVICE *device = DEVICE::getInstance();
         #if defined _WIN32 || defined(ANDROID)
         device->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
-        #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         device->setMinMaxSizeWindow(device->ptrManager->win,device->ptrManager->display, min_x,min_y,max_x,max_y);
         #endif
         return 0;

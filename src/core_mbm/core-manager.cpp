@@ -170,7 +170,7 @@ void printGLString(const char *name, GLenum s)
         this->keyCapsLockState = false;
     #if defined(_WIN32)
         idIcon = 0;
-    #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+    #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
         this->win      = 0;
         this->egl_surf = nullptr;
         this->egl_ctx  = nullptr;
@@ -182,7 +182,7 @@ void printGLString(const char *name, GLenum s)
     CORE_MANAGER::~CORE_MANAGER()
     {
         DEVICE::quit();
-    #if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         eglDestroyContext(this->egl_dpy, this->egl_ctx);
         eglDestroySurface(this->egl_dpy, this->egl_surf);
         eglTerminate(this->egl_dpy);
@@ -280,7 +280,7 @@ void printGLString(const char *name, GLenum s)
             this->which_for =  WFOR_INITIAL;
             #if defined(_WIN32) 
             eglSwapBuffers(this->eglDisplay,this->eglSurface);
-            #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                 eglSwapBuffers(egl_dpy, egl_surf);
             #endif
             return false;
@@ -341,7 +341,7 @@ void printGLString(const char *name, GLenum s)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
                                 eglSwapBuffers(eglDisplay, eglSurface);
-                            #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
                             return false;
@@ -375,7 +375,7 @@ void printGLString(const char *name, GLenum s)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
                                 eglSwapBuffers(this->eglDisplay,this->eglSurface);
-                            #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
                             return false;
@@ -409,7 +409,7 @@ void printGLString(const char *name, GLenum s)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
                                 eglSwapBuffers(this->eglDisplay,this->eglSurface);
-                            #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
                             return false;
@@ -424,7 +424,7 @@ void printGLString(const char *name, GLenum s)
             stepRestore = STEP_RES_END;
             #if defined(_WIN32) 
             eglSwapBuffers(this->eglDisplay,this->eglSurface);
-            #elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
             eglSwapBuffers(egl_dpy, egl_surf);
             #endif
             return false;
@@ -445,7 +445,7 @@ void printGLString(const char *name, GLenum s)
         return false;
     }
 
-#if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     
     void CORE_MANAGER::make_x_window(Display *display, EGLDisplay egl_dpy, const char *name, int x, int y, uint32_t width,unsigned  int height,
                               Window *winRet, EGLContext *ctxRet, EGLSurface *surfRet,bool border)
@@ -942,7 +942,7 @@ void printGLString(const char *name, GLenum s)
 			MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
 		}
-#elif defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+#elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
 
         char * dpyName = nullptr;
         EGLint egl_major = 0;
@@ -1596,7 +1596,7 @@ void printGLString(const char *name, GLenum s)
 #endif
 
 //Linux thread
-#if defined(__linux__) || defined(__APPLE__) && !defined(ANDROID)
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
@@ -2523,7 +2523,7 @@ void printGLString(const char *name, GLenum s)
             void * handle = nullptr;
             #if defined _WIN32
                 handle = this->device->window.getHwnd();
-            #elif defined(__linux__) || defined(__APPLE__) && !defined (ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 handle = this->display;
             #elif defined(ANDROID)
                 handle = this->device->jni->jenv;
