@@ -81,7 +81,6 @@ namespace mbm
         SCENE_SCRIPT::SCENE_SCRIPT(const char *nameFileScriptLua, const bool _noSplash,RENDERIZABLE * previousSplash) :
             scriptLua(nameFileScriptLua), noSplash(_noSplash)
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             this->lua                   = nullptr;
 			this->wasError              = false;
             this->textureLogo           = nullptr;
@@ -1184,7 +1183,7 @@ namespace mbm
 			this->hasValueTextureLogo = false;
 			INFO_LOG("%s", this->nameAplication.c_str());
         }
-    #elif defined _WIN32 || defined __linux__
+    #elif defined _WIN32 || defined __linux__ || defined __APPLE__
         
         LUA_MANAGER::LUA_MANAGER()
         {
@@ -1409,7 +1408,7 @@ namespace mbm
             if (this->initGl(this->widthWindow, this->heightWindow))
     #elif defined _WIN32
             if (this->initGl(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, this->positionXWindow,this->positionYWindow, border,this->enableResizeWindow))
-    #elif defined __linux__
+    #elif defined __linux__ || defined __APPLE__
             if (this->initGl(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, border))
     #else
         #error "undefined platform"
@@ -1449,7 +1448,7 @@ namespace mbm
                 this->lsScene.push_back(newScene);
                 this->setScene(newScene);
             }
-    #if defined _WIN32 || (defined __linux__ && !defined ANDROID)
+    #if (defined _WIN32 || defined __linux__ || defined __APPLE__)  && !defined ANDROID
     #ifdef USE_OPENGL_ES
             this->loop();
     #else

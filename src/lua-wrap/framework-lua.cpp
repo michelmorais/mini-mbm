@@ -69,7 +69,7 @@
 #include <audio-interface.h>
 #if defined ANDROID
     #include <platform/common-jni.h>
-#elif defined __linux__
+#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
     #include <unistd.h>
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
@@ -169,7 +169,7 @@ namespace mbm
         DEVICE *device = DEVICE::getInstance();
         #if defined _WIN32 || defined(ANDROID)
         device->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
-        #elif defined(__linux__) && !defined(ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         device->setMinMaxSizeWindow(device->ptrManager->win,device->ptrManager->display, min_x,min_y,max_x,max_y);
         #endif
         return 0;
@@ -341,7 +341,7 @@ namespace mbm
         lua_pushnumber(lua,static_cast<lua_Number>(height));
         return 2;
 
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
         int width  = 0;
         int height = 0;
         DEVICE *device = DEVICE::getInstance();
@@ -470,7 +470,7 @@ namespace mbm
             strncpy(dir, currentPath,sizeof(dir)-1);
     #elif defined _WIN32
         GetCurrentDirectoryA(sizeof(dir), dir);
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
         getcwd(dir,sizeof(dir));
     #else
     #error "platform not suported"
@@ -846,7 +846,7 @@ namespace mbm
             }
             else if (strcasecmp(what, "linux") == 0)
             {
-    #if defined __linux__ && !defined(ANDROID)
+    #if defined __linux__ || defined(__APPLE__) && !defined(ANDROID)
                 lua_pushboolean(lua, 1);
     #else
                 lua_pushboolean(lua, 0);
@@ -875,7 +875,7 @@ namespace mbm
                 lua_pushboolean(lua,1);
     #elif defined ANDROID
 				lua_pushboolean(lua,1);
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
 				lua_pushboolean(lua,1);
     #else
 				lua_pushboolean(lua,0);
@@ -892,6 +892,8 @@ namespace mbm
                 versions += "Plataform: Android";
     #elif defined __linux__
                 versions += "Plataform: Linux";
+    #elif defined(__APPLE__)
+                versions += "Plataform: MacOs";
     #else
                 versions += "Plataform: Unknown";
     #endif
@@ -1586,7 +1588,7 @@ namespace mbm
         jint ret = jenv->CallStaticIntMethod(cJni->jclassKeyCodeJniEngine, mid, jstr);
         jenv->DeleteLocalRef(jstr);
         return (int)ret;
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
         const int len = strlen(key);
         if (len == 1)
         {
@@ -1942,6 +1944,9 @@ namespace mbm
                 return str;
             };
         }
+    #elif defined(__APPLE__)
+    #pragma message("getKeyName not implemented on __APPLE__")
+        return "";
     #else
     #error "EROR platform not FOUND"
     #endif
@@ -2008,7 +2013,7 @@ namespace mbm
             lua_pushstring(lua, "Unknown");
         }
         return 1;
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
         const char *lang = getenv("LANG");
         if (lang == nullptr)
             lua_pushstring(lua, "unknown");
@@ -2061,7 +2066,7 @@ namespace mbm
             lua_pushnil(lua);
         }
         return 1;
-    #elif defined __linux__
+    #elif defined __linux__ || defined(__APPLE__)
         const uid_t          uid = geteuid();
         const struct passwd *pw  = getpwuid(uid);
         if (pw)

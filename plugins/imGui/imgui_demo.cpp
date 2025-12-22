@@ -3430,8 +3430,8 @@ void ImGui::ShowAboutWindow(bool* p_open)
 #ifdef _WIN64
         ImGui::Text("define: _WIN64");
 #endif
-#ifdef __linux__
-        ImGui::Text("define: __linux__");
+#ifdef __linux__ // __APPLE__ bellow untested
+        ImGui::Text("define: __linux__"); // __APPLE__ bellow untested
 #endif
 #ifdef __APPLE__
         ImGui::Text("define: __APPLE__");

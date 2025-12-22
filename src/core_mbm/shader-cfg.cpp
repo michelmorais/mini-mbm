@@ -988,7 +988,7 @@ namespace mbm
         va_start(va_args, format);
         char *_buffer = log_util::formatNewMessage(length, format, va_args);
         va_end(va_args);
-#if defined(__MINGW32__) || defined(ANDROID) || defined(__linux__)
+#if defined(__MINGW32__) || defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
         PRINT_IF_DEBUG( _buffer);
 #else
         MessageBoxA(nullptr, _buffer, "SHADER_CFG_LOADER", MB_OK);

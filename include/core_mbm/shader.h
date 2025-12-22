@@ -32,7 +32,9 @@
     #include <gles/GLES2/gl2.h>
 #elif defined _WIN32
     #include <GLES2/gl2.h>
-#elif defined __linux__
+#elif defined __linux__ // __APPLE__ bellow untested
+    #include <GLES2/gl2.h>
+#elif defined __APPLE__
     #include <GLES2/gl2.h>
 #endif
 

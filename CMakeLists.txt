@@ -11,9 +11,9 @@
 #add_compile_options(-fsanitize=address,undefined)
 #add_compile_options(-fno-omit-frame-pointer)
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+set(CMAKE_VERSION_MAJOR "3.25.1")
 
-
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 
 set(CMAKE_SUCCESS_SET_PLAT           0)
@@ -337,7 +337,20 @@ else()
         
     elseif(PLAT_LOWER STREQUAL "apple")
 
-        message(SEND_ERROR " Platform NOT working yet: ${PLAT}")
+        set(CMAKE_SYSTEM_NAME           "Darwin")
+        set(ENGINE_TARGET_PLATFORM      "Apple")
+        set(FOLDER_ARCHITECTURE          "arm64") #macos with M1, M2, M3, M4 ...
+        #success
+        set(CMAKE_SUCCESS_SET_PLAT           1)
+
+        if(NOT USE_VR AND NOT DISABLE_VR)
+            set(USE_VR 1)
+            add_definitions(-DUSE_VR)
+        endif()
+
+        #if(NOT AUDIO)
+            set(AUDIO none)
+        #endif()
 
     else()
 
@@ -493,7 +506,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         message(STATUS " Configuration for Linux (Debian, ubuntu,...) is set...")
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-        message(STATUS " Configuration for Apple (not working yet!!!) is set...")
+        message(STATUS " Configuration for Apple (MacOs, Darwin ) is set...")
+    else()
+        message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
 
 
@@ -561,14 +576,19 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
             set(CMAKE_CXX_FLAGS " -fPIC -O3 -Wall ${_G_DEBUG} -std=c++17")
             set(CMAKE_C_FLAGS "-O3 -Wall")
+        elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+            set(CMAKE_CXX_FLAGS " -fPIC ${OPTIMIZED} -Wall ${_G_DEBUG} -std=c++17")
+            set(CMAKE_C_FLAGS "${OPTIMIZED} -Wall")
+        else()
+            message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
         endif()
 
     endif()
 
     if (CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-        message(STATUS " *** DEBUG mode ***")
+        message(STATUS " *** CMAKE_BUILD_TYPE_LOWER=Debug mode ***")
     else()
-        message(STATUS "*** RELEASE mode ***")
+        message(STATUS "*** CMAKE_BUILD_TYPE_LOWER=Release mode ***")
     endif()
 
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
@@ -582,6 +602,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #plugins ################################################################################################
     # Plugins only make sense when use LUA
     # For Android, we must lik them all, if we do not enable all, do not link and the package size will be smaller
+    message(STATUS "Checking plugins...")
 
     if (USE_LUA)
         # we always need plugin-helper when using LUA script
@@ -597,9 +618,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                 add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
             endif()
             if(USE_LSQLITE3)
+                message(STATUS "Added SQLITE3 for android")
                 add_subdirectory(${SQLITE_LIB} 		${SQLITE_LIB})
             endif()
         else()
+            message(STATUS "LUA NOT defined plugins...")
             add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
             add_subdirectory(${SQLITE_LIB} 		    ${SQLITE_LIB})
             add_subdirectory(${BOX2D_LUA_LIB}       ${BOX2D_LUA_LIB})
@@ -608,6 +631,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
             #This is to build box2d-liquid-fun only (no LUA wrapper)
             #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
+        endif()
+    else()
+        message(STATUS "LUA NOT defined for ANDROID plugins...")
+        if(USE_IMGUI)
+            message(SEND_ERROR "USE_IMGUI defined but LUA is not enabled!")
+        endif()
+        if(USE_BOX2D)
+            message(SEND_ERROR "USE_BOX2D defined but LUA is not enabled!")
+        endif()
+        if(USE_BOX2D_LIQUID_FUN)
+            message(SEND_ERROR "USE_BOX2D_LIQUID_FUN defined but LUA is not enabled!")
+        endif()
+        if(USE_LSQLITE3)
+            message(SEND_ERROR "USE_LSQLITE3 defined but LUA is not enabled!")
         endif()
     endif()
 
@@ -619,13 +656,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         endif()
     endif()
 
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
-        add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
-    endif()
+    # TODO: Check bullet3d plugin and module
+    #if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+    #    add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
+    #endif()
 
-    if(NOT PLAT_LOWER STREQUAL "android")
-        add_subdirectory(${MODULES}                     ${MODULES})
-    endif()
+    #if(NOT PLAT_LOWER STREQUAL "android")
+    #    add_subdirectory(${MODULES}                     ${MODULES})
+    #endif()
     
     #end plugins ############################################################################################
 
@@ -634,7 +672,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_subdirectory(${PORT_AUDIO_LIB} 			${PORT_AUDIO_LIB})
     endif()
 
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
         add_subdirectory(${TEST_LIB} 				${TEST_LIB})
     endif()
 

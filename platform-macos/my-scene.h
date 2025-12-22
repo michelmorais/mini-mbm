@@ -1,4 +1,3 @@
-
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
@@ -18,100 +17,43 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include "my-scene.h"
-#include <core_mbm/util-interface.h>
-#include <core_mbm/device.h>
+#ifndef MY_SCENE_CPP_H
+#define MY_SCENE_CPP_H
 
-MY_SCENE::MY_SCENE()
-{
-}
-
-MY_SCENE::~MY_SCENE()
-{
-}
-
-void MY_SCENE::startLoading()
-{
-	INFO_LOG("Starting loading scene...");
-}
-	
-void MY_SCENE::endLoading()
-{
-	INFO_LOG("End loading scene...");
-}
-
-void MY_SCENE::init() 
-{
-    mbm::DEVICE *device = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280, 0);
-    util::addPath(__FILE__);//little trick to add path of file image when debuging VS
-}
-
-void MY_SCENE::logic()
-{
-    
-}
-
-void MY_SCENE::onTouchDown(int, float, float)
-{
-}
-
-void MY_SCENE::onTouchUp(int, float, float)
-{
-}
-
-void MY_SCENE::onTouchMove(int, float x, float y)
-{
-    
-}
-
-void MY_SCENE::onTouchZoom(float)
-{
-}
-
-void MY_SCENE::onFinalizeScene()
-{
-}
-
-void MY_SCENE::onKeyDown(int)
-{
-}
-
-void MY_SCENE::onKeyUp(int)
-{
-}
-
-void MY_SCENE::onKeyDownJoystick(int, int)
-{
-}
-
-void MY_SCENE::onKeyUpJoystick(int, int)
-{
-}
-
-void MY_SCENE::onMoveJoystick(int, float, float, float, float)
-{
-}
-
-void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
-{
-}
-
-bool GAME::existScene(const int idScene)
-{
-	if(idScene == this->myScene.getIdScene())
-		return true;
-	return false;
-}
+#include <core_mbm/scene.h>
+#include <core_mbm/core-manager.h>
 
 
-GAME::GAME()
+class MY_SCENE : public mbm::SCENE
 {
-    this->setScene(&myScene);
-}
-GAME::~GAME()
-{
-    mbm::DEVICE::quit();
-}
+  public:
+    MY_SCENE();
+    virtual ~MY_SCENE();
+	void startLoading();
+	void endLoading();
+    void init() ;
+    void logic();
+    void onTouchDown(int key, float x, float y);
+    void onTouchUp(int key, float x, float y);
+    void onTouchMove(int, float x, float y);
+    void onTouchZoom(float zoom);
+    void onFinalizeScene();
+    void onKeyDown(int key);
+    void onKeyUp(int key);
+    void onKeyDownJoystick(int player, int key);
+    void onKeyUpJoystick(int player, int key);
+    void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+    void onInfoDeviceJoystick(int player, int maxNumberButton, const char * strDeviceName,const char * extraInfo);
+    void onResizeWindow(){};
+};
 
+class GAME : public mbm::CORE_MANAGER
+{
+public:
+    MY_SCENE myScene;
+	bool existScene(const int idScene)override;
+    GAME();
+    virtual ~GAME();
+};
+
+#endif

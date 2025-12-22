@@ -46,7 +46,10 @@
     #elif defined ANDROID
         //do nothing
 
-    #elif defined(__linux__)
+    #elif defined(__linux__) // __APPLE__ bellow untested
+        #include <unistd.h>
+        #define access_file access
+    #elif defined(__APPLE__)
         #include <unistd.h>
         #define access_file access
     #else

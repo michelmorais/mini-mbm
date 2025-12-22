@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(core_mbm)
 
@@ -34,7 +34,7 @@ endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(${CORE_OPENGLES_INCLUDE} 
-                    ${GLES_INCLUDE}
+                    #${GLES_INCLUDE}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 
@@ -136,7 +136,15 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
 
-    message( SEND_ERROR "Not configurated for Apple src/CMakeList.txt")
+    #Opengl
+    include(FindOpenGLES2)
+    #pthreads
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    ####
+else()
+
+    message( SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM=${ENGINE_TARGET_PLATFORM} in src/CMakeLists.txt")
 
 endif()
 
@@ -206,5 +214,28 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     message(" ... ")
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    message( SEND_ERROR "Not configurated for Apple src/CMakeList.txt")
+    target_link_libraries(core_mbm ${X11_LIBRARIES})
+    target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
+    target_link_libraries(core_mbm ${EGL_LIBRARY})
+    target_link_libraries(core_mbm ${VULKAN_LIBRARY})
+    if (${AUDIO} STREQUAL "portaudio" )
+        target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
+    elseif(${AUDIO} STREQUAL "audiere" )
+        # Audiere for Linux (trick)
+        # Since it has it own MakeFile (not converted to cmake yet), we copy the generated library and added as IMPORTED library
+        add_library(${AUDIERE_LIBRARY} SHARED IMPORTED)
+        set_target_properties(${AUDIERE_LIBRARY} PROPERTIES IMPORTED_LOCATION "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/libaudiere-1.10.1.so")
+        add_dependencies(core_mbm audiere_cp)
+        target_link_libraries(core_mbm ${AUDIERE_LIBRARY})
+        # End Audiere for Linux
+    elseif(${AUDIO} STREQUAL "none")
+        message("Disabling sound audio class for MACOS ")
+    else()
+        message(SEND_ERROR " Unknow AUDIO choice: ${AUDIO}")
+    endif()
+    
+    target_link_libraries(core_mbm dl)
+    target_link_libraries(core_mbm pthread)
+else()
+    message( SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM=${ENGINE_TARGET_PLATFORM} in src/CMakeLists.txt")
 endif()

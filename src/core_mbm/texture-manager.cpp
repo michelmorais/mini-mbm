@@ -35,7 +35,7 @@
 #include <cstring>
 
 #if defined USE_EDITOR_FEATURES
-    #if (defined __linux__ || defined _WIN32) && !defined ANDROID
+    #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
         #include <tinyfiledialogs/tinyfiledialogs.h>
     #endif
 #endif
@@ -1193,7 +1193,7 @@ namespace mbm
         else
             return fileName;
     }
-#elif defined(_WIN32) || defined(__linux__)
+#elif defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
         if (!existPath)
@@ -1204,8 +1204,8 @@ namespace mbm
             }
             if (!existPath)
             {
-#if defined USE_EDITOR_FEATURES
-        #if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID))
+    #if defined USE_EDITOR_FEATURES
+        #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
@@ -1217,7 +1217,7 @@ namespace mbm
                     fileName = result;
                 }
         #endif
-#endif
+    #endif
             }
         }
         return fileName;
@@ -1292,6 +1292,20 @@ namespace mbm
     }
 #else
     #error "platform not suported"
+#endif
+#if defined (ANDROID) && defined USE_EDITOR_FEATURES
+    void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
+    {
+        for (auto& texture : lsTextures)
+        {
+            bool existTexture = false;
+            std::string fullPathTexture = util::getFullPath(texture.first.c_str(), &existTexture);
+            if (existTexture)
+            {
+                result.push_back(fullPathTexture);
+            }
+        }
+    }
 #endif
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
 }

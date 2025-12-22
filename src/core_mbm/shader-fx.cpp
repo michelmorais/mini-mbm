@@ -71,7 +71,7 @@
             break;
             case 4: // D3DBLENDOP_MIN              = 4,
             {
-    #if defined(ANDROID) || defined(__linux__)
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
                 GLBlendEquation(0x8007);
     #else
                 GLBlendEquation(GL_MIN);
@@ -80,7 +80,7 @@
             break;
             case 5: // D3DBLENDOP_MAX              = 5,
             {
-    #if defined(ANDROID) || defined(__linux__)
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
                 GLBlendEquation(0x8008);
     #else
                 GLBlendEquation(GL_MAX);

@@ -1,7 +1,6 @@
-
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -19,99 +18,12 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "my-scene.h"
-#include <core_mbm/util-interface.h>
-#include <core_mbm/device.h>
 
-MY_SCENE::MY_SCENE()
+int main()
 {
-}
-
-MY_SCENE::~MY_SCENE()
-{
-}
-
-void MY_SCENE::startLoading()
-{
-	INFO_LOG("Starting loading scene...");
-}
-	
-void MY_SCENE::endLoading()
-{
-	INFO_LOG("End loading scene...");
-}
-
-void MY_SCENE::init() 
-{
-    mbm::DEVICE *device = mbm::DEVICE::getInstance();
-    device->camera.position = mbm::VEC3(0, 280, -900);
-    device->camera.focus    = mbm::VEC3(0, 280, 0);
-    util::addPath(__FILE__);//little trick to add path of file image when debuging VS
-}
-
-void MY_SCENE::logic()
-{
-    
-}
-
-void MY_SCENE::onTouchDown(int, float, float)
-{
-}
-
-void MY_SCENE::onTouchUp(int, float, float)
-{
-}
-
-void MY_SCENE::onTouchMove(int, float x, float y)
-{
-    
-}
-
-void MY_SCENE::onTouchZoom(float)
-{
-}
-
-void MY_SCENE::onFinalizeScene()
-{
-}
-
-void MY_SCENE::onKeyDown(int)
-{
-}
-
-void MY_SCENE::onKeyUp(int)
-{
-}
-
-void MY_SCENE::onKeyDownJoystick(int, int)
-{
-}
-
-void MY_SCENE::onKeyUpJoystick(int, int)
-{
-}
-
-void MY_SCENE::onMoveJoystick(int, float, float, float, float)
-{
-}
-
-void MY_SCENE::onInfoDeviceJoystick(int, int, const char *,const char *)
-{
-}
-
-bool GAME::existScene(const int idScene)
-{
-	if(idScene == this->myScene.getIdScene())
-		return true;
-	return false;
-}
-
-
-GAME::GAME()
-{
-    this->setScene(&myScene);
-}
-GAME::~GAME()
-{
-    mbm::DEVICE::quit();
+    GAME game;
+    if(game.initGl("Hello-world"))
+        return game.loop();
+    return -1;
 }
 

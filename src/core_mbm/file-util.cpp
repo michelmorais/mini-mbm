@@ -39,7 +39,7 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
-#elif __linux__
+#elif __linux__ || defined(__APPLE__)
     #include <climits>
     #include <cstdarg>
     #include <unistd.h>
@@ -87,7 +87,7 @@ std::string auxRet_1,auxRet_2,auxRet_3;
     {
         return "decompressModel.tmp";
     }
-#elif defined __linux__
+#elif defined __linux__ || defined(__APPLE__)
     const char* ___getDecompressModelFileName()
     {
         return "/tmp/decompressModel.tmp";

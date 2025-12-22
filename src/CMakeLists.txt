@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(mini-mbm)
 
@@ -28,6 +28,10 @@ if (USE_LUA)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
+    else()
+        message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
 
 else()
@@ -44,6 +48,11 @@ else()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-android/scene-1.cpp)
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main.cpp)
+        set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-macos/my-scene.cpp)
+    else()
+        message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
 
 endif()
@@ -53,7 +62,7 @@ file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
 #Bring the headers, such as xxx.h into the project
 include_directories(${OPENGLES2_INCLUDE_DIR} 
                     ${INCLUDE}
-                    ${GLES_INCLUDE}
+                    #${GLES_INCLUDE}
                     ${RENDER_INCLUDES} 
                     ${CORE_OPENGLES_INCLUDES} 
                     ${THIRD_PARTY}
@@ -124,7 +133,15 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    message( SEND_ERROR "Not configurated for Apple src/CMakeList.txt")
+    add_executable(mini-mbm ${MAIN}
+                        ${SOURCES}
+                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                        ${BULLET3D_WRAP_SOURCES}
+                        ${TINYFILEDIALOGS_SOURCES}
+                        ${SCENE_CPP})
+    target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+else()
+    message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
 
 if (USE_LUA)

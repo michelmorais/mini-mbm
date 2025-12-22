@@ -30,12 +30,12 @@ extern "C"
     #include <lua.h>
 }
 
-#if defined __linux__ && !defined ANDROID
+#if defined __linux__  || defined(__APPLE__) && !defined ANDROID
     #include <pwd.h>
     #include <langinfo.h>
 #endif
 
-#if (defined __linux__ || defined _WIN32) && !defined ANDROID
+#if (defined __linux__ || defined _WIN32 || defined(__APPLE__)) && !defined ANDROID
     #include <tinyfiledialogs/tinyfiledialogs.h>
 #endif
 

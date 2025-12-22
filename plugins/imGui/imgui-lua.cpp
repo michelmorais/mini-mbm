@@ -24,7 +24,7 @@
 
 #if defined _WIN32
     #include "imgui_impl_win32.h"
-#elif defined(__linux__) && !defined (ANDROID)
+#elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
     #ifndef XK_MISCELLANY
         #define XK_MISCELLANY
     #endif
@@ -936,7 +936,7 @@ void lua_push_ImVec4_pointer(lua_State *lua,const ImVec4 * p_ImVec4);
 
 
 
-#if defined(__linux__) && !defined (ANDROID)
+#if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
     #define VKL_TAB          0x09
     #define VKL_LEFT         0x25
     #define VKL_RIGHT        0x27
@@ -992,7 +992,7 @@ public:
     ImVec2 MousePos,MousePosPrev;
 
     ImGuiContext*   imGuiContext;
-    #if defined(__linux__) && !defined (ANDROID)
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
         Display*    context;
     #elif defined(_WIN32)
         HWND        context;
@@ -1023,7 +1023,7 @@ public:
             #if defined _WIN32
                 context = static_cast<HWND>(_context);
                 ImGui_ImplWin32_Init(context);
-            #elif defined(__linux__) && !defined (ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 context = static_cast<Display*>(_context);
             #endif
 
@@ -1069,7 +1069,7 @@ public:
             imGuIo.KeyMap[ImGuiKey_X]           = 0x58;
             imGuIo.KeyMap[ImGuiKey_Y]           = 0x59;
             imGuIo.KeyMap[ImGuiKey_Z]           = 0x5A;
-        #elif defined(__linux__) && !defined (ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             imGuIo.KeyMap[ImGuiKey_Tab]         = VKL_TAB;//XK_Tab;
             imGuIo.KeyMap[ImGuiKey_LeftArrow]   = VKL_LEFT;//XK_Left;
             imGuIo.KeyMap[ImGuiKey_RightArrow]  = VKL_RIGHT;//XK_Right;
@@ -1170,7 +1170,7 @@ public:
             {
                 key_mouse::KeysDown[key]   = true;
             }
-            #if defined(__linux__) && !defined (ANDROID)
+            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             else
             {
                 switch(key)
@@ -1299,7 +1299,7 @@ public:
                         imGuIo.AddInputCharacter(']');
                 };
             };
-            #elif defined(__linux__) && !defined (ANDROID)
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             switch(key)
             {
                 case XK_Control_L:
@@ -1448,8 +1448,25 @@ public:
             {
                 #if defined ANDROID
                 //Not implemented
-                #elif defined __linux__
+                #elif defined __linux__ // __APPLE__ bellow untested
                 // Linux Debian 8.3.0-6, Linux version 4.19.0-6-amd64
+                switch (key)
+                {
+                    case 0xff9e: imGuIo.AddInputCharacter('0'); key_mouse::KeysDown['0'] = true; break; //
+                    case 0xff9c: imGuIo.AddInputCharacter('1'); key_mouse::KeysDown['1'] = true; break; //
+                    case 0xff99: imGuIo.AddInputCharacter('2'); key_mouse::KeysDown['2'] = true; break; //
+                    case 0xff9b: imGuIo.AddInputCharacter('3'); key_mouse::KeysDown['3'] = true; break; //
+                    case 0xff96: imGuIo.AddInputCharacter('4'); key_mouse::KeysDown['4'] = true; break; //
+                    case 0xff9d: imGuIo.AddInputCharacter('5'); key_mouse::KeysDown['5'] = true; break; //
+                    case 0xff98: imGuIo.AddInputCharacter('6'); key_mouse::KeysDown['6'] = true; break; //
+                    case 0xff95: imGuIo.AddInputCharacter('7'); key_mouse::KeysDown['7'] = true; break; //
+                    case 0xff97: imGuIo.AddInputCharacter('8'); key_mouse::KeysDown['8'] = true; break; //
+                    case 0xff9a: imGuIo.AddInputCharacter('9'); key_mouse::KeysDown['9'] = true; break; //
+                    default: break;
+                }
+                #elif defined __APPLE__ && !defined (ANDROID)
+                // MacOS 10.14.6
+                #pragma message("Not tested MacOS numpad keys")
                 switch (key)
                 {
                     case 0xff9e: imGuIo.AddInputCharacter('0'); key_mouse::KeysDown['0'] = true; break; //
@@ -1490,7 +1507,39 @@ public:
         {
             key_mouse::KeysDown[key]   = false;
         }
-        #if defined(__linux__) && !defined (ANDROID)
+        #if defined(__linux__) && !defined (ANDROID) // __APPLE__ bellow untested
+        else
+        {
+            switch(key)
+            {
+                case XK_Tab:            key_mouse::KeysDown[VKL_TAB]       = false; break;
+                case XK_Left:           key_mouse::KeysDown[VKL_LEFT]      = false; break;
+                case XK_Right:          key_mouse::KeysDown[VKL_RIGHT]     = false; break;
+                case XK_Up:             key_mouse::KeysDown[VKL_UP]        = false; break;
+                case XK_Down:           key_mouse::KeysDown[VKL_DOWN]      = false; break;
+                case XK_Page_Up:        key_mouse::KeysDown[VKL_PRIOR]     = false; break;
+                case XK_Page_Down:      key_mouse::KeysDown[VKL_NEXT]      = false; break;
+                case XK_Home:           key_mouse::KeysDown[VKL_HOME]      = false; break;
+                case XK_End:            key_mouse::KeysDown[VKL_END]       = false; break;
+                case XK_Insert:         key_mouse::KeysDown[VKL_INSERT]    = false; break;
+                case XK_Delete:         key_mouse::KeysDown[VKL_DELETE]    = false; break;
+                case XK_BackSpace:      key_mouse::KeysDown[VKL_BACK]      = false; break;
+                case VKL_SPACE:         key_mouse::KeysDown[VKL_SPACE]     = false; break;
+                case XK_Return:         key_mouse::KeysDown[VKL_RETURN]    = false; break;
+                case XK_Escape:         key_mouse::KeysDown[VKL_ESCAPE]    = false; break;
+                case XK_KP_Enter:       key_mouse::KeysDown[VKL_RETURN]    = false; break;
+                case XK_Control_L:
+                case XK_Control_R:      key_mouse::KeyCtrl                 = false; break;
+                case XK_Shift_L:
+                case XK_Shift_R:        key_mouse::KeyShift                = false; break;
+                case XK_Alt_L:
+                case XK_Alt_R:          key_mouse::KeyAlt                  = false; break;
+                case XK_Super_L:
+                case XK_Super_R:        key_mouse::KeySuper                = false; break;
+            }
+        }
+        #elif defined(__APPLE__) && !defined (ANDROID)
+        #pragma message("Not tested MacOS numpad keys")
         else
         {
             switch(key)
@@ -1543,7 +1592,7 @@ public:
 
     const bool isCapsLockOn()
     {
-        #if defined(__linux__) || defined (ANDROID)
+        #if defined(__linux__) || defined(__APPLE__) || defined (ANDROID)
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             return device->ptrManager->keyCapsLockState;
         #elif defined (_WIN32)
@@ -1659,7 +1708,7 @@ public:
                 }
             }
         }
-        #elif defined(__linux__) && !defined (ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
         Window w = 0;
         int current_focus_state = 0;
         if(XGetInputFocus(context,&w,&current_focus_state) != RevertToNone && w != 0)

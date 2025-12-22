@@ -468,7 +468,7 @@ namespace mbm
             if (the_idom.find("pt") != std::string::npos || the_idom.find("PT") != std::string::npos )
                 isPTbr  = true;
         }
-        #elif defined __linux__
+        #elif defined __linux__ || defined(__APPLE__)
         const char *lang = getenv("LANG");
         if (lang)
         {
@@ -486,9 +486,9 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "Opções de Tela";
+            temp_app_name        = "Opï¿½ï¿½es de Tela";
             temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma Resolução:";
+            temp_resol_name      = "Selecione uma Resoluï¿½ï¿½o:";
             temp_full_screen_lbl = "Tela cheia";
             temp_play_lbl        = "INICIAR";
         }
@@ -516,7 +516,7 @@ namespace mbm
             {
                 if (isPTbr)
                 {
-                    sprintf(str, "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld", (int)i + 1, temp.width, temp.height,
+                    sprintf(str, "%d: %ld x %ld, frequï¿½ncia:%lu, posiï¿½ï¿½o:%ld x %ld", (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 else
