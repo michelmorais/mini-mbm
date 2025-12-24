@@ -162,18 +162,38 @@ void help(const std::string & executableName)
     log_util::print_colored(COLOR_TERMINAL_RED,  "    DEBUG VERBOSE................: NO\n");
     #endif
 
-    #ifdef USE_OPENGL_ES
-    log_util::print_colored(COLOR_TERMINAL_GREEN,"    OPENGL ES....................: YES\n");
-    #else
-    log_util::print_colored(COLOR_TERMINAL_RED,  "    OPENGL ES....................: NO\n");
-    #endif
-
-    #ifdef USE_VULKAN
-    log_util::print_colored(COLOR_TERMINAL_GREEN,"    VULKAN.......................: YES\n");
-    #else
-    log_util::print_colored(COLOR_TERMINAL_RED,  "    VULKAN.......................: NO\n");
-    #endif
-
+    if(util::isBackendEngineDirectx())
+    {
+        log_util::print_colored(COLOR_TERMINAL_GREEN,"    DIRECTX......................: YES\n");
+    }
+    else
+    {
+        log_util::print_colored(COLOR_TERMINAL_RED,  "    DIRECTX......................: NO\n");
+    }
+    if(util::isBackendEngineMetal())
+    {
+        log_util::print_colored(COLOR_TERMINAL_GREEN,"    METAL........................: YES\n");
+    }
+    else
+    {
+        log_util::print_colored(COLOR_TERMINAL_RED,  "    METAL........................: NO\n");
+    }
+    if(util::isBackendEngineOpenGlEs())
+    {
+        log_util::print_colored(COLOR_TERMINAL_GREEN,"    OPENGL ES....................: YES\n");
+    }
+    else
+    {
+        log_util::print_colored(COLOR_TERMINAL_RED,  "    OPENGL ES....................: NO\n");
+    }
+    if(util::isBackendEngineVulkan())
+    {
+        log_util::print_colored(COLOR_TERMINAL_GREEN,"    VULKAN.......................: YES\n");
+    }
+    else
+    {
+        log_util::print_colored(COLOR_TERMINAL_RED,  "    VULKAN.......................: NO\n");
+    }
     #ifdef USE_DEPRECATED_2_MINOR
     log_util::print_colored(COLOR_TERMINAL_GREEN,"    COMPATIBLE DEPRECATED VERSION: YES\n");
     #else

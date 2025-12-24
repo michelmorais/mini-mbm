@@ -869,6 +869,7 @@ namespace mbm
         const char *what = luaL_checkstring(lua, 1);
         if (what)
         {
+            DEVICE *device = DEVICE::getInstance();
             if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 || strcasecmp(what, "linux") == 0)
             {
     #if defined _WIN32
@@ -907,15 +908,7 @@ namespace mbm
                     versions += "\nAudio engine: ";
                     versions += aud;
                 }
-    #ifdef USE_OPENGL_ES
-                const char *v = (const char *)glGetString(GL_VERSION);
-                versions += "\nOpengL: ";
-                versions += v;
-    #else
-                versions += "\nDirectx: ";
-                sprintf(tempVersion, "%x", DIRECT3D_VERSION);
-                versions += tempVersion;
-    #endif
+                versions += device->getBackendEngineVersion();
                 versions += "\nMini Z: ";
                 versions += MZ_VERSION;
 
@@ -936,17 +929,14 @@ namespace mbm
             {
                 lua_pushstring(lua, AUDIO_ENGINE_version());
             }
-    #ifdef USE_OPENGL_ES
             else if (strcasecmp(what, "opengl") == 0)
             {
-                lua_pushstring(lua, (const char *)glGetString(GL_VERSION));
+                lua_pushstring(lua, device->getBackendEngineVersion());
             }
-    #else
             else if (strcasecmp(what, "directx") == 0)
             {
-                lua_pushfstring(lua, "%p", DIRECT3D_VERSION);
+                lua_pushstring(lua, device->getBackendEngineVersion());
             }
-    #endif
             else if (strcasecmp(what, "Mini Z") == 0 || strcasecmp(what, "Mini-Z") == 0 || strcasecmp(what, "MiniZ") == 0)
             {
                 lua_pushstring(lua, MZ_VERSION);
@@ -957,8 +947,7 @@ namespace mbm
             }
             else if (strcasecmp(what, "exe") == 0 || strcasecmp(what, "exe name") == 0 || strcasecmp(what, "exename") == 0)
             {
-                DEVICE* tDevice = DEVICE::getInstance();
-                DYNAMIC_VAR* dExeName = tDevice->lsDynamicVarGlobal["_executable_name_"];
+                DYNAMIC_VAR* dExeName = device->lsDynamicVarGlobal["_executable_name_"];
                 if(dExeName)
                     lua_pushstring(lua, dExeName->getString());
                 else
@@ -990,11 +979,8 @@ namespace mbm
             }
             else if (strcasecmp(what, "USE_OPENGL_ES") == 0)
             {
-                #ifdef USE_OPENGL_ES
-                    lua_pushboolean(lua,1);
-                #else
-                    lua_pushboolean(lua,0);
-                #endif
+                const bool is_opengles = strcasecmp(device->getBackendEngineName(),"OpenGL ES") == 0;
+                lua_pushboolean(lua,is_opengles ? 1 : 0);
             }
 			else
             {

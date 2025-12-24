@@ -85,6 +85,10 @@ namespace util
     API_IMPL const char * getDecompressModelFileName();
     API_IMPL const char* getBaseName(const char *fileName);
 	API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
+    API_IMPL bool isBackendEngineOpenGlEs() noexcept;
+    API_IMPL bool isBackendEngineDirectx() noexcept;
+    API_IMPL bool isBackendEngineVulkan() noexcept;
+    API_IMPL bool isBackendEngineMetal() noexcept;
 }
 
 namespace log_util

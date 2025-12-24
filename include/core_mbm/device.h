@@ -133,6 +133,10 @@ namespace mbm
         API_IMPL void getDimFromFrustum(VEC3 *dimNear, VEC3 *dimFar) const noexcept;
         API_IMPL void setBillboard(MATRIX *out, VEC3 *position = nullptr, VEC3 *scale = nullptr);
         API_IMPL bool renderToRestore(RENDERIZABLE * renderizable);
+        API_IMPL void clearDepth();
+        API_IMPL const char* getBackendEngineName()const noexcept;
+        API_IMPL const char* getBackendEngineVersion()const noexcept;
+        API_IMPL void clearDepthColored();
         #if defined _WIN32 || defined(ANDROID)
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
         #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)

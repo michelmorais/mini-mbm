@@ -730,6 +730,62 @@ namespace mbm
         return renderizable && renderizable->render();
     }
 
+    void DEVICE::clearDepth()
+    {
+        #if defined (USE_OPENGL_ES)
+            GLClearDepthf(1.0f);
+            GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        #elif defined(USE_DIRECTX)
+            #error ClearDepthf is not defined if not USE_OPENGL_ES
+        #else
+            #error ClearDepthf is not defined if not for USE_OPENGL_ES or USE_DIRECTX
+        #endif
+    }
+    void DEVICE::clearDepthColored()
+    {
+        #if defined (USE_OPENGL_ES)
+            GLClearDepthf(1.0f);
+            GLClearColor(this->colorClearBackGround.r,
+                         this->colorClearBackGround.g,
+                         this->colorClearBackGround.b,
+                         this->colorClearBackGround.a);
+            GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        #elif defined(USE_DIRECTX)
+            #error ClearDepthf is not defined if not USE_OPENGL_ES
+        #else
+            #error ClearDepthf is not defined if not for USE_OPENGL_ES or USE_DIRECTX
+        #endif
+    }
+
+    const char* DEVICE::getBackendEngineName() const noexcept
+    {
+        #if defined (USE_OPENGL_ES)
+            return "OpenGL ES";
+        #elif defined(USE_DIRECTX)
+            return "DirectX";
+        #else
+            return "Unknown";
+        #endif
+    }
+
+    const char* DEVICE::getBackendEngineVersion() const noexcept
+    {
+        static std::string versions(32,' ');
+        #if defined (USE_OPENGL_ES)
+            const char *v = (const char *)glGetString(GL_VERSION);
+            versions = "\nOpengL: ";
+            versions += v;
+        #elif defined(USE_DIRECTX)
+            versions = "\nDirectx: ";
+            char tempVersion[16];
+            sprintf(tempVersion, "%x", DIRECT3D_VERSION);
+            versions += tempVersion;
+        #else
+            versions = "Unknown";
+        #endif
+        return versions.c_str();
+    }
+
     #if defined _WIN32
     void DEVICE::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {

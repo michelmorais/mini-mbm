@@ -598,10 +598,7 @@ namespace mbm
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (percent == 0)
             {
-    #ifdef USE_OPENGL_ES
-                GLClearDepthf(1.0f);
-                GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    #endif
+                device->clearDepth();
                 if (this->textureRestore == nullptr)
                 {
                     this->textureRestore = new TEXTURE_VIEW(false,true);
@@ -619,12 +616,7 @@ namespace mbm
             {
                 if (this->textureRestore)
                 {
-                    #ifdef USE_OPENGL_ES
-                        GLClearColor(device->colorClearBackGround.r, device->colorClearBackGround.g, device->colorClearBackGround.b,
-                                     device->colorClearBackGround.a);
-                        GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                        GLClearDepthf(1.0f);
-                    #endif
+                    device->clearDepthColored();
                     this->textureRestore->angle.z = util::degreeToRadian((180.0f / 100.0f) * percent);
                     device->renderToRestore(this->textureRestore);
                 }
@@ -1161,11 +1153,8 @@ namespace mbm
             LUA_MANAGER::pLuaManager = this;
 			log_util::setScriptPrintLine(onScriptPrintLine);
 			util::setOnAddPathScript(onAddPathScript);
-    #ifdef USE_OPENGL_ES
-            this->nameAplication = "Mini-mbm " MBM_VERSION " GLES";
-    #else
-            this->nameAplication = "Mini-mbm " MBM_VERSION;
-    #endif
+            this->nameAplication = "Mini-mbm " MBM_VERSION " ";
+            this->nameAplication += device->getBackendEngineName();
             this->nameAplication += "\n Compiled: " __DATE__;
             this->widthWindow        = 800;
             this->heightWindow       = 600;
@@ -1192,11 +1181,8 @@ namespace mbm
             pLuaManager->device = mbm::DEVICE::getInstance();
 			log_util::setScriptPrintLine(onScriptPrintLine);
 			util::setOnAddPathScript(onAddPathScript);
-    #if defined USE_OPENGL_ES
-            this->nameAplication = "Mini-mbm " MBM_VERSION" GLES";
-    #else
-            this->nameAplication = "Mini-mbm " MBM_VERSION;
-    #endif
+            this->nameAplication = "Mini-mbm " MBM_VERSION " ";
+            this->nameAplication += pLuaManager->device->getBackendEngineName();
             this->nameAplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
@@ -1449,11 +1435,12 @@ namespace mbm
                 this->setScene(newScene);
             }
     #if (defined _WIN32 || defined __linux__ || defined __APPLE__)  && !defined ANDROID
-    #ifdef USE_OPENGL_ES
             this->loop();
-    #else
-            this->enterLoop();
-    #endif
+    //#ifdef USE OPENGL ES TODO: check this
+    //        this->loop();
+    //#else
+    //        this->enterLoop();
+    //#endif
     #endif
             return 0;
         }
