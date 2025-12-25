@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
