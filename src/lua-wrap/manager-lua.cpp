@@ -1436,11 +1436,6 @@ namespace mbm
             }
     #if (defined _WIN32 || defined __linux__ || defined __APPLE__)  && !defined ANDROID
             this->loop();
-    //#ifdef USE OPENGL ES TODO: check this
-    //        this->loop();
-    //#else
-    //        this->enterLoop();
-    //#endif
     #endif
             return 0;
         }
