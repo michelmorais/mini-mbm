@@ -386,7 +386,10 @@
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\device.cpp">
+    <ClCompile Include="..\..\src\core_mbm\device_common.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\device_opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp">
