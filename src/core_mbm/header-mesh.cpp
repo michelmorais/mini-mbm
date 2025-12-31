@@ -20,7 +20,9 @@
 #include <header-mesh.h>
 #include <util-interface.h>
 #include <cstring>
+#if defined (USE_OPENGL_ES)
 #include <GLES2/gl2.h>
+#endif
 
 #include <utility>
 

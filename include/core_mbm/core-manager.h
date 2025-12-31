@@ -29,7 +29,9 @@
 
 #if defined _WIN32
     #include <joystick-win32/joystick.h>
+    #if defined (USE_OPENGL_ES)
     #include <EGL/egl.h>
+    #endif
 //    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
@@ -277,6 +279,8 @@ namespace mbm
         float stepRestoreInfo;
         float percentRestoreInfo;
     };
+
+    
 }
 
 #endif

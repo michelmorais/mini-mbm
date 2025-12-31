@@ -17,6 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined (USE_OPENGL_ES)
+
 #include <core-manager.h>
 #include <device.h>
 #include <scene.h>
@@ -32,6 +34,7 @@
 #include <algorithm>
 #include <cstring>
 #include <log-util.h>
+#include <cr-static-local.h>
 
 #if defined(ANDROID)
 #include <platform/common-jni.h>
@@ -40,8 +43,6 @@
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
     #include <X11/XKBlib.h>
-    //#include <X11/extensions/Xcomposite.h>
-    //#include <X11/Xmu/WinUtil.h>
 #elif defined(_WIN32)
     #include <GLES2/gl2ext.h>
 #endif
@@ -56,6 +57,7 @@
 
 namespace mbm
 {
+
 enum WHICH_FOR : char
 {
     WFOR_INITIAL,
@@ -72,6 +74,44 @@ enum STEP_RETORE : char
     STEP_RES_OBJ,
     STEP_RES_END,
 };
+
+constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
+    {}
+        
+    constexpr EVENT_KEY::EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
+        : x(_x),
+            y(_y),
+            key(_key),
+            player(0),
+            rx(0.0f),
+            ry(0.0f),
+            eventType(_eventName)
+    {}
+    constexpr EVENT_KEY::EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
+                        const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
+                                                                                            ly(_ly),
+                                                                                            key(_key),
+                                                                                            player(_player),
+                                                                                            rx(_rx),
+                                                                                            ry(_ry),
+                                                                                            eventType(_eventName)
+    {}
+
+    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
+    {}
+
+    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
+                                const char *_extraInfo)
+        : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
+    {}
+
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
+
+    EVENTS::EVENTS() noexcept
+    = default;
+    EVENTS::~EVENTS() = default;
+
+    #endif
 
 void printGLString(const char *name, GLenum s);
 void printGLStringNewLine(const char *name, GLenum s, const char delimit);
@@ -118,44 +158,6 @@ void printGLString(const char *name, GLenum s)
     }
 #endif
 
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-
-    EVENTS::EVENTS() noexcept
-    = default;
-    EVENTS::~EVENTS() = default;
-
-#endif
-
-    constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
-    {}
-        
-    constexpr EVENT_KEY::EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
-        : x(_x),
-            y(_y),
-            key(_key),
-            player(0),
-            rx(0.0f),
-            ry(0.0f),
-            eventType(_eventName)
-    {}
-    constexpr EVENT_KEY::EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                        const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
-                                                                                            ly(_ly),
-                                                                                            key(_key),
-                                                                                            player(_player),
-                                                                                            rx(_rx),
-                                                                                            ry(_ry),
-                                                                                            eventType(_eventName)
-    {}
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
-    {}
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                const char *_extraInfo)
-        : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
-    {}
-
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
@@ -192,29 +194,7 @@ void printGLString(const char *name, GLenum s)
     #endif
     }
     
-    void CORE_MANAGER::setScene(SCENE *currentScene)
-    {
-        this->device->scene = currentScene;
-    }
     
-    void CORE_MANAGER::onStop()
-    {
-        for (auto ptr : this->device->lsObjectRender2DS)
-        {
-            ptr->onStop();
-        }
-        for (auto ptr : this->device->lsObjectRender2DW)
-        {
-            ptr->onStop();
-        }
-        for (auto ptr : this->device->lsObjectRender3D)
-        {
-            ptr->onStop();
-        }
-        TEXTURE_MANAGER::getInstance()->release();
-        MESH_MANAGER::getInstance()->release();
-        this->device->pauseGame();
-    }
 
 #if defined ANDROID
     bool CORE_MANAGER::onLostDevice(JNIEnv *jenv, jobject , int width, int height)
@@ -1609,19 +1589,6 @@ void printGLString(const char *name, GLenum s)
     }
 #endif
     
-    void CORE_MANAGER::update()
-    {
-        if (!device->run)
-            return;
-        this->device->updateFps();
-        this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-        this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
-        this->adjustScaleScreen2d();
-        this->logic();
-        this->updatePhysis();
-        this->updateAudio();
-    }
-    
     bool CORE_MANAGER::renderToTargets()
     {
         bool oneRender = false;
@@ -1663,431 +1630,6 @@ void printGLString(const char *name, GLenum s)
             this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
         }
         return true;
-    }
-
-    
-    void CORE_MANAGER::prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,
-                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d)
-    {
-        const std::vector<RENDERIZABLE*>::size_type total2d = lsAllObjects2d.size();
-        for (std::vector<RENDERIZABLE*>::size_type i = 0; i < total2d; ++i)
-        {
-            RENDERIZABLE *ptr = lsAllObjects2d[i];
-            if (ptr)
-            {
-                ptr->updateAABB();
-                if (ptr->isRender2Texture)
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                else if (!ptr->enableRender)
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                else if (ptr->alwaysRenderize)
-                {
-                    ptr->isObjectOnFrustum = true;
-                }
-                else if (ptr->isOnFrustum())
-                {
-                    ptr->isObjectOnFrustum = true;
-                }
-                else
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                if (ptr->isObjectOnFrustum)
-                {
-                    lsRenderOnFrustum2d.push_back(ptr);
-                    ptr->__distFromView = ptr->position.z;
-                }
-            }
-        }
-        std::sort(lsRenderOnFrustum2d.begin(), lsRenderOnFrustum2d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
-    }
-    
-    void CORE_MANAGER::prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,
-                                std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d)
-    {
-        mbm::DEVICE *      device  = mbm::DEVICE::getInstance();
-        const std::vector<RENDERIZABLE*>::size_type total3d = lsAllObjects3d.size();
-        for (std::vector<RENDERIZABLE*>::size_type i = 0; i < total3d; ++i)
-        {
-            RENDERIZABLE *ptr = lsAllObjects3d[i];
-            if (ptr)
-            {
-                ptr->updateAABB();
-                if (ptr->isRender2Texture)
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                else if (!ptr->enableRender)
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                else if (ptr->alwaysRenderize)
-                {
-                    ptr->isObjectOnFrustum = true;
-                }
-                else if (ptr->isOnFrustum())
-                {
-                    ptr->isObjectOnFrustum = true;
-                }
-                else
-                {
-                    ptr->isObjectOnFrustum = false;
-                }
-                if (ptr->isObjectOnFrustum)
-                {
-                    lsRenderOnFrustum3d.push_back(ptr);
-                    const VEC3 distFromCam(ptr->position - device->camera.position);
-                    ptr->__distFromView = distFromCam.length();
-                }
-            }
-        }
-        std::sort(lsRenderOnFrustum3d.begin(), lsRenderOnFrustum3d.end(),
-                  [](const RENDERIZABLE *a, const RENDERIZABLE *b) { return b->__distFromView < a->__distFromView; });
-    }
-
-    
-    void CORE_MANAGER::render()
-    {
-        if (!device)
-            return;
-        if (!device->run)
-            return;
-        std::vector<RENDERIZABLE *> lsRender2ds;
-        std::vector<RENDERIZABLE *> lsRender2dw;
-        std::vector<RENDERIZABLE *> lsRender3d;
-        // Atualiza a camera de acordo com a
-        // projeção----
-        device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-        // prepara para renderizar os objeto --
-        device->totalObjectsIsRendering3D = 0;
-        device->totalObjectsOnFrustum3D   = 0;
-        device->totalObjects3D            = static_cast<uint32_t>(this->device->lsObjectRender3D.size());
-        device->totalObjectsIsRendering2D = 0;
-        device->totalObjectsOnFrustum2D   = 0;
-        const auto total2ds       = static_cast<uint32_t>(this->device->lsObjectRender2DS.size());
-        const auto total2dw       = static_cast<uint32_t>(this->device->lsObjectRender2DW.size());
-        device->totalObjects2D            = total2ds + total2dw;
-
-#if defined USE_THREAD
-        std::thread thread2ds(prepareRender2d, std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds));
-        std::thread thread2dw(prepareRender2d, std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        std::thread thread3d(prepareRender3d, std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
-        if (thread2ds.joinable())
-            thread2ds.join();
-        if (thread2dw.joinable())
-            thread2dw.join();
-        if (thread3d.joinable())
-            thread3d.join();
-#else
-        prepareRender2d(std::ref(this->device->lsObjectRender2DS), std::ref(lsRender2ds)); //-V525
-        prepareRender2d(std::ref(this->device->lsObjectRender2DW), std::ref(lsRender2dw));
-        prepareRender3d(std::ref(this->device->lsObjectRender3D), std::ref(lsRender3d));
-#endif
-
-        device->totalObjectsOnFrustum2D = static_cast<uint32_t>(lsRender2ds.size() + lsRender2dw.size());
-        device->totalObjectsOnFrustum3D = static_cast<uint32_t>(lsRender3d.size());
-        
-        if (!this->renderToTargets())
-            return;
-        
-        if (device->clearBackGround)
-        {
-            GLClearColor(device->colorClearBackGround.r, device->colorClearBackGround.g, device->colorClearBackGround.b,
-                         device->colorClearBackGround.a);
-            GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear The Screen And The Depth Buffer
-            GLClearDepthf(1.0f);
-        }
-        device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
-        device->camera.updateNormalsRelativeCam();
-        device->camera.calculateAzimuthFromCamera();
-        this->device->camera.matrixBillboard = this->device->camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
-        MatrixInverse(&this->device->camera.matrixBillboard, nullptr, &this->device->camera.matrixBillboard);
-        device->totalObjectsIsRendering3D = 0;
-        for (auto ptrRender : lsRender3d)
-        {
-            if (ptrRender->render())
-                ++device->totalObjectsIsRendering3D;
-        }
-        
-        device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-        device->totalObjectsIsRendering2D = 0;
-        device->setDephtTest(true);
-        for (auto ptrRender : lsRender2dw)
-        {
-            if (ptrRender->render())
-                device->totalObjectsIsRendering2D++;
-        }
-        device->setDephtTest(false);
-        for (auto ptrRender : lsRender2ds)
-        {
-            if (ptrRender->render())
-                ++device->totalObjectsIsRendering2D;
-        }
-        device->setDephtTest(true);
-        
-    }
-    
-    void CORE_MANAGER::_updateDimFrustum()
-    {
-        VEC3 point(0, 0, 50);
-        this->device->dimNearFrustum3d = VEC3(0, 0, 20);
-        this->device->dimFarFrustum3d  = VEC3(0, 0, 980);
-        this->device->camera.updateCam(true, this->device->backBufferWidth, this->device->backBufferHeight);
-        this->device->updateFrustum(&this->device->camera.matrixView, &this->device->camera.matrixProj);
-        while (this->device->isPointAtTheFrustum(point))
-        {
-            point.x += 0.5f;
-        }
-        this->device->dimNearFrustum3d.x = point.x * 2.0f;
-
-        point = VEC3(0, 0, 50);
-        while (this->device->isPointAtTheFrustum(point))
-        {
-            point.y += 0.5f;
-        }
-        this->device->dimNearFrustum3d.y = point.y * 2.0f;
-
-        point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
-        {
-            point.x += 0.5f;
-        }
-        this->device->dimFarFrustum3d.x = point.x * 2.0f;
-
-        point = VEC3(0, 0, 980);
-        while (this->device->isPointAtTheFrustum(point))
-        {
-            point.y += 0.5f;
-        }
-        this->device->dimFarFrustum3d.y = point.y * 2.0f;
-    }
-    
-    void CORE_MANAGER::adjustScaleScreen2d()
-    {
-        if (this->device->camera.expectedScreen.x != 0.0f && this->device->camera.expectedScreen.y != 0.0f) //-V550
-        {
-            const float percx = this->device->backBufferWidth / this->device->camera.expectedScreen.x;
-            const float percy = this->device->backBufferHeight / this->device->camera.expectedScreen.y;
-            if (percx != 0.0f && percy != 0.0f) //-V550
-            {
-                if (this->device->camera.stretch[0])
-                {
-                    if (strcmp(this->device->camera.stretch, "x") == 0)
-                    {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                    }
-                    else if (strcmp(this->device->camera.stretch, "y") == 0)
-                    {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                    }
-                    else if (strcmp(this->device->camera.stretch, "xy") == 0)
-                    {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percy;
-                    }
-                    else if (percx < percy)
-                    {
-                        this->device->camera.scaleScreen2d.x = percx;
-                        this->device->camera.scaleScreen2d.y = percx;
-                    }
-                    else
-                    {
-                        this->device->camera.scaleScreen2d.x = percy;
-                        this->device->camera.scaleScreen2d.y = percy;
-                    }
-                }
-                else if (percx < percy)
-                {
-                    this->device->camera.scaleScreen2d.x = percx;
-                    this->device->camera.scaleScreen2d.y = percx;
-                }
-                else
-                {
-                    this->device->camera.scaleScreen2d.x = percy;
-                    this->device->camera.scaleScreen2d.y = percy;
-                }
-            }
-        }
-    }
-    
-    void CORE_MANAGER::updateAudio()
-    {
-		if(this->device->audioInterface)
-			this->device->audioInterface->update(this,this->device->scene->getIdScene());
-    }
-    
-    void CORE_MANAGER::updatePhysis()
-    {
-        if (!this->device->scene)
-            return;
-        const float        fps            = this->device->delta == 0.0f ? 0.0f : this->device->fps; //-V550
-        const int          idCurrentScene = this->device->scene->getIdScene();
-        const std::vector<PHYSICS*>::size_type s = this->device->lsPhysics.size();
-        for (std::vector<PHYSICS*>::size_type i = 0; i < s; ++i)
-        {
-            PHYSICS *ptr = this->device->lsPhysics[i];
-            if (ptr && ptr->enablePhysics && ptr->idScene == idCurrentScene)
-            {
-                ptr->update(fps,this->device->delta);
-            }
-        }
-    }
-    
-    void CORE_MANAGER::initEnableRenders()
-    {
-        for (auto ptr : this->device->lsObjectRender3D)
-        {
-            if (ptr != nullptr)
-            {
-                ptr->enableRender = false;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DS)
-        {
-            if (ptr != nullptr)
-            {
-                ptr->enableRender = false;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DW)
-        {
-            if (ptr != nullptr)
-            {
-                ptr->enableRender = false;
-            }
-        }
-    }
-    
-    void CORE_MANAGER::logic()
-    {
-        if (this->device->scene != nullptr)
-        {
-            if (this->device->scene->endScene)
-            {
-                this->device->scene->onFinalizeScene();
-                this->device->scene->wasUnloadedScene = true;
-                disableRender(this->device->scene->getIdScene());
-                for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                {
-                    PLUGIN * plugin = this->lsPlugins[i];
-                    plugin->onDestroy();
-                }
-                this->lsPlugins.clear();
-                if (this->device->scene->goToNextScene && this->device->scene->nextScene == nullptr)
-                {
-                    this->device->run             = false;
-                    this->device->clearBackGround = false;
-                }
-                else
-                {
-                    if (this->device->scene->goToNextScene)
-                        this->device->scene       = this->device->scene->nextScene;
-					if(this->device->scene)
-						this->device->scene->endScene = false;
-                    changeScene                   = true;
-                    this->device->clearBackGround = true;
-					if(this->device->scene)
-						this->device->scene->startLoading();
-                }
-                this->__sceneWasInit = false;
-            }
-            else if (changeScene)
-            {
-                if (this->device->__swapBackBufferStep == 3)
-                {
-                    this->reinitTimers();
-                    enableRender(this->device->scene->getIdScene());
-                    this->device->scene->wasUnloadedScene = false;
-                    this->device->orderRender.reInit();
-                    this->device->scene->init();
-                    this->device->setFakeFps(120,60);
-                    this->device->resumeTimer();
-                    this->__sceneWasInit          = true;
-                    changeScene                   = false;
-                    this->device->clearBackGround = true;
-					if(this->device->scene)
-						this->device->scene->endLoading();
-                }
-                else
-                {
-                    this->device->clearBackGround = false;
-                    this->device->__swapBackBufferStep++;
-                }
-            }
-            else
-            {
-                this->device->scene->logic();
-            }
-        }
-    }
-    
-    void CORE_MANAGER::reinitTimers()
-    {
-        this->device->clearAdditionalTimers();
-        this->device->resumeTimer();
-    }
-    
-    void CORE_MANAGER::enableRender(const int idScene)
-    {
-        for (auto ptr : this->device->lsObjectRender3D)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DS)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DW)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = true;
-            }
-        }
-    }
-    
-    void CORE_MANAGER::disableRender(const int idScene)
-    {
-        for (auto ptr : this->device->lsObjectRender3D)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DS)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
-            }
-        }
-        for (auto ptr : this->device->lsObjectRender2DW)
-        {
-            if (ptr != nullptr)
-            {
-                if (ptr->getIdScene() == idScene)
-                    ptr->enableRender = false;
-            }
-        }
     }
     
     void CORE_MANAGER::pushEvent(EVENT_KEY *event)
@@ -2533,50 +2075,111 @@ void printGLString(const char *name, GLenum s)
         }
         return 0xffffffff;
     }
-
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
-    void CORE_MANAGER::execute_system_cmd_thread(const char* command)//execute system command in other thread
-    {
-        auto fNextThreadName = []() -> std::string
-        {
-            static int iNumThread = 0;
-            std::string name("__thread_");
-            name += std::to_string(++iNumThread);
-            return name;
-        };
-        auto fExecute = [] (std::string command) -> void
-        {
-            system(command.c_str());
-        };
-        static std::string sCommand;
-        sCommand                         = command;
-        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
-        std::string name                 = fNextThreadName();
-        std::thread* exec_thread         = new std::thread(fExecute, std::ref(sCommand));
-        DYNAMIC_VAR* dyVar               = new DYNAMIC_VAR(DYNAMIC_REF,static_cast<const void*>(exec_thread));
-        device->lsDynamicVarGlobal[name] = dyVar;
-    }
-    #endif
 }
 
-#if defined(_WIN32)
-
-namespace util
+namespace log_util
 {
-    void getDisplayMetrics(int * width, int * height)
+    OnScriptPrintLine onScriptPrintLine = nullptr;
+
+    void setScriptPrintLine(OnScriptPrintLine onNewScriptPrintLine) noexcept
     {
-        mbm::MONITOR_MANAGER manMonit;
-        mbm::MONITOR    monitor;
-        manMonit.updateMonitors();
-        for (DWORD iMon = 0; iMon < manMonit.getTotalMonitor(); ++iMon)
+        onScriptPrintLine = onNewScriptPrintLine;
+    }
+
+    void callScriptPrintLine() noexcept
+    {
+        if(onScriptPrintLine)
+            onScriptPrintLine();
+    }
+
+    const char *getDescriptionError(const unsigned int error)
+    {
+        switch (error)
         {
-            if (manMonit.isMainMonitor(iMon) && manMonit.getMonitor(iMon, &monitor))
+            case 0x0500: // GL_INVALID_ENUM:
             {
-                *width = monitor.width;
-                *height = monitor.height;
-                break;
+                return ("\nAn unacceptable value is specified for an enumerated argument.\n"
+                        "The offending command is ignored\n"
+                        "and has no other side effect than to set the error flag.\n");
+            }
+            case 0x0501: // GL_INVALID_VALUE:
+            {
+                return ("\nA numeric argument is out of range.\n"
+                        "The offending command is ignored\n"
+                        "and has no other side effect than to set the error flag.\n");
+            }
+            case 0x0502: // GL_INVALID_OPERATION:
+            {
+                return ("\nThe specified operation is not allowed in the current state.\n"
+                        "The offending command is ignored\n"
+                        "and has no other side effect than to set the error flag.\n");
+            }
+            case 0x0506: // GL_INVALID_FRAMEBUFFER_OPERATION:
+            {
+                return ("\nThe framebuffer object is not complete. The offending command\n"
+                        "is ignored and has no other side effect than to set the error flag.\n");
+            }
+            case 0x0505: // GL_OUT_OF_MEMORY:
+            {
+                return ("\nThere is not enough memory left to execute the command.\n"
+                        "The state of the GL is undefined,\n"
+                        "except for the state of the error flags,\n"
+                        "after this error is recorded.\n");
+            }
+            default:
+            {
+                static char errStr[255];
+                sprintf(errStr, "Unknown error gl: decimal:[%d] hexadecimal [0x%x] ", (int)error, (int)error);
+                return errStr;
             }
         }
     }
+
+    void checkGlError(const char *fileName, const int numLine, const char *message)
+    {
+        for (GLenum error = glGetError(); error; error = glGetError())
+        {
+            CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
+            bool mustContinue = false;
+            for (uint32_t lsError : lsErrors)
+            {
+                if (lsError == error)
+                {
+                    mustContinue = true;
+                    break;
+                }
+            }
+            if (mustContinue)
+                continue;
+            lsErrors.push_back(error);
+            const char *errorAsString = getDescriptionError(error);
+            callScriptPrintLine();
+            INFO_LOG("File [%s] Line[%d] %s()\n%s", basename(fileName), numLine, message ? message : "[message]",errorAsString);
+        }
+    }
+
+    void checkGlError(const char *fileName, const int numLine)
+    {
+        for (GLenum error = glGetError(); error; error = glGetError())
+        {
+            CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
+            bool mustContinue = false;
+            for (uint32_t lsError : lsErrors)
+            {
+                if (lsError == error)
+                {
+                    mustContinue = true;
+                    break;
+                }
+            }
+            if (mustContinue)
+                continue;
+            lsErrors.push_back(error);
+            const char *errorAsString = getDescriptionError(error);
+            callScriptPrintLine();
+            INFO_LOG("\nFile [%s] Line[%d] \n%s", basename(fileName), numLine, errorAsString);
+        }
+    }
+
 }
 #endif

@@ -22,7 +22,9 @@
 #include <map>
 #include <cstdarg>
 #include <cr-static-local.h>
+#if defined (USE_OPENGL_ES)
 #include <GLES2/gl2.h>
+#endif
 
 #if defined ANDROID
     #include <android/asset_manager.h>
@@ -31,58 +33,9 @@
     #include <unistd.h>
 #endif
 
-OnScriptPrintLine onScriptPrintLine = nullptr;
 
 namespace log_util
 {
-
-void setScriptPrintLine(OnScriptPrintLine onNewScriptPrintLine) noexcept
-{
-	onScriptPrintLine = onNewScriptPrintLine;
-}
-
-const char *getDescriptionError(const unsigned int error)
-{
-	switch (error)
-    {
-        case 0x0500: // GL_INVALID_ENUM:
-        {
-            return ("\nAn unacceptable value is specified for an enumerated argument.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0501: // GL_INVALID_VALUE:
-        {
-            return ("\nA numeric argument is out of range.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0502: // GL_INVALID_OPERATION:
-        {
-            return ("\nThe specified operation is not allowed in the current state.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0506: // GL_INVALID_FRAMEBUFFER_OPERATION:
-        {
-            return ("\nThe framebuffer object is not complete. The offending command\n"
-                    "is ignored and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0505: // GL_OUT_OF_MEMORY:
-        {
-            return ("\nThere is not enough memory left to execute the command.\n"
-                    "The state of the GL is undefined,\n"
-                    "except for the state of the error flags,\n"
-                    "after this error is recorded.\n");
-        }
-        default:
-        {
-            static char errStr[255];
-            sprintf(errStr, "Unknown error gl: decimal:[%d] hexadecimal [0x%x] ", (int)error, (int)error);
-            return errStr;
-        }
-    }
-}
 
 void replaceString(std::string &source, const std::string &from, const std::string &to)
 {
@@ -148,53 +101,9 @@ const char *basename(const char *fileName)
     return "nullptr";
 }
 
-void checkGlError(const char *fileName, const int numLine, const char *message)
-{
-    for (GLenum error = glGetError(); error; error = glGetError())
-    {
-        CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
-        bool mustContinue = false;
-        for (uint32_t lsError : lsErrors)
-        {
-            if (lsError == error)
-            {
-                mustContinue = true;
-                break;
-            }
-        }
-        if (mustContinue)
-            continue;
-        lsErrors.push_back(error);
-        const char *errorAsString = getDescriptionError(error);
-		if(onScriptPrintLine)
-			onScriptPrintLine();
-        INFO_LOG("File [%s] Line[%d] %s()\n%s", basename(fileName), numLine, message ? message : "[message]",errorAsString);
-    }
-}
+#if defined (USE_OPENGL_ES)
 
-void checkGlError(const char *fileName, const int numLine)
-{
-    for (GLenum error = glGetError(); error; error = glGetError())
-    {
-        CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
-        bool mustContinue = false;
-        for (uint32_t lsError : lsErrors)
-        {
-            if (lsError == error)
-            {
-                mustContinue = true;
-                break;
-            }
-        }
-        if (mustContinue)
-            continue;
-        lsErrors.push_back(error);
-        const char *errorAsString = getDescriptionError(error);
-		if(onScriptPrintLine)
-			onScriptPrintLine();
-        INFO_LOG("\nFile [%s] Line[%d] \n%s", basename(fileName), numLine, errorAsString);
-    }
-}
+#endif
 
 char *formatNewMessage(const size_t length, const char *message, va_list params)
 {
@@ -217,9 +126,8 @@ bool fail(const int lineNum, const char *fileName, const char *format, ...)
     HWND hConsole = GetConsoleWindow();
     ShowWindow(hConsole, SW_SHOWNOACTIVATE);
 #endif
-	if(onScriptPrintLine)
-		onScriptPrintLine();
-    ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, _buffer);
+    callScriptPrintLine();
+	ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, _buffer);
     delete[] _buffer;
     return false;
 }
@@ -233,8 +141,7 @@ bool onFailed(FILE *fp, const char *fileName, const int numLine, const char *for
     va_start(va_args, format);
     char *_buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-	if(onScriptPrintLine)
-		onScriptPrintLine();
+	callScriptPrintLine();
     log_util::log_tag_file_and_line(numLine, fileName,TYPE_LOG_ERROR, _buffer);
     delete[] _buffer;
     if (fp)

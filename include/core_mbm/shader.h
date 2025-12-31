@@ -26,6 +26,7 @@
 #include <vector>
 #include <string>
 
+#if defined (USE_OPENGL_ES)
 #if defined ANDROID
     #include <GLES2/gl2.h>
 #elif defined __MINGW32__ | defined __CYGWIN__
@@ -36,6 +37,7 @@
     #include <GLES2/gl2.h>
 #elif defined __APPLE__
     #include <GLES2/gl2.h>
+#endif
 #endif
 
 namespace util

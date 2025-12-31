@@ -108,6 +108,7 @@ namespace log_util
 	API_IMPL void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...);
     API_IMPL void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format, ...);
 	API_IMPL void setScriptPrintLine(OnScriptPrintLine onScriptPrintLine) noexcept;
+    API_IMPL void callScriptPrintLine() noexcept;
 }
 
 #endif
