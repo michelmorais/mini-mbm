@@ -29,18 +29,12 @@
 
 #if defined _WIN32
     #include <joystick-win32/joystick.h>
-    //#if defined (USE_OPENGL_ES)
-    //#include <EGL/egl.h>
-    //#endif
-//    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
 #elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
     #include <EGL/egl.h>
 #endif
-#include <GLES2/gl2.h>
-
 
 class PLUGIN;
 
