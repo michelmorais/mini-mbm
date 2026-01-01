@@ -2382,5 +2382,6 @@ namespace util
             default                : return false;
         }
     }
+
 }
 //#endif

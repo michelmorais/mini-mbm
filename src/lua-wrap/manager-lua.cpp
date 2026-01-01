@@ -33,7 +33,6 @@ extern "C"
 #include <core_mbm/device.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/util-interface.h>
-#include <core_mbm/gles-debug.h>
 #include <core_mbm/renderizable-clone.h>
 #include <version/version.h>
 #include <static-resource/mini-mbm-logo.h>

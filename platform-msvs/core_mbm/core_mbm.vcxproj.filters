@@ -353,6 +353,9 @@
     <ClCompile Include="..\..\src\render\render-2-texture.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\render\sprite.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>

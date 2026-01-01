@@ -20,7 +20,6 @@
 #include <gif-view.h>
 #include <texture-manager.h>
 #include <image-resource.h>
-#include <gles-debug.h>
 #include <util-interface.h>
 #include <string>
 #include <platform/common-jni.h>
@@ -259,16 +258,6 @@ namespace mbm
             if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                 this->textures[anim->indexCurrentFrame] = nullptr;
         }
-    }
-    
-    void GIF_VIEW::renderToRestore()
-    {
-        GLClearColor(1.0f, 1.0f, 1.0f, 0.0f);
-        GLClearDepthf(1.0f);
-        GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        device->camera.updateCam(false, device->getBackBufferWidth(), device->getBackBufferHeight());
-        this->render();
     }
     
     bool GIF_VIEW::isOnFrustum()

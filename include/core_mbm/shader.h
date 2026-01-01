@@ -81,9 +81,9 @@ namespace mbm
         uint8_t *useAlpha;      // Usa alpha para a textura
         unsigned int   idTexture1;    // id textura stagio 1 passado no momento de renderizar o shader
         bool           isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
-		unsigned int   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
-		unsigned int   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
-		unsigned int   mode_front_face_direction; //GL_CW, GL_CCW
+        unsigned int   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        unsigned int   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        unsigned int   mode_front_face_direction; //GL_CW, GL_CCW
     };
 
     class BASE_SHADER

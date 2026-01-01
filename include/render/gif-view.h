@@ -42,13 +42,10 @@ namespace mbm
         API_IMPL bool setFrame(const float width, const float height);
         API_IMPL BUFFER_GL *getFrame();
         API_IMPL TEXTURE *getTexture() const;
-        API_IMPL virtual bool setTexture(
-            const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
-            const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
+        API_IMPL virtual bool setTexture(const MESH_MBM *mesh, const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;// fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
         API_IMPL void setTextureToNull();
-        API_IMPL void renderToRestore();
-		API_IMPL FX*  getFx() const override;
-		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+		    API_IMPL FX*  getFx() const override;
+		    API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
 		
       private:
         bool isOnFrustum() override;

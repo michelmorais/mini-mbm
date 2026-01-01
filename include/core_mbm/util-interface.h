@@ -28,6 +28,11 @@
 typedef void (*OnScriptPrintLine)();
 typedef void (*OnAddPathScript)(const char*);
 
+namespace mbm
+{
+    class TEXTURE;
+}
+
 enum TYPE_LOG : char
 {
     TYPE_LOG_ERROR,
