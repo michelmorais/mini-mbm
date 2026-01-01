@@ -105,7 +105,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
-        game->initGl(static_cast<int>(width),static_cast<int>(height));
+        game->initGraphics(static_cast<int>(width),static_cast<int>(height));
         game->setExpectedSizeOfWindow(static_cast<int>(expectedWidth),static_cast<int>(expectedHeight),"y");
         game->device->jni->absPath         = _absPath ? _absPath : "";
         game->device->jni->apkPath         = _apkPath ? _apkPath : "";
