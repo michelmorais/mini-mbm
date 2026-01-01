@@ -25,6 +25,10 @@
 #include <cstring>
 #include <functional>
 
+#if defined _WIN32
+#include <plusWindows/plusWindows.h>
+#endif
+
 namespace util
 {
 

@@ -1391,11 +1391,11 @@ namespace mbm
     #endif
 	    setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
     #if defined ANDROID
-            if (this->initGl(this->widthWindow, this->heightWindow))
+            if (this->initGraphics(this->widthWindow, this->heightWindow))
     #elif defined _WIN32
-            if (this->initGl(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, this->positionXWindow,this->positionYWindow, border,this->enableResizeWindow))
+            if (this->initGraphics(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, this->positionXWindow,this->positionYWindow, border,this->enableResizeWindow))
     #elif defined __linux__ || defined __APPLE__
-            if (this->initGl(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, border))
+            if (this->initGraphics(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, border))
     #else
         #error "undefined platform"
     #endif

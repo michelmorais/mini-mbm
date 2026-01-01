@@ -66,7 +66,7 @@
 //  ES 2.0    100       "#version 100"      = WebGL 1.0
 //  ES 3.0    300       "#version 300 es"   = WebGL 2.0
 //----------------------------------------
-#if defined (USE_OPENGL_ES)
+
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -676,4 +676,3 @@ void    ImGui_ImplOpenGL3_DestroyDeviceObjects()
 
     ImGui_ImplOpenGL3_DestroyFontsTexture();
 }
-#endif

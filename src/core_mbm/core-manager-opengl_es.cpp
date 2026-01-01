@@ -55,8 +55,16 @@
 #include <plugin-callback.h>
 #include <dynamic-var.h>
 
+struct AUX_SPECIFIC_CONTEXT
+{
+    EGLDisplay eglDisplay;
+    EGLSurface eglSurface;
+    EGLContext eglContext;
+};
+
 namespace mbm
 {
+    
 
 enum WHICH_FOR : char
 {
@@ -161,6 +169,7 @@ void printGLString(const char *name, GLenum s)
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
+		this->specificContext  = new AUX_SPECIFIC_CONTEXT();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
         this->percentRestoreInfo = 0.0f;
@@ -184,6 +193,8 @@ void printGLString(const char *name, GLenum s)
     CORE_MANAGER::~CORE_MANAGER()
     {
         DEVICE::quit();
+        delete this->specificContext;
+        this->specificContext = nullptr;
     #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         eglDestroyContext(this->egl_dpy, this->egl_ctx);
         eglDestroySurface(this->egl_dpy, this->egl_surf);
@@ -214,9 +225,9 @@ void printGLString(const char *name, GLenum s)
     #define __nameAplication "Mini-mbm " MBM_VERSION " GLES"
 #endif
 #if defined(_WIN32)
-            if (initGl(__nameAplication, width, height,px,py, false,false))
+            if (initGraphics(__nameAplication, width, height,px,py, false,false))
 #elif defined(ANDROID)
-            if (initGl(width, height))
+            if (initGraphics(width, height))
 #elif defined(__linux__) || defined(__APPLE__)
             (void)px;
             (void)py;
@@ -226,7 +237,7 @@ void printGLString(const char *name, GLenum s)
 #endif
             {
                 #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGl sucess!",stepRestore);
+                    WARN_LOG("onLostDevice step %d function initGraphics sucess!",stepRestore);
                 #endif
                 
                 this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
@@ -238,7 +249,7 @@ void printGLString(const char *name, GLenum s)
             else
             {
                 #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGl failed!",stepRestore);
+                    WARN_LOG("onLostDevice step %d function initGraphics failed!",stepRestore);
                 #endif
                 return false;
             }
@@ -259,7 +270,7 @@ void printGLString(const char *name, GLenum s)
             stepRestore = STEP_RES_OBJ;
             this->which_for =  WFOR_INITIAL;
             #if defined(_WIN32) 
-            eglSwapBuffers(this->eglDisplay,this->eglSurface);
+            eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                 eglSwapBuffers(egl_dpy, egl_surf);
             #endif
@@ -320,7 +331,7 @@ void printGLString(const char *name, GLenum s)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
-                                eglSwapBuffers(eglDisplay, eglSurface);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
@@ -354,7 +365,7 @@ void printGLString(const char *name, GLenum s)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
-                                eglSwapBuffers(this->eglDisplay,this->eglSurface);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
@@ -388,7 +399,7 @@ void printGLString(const char *name, GLenum s)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
-                                eglSwapBuffers(this->eglDisplay,this->eglSurface);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
                                 eglSwapBuffers(egl_dpy, egl_surf);
                             #endif
@@ -403,7 +414,7 @@ void printGLString(const char *name, GLenum s)
             }
             stepRestore = STEP_RES_END;
             #if defined(_WIN32) 
-            eglSwapBuffers(this->eglDisplay,this->eglSurface);
+            eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
             eglSwapBuffers(egl_dpy, egl_surf);
             #endif
@@ -597,29 +608,30 @@ void printGLString(const char *name, GLenum s)
 #endif
 
 #if defined(_WIN32) 
-    bool CORE_MANAGER::initGl(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
 #elif defined (ANDROID)
-    bool CORE_MANAGER::initGl(const int width, const int height)
+    bool CORE_MANAGER::initGraphics(const int width, const int height)
 #elif defined (__linux__) || defined(__APPLE__)
-    bool CORE_MANAGER::initGl(const char *nameAplication, int width, int height, const bool border)
+    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const bool border)
 #else
-    #error "undefined initGl"
-    bool CORE_MANAGER::initGl()
+    #error "undefined initGraphics"
+    bool CORE_MANAGER::initGraphics()
 #endif
     {
         int x = width;
         int y = height;
 #ifdef _WIN32
+		DEVICE* device = DEVICE::getInstance();
         device->window.setNameAplication(nameAplication);
-        if (!this->device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+        if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
                                        this->idIcon,false))
         {
-            this->device->window.messageBox("error on init app ... will be closed ");
+            device->window.messageBox("error on init app ... will be closed ");
             PRINT_IF_DEBUG( "error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        this->device->window.setMinSizeAllowed(800,600);
-        HWND mNativeWindow = this->device->window.getHwnd();
+        device->window.setMinSizeAllowed(800,600);
+        HWND mNativeWindow = device->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
@@ -643,16 +655,16 @@ void printGLString(const char *name, GLenum s)
             x = width;
             y = height;
         }
-        this->device->window.setCallEventsManager(this);
-        this->initJoystick(&this->device->window);
+        device->window.setCallEventsManager(this);
+        this->initJoystick(&device->window);
 
         HDC hdc = GetDC(device->window.getHwnd());
         // Create EGL display connection
-        this->eglDisplay = eglGetDisplay(hdc);
+        this->specificContext->eglDisplay = eglGetDisplay(hdc);
         // Initialize EGL for this display, returns EGL version
         EGLint eglVersionMajor = 0;
         EGLint eglVersionMinor = 0;
-        if(eglInitialize(this->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
+        if(eglInitialize(this->specificContext->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
         {
             ERROR_LOG(" EGL could not be initialized");
             return false;
@@ -679,7 +691,7 @@ void printGLString(const char *name, GLenum s)
             EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
             EGL_NONE};
 
-        /*if ( EGL_FALSE == eglGetConfigs(this->eglDisplay, NULL, 0, &numConfigs) )
+        /*if ( EGL_FALSE == eglGetConfigs(this->specificContext->eglDisplay, NULL, 0, &numConfigs) )
         {
             ERROR_LOG("Could not get number of all configs");
             return false;
@@ -687,7 +699,7 @@ void printGLString(const char *name, GLenum s)
 
         // collect information about the configs
         EGLConfig *configs = new EGLConfig[numConfigs];
-        if ( EGL_FALSE == eglGetConfigs(this->eglDisplay,configs,numConfigs,&numConfigs) )
+        if ( EGL_FALSE == eglGetConfigs(this->specificContext->eglDisplay,configs,numConfigs,&numConfigs) )
         {
             delete [] configs;
             ERROR_LOG("Could not get number all configs");
@@ -729,43 +741,43 @@ void printGLString(const char *name, GLenum s)
         {
             memset(&newFormat,0,sizeof(newFormat));
             EGLConfig config = configs[c];
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_RED_SIZE, &(newFormat._red_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_BLUE_SIZE, &(newFormat._blue_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_ALPHA_SIZE, &(newFormat._alpha_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGB, &(newFormat._bind_to_texture_rgb));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGBA, &(newFormat._bind_to_texture_rgba));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_RED_SIZE, &(newFormat._red_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_BLUE_SIZE, &(newFormat._blue_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_ALPHA_SIZE, &(newFormat._alpha_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGB, &(newFormat._bind_to_texture_rgb));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGBA, &(newFormat._bind_to_texture_rgba));
             
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_BUFFER_SIZE, &(newFormat._buffer_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_CONFIG_CAVEAT, &(newFormat._config_caveat));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_CONFIG_ID, &(newFormat._config_id));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_DEPTH_SIZE, &(newFormat._depth_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_LEVEL, &(newFormat._level));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_MAX_PBUFFER_WIDTH, &(newFormat._max_pbuffer_width));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_MAX_PBUFFER_HEIGHT, &(newFormat._max_pbuffer_height));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_MAX_PBUFFER_PIXELS, &(newFormat._max_pbuffer_pixels));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_MAX_SWAP_INTERVAL, &(newFormat._max_swap_interval));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_MIN_SWAP_INTERVAL, &(newFormat._min_swap_interval));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_NATIVE_RENDERABLE, &(newFormat._native_renderable));
-            eglGetConfigAttrib( this->eglDisplay, config, EGL_NATIVE_VISUAL_ID, &(newFormat._native_vrenderable));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_BUFFER_SIZE, &(newFormat._buffer_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_CONFIG_CAVEAT, &(newFormat._config_caveat));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_CONFIG_ID, &(newFormat._config_id));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_DEPTH_SIZE, &(newFormat._depth_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_LEVEL, &(newFormat._level));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_MAX_PBUFFER_WIDTH, &(newFormat._max_pbuffer_width));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_MAX_PBUFFER_HEIGHT, &(newFormat._max_pbuffer_height));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_MAX_PBUFFER_PIXELS, &(newFormat._max_pbuffer_pixels));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_MAX_SWAP_INTERVAL, &(newFormat._max_swap_interval));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_MIN_SWAP_INTERVAL, &(newFormat._min_swap_interval));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_NATIVE_RENDERABLE, &(newFormat._native_renderable));
+            eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_NATIVE_VISUAL_ID, &(newFormat._native_vrenderable));
             /// etc etc etc for all those that you care about
  
             if ( eglVersionMajor >= 1 && eglVersionMinor >= 2 )
             {       
                 // 1.2
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_ALPHA_MASK_SIZE, &(newFormat._alpha_mask_size));
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_COLOR_BUFFER_TYPE, &(newFormat._color_buffer_type));
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_LUMINANCE_SIZE, &(newFormat._luminance_size));
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_RENDERABLE_TYPE, &(newFormat._renderable_type));
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_ALPHA_MASK_SIZE, &(newFormat._alpha_mask_size));
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_COLOR_BUFFER_TYPE, &(newFormat._color_buffer_type));
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_LUMINANCE_SIZE, &(newFormat._luminance_size));
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_RENDERABLE_TYPE, &(newFormat._renderable_type));
             }
  
             if ( eglVersionMajor >= 1 && eglVersionMinor >= 3 )
             {
                 // 1.3
-                //const char * ext = eglQueryString(this->eglDisplay,EGL_EXTENSIONS);
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_CONFORMANT, &(newFormat._conformant));
-                eglGetConfigAttrib( this->eglDisplay, config, EGL_CONTEXT_OPENGL_ROBUST_ACCESS, &(newFormat._egl_robust));
+                //const char * ext = eglQueryString(this->specificContext->eglDisplay,EGL_EXTENSIONS);
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_CONFORMANT, &(newFormat._conformant));
+                eglGetConfigAttrib( this->specificContext->eglDisplay, config, EGL_CONTEXT_OPENGL_ROBUST_ACCESS, &(newFormat._egl_robust));
                 
                 //eglQueryString (configs[i], EGL_COLOR_COMPONENT_TYPE_EXT,
                 //                   &config.colorComponentType, "EGL_EXT_pixel_format_float",
@@ -853,11 +865,11 @@ void printGLString(const char *name, GLenum s)
         }
         //auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform"); it works
         auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform");
-        EGLBoolean result = eglChooseConfig(this->eglDisplay, the_attribs, &windowConfig, 1, &numConfigs);
+        EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, the_attribs, &windowConfig, 1, &numConfigs);
         */
-        EGLBoolean result = eglChooseConfig(this->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
+        EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
         
-        //EGLBoolean result = eglChooseConfig(this->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
+        //EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
         switch (result )
         {
             case EGL_TRUE:break;
@@ -886,38 +898,38 @@ void printGLString(const char *name, GLenum s)
         }
 
         EGLint surfaceAttributes[] = { EGL_NONE };
-        this->eglSurface = eglCreateWindowSurface(this->eglDisplay, windowConfig, device->window.getHwnd(), surfaceAttributes);
-        //this->eglSurface = eglCreateWindowSurface(this->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
-        if(this->eglSurface == nullptr)
+        this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), surfaceAttributes);
+        //this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
+        if(this->specificContext->eglSurface == nullptr)
         {
             ERROR_LOG(" Could not create EGL Window surface");
             return false;
         }
 
         //EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-	    //this->eglContext = eglCreateContext(this->eglDisplay, windowConfig, NULL, contextAttributes);
+	    //this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, contextAttributes);
         EGLint es3ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
-        this->eglContext = eglCreateContext(this->eglDisplay, windowConfig, NULL, es3ContextAttribs);
-        if(this->eglContext == nullptr)
+        this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, es3ContextAttribs);
+        if(this->specificContext->eglContext == nullptr)
         {
             ERROR_LOG(" Could not create EGL context");
             return false;
         }
-        result = eglMakeCurrent(this->eglDisplay, this->eglSurface, this->eglSurface, this->eglContext);
+        result = eglMakeCurrent(this->specificContext->eglDisplay, this->specificContext->eglSurface, this->specificContext->eglSurface, this->specificContext->eglContext);
         if(result != EGL_TRUE)
         {
             ERROR_LOG(" Could not make EGL context current");
             return false;
         }
 
-        this->device->window.disableRender(mNativeWindow);
+        device->window.disableRender(mNativeWindow);
 		if (device->verbose)
 		{
 			printGLString("\nversion:\n", GL_VERSION);
 			printGLString("vendor:\n", GL_VENDOR);
 			printGLString("renderer:\n", GL_RENDERER);
             //printGLStringNewLine("GL Extensions:\n", GL_EXTENSIONS, ' ');
-            //printEGLStringNewLine(this->eglDisplay, ' ');
+            //printEGLStringNewLine(this->specificContext->eglDisplay, ' ');
             
 			MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
@@ -1007,19 +1019,19 @@ void printGLString(const char *name, GLenum s)
         if (!variablesInitialized)
         {
             // Cfg shader from memory----
-            if (!this->device->cfg.parserCFGFromResource())
+            if (!device->cfg.parserCFGFromResource())
             {
                 PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
                 return -1;
             }
-            this->device->cfg.sortShader();
+            device->cfg.sortShader();
             device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
+            device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
             variablesInitialized                  = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
+            device->camera.expectedScreen.x = device->backBufferWidth;
+            device->camera.expectedScreen.y = device->backBufferHeight;
         }
         this->update();
         this->render();
@@ -1259,7 +1271,7 @@ void printGLString(const char *name, GLenum s)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onEndRender();
             }
-            eglSwapBuffers(this->eglDisplay,this->eglSurface);
+            eglSwapBuffers(this->specificContext->eglDisplay,this->specificContext->eglSurface);
         }
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
         {
@@ -1268,8 +1280,8 @@ void printGLString(const char *name, GLenum s)
         }
         if(this->device->audioInterface)
             this->device->audioInterface->stopAll();
-        eglDestroyContext(this->eglDisplay,this->eglContext);
-        eglDestroySurface(this->eglDisplay, this->eglSurface);
+        eglDestroyContext(this->specificContext->eglDisplay,this->specificContext->eglContext);
+        eglDestroySurface(this->specificContext->eglDisplay, this->specificContext->eglSurface);
         return 0;
     }
 
@@ -2181,5 +2193,86 @@ namespace log_util
         }
     }
 
+}
+
+namespace util
+{
+    const unsigned int get_mode_draw_from_string(const char* str_mode_draw, const unsigned int default_mode_draw_ret)
+    {
+        if (str_mode_draw == nullptr)
+            return default_mode_draw_ret;
+        if (strcmp(str_mode_draw, "TRIANGLES") == 0)
+            return GL_TRIANGLES;
+        if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
+            return GL_TRIANGLE_STRIP;
+        if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
+            return GL_TRIANGLE_FAN;
+        if (strcmp(str_mode_draw, "LINES") == 0)
+            return GL_LINES;
+        if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
+            return GL_LINE_LOOP;
+        if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
+            return GL_LINE_STRIP;
+        if (strcmp(str_mode_draw, "POINTS") == 0)
+            return GL_POINTS;
+        return default_mode_draw_ret;
+    }
+
+    const char* get_mode_draw_from_uint(const unsigned int mode_draw, const char* default_mode_draw_ret)
+    {
+        switch (mode_draw)
+        {
+        case GL_POINTS: return "POINTS";
+        case GL_LINES: return "LINES";
+        case GL_LINE_LOOP: return "LINE_LOOP";
+        case GL_LINE_STRIP: return "LINE_STRIP";
+        case GL_TRIANGLES: return "TRIANGLES";
+        case GL_TRIANGLE_STRIP: return "TRIANGLE_STRIP";
+        case GL_TRIANGLE_FAN: return "TRIANGLE_FAN";
+        default: return default_mode_draw_ret;
+        }
+    }
+
+    const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face, const unsigned int default_mode_cull_face_ret)
+    {
+        if (str_mode_cull_face == nullptr)
+            return default_mode_cull_face_ret;
+        if (strcmp(str_mode_cull_face, "FRONT") == 0)
+            return GL_FRONT;
+        if (strcmp(str_mode_cull_face, "BACK") == 0)
+            return GL_BACK;
+        if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
+            return GL_FRONT_AND_BACK;
+        return default_mode_cull_face_ret;
+    }
+    const char* get_mode_cull_face_from_uint(const unsigned int mode_cull_face, const char* default_mode_cull_face_ret)
+    {
+        switch (mode_cull_face)
+        {
+        case GL_FRONT: return "FRONT";
+        case GL_BACK: return "BACK";
+        case GL_FRONT_AND_BACK: return "FRONT_AND_BACK";
+        default: return default_mode_cull_face_ret;
+        }
+    }
+    const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction, const unsigned int default_mode_front_face_direction_ret)
+    {
+        if (str_mode_front_face_direction == nullptr)
+            return default_mode_front_face_direction_ret;
+        if (strcmp(str_mode_front_face_direction, "CW") == 0)
+            return GL_CW;
+        if (strcmp(str_mode_front_face_direction, "CCW") == 0)
+            return GL_CCW;
+        return default_mode_front_face_direction_ret;
+    }
+    const char* get_mode_front_face_direction_from_uint(const unsigned int mode_front_face_direction, const char* default_mode_front_face_direction_ret)
+    {
+        switch (mode_front_face_direction)
+        {
+        case GL_CW: return "CW";
+        case GL_CCW: return "CCW";
+        default: return default_mode_front_face_direction_ret;
+        }
+    }
 }
 #endif

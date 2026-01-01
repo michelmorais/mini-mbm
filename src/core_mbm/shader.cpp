@@ -806,7 +806,7 @@ namespace mbm
 #endif
     }
 
-    uint32_t SHADER::compileCodeShader(const GLenum type, const char *shaderSrc)
+    uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)
     {
         uint32_t shader;
         int          compiled;

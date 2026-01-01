@@ -94,14 +94,6 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int errorLuaPushFalse(lua_State *lua,const char* msg);
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLuaToLineMesh(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
-    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_draw_from_string(const char* str_mode_draw,const uint32_t default_mode_draw_ret);
-    extern "C" PLUGIN_HELPER_API const char * get_mode_draw_from_uint(const uint32_t mode_draw,const char * default_mode_draw_ret);
-
-    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face,const uint32_t default_mode_cull_face_ret);
-    extern "C" PLUGIN_HELPER_API const char * get_mode_cull_face_from_uint(const uint32_t mode_cull_face,const char * default_mode_cull_face_ret);
-
-    extern "C" PLUGIN_HELPER_API const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction,const uint32_t default_mode_front_face_direction_ret);
-    extern "C" PLUGIN_HELPER_API const char * get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction,const char * default_mode_front_face_direction_ret);
 
 }
 

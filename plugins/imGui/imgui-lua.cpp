@@ -1018,7 +1018,12 @@ public:
             //#else
             //    glShaderSource(g_VertHandle, 2, vertex_shader_with_version, nullptr);
             //#endif
+#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_Init("#version 100");
+			
+#else
+            #error "Not implemented for ImGui Init"
+#endif
 
             #if defined _WIN32
                 context = static_cast<HWND>(_context);
@@ -1637,7 +1642,11 @@ public:
             memcpy(imGuIo.KeysDown,key_mouse::KeysDown,sizeof(key_mouse::KeysDown));
             memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));
 
+#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_NewFrame();
+#else
+            #error "Not implemented for ImGui NewFrame"
+#endif
             ImGui::NewFrame();
 
             key_mouse::mouse_wheel              = 0;
@@ -1670,12 +1679,20 @@ public:
             ImGui::EndFrame();
             ImGui::Render();
             ImDrawData* draw_data = ImGui::GetDrawData();
+#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+#else
+            #error "Not implemented for ImGui RenderDrawData"
+#endif
         }
     }
     void onDestroy()
     {
+#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
         ImGui_ImplOpenGL3_Shutdown();
+#else
+        #error "Not implemented for ImGui Shutdown"
+#endif
         ImGui::DestroyContext();
         imGuiContext = nullptr;
     }

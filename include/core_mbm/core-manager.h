@@ -29,9 +29,9 @@
 
 #if defined _WIN32
     #include <joystick-win32/joystick.h>
-    #if defined (USE_OPENGL_ES)
-    #include <EGL/egl.h>
-    #endif
+    //#if defined (USE_OPENGL_ES)
+    //#include <EGL/egl.h>
+    //#endif
 //    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
@@ -43,6 +43,7 @@
 
 
 class PLUGIN;
+struct AUX_SPECIFIC_CONTEXT;
 
 namespace mbm
 {
@@ -136,6 +137,7 @@ namespace mbm
     {
       public:
         DEVICE *device;
+		AUX_SPECIFIC_CONTEXT* specificContext;
         bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
@@ -164,28 +166,24 @@ namespace mbm
     #endif
 
     #if defined(_WIN32)
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-        //std::unique_ptr<EGLDisplay> eglDisplay;
-        //std::unique_ptr<EGLSurface> eglSurface;
-        API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
+        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #elif defined (ANDROID)
-        API_IMPL bool initGl(const int width = 800, const int height = 600);
+        API_IMPL bool initGraphics(const int width = 800, const int height = 600);
     #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
+        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
     #else
         #error "undefined platform"
-        API_IMPL bool initGl();
+        API_IMPL bool initGraphics();
     #endif
 
-    #ifdef ANDROID
+#ifdef ANDROID
         API_IMPL int loop(JNIEnv *, jobject);
-    #elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+#elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL int loop();
-    #else
-    #error "platform not suported!"
-    #endif
+#else
+#error "platform not suported!"
+#endif
+    
 
     #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);

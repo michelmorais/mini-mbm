@@ -75,29 +75,29 @@ namespace mbm
         API_IMPL bool isLoadedBuffer() const;
         API_IMPL void release();
         
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer
-        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, uint32_t totalSubsets, int *indexStartSubset,int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);
+        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const unsigned int totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer
+        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const uint16_t *arrayIndices,const unsigned int totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer
+        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, unsigned int totalSubsets, int *indexStartSubset,int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);
         // Index buffer
-        uint32_t  vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
-        uint32_t *vboIndexSubsetIB;   // vbo index buffer IB
+        unsigned int  vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
+        unsigned int *vboIndexSubsetIB;   // vbo index buffer IB
         int *         indexStartIB;       // index start subset IB
         int *         indexCountIB;       // index count subset IB
         // Vertex buffer
-        uint32_t *vboVertexSubsetVB;  // Vertex buffer do subset VB
-        uint32_t *vboNormalSubsetVB;  // Normal buffer do subset VB
-        uint32_t *vboTextureSubsetVB; // Textura buffer do subset VB
+        unsigned int *vboVertexSubsetVB;  // Vertex buffer do subset VB
+        unsigned int *vboNormalSubsetVB;  // Normal buffer do subset VB
+        unsigned int *vboTextureSubsetVB; // Textura buffer do subset VB
         int *         vertexStartVB;      // inicio do vertex buffer no subset VB
         int *         vertexCountVB;      // Total de vertex no subset VB
         // Control
-        uint32_t   totalSubset;   // Total de subset deste buffer
-        uint32_t * idTexture0;    // Existe 1 idtextura para cada subset. (stagio 0)
+        unsigned int   totalSubset;   // Total de subset deste buffer
+        unsigned int * idTexture0;    // Existe 1 idtextura para cada subset. (stagio 0)
         uint8_t *useAlpha;      // Usa alpha para a textura
-        uint32_t   idTexture1;    // id textura stagio 1 passado no momento de renderizar o shader
+        unsigned int   idTexture1;    // id textura stagio 1 passado no momento de renderizar o shader
         bool           isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
-		uint32_t   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
-		uint32_t   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
-		uint32_t   mode_front_face_direction; //GL_CW, GL_CCW
+		unsigned int   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+		unsigned int   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+		unsigned int   mode_front_face_direction; //GL_CW, GL_CCW
     };
 
     class BASE_SHADER
@@ -109,15 +109,15 @@ namespace mbm
         API_IMPL virtual ~BASE_SHADER();
         API_IMPL const char *getCode();
         API_IMPL VAR_SHADER *getVarByName(const char *nameVar);
-        API_IMPL VAR_SHADER *getVar(const uint32_t indexVar);
-        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,const uint32_t programObject);
-        API_IMPL uint32_t getTotalVar() const noexcept;
+        API_IMPL VAR_SHADER *getVar(const unsigned int indexVar);
+        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,const unsigned int programObject);
+        API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
-        void update(const uint32_t programObject);
+        void update(const unsigned int programObject);
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
@@ -128,14 +128,14 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        uint32_t programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
+        unsigned int programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
         int mvpMatrixHandle; // Handle para matrix x projection
         int mvMatrixHandle;  // Handle para a matrix do modelo
-        GLint positionHandle;
-        GLint texCoordHandle;
+        int positionHandle;
+        int texCoordHandle;
         int samplerHandle0;
         int samplerHandle1;
-        GLint normalHandle;
+        int normalHandle;
         SHADER() noexcept;
         virtual ~SHADER();
         void releaseShader();
@@ -146,8 +146,8 @@ namespace mbm
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:
-        uint32_t compileCodeShader(const GLenum type, const char *shaderSrc);
-        uint32_t loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc);
+        unsigned int compileCodeShader(const unsigned int type, const char *shaderSrc);
+        unsigned int loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc);
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };
