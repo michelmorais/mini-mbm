@@ -279,6 +279,7 @@
     <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />

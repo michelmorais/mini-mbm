@@ -2266,8 +2266,9 @@ namespace log_util
 
 namespace util
 {
-    const unsigned int get_mode_draw_from_string(const char* str_mode_draw, const unsigned int default_mode_draw_ret)
+    const unsigned int get_mode_draw_from_string(const char* str_mode_draw)
     {
+        const unsigned int default_mode_draw_ret = std::numeric_limits<unsigned int>::max();
         if (str_mode_draw == nullptr)
             return default_mode_draw_ret;
         if (strcmp(str_mode_draw, "TRIANGLES") == 0)
@@ -2302,8 +2303,9 @@ namespace util
         }
     }
 
-    const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face, const unsigned int default_mode_cull_face_ret)
+    const unsigned int get_mode_cull_face_from_string(const char* str_mode_cull_face)
     {
+        const unsigned int default_mode_cull_face_ret = std::numeric_limits<unsigned int>::max();
         if (str_mode_cull_face == nullptr)
             return default_mode_cull_face_ret;
         if (strcmp(str_mode_cull_face, "FRONT") == 0)
@@ -2324,8 +2326,9 @@ namespace util
         default: return default_mode_cull_face_ret;
         }
     }
-    const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction, const unsigned int default_mode_front_face_direction_ret)
+    const unsigned int get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction)
     {
+        const unsigned int default_mode_front_face_direction_ret = std::numeric_limits<unsigned int>::max();
         if (str_mode_front_face_direction == nullptr)
             return default_mode_front_face_direction_ret;
         if (strcmp(str_mode_front_face_direction, "CW") == 0)
@@ -2341,6 +2344,42 @@ namespace util
         case GL_CW: return "CW";
         case GL_CCW: return "CCW";
         default: return default_mode_front_face_direction_ret;
+        }
+    }
+
+    const bool is_mode_draw_valid(const uint32_t mode_draw)noexcept
+    {
+        switch(mode_draw)
+        {
+            case GL_POINTS		   : return true;
+            case GL_LINES		   : return true;
+            case GL_LINE_LOOP	   : return true;
+            case GL_LINE_STRIP	   : return true;
+            case GL_TRIANGLES 	   : return true;
+            case GL_TRIANGLE_STRIP : return true;
+            case GL_TRIANGLE_FAN   : return true;
+            default                : return false;
+        }
+    }
+
+    const bool is_mode_cull_face_valid(const uint32_t mode_cull_face)noexcept
+    {
+        switch(mode_cull_face)
+        {
+            case GL_FRONT		   : return true;
+            case GL_BACK		   : return true;
+            case GL_FRONT_AND_BACK : return true;
+            default                : return false;
+        }
+    }
+
+    const bool is_mode_front_face_direction_valid(const uint32_t mode_front_face_direction)noexcept
+    {
+        switch(mode_front_face_direction)
+        {
+            case GL_CW   		   : return true;
+            case GL_CCW  		   : return true;
+            default                : return false;
         }
     }
 }

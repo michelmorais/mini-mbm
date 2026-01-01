@@ -22,9 +22,6 @@
 #include <map>
 #include <cstdarg>
 #include <cr-static-local.h>
-#if defined (USE_OPENGL_ES)
-#include <GLES2/gl2.h>
-#endif
 
 #if defined ANDROID
     #include <android/asset_manager.h>

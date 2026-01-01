@@ -214,9 +214,10 @@ namespace mbm
         const int   hasTableUV          = top > 2 ? lua_type(lua, 3) : LUA_TNIL;
         const int   hasTableNormal      = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
 		const char *fileName            = (top > 4 && (lua_type(lua, 5) == LUA_TSTRING)) ? lua_tostring(lua, 5) : getRandomNameMesh();
-		info_draw_mode.mode_draw                 = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,6),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,7),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,8),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+		info_draw_mode.mode_draw                 = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,6))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,7))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,8)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableUV     = (hasTableUV == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;
         const unsigned int sTableNormal = (hasTableNormal == LUA_TTABLE) ? lua_rawlen(lua, 4) : 0;
@@ -314,9 +315,10 @@ namespace mbm
         const int   hasTableUV     = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
         const int   hasTableNormal = top > 4 ? lua_type(lua, 5) : LUA_TNIL;
         const char *fileName       =(top > 5 && (lua_type(lua, 6) == LUA_TSTRING)) ? luaL_checkstring(lua, 6) : getRandomNameMesh();
-		info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,7),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,8),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,9),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+
+        info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,7))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,8))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,9)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
 
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableIndex  = (hasTableIndex == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;
@@ -456,9 +458,9 @@ namespace mbm
         const int   hasTableNormal = top > 4 ? lua_type(lua, 5) : LUA_TNIL;
         const char *fileName       = (top > 5 && (lua_type(lua, 6) == LUA_TSTRING)) ? luaL_checkstring(lua, 6) : getRandomNameMesh();
 		
-		info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,7),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,8),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,9),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+		info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,7))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,8))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,9)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
 
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableIndex  = (hasTableIndex == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;

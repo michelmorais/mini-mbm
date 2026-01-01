@@ -35,7 +35,6 @@
     };
 #elif defined __linux__  || defined(__APPLE__) && !defined ANDROID
     #include <X11/Xlib.h>
-    #include <EGL/egl.h>
 #elif defined _WIN32
     #include <plusWindows/plusWindows.h>
 #endif

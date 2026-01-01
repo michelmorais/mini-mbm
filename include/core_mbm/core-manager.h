@@ -33,7 +33,6 @@
     #include <jni.h>
 #elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
-    #include <EGL/egl.h>
 #endif
 
 class PLUGIN;

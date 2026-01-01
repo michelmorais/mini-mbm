@@ -20,10 +20,6 @@
 #include <header-mesh.h>
 #include <util-interface.h>
 #include <cstring>
-#if defined (USE_OPENGL_ES)
-#include <GLES2/gl2.h>
-#endif
-
 #include <utility>
 
 namespace mbm
@@ -81,9 +77,9 @@ namespace util
 	}
 
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
-            mode_draw(GL_TRIANGLES),
-            mode_cull_face(GL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
-            mode_front_face_direction(GL_CW)// GL_CW, GL_CCW
+            mode_draw(util::get_mode_draw_from_string("TRIANGLES")),
+            mode_cull_face(util::get_mode_cull_face_from_string("BACK")),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
+            mode_front_face_direction(util::get_mode_front_face_direction_from_string("CW"))// GL_CW, GL_CCW
 	{
 	}
 
