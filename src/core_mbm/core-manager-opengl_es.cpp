@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined (USE_OPENGL_ES)
+//#if defined (USE_OPENGL_ES)
 
 #include <core-manager.h>
 #include <device.h>
@@ -55,33 +55,66 @@
 #include <plugin-callback.h>
 #include <dynamic-var.h>
 
-struct AUX_SPECIFIC_CONTEXT
-{
-    EGLDisplay eglDisplay;
-    EGLSurface eglSurface;
-    EGLContext eglContext;
-};
 
 namespace mbm
 {
+    struct AUX_SPECIFIC_CONTEXT
+    {
+        EGLDisplay eglDisplay;
+        EGLSurface eglSurface;
+        EGLContext eglContext;
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            Window     window_x11;
+            Display *  display_x11;
+    
+    void make_x_window(const char *name, int x, int y,uint32_t width,uint32_t height, bool border);
+            
+    #endif
+        AUX_SPECIFIC_CONTEXT()
+        {
+            this->eglDisplay = EGL_NO_DISPLAY;
+            this->eglSurface = EGL_NO_SURFACE;
+            this->eglContext = EGL_NO_CONTEXT;
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            this->window_x11 = 0;
+            this->display_x11 = nullptr;
+    #endif
+        }
+        ~AUX_SPECIFIC_CONTEXT()
+        {
+        #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            eglDestroyContext(this->eglDisplay, this->eglContext);
+            eglDestroySurface(this->eglDisplay, this->eglSurface);
+            eglTerminate(this->eglDisplay);
+    
+        if(this->display_x11 != nullptr && this->window_x11 != 0)
+        {
+            XDestroyWindow(this->display_x11, this->window_x11);
+            XCloseDisplay(this->display_x11);
+        }
+        #endif
+        }
+        AUX_SPECIFIC_CONTEXT(const AUX_SPECIFIC_CONTEXT &) = delete;
+        AUX_SPECIFIC_CONTEXT &operator=(const AUX_SPECIFIC_CONTEXT &) = delete;
+    };
     
 
-enum WHICH_FOR : char
-{
-    WFOR_INITIAL,
-    WFOR_2DS,
-    WFOR_2DW,
-    WFOR_3D,
-    WFOR_DONE
-};
+    enum WHICH_FOR : char
+    {
+        WFOR_INITIAL,
+        WFOR_2DS,
+        WFOR_2DW,
+        WFOR_3D,
+        WFOR_DONE
+    };
 
-enum STEP_RETORE : char
-{
-    STEP_RES_INIT_GL,
-    STEP_RES_DRAW_HOURGLASS,
-    STEP_RES_OBJ,
-    STEP_RES_END,
-};
+    enum STEP_RETORE : char
+    {
+        STEP_RES_INIT_GL,
+        STEP_RES_DRAW_HOURGLASS,
+        STEP_RES_OBJ,
+        STEP_RES_END,
+    };
 
 constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
     {}
@@ -169,7 +202,7 @@ void printGLString(const char *name, GLenum s)
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
-		this->specificContext  = new AUX_SPECIFIC_CONTEXT();
+		this->specificContext  = new mbm::AUX_SPECIFIC_CONTEXT();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
         this->percentRestoreInfo = 0.0f;
@@ -181,12 +214,6 @@ void printGLString(const char *name, GLenum s)
         this->keyCapsLockState = false;
     #if defined(_WIN32)
         idIcon = 0;
-    #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-        this->win      = 0;
-        this->egl_surf = nullptr;
-        this->egl_ctx  = nullptr;
-        this->egl_dpy  = nullptr;
-        this->display  = nullptr;
     #endif
     }
     
@@ -195,14 +222,6 @@ void printGLString(const char *name, GLenum s)
         DEVICE::quit();
         delete this->specificContext;
         this->specificContext = nullptr;
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        eglDestroyContext(this->egl_dpy, this->egl_ctx);
-        eglDestroySurface(this->egl_dpy, this->egl_surf);
-        eglTerminate(this->egl_dpy);
-
-        XDestroyWindow(this->display, this->win);
-        XCloseDisplay(this->display);
-    #endif
     }
     
     
@@ -272,7 +291,7 @@ void printGLString(const char *name, GLenum s)
             #if defined(_WIN32) 
             eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                eglSwapBuffers(egl_dpy, egl_surf);
+                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #endif
             return false;
         }
@@ -333,7 +352,7 @@ void printGLString(const char *name, GLenum s)
                             #if defined(_WIN32) 
                                 eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(egl_dpy, egl_surf);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #endif
                             return false;
                         }
@@ -367,7 +386,7 @@ void printGLString(const char *name, GLenum s)
                             #if defined(_WIN32) 
                                 eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(egl_dpy, egl_surf);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #endif
                             return false;
                         }
@@ -401,7 +420,7 @@ void printGLString(const char *name, GLenum s)
                             #if defined(_WIN32) 
                                 eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(egl_dpy, egl_surf);
+                                eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
                             #endif
                             return false;
                         }
@@ -416,7 +435,7 @@ void printGLString(const char *name, GLenum s)
             #if defined(_WIN32) 
             eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            eglSwapBuffers(egl_dpy, egl_surf);
+            eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
             #endif
             return false;
         }
@@ -438,8 +457,7 @@ void printGLString(const char *name, GLenum s)
 
 #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     
-    void CORE_MANAGER::make_x_window(Display *display, EGLDisplay egl_dpy, const char *name, int x, int y, uint32_t width,unsigned  int height,
-                              Window *winRet, EGLContext *ctxRet, EGLSurface *surfRet,bool border)
+    void AUX_SPECIFIC_CONTEXT::make_x_window(const char *name, int x, int y, uint32_t width,unsigned  int height, bool border)
     {
         static const EGLint attribs[] = {
             // 32 bit color
@@ -461,18 +479,16 @@ void printGLString(const char *name, GLenum s)
         XSetWindowAttributes attr;
         unsigned long        mask;
         Window               root;
-        Window               win;
         XVisualInfo *        visInfo, visTemplate;
         int                  num_visuals;
-        EGLContext           ctx;
         EGLConfig            config;
         EGLint               num_configs;
         EGLint               vid;
 
-        scrnum = DefaultScreen(display);
-        root   = RootWindow(display, scrnum);
+        scrnum = DefaultScreen(display_x11);
+        root   = RootWindow(display_x11, scrnum);
 
-        if (!eglChooseConfig(egl_dpy, attribs, &config, 1, &num_configs))
+        if (!eglChooseConfig(eglDisplay, attribs, &config, 1, &num_configs))
         {
             static const EGLint attribs_gl2[] = {
             // 32 bit color
@@ -485,7 +501,7 @@ void printGLString(const char *name, GLenum s)
             // want opengl-es 2.x conformant CONTEXT
             EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT),
             EGL_NONE};
-            if (!eglChooseConfig(egl_dpy, attribs_gl2, &config, 1, &num_configs))
+            if (!eglChooseConfig(eglDisplay, attribs_gl2, &config, 1, &num_configs))
             {
                 printf("Error: couldn't get an EGL visual config\n");
                 exit(1);
@@ -495,7 +511,7 @@ void printGLString(const char *name, GLenum s)
         assert(config);
         assert(num_configs > 0);
 
-        if (!eglGetConfigAttrib(egl_dpy, config, EGL_NATIVE_VISUAL_ID, &vid))
+        if (!eglGetConfigAttrib(eglDisplay, config, EGL_NATIVE_VISUAL_ID, &vid))
         {
             printf("Error: eglGetConfigAttrib() failed\n");
             exit(1);
@@ -503,7 +519,7 @@ void printGLString(const char *name, GLenum s)
 
         /* The X window visual must match the EGL config */
         visTemplate.visualid = static_cast<VisualID>(vid);
-        visInfo              = XGetVisualInfo(display, VisualIDMask, &visTemplate, &num_visuals);
+        visInfo              = XGetVisualInfo(display_x11, VisualIDMask, &visTemplate, &num_visuals);
         if (!visInfo)
         {
             printf("Error: couldn't get X visual\n");
@@ -513,7 +529,7 @@ void printGLString(const char *name, GLenum s)
         /* window attributes */
         attr.background_pixel = 0;
         attr.border_pixel     = 0;
-        attr.colormap         = XCreateColormap(display, root, visInfo->visual, AllocNone);
+        attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
         attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | ResizeRedirectMask;
         mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
         if(border == false)
@@ -522,7 +538,7 @@ void printGLString(const char *name, GLenum s)
             mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
         }
 
-        win = static_cast<Window>(XCreateWindow(display, root, x < 0 ? 0 : x, y < 0 ? 0 : y, width, height, 0, visInfo->depth, InputOutput,
+        window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, x < 0 ? 0 : x, y < 0 ? 0 : y, width, height, 0, visInfo->depth, InputOutput,
                             visInfo->visual, mask, &attr));
 
         /* set hints and properties */
@@ -533,8 +549,8 @@ void printGLString(const char *name, GLenum s)
             sizehints.width  = static_cast<EGLint>(width);
             sizehints.height = static_cast<EGLint>(height);
             sizehints.flags  = USSize | USPosition;
-            XSetNormalHints(display, win, &sizehints);
-            XSetStandardProperties(display, win, name, name, None, nullptr, 0, &sizehints);
+            XSetNormalHints(display_x11, window_x11, &sizehints);
+            XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
         }
 
 #if defined USE_FULL_GL /* XXX fix this when eglBindAPI() works */
@@ -543,14 +559,14 @@ void printGLString(const char *name, GLenum s)
         eglBindAPI(EGL_OPENGL_ES_API);
 #endif
 
-        ctx = eglCreateContext(egl_dpy, config, EGL_NO_CONTEXT, es3ContextAttribs);
-        if (!ctx)
+        this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es3ContextAttribs);
+        if (!this->eglContext)
         {
-            ctx = eglCreateContext(egl_dpy, config, EGL_NO_CONTEXT, es2ContextAttribs);
-            if (!ctx)
+            this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es2ContextAttribs);
+            if (!this->eglContext)
             {
-                ctx = eglCreateContext(egl_dpy, config, EGL_NO_CONTEXT, es1ContextAttribs);
-                if (!ctx)
+                this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es1ContextAttribs);
+                if (!this->eglContext)
                 {
                     printf("Error: eglCreateContext failed\n");
                     exit(1);
@@ -559,7 +575,7 @@ void printGLString(const char *name, GLenum s)
                 else
                 {
                     EGLint val;
-                    eglQueryContext(egl_dpy, ctx, EGL_CONTEXT_CLIENT_VERSION, &val);
+                    eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
                     assert(val == 1);
                 }
                 #endif
@@ -568,7 +584,7 @@ void printGLString(const char *name, GLenum s)
             else
             {
                 EGLint val;
-                eglQueryContext(egl_dpy, ctx, EGL_CONTEXT_CLIENT_VERSION, &val);
+                eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
                 assert(val == 2);
             }
             #endif
@@ -577,13 +593,13 @@ void printGLString(const char *name, GLenum s)
         else
         {
             EGLint val;
-            eglQueryContext(egl_dpy, ctx, EGL_CONTEXT_CLIENT_VERSION, &val);
+            eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
             assert(val == 3);
         }
         #endif
         const EGLint *attrib_list = nullptr;
-        *surfRet = eglCreateWindowSurface(egl_dpy, config, reinterpret_cast<EGLNativeWindowType>(win), attrib_list);
-        if (!*surfRet)
+        this->eglSurface = eglCreateWindowSurface(eglDisplay, config, reinterpret_cast<EGLNativeWindowType>(window_x11), attrib_list);
+        if (!this->eglSurface)
         {
             printf("Error: eglCreateWindowSurface failed\n");
             exit(1);
@@ -592,18 +608,15 @@ void printGLString(const char *name, GLenum s)
         /* sanity checks */
         {
             EGLint val;
-            eglQuerySurface(egl_dpy, *surfRet, EGL_WIDTH, &val);
+            eglQuerySurface(eglDisplay, this->eglSurface, EGL_WIDTH, &val);
             assert(val == static_cast<EGLint>(width));
-            eglQuerySurface(egl_dpy, *surfRet, EGL_HEIGHT, &val);
+            eglQuerySurface(eglDisplay, this->eglSurface, EGL_HEIGHT, &val);
             assert(val == static_cast<EGLint>(height));
-            assert(eglGetConfigAttrib(egl_dpy, config, EGL_SURFACE_TYPE, &val));
+            assert(eglGetConfigAttrib(eglDisplay, config, EGL_SURFACE_TYPE, &val));
             assert(val & EGL_WINDOW_BIT);
         }
 
         XFree(visInfo);
-
-        *winRet = win;
-        *ctxRet = ctx;
     }
 #endif
 
@@ -939,30 +952,30 @@ void printGLString(const char *name, GLenum s)
         char * dpyName = nullptr;
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
-        this->display = XOpenDisplay(dpyName);
-        if (!this->display)
+        this->specificContext->display_x11 = XOpenDisplay(dpyName);
+        if (!this->specificContext->display_x11)
         {
             printf("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
             return false;
         }
     #ifdef __APPLE__
-        egl_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        this->specificContext->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         #pragma message("Check if this is correct for MacOS")
     #else
-        egl_dpy = eglGetDisplay((EGLNativeDisplayType) this->display);
+        this->specificContext->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->specificContext->display_x11);
     #endif
-        if (!egl_dpy)
+        if (!this->specificContext->eglDisplay)
         {
             printf("Error: eglGetDisplay() failed\n");
             return false;
         }
 
-        if (!eglInitialize(egl_dpy, &egl_major, &egl_minor))
+        if (!eglInitialize(this->specificContext->eglDisplay, &egl_major, &egl_minor))
         {
             printf("Error: eglInitialize() failed\n");
             return false;
         }
-        Screen *screen = DefaultScreenOfDisplay(this->display);
+        Screen *screen = DefaultScreenOfDisplay(this->specificContext->display_x11);
         if ((height + 60) >= screen->height)
         {
             height -= 60;
@@ -970,10 +983,10 @@ void printGLString(const char *name, GLenum s)
         }
         const int px = screen ? (screen->width - width) / 2 : 0;
         const int py = screen ? (screen->height - height) / 2 : 0;
-        make_x_window(this->display, egl_dpy, nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), &win, &egl_ctx, &egl_surf,border);
+        this->specificContext->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
 
-        XMapWindow(this->display, win);
-        if (!eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx))
+        XMapWindow(this->specificContext->display_x11, this->specificContext->window_x11);
+        if (!eglMakeCurrent(this->specificContext->eglDisplay, this->specificContext->eglSurface, this->specificContext->eglSurface, this->specificContext->eglContext))
         {
             printf("Error: eglMakeCurrent() failed\n");
             return false;
@@ -985,7 +998,7 @@ void printGLString(const char *name, GLenum s)
 		printGLString("vendor:\n", GL_VENDOR);
 		printGLString("renderer:\n", GL_RENDERER);
 		//printGLStringNewLine("Extensions:\n", GL_EXTENSIONS, ' ');
-        //printEGLStringNewLine(this->display,' ');
+        //printEGLStringNewLine(this->specificContext->display,' ');
 		MINIZ::showVersion();
         INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
 	}
@@ -1309,11 +1322,11 @@ void printGLString(const char *name, GLenum s)
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
-        XSelectInput(this->display, this->win,//ResizeRedirectMask ->resize (does not work properly on Linux)
+        XSelectInput(this->specificContext->display_x11, this->specificContext->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
                      ResizeRedirectMask |(KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) /*| ExposureMask | StructureNotifyMask*/);
-        XkbSetDetectableAutoRepeat(this->display, true, nullptr);
-        XMapWindow(this->display, win);
-        XFlush(this->display);
+        XkbSetDetectableAutoRepeat(this->specificContext->display_x11, true, nullptr);
+        XMapWindow(this->specificContext->display_x11, this->specificContext->window_x11);
+        XFlush(this->specificContext->display_x11);
         
         XSizeHints xsize;
         xsize.flags         = PMaxSize|PMinSize|USPosition; // only what we wish (for now not PMaxSize)
@@ -1329,14 +1342,14 @@ void printGLString(const char *name, GLenum s)
         xsize.height_inc    = 0;
         xsize.x             = 0;
         xsize.y             = 0;
-        XSetWMNormalHints(this->display,this->win,&xsize);
+        XSetWMNormalHints(this->specificContext->display_x11,this->specificContext->window_x11,&xsize);
 
         while (this->device->run)
         {
-            while(XPending(this->display))
+            while(XPending(this->specificContext->display_x11))
             {
                 XEvent xevent;
-                XNextEvent(this->display, &xevent);
+                XNextEvent(this->specificContext->display_x11, &xevent);
                 switch (xevent.type)
                 {
                     case KeyPress:
@@ -1572,7 +1585,7 @@ void printGLString(const char *name, GLenum s)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onEndRender();
             }
-            eglSwapBuffers(egl_dpy, egl_surf);
+            eglSwapBuffers(this->specificContext->eglDisplay, this->specificContext->eglSurface);
         }
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
         {
@@ -1592,7 +1605,7 @@ void printGLString(const char *name, GLenum s)
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        Screen * screen = DefaultScreenOfDisplay(this->display);
+        Screen * screen = DefaultScreenOfDisplay(this->specificContext->display_x11);
         if(screen)
         {
             *width  = screen->width;
@@ -2078,7 +2091,7 @@ void printGLString(const char *name, GLenum s)
             #if defined _WIN32
                 handle = this->device->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-                handle = this->display;
+                handle = this->specificContext->display_x11;
             #elif defined(ANDROID)
                 handle = this->device->jni->jenv;
             #endif
@@ -2087,6 +2100,63 @@ void printGLString(const char *name, GLenum s)
         }
         return 0xffffffff;
     }
+
+    #if defined _WIN32
+    void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
+    {
+        this->window.setMinSizeAllowed(min_x,min_y);
+        this->window.setMaxSizeAllowed(max_x,max_y);
+    }
+    #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+    void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
+    {
+        mbm::DEVICE * device = mbm::DEVICE::getInstance();
+        XSizeHints xsize;
+        long min_flag = PMinSize;
+        long max_flag = PMaxSize;
+        if(min_x == 0 && min_y == 0)
+            min_flag = 0;
+        if(max_x == 0 && max_y == 0)
+            max_flag = 0;
+
+        xsize.flags         = max_flag|min_flag|USPosition;
+        xsize.max_width     = static_cast<int>(max_x);
+        xsize.max_height    = static_cast<int>(max_y);
+        xsize.min_width     = static_cast<int>(min_x);
+        xsize.min_height    = static_cast<int>(min_y);
+        if(static_cast<int32_t>(device->backBufferWidth) <= max_x && static_cast<int32_t>(device->backBufferWidth) >= min_x)
+        {
+            xsize.base_width    = static_cast<int>(device->backBufferWidth);
+            xsize.width         = static_cast<int>(device->backBufferWidth);
+        }
+        else
+        {
+            xsize.base_width    = min_x;
+            xsize.width         = static_cast<int>(min_x);
+        }
+
+        if(static_cast<int32_t>(device->backBufferHeight) <= max_y && static_cast<int32_t>(device->backBufferHeight) >= min_y)
+        {
+            xsize.base_height   = static_cast<int>(device->backBufferHeight);
+            xsize.height        = static_cast<int>(device->backBufferHeight);
+        }
+        else
+        {
+            xsize.base_height   = min_y;
+            xsize.height        = static_cast<int>(min_y);
+        }
+        xsize.width_inc     = 0;
+        xsize.height_inc    = 0;
+        xsize.x             = 0;
+        xsize.y             = 0;
+        XSetWMNormalHints(this->specificContext->display_x11,this->specificContext->window_x11,&xsize);
+    }
+    #elif defined(ANDROID)
+    void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
+    {
+        INFO_LOG("setMinMaxSizeWindow (%d,%d,%d,%d) has not effect on this ANDROID platform.",min_x,min_y,max_x,max_y);
+    }
+    #endif
 }
 
 namespace log_util
@@ -2275,4 +2345,4 @@ namespace util
         }
     }
 }
-#endif
+//#endif

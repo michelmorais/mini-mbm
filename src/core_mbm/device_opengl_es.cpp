@@ -40,6 +40,40 @@
 
 namespace mbm
 {
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
+    {
+    #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
+            
+    #endif
+        SPECIFIC_AUX_CONTEXT_DEVICE()
+        {   
+            #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
+                
+            #endif
+        };
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+
+        ~SPECIFIC_AUX_CONTEXT_DEVICE()
+        {
+
+        };
+    };
+    
+    void DEVICE::initializeSpecificContext()
+    {
+        this->destroySpecificContext();
+        this->specificContextDevice = new SPECIFIC_AUX_CONTEXT_DEVICE();
+    }
+    void DEVICE::destroySpecificContext()
+    {
+        if(this->specificContextDevice)
+        {
+            delete this->specificContextDevice;
+            this->specificContextDevice = nullptr;
+        }
+    }
+
 
 #ifdef ANDROID
     void DEVICE::callQuitInJava()
@@ -148,62 +182,6 @@ namespace mbm
         return versions.c_str();
     }
 
-    #if defined _WIN32
-    void DEVICE::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
-    {
-        this->window.setMinSizeAllowed(min_x,min_y);
-        this->window.setMaxSizeAllowed(max_x,max_y);
-    }
-    #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-    void DEVICE::setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
-    {
-        XSizeHints xsize;
-        long min_flag = PMinSize;
-        long max_flag = PMaxSize;
-        if(min_x == 0 && min_y == 0)
-            min_flag = 0;
-        if(max_x == 0 && max_y == 0)
-            max_flag = 0;
-
-        xsize.flags         = max_flag|min_flag|USPosition;
-        xsize.max_width     = static_cast<int>(max_x);
-        xsize.max_height    = static_cast<int>(max_y);
-        xsize.min_width     = static_cast<int>(min_x);
-        xsize.min_height    = static_cast<int>(min_y);
-        if(static_cast<int32_t>(this->backBufferWidth) <= max_x && static_cast<int32_t>(this->backBufferWidth) >= min_x)
-        {
-            xsize.base_width    = static_cast<int>(this->backBufferWidth);
-            xsize.width         = static_cast<int>(this->backBufferWidth);
-        }
-        else
-        {
-            xsize.base_width    = min_x;
-            xsize.width         = static_cast<int>(min_x);
-        }
-
-        if(static_cast<int32_t>(this->backBufferHeight) <= max_y && static_cast<int32_t>(this->backBufferHeight) >= min_y)
-        {
-            xsize.base_height   = static_cast<int>(this->backBufferHeight);
-            xsize.height        = static_cast<int>(this->backBufferHeight);
-        }
-        else
-        {
-            xsize.base_height   = min_y;
-            xsize.height        = static_cast<int>(min_y);
-        }
-        xsize.width_inc     = 0;
-        xsize.height_inc    = 0;
-        xsize.x             = 0;
-        xsize.y             = 0;
-        XSetWMNormalHints(display,win,&xsize);
-    }
-    #elif defined(ANDROID)
-    void DEVICE::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
-    {
-        INFO_LOG("setMinMaxSizeWindow (%d,%d,%d,%d) has not effect on this ANDROID platform.",min_x,min_y,max_x,max_y);
-    }
-    #endif
-    
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
         if (width > 0 && height > 0)

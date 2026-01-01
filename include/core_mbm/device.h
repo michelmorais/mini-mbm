@@ -52,6 +52,7 @@ namespace mbm
     class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
     struct DYNAMIC_VAR;
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
     
     class DEVICE : public TIME_CONTROL, public FRUSTUM
@@ -80,6 +81,7 @@ namespace mbm
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         VEC3                dimFarFrustum3d, dimNearFrustum3d;
         CORE_MANAGER *      ptrManager;
+        SPECIFIC_AUX_CONTEXT_DEVICE* specificContextDevice = nullptr;
         SCENE *             scene;
         bool                clearBackGround;
 		
@@ -92,6 +94,8 @@ namespace mbm
         void callQuitInJava();
         void streamStopped(const int indexJNI);
     #endif
+        API_IMPL void initializeSpecificContext();
+        API_IMPL void destroySpecificContext();
 		API_IMPL void setAppReturnCode(const int returnCode) noexcept;
 		API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
@@ -137,14 +141,9 @@ namespace mbm
         API_IMPL const char* getBackendEngineName()const noexcept;
         API_IMPL const char* getBackendEngineVersion()const noexcept;
         API_IMPL void clearDepthColored();
-        #if defined _WIN32 || defined(ANDROID)
-        API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
-        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL void setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
-        #endif
+        API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
+	    API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
 
-	API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
-	API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
       private:
         int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;

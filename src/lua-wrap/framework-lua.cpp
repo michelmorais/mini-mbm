@@ -167,11 +167,7 @@ namespace mbm
         const int  max_x  = top >= 3 ? luaL_checkinteger(lua, 3) : 0;
         const int  max_y  = top >= 4 ? luaL_checkinteger(lua, 4) : 0;
         DEVICE *device = DEVICE::getInstance();
-        #if defined _WIN32 || defined(ANDROID)
-        device->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
-        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        device->setMinMaxSizeWindow(device->ptrManager->win,device->ptrManager->display, min_x,min_y,max_x,max_y);
-        #endif
+        device->ptrManager->setMinMaxSizeWindow(min_x,min_y,max_x,max_y);
         return 0;
     }
 

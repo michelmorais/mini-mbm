@@ -39,6 +39,7 @@ namespace mbm
         if (instanceDevice == nullptr)
         {
             instanceDevice = new DEVICE();
+            instanceDevice->initializeSpecificContext();
         }
         return instanceDevice;
     }
@@ -722,6 +723,7 @@ namespace mbm
             delete dVar;
         }
         this->lsDynamicVarGlobal.clear();
+        this->destroySpecificContext();
     }
 
     #if defined _WIN32

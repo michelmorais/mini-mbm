@@ -43,13 +43,13 @@
 
 
 class PLUGIN;
-struct AUX_SPECIFIC_CONTEXT;
 
 namespace mbm
 {
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
+    struct AUX_SPECIFIC_CONTEXT;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -137,8 +137,7 @@ namespace mbm
     {
       public:
         DEVICE *device;
-		AUX_SPECIFIC_CONTEXT* specificContext;
-        bool    changeScene;
+		bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
@@ -146,6 +145,7 @@ namespace mbm
 		API_IMPL virtual bool existScene(const int idScene) = 0;
         API_IMPL void onStop();
         API_IMPL unsigned int addPlugin(PLUGIN * plugin);
+        API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
@@ -154,17 +154,6 @@ namespace mbm
     #else
         API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
     #endif
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        Window     win;
-        EGLSurface egl_surf;
-        EGLContext egl_ctx;
-        EGLDisplay egl_dpy;
-        Display *  display;
-
-        API_IMPL static void make_x_window(Display *display, EGLDisplay egl_dpy, const char *name, int x, int y,uint32_t width,uint32_t height,
-                                  Window *winRet, EGLContext *ctxRet, EGLSurface *surfRet,bool border);
-    #endif
-
     #if defined(_WIN32)
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #elif defined (ANDROID)
@@ -266,6 +255,7 @@ namespace mbm
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
+        AUX_SPECIFIC_CONTEXT*                   specificContext;
     #if defined _WIN32
         std::mutex mutexEvents;
     #endif
