@@ -23,7 +23,6 @@
 #include <scene.h>
 #include <physics.h>
 #include <util-interface.h>
-#include <gles-debug.h>
 #include <algorithm>
 #include <cfloat>
 
@@ -255,22 +254,7 @@ RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, c
         this->heightTexture          = 0;
     }
 
-    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
-    {
-        if (this->idDepthRenderbuffer)
-        {
-            GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
-        }
-        this->idDepthRenderbuffer = 0;
-
-        if (this->idFrameBuffer)
-        {
-            GLDeleteFramebuffers(1, &this->idFrameBuffer);
-        }
-        this->idFrameBuffer = 0;
-    }
-
-	bool RENDERIZABLE::clone(RENDERIZABLE* renderizable_clone) const
+    bool RENDERIZABLE::clone(RENDERIZABLE* renderizable_clone) const
 	{
 		if(renderizable_clone && this->isLoaded())
 		{

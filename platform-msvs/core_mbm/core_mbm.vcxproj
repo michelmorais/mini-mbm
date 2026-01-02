@@ -284,6 +284,7 @@
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\renderizable-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
