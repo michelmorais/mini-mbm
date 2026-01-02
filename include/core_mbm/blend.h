@@ -25,7 +25,7 @@
 namespace mbm
 {
 
-    enum BLEND_OPENGLES
+    enum BLEND_STATE
     {
         BLEND_DISABLE      = 0,
         BLEND_ZERO         = 1,
@@ -43,8 +43,8 @@ namespace mbm
     struct API_IMPL RENDER_STATE
     {
         RENDER_STATE() noexcept = default;
-        const char *getDesc(const BLEND_OPENGLES blendState) const noexcept;
-        void set(const BLEND_OPENGLES blendState) const noexcept;
+        const char *getDesc(const BLEND_STATE blendState) const noexcept;
+        void set(const BLEND_STATE blendState) const noexcept;
     };
 }
 

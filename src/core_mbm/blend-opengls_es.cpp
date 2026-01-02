@@ -17,27 +17,38 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#include <gles-debug.h>
 #include <blend.h>
 
 namespace mbm
 {
-    const char * RENDER_STATE::getDesc(const BLEND_STATE blendState)  const noexcept
+    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
+        GLBlendFunc(GL_DST_ALPHA, GL_ONE);
         switch (blendState)
         {
-            case BLEND_DISABLE:       return "disable";
-            case BLEND_ZERO:          return "zero";
-            case BLEND_ONE:           return "one";
-            case BLEND_SRCCOLOR:      return "src_color";
-            case BLEND_INVSRCCOLOR:   return "inv_src_color";
-            case BLEND_SRCALPHA:      return "src_alpha";
-            case BLEND_INVSRCALPHA:   return "inv_src_alpha";
-            case BLEND_DESTALPHA:     return "dest_alpha";
-            case BLEND_INVDESTALPHA:  return "inv_dest_alpha";
-            case BLEND_DESTCOLOR:     return "dest_color";
-            case BLEND_INVDESTCOLOR:  return "inv_dest_color";
-            default:                  return "Invalid dst";
+            case BLEND_DISABLE:
+            {
+                //  pixels's transparency  defined for color Keying
+                // ---------------------------------------------------------
+                GLBlendFunc(GL_SRC_ALPHA, 0x0303);
+                return;
+            }
+            default:{}
+        }
+        switch (blendState)
+        {
+            case BLEND_ZERO:         GLBlendFunc(GL_DST_ALPHA, GL_ZERO);                break;
+            case BLEND_ONE:          GLBlendFunc(GL_DST_ALPHA, GL_ONE);                 break;
+            case BLEND_SRCCOLOR:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_COLOR);           break;
+            case BLEND_INVSRCCOLOR:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_COLOR); break;
+            case BLEND_SRCALPHA:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_ALPHA);           break;
+            case BLEND_INVSRCALPHA:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA); break;
+            case BLEND_DESTALPHA:    GLBlendFunc(GL_DST_ALPHA, GL_DST_ALPHA);           break;
+            case BLEND_INVDESTALPHA: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA); break;
+            case BLEND_DESTCOLOR:    GLBlendFunc(GL_DST_ALPHA, GL_DST_COLOR);           break;
+            case BLEND_INVDESTCOLOR: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_COLOR); break;
+            default:{}
         }
     }
-
 }

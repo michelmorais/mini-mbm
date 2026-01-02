@@ -386,6 +386,9 @@
     <ClCompile Include="..\..\src\core_mbm\blend.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\camera.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>

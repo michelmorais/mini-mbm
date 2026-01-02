@@ -265,6 +265,7 @@
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />

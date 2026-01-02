@@ -806,7 +806,7 @@ namespace mbm
 						anim->fx.textureOverrideStage2 = tex;
 				}
 				if(anim)
-					anim->blendState = static_cast<mbm::BLEND_OPENGLES>(infoHead->headerAnim->blendState);
+					anim->blendState = static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState);
 			}
         }
     }

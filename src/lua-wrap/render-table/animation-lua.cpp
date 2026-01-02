@@ -427,7 +427,7 @@ namespace mbm
                 }
                 else
                 {
-                    anim->blendState = (BLEND_OPENGLES)value;
+                    anim->blendState = (BLEND_STATE)value;
                 }
             }
         }

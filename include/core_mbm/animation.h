@@ -77,7 +77,7 @@ namespace mbm
         int            indexInitialFrame;    
         int            indexFinalFrame;      
         int            indexCurrentFrame;    
-        BLEND_OPENGLES blendState;           
+        BLEND_STATE blendState;           
         bool           isEndedThisAnimation; 
         bool           currentWayGrowingOfAnimation;
         TYPE_ANIMATION type; // Tipo_Animacao (TYPE_ANIMATION): 0:Pausa A Anima��o 1:Crescente ->Ex.:Anima��o De 1 a 5 >>Vai
