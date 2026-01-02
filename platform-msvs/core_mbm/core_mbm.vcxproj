@@ -300,14 +300,17 @@
     <ClCompile Include="..\..\src\render\gif-view.cpp" />
     <ClCompile Include="..\..\src\render\HMD.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\mesh.cpp" />
     <ClCompile Include="..\..\src\render\particle.cpp" />
+    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
     <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
     <ClCompile Include="..\..\src\render\sprite.cpp" />
     <ClCompile Include="..\..\src\render\steered_particle.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\texture-view.cpp" />
     <ClCompile Include="..\..\src\render\tile.cpp" />
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />

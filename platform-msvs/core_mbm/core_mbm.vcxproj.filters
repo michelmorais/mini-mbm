@@ -344,10 +344,16 @@
     <ClCompile Include="..\..\src\render\line-mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\render\mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\particle.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture.cpp">
@@ -486,6 +492,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
