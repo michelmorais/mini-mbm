@@ -292,6 +292,7 @@
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
     <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
     <ClCompile Include="..\..\src\core_mbm\util.cpp" />
