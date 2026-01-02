@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <texture-manager.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <gles-debug.h>
 #include <renderizable.h>
 #include <uber-image.h>
@@ -319,3 +322,4 @@ namespace mbm
     }
 }
 
+#endif // USE_OPENGL_ES

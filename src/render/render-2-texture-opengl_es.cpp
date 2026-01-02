@@ -17,9 +17,10 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-//#if defined (USE_OPENGL_ES)
-
 #include <render-2-texture.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <gles-debug.h>
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
@@ -86,3 +87,4 @@ namespace mbm
     }
     
 };
+#endif // USE_OPENGL_ES

@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <shader.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <gles-debug.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
@@ -759,3 +762,5 @@ namespace mbm
         return programObject;
     }
 }
+
+#endif // USE_OPENGL_ES

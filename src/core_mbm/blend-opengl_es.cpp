@@ -17,8 +17,11 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <gles-debug.h>
 #include <blend.h>
+
+#if defined (USE_OPENGL_ES)
+
+#include <gles-debug.h>
 
 namespace mbm
 {
@@ -52,3 +55,5 @@ namespace mbm
         }
     }
 }
+
+#endif // USE_OPENGL_ES

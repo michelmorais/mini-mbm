@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <line-mesh.h>
+
+#if defined USE_OPENGL_ES
+
 #include <shader-var-cfg.h>
 #include <util-interface.h>
 #include <gles-debug.h>
@@ -157,3 +160,4 @@ namespace mbm
         return true;
     }
 }
+#endif // USE_OPENGL_ES

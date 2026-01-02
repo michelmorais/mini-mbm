@@ -17,9 +17,10 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-//#if defined (USE_OPENGL_ES)
-
 #include <core-manager.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <device.h>
 #include <scene.h>
 #include <renderizable.h>
@@ -2384,4 +2385,4 @@ namespace util
     }
 
 }
-//#endif
+#endif // USE_OPENGL_ES

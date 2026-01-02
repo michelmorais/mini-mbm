@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <renderizable.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <gles-debug.h>
 
 namespace mbm
@@ -38,3 +41,5 @@ namespace mbm
         this->idFrameBuffer = 0;
     }
 }
+
+#endif // USE_OPENGL_ES

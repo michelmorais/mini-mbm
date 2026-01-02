@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "steered_particle.h"
+
+#if defined USE_OPENGL_ES
+
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/header-mesh.h>
 #include <core_mbm/gles-debug.h>
@@ -295,3 +298,4 @@ namespace mbm
 }
 
 
+#endif // USE_OPENGL_ES

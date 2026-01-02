@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <particle.h>
+
+#if defined USE_OPENGL_ES
+
 #include <texture-manager.h>
 #include <header-mesh.h>
 #include <gles-debug.h>
@@ -439,3 +442,4 @@ namespace mbm
 }
 
 
+#endif // USE_OPENGL_ES

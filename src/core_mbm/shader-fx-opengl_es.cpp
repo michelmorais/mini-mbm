@@ -18,6 +18,9 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <shader-fx.h>
+
+#if defined (USE_OPENGL_ES)
+
 #include <gles-debug.h>
 
 #if defined _WIN32
@@ -72,3 +75,5 @@ namespace mbm
         }
     }
 }
+
+#endif // USE_OPENGL_ES
