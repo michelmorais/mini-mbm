@@ -401,7 +401,7 @@
     <ClCompile Include="..\..\src\core_mbm\device_common.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\device_opengl_es.cpp">
+    <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp">

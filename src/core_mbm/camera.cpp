@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <camera.h>
-#include <gles-debug.h>
 #include <platform/mismatch-platform.h>
 #include <cmath>
 #include <cstring>

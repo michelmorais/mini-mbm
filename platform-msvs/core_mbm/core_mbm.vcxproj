@@ -270,7 +270,7 @@
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device_common.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\device_opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
     <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
