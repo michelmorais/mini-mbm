@@ -20,9 +20,10 @@
 #include <shader-fx.h>
 #include <gles-debug.h>
 
-//#if defined _WIN32
-//	#include <../third-party/gles/GLES3/gl3.h>
-//#endif
+#if defined _WIN32
+    // needed GL_MIN / GL_MAX definitions
+	#include <../third-party/gles/GLES3/gl3.h>
+#endif
 
 namespace mbm
 {
