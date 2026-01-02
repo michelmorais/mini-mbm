@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |

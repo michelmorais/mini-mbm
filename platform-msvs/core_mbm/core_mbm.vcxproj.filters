@@ -455,6 +455,9 @@
     <ClCompile Include="..\..\src\core_mbm\shader.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>

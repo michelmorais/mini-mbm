@@ -292,6 +292,7 @@
     <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-opengl_es.cpp" />
