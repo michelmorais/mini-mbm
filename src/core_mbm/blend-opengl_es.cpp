@@ -17,39 +17,43 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef RENDER_2_TEXTURE_LUA_H
-#define RENDER_2_TEXTURE_LUA_H
+#include <blend.h>
 
-struct lua_State;
+#if defined (USE_OPENGL_ES)
+
+#include <gles-debug.h>
 
 namespace mbm
 {
-    class RENDER_2_TEXTURE;
-    class CAMERA_TARGET;
+    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
+    {
+        GLBlendFunc(GL_DST_ALPHA, GL_ONE);
+        switch (blendState)
+        {
+            case BLEND_DISABLE:
+            {
+                //  pixels's transparency  defined for color Keying
+                // ---------------------------------------------------------
+                GLBlendFunc(GL_SRC_ALPHA, 0x0303);
+                return;
+            }
+            default:{}
+        }
+        switch (blendState)
+        {
+            case BLEND_ZERO:         GLBlendFunc(GL_DST_ALPHA, GL_ZERO);                break;
+            case BLEND_ONE:          GLBlendFunc(GL_DST_ALPHA, GL_ONE);                 break;
+            case BLEND_SRCCOLOR:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_COLOR);           break;
+            case BLEND_INVSRCCOLOR:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_COLOR); break;
+            case BLEND_SRCALPHA:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_ALPHA);           break;
+            case BLEND_INVSRCALPHA:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA); break;
+            case BLEND_DESTALPHA:    GLBlendFunc(GL_DST_ALPHA, GL_DST_ALPHA);           break;
+            case BLEND_INVDESTALPHA: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA); break;
+            case BLEND_DESTCOLOR:    GLBlendFunc(GL_DST_ALPHA, GL_DST_COLOR);           break;
+            case BLEND_INVDESTCOLOR: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_COLOR); break;
+            default:{}
+        }
+    }
+}
 
-    RENDER_2_TEXTURE *getRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    CAMERA_TARGET *getCameraRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    int onDestroyRender2Texture(lua_State *lua);
-    int onCreateRender2Texture(lua_State *lua);
-    int onAddRender2Texture(lua_State *lua);
-    int onSetPosCameraRender2TextureLua(lua_State *lua);
-    int onGetPosCameraRender2TextureLua(lua_State *lua);
-    int onGetFocusCameraRender2TextureLua(lua_State *lua);
-    int onSetFocusCameraRender2TextureLua(lua_State *lua);
-    int onMoveCameraRender2TextureLua(lua_State *lua);
-    int onSetScaleCameraRender2TextureLua(lua_State *lua);
-    int onSetAngleCameraRender2TextureLua(lua_State *lua);
-    int onGetScaleCameraRender2TextureLua(lua_State *lua);
-    int onGetAngleCameraRender2TextureLua(lua_State *lua);
-    int onGetUpCameraRender2TextureLua(lua_State *lua);
-    int onSetUpCameraRender2TextureLua(lua_State *lua);
-    int onSetColorBackgroundRender2TextureLua(lua_State *lua);
-    int onEnableFrameRender2TextureLua(lua_State *lua);
-    int onSaveRender2Texture(lua_State *lua);
-    int onGetCameraRender2Texture(lua_State *lua);
-    int onNewRender2Texture(lua_State *lua);
-    void registerClassRender2TextureTarget(lua_State *lua);
-
-};
-
-#endif
+#endif // USE_OPENGL_ES

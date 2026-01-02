@@ -29,16 +29,11 @@
 
 #if defined _WIN32
     #include <joystick-win32/joystick.h>
-    #include <EGL/egl.h>
-//    #include <../third-party/gles/util/EGLWindow.h>
 #elif defined ANDROID
     #include <jni.h>
 #elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
-    #include <EGL/egl.h>
 #endif
-#include <GLES2/gl2.h>
-
 
 class PLUGIN;
 
@@ -47,6 +42,7 @@ namespace mbm
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
+    struct AUX_SPECIFIC_CONTEXT;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -134,7 +130,7 @@ namespace mbm
     {
       public:
         DEVICE *device;
-        bool    changeScene;
+		bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
@@ -142,6 +138,7 @@ namespace mbm
 		API_IMPL virtual bool existScene(const int idScene) = 0;
         API_IMPL void onStop();
         API_IMPL unsigned int addPlugin(PLUGIN * plugin);
+        API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
@@ -150,40 +147,25 @@ namespace mbm
     #else
         API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
     #endif
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        Window     win;
-        EGLSurface egl_surf;
-        EGLContext egl_ctx;
-        EGLDisplay egl_dpy;
-        Display *  display;
-
-        API_IMPL static void make_x_window(Display *display, EGLDisplay egl_dpy, const char *name, int x, int y,uint32_t width,uint32_t height,
-                                  Window *winRet, EGLContext *ctxRet, EGLSurface *surfRet,bool border);
-    #endif
-
     #if defined(_WIN32)
-        EGLDisplay eglDisplay;
-        EGLSurface eglSurface;
-        EGLContext eglContext;
-        //std::unique_ptr<EGLDisplay> eglDisplay;
-        //std::unique_ptr<EGLSurface> eglSurface;
-        API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
+        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #elif defined (ANDROID)
-        API_IMPL bool initGl(const int width = 800, const int height = 600);
+        API_IMPL bool initGraphics(const int width = 800, const int height = 600);
     #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL bool initGl(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
+        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
     #else
         #error "undefined platform"
-        API_IMPL bool initGl();
+        API_IMPL bool initGraphics();
     #endif
 
-    #ifdef ANDROID
+#ifdef ANDROID
         API_IMPL int loop(JNIEnv *, jobject);
-    #elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+#elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL int loop();
-    #else
-    #error "platform not suported!"
-    #endif
+#else
+#error "platform not suported!"
+#endif
+    
 
     #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);
@@ -266,6 +248,7 @@ namespace mbm
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
+        AUX_SPECIFIC_CONTEXT*                   specificContext;
     #if defined _WIN32
         std::mutex mutexEvents;
     #endif
@@ -277,6 +260,8 @@ namespace mbm
         float stepRestoreInfo;
         float percentRestoreInfo;
     };
+
+    
 }
 
 #endif

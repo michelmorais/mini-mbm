@@ -21,15 +21,11 @@
 #include <shader-cfg.h>
 #include <shader-var-cfg.h>
 #include <animation.h>
-#include <gles-debug.h>
 #include <util-interface.h>
 
-#if defined _WIN32
-	#include <../third-party/gles/GLES3/gl3.h>
-#endif
 
-    namespace mbm
-    {
+namespace mbm
+{
 
     FX::FX() noexcept
 	{
@@ -44,53 +40,8 @@
 		delete fxPS;
 		delete fxVS;
 	}
-    
-	void FX::setBlendDefaultOp()
-    {
-        GLBlendEquation(GL_FUNC_ADD);
-    }
 
-    void FX::setBlendOp()
-    {
-        switch (blendOperation)
-        {
-            case 1: // D3DBLENDOP_ADD              = 1,
-            {
-                GLBlendEquation(GL_FUNC_ADD);
-            }
-            break;
-            case 2: // D3DBLENDOP_SUBTRACT         = 2,
-            {
-                GLBlendEquation(GL_FUNC_SUBTRACT);
-            }
-            break;
-            case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
-            {
-                GLBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-            }
-            break;
-            case 4: // D3DBLENDOP_MIN              = 4,
-            {
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-                GLBlendEquation(0x8007);
-    #else
-                GLBlendEquation(GL_MIN);
-    #endif
-            }
-            break;
-            case 5: // D3DBLENDOP_MAX              = 5,
-            {
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-                GLBlendEquation(0x8008);
-    #else
-                GLBlendEquation(GL_MAX);
-    #endif
-            }
-            break;
-        }
-    }
-
-   bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
+    bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
                                     SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs,
                                     const TYPE_ANIMATION typeVs, const float timeAnimVs)
     {

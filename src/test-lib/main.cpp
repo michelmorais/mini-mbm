@@ -31,7 +31,7 @@
 int main()
 {
     GAME game;
-    if(game.initGl("Hello-world"))
+    if(game.initGraphics("Hello-world"))
         return game.loop();
     return -1;
 }

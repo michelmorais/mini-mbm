@@ -24,12 +24,8 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include <renderizable.h>
-#include <gles-debug.h>
 #include <util-interface.h>
 
-#if defined _WIN32
-#include <../third-party/gles/GLES3/gl3.h>
-#endif
 
 namespace mbm
 {
@@ -810,7 +806,7 @@ namespace mbm
 						anim->fx.textureOverrideStage2 = tex;
 				}
 				if(anim)
-					anim->blendState = static_cast<mbm::BLEND_OPENGLES>(infoHead->headerAnim->blendState);
+					anim->blendState = static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState);
 			}
         }
     }

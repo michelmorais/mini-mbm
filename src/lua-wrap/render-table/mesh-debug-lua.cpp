@@ -189,13 +189,13 @@ namespace mbm
         }
         lua_setfield(lua, -2, "type");
 
-		lua_pushstring(lua, get_mode_draw_from_uint(info_mode.mode_draw,"UNKNOWN"));
+		lua_pushstring(lua, util::get_mode_draw_from_uint(info_mode.mode_draw,"UNKNOWN"));
 		lua_setfield(lua, -2, "modeDraw");
 
-		lua_pushstring(lua, get_mode_cull_face_from_uint(info_mode.mode_cull_face,"UNKNOWN"));
+		lua_pushstring(lua, util::get_mode_cull_face_from_uint(info_mode.mode_cull_face,"UNKNOWN"));
 		lua_setfield(lua, -2, "modeCullFace");
 
-		lua_pushstring(lua, get_mode_front_face_direction_from_uint(info_mode.mode_front_face_direction,"UNKNOWN"));
+		lua_pushstring(lua, util::get_mode_front_face_direction_from_uint(info_mode.mode_front_face_direction,"UNKNOWN"));
 		lua_setfield(lua, -2, "modeFrontFace");
 
         lua_pushinteger(lua, headerMeshMbmOut.totalFrames);
@@ -569,8 +569,8 @@ namespace mbm
 	{
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
 		const char* s_mode_draw       = luaL_checkstring(lua, 2);
-        const unsigned int  mode_draw = get_mode_draw_from_string(s_mode_draw,0xFFFFFFFF);
-        if (mode_draw == 0xFFFFFFFF)
+        const unsigned int  mode_draw = util::get_mode_draw_from_string(s_mode_draw);
+        if (mode_draw == std::numeric_limits<unsigned int>::max())
         {
 			return lua_error_debug(lua,"Invalid mode draw: [%s] \n expected:[%s]",s_mode_draw ? s_mode_draw : "NULL",
 				"TRIANGLES, TRIANGLE_STRIP, TRIANGLE_FAN, LINES, LINE_LOOP, LINE_STRIP, POINTS");
@@ -586,8 +586,8 @@ namespace mbm
 	{
         MESH_DEBUG_LUA *meshDebug          = getMeshDebugFromRawTable(lua, 1, 1);
 		const char* s_mode_cull_face       = luaL_checkstring(lua, 2);
-        const unsigned int  mode_cull_face = get_mode_cull_face_from_string(s_mode_cull_face,0xFFFFFFFF);
-        if (mode_cull_face == 0xFFFFFFFF)
+        const unsigned int  mode_cull_face = util::get_mode_cull_face_from_string(s_mode_cull_face);
+        if (mode_cull_face == std::numeric_limits<unsigned int>::max())
         {
 			return lua_error_debug(lua,"Invalid mode cull face: [%s] \n expected:[%s]",s_mode_cull_face ? s_mode_cull_face : "NULL",
 				"FRONT, BACK, FRONT_AND_BACK");
@@ -603,8 +603,8 @@ namespace mbm
 	{
         MESH_DEBUG_LUA *meshDebug      = getMeshDebugFromRawTable(lua, 1, 1);
 		const char* s_mode_front_face  = luaL_checkstring(lua, 2);
-        const unsigned int  mode_front_face = get_mode_front_face_direction_from_string(s_mode_front_face,0xFFFFFFFF);
-        if (mode_front_face == 0xFFFFFFFF)
+        const unsigned int  mode_front_face = util::get_mode_front_face_direction_from_string(s_mode_front_face);
+        if (mode_front_face == std::numeric_limits<unsigned int>::max())
         {
 			return lua_error_debug(lua,"Invalid mode cull face: [%s] \n expected:[%s]",s_mode_front_face ? s_mode_front_face : "NULL",
 				"CW, CCW");
@@ -619,7 +619,7 @@ namespace mbm
 	int onGetMode_drawMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_draw   = get_mode_draw_from_uint(meshDebug->mesh.info_mode.mode_draw,"nil");
+		const char *  mode_draw   = util::get_mode_draw_from_uint(meshDebug->mesh.info_mode.mode_draw,"nil");
         lua_pushstring(lua,mode_draw);
         return 1;
     }
@@ -627,7 +627,7 @@ namespace mbm
 	int onGetMode_CullFaceMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_cull_face = get_mode_cull_face_from_uint(meshDebug->mesh.info_mode.mode_cull_face,"nil");
+		const char *  mode_cull_face = util::get_mode_cull_face_from_uint(meshDebug->mesh.info_mode.mode_cull_face,"nil");
         lua_pushstring(lua,mode_cull_face);
         return 1;
     }
@@ -635,7 +635,7 @@ namespace mbm
 	int onGetMode_FrontFaceMeshDebugLua(lua_State *lua)
 	{
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
-		const char *  mode_front_face = get_mode_front_face_direction_from_uint(meshDebug->mesh.info_mode.mode_front_face_direction,"nil");
+		const char *  mode_front_face = util::get_mode_front_face_direction_from_uint(meshDebug->mesh.info_mode.mode_front_face_direction,"nil");
         lua_pushstring(lua,mode_front_face);
         return 1;
     }

@@ -344,13 +344,22 @@
     <ClCompile Include="..\..\src\render\line-mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\render\mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\particle.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\sprite.cpp">
@@ -377,16 +386,25 @@
     <ClCompile Include="..\..\src\core_mbm\blend.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\camera.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp">
+    <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\device.cpp">
+    <ClCompile Include="..\..\src\core_mbm\device_common.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp">
@@ -413,6 +431,9 @@
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
@@ -425,16 +446,25 @@
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\renderizable-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\scene.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp">
@@ -444,6 +474,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\time-control.cpp">
@@ -474,6 +507,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
+      <Filter>Source Files\render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">

@@ -16,7 +16,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-
+#if defined (USE_OPENGL_ES)
 #ifndef GLES_DEBUG_H
 #define GLES_DEBUG_H
 
@@ -533,4 +533,5 @@ namespace log_util
     #define GLBlendEquation(mode) glBlendEquation(mode);
 #endif
 
+#endif
 #endif

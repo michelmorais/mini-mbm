@@ -25,6 +25,10 @@
 #include <cstring>
 #include <functional>
 
+#if defined _WIN32
+#include <plusWindows/plusWindows.h>
+#endif
+
 namespace util
 {
 
@@ -352,4 +356,23 @@ namespace util
 		}
 
 	}
+
+    #if defined(_WIN32)
+
+    void getDisplayMetrics(int * width, int * height)
+    {
+        mbm::MONITOR_MANAGER manMonit;
+        mbm::MONITOR    monitor;
+        manMonit.updateMonitors();
+        for (DWORD iMon = 0; iMon < manMonit.getTotalMonitor(); ++iMon)
+        {
+            if (manMonit.isMainMonitor(iMon) && manMonit.getMonitor(iMon, &monitor))
+            {
+                *width = monitor.width;
+                *height = monitor.height;
+                break;
+            }
+        }
+    }
+    #endif
 }

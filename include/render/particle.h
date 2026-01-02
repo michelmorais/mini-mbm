@@ -34,8 +34,40 @@ namespace util
 
 namespace mbm
 {
-    struct ATT_PARTICLE;
-    struct VERTEX_PARTICLE;
+    struct ATT_PARTICLE
+    {
+        VEC3  direction;
+        float speed;
+        float timeLife;
+        float timeLifeCurrent;
+        float aSize;
+        float a, r, g, b;
+    };
+
+#if defined _WIN32
+	#pragma warning(push)
+	#pragma warning(disable : 4201) //nonstandard extension used : nameless struct/union
+#endif 
+
+    struct VERTEX_PARTICLE
+    {
+        union {
+            struct
+            {
+                float x, y, z;
+                float u, v;
+            };
+            struct
+            {
+                float position[3];
+                float uv[2];
+            };
+        };
+    };
+
+#if defined _WIN32
+	#pragma warning(pop) //nonstandard extension used : nameless struct/union
+#endif
     
     class PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {

@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
@@ -265,10 +265,13 @@
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp" />
     <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\blend-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\device.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device_common.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
     <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
@@ -277,17 +280,22 @@
     <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\renderizable-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
     <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
     <ClCompile Include="..\..\src\core_mbm\util.cpp" />
@@ -297,13 +305,17 @@
     <ClCompile Include="..\..\src\render\gif-view.cpp" />
     <ClCompile Include="..\..\src\render\HMD.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\mesh.cpp" />
     <ClCompile Include="..\..\src\render\particle.cpp" />
+    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
     <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
     <ClCompile Include="..\..\src\render\sprite.cpp" />
     <ClCompile Include="..\..\src\render\steered_particle.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\texture-view.cpp" />
     <ClCompile Include="..\..\src\render\tile.cpp" />
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />

@@ -20,7 +20,6 @@
 #include <texture-view.h>
 #include <texture-manager.h>
 #include <image-resource.h>
-#include <gles-debug.h>
 #include <util.h>
 #include <util-interface.h>
 #include <core_mbm/scene.h>

@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,39 +17,63 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef RENDER_2_TEXTURE_LUA_H
-#define RENDER_2_TEXTURE_LUA_H
+#include <shader-fx.h>
 
-struct lua_State;
+#if defined (USE_OPENGL_ES)
+
+#include <gles-debug.h>
+
+#if defined _WIN32
+    // needed GL_MIN / GL_MAX definitions
+	#include <../third-party/gles/GLES3/gl3.h>
+#endif
 
 namespace mbm
 {
-    class RENDER_2_TEXTURE;
-    class CAMERA_TARGET;
+    void FX::setBlendDefaultOp()
+    {
+        GLBlendEquation(GL_FUNC_ADD);
+    }
 
-    RENDER_2_TEXTURE *getRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    CAMERA_TARGET *getCameraRender2TextureTargetFromRawTable(lua_State *lua, const int rawi, const int indexTable);
-    int onDestroyRender2Texture(lua_State *lua);
-    int onCreateRender2Texture(lua_State *lua);
-    int onAddRender2Texture(lua_State *lua);
-    int onSetPosCameraRender2TextureLua(lua_State *lua);
-    int onGetPosCameraRender2TextureLua(lua_State *lua);
-    int onGetFocusCameraRender2TextureLua(lua_State *lua);
-    int onSetFocusCameraRender2TextureLua(lua_State *lua);
-    int onMoveCameraRender2TextureLua(lua_State *lua);
-    int onSetScaleCameraRender2TextureLua(lua_State *lua);
-    int onSetAngleCameraRender2TextureLua(lua_State *lua);
-    int onGetScaleCameraRender2TextureLua(lua_State *lua);
-    int onGetAngleCameraRender2TextureLua(lua_State *lua);
-    int onGetUpCameraRender2TextureLua(lua_State *lua);
-    int onSetUpCameraRender2TextureLua(lua_State *lua);
-    int onSetColorBackgroundRender2TextureLua(lua_State *lua);
-    int onEnableFrameRender2TextureLua(lua_State *lua);
-    int onSaveRender2Texture(lua_State *lua);
-    int onGetCameraRender2Texture(lua_State *lua);
-    int onNewRender2Texture(lua_State *lua);
-    void registerClassRender2TextureTarget(lua_State *lua);
+    void FX::setBlendOp()
+    {
+        switch (blendOperation)
+        {
+            case 1: // D3DBLENDOP_ADD              = 1,
+            {
+                GLBlendEquation(GL_FUNC_ADD);
+            }
+            break;
+            case 2: // D3DBLENDOP_SUBTRACT         = 2,
+            {
+                GLBlendEquation(GL_FUNC_SUBTRACT);
+            }
+            break;
+            case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
+            {
+                GLBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+            }
+            break;
+            case 4: // D3DBLENDOP_MIN              = 4,
+            {
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
+                GLBlendEquation(0x8007);
+    #else
+                GLBlendEquation(GL_MIN);
+    #endif
+            }
+            break;
+            case 5: // D3DBLENDOP_MAX              = 5,
+            {
+    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
+                GLBlendEquation(0x8008);
+    #else
+                GLBlendEquation(GL_MAX);
+    #endif
+            }
+            break;
+        }
+    }
+}
 
-};
-
-#endif
+#endif // USE_OPENGL_ES

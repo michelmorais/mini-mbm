@@ -28,6 +28,11 @@
 typedef void (*OnScriptPrintLine)();
 typedef void (*OnAddPathScript)(const char*);
 
+namespace mbm
+{
+    class TEXTURE;
+}
+
 enum TYPE_LOG : char
 {
     TYPE_LOG_ERROR,
@@ -85,6 +90,21 @@ namespace util
     API_IMPL const char * getDecompressModelFileName();
     API_IMPL const char* getBaseName(const char *fileName);
 	API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
+    API_IMPL bool isBackendEngineOpenGlEs() noexcept;
+    API_IMPL bool isBackendEngineDirectx() noexcept;
+    API_IMPL bool isBackendEngineVulkan() noexcept;
+    API_IMPL bool isBackendEngineMetal() noexcept;
+
+    API_IMPL const uint32_t get_mode_draw_from_string(const char* str_mode_draw);
+    API_IMPL const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret);
+    API_IMPL const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face);
+    API_IMPL const char* get_mode_cull_face_from_uint(const uint32_t mode_cull_face, const char* default_mode_cull_face_ret);
+    API_IMPL const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction);
+    API_IMPL const char* get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret);
+
+    API_IMPL const bool is_mode_draw_valid(const uint32_t mode_draw)noexcept;
+    API_IMPL const bool is_mode_cull_face_valid(const uint32_t mode_cull_face)noexcept;
+    API_IMPL const bool is_mode_front_face_direction_valid(const uint32_t mode_front_face_direction)noexcept;
 }
 
 namespace log_util
@@ -104,6 +124,7 @@ namespace log_util
 	API_IMPL void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...);
     API_IMPL void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format, ...);
 	API_IMPL void setScriptPrintLine(OnScriptPrintLine onScriptPrintLine) noexcept;
+    API_IMPL void callScriptPrintLine() noexcept;
 }
 
 #endif

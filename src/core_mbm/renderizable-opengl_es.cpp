@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,35 +17,29 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef BLEND_STATE_CLASS_H
-#define BLEND_STATE_CLASS_H
+#include <renderizable.h>
 
-#include "core-exports.h"
+#if defined (USE_OPENGL_ES)
+
+#include <gles-debug.h>
 
 namespace mbm
+
 {
-
-    enum BLEND_STATE
+    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        BLEND_DISABLE      = 0,
-        BLEND_ZERO         = 1,
-        BLEND_ONE          = 2,
-        BLEND_SRCCOLOR     = 3,
-        BLEND_INVSRCCOLOR  = 4,
-        BLEND_SRCALPHA     = 5,
-        BLEND_INVSRCALPHA  = 6,
-        BLEND_DESTALPHA    = 7,
-        BLEND_INVDESTALPHA = 8,
-        BLEND_DESTCOLOR    = 9,
-        BLEND_INVDESTCOLOR = 10
-    };
+        if (this->idDepthRenderbuffer)
+        {
+            GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
+        }
+        this->idDepthRenderbuffer = 0;
 
-    struct API_IMPL RENDER_STATE
-    {
-        RENDER_STATE() noexcept = default;
-        const char *getDesc(const BLEND_STATE blendState) const noexcept;
-        void set(const BLEND_STATE blendState) const noexcept;
-    };
+        if (this->idFrameBuffer)
+        {
+            GLDeleteFramebuffers(1, &this->idFrameBuffer);
+        }
+        this->idFrameBuffer = 0;
+    }
 }
 
-#endif
+#endif // USE_OPENGL_ES
