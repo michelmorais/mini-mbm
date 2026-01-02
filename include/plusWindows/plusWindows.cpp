@@ -376,12 +376,14 @@ namespace mbm
         LONG nError = RegOpenKeyExW(hRootKey, strKey, 0, acess, &hKey);
         if (nError == ERROR_FILE_NOT_FOUND)
         {
-            std::cout << "Creating registry key: " << strKey << std::endl;
+			char strKeyout[255];
+            fprintf(stderr,"Creating registry key:%s\n", mbm::toChar(strKey, strKeyout));
             nError = RegCreateKeyExW(hRootKey, strKey, 0, nullptr, REG_OPTION_NON_VOLATILE, acess, nullptr, &hKey, nullptr);
         }
         if (nError)
         {
-            std::cout << "Error: " << nError << " Could not find or create " << strKey << std::endl;
+            char strKeyout[255];
+            fprintf(stderr, "Error:%d %s %s\n", nError, " Could not find or create ", mbm::toChar(strKey, strKeyout));
             char str[255];
             sprintf(str, "Arquivo: %s linha:%d", __FILE__, __LINE__);
             printLastErrWindows(str);
