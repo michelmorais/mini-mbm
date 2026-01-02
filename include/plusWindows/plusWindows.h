@@ -24,6 +24,15 @@
     #define NOMINMAX
 #endif
 
+#ifdef UNICODE
+#undef UNICODE
+#define _MBCS 
+#endif		  
+
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #ifndef ____PLUS_WIN_MY_DIRSEPARATOR_
 #define ____PLUS_WIN_MY_DIRSEPARATOR_ 1
 
@@ -105,7 +114,13 @@
 #include <commdlg.h>
 #include <thread>
 
+#if defined NO_LIBRARY_WINPLUS
+// define NO_LIBRARY_WINPLUS to use directlly the implementation of the plusWindows
+// Just include plusWindows.cpp and defaultThemePlusWindows.cpp in your project
+#define API_IMPL
+#else
 #include "core-exports.h"
+#endif
 
 #ifdef __MINGW32__
 #define TOOLINFO TTTOOLINFO
@@ -645,7 +660,7 @@ class COM_BETWEEN_WINP
     friend API_IMPL COM_BETWEEN_WINP *getComBetweenWinpTryIcon(const HWND owerHwnd);
     friend API_IMPL COM_BETWEEN_WINP *getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW *me,
                                                      TYPE_WINDOWS_WINPLUS typeMe, void *extraParams_, const int idDest,
-                                                     USER_DRAWER *UserDrawer = nullptr);
+                                                     USER_DRAWER *UserDrawer);
 
   public:
     API_IMPL int getId() const;
@@ -1317,6 +1332,9 @@ API_IMPL const int __getTabStopPixelSize(HWND hwnd);
 namespace mbm
 {
 void __destroyOnExitAllListComBetweenWindows();
+API_IMPL COM_BETWEEN_WINP* getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEventWinPlus, WINDOW* me,
+    TYPE_WINDOWS_WINPLUS typeMe, void* extraParams_, const int idDest,
+    USER_DRAWER* UserDrawer = nullptr);
 };
 
 #ifdef _DEBUG
