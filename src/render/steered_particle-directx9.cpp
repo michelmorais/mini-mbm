@@ -44,7 +44,9 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         this->vboIndexBuffer = 0;
         for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
@@ -66,10 +68,12 @@ namespace mbm
             return false;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffer");
         if (!this->vboIndexBuffer)
             return false;
         #pragma message(REMINDER_TODO "  bind buffer and upload data");
+        #endif
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
         if (this->texture)
         {
@@ -92,7 +96,9 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         this->vboIndexBuffer = 0;
     }
@@ -113,6 +119,7 @@ namespace mbm
         anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  set shader program");
         if (this->texture)
         {
@@ -133,6 +140,7 @@ namespace mbm
         }
 
         #pragma message(REMINDER_TODO "  set texture sampler uniform");
+        #endif
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
                                          : nullptr;
@@ -140,13 +148,17 @@ namespace mbm
         {
             if (var)
             {
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  set uniform color");
+                #endif
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
                     //TODO: bind index buffer
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  Draw elements");
+                    #endif
                 }
             }
             else
@@ -158,7 +170,9 @@ namespace mbm
                         const float *vertex = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                         const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
                         //TODO: bind index buffer
+                        #ifdef SHOW_PRAGMA_MESSAGE
                         #pragma message(REMINDER_TODO "  Draw elements");
+                        #endif
                     }
                 }
             }
@@ -173,7 +187,9 @@ namespace mbm
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
                     //TODO: bind index buffer
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  Draw elements");
+                    #endif
                 }
             }
             else
@@ -183,12 +199,15 @@ namespace mbm
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
                     //TODO: bind index buffer
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  Draw elements");
+                    #endif
                 }
             }
         }
-
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  unbind buffers and disable attributes");
+        #endif
         return true;
     }
     

@@ -522,16 +522,16 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     #graphics backend
-    
-    if(USE_DIRECTX9)
+   
+    if(USE_DUMMY_BACK_END_ENGINE)
+        message(STATUS " Using DUMMY_BACK_END_ENGINE...")
+        add_definitions(-DUSE_DUMMY_BACK_END_ENGINE)
+    elseif(USE_DIRECTX9)
         set(USE_DIRECTX9 1)
         add_definitions(-DUSE_DIRECTX9)
     elseif(USE_OPENGL_ES)
         set(USE_OPENGL_ES 1)
         add_definitions(-DUSE_OPENGL_ES)
-    elseif(USE_DUMMY_BACK_END_ENGINE)
-        message(STATUS " Using DUMMY_BACK_END_ENGINE...")
-        add_definitions(-DUSE_DUMMY_BACK_END_ENGINE)
     else()
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             message(STATUS " Defaulting to USE_OPENGL_ES backend...")

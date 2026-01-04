@@ -44,7 +44,9 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         this->vboIndexBuffer = 0;
 
@@ -73,11 +75,15 @@ namespace mbm
         unsigned int             totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  Create VBO for index buffer");
+        #endif
         if (!this->vboIndexBuffer)
             return false;
         this->texture = nullptr;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  bind VBO index buffer");
+        #endif
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
         {
@@ -173,7 +179,9 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         this->vboIndexBuffer = 0;
     }
@@ -292,27 +300,43 @@ namespace mbm
                     maxv.y = vertex->y;
             }
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  render particles");
+        #endif
         if (this->texture)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  bind texture");
+            #endif
         }
         else
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  bind no texture");
+            #endif
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  set active texture unit 0");
+        #endif
         if (anim->fx.textureOverrideStage2)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  bind texture override stage 2");
+            #endif
         }
         else
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  bind no texture");
+            #endif
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  disable depth test");
+        #endif
         this->blend.set(anim->blendState);
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  set shader matrices");
+        #endif
         //TODO: bind VBO index buffer
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
@@ -324,8 +348,9 @@ namespace mbm
             {
                 const float * vertex   = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 ATT_PARTICLE *particle = &this->particles[i];
-
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  set variable color");
+                #endif
                 //TODO: draw vertex
             }
         }
@@ -335,10 +360,14 @@ namespace mbm
             {
                 const float *vertex = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 //TODO: set variable color
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  draw vertex");
+                #endif
             }
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  enable depth test");
+        #endif
         return true;
     }
 

@@ -50,21 +50,26 @@ namespace mbm
         const int sizeImage = _width * _height * channel;
         auto  image = new unsigned char[sizeImage];
 
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  bind texture render to texture");
         
         #pragma message(REMINDER_TODO "  read pixels from frame buffer");
+        #endif
         unsigned int error = 0; //TODO: set error from read pixels
         if(error)
         {
             delete [] image;
             //const char *errorAsString = log_util::getDescriptionError(error);
             //return log_util::fail(__LINE__,__FILE__,"Failed to read pixel [%s]",errorAsString);
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement getDescriptionError");
+            #endif
             return false;
         }
 
-
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  unbind texture render to texture");
+        #endif
         this->flip_vertically(image,_width,_height,channel);
         std::vector<unsigned char> png;
         unsigned int errorPNG = lodepng::encode(png,image, static_cast<unsigned int>(_width), static_cast<unsigned int>(_height),channel == 4 ? LCT_RGBA : LCT_RGB);

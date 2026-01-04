@@ -20,7 +20,7 @@
 
 #if defined (USE_DUMMY_BACK_END_ENGINE)
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 
 #include <device.h>
 #include <scene.h>
@@ -40,6 +40,8 @@
 #elif defined(__linux__) || defined(__APPLE__)
     #include <X11/Xutil.h>
 #endif
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 namespace mbm
 {
@@ -119,16 +121,22 @@ namespace mbm
     
     void DEVICE::setDephtTest(const bool enable)
     {
-        #pragma message(REMINDER_TODO "  implement depth test enable/disable");
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message (REMINDER_TODO "  implement depth test enable/disable");
+        #endif
     }
 
     void DEVICE::clearDepth()
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement clear depth buffer");
+        #endif
     }
     void DEVICE::clearDepthColored()
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
+        #endif
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -145,7 +153,9 @@ namespace mbm
     {
         if (width > 0 && height > 0)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  set projection mode");
+            #endif
         }
         if (width > 0)
             backBufferWidth = width;

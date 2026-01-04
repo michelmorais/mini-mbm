@@ -34,7 +34,9 @@ namespace mbm
         arrayLinesVec3.clear();
         if (this->vboVertexUvLine)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         vboVertexUvLine = 0;
     }
@@ -43,13 +45,19 @@ namespace mbm
     {
         if (this->vboVertexUvLine)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         vboVertexUvLine = 0;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffer");
+        #endif
         if (this->vboVertexUvLine == 0)
             return false;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  bind buffer");
+        #endif
         return true;
     }
     
@@ -58,7 +66,9 @@ namespace mbm
         arrayLinesVec3 = std::move(arrayPoints);
         if (this->vboVertexUvLine == 0)
         {
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  generate buffer");
+            #endif
             if (this->vboVertexUvLine == 0)
                 return false;
         }
@@ -69,7 +79,9 @@ namespace mbm
                 vec3.y = -vec3.y;
             }
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  bind buffer");
+        #endif
         return true;
     }
     
@@ -78,13 +90,15 @@ namespace mbm
         if (!this->vboVertexUvLine)
             return false;
 		
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  set shader blend");
-
+        
         //TODO: set blend function
-
+        
         //TODO: bind buffer
         //TODO: enable vertex attribute array
         #pragma message(REMINDER_TODO "  Draw vertex line mode");
+        #endif
         return true;
     }
     
@@ -94,7 +108,9 @@ namespace mbm
         {
             if (line->vboVertexUvLine)
             {
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  delete buffer");
+                #endif
             }
             line->vboVertexUvLine = 0;
         }

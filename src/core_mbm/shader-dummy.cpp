@@ -49,13 +49,17 @@ namespace mbm
                //mode_cull_face(GL_BACK),
                //mode_front_face_direction(GL_CW)
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  initialize mode values");
+        #endif
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
 
     void BUFFER_GL::release()
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement delete buffer");
+        #endif
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
         
         if (vboIndexSubsetIB)
@@ -119,7 +123,9 @@ namespace mbm
         memset(this->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
+        #endif
         
         this->idTexture0 = new uint32_t[totalSubset];
         memset(this->idTexture0, 0, sizeof(int) * totalSubset);
@@ -144,13 +150,17 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
+        #endif
         this->totalSubset      = totalSubsets;
         this->vboIndexSubsetIB = new uint32_t[totalSubset];
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
+        #endif
         this->idTexture0 = new uint32_t[this->totalSubset];
         memset(this->idTexture0, 0, sizeof(uint32_t) * static_cast<size_t>(this->totalSubset));
 
@@ -177,7 +187,9 @@ namespace mbm
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
+        #endif
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
@@ -222,7 +234,9 @@ namespace mbm
             }
             auto var       = new VAR_SHADER(typeVar);
             var->name      = nameVar;
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement get uniform location");
+            #endif
             
             if (var->handleVar == -1)
             {
@@ -278,7 +292,9 @@ namespace mbm
     {
         if (programObject == 0)
             return;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement use program");
+        #endif
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -306,7 +322,9 @@ namespace mbm
 
     SHADER::~SHADER()
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement release shader");
+        #endif
         this->programObject = 0;
     }
 
@@ -321,7 +339,9 @@ namespace mbm
         this->normalHandle    = -1;
         this->pShader         = nullptr;
         this->vShader         = nullptr;
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement delete program");
+        #endif
         this->programObject = 0;
     }
 
@@ -373,74 +393,103 @@ namespace mbm
             if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement get attrib and uniform locations");
+        #endif
         return true;
     }
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement set cull face and front face");
+        #endif
 		
         if (pBufferId->isIndexBuffer) // Index buffer
         {
             if (!pBufferId->vboVertNorTexIB[0])
                 return false;
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement use program");
             #pragma message(REMINDER_TODO "  implement bind buffers and set attrib pointers");
             #pragma message(REMINDER_TODO "  draw elements");
+            #endif
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 if (pBufferId->idTexture1)
                 {
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement active texture and bind texture");
+                    #endif
                 }
                 else
                 {
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement bind texture 0");
+                    #endif
                 }
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  implement draw elements");
+                #endif
             }
         }
         else // Vertex buffer
         {
             if (!pBufferId->vboVertexSubsetVB)
                 return false;
+            #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement use program");
+            #endif
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
+                #endif
                 //-----------------------------------------------------------------------------------------------------------
                 if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
+                    #endif
                 }
+                #ifdef SHOW_PRAGMA_MESSAGE
                 //-----------------------------------------------------------------------------------------------------------
                 #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 //-----------------------------------------------------------------------------------------------------------
                 #pragma message(REMINDER_TODO "  implement set uniform matrices");
                 //-----------------------------------------------------------------------------------------------------------
                 #pragma message(REMINDER_TODO "  implement active texture");
+                #endif
                 if (pBufferId->idTexture1)
                 {
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement bind texture and set uniform");
+                    #endif
                 }
                 else
                 {
+                    #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement bind texture 0");
+                    #endif
                 }
-
+                #ifdef SHOW_PRAGMA_MESSAGE
                 #pragma message(REMINDER_TODO "  implement draw arrays");
+                #endif
             }
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement unbind buffer");
+        #endif
         return true;
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
 		#pragma message(REMINDER_TODO "  implement set cull face and front face");
+        #endif
 
         if (pBufferId->isIndexBuffer) // Index buffer
         {
@@ -515,7 +564,9 @@ namespace mbm
         uint32_t shader;
         int          compiled;
         // Create the shader object
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement create shader");
+        #endif
         if (shader == 0)
         {
             PRINT_IF_DEBUG("GLCreateShader returned 0");
@@ -544,7 +595,9 @@ namespace mbm
             PRINT_IF_DEBUG("programObject already exists");
             return programObject;
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  Load the vertex/fragment shaders");
+        #endif
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
@@ -572,7 +625,9 @@ namespace mbm
             programObject = 0;
             return 0;
         }
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
+        #endif
         return programObject;
     }
 }

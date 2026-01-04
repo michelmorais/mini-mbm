@@ -29,7 +29,9 @@ namespace mbm
 {
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
+        #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement destroy frame buffer");
+        #endif
         this->idFrameBuffer = 0;
     }
 }

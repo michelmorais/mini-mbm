@@ -25,4 +25,8 @@
 #define $Line MakeString( Stringize, __LINE__ )
 #define REMINDER_TODO __FILE__ "(" $Line ") : TODO: "
 
+#ifndef ANDROID
+    #define SHOW_PRAGMA_MESSAGE
+#endif
+
 #endif
