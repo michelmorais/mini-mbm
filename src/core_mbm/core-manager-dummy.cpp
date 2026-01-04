@@ -165,7 +165,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             ERROR_LOG("onLostDevice step %d",stepRestore);
 #endif
 #ifndef ANDROID
-            compiler_message("TODO: implement for other platforms")
+            #pragma message(REMINDER_TODO "implement for other platforms")
     #define __nameAplication "Mini-mbm " MBM_VERSION " DUMMY"
 #endif
 #if defined(_WIN32)
@@ -211,9 +211,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             stepRestore = STEP_RES_OBJ;
             this->which_for =  WFOR_INITIAL;
             #if defined(_WIN32)
-            compiler_message("TODO: swap buffers for WIN32")
+            #pragma message(REMINDER_TODO "swap buffers for WIN32")
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            compiler_message("TODO: swap buffers for LINUX/APPLE")
+            #pragma message(REMINDER_TODO "swap buffers for LINUX/APPLE")
             #endif
             return false;
         }
@@ -269,9 +269,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32)
-                                compiler_message("TODO: swap buffers for WIN32")
+                                #pragma message(REMINDER_TODO "swap buffers for WIN32")
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                compiler_message("TODO: swap buffers for LINUX/APPLE")
+                                #pragma message(REMINDER_TODO "swap buffers for LINUX/APPLE")
                             #endif
                             return false;
                         }
@@ -303,9 +303,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
-                                compiler_message("TODO: swap buffers for WIN32")
+                                #pragma message(REMINDER_TODO "  swap buffers for WIN32")
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                compiler_message("TODO: swap buffers for LINUX/APPLE")
+                                #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
                             #endif
                             return false;
                         }
@@ -337,9 +337,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                             if (device->scene)
                                 device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
                             #if defined(_WIN32) 
-                                compiler_message("TODO: swap buffers for WIN32")
+                                #pragma message(REMINDER_TODO "  swap buffers for WIN32")
                             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                compiler_message("TODO: swap buffers for LINUX/APPLE")
+                                #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
                             #endif
                             return false;
                         }
@@ -352,9 +352,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             }
             stepRestore = STEP_RES_END;
             #if defined(_WIN32) 
-            compiler_message("TODO: swap buffers for WIN32")
+            #pragma message(REMINDER_TODO "  swap buffers for WIN32")
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            compiler_message("TODO: swap buffers for LINUX/APPLE")
+            #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
             #endif
             return false;
         }
@@ -528,23 +528,23 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
 		}
 #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
 
-        compiler_message("TODO: implement for Linux with X11")
+        #pragma message(REMINDER_TODO "  implement for Linux with X11")
     #ifdef __APPLE__
-        compiler_message("TODO: implement for MacOS")
+        #pragma message(REMINDER_TODO "  implement for MacOS")
     #else
-        compiler_message("TODO: implement for Linux with X11")
+        #pragma message(REMINDER_TODO "  implement for Linux with X11")
     #endif
         //Open X11 display
 
         if (device->verbose)
         {
-            compiler_message("TODO: implement VENDOR strings for ANY")
+            #pragma message(REMINDER_TODO "  implement VENDOR strings for ANY")
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
         }
 
 #endif
-        compiler_message("TODO: set viewport and other initial states for ANY")
+        #pragma message(REMINDER_TODO "  set viewport and other initial states for ANY")
         if (x > 0)
             device->backBufferWidth = static_cast<float>(x);
         if (y > 0)
@@ -851,11 +851,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
-        compiler_message("TODO: implement initialization of window for ANY")
+        #pragma message(REMINDER_TODO "  implement initialization of window for ANY")
 
         while (this->device->run)
         {
-            compiler_message("TODO: implement event polling for ANY")
+            #pragma message(REMINDER_TODO "  implement event polling for ANY")
             bool dummy_loop= true;
             while(dummy_loop)
             {
@@ -889,7 +889,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        compiler_message("TODO: implement resize for ANY")
+                        #pragma message(REMINDER_TODO "  implement resize for ANY")
                     }
                     break;
                     case ONTOUCHDOWN:
@@ -1026,7 +1026,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onEndRender();
             }
-            compiler_message("TODO: implement Swap buffers")
+            #pragma message(REMINDER_TODO "  implement Swap buffers")
         }
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
         {
@@ -1046,7 +1046,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        compiler_message("TODO: implement for ANY")
+        #pragma message(REMINDER_TODO "  implement for ANY")
     }
 #endif
     bool CORE_MANAGER::renderToTargets()
@@ -1056,11 +1056,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
-            compiler_message("TODO: set viewport to render target")
+            #pragma message(REMINDER_TODO "  set viewport to render target")
             
             if (!renderTarget->render2Texture())
             {
-                compiler_message("TODO: Set viewport to back buffer")
+                #pragma message(REMINDER_TODO "  Set viewport to back buffer")
                 this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 return false;
             }
@@ -1068,7 +1068,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         }
         if (oneRender)
         {
-            compiler_message("TODO: Set viewport to back buffer")
+            #pragma message(REMINDER_TODO "  Set viewport to back buffer")
             this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
         }
         return true;
@@ -1509,7 +1509,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 handle = this->device->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 handle = nullptr; // TODO: X11 Display or Window
-                compiler_message("TODO: X11 Display or Window")
+                #pragma message(REMINDER_TODO "  X11 Display or Window")
             #elif defined(ANDROID)
                 handle = this->device->jni->jenv;
             #endif
@@ -1566,7 +1566,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         xsize.height_inc    = 0;
         xsize.x             = 0;
         xsize.y             = 0;
-        compiler_message("TODO: Apply to window");
+        #pragma message(REMINDER_TODO "  Apply to window");
     }
     #elif defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)

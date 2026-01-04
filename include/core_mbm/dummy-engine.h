@@ -20,9 +20,9 @@
 #ifndef DUMMY_ENGINE_H
 #define DUMMY_ENGINE_H
 
-#define MacroStr(x)   #x
-#define MacroStr2(x)  MacroStr(x)
-// for compiler_message, you can remove it after implement the functions
-#define compiler_message(desc) __pragma(message(__FILE__ "(" MacroStr2(__LINE__) ") :" #desc))   
+#define Stringize( L )     #L 
+#define MakeString( M, L ) M(L)
+#define $Line MakeString( Stringize, __LINE__ )
+#define REMINDER_TODO __FILE__ "(" $Line ") : TODO: "
 
 #endif

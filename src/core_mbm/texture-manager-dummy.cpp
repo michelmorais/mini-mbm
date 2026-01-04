@@ -34,7 +34,7 @@ namespace mbm
     {
         if (idTexture)
         {
-            compiler_message("TODO: implement delete texture");
+            #pragma message(REMINDER_TODO "  implement delete texture");
         }
         idTexture       = 0;
         width           = 0;
@@ -65,11 +65,11 @@ namespace mbm
                 delete[] img;
             return false;
         }
-        compiler_message("TODO: implement generate texture");
+        #pragma message(REMINDER_TODO "  implement generate texture");
         uint8_t *rgba_toDelete = nullptr;
         if (channel == 4)
         {
-            compiler_message("TODO: implement upload texture with RGBA data");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
         }
         else if (hasAlpha)
         {
@@ -86,20 +86,20 @@ namespace mbm
                 rgba[j + 2]           = b;
                 rgba[j + 3]           = 255; // 255 - opcao totalmente opaco
             }
-            compiler_message("TODO: implement upload texture with RGBA data");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
         }
         else
         {
-            compiler_message("TODO: implement upload texture with RGB data");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB data");
         }
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            compiler_message("TODO: implement set texture parameters for tile map mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            compiler_message("TODO: implement set texture parameters for normal mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
         if (rgba_toDelete)
             delete[] rgba_toDelete;
@@ -114,19 +114,19 @@ namespace mbm
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        compiler_message("TODO: implement pixel store alignment");  
+        #pragma message(REMINDER_TODO "  implement pixel store alignment");  
         
         if (idTexture == 0)
             return false;
         //TODO: implement bind texture
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            compiler_message("TODO: implement set texture parameters for tile map mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            compiler_message("TODO: implement set texture parameters for normal mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
         return true;
     }
@@ -134,7 +134,7 @@ namespace mbm
     TEXTURE_SHARED::TEXTURE_SHARED()
     {
         this->maxTextureSize = 0;
-        compiler_message("TODO: implement get max texture size");
+        #pragma message(REMINDER_TODO "  implement get max texture size");
     }
 
         std::shared_ptr<TEXTURE> TEXTURE_SHARED::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
@@ -157,35 +157,35 @@ namespace mbm
         uint32_t idFrameBuffer  = 0;
         uint32_t idTexture2d    = 0;
         uint32_t idRenderBuffer = 0;
-        compiler_message("TODO: implement generate framebuffer, renderbuffer and texture");
+        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and texture");
 
         // texture
         
 
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            compiler_message("TODO: implement set texture parameters for tile map mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            compiler_message("TODO: implement set texture parameters for normal mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
 
         if (enableAlpha)
         {
-            compiler_message("TODO: implement upload texture with RGBA format");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
         }
         else
         {
-            compiler_message("TODO: implement upload texture with RGB format");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
         }
         // depth buffer
-        compiler_message("TODO: implement bind renderbuffer and set storage");
+        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
         // frame buffer
         
         // attachments
-        compiler_message("TODO: implement attach texture and renderbuffer to framebuffer");
+        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
         //
 
         renderToTarget->idFrameBuffer       = idFrameBuffer;
@@ -220,35 +220,35 @@ namespace mbm
         uint32_t idFrameBuffer  = 0;
         uint32_t idTexture2d    = 0;
         uint32_t idRenderBuffer = 0;
-        compiler_message("TODO: implement generate framebuffer, renderbuffer and");
+        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and");
 
         // texture
-        compiler_message("TODO: implement generate texture");
+        #pragma message(REMINDER_TODO "  implement generate texture");
 
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            compiler_message("TODO: implement set texture parameters for tile map mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            compiler_message("TODO: implement set texture parameters for normal mode");
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
 
         if (enableAlpha)
         {
-            compiler_message("TODO: implement upload texture with RGBA format");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
         }
         else
         {
-            compiler_message("TODO: implement upload texture with RGB format");
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
         }
         // depth buffer
-        compiler_message("TODO: implement bind renderbuffer and set storage");
+        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
         // frame buffer
-        compiler_message("TODO: implement bind framebuffer");
+        #pragma message(REMINDER_TODO "  implement bind framebuffer");
         // attachments
-        compiler_message("TODO: implement attach texture and renderbuffer to framebuffer");
+        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
         //
         
         renderToTarget->idFrameBuffer       = idFrameBuffer;
@@ -266,7 +266,7 @@ namespace mbm
     TEXTURE_MANAGER::TEXTURE_MANAGER()
     {
         this->maxTextureSize = 0;
-        compiler_message("TODO: implement get max texture size");
+        #pragma message(REMINDER_TODO "  implement get max texture size");
     }
 }
 

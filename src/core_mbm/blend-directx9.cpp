@@ -19,7 +19,7 @@
 
 #include <blend.h>
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined (USE_DIRECTX9)
 
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
@@ -55,4 +55,4 @@ namespace mbm
     }
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX9

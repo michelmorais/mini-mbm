@@ -44,7 +44,7 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         this->vboIndexBuffer = 0;
 
@@ -73,11 +73,11 @@ namespace mbm
         unsigned int             totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
-        compiler_message("TODO: Create VBO for index buffer");
+        #pragma message(REMINDER_TODO "  Create VBO for index buffer");
         if (!this->vboIndexBuffer)
             return false;
         this->texture = nullptr;
-        compiler_message("TODO: bind VBO index buffer");
+        #pragma message(REMINDER_TODO "  bind VBO index buffer");
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
         {
@@ -173,7 +173,7 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         this->vboIndexBuffer = 0;
     }
@@ -292,27 +292,27 @@ namespace mbm
                     maxv.y = vertex->y;
             }
         }
-        compiler_message("TODO: render particles");
+        #pragma message(REMINDER_TODO "  render particles");
         if (this->texture)
         {
-            compiler_message("TODO: bind texture");
+            #pragma message(REMINDER_TODO "  bind texture");
         }
         else
         {
-            compiler_message("TODO: bind no texture");
+            #pragma message(REMINDER_TODO "  bind no texture");
         }
-        compiler_message("TODO: set active texture unit 0");
+        #pragma message(REMINDER_TODO "  set active texture unit 0");
         if (anim->fx.textureOverrideStage2)
         {
-            compiler_message("TODO: bind texture override stage 2");
+            #pragma message(REMINDER_TODO "  bind texture override stage 2");
         }
         else
         {
-            compiler_message("TODO: bind no texture");
+            #pragma message(REMINDER_TODO "  bind no texture");
         }
-        compiler_message("TODO: disable depth test");
+        #pragma message(REMINDER_TODO "  disable depth test");
         this->blend.set(anim->blendState);
-        compiler_message("TODO: set shader matrices");
+        #pragma message(REMINDER_TODO "  set shader matrices");
         //TODO: bind VBO index buffer
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
@@ -325,7 +325,7 @@ namespace mbm
                 const float * vertex   = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 ATT_PARTICLE *particle = &this->particles[i];
 
-                compiler_message("TODO: set variable color");
+                #pragma message(REMINDER_TODO "  set variable color");
                 //TODO: draw vertex
             }
         }
@@ -335,10 +335,10 @@ namespace mbm
             {
                 const float *vertex = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 //TODO: set variable color
-                compiler_message("TODO: draw vertex");
+                #pragma message(REMINDER_TODO "  draw vertex");
             }
         }
-        compiler_message("TODO: enable depth test");
+        #pragma message(REMINDER_TODO "  enable depth test");
         return true;
     }
 

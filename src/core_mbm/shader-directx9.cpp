@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined (USE_DIRECTX9)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -49,13 +49,13 @@ namespace mbm
                //mode_cull_face(GL_BACK),
                //mode_front_face_direction(GL_CW)
     {
-        compiler_message("TODO: initialize mode values");
+        #pragma message(REMINDER_TODO "  initialize mode values");
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
 
     void BUFFER_GL::release()
     {
-        compiler_message("TODO: implement delete buffer");
+        #pragma message(REMINDER_TODO "  implement delete buffer");
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
         
         if (vboIndexSubsetIB)
@@ -119,7 +119,7 @@ namespace mbm
         memset(this->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        compiler_message("TODO: generate buffers");
+        #pragma message(REMINDER_TODO "  generate buffers");
         
         this->idTexture0 = new uint32_t[totalSubset];
         memset(this->idTexture0, 0, sizeof(int) * totalSubset);
@@ -144,13 +144,13 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        compiler_message("TODO: generate buffers");
+        #pragma message(REMINDER_TODO "  generate buffers");
         this->totalSubset      = totalSubsets;
         this->vboIndexSubsetIB = new uint32_t[totalSubset];
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        compiler_message("TODO: generate buffers");
+        #pragma message(REMINDER_TODO "  generate buffers");
         this->idTexture0 = new uint32_t[this->totalSubset];
         memset(this->idTexture0, 0, sizeof(uint32_t) * static_cast<size_t>(this->totalSubset));
 
@@ -177,7 +177,7 @@ namespace mbm
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
-        compiler_message("TODO: generate buffers");
+        #pragma message(REMINDER_TODO "  generate buffers");
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
@@ -222,7 +222,7 @@ namespace mbm
             }
             auto var       = new VAR_SHADER(typeVar);
             var->name      = nameVar;
-            compiler_message("TODO: implement get uniform location");
+            #pragma message(REMINDER_TODO "  implement get uniform location");
             
             if (var->handleVar == -1)
             {
@@ -278,7 +278,7 @@ namespace mbm
     {
         if (programObject == 0)
             return;
-        compiler_message("TODO: implement use program");
+        #pragma message(REMINDER_TODO "  implement use program");
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -306,7 +306,7 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        compiler_message("TODO: implement release shader");
+        #pragma message(REMINDER_TODO "  implement release shader");
         this->programObject = 0;
     }
 
@@ -321,7 +321,7 @@ namespace mbm
         this->normalHandle    = -1;
         this->pShader         = nullptr;
         this->vShader         = nullptr;
-        compiler_message("TODO: implement delete program");
+        #pragma message(REMINDER_TODO "  implement delete program");
         this->programObject = 0;
     }
 
@@ -373,74 +373,74 @@ namespace mbm
             if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
-        compiler_message("TODO: implement get attrib and uniform locations");
+        #pragma message(REMINDER_TODO "  implement get attrib and uniform locations");
         return true;
     }
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        compiler_message("TODO: implement set cull face and front face");
+        #pragma message(REMINDER_TODO "  implement set cull face and front face");
 		
         if (pBufferId->isIndexBuffer) // Index buffer
         {
             if (!pBufferId->vboVertNorTexIB[0])
                 return false;
-            compiler_message("TODO: implement use program");
-            compiler_message("TODO: implement bind buffers and set attrib pointers");
-            compiler_message("TODO: draw elements");
+            #pragma message(REMINDER_TODO "  implement use program");
+            #pragma message(REMINDER_TODO "  implement bind buffers and set attrib pointers");
+            #pragma message(REMINDER_TODO "  draw elements");
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 if (pBufferId->idTexture1)
                 {
-                    compiler_message("TODO: implement active texture and bind texture");
+                    #pragma message(REMINDER_TODO "  implement active texture and bind texture");
                 }
                 else
                 {
-                    compiler_message("TODO: implement bind texture 0");
+                    #pragma message(REMINDER_TODO "  implement bind texture 0");
                 }
-                compiler_message("TODO: implement draw elements");
+                #pragma message(REMINDER_TODO "  implement draw elements");
             }
         }
         else // Vertex buffer
         {
             if (!pBufferId->vboVertexSubsetVB)
                 return false;
-            compiler_message("TODO: implement use program");
+            #pragma message(REMINDER_TODO "  implement use program");
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                compiler_message("TODO: implement bind buffer and set attrib pointer");
+                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 //-----------------------------------------------------------------------------------------------------------
                 if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
-                    compiler_message("TODO: implement bind buffer and set attrib pointer");
+                    #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                compiler_message("TODO: implement bind buffer and set attrib pointer");
+                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 //-----------------------------------------------------------------------------------------------------------
-                compiler_message("TODO: implement set uniform matrices");
+                #pragma message(REMINDER_TODO "  implement set uniform matrices");
                 //-----------------------------------------------------------------------------------------------------------
-                compiler_message("TODO: implement active texture");
+                #pragma message(REMINDER_TODO "  implement active texture");
                 if (pBufferId->idTexture1)
                 {
-                    compiler_message("TODO: implement bind texture and set uniform");
+                    #pragma message(REMINDER_TODO "  implement bind texture and set uniform");
                 }
                 else
                 {
-                    compiler_message("TODO: implement bind texture 0");
+                    #pragma message(REMINDER_TODO "  implement bind texture 0");
                 }
 
-                compiler_message("TODO: implement draw arrays");
+                #pragma message(REMINDER_TODO "  implement draw arrays");
             }
         }
-        compiler_message("TODO: implement unbind buffer");
+        #pragma message(REMINDER_TODO "  implement unbind buffer");
         return true;
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-		compiler_message("TODO: implement set cull face and front face");
+		#pragma message(REMINDER_TODO "  implement set cull face and front face");
 
         if (pBufferId->isIndexBuffer) // Index buffer
         {
@@ -515,7 +515,7 @@ namespace mbm
         uint32_t shader;
         int          compiled;
         // Create the shader object
-        compiler_message("TODO: implement create shader");
+        #pragma message(REMINDER_TODO "  implement create shader");
         if (shader == 0)
         {
             PRINT_IF_DEBUG("GLCreateShader returned 0");
@@ -544,7 +544,7 @@ namespace mbm
             PRINT_IF_DEBUG("programObject already exists");
             return programObject;
         }
-        compiler_message("TODO: Load the vertex/fragment shaders");
+        #pragma message(REMINDER_TODO "  Load the vertex/fragment shaders");
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
@@ -572,9 +572,9 @@ namespace mbm
             programObject = 0;
             return 0;
         }
-        compiler_message("TODO: Free up no longer needed shader resources");
+        #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
         return programObject;
     }
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX9

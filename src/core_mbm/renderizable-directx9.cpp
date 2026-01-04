@@ -20,7 +20,7 @@
 #include <renderizable.h>
 
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined (USE_DIRECTX9)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -29,9 +29,9 @@ namespace mbm
 {
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        compiler_message("TODO: implement destroy frame buffer");
+        #pragma message(REMINDER_TODO "  implement destroy frame buffer");
         this->idFrameBuffer = 0;
     }
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX9

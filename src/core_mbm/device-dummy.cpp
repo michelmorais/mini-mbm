@@ -119,16 +119,16 @@ namespace mbm
     
     void DEVICE::setDephtTest(const bool enable)
     {
-        compiler_message("TODO: implement depth test enable/disable");
+        #pragma message(REMINDER_TODO "  implement depth test enable/disable");
     }
 
     void DEVICE::clearDepth()
     {
-        compiler_message("TODO: implement clear depth buffer");
+        #pragma message(REMINDER_TODO "  implement clear depth buffer");
     }
     void DEVICE::clearDepthColored()
     {
-        compiler_message("TODO: implement clear depth buffer with color");
+        #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -145,7 +145,7 @@ namespace mbm
     {
         if (width > 0 && height > 0)
         {
-            compiler_message("TODO: set projection mode");
+            #pragma message(REMINDER_TODO "  set projection mode");
         }
         if (width > 0)
             backBufferWidth = width;

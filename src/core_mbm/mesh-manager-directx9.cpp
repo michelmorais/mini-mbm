@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined USE_DUMMY_BACK_END_ENGINE
+#if defined (USE_DIRECTX9)
 #if defined USE_EDITOR_FEATURES
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
@@ -37,7 +37,7 @@ namespace mbm
     {
         if(meshMemory == nullptr || meshMemory->isLoaded() == false)
             return log_util::onFailed(nullptr,__FILE__, __LINE__, "Mesh empty or not loaded...");
-        compiler_message("TODO: check capabilities");
+        #pragma message(REMINDER_TODO "  check capabilities");
         this->release();
         fileName = meshMemory->getFilenameMesh();
         // step 1: Verificação do header
@@ -281,7 +281,7 @@ namespace mbm
                     pSubset->indexCount             = pGl->indexCountIB[i];
                     pBuffer->subset[i]->indexStart  = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount  = pSubset->indexCount;
-                    compiler_message("TODO: implement get array from memory");
+                    #pragma message(REMINDER_TODO "  implement get array from memory");
                     //GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
                     //auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
                     //if(indexBuffer == nullptr)
@@ -347,7 +347,7 @@ namespace mbm
 
             if(is_dynamic_shape == false)
             {
-                compiler_message("TODO: implement get array from memory");
+                #pragma message(REMINDER_TODO "  implement get array from memory");
                 //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[0]);
                 //pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
@@ -387,7 +387,7 @@ namespace mbm
             }
             if(is_dynamic_shape == false)
             {
-                compiler_message("TODO: implement get array from memory");
+                #pragma message(REMINDER_TODO "  implement get array from memory");
                 //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[1]);
                 //pNormal   = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
@@ -398,7 +398,7 @@ namespace mbm
             memcpy(pBuffer->normal,pNormal,sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
             {
-                compiler_message("TODO: implement unmap array from memory");
+                #pragma message(REMINDER_TODO "  implement unmap array from memory");
                 //glUnmapBufferOES(GL_ARRAY_BUFFER);
                 //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[2]);
                 //pTexture  = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
@@ -413,7 +413,7 @@ namespace mbm
             memcpy(pBuffer->uv,pTexture,sizeof(float) * 2 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
             {
-                compiler_message("TODO: implement unmap array from memory");
+                #pragma message(REMINDER_TODO "  implement unmap array from memory");
                 //glUnmapBufferOES(GL_ARRAY_BUFFER);
             }
         }
@@ -428,4 +428,4 @@ namespace mbm
 } //namespace mbm
 
 #endif // USE_EDITOR_FEATURES
-#endif //USE_DUMMY_BACK_END_ENGINE
+#endif //USE_DIRECTX9

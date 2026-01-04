@@ -44,7 +44,7 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         this->vboIndexBuffer = 0;
         for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
@@ -66,10 +66,10 @@ namespace mbm
             return false;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
-        compiler_message("TODO: generate buffer");
+        #pragma message(REMINDER_TODO "  generate buffer");
         if (!this->vboIndexBuffer)
             return false;
-        compiler_message("TODO: bind buffer and upload data");
+        #pragma message(REMINDER_TODO "  bind buffer and upload data");
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
         if (this->texture)
         {
@@ -92,7 +92,7 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         this->vboIndexBuffer = 0;
     }
@@ -113,26 +113,26 @@ namespace mbm
         anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
-        compiler_message("TODO: set shader program");
+        #pragma message(REMINDER_TODO "  set shader program");
         if (this->texture)
         {
-            compiler_message("TODO: activate and bind texture");
+            #pragma message(REMINDER_TODO "  activate and bind texture");
         }
         else
         {
-            compiler_message("TODO: activate and bind texture 0");
+            #pragma message(REMINDER_TODO "  activate and bind texture 0");
         }
-        compiler_message("TODO: set texture sampler uniform");
+        #pragma message(REMINDER_TODO "  set texture sampler uniform");
         if (anim->fx.textureOverrideStage2)
         {
-            compiler_message("TODO: activate and bind texture");
+            #pragma message(REMINDER_TODO "  activate and bind texture");
         }
         else
         {
-            compiler_message("TODO: activate and bind texture 1");
+            #pragma message(REMINDER_TODO "  activate and bind texture 1");
         }
 
-        compiler_message("TODO: set texture sampler uniform");
+        #pragma message(REMINDER_TODO "  set texture sampler uniform");
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
                                          : nullptr;
@@ -140,13 +140,13 @@ namespace mbm
         {
             if (var)
             {
-                compiler_message("TODO: set uniform color");
+                #pragma message(REMINDER_TODO "  set uniform color");
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
                     //TODO: bind index buffer
-                    compiler_message("TODO: Draw elements");
+                    #pragma message(REMINDER_TODO "  Draw elements");
                 }
             }
             else
@@ -158,7 +158,7 @@ namespace mbm
                         const float *vertex = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                         const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
                         //TODO: bind index buffer
-                        compiler_message("TODO: Draw elements");
+                        #pragma message(REMINDER_TODO "  Draw elements");
                     }
                 }
             }
@@ -173,7 +173,7 @@ namespace mbm
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
                     //TODO: bind index buffer
-                    compiler_message("TODO: Draw elements");
+                    #pragma message(REMINDER_TODO "  Draw elements");
                 }
             }
             else
@@ -183,12 +183,12 @@ namespace mbm
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
                     //TODO: bind index buffer
-                    compiler_message("TODO: Draw elements");
+                    #pragma message(REMINDER_TODO "  Draw elements");
                 }
             }
         }
 
-        compiler_message("TODO: unbind buffers and disable attributes");
+        #pragma message(REMINDER_TODO "  unbind buffers and disable attributes");
         return true;
     }
     

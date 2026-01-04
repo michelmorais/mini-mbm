@@ -28,12 +28,12 @@ namespace mbm
 {
     void FX::setBlendDefaultOp()
     {
-        compiler_message("TODO: set default blend operation");
+        #pragma message(REMINDER_TODO "  set default blend operation");
     }
 
     void FX::setBlendOp()
     {
-        compiler_message("TODO: set blend operation");
+        #pragma message(REMINDER_TODO "  set blend operation");
         switch (blendOperation)
         {
             case 1: // D3DBLENDOP_ADD              = 1,

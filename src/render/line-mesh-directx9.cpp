@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined USE_DUMMY_BACK_END_ENGINE
+#if defined (USE_DIRECTX9)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -34,7 +34,7 @@ namespace mbm
         arrayLinesVec3.clear();
         if (this->vboVertexUvLine)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         vboVertexUvLine = 0;
     }
@@ -43,13 +43,13 @@ namespace mbm
     {
         if (this->vboVertexUvLine)
         {
-            compiler_message("TODO: delete buffer");
+            #pragma message(REMINDER_TODO "  delete buffer");
         }
         vboVertexUvLine = 0;
-        compiler_message("TODO: generate buffer");
+        #pragma message(REMINDER_TODO "  generate buffer");
         if (this->vboVertexUvLine == 0)
             return false;
-        compiler_message("TODO: bind buffer");
+        #pragma message(REMINDER_TODO "  bind buffer");
         return true;
     }
     
@@ -58,7 +58,7 @@ namespace mbm
         arrayLinesVec3 = std::move(arrayPoints);
         if (this->vboVertexUvLine == 0)
         {
-            compiler_message("TODO: generate buffer");
+            #pragma message(REMINDER_TODO "  generate buffer");
             if (this->vboVertexUvLine == 0)
                 return false;
         }
@@ -69,7 +69,7 @@ namespace mbm
                 vec3.y = -vec3.y;
             }
         }
-        compiler_message("TODO: bind buffer");
+        #pragma message(REMINDER_TODO "  bind buffer");
         return true;
     }
     
@@ -78,13 +78,13 @@ namespace mbm
         if (!this->vboVertexUvLine)
             return false;
 		
-        compiler_message("TODO: set shader blend");
+        #pragma message(REMINDER_TODO "  set shader blend");
 
         //TODO: set blend function
 
         //TODO: bind buffer
         //TODO: enable vertex attribute array
-        compiler_message("TODO: Draw vertex line mode");
+        #pragma message(REMINDER_TODO "  Draw vertex line mode");
         return true;
     }
     
@@ -94,7 +94,7 @@ namespace mbm
         {
             if (line->vboVertexUvLine)
             {
-                compiler_message("TODO: delete buffer");
+                #pragma message(REMINDER_TODO "  delete buffer");
             }
             line->vboVertexUvLine = 0;
         }
@@ -152,4 +152,4 @@ namespace mbm
         return true;
     }
 }
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX9

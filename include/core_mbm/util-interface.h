@@ -96,7 +96,6 @@ namespace util
 namespace log_util
 {
     API_IMPL const char* getDirSeparator();
-    API_IMPL const char *getDescriptionError(const unsigned int error);
     API_IMPL void replaceString(std::string &source, const std::string &from, const std::string &to);
     API_IMPL void replaceString(std::string &source, const char *from, const char *to);
     API_IMPL void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);

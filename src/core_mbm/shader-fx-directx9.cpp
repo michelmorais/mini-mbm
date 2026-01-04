@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined (USE_DUMMY_BACK_END_ENGINE)
+#if defined (USE_DIRECTX9)
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -28,12 +28,12 @@ namespace mbm
 {
     void FX::setBlendDefaultOp()
     {
-        compiler_message("TODO: set default blend operation");
+        #pragma message(REMINDER_TODO "  set default blend operation");
     }
 
     void FX::setBlendOp()
     {
-        compiler_message("TODO: set blend operation");
+        #pragma message(REMINDER_TODO "  set blend operation");
         switch (blendOperation)
         {
             case 1: // D3DBLENDOP_ADD              = 1,
@@ -63,4 +63,4 @@ namespace mbm
     }
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif // USE_DIRECTX9
