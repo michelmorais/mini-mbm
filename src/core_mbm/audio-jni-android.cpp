@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_JNI)
 #if defined(ANDROID)
 
 #include <audio.h>
@@ -24,10 +25,6 @@
 #include <core-manager.h>
 #include <util-interface.h>
 #include <platform/common-jni.h>
-
-#if !defined(AUDIO_ENGINE_ANDROID_JNI)
-    #error attempt to use AUDIO JNI without define AUDIO_ENGINE_ANDROID_JNI
-#endif
 
 
 namespace mbm
@@ -352,4 +349,5 @@ namespace mbm
 	}
 }
 
+#endif
 #endif

@@ -18,22 +18,11 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(AUDIO_ENGINE_NONE)
+
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
-
-#if defined(AUDIO_ENGINE_PORT_AUDIO)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_PORT_AUDIO
-#endif
-
-#if defined(AUDIO_ENGINE_AUDIERE)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_AUDIERE
-#endif
-
-#if defined(AUDIO_ENGINE_ANDROID_JNI)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_ANDROID_JNI
-#endif
 
 
 namespace mbm
@@ -41,6 +30,7 @@ namespace mbm
 	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
     onEndStreamCallBack(nullptr)
     {
+        #pragma message(REMINDER_TODO "Audio engine NONE is used, all functions are disabled")
         ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
     }
 
