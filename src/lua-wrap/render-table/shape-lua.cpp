@@ -31,6 +31,7 @@ extern "C"
 #include <platform/mismatch-platform.h>
 #include <core_mbm/header-mesh.h>
 #include <core_mbm/scene.h>
+#include <draw-compatibility.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

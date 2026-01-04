@@ -17,11 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include <render-2-texture.h>
-
-#if defined(USE_OPENGL_ES)
-
-#include <gles-debug.h>
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
 #include <util-interface.h>
@@ -49,31 +50,19 @@ namespace mbm
         const int sizeImage = _width * _height * channel;
         auto  image = new unsigned char[sizeImage];
 
-        GLBindFramebuffer(GL_FRAMEBUFFER, this->idFrameBuffer);
+        compiler_message("TODO: bind texture render to texture");
         
-        glReadPixels(x,y,_width,_height,channel == 4 ? GL_RGBA : GL_RGB,GL_UNSIGNED_BYTE,image);
-        const GLenum error = glGetError();
+        compiler_message("TODO: read pixels from frame buffer");
+        unsigned int error = 0; //TODO: set error from read pixels
         if(error)
         {
             delete [] image;
             const char *errorAsString = log_util::getDescriptionError(error);
             return log_util::fail(__LINE__,__FILE__,"Failed to read pixel [%s]",errorAsString);
         }
-        
-        //if(this->texture->useAlphaChannel == false)
-        //{
-        //    const int s = w * h;
-        //    const int stride = 3;
-        //    auto  image3x3 = new unsigned char[s * 3];
-        //    for(int i=0,j=0; i< sizeImage; i+=4,j+=3)
-        //    {
-        //        memcpy(&image3x3[j],&image[i],stride);
-        //    }
-        //    delete [] image;
-        //    image = image3x3;
-        //}
 
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        compiler_message("TODO: unbind texture render to texture");
         this->flip_vertically(image,_width,_height,channel);
         std::vector<unsigned char> png;
         unsigned int errorPNG = lodepng::encode(png,image, static_cast<unsigned int>(_width), static_cast<unsigned int>(_height),channel == 4 ? LCT_RGBA : LCT_RGB);
@@ -87,4 +76,4 @@ namespace mbm
     }
     
 };
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE

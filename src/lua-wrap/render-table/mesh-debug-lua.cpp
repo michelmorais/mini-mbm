@@ -49,6 +49,7 @@ extern "C"
 #include <core_mbm/physics.h>
 #include <core_mbm/scene.h>
 #include <plugin-helper/plugin-helper.h>
+#include <draw-compatibility.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

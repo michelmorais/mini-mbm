@@ -17,13 +17,14 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include "steered_particle.h"
-
-#if defined(USE_OPENGL_ES)
-
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/header-mesh.h>
-#include <core_mbm/gles-debug.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
@@ -43,7 +44,7 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
-            GLDeleteBuffers(1, &this->vboIndexBuffer);
+            compiler_message("TODO: delete buffer");
         }
         this->vboIndexBuffer = 0;
         for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
@@ -65,12 +66,10 @@ namespace mbm
             return false;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
-        GLGenBuffers(1, &this->vboIndexBuffer);
+        compiler_message("TODO: generate buffer");
         if (!this->vboIndexBuffer)
             return false;
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-        GLBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeIndexBuffer, index, GL_STATIC_DRAW);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        compiler_message("TODO: bind buffer and upload data");
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
         if (this->texture)
         {
@@ -93,7 +92,7 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
-            GLDeleteBuffers(1, &this->vboIndexBuffer);
+            compiler_message("TODO: delete buffer");
         }
         this->vboIndexBuffer = 0;
     }
@@ -114,31 +113,26 @@ namespace mbm
         anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
-        GLDisable(GL_DEPTH_TEST);
-        GLActiveTexture(GL_TEXTURE0);
+        compiler_message("TODO: set shader program");
         if (this->texture)
         {
-            GLBindTexture(GL_TEXTURE_2D, this->texture->idTexture);
+            compiler_message("TODO: activate and bind texture");
         }
         else
         {
-            GLBindTexture(GL_TEXTURE_2D, 0);
+            compiler_message("TODO: activate and bind texture 0");
         }
-        GLUniform1i(anim->fx.shader.samplerHandle0, 0);
+        compiler_message("TODO: set texture sampler uniform");
         if (anim->fx.textureOverrideStage2)
         {
-            glActiveTexture(GL_TEXTURE1);
-            GLBindTexture(GL_TEXTURE_2D, anim->fx.textureOverrideStage2->idTexture);
-            glUniform1i(anim->fx.shader.samplerHandle1, 1);
+            compiler_message("TODO: activate and bind texture");
         }
         else
         {
-            GLActiveTexture(GL_TEXTURE1);
-            GLBindTexture(GL_TEXTURE_2D, 0);
+            compiler_message("TODO: activate and bind texture 1");
         }
-        
-        GLUniformMatrix4fv(anim->fx.shader.mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
+
+        compiler_message("TODO: set texture sampler uniform");
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
                                          : nullptr;
@@ -146,17 +140,13 @@ namespace mbm
         {
             if (var)
             {
-                GLUniform4f(var->handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
+                compiler_message("TODO: set uniform color");
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-                    GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                    GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3),vertex);
-                    GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                    GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2),uv);
-                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                    //TODO: bind index buffer
+                    compiler_message("TODO: Draw elements");
                 }
             }
             else
@@ -167,12 +157,8 @@ namespace mbm
                     {
                         const float *vertex = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                         const float * uv      = reinterpret_cast<float *>(&pGroup->uv[i * 4]);
-                        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-                        GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                        GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3),vertex);
-                        GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                        GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2),uv);
-                        GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                        //TODO: bind index buffer
+                        compiler_message("TODO: Draw elements");
                     }
                 }
             }
@@ -181,17 +167,13 @@ namespace mbm
         {
             if (var)
             {
-                GLUniform4f(var->handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
+                //TODO: set uniform color
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-                    GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                    GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3),vertex);
-                    GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                    GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2),uv);
-                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                    //TODO: bind index buffer
+                    compiler_message("TODO: Draw elements");
                 }
             }
             else
@@ -200,17 +182,13 @@ namespace mbm
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
                     const float * uv      = reinterpret_cast<float *>(pGroup->uv);
-                    GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                    GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3),vertex);
-                    GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                    GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2),uv);
-                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                    //TODO: bind index buffer
+                    compiler_message("TODO: Draw elements");
                 }
             }
         }
-        
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        GLEnable(GL_DEPTH_TEST);
+
+        compiler_message("TODO: unbind buffers and disable attributes");
         return true;
     }
     
@@ -298,4 +276,4 @@ namespace mbm
 }
 
 
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE

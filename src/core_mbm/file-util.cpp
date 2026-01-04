@@ -697,43 +697,6 @@ namespace util
 		onAddPathScript = onNewAddPathScript;
 	}
 
-    
-    bool isBackendEngineOpenGlEs() noexcept
-    {
-        #if defined (USE_OPENGL_ES)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineDirectx() noexcept
-    {
-        #if defined (USE_DIRECTX)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineVulkan() noexcept
-    {
-        #if defined (USE_VULKAN)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineMetal() noexcept
-    {
-        #if defined (USE_METAL)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
     void addPath(const char *newPathSource)
     {
 		

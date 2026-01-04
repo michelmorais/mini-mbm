@@ -19,27 +19,19 @@
 
 #include <renderizable.h>
 
-#if defined(USE_OPENGL_ES)
 
-#include <gles-debug.h>
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 namespace mbm
 
 {
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        if (this->idDepthRenderbuffer)
-        {
-            GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
-        }
-        this->idDepthRenderbuffer = 0;
-
-        if (this->idFrameBuffer)
-        {
-            GLDeleteFramebuffers(1, &this->idFrameBuffer);
-        }
+        compiler_message("TODO: implement destroy frame buffer");
         this->idFrameBuffer = 0;
     }
 }
 
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE

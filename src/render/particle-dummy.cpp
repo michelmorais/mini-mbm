@@ -17,13 +17,14 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined USE_DUMMY_BACK_END_ENGINE
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include <particle.h>
-
-#if defined(USE_OPENGL_ES)
-
 #include <texture-manager.h>
 #include <header-mesh.h>
-#include <gles-debug.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
@@ -43,7 +44,7 @@ namespace mbm
         this->enableRender = false;
         if (this->vboIndexBuffer)
         {
-            GLDeleteBuffers(1, &this->vboIndexBuffer);
+            compiler_message("TODO: delete buffer");
         }
         this->vboIndexBuffer = 0;
 
@@ -72,13 +73,11 @@ namespace mbm
         unsigned int             totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
         const unsigned short int index[6]            = {0, 1, 2, 2, 1, 3};
         const unsigned int       sizeIndexBuffer     = sizeof(index);
-        GLGenBuffers(1, &this->vboIndexBuffer);
+        compiler_message("TODO: Create VBO for index buffer");
         if (!this->vboIndexBuffer)
             return false;
         this->texture = nullptr;
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-        GLBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeIndexBuffer, index, GL_STATIC_DRAW);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        compiler_message("TODO: bind VBO index buffer");
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
         {
@@ -174,7 +173,7 @@ namespace mbm
     {
         if (this->vboIndexBuffer)
         {
-            GLDeleteBuffers(1, &this->vboIndexBuffer);
+            compiler_message("TODO: delete buffer");
         }
         this->vboIndexBuffer = 0;
     }
@@ -293,33 +292,28 @@ namespace mbm
                     maxv.y = vertex->y;
             }
         }
-        GLActiveTexture(GL_TEXTURE0);
+        compiler_message("TODO: render particles");
         if (this->texture)
         {
-            GLBindTexture(GL_TEXTURE_2D, this->texture->idTexture);
+            compiler_message("TODO: bind texture");
         }
         else
         {
-            GLBindTexture(GL_TEXTURE_2D, 0);
+            compiler_message("TODO: bind no texture");
         }
-        GLUniform1i(anim->fx.shader.samplerHandle0, 0);
+        compiler_message("TODO: set active texture unit 0");
         if (anim->fx.textureOverrideStage2)
         {
-            glActiveTexture(GL_TEXTURE1);
-            GLBindTexture(GL_TEXTURE_2D, anim->fx.textureOverrideStage2->idTexture);
-            glUniform1i(anim->fx.shader.samplerHandle1, 1);
+            compiler_message("TODO: bind texture override stage 2");
         }
         else
         {
-            GLActiveTexture(GL_TEXTURE1);
-            GLBindTexture(GL_TEXTURE_2D, 0);
+            compiler_message("TODO: bind no texture");
         }
-        GLDisable(GL_DEPTH_TEST);
+        compiler_message("TODO: disable depth test");
         this->blend.set(anim->blendState);
-        GLUniformMatrix4fv(anim->fx.shader.mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        // if(fx->shader.mvMatrixHandle != -1)
-        //  GLUniformMatrix4fv(fx->shader.mvMatrixHandle, 1, GL_FALSE,SHADER::mvpMatrix.p);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
+        compiler_message("TODO: set shader matrices");
+        //TODO: bind VBO index buffer
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
                                          ? anim->fx.fxPS->ptrCurrentShader->getVarByName("color")
                                          : nullptr;
@@ -330,17 +324,9 @@ namespace mbm
             {
                 const float * vertex   = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 ATT_PARTICLE *particle = &this->particles[i];
-                // GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-                GLUniform4f(var->handleVar, particle->r, particle->g, particle->b, particle->a);
-                GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                                      vertex);
 
-                GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                                      &vertex[3]);
-
-                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                compiler_message("TODO: set variable color");
+                //TODO: draw vertex
             }
         }
         else
@@ -348,19 +334,11 @@ namespace mbm
             for (unsigned int i = 0; i < this->totalAlive; ++i)
             {
                 const float *vertex = reinterpret_cast<float *>(&this->buffer[i * 4]);
-                GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
-                GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                                      vertex);
-
-                GLEnableVertexAttribArray(anim->fx.shader.texCoordHandle);
-                GLVertexAttribPointer(anim->fx.shader.texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                                      &vertex[3]);
-
-                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                //TODO: set variable color
+                compiler_message("TODO: draw vertex");
             }
         }
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        GLEnable(GL_DEPTH_TEST);
+        compiler_message("TODO: enable depth test");
         return true;
     }
 
@@ -442,4 +420,4 @@ namespace mbm
 }
 
 
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE
