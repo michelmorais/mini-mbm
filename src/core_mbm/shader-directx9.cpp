@@ -550,7 +550,7 @@ namespace mbm
             PRINT_IF_DEBUG("vertexShader == 0");
             return 0;
         }
-        fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
+        //fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
         if (fragmentShader == 0)
         {
             PRINT_IF_DEBUG("fragmentShader == 0");

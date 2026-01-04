@@ -33,7 +33,7 @@ namespace mbm
         {
             case BLEND_DISABLE:
             {
-                compiler_message("TODO: pixels's transparency  defined for color Keying")
+                #pragma message(REMINDER_TODO "pixels's transparency  defined for color Keying")
                 return;
             }
             default:{}

@@ -58,7 +58,7 @@ namespace mbm
         {
             delete [] image;
             #pragma message(REMINDER_TODO "  implement getDescriptionError");
-            return nullptr
+            return false;
         }
 
 

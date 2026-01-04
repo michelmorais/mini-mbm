@@ -289,7 +289,7 @@ namespace mbm
                     for(int j=0; j< pSubset->indexCount; ++j)
                     {
                         const int index             = pSubset->indexStart + j;
-                        pBuffer->indexBuffer[index] = indexBuffer[j];
+                        //pBuffer->indexBuffer[index] = indexBuffer[j];
                         maxIndexSubset = std::max(pBuffer->indexBuffer[index],maxIndexSubset);
                     }
                     //glUnmapBufferOES(GL_ELEMENT_ARRAY_BUFFER);
