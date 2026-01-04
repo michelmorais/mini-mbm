@@ -83,7 +83,7 @@ namespace util
 
     const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face) noexcept
     {
-        const uint32_t default_mode_cull_face_ret = std::numeric_limits<uint32_t>::max();
+        constexpr uint32_t default_mode_cull_face_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_cull_face == nullptr)
             return default_mode_cull_face_ret;
         if (strcmp(str_mode_cull_face, "FRONT") == 0)
@@ -117,7 +117,7 @@ namespace util
 
     const uint32_t get_mode_draw_from_string(const char* str_mode_draw) noexcept
     {
-        const uint32_t default_mode_draw_ret = std::numeric_limits<uint32_t>::max();
+        constexpr uint32_t default_mode_draw_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_draw == nullptr)
             return default_mode_draw_ret;
         if (strcmp(str_mode_draw, "TRIANGLES") == 0)
@@ -139,7 +139,7 @@ namespace util
 
     const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction) noexcept
     {
-        const uint32_t default_mode_front_face_direction_ret = std::numeric_limits<uint32_t>::max();
+        constexpr uint32_t default_mode_front_face_direction_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_front_face_direction == nullptr)
             return default_mode_front_face_direction_ret;
         if (strcmp(str_mode_front_face_direction, "CW") == 0)
