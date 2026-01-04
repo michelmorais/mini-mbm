@@ -17,18 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_AUDIERE)
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
 
-#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-    #pragma message (">> Engine is using Direct sound for audio, it will only play WAV files!")
-#elif !defined(AUDIO_ENGINE_AUDIERE)
-    #error attempt to use AUDIERE without define AUDIO_ENGINE_AUDIERE
-#endif
-
-#if defined(AUDIO_ENGINE_AUDIERE)
 using namespace audiere;
 namespace mbm
 {

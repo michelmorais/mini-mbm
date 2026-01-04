@@ -17,14 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
 
-#if !defined(AUDIO_ENGINE_PORT_AUDIO)
-    #error attempt to use PORT AUDIO without define AUDIO_ENGINE_PORT_AUDIO
-#endif
 
 namespace mbm
 {
@@ -161,3 +159,5 @@ namespace mbm
         return this->fileName.c_str();
     }
 }
+
+#endif

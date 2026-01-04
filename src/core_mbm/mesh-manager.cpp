@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <mesh-manager.h>
+#include <draw-compatibility.h>
 #include <shader-var-cfg.h>
 #include <texture-manager.h>
 #include <renderizable.h>

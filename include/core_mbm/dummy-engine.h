@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,63 +17,16 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <shader-fx.h>
+#ifndef DUMMY_ENGINE_H
+#define DUMMY_ENGINE_H
 
-#if defined(USE_OPENGL_ES)
+#define Stringize( L )     #L 
+#define MakeString( M, L ) M(L)
+#define $Line MakeString( Stringize, __LINE__ )
+#define REMINDER_TODO __FILE__ "(" $Line ") : TODO: "
 
-#include <gles-debug.h>
-
-#if defined _WIN32
-    // needed GL_MIN / GL_MAX definitions
-	#include <../third-party/gles/GLES3/gl3.h>
+#ifndef ANDROID
+    #define SHOW_PRAGMA_MESSAGE
 #endif
 
-namespace mbm
-{
-    void FX::setBlendDefaultOp()
-    {
-        GLBlendEquation(GL_FUNC_ADD);
-    }
-
-    void FX::setBlendOp()
-    {
-        switch (blendOperation)
-        {
-            case 1: // D3DBLENDOP_ADD              = 1,
-            {
-                GLBlendEquation(GL_FUNC_ADD);
-            }
-            break;
-            case 2: // D3DBLENDOP_SUBTRACT         = 2,
-            {
-                GLBlendEquation(GL_FUNC_SUBTRACT);
-            }
-            break;
-            case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
-            {
-                GLBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-            }
-            break;
-            case 4: // D3DBLENDOP_MIN              = 4,
-            {
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-                GLBlendEquation(0x8007);
-    #else
-                GLBlendEquation(GL_MIN);
-    #endif
-            }
-            break;
-            case 5: // D3DBLENDOP_MAX              = 5,
-            {
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-                GLBlendEquation(0x8008);
-    #else
-                GLBlendEquation(GL_MAX);
-    #endif
-            }
-            break;
-        }
-    }
-}
-
-#endif // USE_OPENGL_ES
+#endif

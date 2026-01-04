@@ -17,48 +17,27 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(USE_OPENGL_ES)
+#if defined USE_DUMMY_BACK_END_ENGINE
 #if defined USE_EDITOR_FEATURES
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 #include <mesh-manager.h>
 #include <texture-manager.h>
 #include <util-interface.h>
 #include <shapes.h>
 #include <shader.h>
-#include <gles-debug.h>
-#include <GLES2/gl2ext.h>
-
 #include <map>
 
 
 
 namespace mbm
 {
-    #if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-        typedef void* (PFNGLMAPBUFFEROESPROC_TODO)       (GLenum target, GLenum access);
-        typedef GLboolean (PFNGLUNMAPBUFFEROESPROC_TODO) (GLenum target);
-    #endif
-
     bool MESH_MBM_DEBUG::loadDebugFromMemory(const MESH_MBM* meshMemory)
     {
         if(meshMemory == nullptr || meshMemory->isLoaded() == false)
             return log_util::onFailed(nullptr,__FILE__, __LINE__, "Mesh empty or not loaded...");
-        auto *extensionString = (char*)glGetString(GL_EXTENSIONS);
-        if (strstr(extensionString, "GL_OES_mapbuffer") == nullptr)
-            return log_util::onFailed(nullptr,__FILE__, __LINE__, "extension [GL_OES_mapbuffer] not supported!");
-        #if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-            PRINT_IF_DEBUG("loadDebugFromMemory is not working on ANDOID");
-            PRINT_IF_DEBUG("TODO: fix issue not found EGL lib on ANDOID");
-            PFNGLMAPBUFFEROESPROC_TODO   * glMapBufferOES   = nullptr;
-            PFNGLUNMAPBUFFEROESPROC_TODO * glUnmapBufferOES = nullptr;
-        #else //ANDROID //TODO fix issue not found EGL lib on ANDOID 
-            auto glMapBufferOES     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("glMapBufferOES");
-            auto glUnmapBufferOES   = (PFNGLUNMAPBUFFEROESPROC)eglGetProcAddress("glUnmapBufferOES");
-        #endif
-        if(glMapBufferOES == nullptr)
-            return log_util::onFailed(nullptr,__FILE__, __LINE__, "extension [glMapBufferOES] not supported!");
-        if(glUnmapBufferOES == nullptr)
-            return log_util::onFailed(nullptr,__FILE__, __LINE__, "extension [glUnmapBufferOES] not supported!");
+        #pragma message(REMINDER_TODO "  check capabilities");
         this->release();
         fileName = meshMemory->getFilenameMesh();
         // step 1: Verificação do header
@@ -302,17 +281,18 @@ namespace mbm
                     pSubset->indexCount             = pGl->indexCountIB[i];
                     pBuffer->subset[i]->indexStart  = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount  = pSubset->indexCount;
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
-                    auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
-                    if(indexBuffer == nullptr)
-                        return log_util::onFailed(nullptr,__FILE__, __LINE__, "Failed to get index at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
+                    #pragma message(REMINDER_TODO "  implement get array from memory");
+                    //GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
+                    //auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                    //if(indexBuffer == nullptr)
+                    //    return log_util::onFailed(nullptr,__FILE__, __LINE__, "Failed to get index at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
                     for(int j=0; j< pSubset->indexCount; ++j)
                     {
                         const int index             = pSubset->indexStart + j;
-                        pBuffer->indexBuffer[index] = indexBuffer[j];
+                        //pBuffer->indexBuffer[index] = indexBuffer[j];
                         maxIndexSubset = std::max(pBuffer->indexBuffer[index],maxIndexSubset);
                     }
-                    glUnmapBufferOES(GL_ELEMENT_ARRAY_BUFFER);
+                    //glUnmapBufferOES(GL_ELEMENT_ARRAY_BUFFER);
                     uint16_t vertexCount  = maxIndexSubset + 1;
                     pSubset->vertexCount            = vertexCount;
                     pSubset->vertexStart            = acumulated;
@@ -367,8 +347,9 @@ namespace mbm
 
             if(is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[0]);
-                pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                #pragma message(REMINDER_TODO "  implement get array from memory");
+                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[0]);
+                //pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pPosition == nullptr)
             {
@@ -376,8 +357,9 @@ namespace mbm
             }
             memcpy(pBuffer->position,pPosition,sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
-
+            {
+                //glUnmapBufferOES(GL_ARRAY_BUFFER);
+            }
             if(meshMemory->getInfoFont() != nullptr)
             {
                 const float letterDiffX = lsLetterChangedValuesByCurFrameX[currentFrame];
@@ -405,8 +387,9 @@ namespace mbm
             }
             if(is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[1]);
-                pNormal   = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                #pragma message(REMINDER_TODO "  implement get array from memory");
+                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[1]);
+                //pNormal   = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pNormal == nullptr)
             {
@@ -415,9 +398,10 @@ namespace mbm
             memcpy(pBuffer->normal,pNormal,sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
             {
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[2]);
-                pTexture  = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                #pragma message(REMINDER_TODO "  implement unmap array from memory");
+                //glUnmapBufferOES(GL_ARRAY_BUFFER);
+                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[2]);
+                //pTexture  = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pTexture == nullptr)
             {
@@ -428,7 +412,10 @@ namespace mbm
             }
             memcpy(pBuffer->uv,pTexture,sizeof(float) * 2 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
+            {
+                #pragma message(REMINDER_TODO "  implement unmap array from memory");
+                //glUnmapBufferOES(GL_ARRAY_BUFFER);
+            }
         }
         positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
         angleDefault   = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
@@ -441,4 +428,4 @@ namespace mbm
 } //namespace mbm
 
 #endif // USE_EDITOR_FEATURES
-#endif //USE_OPENGL_ES
+#endif //USE_DUMMY_BACK_END_ENGINE

@@ -1,0 +1,230 @@
+/*-----------------------------------------------------------------------------------------------------------------------|
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2025 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                            |
+|                                                                                                                        |
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
+| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
+| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
+|                                                                                                                        |
+| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |
+| the Software.                                                                                                          |
+|                                                                                                                        |
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |
+| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |
+| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |
+| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
+|                                                                                                                        |
+|-----------------------------------------------------------------------------------------------------------------------*/
+
+//#if defined (USE_OPENGL_ES)
+
+#include <draw-compatibility.h>
+#include <limits>
+#include <gles-debug.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#include <cstring>
+
+
+namespace util
+{
+    uint32_t get_mode_draw_from_enum(const util::MODE_DRAW enum_mode_draw) noexcept 
+    {
+        switch (enum_mode_draw)
+        {
+            case util::MODE_DRAW_POINTS:         return GL_POINTS;
+            case util::MODE_DRAW_LINES:          return GL_LINES;
+            case util::MODE_DRAW_LINE_LOOP:      return GL_LINE_LOOP;
+            case util::MODE_DRAW_LINE_STRIP:     return GL_LINE_STRIP;
+            case util::MODE_DRAW_TRIANGLES:      return GL_TRIANGLES;
+            case util::MODE_DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+            case util::MODE_DRAW_TRIANGLE_FAN:   return GL_TRIANGLE_FAN;
+            default: return std::numeric_limits<uint32_t>::max();
+        }
+    }
+
+    const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret) noexcept 
+    {
+        switch (mode_draw)
+        {
+            case util::MODE_DRAW_POINTS:         return "POINTS";
+            case util::MODE_DRAW_LINES:          return "LINES";
+            case util::MODE_DRAW_LINE_LOOP:      return "LINE_LOOP";
+            case util::MODE_DRAW_LINE_STRIP:     return "LINE_STRIP";
+            case util::MODE_DRAW_TRIANGLES:      return "TRIANGLES";
+            case util::MODE_DRAW_TRIANGLE_STRIP: return "TRIANGLE_STRIP";
+            case util::MODE_DRAW_TRIANGLE_FAN:   return "TRIANGLE_FAN";
+            default: return default_mode_draw_ret;
+        }
+    }
+
+    uint32_t get_mode_cull_face_from_enum(const CULL_MODE enum_mode_cull_face) noexcept
+    {
+        switch (enum_mode_cull_face)
+        {
+            case util::CULL_FRONT:          return GL_FRONT;
+            case util::CULL_BACK:           return GL_BACK;
+            case util::CULL_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
+            default: return std::numeric_limits<uint32_t>::max();
+        }
+    }
+
+    const char* get_mode_cull_face_from_uint(const uint32_t mode_cull_face, const char* default_mode_cull_face_ret) noexcept
+    {
+        switch (mode_cull_face)
+        {
+            case util::CULL_FRONT:          return "FRONT";
+            case util::CULL_BACK:           return "BACK";
+            case util::CULL_FRONT_AND_BACK: return "FRONT_AND_BACK";
+            default: return default_mode_cull_face_ret;
+        }
+    }
+
+    const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face) noexcept
+    {
+        constexpr uint32_t default_mode_cull_face_ret = std::numeric_limits<uint32_t>::max();
+        if (str_mode_cull_face == nullptr)
+            return default_mode_cull_face_ret;
+        if (strcmp(str_mode_cull_face, "FRONT") == 0)
+            return GL_FRONT;
+        if (strcmp(str_mode_cull_face, "BACK") == 0)
+            return GL_BACK;
+        if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
+            return GL_FRONT_AND_BACK;
+        return default_mode_cull_face_ret;
+    }
+
+    uint32_t get_mode_front_face_direction_enum(const FACE_DIRECTION enum_mode_front_face_direction) noexcept
+    {
+        switch (enum_mode_front_face_direction)
+        {
+            case util::CW:  return GL_CW;
+            case util::CCW: return GL_CCW;
+            default: return std::numeric_limits<uint32_t>::max();
+        }
+    }
+
+    const char* get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret) noexcept
+    {
+        switch (mode_front_face_direction)
+        {
+            case util::CW:  return "CW";
+            case util::CCW: return "CCW";
+            default: return default_mode_front_face_direction_ret;
+        }
+    }
+
+    const uint32_t get_mode_draw_from_string(const char* str_mode_draw) noexcept
+    {
+        constexpr uint32_t default_mode_draw_ret = std::numeric_limits<uint32_t>::max();
+        if (str_mode_draw == nullptr)
+            return default_mode_draw_ret;
+        if (strcmp(str_mode_draw, "TRIANGLES") == 0)
+            return GL_TRIANGLES;
+        if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
+            return GL_TRIANGLE_STRIP;
+        if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
+            return GL_TRIANGLE_FAN;
+        if (strcmp(str_mode_draw, "LINES") == 0)
+            return GL_LINES;
+        if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
+            return GL_LINE_LOOP;
+        if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
+            return GL_LINE_STRIP;
+        if (strcmp(str_mode_draw, "POINTS") == 0)
+            return GL_POINTS;
+        return default_mode_draw_ret;
+    }
+
+    const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction) noexcept
+    {
+        constexpr uint32_t default_mode_front_face_direction_ret = std::numeric_limits<uint32_t>::max();
+        if (str_mode_front_face_direction == nullptr)
+            return default_mode_front_face_direction_ret;
+        if (strcmp(str_mode_front_face_direction, "CW") == 0)
+            return GL_CW;
+        if (strcmp(str_mode_front_face_direction, "CCW") == 0)
+            return GL_CCW;
+        return default_mode_front_face_direction_ret;
+    }
+/*
+    
+
+    const char* get_stringmode_cull_face_from_uint(const uint32_t mode_cull_face, const char* default_mode_cull_face_ret)
+    {
+        switch (mode_cull_face)
+        {
+        case GL_FRONT: return "FRONT";
+        case GL_BACK: return "BACK";
+        case GL_FRONT_AND_BACK: return "FRONT_AND_BACK";
+        default: return default_mode_cull_face_ret;
+        }
+    }
+
+    const char* get_string_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret)
+    {
+        switch (mode_front_face_direction)
+        {
+        case GL_CW: return "CW";
+        case GL_CCW: return "CCW";
+        default: return default_mode_front_face_direction_ret;
+        }
+    }
+
+    const char* get_string_mode_draw_from_enum(const util::MODE_DRAW mode_draw, const char* default_mode_draw_ret)
+    {
+        switch (mode_draw)
+        {
+        case util::MODE_DRAW_POINTS: return "POINTS";
+        case util::MODE_DRAW_LINES: return "LINES";
+        case util::MODE_DRAW_LINE_LOOP: return "LINE_LOOP";
+        case util::MODE_DRAW_LINE_STRIP: return "LINE_STRIP";
+        case util::MODE_DRAW_TRIANGLES: return "TRIANGLES";
+        case util::MODE_DRAW_TRIANGLE_STRIP: return "TRIANGLE_STRIP";
+        case util::MODE_DRAW_TRIANGLE_FAN: return "TRIANGLE_FAN";
+        default: return default_mode_draw_ret;
+        }
+    }
+
+    
+    */
+
+    const bool is_mode_draw_valid(const uint32_t mode_draw)noexcept
+    {
+        switch(mode_draw)
+        {
+            case GL_POINTS		   : return true;
+            case GL_LINES		   : return true;
+            case GL_LINE_LOOP	   : return true;
+            case GL_LINE_STRIP	   : return true;
+            case GL_TRIANGLES 	   : return true;
+            case GL_TRIANGLE_STRIP : return true;
+            case GL_TRIANGLE_FAN   : return true;
+            default                : return false;
+        }
+    }
+
+    const bool is_mode_cull_face_valid(const uint32_t mode_cull_face)noexcept
+    {
+        switch(mode_cull_face)
+        {
+            case GL_FRONT		   : return true;
+            case GL_BACK		   : return true;
+            case GL_FRONT_AND_BACK : return true;
+            default                : return false;
+        }
+    }
+
+    const bool is_mode_front_face_direction_valid(const uint32_t mode_front_face_direction)noexcept
+    {
+        switch(mode_front_face_direction)
+        {
+            case GL_CW   		   : return true;
+            case GL_CCW  		   : return true;
+            default                : return false;
+        }
+    }
+
+}
+//#endif //USE_OPENGL_ES

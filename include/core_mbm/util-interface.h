@@ -31,6 +31,7 @@ typedef void (*OnAddPathScript)(const char*);
 namespace mbm
 {
     class TEXTURE;
+    enum MODE_DRAW : char;
 }
 
 enum TYPE_LOG : char
@@ -90,27 +91,11 @@ namespace util
     API_IMPL const char * getDecompressModelFileName();
     API_IMPL const char* getBaseName(const char *fileName);
 	API_IMPL void setOnAddPathScript(OnAddPathScript onAddPathScript) noexcept;
-    API_IMPL bool isBackendEngineOpenGlEs() noexcept;
-    API_IMPL bool isBackendEngineDirectx() noexcept;
-    API_IMPL bool isBackendEngineVulkan() noexcept;
-    API_IMPL bool isBackendEngineMetal() noexcept;
-
-    API_IMPL const uint32_t get_mode_draw_from_string(const char* str_mode_draw);
-    API_IMPL const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret);
-    API_IMPL const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face);
-    API_IMPL const char* get_mode_cull_face_from_uint(const uint32_t mode_cull_face, const char* default_mode_cull_face_ret);
-    API_IMPL const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction);
-    API_IMPL const char* get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret);
-
-    API_IMPL const bool is_mode_draw_valid(const uint32_t mode_draw)noexcept;
-    API_IMPL const bool is_mode_cull_face_valid(const uint32_t mode_cull_face)noexcept;
-    API_IMPL const bool is_mode_front_face_direction_valid(const uint32_t mode_front_face_direction)noexcept;
 }
 
 namespace log_util
 {
     API_IMPL const char* getDirSeparator();
-    API_IMPL const char *getDescriptionError(const unsigned int error);
     API_IMPL void replaceString(std::string &source, const std::string &from, const std::string &to);
     API_IMPL void replaceString(std::string &source, const char *from, const char *to);
     API_IMPL void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);

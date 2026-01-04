@@ -17,13 +17,14 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined USE_DUMMY_BACK_END_ENGINE
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include <line-mesh.h>
-
-#if defined(USE_OPENGL_ES)
-
 #include <shader-var-cfg.h>
 #include <util-interface.h>
-#include <gles-debug.h>
 
 namespace mbm
 {
@@ -33,7 +34,9 @@ namespace mbm
         arrayLinesVec3.clear();
         if (this->vboVertexUvLine)
         {
-            GLDeleteBuffers(1, &this->vboVertexUvLine);
+            #ifdef SHOW_PRAGMA_MESSAGE
+            #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         vboVertexUvLine = 0;
     }
@@ -42,14 +45,19 @@ namespace mbm
     {
         if (this->vboVertexUvLine)
         {
-            GLDeleteBuffers(1, &this->vboVertexUvLine);
+            #ifdef SHOW_PRAGMA_MESSAGE
+            #pragma message(REMINDER_TODO "  delete buffer");
+            #endif
         }
         vboVertexUvLine = 0;
-        GLGenBuffers(1, &this->vboVertexUvLine); // somente para os vertices
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  generate buffer");
+        #endif
         if (this->vboVertexUvLine == 0)
             return false;
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * arrayLinesVec3.size(), arrayLinesVec3.data(), GL_DYNAMIC_DRAW);
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  bind buffer");
+        #endif
         return true;
     }
     
@@ -58,7 +66,9 @@ namespace mbm
         arrayLinesVec3 = std::move(arrayPoints);
         if (this->vboVertexUvLine == 0)
         {
-            GLGenBuffers(1, &this->vboVertexUvLine); // somente para os vertices
+            #ifdef SHOW_PRAGMA_MESSAGE
+            #pragma message(REMINDER_TODO "  generate buffer");
+            #endif
             if (this->vboVertexUvLine == 0)
                 return false;
         }
@@ -69,8 +79,9 @@ namespace mbm
                 vec3.y = -vec3.y;
             }
         }
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * arrayLinesVec3.size(), arrayLinesVec3.data(), GL_DYNAMIC_DRAW);
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  bind buffer");
+        #endif
         return true;
     }
     
@@ -78,21 +89,16 @@ namespace mbm
     {
         if (!this->vboVertexUvLine)
             return false;
-		//GLCullFace(pBufferId->mode_cull_face);
-		//GLFrontFace(pBufferId->mode_front_face_direction);
-
-        GLUseProgram(shader->programObject);
-
-        GLBlendFunc(GL_SRC_ALPHA, 0x0303);
-
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLEnableVertexAttribArray(shader->positionHandle);
-        GLVertexAttribPointer(shader->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-
-        GLUniformMatrix4fv(shader->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(this->arrayLinesVec3.size()));
-        GLBindBuffer(GL_ARRAY_BUFFER, 0);
+		
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  set shader blend");
+        
+        //TODO: set blend function
+        
+        //TODO: bind buffer
+        //TODO: enable vertex attribute array
+        #pragma message(REMINDER_TODO "  Draw vertex line mode");
+        #endif
         return true;
     }
     
@@ -102,7 +108,9 @@ namespace mbm
         {
             if (line->vboVertexUvLine)
             {
-                GLDeleteBuffers(1, &line->vboVertexUvLine);
+                #ifdef SHOW_PRAGMA_MESSAGE
+                #pragma message(REMINDER_TODO "  delete buffer");
+                #endif
             }
             line->vboVertexUvLine = 0;
         }
@@ -160,4 +168,4 @@ namespace mbm
         return true;
     }
 }
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE

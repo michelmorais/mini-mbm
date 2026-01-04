@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 #include <windows.h>
 #include <audio.h>
 #include <device.h>
@@ -24,7 +25,6 @@
 #include <util-interface.h>
 #include <comdef.h>
 
-#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
     
 #pragma comment(lib, "dsound.lib")
 //#pragma comment(lib, "winmm.lib")

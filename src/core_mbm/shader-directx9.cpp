@@ -17,11 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DIRECTX9)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include <shader.h>
-
-#if defined (USE_OPENGL_ES) && !defined USE_DUMMY_BACK_END_ENGINE
-
-#include <gles-debug.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <cstdlib>
@@ -42,20 +43,19 @@ namespace mbm
                idTexture0(nullptr),
                useAlpha(nullptr),
                idTexture1(0),
-               isIndexBuffer(false),
-               mode_draw(GL_TRIANGLES),
-               mode_cull_face(GL_BACK),
-               mode_front_face_direction(GL_CW)
+               isIndexBuffer(false)
+               //TODO: fix these values
+               //mode_draw(GL_TRIANGLES),
+               //mode_cull_face(GL_BACK),
+               //mode_front_face_direction(GL_CW)
     {
+        #pragma message(REMINDER_TODO "  initialize mode values");
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
     }
 
     void BUFFER_GL::release()
     {
-        if (vboVertNorTexIB[0])
-        {
-            GLDeleteBuffers(3, vboVertNorTexIB);
-        }
+        #pragma message(REMINDER_TODO "  implement delete buffer");
         memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
         
         if (vboIndexSubsetIB)
@@ -119,42 +119,8 @@ namespace mbm
         memset(this->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->vboVertexSubsetVB);
-        if (!this->vboVertexSubsetVB[0])
-        {
-            this->release();
-            return false;
-        }
-
-        if (normal)
-        {
-            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->vboNormalSubsetVB);
-        }
-
-        if (uv)
-        {
-            GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->vboTextureSubsetVB);
-        }
-        for (uint32_t i = 0; i < totalSubset; ++i)
-        {
-            vertexStartVB[i] = vertexStartSubset[i];
-            vertexCountVB[i] = vertexCountSubset[i];
-            GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexSubsetVB[i]);
-            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(mbm::VEC3) *  static_cast<size_t>(vertexCountVB[i])), &vertex[vertexStartVB[i]],GL_STATIC_DRAW);
-            if (normal)
-            {
-                GLBindBuffer(GL_ARRAY_BUFFER, this->vboNormalSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC3) * static_cast<size_t>(vertexCountVB[i])), &normal[vertexStartVB[i]],
-                             GL_STATIC_DRAW);
-            }
-            if (uv)
-            {
-                GLBindBuffer(GL_ARRAY_BUFFER, this->vboTextureSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC2) * static_cast<size_t>(vertexCountVB[i])), &uv[vertexStartVB[i]],
-                             GL_STATIC_DRAW);
-            }
-        }
-        GLBindBuffer(GL_ARRAY_BUFFER, 0);
+        #pragma message(REMINDER_TODO "  generate buffers");
+        
         this->idTexture0 = new uint32_t[totalSubset];
         memset(this->idTexture0, 0, sizeof(int) * totalSubset);
 
@@ -178,46 +144,13 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        GLGenBuffers(3, this->vboVertNorTexIB);
-        if (this->vboVertNorTexIB[0] == 0)
-            return false;
+        #pragma message(REMINDER_TODO "  generate buffers");
         this->totalSubset      = totalSubsets;
         this->vboIndexSubsetIB = new uint32_t[totalSubset];
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->vboIndexSubsetIB);
-        if (!this->vboIndexSubsetIB[0])
-        {
-            this->release();
-            return false;
-        }
-
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertNorTexIB[0]);
-        GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC3)), vertex, GL_STATIC_DRAW);
-
-        if (normal)
-        {
-            GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertNorTexIB[1]);
-            GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC3)), normal, GL_STATIC_DRAW);
-        }
-
-        if (uv)
-        {
-            GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertNorTexIB[2]);
-            GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeOfArrayVertex * sizeof(mbm::VEC2)), uv, GL_STATIC_DRAW);
-        }
-
-        for (uint32_t i = 0; i < this->totalSubset; ++i)
-        {
-            this->indexStartIB[i] = indexStartSubset[i];
-            this->indexCountIB[i] = indexCountSubset[i];
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexSubsetIB[i]);
-            GLBufferData(GL_ELEMENT_ARRAY_BUFFER,static_cast<GLsizeiptr>(sizeof(unsigned short) * static_cast<size_t>(this->indexCountIB[i])),&arrayIndices[this->indexStartIB[i]], GL_STATIC_DRAW);
-        }
-
-        GLBindBuffer(GL_ARRAY_BUFFER, 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        #pragma message(REMINDER_TODO "  generate buffers");
         this->idTexture0 = new uint32_t[this->totalSubset];
         memset(this->idTexture0, 0, sizeof(uint32_t) * static_cast<size_t>(this->totalSubset));
 
@@ -244,22 +177,14 @@ namespace mbm
         this->indexStartIB     = new int[totalSubset];
         this->indexCountIB     = new int[totalSubset];
         memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
-        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->vboIndexSubsetIB);
-        if (!this->vboIndexSubsetIB[0])
-        {
-            this->release();
-            return false;
-        }
+        #pragma message(REMINDER_TODO "  generate buffers");
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
             this->indexStartIB[i] = indexStartSubset[i];
             this->indexCountIB[i] = indexCountSubset[i];
-            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexSubsetIB[i]);
-            GLBufferData(GL_ELEMENT_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(uint16_t) * static_cast<size_t>(this->indexCountIB[i])),&arrayIndices[this->indexStartIB[i]], GL_STATIC_DRAW);
         }
 
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         this->idTexture0 = new uint32_t[this->totalSubset];
         memset(this->idTexture0, 0, sizeof(int) * static_cast<size_t>(this->totalSubset));
 
@@ -297,7 +222,8 @@ namespace mbm
             }
             auto var       = new VAR_SHADER(typeVar);
             var->name      = nameVar;
-            var->handleVar = GLGetUniformLocation(programObject, nameVar);
+            #pragma message(REMINDER_TODO "  implement get uniform location");
+            
             if (var->handleVar == -1)
             {
 #if defined _DEBUG
@@ -352,7 +278,7 @@ namespace mbm
     {
         if (programObject == 0)
             return;
-        GLUseProgram(programObject);
+        #pragma message(REMINDER_TODO "  implement use program");
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -362,23 +288,16 @@ namespace mbm
                 switch (var->typeVar)
                 {
                     // Uniform
-                    case VAR_FLOAT: { GLUniform1f(var->handleVar, var->current[0]);
-                    }
+                    case VAR_FLOAT: {}
                     break;
-                    case VAR_VECTOR2: { GLUniform2f(var->handleVar, var->current[0], var->current[1]);
-                    }
+                    case VAR_VECTOR2:{}
                     break;
-                    case VAR_COLOR_RGB:
-                    case VAR_VECTOR: { GLUniform3f(var->handleVar, var->current[0], var->current[1], var->current[2]);
-                    }
+                    case VAR_COLOR_RGB:{}
+                    case VAR_VECTOR: {};
                     break;
-                    case VAR_COLOR_RGBA:
-                    {
-                        GLUniform4f(var->handleVar, var->current[0], var->current[1], var->current[2], var->current[3]);
-                    }
+                    case VAR_COLOR_RGBA:{}
                     break;
-                    default: {
-                    }
+                    default: {}
                     break;
                 }
             }
@@ -387,10 +306,7 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        if (this->programObject)
-        {
-            GLDeleteProgram(this->programObject);
-        }
+        #pragma message(REMINDER_TODO "  implement release shader");
         this->programObject = 0;
     }
 
@@ -405,10 +321,7 @@ namespace mbm
         this->normalHandle    = -1;
         this->pShader         = nullptr;
         this->vShader         = nullptr;
-        if (this->programObject)
-        {
-            GLDeleteProgram(this->programObject);
-        }
+        #pragma message(REMINDER_TODO "  implement delete program");
         this->programObject = 0;
     }
 
@@ -460,208 +373,140 @@ namespace mbm
             if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
-        GLint aPosition       = GLGetAttribLocation(programObject, "aPosition");
-        this->positionHandle  = static_cast<GLint>(aPosition);
-        this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix");
-        this->mvMatrixHandle  = GLGetUniformLocation(programObject, "mvMatrix");
-        GLint aTextCoord      = GLGetAttribLocation(programObject, "aTextCoord");
-        this->texCoordHandle  = static_cast<GLint>(aTextCoord);
-        this->samplerHandle0  = GLGetUniformLocation(programObject, "sample0");
-        this->samplerHandle1  = GLGetUniformLocation(programObject, "sample1");
-        GLint aNormal         = GLGetAttribLocation(programObject, "aNormal") 
-        this->normalHandle    = static_cast<GLint>(aNormal);
+        #pragma message(REMINDER_TODO "  implement get attrib and uniform locations");
         return true;
     }
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
-		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
+        #pragma message(REMINDER_TODO "  implement set cull face and front face");
 		
         if (pBufferId->isIndexBuffer) // Index buffer
         {
             if (!pBufferId->vboVertNorTexIB[0])
                 return false;
-            GLUseProgram(this->programObject);
-            //-----------------------------------------------------------------------------------------------------------
-            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboVertNorTexIB[0]);
-            GLEnableVertexAttribArray(this->positionHandle);
-            GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-            //-----------------------------------------------------------------------------------------------------------
-            if (this->normalHandle != -1) // Normal (nem sempre temos normal nos shaders)
-            {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboVertNorTexIB[1]);
-                GLEnableVertexAttribArray(this->normalHandle);
-                GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-            }
-            //-----------------------------------------------------------------------------------------------------------
-            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboVertNorTexIB[2]);
-            GLEnableVertexAttribArray(this->texCoordHandle);
-            GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-            //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            #pragma message(REMINDER_TODO "  implement use program");
+            #pragma message(REMINDER_TODO "  implement bind buffers and set attrib pointers");
+            #pragma message(REMINDER_TODO "  draw elements");
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
-                // if(pBufferId->hasColorKeying[i])
-                //  glEnable(GL_BLEND);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture0[i]);
-                GLUniform1i(samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->vboIndexSubsetIB[i]);
-
-                GLActiveTexture(GL_TEXTURE1);
                 if (pBufferId->idTexture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture1);
-                    GLUniform1i(samplerHandle1, 1);
+                    #pragma message(REMINDER_TODO "  implement active texture and bind texture");
                 }
                 else
                 {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
+                    #pragma message(REMINDER_TODO "  implement bind texture 0");
                 }
-                GLDrawElements(pBufferId->mode_draw, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
+                #pragma message(REMINDER_TODO "  implement draw elements");
             }
         }
         else // Vertex buffer
         {
             if (!pBufferId->vboVertexSubsetVB)
                 return false;
-            GLUseProgram(this->programObject);
+            #pragma message(REMINDER_TODO "  implement use program");
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboVertexSubsetVB[i]);
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 //-----------------------------------------------------------------------------------------------------------
                 if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
-                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboNormalSubsetVB[i]);
-                    GLEnableVertexAttribArray(this->normalHandle);
-                    GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+                    #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->vboTextureSubsetVB[i]);
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                #pragma message(REMINDER_TODO "  implement set uniform matrices");
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
-                // if(pBufferId->hasColorKeying[i])
-                //  glEnable(GL_BLEND);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture0[i]);
-                GLUniform1i(samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
+                #pragma message(REMINDER_TODO "  implement active texture");
                 if (pBufferId->idTexture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture1);
-                    GLUniform1i(samplerHandle1, 1);
+                    #pragma message(REMINDER_TODO "  implement bind texture and set uniform");
                 }
                 else
                 {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
+                    #pragma message(REMINDER_TODO "  implement bind texture 0");
                 }
 
-                GLDrawArrays(pBufferId->mode_draw, 0, pBufferId->vertexCountVB[i]);
+                #pragma message(REMINDER_TODO "  implement draw arrays");
             }
         }
-        GLBindBuffer(GL_ARRAY_BUFFER, 0);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        #pragma message(REMINDER_TODO "  implement unbind buffer");
         return true;
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
-		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
+		#pragma message(REMINDER_TODO "  implement set cull face and front face");
 
         if (pBufferId->isIndexBuffer) // Index buffer
         {
             if (!pBufferId->vboIndexSubsetIB)
                 return false;
-            GLUseProgram(this->programObject);
+            //TODO: implement use program
             //-----------------------------------------------------------------------------------------------------------
-            GLEnableVertexAttribArray(this->positionHandle);
-            GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+            //TODO: Bind vertex array
             //-----------------------------------------------------------------------------------------------------------
             if (this->normalHandle != -1)
             {
-                GLEnableVertexAttribArray(this->normalHandle);
-                GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
+                //TODO: implement enable vertex attrib array and set pointer
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLEnableVertexAttribArray(this->texCoordHandle);
-            GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+            //TODO: implement enable vertex attrib array and set pointer
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            //TODO: implement set uniform matrices
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLActiveTexture(GL_TEXTURE0);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture0[i]);
-                GLUniform1i(samplerHandle0, 0);
-                GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->vboIndexSubsetIB[i]);
+                //TODO: implement active texture and bind texture
 
-                GLActiveTexture(GL_TEXTURE1);
                 if (pBufferId->idTexture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture1);
-                    GLUniform1i(samplerHandle1, 1);
+                    //TODO: implement bind texture and set uniform
                 }
                 else
                 {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
+                    //TODO: implement bind texture 0
                 }
-                GLDrawElements(pBufferId->mode_draw, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
+                //TODO: implement draw elements
             }
         }
         else // Vertex buffer
         {
             if (!pBufferId->vertexCountVB)
                 return false;
-            GLUseProgram(this->programObject);
+            //TODO: implement use program
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                //TODO: implement enable vertex attrib array and set pointer
                 //-----------------------------------------------------------------------------------------------------------
                 if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
-                    GLEnableVertexAttribArray(this->normalHandle);
-                    GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
+                    //TODO: implement enable vertex attrib array and set pointer
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                //TODO: implement enable vertex attrib array and set pointer
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                //TODO: implement set uniform matrices
                 //-----------------------------------------------------------------------------------------------------------
-                GLActiveTexture(GL_TEXTURE0);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture0[i]);
-                GLUniform1i(samplerHandle0, 0);
-
-                GLActiveTexture(GL_TEXTURE1);
+                //TODO: implement active texture
+                
                 if (pBufferId->idTexture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->idTexture1);
-                    GLUniform1i(samplerHandle1, 1);
+                    //TODO: implement bind texture and set uniform
                 }
                 else
                 {
-                    GLBindTexture(GL_TEXTURE_2D, 0);
+                    //TODO: implement bind texture 0
                 }
 
-                GLDrawArrays(pBufferId->mode_draw, 0, pBufferId->vertexCountVB[i]);
+                //TODO: implement draw arrays
             }
         }
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        //TODO: implement unbind buffer
         return true;
     }
 
@@ -670,32 +515,20 @@ namespace mbm
         uint32_t shader;
         int          compiled;
         // Create the shader object
-        shader = GLCreateShader(type);
+        #pragma message(REMINDER_TODO "  implement create shader");
         if (shader == 0)
         {
             PRINT_IF_DEBUG("GLCreateShader returned 0");
             return 0;
         }
-        // Load the shader source
-        GLShaderSource(shader, 1, &shaderSrc, nullptr);
-        // Compile the shader
-        GLCompileShader(shader);
-        // Check the compile status
-        GLGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+        //TODO: Load the shader source
+        //TODO: Compile the shader
+        //TODO: Check the compile status
         if (!compiled)
         {
             PRINT_IF_DEBUG("failed on compile shader [%s]",shaderSrc ? shaderSrc : "null");
-            GLint infoLen = 0;
-            GLGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
-            if (infoLen > 1)
-            {
-                auto *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
-                GLGetShaderInfoLog(shader, infoLen, nullptr, infoLog);
-                PRINT_IF_DEBUG("Error compiling shader:%s\n%s\n",
-                             this->pShader ? this->pShader->fileName.c_str() : "nullptr", infoLog);
-                free(infoLog);
-            }
-            GLDeleteShader(shader);
+            //TODO: implement get shader info log
+            // Delete the shader object
             return 0;
         }
         return shader;
@@ -711,56 +544,37 @@ namespace mbm
             PRINT_IF_DEBUG("programObject already exists");
             return programObject;
         }
-        // Load the vertex/fragment shaders
-        vertexShader = compileCodeShader(GL_VERTEX_SHADER, vertShaderSrc);
+        #pragma message(REMINDER_TODO "  Load the vertex/fragment shaders");
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
             return 0;
         }
-        fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
+        //fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
         if (fragmentShader == 0)
         {
             PRINT_IF_DEBUG("fragmentShader == 0");
-            GLDeleteShader(vertexShader);
             return 0;
         }
-        // Create the program object
-        this->programObject = GLCreateProgram();
+        //TODO: implement create program
         if (programObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
             return 0;
         }
-        GLAttachShader(programObject, vertexShader);
-        GLAttachShader(programObject, fragmentShader);
-        // Link the program
-        GLLinkProgram(programObject);
-        // Check the link status
-        GLGetProgramiv(programObject, GL_LINK_STATUS, &linked);
+        //TODO: Link the program
+        //TODO: Check the link status
         if (!linked)
         {
-            GLDeleteShader(vertexShader);
-            GLDeleteShader(fragmentShader);
             PRINT_IF_DEBUG("linked status failed");
-            GLint infoLen = 0;
-            GLGetProgramiv(programObject, GL_INFO_LOG_LENGTH, &infoLen);
-            if (infoLen > 1)
-            {
-                auto *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
-                GLGetProgramInfoLog(programObject, infoLen, nullptr, infoLog);
-                PRINT_IF_DEBUG("Error linking program:\n%s\n", infoLog);
-                free(infoLog);
-            }
-            GLDeleteProgram(programObject);
+            //TODO: implement get program info log
+            // Delete the program object
             programObject = 0;
             return 0;
         }
-        // Free up no longer needed shader resources
-        GLDeleteShader(vertexShader);
-        GLDeleteShader(fragmentShader);
+        #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
         return programObject;
     }
 }
 
-#endif // USE_OPENGL_ES
+#endif // USE_DIRECTX9

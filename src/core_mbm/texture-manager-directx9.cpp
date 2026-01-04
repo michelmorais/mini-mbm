@@ -17,11 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DIRECTX9)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+
 #include <texture-manager.h>
-
-#if defined(USE_OPENGL_ES)
-
-#include <gles-debug.h>
 #include <renderizable.h>
 #include <uber-image.h>
 #include <image-resource.h>
@@ -33,7 +34,7 @@ namespace mbm
     {
         if (idTexture)
         {
-            GLDeleteTextures(1, &idTexture);
+            #pragma message(REMINDER_TODO "  implement delete texture");
         }
         idTexture       = 0;
         width           = 0;
@@ -57,19 +58,18 @@ namespace mbm
         }
         this->width  = w;
         this->height = h;
-        GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
+        // Upload texture to GPU
         if (idTexture == 0)
         {
             if (uberImg.getImage() == nullptr)
                 delete[] img;
             return false;
         }
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
+        #pragma message(REMINDER_TODO "  implement generate texture");
         uint8_t *rgba_toDelete = nullptr;
         if (channel == 4)
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
         }
         else if (hasAlpha)
         {
@@ -86,26 +86,20 @@ namespace mbm
                 rgba[j + 2]           = b;
                 rgba[j + 3]           = 255; // 255 - opcao totalmente opaco
             }
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
         }
         else
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, img);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB data");
         }
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
         if (rgba_toDelete)
             delete[] rgba_toDelete;
@@ -120,26 +114,19 @@ namespace mbm
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
+        #pragma message(REMINDER_TODO "  implement pixel store alignment");  
+        
         if (idTexture == 0)
             return false;
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
-        GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+        //TODO: implement bind texture
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
         return true;
     }
@@ -147,8 +134,7 @@ namespace mbm
     TEXTURE_SHARED::TEXTURE_SHARED()
     {
         this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
+        #pragma message(REMINDER_TODO "  implement get max texture size");
     }
 
         std::shared_ptr<TEXTURE> TEXTURE_SHARED::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
@@ -171,54 +157,36 @@ namespace mbm
         uint32_t idFrameBuffer  = 0;
         uint32_t idTexture2d    = 0;
         uint32_t idRenderBuffer = 0;
-        GLGenFramebuffers(1, &idFrameBuffer);
-        GLGenRenderbuffers(1, &idRenderBuffer);
-        GLGenTextures(1, &idTexture2d);
+        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and texture");
 
         // texture
-        GLBindTexture(GL_TEXTURE_2D, idTexture2d);
+        
 
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
 
         if (enableAlpha)
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
         }
         else
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
         }
         // depth buffer
-        GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
         // frame buffer
-        GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
+        
         // attachments
-        GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
-        GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
+        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
         //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE)
-        {
-            return nullptr;
-        }
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        GLBindRenderbuffer(GL_RENDERBUFFER, 0);
 
         renderToTarget->idFrameBuffer       = idFrameBuffer;
         renderToTarget->idDepthRenderbuffer = idRenderBuffer;
@@ -235,8 +203,8 @@ namespace mbm
                                               const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width         = static_cast<GLsizei>(renderToTarget->widthTexture);
-        const auto height        = static_cast<GLsizei>(renderToTarget->heightTexture);
+        const auto width         = static_cast<int>(renderToTarget->widthTexture);
+        const auto height        = static_cast<int>(renderToTarget->heightTexture);
         if (fileNameBase.size() == 0)
             return nullptr;
         if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
@@ -252,56 +220,37 @@ namespace mbm
         uint32_t idFrameBuffer  = 0;
         uint32_t idTexture2d    = 0;
         uint32_t idRenderBuffer = 0;
-        GLGenFramebuffers(1, &idFrameBuffer);
-        GLGenRenderbuffers(1, &idRenderBuffer);
-        GLGenTextures(1, &idTexture2d);
+        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and");
 
         // texture
-        GLBindTexture(GL_TEXTURE_2D, idTexture2d);
+        #pragma message(REMINDER_TODO "  implement generate texture");
 
         if (TEXTURE::no_filter)
         { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
 
         }
         else
         {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
         }
 
         if (enableAlpha)
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
         }
         else
         {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
         }
         // depth buffer
-        GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
         // frame buffer
-        GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
+        #pragma message(REMINDER_TODO "  implement bind framebuffer");
         // attachments
-        GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
-        GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
+        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
         //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE)
-        {
-            delete texture;
-            return nullptr;
-        }
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        GLBindRenderbuffer(GL_RENDERBUFFER, 0);
-
+        
         renderToTarget->idFrameBuffer       = idFrameBuffer;
         renderToTarget->idDepthRenderbuffer = idRenderBuffer;
         renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
@@ -317,9 +266,8 @@ namespace mbm
     TEXTURE_MANAGER::TEXTURE_MANAGER()
     {
         this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
+        #pragma message(REMINDER_TODO "  implement get max texture size");
     }
 }
 
-#endif // USE_OPENGL_ES
+#endif // USE_DIRECTX9

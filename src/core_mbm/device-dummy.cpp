@@ -17,10 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+
+
+
 #include <device.h>
-
-#if defined (USE_OPENGL_ES) && !defined USE_DUMMY_BACK_END_ENGINE
-
 #include <scene.h>
 #include <texture-manager.h>
 #include <audio-interface.h>
@@ -29,7 +31,6 @@
 #include <renderizable.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
-#include <gles-debug.h>
 #include <dynamic-var.h>
 
 #if defined ANDROID
@@ -39,6 +40,8 @@
 #elif defined(__linux__) || defined(__APPLE__)
     #include <X11/Xutil.h>
 #endif
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 namespace mbm
 {
@@ -118,50 +121,41 @@ namespace mbm
     
     void DEVICE::setDephtTest(const bool enable)
     {
-        if (enable)
-        {
-            GLEnable(GL_DEPTH_TEST);
-        }
-        else
-        {
-            GLDisable(GL_DEPTH_TEST);
-        }
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message (REMINDER_TODO "  implement depth test enable/disable");
+        #endif
     }
 
     void DEVICE::clearDepth()
     {
-        GLClearDepthf(1.0f);
-        GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  implement clear depth buffer");
+        #endif
     }
     void DEVICE::clearDepthColored()
     {
-        GLClearDepthf(1.0f);
-        GLClearColor(this->colorClearBackGround.r,
-                        this->colorClearBackGround.g,
-                        this->colorClearBackGround.b,
-                        this->colorClearBackGround.a);
-        GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        #ifdef SHOW_PRAGMA_MESSAGE
+        #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
+        #endif
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
     {
-        return "OpenGL ES";
+        return "Dummy engine";
     }
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        static std::string versions(32,' ');
-        const char *v = (const char *)glGetString(GL_VERSION);
-        versions = "\nOpengL: ";
-        versions += v;
-        return versions.c_str();
+        return "Dummy engine version 1.0";
     }
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
         if (width > 0 && height > 0)
         {
-            GLViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+            #ifdef SHOW_PRAGMA_MESSAGE
+            #pragma message(REMINDER_TODO "  set projection mode");
+            #endif
         }
         if (width > 0)
             backBufferWidth = width;
@@ -172,4 +166,4 @@ namespace mbm
     }
 
 }
-#endif // USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE

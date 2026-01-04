@@ -25,6 +25,7 @@
 #include <vector>
 #include <string>
 #include <util-interface.h>
+#include <draw-compatibility.h>
 
 #if defined _WIN32
     #include <Windows.h>

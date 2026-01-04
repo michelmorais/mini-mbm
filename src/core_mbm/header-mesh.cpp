@@ -21,6 +21,7 @@
 #include <util-interface.h>
 #include <cstring>
 #include <utility>
+#include <draw-compatibility.h>
 
 namespace mbm
 {
@@ -77,9 +78,9 @@ namespace util
 	}
 
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
-            mode_draw(util::get_mode_draw_from_string("TRIANGLES")),
-            mode_cull_face(util::get_mode_cull_face_from_string("BACK")),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
-            mode_front_face_direction(util::get_mode_front_face_direction_from_string("CW"))// GL_CW, GL_CCW
+            mode_draw(util::get_mode_draw_from_enum(util::MODE_DRAW_TRIANGLES)),
+            mode_cull_face(util::get_mode_cull_face_from_enum(util::CULL_BACK)),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
+            mode_front_face_direction(util::get_mode_front_face_direction_enum(util::CW))// GL_CW, GL_CCW
 	{
 	}
 

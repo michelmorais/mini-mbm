@@ -19,7 +19,7 @@
 
 #include <renderizable.h>
 
-#if defined (USE_OPENGL_ES)
+#if defined(USE_OPENGL_ES)
 
 #include <gles-debug.h>
 

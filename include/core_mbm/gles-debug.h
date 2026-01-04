@@ -533,5 +533,10 @@ namespace log_util
     #define GLBlendEquation(mode) glBlendEquation(mode);
 #endif
 
+namespace log_util
+{
+    API_IMPL const char *getDescriptionError(const unsigned int error);
+}
+
 #endif
 #endif

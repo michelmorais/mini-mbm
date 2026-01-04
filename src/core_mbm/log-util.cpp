@@ -98,10 +98,6 @@ const char *basename(const char *fileName)
     return "nullptr";
 }
 
-#if defined (USE_OPENGL_ES)
-
-#endif
-
 char *formatNewMessage(const size_t length, const char *message, va_list params)
 {
     auto ret = new char[((length + 1) * sizeof(char))];

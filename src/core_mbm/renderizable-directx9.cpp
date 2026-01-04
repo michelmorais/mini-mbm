@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,110 +17,21 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(AUDIO_ENGINE_NONE)
+#include <renderizable.h>
 
-#include <audio.h>
-#include <device.h>
-#include <core-manager.h>
-#include <util-interface.h>
 
+#if defined (USE_DIRECTX9)
+
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 namespace mbm
+
 {
-	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
-    onEndStreamCallBack(nullptr)
+    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
-        #pragma message(REMINDER_TODO "Audio engine NONE is used, all functions are disabled")
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
+        #pragma message(REMINDER_TODO "  implement destroy frame buffer");
+        this->idFrameBuffer = 0;
     }
-
-    AUDIO::~AUDIO()
-    = default;
-
-    bool AUDIO::setVolume(const float) 
-    {
-		return false;
-    }
-    bool AUDIO::pause() 
-	{
-		return false;
-	}
-    bool AUDIO::resume() 
-	{
-		return false;
-	}
-    bool AUDIO::play(const bool )
-    {
-        return false;
-    }
-    bool AUDIO::load(const char *,const bool , const bool )
-    {
-        return false;
-    }
-    bool AUDIO::stop()
-    {
-		return false;
-    }
-    bool AUDIO::setPan(const float)
-    {
-		return false;
-    }
-    bool AUDIO::setPitch(const float)
-    {
-		return false;
-    }
-    bool AUDIO::setPosition(const int)
-    {
-		return false;
-    }
-    bool AUDIO::isPlaying()
-    {
-        return false;
-    }
-    bool AUDIO::isPaused()
-    {
-        return false;
-    }
-    float AUDIO::getVolume()
-    {
-        return 0.0f;
-    }
-    float AUDIO::getPan()
-    {
-        return 0.0f;
-    }
-    float AUDIO::getPitch()
-    {
-        return 0.0f;
-    }
-    bool AUDIO::reset()
-    {
-        return false;
-    }
-    int AUDIO::getLength()
-    {
-        return 0;
-    }
-    
-	bool AUDIO::isLoaded()
-	{
-		return false;
-	}
-
-    const char* AUDIO::getFileName() const noexcept
-    {
-        return this->fileName.c_str();
-    }
-
-    void AUDIO::setOnEndstream(OnEndStreamCallBack ptrOnEndStreamCallBack)
-    {
-        this->onEndStreamCallBack = ptrOnEndStreamCallBack;
-    }
-
-    const char* AUDIO_ENGINE_version()
-	{
-		return "Audio engine NULL";
-	}
 }
 
-#endif
+#endif // USE_DIRECTX9
