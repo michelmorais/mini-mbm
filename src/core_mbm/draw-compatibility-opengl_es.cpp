@@ -40,7 +40,7 @@ namespace util
             case util::MODE_DRAW_TRIANGLES:      return GL_TRIANGLES;
             case util::MODE_DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
             case util::MODE_DRAW_TRIANGLE_FAN:   return GL_TRIANGLE_FAN;
-            default: std::numeric_limits<uint32_t>::max();
+            default: return std::numeric_limits<uint32_t>::max();
         }
     }
 

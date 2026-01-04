@@ -297,6 +297,12 @@
     <ClInclude Include="..\..\third-party\wave\WAVE.h">
       <Filter>Header Files\wave</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\dummy-engine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -524,59 +530,68 @@
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\blend-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\blend-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\blend-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\blend-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\core-manager-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\core-manager-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\device-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\device-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\device-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\draw-compatibility-common.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-common.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\draw-compatibility-opengl_es.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-opengl_es.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\mesh-manager-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\mesh-manager-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\renderizable-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\renderizable-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\renderizable-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\renderizable-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\shader-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\shader-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\shader-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\shader-fx-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\shader-fx-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\shader-fx-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\shader-fx-dummy.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\texture-manager-directx9.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\texture-manager-dummy.cpp">
-      <Filter>Source Files\render</Filter>
+    <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-jni-android.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-none.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp">
+      <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\line-mesh-directx9.cpp">
       <Filter>Source Files\render</Filter>
@@ -594,12 +609,6 @@
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\sprite-directx9.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\sprite-dummy.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\steered_particle-directx9.cpp">

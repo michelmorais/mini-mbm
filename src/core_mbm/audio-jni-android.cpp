@@ -17,6 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(ANDROID)
+
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
@@ -349,3 +351,5 @@ namespace mbm
 		return "ANDROIND JNI";
 	}
 }
+
+#endif

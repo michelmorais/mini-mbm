@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_NONE)
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
@@ -131,3 +132,5 @@ namespace mbm
 		return "Audio engine NULL";
 	}
 }
+
+#endif

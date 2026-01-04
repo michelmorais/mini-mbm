@@ -761,6 +761,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     
     #end plugins ############################################################################################
 
+    if(AUDIO STREQUAL "none")
+        add_definitions(-DAUDIO_ENGINE_NONE)
+        set(AUDIO_ENGINE_NONE 1)
+    endif()
+
     # in case you want a wrapper over portaudio uncomment this
     if (USE_PA_WRAPPER AND ${AUDIO} STREQUAL "portaudio" )
         add_subdirectory(${PORT_AUDIO_LIB} 			${PORT_AUDIO_LIB})

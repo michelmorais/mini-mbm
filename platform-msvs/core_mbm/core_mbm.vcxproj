@@ -254,14 +254,16 @@
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
     <ClInclude Include="..\..\third-party\wave\rifffile.h" />
     <ClInclude Include="..\..\third-party\wave\WAVE.h" />
-    
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
     <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
     <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-jni-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
@@ -321,28 +323,28 @@
     <ClCompile Include="..\..\src\core_mbm\shader-fx-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\line-mesh-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\line-mesh-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\particle-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\particle-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\render-2-texture-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\render-2-texture-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\steered_particle-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\steered_particle-dummy.cpp" />
     <ClCompile Include="..\..\src\render\background.cpp" />
     <ClCompile Include="..\..\src\render\font.cpp" />
     <ClCompile Include="..\..\src\render\gif-view.cpp" />
     <ClCompile Include="..\..\src\render\HMD.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh-directx9.cpp" />
+    <ClCompile Include="..\..\src\render\line-mesh-dummy.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\mesh.cpp" />
+    <ClCompile Include="..\..\src\render\particle-directx9.cpp" />
+    <ClCompile Include="..\..\src\render\particle-dummy.cpp" />
     <ClCompile Include="..\..\src\render\particle.cpp" />
     <ClCompile Include="..\..\src\render\particle-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture-directx9.cpp" />
+    <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
     <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
     <ClCompile Include="..\..\src\render\sprite.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle-directx9.cpp" />
+    <ClCompile Include="..\..\src\render\steered_particle-dummy.cpp" />
     <ClCompile Include="..\..\src\render\steered_particle.cpp" />
     <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\texture-view.cpp" />
