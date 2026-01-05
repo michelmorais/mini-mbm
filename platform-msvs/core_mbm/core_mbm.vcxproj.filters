@@ -297,16 +297,13 @@
     <ClInclude Include="..\..\third-party\wave\WAVE.h">
       <Filter>Header Files\wave</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\directx9-specific.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\dummy-engine.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="directx9-helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\directx9-specific.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
   </ItemGroup>

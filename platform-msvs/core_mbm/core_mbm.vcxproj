@@ -255,7 +255,6 @@
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h" />
     <ClInclude Include="..\..\third-party\wave\rifffile.h" />
     <ClInclude Include="..\..\third-party\wave\WAVE.h" />
-    <ClInclude Include="directx9-helper.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />

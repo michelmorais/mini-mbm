@@ -20,8 +20,6 @@
 #if defined _WIN32
 // libraries necessary
 #pragma comment(lib, "core_mbm.lib")
-#pragma comment(lib, "libEGL.dll.lib")
-#pragma comment(lib, "libGLESv2.dll.lib")
 //#pragma comment(lib, "box2d.lib")      // optional (if you include it, you might have to change the dependency of lib to core_mbm instead of mini-mbm (windows only))
 //#pragma comment(lib, "bullet2.84.lib") // optional (if you include it, you might have to change the dependency of lib to core_mbm instead of mini-mbm (windows only)) 
 #endif
