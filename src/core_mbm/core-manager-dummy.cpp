@@ -426,103 +426,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         device->window.setCallEventsManager(this);
         this->initJoystick(&device->window);
 
-        HDC hdc = GetDC(device->window.getHwnd());
-        // Create EGL display connection
-        this->specificContext->eglDisplay = eglGetDisplay(hdc);
-        // Initialize EGL for this display, returns EGL version
-        EGLint eglVersionMajor = 0;
-        EGLint eglVersionMinor = 0;
-        if(eglInitialize(this->specificContext->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
-        {
-            ERROR_LOG(" EGL could not be initialized");
-            return false;
-        }
-        if(device->verbose)
-            INFO_LOG("EGL version %d.%d",eglVersionMajor,eglVersionMinor);
-        if(eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE)
-        {
-            ERROR_LOG(" EGL could not be initialized");
-            return false;
-        }
-        EGLint numConfigs = 0;
-        EGLConfig windowConfig = nullptr;
+        #pragma message(REMINDER_TODO "  Initialize Graphics device properly")
         
-        static const EGLint attribs[] = {
-            // 32 bit color
-            EGL_RED_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_BLUE_SIZE, 8,
-            // at least 24 bit depth
-            EGL_DEPTH_SIZE, 24,
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            // want opengl-es 3.x conformant CONTEXT
-            EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
-            EGL_NONE};
-
-        EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
-        
-        //EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
-        switch (result )
-        {
-            case EGL_TRUE:break;
-            case EGL_FALSE:
-                ERROR_LOG(" eglChooseConfig returned false");
-            break;
-            case EGL_BAD_DISPLAY :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_DISPLAY");
-            break;
-            case EGL_BAD_ATTRIBUTE :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_ATTRIBUTE");
-            break;
-            case EGL_NOT_INITIALIZED :
-                ERROR_LOG(" eglChooseConfig returned EGL_NOT_INITIALIZED");
-            break;
-            case EGL_BAD_PARAMETER :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_PARAMETER");
-            break;
-            default:
-                ERROR_LOG(" eglChooseConfig returned %d",result);
-            break;
-        }
-        if(result != EGL_TRUE)
-        {
-            return false;
-        }
-
-        EGLint surfaceAttributes[] = { EGL_NONE };
-        this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), surfaceAttributes);
-        //this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
-        if(this->specificContext->eglSurface == nullptr)
-        {
-            ERROR_LOG(" Could not create EGL Window surface");
-            return false;
-        }
-
-        //EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-	    //this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, contextAttributes);
-        EGLint es3ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
-        this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, es3ContextAttribs);
-        if(this->specificContext->eglContext == nullptr)
-        {
-            ERROR_LOG(" Could not create EGL context");
-            return false;
-        }
-        result = eglMakeCurrent(this->specificContext->eglDisplay, this->specificContext->eglSurface, this->specificContext->eglSurface, this->specificContext->eglContext);
-        if(result != EGL_TRUE)
-        {
-            ERROR_LOG(" Could not make EGL context current");
-            return false;
-        }
-
         device->window.disableRender(mNativeWindow);
 		if (device->verbose)
 		{
-			printGLString("\nversion:\n", GL_VERSION);
-			printGLString("vendor:\n", GL_VENDOR);
-			printGLString("renderer:\n", GL_RENDERER);
-            //printGLStringNewLine("GL Extensions:\n", GL_EXTENSIONS, ' ');
-            //printEGLStringNewLine(this->specificContext->eglDisplay, ' ');
-            
 			MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
 		}
@@ -650,24 +558,15 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        const GLsizei width  = static_cast<int>(event.x);
-                        const GLsizei height = static_cast<int>(event.y);
-                        if(width > 0 && height > 0 && (width != static_cast<GLsizei>(this->device->backBufferWidth) || height != static_cast<GLsizei>(this->device->backBufferHeight)))
+                        #pragma message(REMINDER_TODO "  Implement on resize windows here")
+                        this->device->backBufferWidth  = event.x;
+                        this->device->backBufferHeight = event.y;
+                        if(this->device->scene)
+                            this->device->scene->onResizeWindow();
+                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
                         {
-                            glViewport(0, 0, width, height);
-                            if(glIsEnabled (GL_SCISSOR_TEST))
-                            {
-                                glScissor(0, 0, width, height);
-                            }
-                            this->device->backBufferWidth  = event.x;
-                            this->device->backBufferHeight = event.y;
-                            if(this->device->scene)
-                                this->device->scene->onResizeWindow();
-                            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                            {
-                                PLUGIN * plugin = this->lsPlugins[i];
-                                plugin->onResizeWindow(static_cast<int>(event.x),static_cast<int>(event.y));
-                            }
+                            PLUGIN * plugin = this->lsPlugins[i];
+                            plugin->onResizeWindow(static_cast<int>(event.x),static_cast<int>(event.y));
                         }
                     }
                     break;
@@ -813,7 +712,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onEndRender();
             }
-            eglSwapBuffers(this->specificContext->eglDisplay,this->specificContext->eglSurface);
+            #pragma message(REMINDER_TODO "  Swap buffer")
         }
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
         {
@@ -822,8 +721,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         }
         if(this->device->audioInterface)
             this->device->audioInterface->stopAll();
-        eglDestroyContext(this->specificContext->eglDisplay,this->specificContext->eglContext);
-        eglDestroySurface(this->specificContext->eglDisplay, this->specificContext->eglSurface);
+        #pragma message(REMINDER_TODO "  Destroy device grafics")
         return 0;
     }
 
