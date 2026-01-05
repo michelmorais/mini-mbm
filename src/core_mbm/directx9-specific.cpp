@@ -48,7 +48,15 @@ namespace mbm
     {
         if (FAILED(hr))
         {
-            if (D3DERR_INVALIDCALL == hr)
+            if(D3DERR_DEVICELOST == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_DEVICELOST");
+            }
+            else if (D3DERR_DRIVERINTERNALERROR == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_DRIVERINTERNALERROR");
+            }
+			else if (D3DERR_INVALIDCALL == hr)
             {
                 ERROR_AT(line, filename, "failed to begin the scene D3DERR_INVALIDCALL");
             }

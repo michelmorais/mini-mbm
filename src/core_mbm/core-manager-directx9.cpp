@@ -545,11 +545,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                     this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
                                                               info.extraInfo.c_str());
             }
-            if (FAILED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-            {
-				ERROR_AT(__LINE__, __FILE__, "failed to begin the scene");
-                return 1;
-            }
+            //if (FAILED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
+            //{
+			//	ERROR_AT(__LINE__, __FILE__, "failed to begin the scene");
+            //    return 1;
+            //}
             for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
             {
                 PLUGIN * plugin = this->lsPlugins[i];
@@ -719,7 +719,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onEndRender();
             }
-            this->device->specificContextDevice->pd3dDevice->EndScene();
+            //this->device->specificContextDevice->pd3dDevice->EndScene();
 			//Swap buffers
             this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
         }
@@ -738,9 +738,9 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         HRESULT hr = this->device->specificContextDevice->pd3dDevice->BeginScene();
         if (CHECK_AND_LOG_HRESULT_DX(hr))
         {
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     void CORE_MANAGER::endRender()

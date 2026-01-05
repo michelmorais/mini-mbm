@@ -17,14 +17,12 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined (USE_OPENGL_ES)
+#if defined (USE_DIRECTX9)
 
 #include <draw-compatibility.h>
 #include <limits>
-#include <opengl_es-specific.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #include <cstring>
+#include <directx9-specific.h>
 
 
 namespace util
@@ -33,13 +31,13 @@ namespace util
     {
         switch (enum_mode_draw)
         {
-            case util::MODE_DRAW_POINTS:         return GL_POINTS;
-            case util::MODE_DRAW_LINES:          return GL_LINES;
-            case util::MODE_DRAW_LINE_LOOP:      return GL_LINE_LOOP;
-            case util::MODE_DRAW_LINE_STRIP:     return GL_LINE_STRIP;
-            case util::MODE_DRAW_TRIANGLES:      return GL_TRIANGLES;
-            case util::MODE_DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
-            case util::MODE_DRAW_TRIANGLE_FAN:   return GL_TRIANGLE_FAN;
+            //case util::MODE_DRAW_POINTS:         return DX;
+            //case util::MODE_DRAW_LINES:          return GL_LINES;
+            //case util::MODE_DRAW_LINE_LOOP:      return GL_LINE_LOOP;
+            //case util::MODE_DRAW_LINE_STRIP:     return GL_LINE_STRIP;
+            //case util::MODE_DRAW_TRIANGLES:      return GL_TRIANGLES;
+            //case util::MODE_DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
+            //case util::MODE_DRAW_TRIANGLE_FAN:   return GL_TRIANGLE_FAN;
             default: return std::numeric_limits<uint32_t>::max();
         }
     }
@@ -63,9 +61,9 @@ namespace util
     {
         switch (enum_mode_cull_face)
         {
-            case util::CULL_FRONT:          return GL_FRONT;
-            case util::CULL_BACK:           return GL_BACK;
-            case util::CULL_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
+            //case util::CULL_FRONT:          return GL_FRONT;
+            //case util::CULL_BACK:           return GL_BACK;
+            //case util::CULL_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
             default: return std::numeric_limits<uint32_t>::max();
         }
     }
@@ -74,9 +72,9 @@ namespace util
     {
         switch (mode_cull_face)
         {
-            case util::CULL_FRONT:          return "FRONT";
-            case util::CULL_BACK:           return "BACK";
-            case util::CULL_FRONT_AND_BACK: return "FRONT_AND_BACK";
+            //case util::CULL_FRONT:          return "FRONT";
+            //case util::CULL_BACK:           return "BACK";
+            //case util::CULL_FRONT_AND_BACK: return "FRONT_AND_BACK";
             default: return default_mode_cull_face_ret;
         }
     }
@@ -86,12 +84,12 @@ namespace util
         constexpr uint32_t default_mode_cull_face_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_cull_face == nullptr)
             return default_mode_cull_face_ret;
-        if (strcmp(str_mode_cull_face, "FRONT") == 0)
-            return GL_FRONT;
-        if (strcmp(str_mode_cull_face, "BACK") == 0)
-            return GL_BACK;
-        if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
-            return GL_FRONT_AND_BACK;
+        //if (strcmp(str_mode_cull_face, "FRONT") == 0)
+        //    return GL_FRONT;
+        //if (strcmp(str_mode_cull_face, "BACK") == 0)
+        //    return GL_BACK;
+        //if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
+        //    return GL_FRONT_AND_BACK;
         return default_mode_cull_face_ret;
     }
 
@@ -99,8 +97,8 @@ namespace util
     {
         switch (enum_mode_front_face_direction)
         {
-            case util::CW:  return GL_CW;
-            case util::CCW: return GL_CCW;
+            //case util::CW:  return GL_CW;
+            //case util::CCW: return GL_CCW;
             default: return std::numeric_limits<uint32_t>::max();
         }
     }
@@ -109,8 +107,8 @@ namespace util
     {
         switch (mode_front_face_direction)
         {
-            case util::CW:  return "CW";
-            case util::CCW: return "CCW";
+            //case util::CW:  return "CW";
+            //case util::CCW: return "CCW";
             default: return default_mode_front_face_direction_ret;
         }
     }
@@ -120,20 +118,20 @@ namespace util
         constexpr uint32_t default_mode_draw_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_draw == nullptr)
             return default_mode_draw_ret;
-        if (strcmp(str_mode_draw, "TRIANGLES") == 0)
-            return GL_TRIANGLES;
-        if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
-            return GL_TRIANGLE_STRIP;
-        if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
-            return GL_TRIANGLE_FAN;
-        if (strcmp(str_mode_draw, "LINES") == 0)
-            return GL_LINES;
-        if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
-            return GL_LINE_LOOP;
-        if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
-            return GL_LINE_STRIP;
-        if (strcmp(str_mode_draw, "POINTS") == 0)
-            return GL_POINTS;
+        //if (strcmp(str_mode_draw, "TRIANGLES") == 0)
+        //    return GL_TRIANGLES;
+        //if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
+        //    return GL_TRIANGLE_STRIP;
+        //if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
+        //    return GL_TRIANGLE_FAN;
+        //if (strcmp(str_mode_draw, "LINES") == 0)
+        //    return GL_LINES;
+        //if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
+        //    return GL_LINE_LOOP;
+        //if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
+        //    return GL_LINE_STRIP;
+        //if (strcmp(str_mode_draw, "POINTS") == 0)
+        //    return GL_POINTS;
         return default_mode_draw_ret;
     }
 
@@ -142,10 +140,10 @@ namespace util
         constexpr uint32_t default_mode_front_face_direction_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_front_face_direction == nullptr)
             return default_mode_front_face_direction_ret;
-        if (strcmp(str_mode_front_face_direction, "CW") == 0)
-            return GL_CW;
-        if (strcmp(str_mode_front_face_direction, "CCW") == 0)
-            return GL_CCW;
+        //if (strcmp(str_mode_front_face_direction, "CW") == 0)
+        //    return GL_CW;
+        //if (strcmp(str_mode_front_face_direction, "CCW") == 0)
+        //    return GL_CCW;
         return default_mode_front_face_direction_ret;
     }
 
@@ -153,13 +151,13 @@ namespace util
     {
         switch(mode_draw)
         {
-            case GL_POINTS		   : return true;
-            case GL_LINES		   : return true;
-            case GL_LINE_LOOP	   : return true;
-            case GL_LINE_STRIP	   : return true;
-            case GL_TRIANGLES 	   : return true;
-            case GL_TRIANGLE_STRIP : return true;
-            case GL_TRIANGLE_FAN   : return true;
+            //case GL_POINTS		   : return true;
+            //case GL_LINES		   : return true;
+            //case GL_LINE_LOOP	   : return true;
+            //case GL_LINE_STRIP	   : return true;
+            //case GL_TRIANGLES 	   : return true;
+            //case GL_TRIANGLE_STRIP : return true;
+            //case GL_TRIANGLE_FAN   : return true;
             default                : return false;
         }
     }
@@ -168,9 +166,9 @@ namespace util
     {
         switch(mode_cull_face)
         {
-            case GL_FRONT		   : return true;
-            case GL_BACK		   : return true;
-            case GL_FRONT_AND_BACK : return true;
+            //case GL_FRONT		   : return true;
+            //case GL_BACK		   : return true;
+            //case GL_FRONT_AND_BACK : return true;
             default                : return false;
         }
     }
@@ -179,11 +177,11 @@ namespace util
     {
         switch(mode_front_face_direction)
         {
-            case GL_CW   		   : return true;
-            case GL_CCW  		   : return true;
+            //case GL_CW   		   : return true;
+            //case GL_CCW  		   : return true;
             default                : return false;
         }
     }
 
 }
-#endif //USE_OPENGL_ES
+#endif //USE_DIRECTX9

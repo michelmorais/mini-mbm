@@ -623,6 +623,9 @@
     <ClCompile Include="..\..\src\core_mbm\directx9-specific.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">
