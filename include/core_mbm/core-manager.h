@@ -42,7 +42,6 @@ namespace mbm
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
-    struct AUX_SPECIFIC_CONTEXT;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -248,7 +247,6 @@ namespace mbm
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
-        AUX_SPECIFIC_CONTEXT*                   specificContext;
     #if defined _WIN32
         std::mutex mutexEvents;
     #endif

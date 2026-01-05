@@ -45,6 +45,7 @@
 
 namespace mbm
 {
+	// TODO: move to your platform specific file . e.g. directx9-specific.h/cpp, opengl_es-specific.h/cpp, vulkan-specific.h/cpp, metal-specific.h/cpp ...
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
     #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID

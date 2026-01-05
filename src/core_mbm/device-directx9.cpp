@@ -20,7 +20,9 @@
 
 #if defined (USE_DIRECTX9)
 
+
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#include <directx9-specific.h>
 
 #include <device.h>
 #include <scene.h>
@@ -33,35 +35,11 @@
 #include <util-interface.h>
 #include <dynamic-var.h>
 
-#if defined ANDROID
-    #include <platform/common-jni.h>
-#elif defined _WIN32
-    #include <plusWindows/defaultThemePlusWindows.h>
-#elif defined(__linux__) || defined(__APPLE__)
-    #include <X11/Xutil.h>
-#endif
+#include <plusWindows/defaultThemePlusWindows.h>
 
 namespace mbm
 {
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-    #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-            
-    #endif
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {   
-            #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-                
-            #endif
-        };
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-
-        };
-    };
+    
     
     void DEVICE::initializeSpecificContext()
     {
@@ -77,29 +55,10 @@ namespace mbm
         }
     }
 
-
-#ifdef ANDROID
-    void DEVICE::callQuitInJava()
-    {
-        util::COMMON_JNI *cJni  = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv   = cJni->jenv;
-        jfieldID         fidRun = jenv->GetStaticFieldID(cJni->jclassInstanceActivityEngine, "run", "Z");
-        if (nullptr == fidRun)
-        {
-            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", cJni->jclassInstanceActivityEngine);
-            return;
-        }
-        jenv->SetStaticBooleanField(cJni->jclassInstanceActivityEngine, fidRun, false);
-    }
-#endif
-
     void DEVICE::quit()
     {
         TEXTURE_MANAGER::release();
         MESH_MANAGER::release();
-#ifdef ANDROID
-        util::COMMON_JNI::release();
-#endif
 		releaseAudioManager();
 		if (instanceDevice)
         {
@@ -108,27 +67,26 @@ namespace mbm
         instanceDevice = nullptr;
     }
 
-#ifdef ANDROID
-    
-    void DEVICE::streamStopped(const int indexJNI)
-    {
-		if(this->audioInterface)
-			this->audioInterface->streamStopped(indexJNI);
-    }
-#endif
-    
     void DEVICE::setDephtTest(const bool enable)
     {
-        #pragma message(REMINDER_TODO "  implement depth test enable/disable");
+        if (enable)
+        {
+            specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+        }
+        else
+        {
+            specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+        }
     }
 
     void DEVICE::clearDepth()
     {
-        #pragma message(REMINDER_TODO "  implement clear depth buffer");
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
     }
     void DEVICE::clearDepthColored()
     {
-        #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
+        D3DCOLOR color = D3DCOLOR_COLORVALUE(this->colorClearBackGround.r, this->colorClearBackGround.g, this->colorClearBackGround.b,0xff);
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER, color, 1.0f, 0);
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept

@@ -512,8 +512,8 @@ namespace mbm
 
     uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)
     {
-        uint32_t shader;
-        int          compiled;
+        uint32_t shader=0;
+        int          compiled=0;
         // Create the shader object
         #pragma message(REMINDER_TODO "  implement create shader");
         if (shader == 0)
@@ -536,9 +536,9 @@ namespace mbm
 
     uint32_t SHADER::loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc)
     {
-        uint32_t vertexShader;
-        uint32_t fragmentShader;
-        int          linked;
+        uint32_t vertexShader=0;
+        uint32_t fragmentShader=0;
+        int          linked=0;
         if (this->programObject)
         {
             PRINT_IF_DEBUG("programObject already exists");
