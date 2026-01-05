@@ -25,7 +25,7 @@
 #include <util-interface.h>
 #include <shapes.h>
 #include <shader.h>
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 #include <GLES2/gl2ext.h>
 
 #include <map>

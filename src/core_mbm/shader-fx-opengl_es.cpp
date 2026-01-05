@@ -21,7 +21,7 @@
 
 #if defined(USE_OPENGL_ES)
 
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 
 #if defined _WIN32
     // needed GL_MIN / GL_MAX definitions

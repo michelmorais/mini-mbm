@@ -23,7 +23,7 @@
 
 #include <shader-var-cfg.h>
 #include <util-interface.h>
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 
 namespace mbm
 {

@@ -60,18 +60,6 @@
 
 namespace mbm
 {
-    struct AUX_SPECIFIC_CONTEXT
-    {
-        AUX_SPECIFIC_CONTEXT()
-        {
-        }
-        ~AUX_SPECIFIC_CONTEXT()
-        {
-        }
-        AUX_SPECIFIC_CONTEXT(const AUX_SPECIFIC_CONTEXT &) = delete;
-        AUX_SPECIFIC_CONTEXT &operator=(const AUX_SPECIFIC_CONTEXT &) = delete;
-    };
-    
 
     enum WHICH_FOR : char
     {
@@ -130,8 +118,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
-		this->specificContext  = new mbm::AUX_SPECIFIC_CONTEXT();
-        this->indexOnRestore   = 0;
+		this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
         this->percentRestoreInfo = 0.0f;
         this->stepRestoreInfo  = 0.1f;
@@ -145,8 +132,6 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
     CORE_MANAGER::~CORE_MANAGER()
     {
         DEVICE::quit();
-        delete this->specificContext;
-        this->specificContext = nullptr;
     }
     
     

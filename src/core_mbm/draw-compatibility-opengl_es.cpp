@@ -21,7 +21,7 @@
 
 #include <draw-compatibility.h>
 #include <limits>
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <cstring>

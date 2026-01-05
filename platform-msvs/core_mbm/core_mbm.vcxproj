@@ -194,7 +194,7 @@
     <ClInclude Include="..\..\include\core_mbm\directx9-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
-    <ClInclude Include="..\..\include\core_mbm\gles-debug.h" />
+    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />

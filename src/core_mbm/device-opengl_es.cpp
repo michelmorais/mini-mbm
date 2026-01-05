@@ -29,7 +29,7 @@
 #include <renderizable.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 #include <dynamic-var.h>
 
 #if defined ANDROID
@@ -42,26 +42,6 @@
 
 namespace mbm
 {
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-    #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-            
-    #endif
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {   
-            #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-                
-            #endif
-        };
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-
-        };
-    };
-    
     void DEVICE::initializeSpecificContext()
     {
         this->destroySpecificContext();

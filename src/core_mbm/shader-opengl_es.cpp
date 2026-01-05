@@ -21,7 +21,7 @@
 
 #if defined (USE_OPENGL_ES) && !defined USE_DUMMY_BACK_END_ENGINE
 
-#include <gles-debug.h>
+#include <opengl_es-specific.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <cstdlib>

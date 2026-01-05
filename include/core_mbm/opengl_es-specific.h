@@ -39,7 +39,12 @@
 #elif defined __linux__  || defined(__APPLE__)
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
+
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
+    #include <X11/XKBlib.h>
 #endif
+
 
 
 namespace log_util
@@ -538,5 +543,47 @@ namespace log_util
     API_IMPL const char *getDescriptionError(const unsigned int error);
 }
 
+namespace mbm
+{
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
+    {
+        EGLDisplay eglDisplay;
+        EGLSurface eglSurface;
+        EGLContext eglContext;
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            Window     window_x11;
+            Display *  display_x11;
+    
+    void make_x_window(const char *name, int x, int y,uint32_t width,uint32_t height, bool border);
+            
+    #endif
+        SPECIFIC_AUX_CONTEXT_DEVICE()
+        {
+            this->eglDisplay = EGL_NO_DISPLAY;
+            this->eglSurface = EGL_NO_SURFACE;
+            this->eglContext = EGL_NO_CONTEXT;
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            this->window_x11 = 0;
+            this->display_x11 = nullptr;
+    #endif
+        }
+        ~SPECIFIC_AUX_CONTEXT_DEVICE()
+        {
+        #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            eglDestroyContext(this->eglDisplay, this->eglContext);
+            eglDestroySurface(this->eglDisplay, this->eglSurface);
+            eglTerminate(this->eglDisplay);
+    
+        if(this->display_x11 != nullptr && this->window_x11 != 0)
+        {
+            XDestroyWindow(this->display_x11, this->window_x11);
+            XCloseDisplay(this->display_x11);
+        }
+        #endif
+        }
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+    };
+}
 #endif
 #endif
