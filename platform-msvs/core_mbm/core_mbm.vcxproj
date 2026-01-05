@@ -266,6 +266,7 @@
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\directx9-specific.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />

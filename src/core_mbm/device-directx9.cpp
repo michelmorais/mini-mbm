@@ -81,12 +81,12 @@ namespace mbm
 
     void DEVICE::clearDepth()
     {
-        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
     }
     void DEVICE::clearDepthColored()
     {
         D3DCOLOR color = D3DCOLOR_COLORVALUE(this->colorClearBackGround.r, this->colorClearBackGround.g, this->colorClearBackGround.b,0xff);
-        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER, color, 1.0f, 0);
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, color, 1.0f, 0);
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -103,7 +103,9 @@ namespace mbm
     {
         if (width > 0 && height > 0)
         {
-            #pragma message(REMINDER_TODO "  set projection mode");
+            //TOD: check this
+            D3DVIEWPORT9 view_port = D3DVIEWPORT9{ 0, 0, static_cast<DWORD>(width), static_cast<DWORD>(height), 0.0f, 1.0f };
+			this->specificContextDevice->pd3dDevice->SetViewport(&view_port);
         }
         if (width > 0)
             backBufferWidth = width;

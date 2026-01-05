@@ -185,6 +185,8 @@ namespace mbm
         void initEnableRenders();
         void logic();
         void reinitTimers();
+        bool beginRender();
+        void endRender();
         void enableRender(const int idScene);
         void disableRender(const int idScene);
         void pushEvent(EVENT_KEY *event);

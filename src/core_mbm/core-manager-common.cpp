@@ -209,27 +209,31 @@ namespace mbm
         this->device->camera.matrixBillboard = this->device->camera.matrixView; // Obtemos a Matrix De Vista Do Vista 3D
         MatrixInverse(&this->device->camera.matrixBillboard, nullptr, &this->device->camera.matrixBillboard);
         device->totalObjectsIsRendering3D = 0;
-        for (auto ptrRender : lsRender3d)
+        if (this->beginRender())
         {
-            if (ptrRender->render())
-                ++device->totalObjectsIsRendering3D;
+            for (auto ptrRender : lsRender3d)
+            {
+                if (ptrRender->render())
+                    ++device->totalObjectsIsRendering3D;
+            }
+
+            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+            device->totalObjectsIsRendering2D = 0;
+            device->setDephtTest(true);
+            for (auto ptrRender : lsRender2dw)
+            {
+                if (ptrRender->render())
+                    device->totalObjectsIsRendering2D++;
+            }
+            device->setDephtTest(false);
+            for (auto ptrRender : lsRender2ds)
+            {
+                if (ptrRender->render())
+                    ++device->totalObjectsIsRendering2D;
+            }
+            device->setDephtTest(true);
+            this->endRender();
         }
-        
-        device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-        device->totalObjectsIsRendering2D = 0;
-        device->setDephtTest(true);
-        for (auto ptrRender : lsRender2dw)
-        {
-            if (ptrRender->render())
-                device->totalObjectsIsRendering2D++;
-        }
-        device->setDephtTest(false);
-        for (auto ptrRender : lsRender2ds)
-        {
-            if (ptrRender->render())
-                ++device->totalObjectsIsRendering2D;
-        }
-        device->setDephtTest(true);
     }
 
     void CORE_MANAGER::_updateDimFrustum()

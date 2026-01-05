@@ -266,12 +266,12 @@ namespace mbm
     }
 }
 
-    const char *getLastErrWindows(const char *where, char *outMessage)
+const char *getLastErrWindows(const char *where, char *outMessage)
 {
     DWORD lerr = GetLastError();
     if (lerr)
     {
-        char *message;
+        char *message = nullptr;
         FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, lerr, 0, (char *)&message, 0,
                        nullptr);
         if (where)
@@ -288,6 +288,51 @@ namespace mbm
         return outMessage;
     }
     return "Nenhum erro encontrado!";
+}
+
+DWORD Win32FromHResult(HRESULT hr)
+{
+    if ((hr & 0xFFFF0000) == MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32, 0))
+    {
+        return HRESULT_CODE(hr);
+    }
+    if (FACILITY_WINDOWS == HRESULT_FACILITY(hr))
+    {
+        hr = HRESULT_CODE(hr);
+    }
+
+    if (hr == S_OK)
+    {
+        return ERROR_SUCCESS;
+    }
+
+    // Not a Win32 HRESULT so return a generic error code.
+    return ERROR_CAN_NOT_COMPLETE;
+}
+
+const char* getHresultErr(HRESULT hr, const char* where, char* outMessage)
+{
+    char message[4096];
+    if (::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+        nullptr,
+        Win32FromHResult(hr),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
+        message,
+        _countof(message),
+        nullptr))
+    {
+        if (where)
+        {
+            if (outMessage)
+                sprintf(outMessage, "Where:%s \nError:%s", where, message);
+        }
+        else
+        {
+            if (outMessage)
+                sprintf(outMessage, "\n%s", message);
+        }
+    }
+    return outMessage;
 }
 
     bool startUpWindows64(const char *name)

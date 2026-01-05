@@ -239,6 +239,7 @@ class STATIC_IMAGE_RESOURCE
 
 API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
 API_IMPL const char *getLastErrWindows(const char *where, char *outMessage);
+API_IMPL const char* getHresultErr(HRESULT hr, const char* where, char* outMessage);
 API_IMPL bool startUpWindows64(const char *name);
 API_IMPL bool startUpWindows(const char *name);
 

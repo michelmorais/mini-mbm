@@ -932,6 +932,18 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         #pragma message(REMINDER_TODO "  implement for ANY")
     }
 #endif
+
+    bool CORE_MANAGER::beginRender()
+    {
+        #pragma message(REMINDER_TODO "  implement for specific")
+        return false;
+    }
+
+    void CORE_MANAGER::endRender()
+    {
+        #pragma message(REMINDER_TODO "  implement for specific")
+    }
+
     bool CORE_MANAGER::renderToTargets()
     {
         bool oneRender = false;

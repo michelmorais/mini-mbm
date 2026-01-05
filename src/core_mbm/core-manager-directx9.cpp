@@ -121,7 +121,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             ERROR_LOG("onLostDevice step %d",stepRestore);
             #endif
 
-            HRESULT hr = this->device->specificContextDevice->pd3dDevice->TestCooperativeLevel();
+            const HRESULT hr = this->device->specificContextDevice->pd3dDevice->TestCooperativeLevel();
 
             if (FAILED(hr))
             {
@@ -424,7 +424,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         D3DDEVTYPE _typeDevice = D3DDEVTYPE_HAL;
         this->device->specificContextDevice->pD3D->GetDeviceCaps(D3DADAPTER_DEFAULT, _typeDevice, &cap);
         int Hardware_Software_Vertex_Process = 0;
-        bool forceSoftwareProcess = false;
+        const bool forceSoftwareProcess = false;
         if (forceSoftwareProcess)
         {
             if (FAILED(this->device->specificContextDevice->pD3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, mNativeWindow,
@@ -733,6 +733,20 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         return 0;
     }
 
+    bool CORE_MANAGER::beginRender()
+    {
+        HRESULT hr = this->device->specificContextDevice->pd3dDevice->BeginScene();
+        if (CHECK_AND_LOG_HRESULT_DX(hr))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    void CORE_MANAGER::endRender()
+    {
+        this->device->specificContextDevice->pd3dDevice->EndScene();
+    }
 
     bool CORE_MANAGER::renderToTargets()
     {

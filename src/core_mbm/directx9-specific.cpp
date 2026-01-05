@@ -17,38 +17,65 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef DIRECTX9_SPECIFIC_H
-#define DIRECTX9_SPECIFIC_H
 #if defined (USE_DIRECTX9)
 
-#include <d3d9.h>
-#include <d3dx9.h>
-//#include <dsetup.h>
-//#include <comdef.h>
-
-#ifndef __MINGW32__
-#pragma comment (lib, "d3d9.lib")
-#pragma comment (lib, "d3dx9.lib")
-//#pragma comment (lib,"comsuppwd.lib")
-//#pragma comment (lib, "dsetup.lib") //Directx version setup
-
-#endif
+#include <directx9-specific.h>
+#include <util-interface.h>
 
 namespace mbm
 {
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
+    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-        IDirect3D9* pD3D;
-        IDirect3DDevice9* pd3dDevice;
-        SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
-        ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+        pD3D = nullptr;
+        pd3dDevice = nullptr;
     };
 
-    bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
-    #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
+    SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
+    {
+        if (pd3dDevice)
+        {
+            pd3dDevice->Release();
+            pd3dDevice = nullptr;
+        }
+        if (pD3D)
+        {
+            pD3D->Release();
+            pD3D = nullptr;
+        }
+    };
+
+    bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line)
+    {
+        if (FAILED(hr))
+        {
+            if (D3DERR_INVALIDCALL == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_INVALIDCALL");
+            }
+            else if (D3DERR_OUTOFVIDEOMEMORY == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_OUTOFVIDEOMEMORY");
+            }
+            else if (D3DERR_NOTAVAILABLE == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_NOTAVAILABLE");
+            }
+            else if (D3DERR_INVALIDDEVICE == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_INVALIDDEVICE");
+            }
+            else if (D3DERR_UNSUPPORTEDCOLORARG == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_UNSUPPORTEDCOLORARG");
+            }
+            else if (D3DERR_UNSUPPORTEDALPHAARG == hr)
+            {
+                ERROR_AT(line, filename, "failed to begin the scene D3DERR_UNSUPPORTEDALPHAARG");
+            }
+            return false;
+        }
+        return true;
+    }
 }
 
-#endif
 #endif
