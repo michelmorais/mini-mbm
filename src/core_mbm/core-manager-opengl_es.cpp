@@ -1572,6 +1572,17 @@ void printGLString(const char *name, GLenum s)
         }
     }
 #endif
+
+    bool CORE_MANAGER::beginRender()
+    {
+        //nothing to do here
+        return true;
+    }
+
+    void CORE_MANAGER::endRender()
+    {
+        //nothing to do here
+    }
     
     bool CORE_MANAGER::renderToTargets()
     {
