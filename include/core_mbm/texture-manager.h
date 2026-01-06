@@ -52,7 +52,11 @@ namespace mbm
         API_IMPL uint32_t getWidth()const noexcept;
         API_IMPL uint32_t getHeight()const noexcept;
         API_IMPL static void enableFilter(bool value) noexcept;
-        uint32_t idTexture;
+        
+        union {
+            uint32_t idTexture;
+			void*    ptrTexture;
+        };
         bool     useAlphaChannel;
       private:
         static bool no_filter;

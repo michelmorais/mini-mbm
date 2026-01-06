@@ -34,6 +34,7 @@ namespace util
 namespace mbm
 {
     struct VAR_SHADER;
+    struct BUFFER_SPECIFIC;
     enum TYPE_VAR_SHADER : char;
 
 	enum TYPE_ANIMATION : char

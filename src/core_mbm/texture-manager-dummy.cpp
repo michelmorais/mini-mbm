@@ -63,8 +63,6 @@ namespace mbm
         // Upload texture to GPU
         if (idTexture == 0)
         {
-            if (uberImg.getImage() == nullptr)
-                delete[] img;
             return false;
         }
         #ifdef SHOW_PRAGMA_MESSAGE

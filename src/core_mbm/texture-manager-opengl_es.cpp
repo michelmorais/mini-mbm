@@ -61,8 +61,6 @@ namespace mbm
         GLGenTextures(1, &idTexture);
         if (idTexture == 0)
         {
-            if (uberImg.getImage() == nullptr)
-                delete[] img;
             return false;
         }
         GLBindTexture(GL_TEXTURE_2D, idTexture);

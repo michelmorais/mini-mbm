@@ -120,6 +120,17 @@ namespace mbm
         memset(this->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
         #pragma message(REMINDER_TODO "  generate buffers");
+
+        /*if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
+            sizeStructVertexInBytes * sizeOfArray,
+            0, //Usage D3DUSAGE_WRITEONLY
+            FVF,//FVF Usado
+            D3DPOOL_DEFAULT,//Local Da mem�ria
+            &buffer,//Endere�o Do IDirect3DVertexBuffer9
+            NULL)))				//sempre zero
+        {
+            return false;//Erro Ao criar Vertex Buffer
+        }*/
         
         this->idTexture0 = new uint32_t[totalSubset];
         memset(this->idTexture0, 0, sizeof(int) * totalSubset);
@@ -348,6 +359,7 @@ namespace mbm
             "     gl_Position = mvpMatrix * aPosition;"
             "     vTexCoord = aTextCoord;"
             "}";
+        return true;
         if (this->programObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]",this->programObject);
