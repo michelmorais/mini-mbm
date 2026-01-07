@@ -169,7 +169,7 @@ namespace mbm
             if (ret == false)
                 return false;
             this->addAnimation();
-            this->buffer->setTextureByStage(this->texture,0);
+            this->buffer->setTextureByStage(this->texture, 0, 0);
             bool useAlpha  = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
             this->type     = util::TYPE_MESH_TEXTURE;
             this->fileName = "loadTexture|";
@@ -216,7 +216,7 @@ namespace mbm
                 {
                     this->texture = newTex;
                     if (this->buffer)
-                        this->buffer->setTextureByStage(newTex, 0);
+                        this->buffer->setTextureByStage(newTex, stage, 0);
                     return true;
                 }
             }
@@ -303,7 +303,7 @@ namespace mbm
                 animation->fx.setBlendOp();
 
                 if (animation->fx.textureOverrideStage2)
-                    this->buffer->setTextureByStage(animation->fx.textureOverrideStage2, 1);
+                    this->buffer->setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
                 if (!animation->fx.shader.render(this->buffer))
                     return false;
                 return true;
@@ -549,7 +549,7 @@ namespace mbm
             if (ret == false)
                 return false;
             this->addAnimation();
-            this->buffer->setTextureByStage(this->texture, 0);
+            this->buffer->setTextureByStage(this->texture, 0, 0);
             this->indexCurrentAnimation = oldIndexCurrentAnimation;
 #if defined DEBUG_RESTORE
             PRINT_IF_DEBUG( "background [%s] successfully restored", log_util::basename(fileName));

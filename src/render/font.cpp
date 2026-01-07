@@ -860,7 +860,7 @@ namespace mbm
                                 {
                                     util::SUBSET *subset           = &buff->subset[j];
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->setTextureByStage(newTex, 0);
+                                    buff->pBufferGL->setTextureByStage(newTex, 0, j);
                                 }
                             }
                         }

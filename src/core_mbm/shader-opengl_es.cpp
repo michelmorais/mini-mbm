@@ -72,30 +72,34 @@ namespace mbm
         this->release();
     }
 
-    TEXTURE* BUFFER_GL::getTextureByStage(uint32_t stage)
+    TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const
     {
-        if(this->bs->idTexture0 && stage < totalSubset)
+        if(index_stage == 0)
         {
-            auto it = this->texture0.find(stage);
+            auto it = this->texture0.find(index_subset);
             if(it != this->texture0.end())
                 return it->second;
+        }
+        else
+        {
+            return this->texture1;
         }
         return nullptr;
     }
 
-    void BUFFER_GL::setTextureByStage(TEXTURE* texture, uint32_t stage)
+    void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
     {
-        if(stage == 0)
+        if(index_stage == 0)
         {
-            texture0[0] = texture;
+            texture0[index_subset] = texture;
         }
         else
         {
             texture1 = texture;
         }
-        if(texture && stage < totalSubset)
+        if(texture && index_stage < totalSubset)
         {
-            bs->useAlpha[stage] = texture->useAlphaChannel ? 1 : 0;
+            bs->useAlpha[index_stage] = texture->useAlphaChannel ? 1 : 0;
         }
     }
 
@@ -563,14 +567,16 @@ namespace mbm
                 GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture0[i]);
+                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
                 GLUniform1i(samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
                 GLActiveTexture(GL_TEXTURE1);
-                if (pBufferId->bs->idTexture1)
+                const TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+                if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture1);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
                     GLUniform1i(samplerHandle1, 1);
                 }
                 else
@@ -608,13 +614,15 @@ namespace mbm
                 GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture0[i]);
+                const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
                 GLUniform1i(samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
-                if (pBufferId->bs->idTexture1)
+                const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
+                if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture1);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
                     GLUniform1i(samplerHandle1, 1);
                 }
                 else

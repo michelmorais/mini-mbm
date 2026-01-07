@@ -100,16 +100,17 @@ namespace mbm
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(this->texture, 0);
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
                     return false;
                 }
 
+                //TODO: check this if loadBuffer == false
                 if (!this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.setTextureByStage(this->texture, 0);
+                    this->bufferGLRight.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
@@ -192,7 +193,7 @@ namespace mbm
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    bufferSide->setTextureByStage(anim->fx.textureOverrideStage2, 1);
+                    bufferSide->setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(bufferSide))
                     return false;
                 return true;

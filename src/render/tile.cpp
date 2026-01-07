@@ -195,8 +195,8 @@ namespace mbm
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
             }
-            this->backGroundMap.setTextureByStage(backgroundTextureMap, 0);
-            this->backGroundMap.setTextureByStage(nullptr, 1);
+            this->backGroundMap.setTextureByStage(backgroundTextureMap, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
         }
         return true;
     }

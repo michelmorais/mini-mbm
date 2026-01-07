@@ -740,8 +740,8 @@ namespace mbm
                     anim->fx.setMaxVarPShader("color", d);
                     anim->fx.setMinVarPShader("color", d);
                 }
-                tileSetPreview.setTextureByStage(textureTileSetPreview, 0);
-                tileSetPreview.setTextureByStage(nullptr, 1);
+                tileSetPreview.setTextureByStage(textureTileSetPreview, 0, 0);
+                tileSetPreview.setTextureByStage(nullptr, 1, 0);
 
                 const uint32_t lines    = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getWidth() / width  ))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
                 const uint32_t column   = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getHeight() / height))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
@@ -880,8 +880,8 @@ namespace mbm
                 return false;
             }
 
-            this->backGroundMap.setTextureByStage(texture, 0);
-            this->backGroundMap.setTextureByStage(nullptr, 1);
+            this->backGroundMap.setTextureByStage(texture, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
 
             float multiply = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
@@ -1924,11 +1924,11 @@ namespace mbm
         if(emptyBrick.isLoadedBuffer() == true)
         {
             if(highlight)
-                emptyBrick.setTextureByStage(id_texture_highlight_brick, 0);
+                emptyBrick.setTextureByStage(id_texture_highlight_brick, 0, 0);
             else if(selected)
-                emptyBrick.setTextureByStage(id_texture_selected_brick, 0);
+                emptyBrick.setTextureByStage(id_texture_selected_brick, 0, 0);
             else
-                emptyBrick.setTextureByStage(id_texture_normal_brick, 0);
+                emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             return shader->render(&emptyBrick);
         }
         else
@@ -1940,7 +1940,7 @@ namespace mbm
             mbm::TEXTURE::enableFilter(true);
             if (ret)
             {
-                this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0);
+                this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             }
             id_texture_highlight_brick = texManager->load("#aaff0000",true);
             id_texture_selected_brick  = texManager->load("#aa00ff00",true);

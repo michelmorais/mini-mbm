@@ -147,7 +147,7 @@ namespace mbm
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.setTextureByStage(this->texture, 0 );
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0 );
                     if(texture_id_out)
                         *texture_id_out          = this->texture->idTexture;
                 }
@@ -319,7 +319,7 @@ namespace mbm
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1);
+                    this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(&this->bufferGL))
                     return false;
                 return true;

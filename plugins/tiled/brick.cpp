@@ -114,13 +114,13 @@ namespace mbm
         const bool ret = this->bufferGL.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret && texture)
         {
-            this->bufferGL.setTextureByStage(texture, 0);
-            this->bufferGL.setTextureByStage(nullptr, 1);
+            this->bufferGL.setTextureByStage(texture, 0, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1, 0);
         }
         else
         {
-            this->bufferGL.setTextureByStage(nullptr, 0);
-            this->bufferGL.setTextureByStage(nullptr, 1);
+            this->bufferGL.setTextureByStage(nullptr, 0, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1, 0);
         }
     }
 
@@ -128,7 +128,7 @@ namespace mbm
     {
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.setTextureByStage(idTexStage2, 1);
+            this->bufferGL.setTextureByStage(idTexStage2, 1, 0);
             return shader->render(&this->bufferGL);
         }
         return false;
@@ -138,7 +138,7 @@ namespace mbm
         texture = _texture;
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.setTextureByStage(texture, 0);
+            this->bufferGL.setTextureByStage(texture, 0, 0);
         }
     }
 

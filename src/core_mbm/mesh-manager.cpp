@@ -3508,9 +3508,7 @@ namespace mbm
                 {
                     for (uint32_t i = 0; i < buffer[indexFrame].pBufferGL->totalSubset; ++i)
                     {
-                        buffer[indexFrame].pBufferGL->setTextureByStage(buffer[indexFrame].subset[indexSubset].texture, 0);
-                        //buffer[indexFrame].pBufferGL->idTexture0[i] =
-                        //    buffer[indexFrame].subset[indexSubset].texture->idTexture;
+                        buffer[indexFrame].pBufferGL->setTextureByStage(buffer[indexFrame].subset[indexSubset].texture, 0, i);
                     }
                     return true;
                 }
@@ -3614,7 +3612,7 @@ namespace mbm
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
-            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1,1);
+            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
             return pShader->render(buffer[indexFrame].pBufferGL);
         }
         return false;
@@ -3625,7 +3623,7 @@ namespace mbm
     {
         if (indexFrame < totalFramesMesh && buffer)
         {
-            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1,1);
+            buffer[indexFrame].pBufferGL->setTextureByStage(ptrTexture1, 1, 0);
             return pShader->renderDynamic(buffer[indexFrame].pBufferGL, vertex, normal, uv);
         }
         return false;
@@ -4295,7 +4293,7 @@ namespace mbm
                             buffer[currentFrame].subset[i].texture = textureManager->load(
                                 headerImg.width, headerImg.height, miniz.getDataStreamOut(), headerDescSubset.nameTexture,
                                 headerImg.depth, headerImg.channel, headerImg.hasAlpha ? true : false);
-                            if (!buffer[currentFrame].subset[i].texture)
+                            if (buffer[currentFrame].subset[i].texture == nullptr)
                             {
                                 lsIdTexture.push_back(nullptr);
                                 lsHasColorKeying.push_back(0);
@@ -4568,8 +4566,7 @@ namespace mbm
                                                      : buffer[currentFrame].pBufferGL->totalSubset);
             for (std::vector<int>::size_type i = 0; i < totalIdTexture; ++i)
             {
-                buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i],0);
-                //buffer[currentFrame].pBufferGL->useAlpha[i]   = lsHasColorKeying[i];
+                buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, i);
             }
         }
         fclose(fp);
@@ -5224,7 +5221,7 @@ namespace mbm
                 {
 
                     mesh->buffer[index].subset[0].texture        = texture;
-                    mesh->buffer[index].pBufferGL->setTextureByStage(texture,0);
+                    mesh->buffer[index].pBufferGL->setTextureByStage(texture, 0, 0);
                     infoFont->letter[i].detail                   = new util::DETAIL_LETTER();
                     infoFont->letter[i].detail->indexFrame       = static_cast<uint8_t>(index);
                     infoFont->letter[i].detail->widthLetter      = static_cast<uint8_t>(lsWidthLetter[i].x);

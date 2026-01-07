@@ -123,7 +123,7 @@ namespace mbm
             anim->type                  = TYPE_ANIMATION_GROWING_LOOP;
             anim->intervalChangeFrame   = infoGif.interval[0];
         }
-        this->bufferGL.setTextureByStage(this->textures[0], 0 );
+        this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
         
         this->fileName = fileNameTexture;
         this->fileName += '|';
@@ -143,19 +143,16 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 2, 1, 2, 3, 1};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1);
-        //TODO: check this
-        //const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        //const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
         this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
                                     diameter <= 0.0f ? 100.0f : diameter);
 		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0 );
-            this->bufferGL.setTextureByStage(idTexture1, 1 );
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
@@ -181,19 +178,16 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0);
-        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1);
-        //TODO: check this
-        //const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        //const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
         this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
 		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.setTextureByStage(idTexture0, 0 );
-            this->bufferGL.setTextureByStage(idTexture1, 1 );
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
@@ -242,7 +236,7 @@ namespace mbm
                     if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                         this->textures[anim->indexCurrentFrame] = newTex;
                 }
-                this->bufferGL.setTextureByStage(newTex, 0);
+                this->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
             }
         }
@@ -314,12 +308,12 @@ namespace mbm
                     animation->intervalChangeFrame  = interval[0];
 
                 TEXTURE* curTex = this->textures[animation->indexCurrentFrame];
-                this->bufferGL.setTextureByStage(curTex, 0);
+                this->bufferGL.setTextureByStage(curTex, 0, 0);
             }
             animation->fx.setBlendOp();
             animation->fx.shader.update();
             if (animation->fx.textureOverrideStage2)
-                this->bufferGL.setTextureByStage(animation->fx.textureOverrideStage2, 1);
+                this->bufferGL.setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
                 
             if (!animation->fx.shader.render(&this->bufferGL))
                 return false;
@@ -385,7 +379,7 @@ namespace mbm
             anim->type                  = myType;
             anim->intervalChangeFrame   = infoGif.interval[0];
         }
-        this->bufferGL.setTextureByStage(this->textures[0], 0);
+        this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
 #if defined DEBUG_RESTORE
         PRINT_IF_DEBUG("Gif [%s] successfully restored",log_util::basename(fileNameTexture));
 #endif
