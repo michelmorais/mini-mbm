@@ -169,12 +169,12 @@ namespace mbm
             if (ret == false)
                 return false;
             this->addAnimation();
-            this->buffer->idTexture0[0]   = this->texture ? this->texture->idTexture : 0;
-            this->buffer->useAlpha[0]     = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
-            this->type                    = util::TYPE_MESH_TEXTURE;
+            this->buffer->setTextureByStage(this->texture,0);
+            bool useAlpha  = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->type     = util::TYPE_MESH_TEXTURE;
             this->fileName = "loadTexture|";
             this->fileName += fileName;
-            if (this->buffer->useAlpha[0])
+            if (useAlpha)
                 this->fileName += "|1";
             else
                 this->fileName += "|0";
@@ -216,7 +216,7 @@ namespace mbm
                 {
                     this->texture = newTex;
                     if (this->buffer)
-                        this->buffer->idTexture0[0] = newTex->idTexture;
+                        this->buffer->setTextureByStage(newTex, 0);
                     return true;
                 }
             }
@@ -303,7 +303,7 @@ namespace mbm
                 animation->fx.setBlendOp();
 
                 if (animation->fx.textureOverrideStage2)
-                    this->buffer->idTexture1 = animation->fx.textureOverrideStage2->idTexture;
+                    this->buffer->setTextureByStage(animation->fx.textureOverrideStage2, 1);
                 if (!animation->fx.shader.render(this->buffer))
                     return false;
                 return true;
@@ -332,7 +332,7 @@ namespace mbm
                 if (animation->fx.textureOverrideStage2)
                 {
                     if (!this->mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
-                                            animation->fx.textureOverrideStage2->idTexture))
+                                            animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else
@@ -359,12 +359,12 @@ namespace mbm
                 animation->fx.setBlendOp();
                 if (animation->fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2->idTexture))
+                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,0))
+                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader, nullptr))
                         return false;
                 }
                 return true;
@@ -444,12 +444,12 @@ namespace mbm
                                     animation->fx.setBlendOp();
                                     if (animation->fx.textureOverrideStage2)
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader,animation->fx.textureOverrideStage2->idTexture))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
                                             return false;
                                     }
                                     else
                                     {
-                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader,0))
+                                        if (!this->mesh->render(static_cast<unsigned int>(detail->indexFrame), &animation->fx.shader, nullptr))
                                             return false;
                                     }
                                 }
@@ -549,8 +549,7 @@ namespace mbm
             if (ret == false)
                 return false;
             this->addAnimation();
-            this->buffer->idTexture0[0] = this->texture ? this->texture->idTexture : 0;
-            this->buffer->useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->buffer->setTextureByStage(this->texture, 0);
             this->indexCurrentAnimation = oldIndexCurrentAnimation;
 #if defined DEBUG_RESTORE
             PRINT_IF_DEBUG( "background [%s] successfully restored", log_util::basename(fileName));

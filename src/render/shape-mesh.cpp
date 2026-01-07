@@ -1350,7 +1350,7 @@ namespace mbm
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 reinterpret_cast<VEC3 *>(this->dynamicNormal.data()),
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                animation->fx.textureOverrideStage2->idTexture))
+                                                animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else
@@ -1368,7 +1368,7 @@ namespace mbm
                 animation->fx.setBlendOp();
                 if (animation->fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2->idTexture))
+                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else

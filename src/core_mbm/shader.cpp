@@ -26,18 +26,12 @@
 namespace mbm
 {
 
-    BUFFER_GL::~BUFFER_GL()
-    {
-        this->release();
-    }
-
     bool BUFFER_GL::isLoadedBuffer() const
     {
         return this->totalSubset != 0;
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept
-    = default;
+    BASE_SHADER::BASE_SHADER() noexcept = default;
 
     BASE_SHADER::~BASE_SHADER()
     {

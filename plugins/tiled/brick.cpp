@@ -114,23 +114,21 @@ namespace mbm
         const bool ret = this->bufferGL.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret && texture)
         {
-            this->bufferGL.idTexture0[0] = texture->idTexture;
-            this->bufferGL.idTexture1    = 0;
-            this->bufferGL.useAlpha[0]   = this->texture->useAlphaChannel ? 1 : 0;
+            this->bufferGL.setTextureByStage(texture, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1);
         }
         else
         {
-            this->bufferGL.idTexture0[0] = 0;
-            this->bufferGL.idTexture1    = 0;
-            this->bufferGL.useAlpha[0]   = 0;
+            this->bufferGL.setTextureByStage(nullptr, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1);
         }
     }
 
-    bool BRICK::render(SHADER *shader,const uint32_t idTexStage2)
+    bool BRICK::render(SHADER *shader,TEXTURE* idTexStage2)
     {
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.idTexture1 = idTexStage2;
+            this->bufferGL.setTextureByStage(idTexStage2, 1);
             return shader->render(&this->bufferGL);
         }
         return false;
@@ -140,8 +138,7 @@ namespace mbm
         texture = _texture;
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.idTexture0[0] = texture ? texture->idTexture : 0;
-            this->bufferGL.useAlpha[0]   = texture->useAlphaChannel ? 1 : 0;
+            this->bufferGL.setTextureByStage(texture, 0);
         }
     }
 

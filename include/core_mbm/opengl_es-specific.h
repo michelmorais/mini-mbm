@@ -584,6 +584,33 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
     };
+
+    struct BUFFER_SPECIFIC
+    {
+        BUFFER_SPECIFIC() noexcept;
+        ~BUFFER_SPECIFIC();
+        // Index buffer
+        unsigned int  vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
+        unsigned int *vboIndexSubsetIB;   // vbo index buffer IB
+        int *         indexStartIB;       // index start subset IB
+        int *         indexCountIB;       // index count subset IB
+        // Vertex buffer
+        unsigned int *vboVertexSubsetVB;  // Vertex buffer do subset VB
+        unsigned int *vboNormalSubsetVB;  // Normal buffer do subset VB
+        unsigned int *vboTextureSubsetVB; // Textura buffer do subset VB
+        int *         vertexStartVB;      // inicio do vertex buffer no subset VB
+        int *         vertexCountVB;      // Total de vertex no subset VB
+        // Control
+        unsigned int * idTexture0;    // Existe 1 idtextura para cada subset. (stagio 0)
+        uint8_t *useAlpha;      // Usa alpha para a textura
+        unsigned int   idTexture1;    // id textura stagio 1 passado no momento de renderizar o shader
+        bool           isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
+        unsigned int   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        unsigned int   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        unsigned int   mode_front_face_direction; //GL_CW, GL_CCW
+        void release();
+    };
+    
 }
 #endif
 #endif

@@ -267,12 +267,12 @@ namespace mbm
             util::HEADER_FRAME *headerFrame    = &pBuffer->headerFrame;
             const BUFFER_MESH* pBufferMesh     = meshMemory->getBuffer(currentFrame);
             const BUFFER_GL* pGl               = pBufferMesh->pBufferGL;
-            if(pGl->isIndexBuffer)
+            if(pGl->bs->isIndexBuffer)
             {
                 strncpy(headerFrame->typeBuffer,"IB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->indexCountIB[i];
+                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->bs->indexCountIB[i];
                 }
             }
             else
@@ -280,7 +280,7 @@ namespace mbm
                 strncpy(headerFrame->typeBuffer,"VB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->vertexCountVB[i];
+                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->bs->vertexCountVB[i];
                 }
             }
             headerFrame->stride = 3;
@@ -298,11 +298,11 @@ namespace mbm
                     auto pSubset = new util::SUBSET_DEBUG();
                     pBuffer->subset.push_back(pSubset);
                     uint16_t maxIndexSubset = 0;
-                    pSubset->indexStart             = pGl->indexStartIB[i];
-                    pSubset->indexCount             = pGl->indexCountIB[i];
+                    pSubset->indexStart             = pGl->bs->indexStartIB[i];
+                    pSubset->indexCount             = pGl->bs->indexCountIB[i];
                     pBuffer->subset[i]->indexStart  = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount  = pSubset->indexCount;
-                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
+                    GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->bs->vboIndexSubsetIB[i]);
                     auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
                     if(indexBuffer == nullptr)
                         return log_util::onFailed(nullptr,__FILE__, __LINE__, "Failed to get index at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
@@ -367,7 +367,7 @@ namespace mbm
 
             if(is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[0]);
+                GLBindBuffer(GL_ARRAY_BUFFER,pGl->bs->vboVertNorTexIB[0]);
                 pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pPosition == nullptr)
@@ -405,7 +405,7 @@ namespace mbm
             }
             if(is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[1]);
+                GLBindBuffer(GL_ARRAY_BUFFER,pGl->bs->vboVertNorTexIB[1]);
                 pNormal   = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pNormal == nullptr)
@@ -416,7 +416,7 @@ namespace mbm
             if(is_dynamic_shape == false)
             {
                 glUnmapBufferOES(GL_ARRAY_BUFFER);
-                GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[2]);
+                GLBindBuffer(GL_ARRAY_BUFFER,pGl->bs->vboVertNorTexIB[2]);
                 pTexture  = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
             }
             if(pTexture == nullptr)

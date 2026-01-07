@@ -87,10 +87,9 @@ namespace mbm
             return false;
         if (!createAnimationAndShader2Texture())
             return false;
-        this->bufferGL.idTexture0[0] = this->texture->idTexture;
-        this->bufferGL.useAlpha[0]   = 1;
+        this->bufferGL.setTextureByStage(this->texture, 0);
         char strTemp[255];
-        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->bufferGL.useAlpha[0]);
+        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->useAlphaChannel ? 1 : 0);
         this->fileName = strTemp;
         this->updateAABB();
         return true;
@@ -111,11 +110,11 @@ namespace mbm
             this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
         if (idFrame == false)
             return false;
-        this->bufferGL.idTexture0[0] = this->texture ? this->texture->idTexture : 0;
-        this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+        this->bufferGL.setTextureByStage(this->texture, 0 );
+        const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
-        sprintf(strTemp, "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, alpha ? 1 : 0);
+        sprintf(strTemp, "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
         this->fileName = strTemp;
         this->updateAABB();
         return true;
@@ -129,17 +128,19 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
 		unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1);
+        //TODO: check this
+        //const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
+        //const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
         this->bufferGL.release();
         this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
                                     diameter <= 0.0f ? 100.0f : diameter);
         const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->bufferGL.setTextureByStage(idTexture0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1 );
         }
         else
             return false;
@@ -165,16 +166,18 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1);
+        //TODO: check this
+        //const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
+        //const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
         this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
         const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->bufferGL.setTextureByStage(idTexture0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1 );
         }
         else
             return false;
@@ -212,7 +215,7 @@ namespace mbm
             if (newTex)
             {
                 this->texture                = newTex;
-                this->bufferGL.idTexture0[0] = newTex->idTexture;
+                this->bufferGL.setTextureByStage(newTex, 0);
                 return true;
             }
         }
@@ -282,7 +285,7 @@ namespace mbm
             anim->fx.setBlendOp();
             anim->fx.shader.update();
             if (anim->fx.textureOverrideStage2)
-                this->bufferGL.idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1);
             if (!anim->fx.shader.render(&this->bufferGL))
                 return false;
             return true;

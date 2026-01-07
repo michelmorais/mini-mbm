@@ -101,7 +101,7 @@ namespace mbm
         inline bool             renderBrick(const util::BTILE_INFO * ptr_TileInfo, 
                                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                                             const mbm::SHADER * shader,
-                                            const unsigned int idTextureOverrideStage2,
+                                            TEXTURE* idTextureOverrideStage2,
                                             const uint32_t i, 
                                             const uint32_t j,
                                             const float offset_x,

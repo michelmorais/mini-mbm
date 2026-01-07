@@ -1149,7 +1149,8 @@ namespace mbm
                                 {
                                     util::SUBSET *subset           = &buff->subset[j];
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->idTexture0[j] = newTex->idTexture;
+                                    //TODO: fix me
+                                    //buff->pBufferGL->idTexture0[j] = newTex->idTexture;
                                 }
                             }
                         }
