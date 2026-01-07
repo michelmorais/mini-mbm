@@ -154,12 +154,8 @@ namespace mbm
 
     void BUFFER_GL::release()
     {
-        if(bs)
-        {
-            delete bs;
-        }
+        bs->release();
         totalSubset   = 0;
-        bs = nullptr;
     }
 
     bool BUFFER_GL::loadBuffer(const mbm::VEC3 *vertex, // type vertex buffer
