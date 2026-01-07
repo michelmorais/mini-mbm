@@ -55,10 +55,6 @@ namespace mbm
         vboTextureSubsetVB(nullptr),
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
-        //totalSubset(0),
-        idTexture0(nullptr),
-        useAlpha(nullptr),
-        idTexture1(0),
         isIndexBuffer(false),
         mode_draw(GL_TRIANGLES),
         mode_cull_face(GL_BACK),
@@ -70,37 +66,6 @@ namespace mbm
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
     {
         this->release();
-    }
-
-    TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const
-    {
-        if(index_stage == 0)
-        {
-            auto it = this->texture0.find(index_subset);
-            if(it != this->texture0.end())
-                return it->second;
-        }
-        else
-        {
-            return this->texture1;
-        }
-        return nullptr;
-    }
-
-    void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
-    {
-        if(index_stage == 0)
-        {
-            texture0[index_subset] = texture;
-        }
-        else
-        {
-            texture1 = texture;
-        }
-        if(texture && index_stage < totalSubset)
-        {
-            bs->useAlpha[index_stage] = texture->useAlphaChannel ? 1 : 0;
-        }
     }
 
     void BUFFER_SPECIFIC::release()
@@ -123,14 +88,6 @@ namespace mbm
             delete[] indexCountIB;
         indexCountIB = nullptr;
 
-        if (idTexture0)
-            delete[] idTexture0;
-        idTexture0 = nullptr;
-
-        if (useAlpha)
-            delete[] useAlpha;
-        useAlpha = nullptr;
-
         if (vboVertexSubsetVB)
             delete[] vboVertexSubsetVB;
         vboVertexSubsetVB = nullptr;
@@ -151,8 +108,6 @@ namespace mbm
             delete[] vertexCountVB;
         vertexCountVB = nullptr;
 
-        idTexture1    = 0;
-        //totalSubset   = 0;
         isIndexBuffer = false;
     }
 
@@ -214,11 +169,7 @@ namespace mbm
             }
         }
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
-        this->bs->idTexture0 = new uint32_t[totalSubset];
-        memset(this->bs->idTexture0, 0, sizeof(int) * totalSubset);
-
-        this->bs->useAlpha = new uint8_t[totalSubset];
-        memset(this->bs->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
+        
         this->bs->isIndexBuffer = false;
 		if(info_draw_mode)
 		{
@@ -277,11 +228,6 @@ namespace mbm
 
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        this->bs->idTexture0 = new uint32_t[this->totalSubset];
-        memset(this->bs->idTexture0, 0, sizeof(uint32_t) * static_cast<size_t>(this->totalSubset));
-
-        this->bs->useAlpha = new uint8_t[totalSubset];
-        memset(this->bs->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
         this->bs->isIndexBuffer = true;
 		if(info_draw_mode)
 		{
@@ -319,11 +265,6 @@ namespace mbm
         }
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        this->bs->idTexture0 = new uint32_t[this->totalSubset];
-        memset(this->bs->idTexture0, 0, sizeof(int) * static_cast<size_t>(this->totalSubset));
-
-        this->bs->useAlpha = new uint8_t[totalSubset];
-        memset(this->bs->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
         this->bs->isIndexBuffer = true;
 		if(info_draw_mode)
 		{
@@ -667,14 +608,16 @@ namespace mbm
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLActiveTexture(GL_TEXTURE0);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture0[i]);
+                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
                 GLUniform1i(samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
+                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 GLActiveTexture(GL_TEXTURE1);
-                if (pBufferId->bs->idTexture1)
+                if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture1);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
                     GLUniform1i(samplerHandle1, 1);
                 }
                 else
@@ -707,13 +650,15 @@ namespace mbm
                 GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
-                GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture0[i]);
+                const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
+                GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
                 GLUniform1i(samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
-                if (pBufferId->bs->idTexture1)
+                const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
+                if (texture1)
                 {
-                    GLBindTexture(GL_TEXTURE_2D, pBufferId->bs->idTexture1);
+                    GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
                     GLUniform1i(samplerHandle1, 1);
                 }
                 else
