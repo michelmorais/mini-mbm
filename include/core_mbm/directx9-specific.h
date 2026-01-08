@@ -23,6 +23,7 @@
 
 #include <d3d9.h>
 #include <d3dx9.h>
+
 //#include <dsetup.h>
 //#include <comdef.h>
 
@@ -34,8 +35,95 @@
 
 #endif
 
+#include <primitives.h>
+
 namespace mbm
 {
+    struct VERTEX_NORMAL_UV
+    {
+        union
+        {
+            struct
+            {
+                float x, y, z;
+                float nx, ny, nz;
+                float u, v;
+            };
+            struct
+            {
+                float	position[3];
+                float	normal[3];
+                float	uv[2];
+            };
+        };
+    };
+
+    struct VERTEX_NORMAL
+    {
+        union
+        {
+            struct
+            {
+                float x, y, z;
+                float nx, ny, nz;
+            };
+            struct
+            {
+                float	position[3];
+                float	normal[3];
+            };
+        };
+    };
+
+    struct VERTEX_UV
+    {
+        union
+        {
+            struct
+            {
+                float x, y, z;
+                float u, v;
+            };
+            struct
+            {
+                float	position[3];
+                float	uv[2];
+            };
+        };
+    };
+
+    enum class FVF_PROVIDE_BY_ENGINE // we only provide those type of FVF for this engine
+    {
+        FVF_POS,
+        FVF_POS_UV,
+        FVF_POS_NOR,
+        FVF_POS_NOR_UV,
+    };
+
+    class SMART_VERTEX // convert automaticlly to directx VERTEX (see above)
+    {
+    public:
+        explicit SMART_VERTEX(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept;
+        SMART_VERTEX(const SMART_VERTEX&) = delete;
+        SMART_VERTEX(SMART_VERTEX&&) = delete;
+        SMART_VERTEX& operator=(const SMART_VERTEX&) = delete;
+        SMART_VERTEX& operator=(SMART_VERTEX&&) = delete;
+        ~SMART_VERTEX() = default;
+
+        void copyTod3dVertexBuffer(void* pvertex) const noexcept;
+        uint32_t getSizeOfStructureInBytes() const noexcept;
+        FVF_PROVIDE_BY_ENGINE getFVF() const noexcept;
+    private:
+        FVF_PROVIDE_BY_ENGINE FVF;
+        const VEC3* pos;
+        const VEC3* normal;
+        const VEC2* uv;
+        unsigned int size_array;
+    };
+
+
+    
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
         IDirect3D9* pD3D;
@@ -44,10 +132,21 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+
+        IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF)const;
     };
 
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
     #define CHECK_AND_LOG_HRESULT_DX(hr) checkAndLogHresultResultDx((hr), __FILE__, __LINE__)
+
+    struct BUFFER_SPECIFIC
+    {
+        BUFFER_SPECIFIC() noexcept;
+        ~BUFFER_SPECIFIC();
+        FVF_PROVIDE_BY_ENGINE FVF;
+        IDirect3DVertexBuffer9* pVertexBuffer;
+        void release();
+    };
 }
 
 #endif

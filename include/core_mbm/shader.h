@@ -22,7 +22,6 @@
 
 #include "core-exports.h"
 #include "primitives.h"
-#include <string.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -51,7 +50,7 @@ namespace mbm
 
     };
 
-	  enum STATUS_FX
+	enum STATUS_FX
     {
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };

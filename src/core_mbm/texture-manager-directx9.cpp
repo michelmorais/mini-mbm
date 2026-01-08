@@ -38,7 +38,7 @@ namespace mbm
         {
             p3DTexture9->Release();
         }
-        p3DTexture9     = nullptr;
+        ptrTexture      = nullptr;
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
@@ -89,20 +89,22 @@ namespace mbm
         D3DSURFACE_DESC	descSurfaceDest;
         D3DLOCKED_RECT	lockDestRect;
 		mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DTexture9* p3DTexture9 = static_cast<IDirect3DTexture9*>(this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        
 		if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
             h,
             1,
             D3DUSAGE_DYNAMIC,
             requested_format,
             D3DPOOL_DEFAULT,//,
-            &p3DTexture9, nullptr)))
+            pp3DTexture9, nullptr)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
             if (rgba_toDelete)
                 delete[] rgba_toDelete;
             return false;
         }
+        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
         if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to get surface of texture");

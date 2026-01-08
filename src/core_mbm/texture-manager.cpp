@@ -256,6 +256,7 @@ namespace mbm
     {
         if (!fileNameTexture)
             return false;
+        this->release();
         this->useAlphaChannel = true;
 		if(fileNameTexture[0] == '#' )
 			return loadSolidColor(fileNameTexture,hasColorAlpha);

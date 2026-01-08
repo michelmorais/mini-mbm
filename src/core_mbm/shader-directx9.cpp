@@ -25,23 +25,42 @@
 #include <shader.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
-#include <cstdlib>
+#include <device.h>
+#include <directx9-specific.h>
 #include <header-mesh.h>
 
 namespace mbm
 {
-    BUFFER_GL::~BUFFER_GL() {}
-
-    BUFFER_GL::BUFFER_GL()
-    noexcept 
-               //TODO: fix these values
-               //mode_draw(GL_TRIANGLES),
-               //mode_cull_face(GL_BACK),
-               //mode_front_face_direction(GL_CW)
+    BUFFER_GL::BUFFER_GL() noexcept
     {
-        #pragma message(REMINDER_TODO "  initialize mode values");
-        
+        bs = new BUFFER_SPECIFIC();
+        totalSubset = 0;
+        texture1 = nullptr;
     }
+
+    BUFFER_GL::~BUFFER_GL()
+    {
+        if (bs)
+            delete bs;
+        bs = nullptr;
+        texture1 = nullptr;
+        texture0.clear();
+    }
+
+    BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
+        FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
+        pVertexBuffer(nullptr)
+    {
+
+    }
+
+    BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
+    {
+        if (pVertexBuffer)
+            pVertexBuffer->Release();
+        pVertexBuffer = nullptr;
+    }
+    
 
     void BUFFER_GL::release()
     {
@@ -74,6 +93,129 @@ namespace mbm
         return true;
     }
 
+    
+
+
+    SMART_VERTEX::SMART_VERTEX(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept:
+        pos(_pos), normal(_normal),uv(_uv), size_array(_size_array)
+    {
+        if (pos && uv && normal)
+        {
+            FVF = FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        }
+        else if (pos && normal)
+        {
+            FVF = FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR;
+        }
+        else if (pos && uv)
+        {
+            FVF = FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+        }
+        else
+        {
+            FVF = FVF_PROVIDE_BY_ENGINE::FVF_POS;
+        }
+    }
+
+    void SMART_VERTEX::copyTod3dVertexBuffer(void* pvertex) const noexcept
+    {
+        if (pvertex)
+        {
+            switch (FVF)
+            {
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS:
+            {
+                VEC3* vertex = static_cast<VEC3*>(pvertex);
+                for (unsigned int i = 0; i < size_array; ++i)
+                {
+                    vertex[i].x = pos[i].x;
+                    vertex[i].y = pos[i].y;
+                    vertex[i].z = pos[i].z;
+                }
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
+            {
+                VERTEX_NORMAL* vertex = static_cast<VERTEX_NORMAL*>(pvertex);
+                for (unsigned int i = 0; i < size_array; ++i)
+                {
+                    vertex[i].x = pos[i].x;
+                    vertex[i].y = pos[i].y;
+                    vertex[i].z = pos[i].z;
+                    vertex[i].nx = normal[i].x;
+                    vertex[i].ny = normal[i].y;
+                    vertex[i].nz = normal[i].z;
+                }
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
+            {
+                VERTEX_UV* vertex = static_cast<VERTEX_UV*>(pvertex);
+                for (unsigned int i = 0; i < size_array; ++i)
+                {
+                    vertex[i].x = pos[i].x;
+                    vertex[i].y = pos[i].y;
+                    vertex[i].z = pos[i].z;
+                    vertex[i].u = uv[i].x;
+                    vertex[i].v = uv[i].y;
+                }
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
+            {
+                VERTEX_NORMAL_UV* vertex = static_cast<VERTEX_NORMAL_UV*>(pvertex);
+                for (unsigned int i = 0; i < size_array; ++i)
+                {
+                    vertex[i].x = pos[i].x;
+                    vertex[i].y = pos[i].y;
+                    vertex[i].z = pos[i].z;
+                    vertex[i].nx = normal[i].x;
+                    vertex[i].ny = normal[i].y;
+                    vertex[i].nz = normal[i].z;
+                    vertex[i].u = uv[i].x;
+                    vertex[i].v = uv[i].y;
+                }
+            }
+            break;
+            }
+        }
+    }
+
+    FVF_PROVIDE_BY_ENGINE SMART_VERTEX::getFVF() const noexcept
+    {
+        return FVF;
+    }
+
+    uint32_t SMART_VERTEX::getSizeOfStructureInBytes() const noexcept
+    {
+        uint32_t sizeStructVertexInBytes = 0;
+        switch (this->FVF)
+        {
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS:
+            {
+                sizeStructVertexInBytes = sizeof(VEC3);
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
+            {
+                sizeStructVertexInBytes = sizeof(VERTEX_NORMAL);
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
+            {
+                sizeStructVertexInBytes = sizeof(VERTEX_UV);
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
+            {
+                sizeStructVertexInBytes = sizeof(VERTEX_NORMAL_UV);
+            }
+            break;
+        }
+        return sizeStructVertexInBytes;
+    }
+    
+
     bool BUFFER_GL::loadBuffer(const VEC3 *vertex, // type index buffer
 		const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
 		const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
@@ -82,9 +224,33 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        #pragma message(REMINDER_TODO "  generate buffers");
-        this->totalSubset      = totalSubsets;
-        #pragma message(REMINDER_TODO "  generate buffers");
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+
+        constexpr DWORD DFVF = 0;// Non-FVF buffers
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        SMART_VERTEX smatVertex(vertex, normal, uv, sizeOfArrayVertex);
+        this->bs->FVF = smatVertex.getFVF();
+        uint32_t sizeStructVertexInBytes = smatVertex.getSizeOfStructureInBytes();
+        
+        if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
+            sizeStructVertexInBytes * sizeOfArrayVertex,
+            D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
+            DFVF,//FVF
+            D3DPOOL_DEFAULT,//local memory
+            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            nullptr)))				//Always null
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
+            return false;
+        }
+        void* pvertex = nullptr;
+        if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+            return false;
+        }
+        smatVertex.copyTod3dVertexBuffer(pvertex);
+        this->bs->pVertexBuffer->Unlock();
         return true;
     }
 

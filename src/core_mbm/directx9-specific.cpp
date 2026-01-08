@@ -44,6 +44,91 @@ namespace mbm
         }
     };
 
+    IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF) const
+    {
+        IDirect3DVertexDeclaration9* vertex_declaration = nullptr;
+        switch (FVF)
+        {
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS:
+            {
+                static IDirect3DVertexDeclaration9* vertex_declaration_pos = nullptr;
+                if (vertex_declaration_pos == nullptr)
+                {
+                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    {
+                        { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+                        D3DDECL_END()
+                    };
+                    if (FAILED(pd3dDevice->CreateVertexDeclaration(custom_vertex, &vertex_declaration_pos)))
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "failed to create FVF (FVF_POS) declaration");
+                    }
+                }
+                vertex_declaration = vertex_declaration_pos;
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
+            {
+                static IDirect3DVertexDeclaration9* vertex_declaration_pos_norm  = nullptr;
+                if (vertex_declaration_pos_norm == nullptr)
+                {
+                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    {
+                        { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+                        { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL,   0 },
+                        D3DDECL_END()
+                    };
+                    if (FAILED(pd3dDevice->CreateVertexDeclaration(custom_vertex, &vertex_declaration_pos_norm)))
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "failed to create FVF (FVF_POS_NOR) declaration");
+                    }
+                }
+                vertex_declaration = vertex_declaration_pos_norm;
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
+            {
+                static IDirect3DVertexDeclaration9* vertex_declaration_pos_uv = nullptr;
+                if (vertex_declaration_pos_uv == nullptr)
+                {
+                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    {
+                        { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+                        { 0, 12, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
+                        D3DDECL_END()
+                    };
+                    if (FAILED(pd3dDevice->CreateVertexDeclaration(custom_vertex, &vertex_declaration_pos_uv)))
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "failed to create FVF (FVF_POS_UV) declaration");
+                    }
+                }
+                vertex_declaration = vertex_declaration_pos_uv;
+            }
+            break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
+            {
+                static IDirect3DVertexDeclaration9* vertex_declaration_pos_norm_uv = nullptr;
+                if (vertex_declaration_pos_norm_uv == nullptr)
+                {
+                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    {
+                        { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+                        { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL,   0 },
+                        { 0, 24, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
+                        D3DDECL_END()
+                    };
+                    if (FAILED(pd3dDevice->CreateVertexDeclaration(custom_vertex, &vertex_declaration_pos_norm_uv)))
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "failed to create FVF (FVF_POS_NORM_UV) declaration");
+                    }
+                }
+                vertex_declaration = vertex_declaration_pos_norm_uv;
+            }
+            break;
+        }
+        return vertex_declaration;
+    }
+
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line)
     {
         if (FAILED(hr))
