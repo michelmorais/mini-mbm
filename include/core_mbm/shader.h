@@ -73,7 +73,7 @@ namespace mbm
 
         unsigned int   totalSubset;   // Total de subset deste buffer
 
-        BUFFER_SPECIFIC* bs;
+        BUFFER_SPECIFIC* bs; // Structure specific to be implemented by specific backend engine (needed by backend)
       private:
         std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
         TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
