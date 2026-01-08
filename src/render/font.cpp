@@ -654,7 +654,7 @@ namespace mbm
                                         anim->fx.setBlendOp();
                                         if (anim->fx.textureOverrideStage2)
                                         {
-                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,anim->fx.textureOverrideStage2->idTexture))
+                                            if (!this->mesh->render(detail->indexFrame, &anim->fx.shader,anim->fx.textureOverrideStage2))
                                                 return false;
                                         }
                                         else
@@ -860,7 +860,7 @@ namespace mbm
                                 {
                                     util::SUBSET *subset           = &buff->subset[j];
                                     subset->texture                = newTex;
-                                    buff->pBufferGL->idTexture0[j] = newTex->idTexture;
+                                    buff->pBufferGL->setTextureByStage(newTex, 0, j);
                                 }
                             }
                         }

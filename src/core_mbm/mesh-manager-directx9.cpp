@@ -246,12 +246,12 @@ namespace mbm
             util::HEADER_FRAME *headerFrame    = &pBuffer->headerFrame;
             const BUFFER_MESH* pBufferMesh     = meshMemory->getBuffer(currentFrame);
             const BUFFER_GL* pGl               = pBufferMesh->pBufferGL;
-            if(pGl->isIndexBuffer)
+            if(pGl)
             {
                 strncpy(headerFrame->typeBuffer,"IB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->indexCountIB[i];
+                    //headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->indexCountIB[i];
                 }
             }
             else
@@ -259,7 +259,7 @@ namespace mbm
                 strncpy(headerFrame->typeBuffer,"VB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->vertexCountVB[i];
+                    //headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->vertexCountVB[i];
                 }
             }
             headerFrame->stride = 3;
@@ -277,10 +277,10 @@ namespace mbm
                     auto pSubset = new util::SUBSET_DEBUG();
                     pBuffer->subset.push_back(pSubset);
                     uint16_t maxIndexSubset = 0;
-                    pSubset->indexStart             = pGl->indexStartIB[i];
-                    pSubset->indexCount             = pGl->indexCountIB[i];
-                    pBuffer->subset[i]->indexStart  = pSubset->indexStart;
-                    pBuffer->subset[i]->indexCount  = pSubset->indexCount;
+                    //pSubset->indexStart             = pGl->indexStartIB[i];
+                    //pSubset->indexCount             = pGl->indexCountIB[i];
+                    //pBuffer->subset[i]->indexStart  = pSubset->indexStart;
+                    //pBuffer->subset[i]->indexCount  = pSubset->indexCount;
                     #pragma message(REMINDER_TODO "  implement get array from memory");
                     //GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
                     //auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));

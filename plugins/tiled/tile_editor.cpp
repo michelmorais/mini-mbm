@@ -740,9 +740,8 @@ namespace mbm
                     anim->fx.setMaxVarPShader("color", d);
                     anim->fx.setMinVarPShader("color", d);
                 }
-                tileSetPreview.idTexture0[0] = textureTileSetPreview->idTexture;
-                tileSetPreview.idTexture1    = 0;
-                tileSetPreview.useAlpha[0]   = textureTileSetPreview->useAlphaChannel ? 1 : 0;
+                tileSetPreview.setTextureByStage(textureTileSetPreview, 0, 0);
+                tileSetPreview.setTextureByStage(nullptr, 1, 0);
 
                 const uint32_t lines    = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getWidth() / width  ))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
                 const uint32_t column   = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getHeight() / height))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
@@ -880,9 +879,9 @@ namespace mbm
                 ERROR_LOG("Could not create texture from color %s",whatColor);
                 return false;
             }
-            this->backGroundMap.idTexture0[0] = texture->idTexture;
-            this->backGroundMap.idTexture1    = 0;
-            this->backGroundMap.useAlpha[0]   = texture && texture->useAlphaChannel ? 1 : 0;
+
+            this->backGroundMap.setTextureByStage(texture, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
 
             float multiply = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
@@ -1260,8 +1259,7 @@ namespace mbm
         const VEC3 brick_position(x,y,position.z);
         const uint32_t index = j + (i  * tileMap.count_height_tile);
         auto & brick         = layer->bricks[index];
-        const uint32_t idTexStage2 = layer->fx.textureOverrideStage2 ? layer->fx.textureOverrideStage2->idTexture : 0;
-        
+
         if(brick == nullptr)
         {
             if(enable_highlights)
@@ -1285,7 +1283,7 @@ namespace mbm
                 anim_over->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                 anim_over->fx.setBlendOp();
                 anim_over->fx.shader.update();
-                if(brick->render(&anim_over->fx.shader,idTexStage2) == false)
+                if(brick->render(&anim_over->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(bSelected)
@@ -1298,17 +1296,17 @@ namespace mbm
                     anim_selected->fx.setBlendOp();
                     anim_selected->fx.shader.update();
                 }
-                if(brick->render(&anim_selected->fx.shader,idTexStage2) == false)
+                if(brick->render(&anim_selected->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparent->fx.shader,idTexStage2) == false)
+                if(brick->render(&transparent->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else
             {
-                if(brick->render(&layer->fx.shader,idTexStage2) == false)
+                if(brick->render(&layer->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             if(render_what == RENDER_LAYER)
@@ -1926,11 +1924,11 @@ namespace mbm
         if(emptyBrick.isLoadedBuffer() == true)
         {
             if(highlight)
-                emptyBrick.idTexture0[0] = id_texture_highlight_brick;
+                emptyBrick.setTextureByStage(id_texture_highlight_brick, 0, 0);
             else if(selected)
-                emptyBrick.idTexture0[0] = id_texture_selected_brick;
+                emptyBrick.setTextureByStage(id_texture_selected_brick, 0, 0);
             else
-                emptyBrick.idTexture0[0] = id_texture_normal_brick;
+                emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             return shader->render(&emptyBrick);
         }
         else
@@ -1938,20 +1936,14 @@ namespace mbm
             const bool ret  = loadBufferGl(emptyBrick);
             auto texManager = mbm::TEXTURE_MANAGER::getInstance();
             mbm::TEXTURE::enableFilter(false);
-            auto texture    = texManager->load("#aaffffaa",true);
+            id_texture_normal_brick    = texManager->load("#aaffffaa",true);
             mbm::TEXTURE::enableFilter(true);
-            id_texture_normal_brick    = texture ? texture->idTexture : 0;
             if (ret)
             {
-                this->emptyBrick.idTexture0[0] = id_texture_normal_brick;
-                this->emptyBrick.idTexture1    = 0;
-                this->emptyBrick.useAlpha[0]   = texture && texture->useAlphaChannel ? 1 : 0;
+                this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             }
-            texture                    = texManager->load("#aaff0000",true);
-            id_texture_highlight_brick = texture ? texture->idTexture : 0;
-
-            texture                    = texManager->load("#aa00ff00",true);
-            id_texture_selected_brick  = texture ? texture->idTexture : 0;
+            id_texture_highlight_brick = texManager->load("#aaff0000",true);
+            id_texture_selected_brick  = texManager->load("#aa00ff00",true);
             return ret;
         }
     }

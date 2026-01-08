@@ -30,122 +30,34 @@
 
 namespace mbm
 {
-    BUFFER_GL::BUFFER_GL()
-    noexcept : vboIndexSubsetIB(nullptr),
-               indexStartIB(nullptr),
-               indexCountIB(nullptr),
-               vboVertexSubsetVB(nullptr),
-               vboNormalSubsetVB(nullptr),
-               vboTextureSubsetVB(nullptr),
-               vertexStartVB(nullptr),
-               vertexCountVB(nullptr),
-               totalSubset(0),
-               idTexture0(nullptr),
-               useAlpha(nullptr),
-               idTexture1(0),
-               isIndexBuffer(false)
-               //TODO: fix these values
-               //mode_draw(GL_TRIANGLES),
-               //mode_cull_face(GL_BACK),
-               //mode_front_face_direction(GL_CW)
+    BUFFER_GL::BUFFER_GL() noexcept
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  initialize mode values");
-        #endif
-        memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
+     
     }
+    BUFFER_GL::~BUFFER_GL(){}
 
     void BUFFER_GL::release()
     {
         #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement delete buffer");
         #endif
-        memset(vboVertNorTexIB, 0, sizeof(vboVertNorTexIB));
-        
-        if (vboIndexSubsetIB)
-            delete[] vboIndexSubsetIB;
-        vboIndexSubsetIB = nullptr;
-
-        if (indexStartIB)
-            delete[] indexStartIB;
-        indexStartIB = nullptr;
-
-        if (indexCountIB)
-            delete[] indexCountIB;
-        indexCountIB = nullptr;
-
-        if (idTexture0)
-            delete[] idTexture0;
-        idTexture0 = nullptr;
-
-        if (useAlpha)
-            delete[] useAlpha;
-        useAlpha = nullptr;
-
-        if (vboVertexSubsetVB)
-            delete[] vboVertexSubsetVB;
-        vboVertexSubsetVB = nullptr;
-
-        if (vboNormalSubsetVB)
-            delete[] vboNormalSubsetVB;
-        vboNormalSubsetVB = nullptr;
-
-        if (vboTextureSubsetVB)
-            delete[] vboTextureSubsetVB;
-        vboTextureSubsetVB = nullptr;
-
-        if (vertexStartVB)
-            delete[] vertexStartVB;
-        vertexStartVB = nullptr;
-
-        if (vertexCountVB)
-            delete[] vertexCountVB;
-        vertexCountVB = nullptr;
-
-        idTexture1    = 0;
-        totalSubset   = 0;
-        isIndexBuffer = false;
     }
 
     bool BUFFER_GL::loadBuffer(const mbm::VEC3 *vertex, // type vertex buffer
-		const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
+        const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
-        this->release();
-        if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
-            return false;
         this->totalSubset        = totalSubsets;
-        this->vboVertexSubsetVB  = new uint32_t[totalSubset];
-        this->vboNormalSubsetVB  = new uint32_t[totalSubset];
-        this->vboTextureSubsetVB = new uint32_t[totalSubset];
-        this->vertexStartVB      = new int[totalSubset];
-        this->vertexCountVB      = new int[totalSubset];
-        memset(this->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
-        memset(this->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
-        memset(this->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
         #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
         #endif
-        
-        this->idTexture0 = new uint32_t[totalSubset];
-        memset(this->idTexture0, 0, sizeof(int) * totalSubset);
-
-        this->useAlpha = new uint8_t[totalSubset];
-        memset(this->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
-        this->isIndexBuffer = false;
-		if(info_draw_mode)
-		{
-			this->mode_draw = info_draw_mode->mode_draw;
-			this->mode_cull_face = info_draw_mode->mode_cull_face;
-			this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
-		}
-		return true;
+        return false;
     }
 
     bool BUFFER_GL::loadBuffer(const VEC3 *vertex, // type index buffer
-		const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
-		const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
+        const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
+        const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
@@ -154,26 +66,7 @@ namespace mbm
         #pragma message(REMINDER_TODO "  generate buffers");
         #endif
         this->totalSubset      = totalSubsets;
-        this->vboIndexSubsetIB = new uint32_t[totalSubset];
-        this->indexStartIB     = new int[totalSubset];
-        this->indexCountIB     = new int[totalSubset];
-        memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  generate buffers");
-        #endif
-        this->idTexture0 = new uint32_t[this->totalSubset];
-        memset(this->idTexture0, 0, sizeof(uint32_t) * static_cast<size_t>(this->totalSubset));
-
-        this->useAlpha = new uint8_t[totalSubset];
-        memset(this->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
-        this->isIndexBuffer = true;
-		if(info_draw_mode)
-		{
-			this->mode_draw = info_draw_mode->mode_draw;
-			this->mode_cull_face = info_draw_mode->mode_cull_face;
-			this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
-		}
-		return true;
+        return false;
     }
 
     bool BUFFER_GL::loadBufferDynamic(uint16_t *arrayIndices, uint32_t totalSubsets, int *indexStartSubset,
@@ -183,33 +76,16 @@ namespace mbm
         if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         this->totalSubset      = totalSubsets;
-        this->vboIndexSubsetIB = new uint32_t[totalSubset];
-        this->indexStartIB     = new int[totalSubset];
-        this->indexCountIB     = new int[totalSubset];
-        memset(this->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
         #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  generate buffers");
         #endif
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
         {
-            this->indexStartIB[i] = indexStartSubset[i];
-            this->indexCountIB[i] = indexCountSubset[i];
+            
         }
 
-        this->idTexture0 = new uint32_t[this->totalSubset];
-        memset(this->idTexture0, 0, sizeof(int) * static_cast<size_t>(this->totalSubset));
-
-        this->useAlpha = new uint8_t[totalSubset];
-        memset(this->useAlpha, 0, sizeof(uint8_t) * static_cast<size_t>(totalSubset));
-        this->isIndexBuffer = true;
-		if(info_draw_mode)
-		{
-			this->mode_draw = info_draw_mode->mode_draw;
-			this->mode_cull_face = info_draw_mode->mode_cull_face;
-			this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
-		}
-        return true;
+        return false;
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
@@ -405,11 +281,9 @@ namespace mbm
         #ifdef SHOW_PRAGMA_MESSAGE
         #pragma message(REMINDER_TODO "  implement set cull face and front face");
         #endif
-		
-        if (pBufferId->isIndexBuffer) // Index buffer
+        
+        if (pBufferId) // Index buffer
         {
-            if (!pBufferId->vboVertNorTexIB[0])
-                return false;
             #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement use program");
             #pragma message(REMINDER_TODO "  implement bind buffers and set attrib pointers");
@@ -418,26 +292,14 @@ namespace mbm
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                if (pBufferId->idTexture1)
-                {
-                    #ifdef SHOW_PRAGMA_MESSAGE
-                    #pragma message(REMINDER_TODO "  implement active texture and bind texture");
-                    #endif
-                }
-                else
-                {
-                    #ifdef SHOW_PRAGMA_MESSAGE
-                    #pragma message(REMINDER_TODO "  implement bind texture 0");
-                    #endif
-                }
                 #ifdef SHOW_PRAGMA_MESSAGE
-                #pragma message(REMINDER_TODO "  implement draw elements");
+                #pragma message(REMINDER_TODO "  implement active texture and bind texture");
                 #endif
             }
         }
         else // Vertex buffer
         {
-            if (!pBufferId->vboVertexSubsetVB)
+            if (!pBufferId)
                 return false;
             #ifdef SHOW_PRAGMA_MESSAGE
             #pragma message(REMINDER_TODO "  implement use program");
@@ -462,7 +324,7 @@ namespace mbm
                 //-----------------------------------------------------------------------------------------------------------
                 #pragma message(REMINDER_TODO "  implement active texture");
                 #endif
-                if (pBufferId->idTexture1)
+                if (pBufferId)
                 {
                     #ifdef SHOW_PRAGMA_MESSAGE
                     #pragma message(REMINDER_TODO "  implement bind texture and set uniform");
@@ -488,12 +350,12 @@ namespace mbm
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
         #ifdef SHOW_PRAGMA_MESSAGE
-		#pragma message(REMINDER_TODO "  implement set cull face and front face");
+        #pragma message(REMINDER_TODO "  implement set cull face and front face");
         #endif
 
-        if (pBufferId->isIndexBuffer) // Index buffer
+        if (pBufferId) // Index buffer
         {
-            if (!pBufferId->vboIndexSubsetIB)
+            if (!pBufferId)
                 return false;
             //TODO: implement use program
             //-----------------------------------------------------------------------------------------------------------
@@ -512,7 +374,7 @@ namespace mbm
             {
                 //TODO: implement active texture and bind texture
 
-                if (pBufferId->idTexture1)
+                if (pBufferId)
                 {
                     //TODO: implement bind texture and set uniform
                 }
@@ -525,7 +387,7 @@ namespace mbm
         }
         else // Vertex buffer
         {
-            if (!pBufferId->vertexCountVB)
+            if (!pBufferId)
                 return false;
             //TODO: implement use program
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
@@ -543,7 +405,7 @@ namespace mbm
                 //-----------------------------------------------------------------------------------------------------------
                 //TODO: implement active texture
                 
-                if (pBufferId->idTexture1)
+                if (pBufferId)
                 {
                     //TODO: implement bind texture and set uniform
                 }

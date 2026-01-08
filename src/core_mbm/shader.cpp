@@ -22,22 +22,44 @@
 #include <shader-var-cfg.h>
 #include <cstdlib>
 #include <header-mesh.h>
+#include <texture-manager.h>
 
 namespace mbm
 {
-
-    BUFFER_GL::~BUFFER_GL()
-    {
-        this->release();
-    }
 
     bool BUFFER_GL::isLoadedBuffer() const
     {
         return this->totalSubset != 0;
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept
-    = default;
+    TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const
+    {
+        if(index_stage == 0)
+        {
+            auto it = this->texture0.find(index_subset);
+            if(it != this->texture0.end())
+                return it->second;
+        }
+        else
+        {
+            return this->texture1;
+        }
+        return nullptr;
+    }
+
+    void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
+    {
+        if(index_stage == 0)
+        {
+            texture0[index_subset] = texture;
+        }
+        else
+        {
+            texture1 = texture;
+        }
+    }
+
+    BASE_SHADER::BASE_SHADER() noexcept = default;
 
     BASE_SHADER::~BASE_SHADER()
     {

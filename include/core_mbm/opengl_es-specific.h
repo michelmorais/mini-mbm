@@ -21,6 +21,7 @@
 #define GLES_DEBUG_H
 
 #include "core-exports.h"
+#include <stdint.h>
 
 #if defined ANDROID
     #include <EGL/egl.h>
@@ -584,6 +585,30 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
     };
+
+    struct BUFFER_SPECIFIC
+    {
+        BUFFER_SPECIFIC() noexcept;
+        ~BUFFER_SPECIFIC();
+        // Index buffer
+        uint32_t    vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
+        uint32_t     *vboIndexSubsetIB; // vbo index buffer IB
+        int32_t *         indexStartIB; // index start subset IB
+        int32_t *         indexCountIB; // index count subset IB
+        // Vertex buffer
+        uint32_t    *vboVertexSubsetVB;  // Vertex buffer do subset VB
+        uint32_t    *vboNormalSubsetVB;  // Normal buffer do subset VB
+        uint32_t    *vboTextureSubsetVB; // Textura buffer do subset VB
+        int32_t *         vertexStartVB; // inicio do vertex buffer no subset VB
+        int32_t *         vertexCountVB; // Total de vertex no subset VB
+        // Control
+        bool              isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
+        uint32_t              mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        uint32_t         mode_cull_face; //GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        uint32_t mode_front_face_direction; //GL_CW, GL_CCW
+        void release();
+    };
+    
 }
 #endif
 #endif

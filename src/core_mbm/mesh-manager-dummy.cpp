@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined USE_DUMMY_BACK_END_ENGINE
+#if defined(USE_DUMMY_BACK_END_ENGINE)
 #if defined USE_EDITOR_FEATURES
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
@@ -33,6 +33,33 @@
 
 namespace mbm
 {
+    #if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
+        typedef void* (PFNGLMAPBUFFEROESPROC_TODO)       (GLenum target, GLenum access);
+        typedef GLboolean (PFNGLUNMAPBUFFEROESPROC_TODO) (GLenum target);
+    #endif
+
+
+    struct BUFFER_SPECIFIC // This is a copy / past from opengl as example
+    {
+        // Index buffer
+        uint32_t    vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
+        uint32_t     *vboIndexSubsetIB; // vbo index buffer IB
+        int32_t *         indexStartIB; // index start subset IB
+        int32_t *         indexCountIB; // index count subset IB
+        // Vertex buffer
+        uint32_t    *vboVertexSubsetVB;  // Vertex buffer do subset VB
+        uint32_t    *vboNormalSubsetVB;  // Normal buffer do subset VB
+        uint32_t    *vboTextureSubsetVB; // Textura buffer do subset VB
+        int32_t *         vertexStartVB; // inicio do vertex buffer no subset VB
+        int32_t *         vertexCountVB; // Total de vertex no subset VB
+        // Control
+        bool              isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
+        uint32_t              mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        uint32_t         mode_cull_face; //GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        uint32_t mode_front_face_direction; //GL_CW, GL_CCW
+        void release(){ };// do release
+    };
+
     bool MESH_MBM_DEBUG::loadDebugFromMemory(const MESH_MBM* meshMemory)
     {
         if(meshMemory == nullptr || meshMemory->isLoaded() == false)
@@ -246,12 +273,12 @@ namespace mbm
             util::HEADER_FRAME *headerFrame    = &pBuffer->headerFrame;
             const BUFFER_MESH* pBufferMesh     = meshMemory->getBuffer(currentFrame);
             const BUFFER_GL* pGl               = pBufferMesh->pBufferGL;
-            if(pGl->isIndexBuffer)
+            if(pGl->bs->isIndexBuffer)
             {
                 strncpy(headerFrame->typeBuffer,"IB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->indexCountIB[i];
+                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->bs->indexCountIB[i];
                 }
             }
             else
@@ -259,7 +286,7 @@ namespace mbm
                 strncpy(headerFrame->typeBuffer,"VB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->vertexCountVB[i];
+                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->bs->vertexCountVB[i];
                 }
             }
             headerFrame->stride = 3;
@@ -277,22 +304,18 @@ namespace mbm
                     auto pSubset = new util::SUBSET_DEBUG();
                     pBuffer->subset.push_back(pSubset);
                     uint16_t maxIndexSubset = 0;
-                    pSubset->indexStart             = pGl->indexStartIB[i];
-                    pSubset->indexCount             = pGl->indexCountIB[i];
+                    pSubset->indexStart             = pGl->bs->indexStartIB[i];
+                    pSubset->indexCount             = pGl->bs->indexCountIB[i];
                     pBuffer->subset[i]->indexStart  = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount  = pSubset->indexCount;
-                    #pragma message(REMINDER_TODO "  implement get array from memory");
-                    //GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->vboIndexSubsetIB[i]);
-                    //auto *indexBuffer = static_cast<uint16_t*>(glMapBufferOES(GL_ELEMENT_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
-                    //if(indexBuffer == nullptr)
-                    //    return log_util::onFailed(nullptr,__FILE__, __LINE__, "Failed to get index at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
+                    
                     for(int j=0; j< pSubset->indexCount; ++j)
                     {
                         const int index             = pSubset->indexStart + j;
                         //pBuffer->indexBuffer[index] = indexBuffer[j];
-                        maxIndexSubset = std::max(pBuffer->indexBuffer[index],maxIndexSubset);
+                        //maxIndexSubset = std::max(pBuffer->indexBuffer[index],maxIndexSubset);
                     }
-                    //glUnmapBufferOES(GL_ELEMENT_ARRAY_BUFFER);
+                    
                     uint16_t vertexCount  = maxIndexSubset + 1;
                     pSubset->vertexCount            = vertexCount;
                     pSubset->vertexStart            = acumulated;
@@ -347,9 +370,7 @@ namespace mbm
 
             if(is_dynamic_shape == false)
             {
-                #pragma message(REMINDER_TODO "  implement get array from memory");
-                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[0]);
-                //pPosition = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                
             }
             if(pPosition == nullptr)
             {
@@ -357,9 +378,8 @@ namespace mbm
             }
             memcpy(pBuffer->position,pPosition,sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
-            {
-                //glUnmapBufferOES(GL_ARRAY_BUFFER);
-            }
+            {}
+
             if(meshMemory->getInfoFont() != nullptr)
             {
                 const float letterDiffX = lsLetterChangedValuesByCurFrameX[currentFrame];
@@ -387,9 +407,7 @@ namespace mbm
             }
             if(is_dynamic_shape == false)
             {
-                #pragma message(REMINDER_TODO "  implement get array from memory");
-                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[1]);
-                //pNormal   = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                
             }
             if(pNormal == nullptr)
             {
@@ -398,10 +416,7 @@ namespace mbm
             memcpy(pBuffer->normal,pNormal,sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
             {
-                #pragma message(REMINDER_TODO "  implement unmap array from memory");
-                //glUnmapBufferOES(GL_ARRAY_BUFFER);
-                //GLBindBuffer(GL_ARRAY_BUFFER,pGl->vboVertNorTexIB[2]);
-                //pTexture  = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER,GL_WRITE_ONLY_OES));
+                
             }
             if(pTexture == nullptr)
             {
@@ -412,10 +427,7 @@ namespace mbm
             }
             memcpy(pBuffer->uv,pTexture,sizeof(float) * 2 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
             if(is_dynamic_shape == false)
-            {
-                #pragma message(REMINDER_TODO "  implement unmap array from memory");
-                //glUnmapBufferOES(GL_ARRAY_BUFFER);
-            }
+            {}
         }
         positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
         angleDefault   = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
@@ -428,4 +440,4 @@ namespace mbm
 } //namespace mbm
 
 #endif // USE_EDITOR_FEATURES
-#endif //USE_DUMMY_BACK_END_ENGINE
+#endif //USE_OPENGL_ES

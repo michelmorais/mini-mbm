@@ -195,9 +195,8 @@ namespace mbm
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
             }
-            this->backGroundMap.idTexture0[0] = backgroundTextureMap ? backgroundTextureMap->idTexture : 0;
-            this->backGroundMap.idTexture1    = 0;
-            this->backGroundMap.useAlpha[0]   = backgroundTextureMap && backgroundTextureMap->useAlphaChannel ? 1 : 0;
+            this->backGroundMap.setTextureByStage(backgroundTextureMap, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
         }
         return true;
     }
@@ -293,7 +292,7 @@ namespace mbm
         this->blend.set(anim->blendState);
         anim->fx.setBlendOp();
 
-        const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
+        TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(this->position);
         const MATRIX *matrixPerspective = nullptr;
         if (this->is3D)
@@ -500,7 +499,7 @@ namespace mbm
     inline bool TILE::renderBrick( const util::BTILE_INFO * ptr_TileInfo, 
                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                             const mbm::SHADER * shader,
-                            const unsigned int idTextureOverrideStage2,
+                            TEXTURE* idTextureOverrideStage2,
                             const uint32_t i, 
                             const uint32_t j,
                             const float offset_x,
@@ -1035,7 +1034,6 @@ namespace mbm
             this->blend.set(anim->blendState);
             anim->fx.setBlendOp();
             auto * device = DEVICE::getInstance();
-            const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
             
             if (this->is3D)
             {
@@ -1056,7 +1054,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &anim->fx.shader,idTextureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
         }
         return false;
     }
