@@ -21,6 +21,7 @@
 #define GLES_DEBUG_H
 
 #include "core-exports.h"
+#include <stdint.h>
 
 #if defined ANDROID
     #include <EGL/egl.h>

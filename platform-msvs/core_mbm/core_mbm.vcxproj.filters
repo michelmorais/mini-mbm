@@ -626,10 +626,18 @@
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">
       <Filter>Resource Files</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\src\core_mbm\CMakeLists.txt">
+      <Filter>Source Files\core_mbm</Filter>
+    </Text>
   </ItemGroup>
 </Project>

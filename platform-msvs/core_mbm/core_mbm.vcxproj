@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
@@ -268,6 +268,7 @@
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
     <ClCompile Include="..\..\src\core_mbm\directx9-specific.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
@@ -366,6 +367,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\src\core_mbm\CMakeLists.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
