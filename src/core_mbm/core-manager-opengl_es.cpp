@@ -26,7 +26,7 @@
 #include <renderizable.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>
-#include <opengl_es-specific.h>
+#include <specific-opengl_es.h>
 #include <util-interface.h>
 #include <audio-interface.h>
 #include <version/version.h>
@@ -55,7 +55,7 @@
 
 #include <plugin-callback.h>
 #include <dynamic-var.h>
-#include <opengl_es-specific.h>
+#include <specific-opengl_es.h>
 
 
 namespace mbm

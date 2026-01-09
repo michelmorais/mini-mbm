@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <header-mesh.h>
 #include <texture-manager.h>
+#include <draw-compatibility.h>
 
 namespace mbm
 {
@@ -30,6 +31,91 @@ namespace mbm
     bool BUFFER_GL::isLoadedBuffer() const
     {
         return this->totalSubset != 0;
+    }
+
+    void BUFFER_GL::initializeVertexBufferControl(  const uint32_t totalSubsets, 
+                                                    const int* vertexStartSubset, 
+                                                    const int* vertexCountSubset,
+                                                    const util::INFO_DRAW_MODE* info_draw_mode)
+    {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        //if (this->vboIndexSubsetIB)
+        //    delete[] vboIndexSubsetIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        //this->vboIndexSubsetIB = nullptr;
+        if (totalSubsets > 0)
+        {
+            this->vertexStartVB = new int32_t[totalSubsets];
+            this->vertexCountVB = new int32_t[totalSubsets];
+            for (uint32_t i = 0; i < totalSubsets; ++i)
+            {
+                this->vertexStartVB[i] = vertexStartSubset[i];
+                this->vertexCountVB[i] = vertexCountSubset[i];
+            }
+        }
+        if (info_draw_mode)
+        {
+            this->mode_draw = info_draw_mode->mode_draw;
+            this->mode_cull_face = info_draw_mode->mode_cull_face;
+            this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+        }
+        else
+        {
+            this->mode_draw = util::MODE_DRAW_TRIANGLES;
+            this->mode_cull_face = util::CULL_BACK;
+            this->mode_front_face_direction = util::CW;
+        }
+        initializedIndexBuffer = false;
+        totalSubset = totalSubsets;
+    }
+
+    void BUFFER_GL::initializeIndexBufferControl(
+        const uint32_t totalSubsets,
+        const int* indexStartSubset,
+        const int* indexCountSubset,
+        const util::INFO_DRAW_MODE* info_draw_mode)
+    {
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+        //if (this->vboIndexSubsetIB)
+        //    delete[] vboIndexSubsetIB;
+
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        
+        if (totalSubsets > 0)
+        {
+            this->indexStartIB = new int32_t[totalSubsets];
+            this->indexCountIB = new int32_t[totalSubsets];
+            //this->vboIndexSubsetIB = new uint32_t[totalSubsets];
+            for (uint32_t i = 0; i < totalSubsets; ++i)
+            {
+                this->indexStartIB[i] = indexStartSubset[i];
+                this->indexCountIB[i] = indexCountSubset[i];
+                //this->vboIndexSubsetIB[i] = indexStartSubset[i]
+            }
+        }
+        if (info_draw_mode)
+        {
+            this->mode_draw = info_draw_mode->mode_draw;
+            this->mode_cull_face = info_draw_mode->mode_cull_face;
+            this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+        }
+        else
+        {
+            this->mode_draw = util::MODE_DRAW_TRIANGLES;
+            this->mode_cull_face = util::CULL_BACK;
+            this->mode_front_face_direction = util::CW;
+        }
+        initializedIndexBuffer = true;
+        totalSubset = totalSubsets;
     }
 
     TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const

@@ -20,7 +20,7 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <directx9-specific.h>
+#include <specific-directx9.h>
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 

@@ -138,9 +138,6 @@
     <ClInclude Include="..\..\include\core_mbm\frustum.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
@@ -297,13 +294,16 @@
     <ClInclude Include="..\..\third-party\wave\WAVE.h">
       <Filter>Header Files\wave</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\directx9-specific.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\dummy-engine.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
   </ItemGroup>
@@ -617,16 +617,16 @@
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\opengl_es-specific.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\directx9-specific.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>

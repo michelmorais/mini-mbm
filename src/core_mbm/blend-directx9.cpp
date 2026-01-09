@@ -22,7 +22,7 @@
 #if defined (USE_DIRECTX9)
 
 
-#include <directx9-specific.h>
+#include <specific-directx9.h>
 #include <device.h>
 
 namespace mbm

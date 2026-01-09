@@ -19,19 +19,37 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <directx9-specific.h>
+#include <specific-directx9.h>
 #include <util-interface.h>
 
 namespace mbm
 {
-    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
+    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept :
+        pD3D(nullptr),
+        pd3dDevice(nullptr),
+        vertex_declaration_pos(nullptr),
+        vertex_declaration_pos_norm(nullptr),
+        vertex_declaration_pos_uv(nullptr),
+        vertex_declaration_pos_norm_uv(nullptr)
     {
-        pD3D = nullptr;
-        pd3dDevice = nullptr;
     };
 
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
+        if(vertex_declaration_pos)
+            vertex_declaration_pos->Release();
+        if (vertex_declaration_pos_norm)
+            vertex_declaration_pos_norm->Release();
+        if (vertex_declaration_pos_uv)
+            vertex_declaration_pos_uv->Release();
+        if (vertex_declaration_pos_norm_uv)
+            vertex_declaration_pos_norm_uv->Release();
+
+        vertex_declaration_pos = nullptr;
+        vertex_declaration_pos_norm = nullptr;
+        vertex_declaration_pos_uv = nullptr;
+        vertex_declaration_pos_norm_uv = nullptr;
+
         if (pd3dDevice)
         {
             pd3dDevice->Release();
@@ -44,17 +62,16 @@ namespace mbm
         }
     };
 
-    IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF) const
+    IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF)
     {
         IDirect3DVertexDeclaration9* vertex_declaration = nullptr;
         switch (FVF)
         {
             case FVF_PROVIDE_BY_ENGINE::FVF_POS:
             {
-                static IDirect3DVertexDeclaration9* vertex_declaration_pos = nullptr;
                 if (vertex_declaration_pos == nullptr)
                 {
-                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    constexpr D3DVERTEXELEMENT9 custom_vertex[] =
                     {
                         { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
                         D3DDECL_END()
@@ -69,10 +86,9 @@ namespace mbm
             break;
             case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
             {
-                static IDirect3DVertexDeclaration9* vertex_declaration_pos_norm  = nullptr;
                 if (vertex_declaration_pos_norm == nullptr)
                 {
-                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    constexpr D3DVERTEXELEMENT9 custom_vertex[] =
                     {
                         { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
                         { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL,   0 },
@@ -88,10 +104,9 @@ namespace mbm
             break;
             case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
             {
-                static IDirect3DVertexDeclaration9* vertex_declaration_pos_uv = nullptr;
                 if (vertex_declaration_pos_uv == nullptr)
                 {
-                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    constexpr D3DVERTEXELEMENT9 custom_vertex[] =
                     {
                         { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
                         { 0, 12, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
@@ -107,10 +122,9 @@ namespace mbm
             break;
             case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
             {
-                static IDirect3DVertexDeclaration9* vertex_declaration_pos_norm_uv = nullptr;
                 if (vertex_declaration_pos_norm_uv == nullptr)
                 {
-                    D3DVERTEXELEMENT9 custom_vertex[] =
+                    constexpr D3DVERTEXELEMENT9 custom_vertex[] =
                     {
                         { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
                         { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL,   0 },

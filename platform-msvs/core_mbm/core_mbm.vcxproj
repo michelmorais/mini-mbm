@@ -191,10 +191,8 @@
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
-    <ClInclude Include="..\..\include\core_mbm\directx9-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
-    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />
@@ -214,6 +212,8 @@
     <ClInclude Include="..\..\include\core_mbm\shader.h" />
     <ClInclude Include="..\..\include\core_mbm\shapes.h" />
     <ClInclude Include="..\..\include\core_mbm\audio.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
     <ClInclude Include="..\..\include\core_mbm\uber-image.h" />
@@ -266,7 +266,6 @@
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\directx9-specific.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
@@ -289,7 +288,6 @@
     <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\opengl_es-specific.cpp" />
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
@@ -303,6 +301,8 @@
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
