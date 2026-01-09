@@ -100,15 +100,15 @@ namespace mbm
         FVF_POS_NOR_UV,
     };
 
-    class SMART_VERTEX // convert automaticlly to directx VERTEX (see above)
+    class D3D_VERTEX_CONVERTER // convert automaticlly to directx VERTEX (see above)
     {
     public:
-        explicit SMART_VERTEX(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept;
-        SMART_VERTEX(const SMART_VERTEX&) = delete;
-        SMART_VERTEX(SMART_VERTEX&&) = delete;
-        SMART_VERTEX& operator=(const SMART_VERTEX&) = delete;
-        SMART_VERTEX& operator=(SMART_VERTEX&&) = delete;
-        ~SMART_VERTEX() = default;
+        explicit D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept;
+        D3D_VERTEX_CONVERTER(const D3D_VERTEX_CONVERTER&) = delete;
+        D3D_VERTEX_CONVERTER(D3D_VERTEX_CONVERTER&&) = delete;
+        D3D_VERTEX_CONVERTER& operator=(const D3D_VERTEX_CONVERTER&) = delete;
+        D3D_VERTEX_CONVERTER& operator=(D3D_VERTEX_CONVERTER&&) = delete;
+        ~D3D_VERTEX_CONVERTER() = default;
 
         void copyTod3dVertexBuffer(void* pvertex) const noexcept;
         uint32_t getSizeOfStructureInBytes() const noexcept;
@@ -132,8 +132,12 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
-
-        IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF)const;
+        IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
+    private:
+        IDirect3DVertexDeclaration9* vertex_declaration_pos;
+        IDirect3DVertexDeclaration9* vertex_declaration_pos_norm;
+        IDirect3DVertexDeclaration9* vertex_declaration_pos_uv;
+        IDirect3DVertexDeclaration9* vertex_declaration_pos_norm_uv;
     };
 
     bool checkAndLogHresultResultDx(HRESULT hr, const char* filename, const int line);
@@ -144,6 +148,7 @@ namespace mbm
         BUFFER_SPECIFIC() noexcept;
         ~BUFFER_SPECIFIC();
         FVF_PROVIDE_BY_ENGINE FVF;
+        uint32_t sizeStructVertexInBytes;
         IDirect3DVertexBuffer9* pVertexBuffer;
         void release();
     };

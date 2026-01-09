@@ -267,12 +267,12 @@ namespace mbm
             util::HEADER_FRAME *headerFrame    = &pBuffer->headerFrame;
             const BUFFER_MESH* pBufferMesh     = meshMemory->getBuffer(currentFrame);
             const BUFFER_GL* pGl               = pBufferMesh->pBufferGL;
-            if(pGl->bs->isIndexBuffer)
+            if(pGl->isIndexBuffer())
             {
                 strncpy(headerFrame->typeBuffer,"IB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->bs->indexCountIB[i];
+                    headerFrame->sizeIndexBuffer  += pBufferMesh->pBufferGL->indexCountIB[i];
                 }
             }
             else
@@ -280,7 +280,7 @@ namespace mbm
                 strncpy(headerFrame->typeBuffer,"VB",sizeof(headerFrame->typeBuffer)-1);
                 for(uint32_t i=0; i< pBufferMesh->pBufferGL->totalSubset; ++i)
                 {
-                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->bs->vertexCountVB[i];
+                    headerFrame->sizeVertexBuffer  += pBufferMesh->pBufferGL->vertexCountVB[i];
                 }
             }
             headerFrame->stride = 3;
@@ -298,8 +298,8 @@ namespace mbm
                     auto pSubset = new util::SUBSET_DEBUG();
                     pBuffer->subset.push_back(pSubset);
                     uint16_t maxIndexSubset = 0;
-                    pSubset->indexStart             = pGl->bs->indexStartIB[i];
-                    pSubset->indexCount             = pGl->bs->indexCountIB[i];
+                    pSubset->indexStart             = pGl->indexStartIB[i];
+                    pSubset->indexCount             = pGl->indexCountIB[i];
                     pBuffer->subset[i]->indexStart  = pSubset->indexStart;
                     pBuffer->subset[i]->indexCount  = pSubset->indexCount;
                     GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGl->bs->vboIndexSubsetIB[i]);

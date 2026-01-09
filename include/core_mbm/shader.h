@@ -28,17 +28,17 @@
 
 namespace util
 {
-	struct INFO_DRAW_MODE;
+    struct INFO_DRAW_MODE;
 };
 
 namespace mbm
 {
     class TEXTURE;
     struct VAR_SHADER;
-    struct BUFFER_SPECIFIC; // must be implemented by specific backend engine
+    struct BUFFER_SPECIFIC;
     enum TYPE_VAR_SHADER : char;
 
-	  enum TYPE_ANIMATION : char
+    enum TYPE_ANIMATION : char
     { 
       TYPE_ANIMATION_PAUSED          = 0, // Pausa A Animação
       TYPE_ANIMATION_GROWING         = 1, // Incrementa Na Ordem Crescente Parando No Limite Maximo
@@ -47,10 +47,9 @@ namespace mbm
       TYPE_ANIMATION_DECREASING_LOOP = 4, // Decrementa Na Ordem Decrescente e Faz LoopQuando Ultrapassar O Limite Mínimo
       TYPE_ANIMATION_RECURSIVE       = 5, // icrementa Na Ordem Crescente e Decrescente; Para No Limite Mínimo
       TYPE_ANIMATION_RECURSIVE_LOOP  = 6 // Incrementa Na Ordem Crescente e Decrescente. Faz loop Entre O Limite Mínimo E O Limite Maximo.
-
     };
 
-	enum STATUS_FX
+    enum STATUS_FX
     {
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
@@ -63,17 +62,49 @@ namespace mbm
         API_IMPL bool isLoadedBuffer() const;
         API_IMPL void release();
         
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const unsigned int totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer, must be implemented by specific backend engine
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const uint16_t *arrayIndices,const unsigned int totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
+        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer, must be implemented by specific backend engine
+        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint16_t *arrayIndices,const unsigned int totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
         API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, unsigned int totalSubsets, int *indexStartSubset,int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// Dynamic buffer, must be implemented by specific backend engine
 
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
 
-        unsigned int   totalSubset;   // Total de subset deste buffer
+        union
+        {
+            struct
+            {
+                int32_t* indexStartIB;      // index start subset IB
+                int32_t* indexCountIB;      // index count subset IB
+            };
+            struct
+            {
+                int32_t* vertexStartVB;     // Start vertex buffer per each subset VB
+                int32_t* vertexCountVB;     // Total vertex buffer per each subset VB
+            };
+        };
 
-        BUFFER_SPECIFIC* bs; // Structure specific to be implemented by specific backend engine (needed by backend)
+        uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        uint32_t mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        uint32_t mode_front_face_direction; //GL_CW, GL_CCW
+
+        //uint32_t* vboIndexSubsetIB; // vbo index buffer IB (when != null is index buffer)
+
+        inline bool isIndexBuffer() const noexcept { return initializedIndexBuffer; }
+        uint32_t totalSubset;   // Total of subset of this buffer
+
+        BUFFER_SPECIFIC* bs; //Array of structure specific to be implemented by specific backend engine (needed by backend)
       private:
+        bool     initializedIndexBuffer;
+        
+        void initializeVertexBufferControl( const uint32_t totalSubsets, 
+                                            const int* vertexStartSubset, 
+                                            const int* vertexCountSubset,
+                                            const util::INFO_DRAW_MODE* info_draw_mode);
+
+        void initializeIndexBufferControl(  const uint32_t totalSubsets,
+                                            const int* indexStartSubset,
+                                            const int* indexCountSubset,
+                                            const util::INFO_DRAW_MODE* info_draw_mode);
         std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
         TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
     };
