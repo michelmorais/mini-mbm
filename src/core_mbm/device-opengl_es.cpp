@@ -29,7 +29,7 @@
 #include <renderizable.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
-#include <opengl_es-specific.h>
+#include <specific-opengl_es.h>
 #include <dynamic-var.h>
 
 #if defined ANDROID

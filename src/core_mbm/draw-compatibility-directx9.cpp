@@ -22,7 +22,7 @@
 #include <draw-compatibility.h>
 #include <limits>
 #include <cstring>
-#include <directx9-specific.h>
+#include <specific-directx9.h>
 
 
 namespace util

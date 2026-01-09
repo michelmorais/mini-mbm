@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
@@ -191,10 +191,8 @@
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
-    <ClInclude Include="..\..\include\core_mbm\directx9-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
-    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />
@@ -214,6 +212,8 @@
     <ClInclude Include="..\..\include\core_mbm\shader.h" />
     <ClInclude Include="..\..\include\core_mbm\shapes.h" />
     <ClInclude Include="..\..\include\core_mbm\audio.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
     <ClInclude Include="..\..\include\core_mbm\uber-image.h" />

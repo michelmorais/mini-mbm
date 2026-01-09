@@ -21,7 +21,7 @@
 
 #if defined(USE_OPENGL_ES)
 
-#include <opengl_es-specific.h>
+#include <specific-opengl_es.h>
 #include <renderizable.h>
 #include <uber-image.h>
 #include <image-resource.h>

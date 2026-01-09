@@ -23,7 +23,7 @@
 
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/header-mesh.h>
-#include <core_mbm/opengl_es-specific.h>
+#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>

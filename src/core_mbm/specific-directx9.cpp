@@ -19,7 +19,7 @@
 
 #if defined (USE_DIRECTX9)
 
-#include <directx9-specific.h>
+#include <specific-directx9.h>
 #include <util-interface.h>
 
 namespace mbm
