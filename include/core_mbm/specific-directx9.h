@@ -150,6 +150,7 @@ namespace mbm
         FVF_PROVIDE_BY_ENGINE FVF;
         uint32_t sizeStructVertexInBytes;
         IDirect3DVertexBuffer9* pVertexBuffer;
+        IDirect3DIndexBuffer9* pIndexBuffer;
         void release();
     };
 }

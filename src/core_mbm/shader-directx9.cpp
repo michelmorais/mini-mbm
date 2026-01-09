@@ -56,7 +56,8 @@ namespace mbm
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
-        pVertexBuffer(nullptr)
+        pVertexBuffer(nullptr),
+        pIndexBuffer(nullptr)
     {
 
     }
@@ -66,6 +67,10 @@ namespace mbm
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
+
+        if (pIndexBuffer)
+            pIndexBuffer->Release();
+        pIndexBuffer = nullptr;
         sizeStructVertexInBytes = 0;
     }
     
@@ -75,52 +80,6 @@ namespace mbm
         #pragma message(REMINDER_TODO "  implement delete buffer");
         totalSubset   = 0;
     }
-
-    bool BUFFER_GL::loadBuffer(const mbm::VEC3 *vertex, // type vertex buffer
-		const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
-    {
-        this->release();
-        if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
-            return false;
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        constexpr DWORD DFVF = 0;// Non-FVF buffers
-        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
-        this->initializeVertexBufferControl(totalSubsets, vertexStartSubset, vertexCountSubset, info_draw_mode);
-        for (uint32_t i = 0; i < totalSubset; ++i)
-        {
-            const uint32_t vertexStartVB = vertexStartSubset[i];
-            const uint32_t vertexCountVB = vertexCountSubset[i];
-            const D3D_VERTEX_CONVERTER d3d_converter(&vertex[vertexStartVB], &normal[vertexStartVB], &uv[vertexStartVB], vertexCountVB);
-            this->bs->FVF = d3d_converter.getFVF();
-            const uint32_t sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
-
-            if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
-                sizeStructVertexInBytes * vertexCountVB,
-                D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
-                DFVF,//FVF
-                D3DPOOL_DEFAULT,//local memory
-                &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
-                nullptr)))				//Always null
-            {
-                ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
-                return false;
-            }
-            void* pvertex = nullptr;
-            if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
-            {
-                ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
-                return false;
-            }
-            d3d_converter.copyTod3dVertexBuffer(pvertex);
-            this->bs->pVertexBuffer->Unlock();
-        }
-        this->totalSubset = totalSubsets;
-        return true;
-    }
-
-    
-
 
     D3D_VERTEX_CONVERTER::D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept:
         pos(_pos), normal(_normal),uv(_uv), size_array(_size_array)
@@ -241,6 +200,48 @@ namespace mbm
         return sizeStructVertexInBytes;
     }
     
+    bool BUFFER_GL::loadBuffer(const mbm::VEC3* vertex, // type vertex buffer
+        const mbm::VEC3* normal, const mbm::VEC2* uv, const uint32_t sizeOfArrayVertex,
+        const uint32_t totalSubsets, const int* vertexStartSubset, const int* vertexCountSubset, const util::INFO_DRAW_MODE* info_draw_mode)
+    {
+        this->release();
+        if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
+            return false;
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        constexpr DWORD DFVF = 0;// Non-FVF buffers
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        this->initializeVertexBufferControl(totalSubsets, vertexStartSubset, vertexCountSubset, info_draw_mode);
+        for (uint32_t i = 0; i < totalSubset; ++i)
+        {
+            const uint32_t vertexStartVB = vertexStartSubset[i];
+            const uint32_t vertexCountVB = vertexCountSubset[i];
+            const D3D_VERTEX_CONVERTER d3d_converter(&vertex[vertexStartVB], &normal[vertexStartVB], &uv[vertexStartVB], vertexCountVB);
+            this->bs->FVF = d3d_converter.getFVF();
+            const uint32_t sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+            //TODO: Fix this loop
+            if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
+                sizeStructVertexInBytes * vertexCountVB,
+                D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
+                DFVF,//FVF
+                D3DPOOL_DEFAULT,//local memory
+                &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+                nullptr)))				//Always null
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
+                return false;
+            }
+            void* pvertex = nullptr;
+            if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+                return false;
+            }
+            d3d_converter.copyTod3dVertexBuffer(pvertex);
+            this->bs->pVertexBuffer->Unlock();
+        }
+        this->totalSubset = totalSubsets;
+        return true;
+    }
 
     bool BUFFER_GL::loadBuffer(const VEC3 *vertex, // type index buffer
 		const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
@@ -277,6 +278,19 @@ namespace mbm
         }
         d3d_converter.copyTod3dVertexBuffer(pvertex);
         this->bs->pVertexBuffer->Unlock();
+        
+        // index vertex
+
+        //if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBuffer,
+        //    D3DUSAGE_WRITEONLY,
+        //    D3DFMT_INDEX16,
+        //    D3DPOOL_DEFAULT,
+        //    &this->bs->pIndexBuffer, nullptr)))
+        //{
+        //    ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
+        //    return false;
+        //}
+
         return true;
     }
 
@@ -485,7 +499,109 @@ namespace mbm
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+
+        D3DMATRIX* WORLD = reinterpret_cast<D3DMATRIX*>(&SHADER::modelView);
+        pd3dDevice->SetTransform(D3DTS_WORLD, WORLD);
+
         if (pBufferId->isIndexBuffer()) // Index buffer
+        {
+            // When converting a legacy application to Direct3D 9, 
+            // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
+            // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
+            // pd3dDevice->SetFVF(0);//Maybe not needed to disable
+            pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF));
+            if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
+                pBufferId->bs->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
+                0,		//Posicao Em Bytes Do inicio  Do Stream Atual
+                pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
+                return false;
+
+            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            {
+                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                if (texture0)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+
+                if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                    pd3dDevice->SetTexture(1, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(1, nullptr);
+                }
+                
+                //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
+
+                switch (pBufferId->mode_draw)
+                {
+                    case util::MODE_DRAW_POINTS:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_POINTS");
+                    };
+                    break;
+                    case util::MODE_DRAW_LINES:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINES");
+                    };
+                    break;
+                    case util::MODE_DRAW_LINE_LOOP:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_LOOP");
+                    };
+                    break;
+                    case util::MODE_DRAW_LINE_STRIP:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_STRIP");
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLES:
+                    {
+                        const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
+                        const UINT numVertices = pBufferId->vertexCountVB[i];
+                        const UINT startIndex = pBufferId->vertexStartVB[i];
+                        constexpr UINT MinVertexIndex = 0;
+                        //pd3dDevice->SetIndices(pBufferId->bs->pVertexBuffer);
+                        if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
+                                                                    pBufferId->indexStartIB[i], 
+                                                                    MinVertexIndex,
+                                                                    numVertices,
+                                                                    startIndex,
+                                                                    countTriangle)))
+                            return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLE_STRIP:
+                    {
+                        const UINT countTriangle = pBufferId->indexCountIB[i] - 2;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->indexStartIB[i], countTriangle)))
+                            return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLE_FAN:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_FAN");
+                    };
+                    break;
+                    default: 
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Wrong mode draw");
+                        return false;
+                    }
+                }
+            }
+        }
+        else // Vertex buffer
         {
             // When converting a legacy application to Direct3D 9, 
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
@@ -547,8 +663,11 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_TRIANGLES:
                     {
-                        const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
-                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, pBufferId->indexStartIB[i], countTriangle)))
+                        //const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
+                        //if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, pBufferId->indexStartIB[i], countTriangle)))
+                        //    return false;
+                        const UINT countTriangle = pBufferId->indexCountIB[i] - 2;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->indexStartIB[i], countTriangle)))
                             return false;
                     };
                     break;
@@ -572,38 +691,6 @@ namespace mbm
                 }
             }
         }
-        else // Vertex buffer
-        {
-            if (!pBufferId)
-                return false;
-            #pragma message(REMINDER_TODO "  implement use program");
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
-            {
-                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
-                //-----------------------------------------------------------------------------------------------------------
-                if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
-                {
-                    #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
-                }
-                //-----------------------------------------------------------------------------------------------------------
-                #pragma message(REMINDER_TODO "  implement bind buffer and set attrib pointer");
-                //-----------------------------------------------------------------------------------------------------------
-                #pragma message(REMINDER_TODO "  implement set uniform matrices");
-                //-----------------------------------------------------------------------------------------------------------
-                #pragma message(REMINDER_TODO "  implement active texture");
-                if (pBufferId)
-                {
-                    #pragma message(REMINDER_TODO "  implement bind texture and set uniform");
-                }
-                else
-                {
-                    #pragma message(REMINDER_TODO "  implement bind texture 0");
-                }
-
-                #pragma message(REMINDER_TODO "  implement draw arrays");
-            }
-        }
-        #pragma message(REMINDER_TODO "  implement unbind buffer");
         return true;
     }
 

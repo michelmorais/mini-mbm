@@ -101,11 +101,12 @@ namespace mbm
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
         if (width > 0 && height > 0)
         {
             //TOD: check this
-            D3DVIEWPORT9 view_port = D3DVIEWPORT9{ 0, 0, static_cast<DWORD>(width), static_cast<DWORD>(height), 0.0f, 1.0f };
-			this->specificContextDevice->pd3dDevice->SetViewport(&view_port);
+            const D3DVIEWPORT9 view_port = D3DVIEWPORT9{ 0, 0, static_cast<DWORD>(width), static_cast<DWORD>(height), 0.0f, 1.0f };
+			pd3dDevice->SetViewport(&view_port);
         }
         if (width > 0)
             backBufferWidth = width;
@@ -113,6 +114,21 @@ namespace mbm
             backBufferHeight = height;
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+        if (is3D)
+        {
+            const D3DMATRIX* matrixView = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView);
+            const D3DMATRIX* matrixProj = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixProj);
+            pd3dDevice->SetTransform(D3DTS_VIEW, matrixView);
+            pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixProj);
+        }
+        else
+        {
+            const D3DMATRIX* matrixView2d = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView2d);
+            const D3DMATRIX* matrixOrtho  = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixOrtho);
+            pd3dDevice->SetTransform(D3DTS_VIEW, matrixView2d);
+            pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixOrtho);
+        }
+        
     }
 
 }

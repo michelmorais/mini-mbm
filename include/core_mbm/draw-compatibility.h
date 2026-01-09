@@ -22,7 +22,7 @@
 
 #include <cstdint>
 #include "core-exports.h"
-
+//D3DPT_TRIANGLELIST is a primitive type in Direct3D that renders vertices as a sequence of isolated triangles, where each group of three vertices defines a separate triangle
 namespace util
 {
     enum MODE_DRAW : uint32_t
