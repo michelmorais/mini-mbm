@@ -339,38 +339,38 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         return false;
     }
 
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
     {
         int x = width;
         int y = height;
-		DEVICE* device = DEVICE::getInstance();
+        DEVICE* device = DEVICE::getInstance();
         device->window.setNameAplication(nameAplication);
         if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-                                       this->idIcon,false))
+            this->idIcon, false))
         {
             device->window.messageBox("error on init app ... will be closed ");
-            PRINT_IF_DEBUG( "error on init app ... will be closed %s", "error on create window");
+            PRINT_IF_DEBUG("error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        device->window.setMinSizeAllowed(800,600);
+        device->window.setMinSizeAllowed(800, 600);
         HWND mNativeWindow = device->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
             //MessageBoxW(mNativeWindow, L"error on get the window size!", "DEVICE", MB_OK | MB_ICONERROR);
-            rect.right  = width;
+            rect.right = width;
             rect.bottom = height;
-            rect.left   = 0;
-            rect.top    = 0;
+            rect.left = 0;
+            rect.top = 0;
         }
         if ((rect.right - rect.left) != width || (rect.bottom - rect.top) != height)
         {
             x = rect.right - rect.left;
             y = rect.bottom - rect.top;
             INFO_LOG("BackBuffer adjusted because the width and height are different from window\n"
-                   "expected X: %d Y: %d \n"
-                   "real     X: %d Y: %d \n",
-                   width, height, x, y);
+                "expected X: %d Y: %d \n"
+                "real     X: %d Y: %d \n",
+                width, height, x, y);
         }
         else
         {
@@ -388,7 +388,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         if (NULL == (this->device->specificContextDevice->pD3D = Direct3DCreate9(D3D_SDK_VERSION)))
         {
 
-            ERROR_AT(__LINE__, __FILE__,"failed to create hardware device '%s'", "Direct3DCreate9");
+            ERROR_AT(__LINE__, __FILE__, "failed to create hardware device '%s'", "Direct3DCreate9");
             return false;
         }
 
@@ -413,11 +413,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         d3dParams.SwapEffect = D3DSWAPEFFECT_COPY;
         d3dParams.hDeviceWindow = mNativeWindow;
         d3dParams.Windowed = true;//Full Screen = false
-		d3dParams.EnableAutoDepthStencil = true;//Keep / create the Buffer Depht/Stencil automatically
+        d3dParams.EnableAutoDepthStencil = true;//Keep / create the Buffer Depht/Stencil automatically
         d3dParams.AutoDepthStencilFormat = D3DFMT_D24S8;//Bits Reservados Para O Stencil = 8
         d3dParams.Flags = 0;
         d3dParams.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;//Rate render
-		d3dParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;//Present imediately
+        d3dParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;//Present imediately
 
         D3DCAPS9 cap;
 
@@ -431,7 +431,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED,
                 &d3dParams, &this->device->specificContextDevice->pd3dDevice)))
             {
-                ERROR_AT(__LINE__,__FILE__, "failed to create software device");
+                ERROR_AT(__LINE__, __FILE__, "failed to create software device");
                 return false;
             }
         }
@@ -465,19 +465,41 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             }
         }
 
-        TEXTURE_MANAGER * texture_manager = TEXTURE_MANAGER::getInstance();
+        TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
         const int32_t maxTextureSize = cap.MaxTextureWidth * cap.MaxTextureWidth;
         texture_manager->setTextureCapabilities(maxTextureSize, cap.MaxTextureWidth, cap.MaxTextureHeight);
 
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);//Turn on the face oclusion
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_LIGHTING, false);//Turn off ilumination
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);//Turn on Zbuffer
-		//TODO: set matrix mode to world
-		
+        //TODO: set matrix mode to world
+
         //optional states
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_AMBIENT, D3DCOLOR_XRGB(100, 100, 100));
         //enable blender
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+
+        //This value can range from 1 to 16, with higher values providing better image quality at the cost of performance.
+        for (DWORD stage = 0; stage < 2; ++stage)
+        {
+            const DWORD Anisotropy = static_cast<DWORD>(static_cast<float>(cap.MaxAnisotropy) * 0.5);
+            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, Anisotropy))) //50%
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MAXANISOTROPY %d", Anisotropy);
+            }
+            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MINFILTER, D3DTEXF_LINEAR)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MINFILTER %d", Anisotropy);
+            }
+            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MAGFILTER %d", Anisotropy);
+            }
+            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MIPFILTER %d", Anisotropy);
+            }
+        }
         
         device->window.disableRender(mNativeWindow);
 		//TODO: set real version from DirectX
@@ -554,6 +576,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
 			//	ERROR_AT(__LINE__, __FILE__, "failed to begin the scene");
             //    return 1;
             //}
+            //TODO: move to begin render in Core manager
             for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
             {
                 PLUGIN * plugin = this->lsPlugins[i];

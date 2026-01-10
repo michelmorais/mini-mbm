@@ -198,25 +198,103 @@ namespace mbm
     
     bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE *image)
     {
-        if (!image)
+        if (image == nullptr)
             return false;
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        #pragma message(REMINDER_TODO "  implement pixel store alignment");  
+        const D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
         
-        if (idTexture == 0)
-            return false;
-        //TODO: implement bind texture
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DSurface9* surfaceDest = nullptr;
+        D3DSURFACE_DESC	descSurfaceDest;
+        D3DLOCKED_RECT	lockDestRect;
+        
+        const UINT mipMap = TEXTURE::no_filter ? 1 : 4;
 
+        if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
+            image->height,
+            mipMap,
+            D3DUSAGE_DYNAMIC,
+            requested_format,
+            D3DPOOL_DEFAULT,//,
+            pp3DTexture9, nullptr)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
+            return false;
+        }
+        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
+        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to get surface of texture");
+            return false;
+        }
+        if (FAILED(surfaceDest->GetDesc(&descSurfaceDest)))
+        {
+            if (surfaceDest)
+                surfaceDest->Release();
+            ERROR_AT(__LINE__, __FILE__, "failed to get description of texture");
+            return false;
+        }
+        if (FAILED(surfaceDest->LockRect(&lockDestRect, 0, D3DLOCK_DISCARD)))
+        {
+            if (surfaceDest)
+                surfaceDest->Release();
+            ERROR_AT(__LINE__, __FILE__, "failed to lock texture");
+            return false;
+        }
+
+        if (D3DFMT_A8R8G8B8 != descSurfaceDest.Format && descSurfaceDest.Format != D3DFMT_R8G8B8)
+        {
+            if (surfaceDest)
+            {
+                surfaceDest->UnlockRect();
+                surfaceDest->Release();
+            }
+            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
+            return false;
+        }
+        uint8_t* dataDest = static_cast<uint8_t*>(lockDestRect.pBits);
+        const uint8_t* dataImage = reinterpret_cast<const uint8_t*>(image->data);
+        if (descSurfaceDest.Format == D3DFMT_R8G8B8)
+        {
+            const uint32_t sizeImage = width * height * 3;
+            for (uint32_t i = 0; i < sizeImage; i += 3)
+            {
+                const uint8_t r = dataImage[i];
+                const uint8_t g = dataImage[i + 1];
+                const uint8_t b = dataImage[i + 2];
+                dataDest[i] = b;
+                dataDest[i + 1] = g;
+                dataDest[i + 2] = r;
+            }
+        }
+        else if (descSurfaceDest.Format == D3DFMT_A8R8G8B8)
+        {
+            const uint32_t sizeImage = width * height * 4;
+            for (uint32_t i = 0; i < sizeImage; i += 4)
+            {
+                const uint8_t r = dataImage[i];
+                const uint8_t g = dataImage[i + 1];
+                const uint8_t b = dataImage[i + 2];
+                const uint8_t a = dataImage[i + 3];
+                dataDest[i] = b; // blue
+                dataDest[i + 1] = g; // green
+                dataDest[i + 2] = r; // red
+                dataDest[i + 3] = a; // alpha
+            }
         }
         else
         {
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
+            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
         }
+        if (surfaceDest != nullptr)
+        {
+            surfaceDest->UnlockRect();
+            surfaceDest->Release();
+        }
+        surfaceDest = nullptr;
         return true;
     }
 
