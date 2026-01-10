@@ -50,7 +50,8 @@ void MY_SCENE::init()
     device->camera.focus    = mbm::VEC3(0, 280, 0);
     this->texBox                  = new mbm::TEXTURE_VIEW(this, false, true);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
-    this->texBox->load("wooden-box.jpg",200,200);
+    //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image\\");
+    //this->texBox->load("dialog.png",200,200);
     gif = new mbm::GIF_VIEW(this,false,false);
     gif->load("Lion-King.gif");
 }

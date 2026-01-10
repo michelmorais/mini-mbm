@@ -979,6 +979,14 @@ void printGLString(const char *name, GLenum s)
             device->backBufferWidth = static_cast<float>(x);
         if (y > 0)
             device->backBufferHeight = static_cast<float>(y);
+
+        TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
+        GLint maxTextureSize = 0;
+        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
+        const GLint MaxTextureWidth = maxTextureSize;
+        const GLint MaxTextureHeight = MaxTextureWidth;
+        texture_manager->setTextureCapabilities(static_cast<const int32_t>(maxTextureSize), static_cast<const int32_t>(MaxTextureWidth), static_cast<const int32_t>(MaxTextureHeight));
         return true;
     }
 

@@ -33,21 +33,27 @@ namespace mbm
         return this->totalSubset != 0;
     }
 
-    void BUFFER_GL::initializeVertexBufferControl(  const uint32_t totalSubsets, 
-                                                    const int* vertexStartSubset, 
-                                                    const int* vertexCountSubset,
-                                                    const util::INFO_DRAW_MODE* info_draw_mode)
+    void BUFFER_GL::initializeVertexBufferControl(const uint32_t totalSubsets,
+                                                  const uint32_t _sizeOfArrayVertex,
+                                                  const int* vertexStartSubset,
+                                                  const int* vertexCountSubset,
+                                                  const util::INFO_DRAW_MODE* info_draw_mode)
     {
         if (this->vertexStartVB)
             delete[] this->vertexStartVB;
         if (this->vertexCountVB)
             delete[] this->vertexCountVB;
-        //if (this->vboIndexSubsetIB)
-        //    delete[] vboIndexSubsetIB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
 
         this->vertexStartVB = nullptr;
         this->vertexCountVB = nullptr;
-        //this->vboIndexSubsetIB = nullptr;
+        this->indexStartIB  = nullptr;
+        this->indexCountIB  = nullptr;
+        this->sizeOfArrayVertex = _sizeOfArrayVertex;
+
         if (totalSubsets > 0)
         {
             this->vertexStartVB = new int32_t[totalSubsets];
@@ -70,36 +76,39 @@ namespace mbm
             this->mode_cull_face = util::CULL_BACK;
             this->mode_front_face_direction = util::CW;
         }
-        initializedIndexBuffer = false;
-        totalSubset = totalSubsets;
+        this->initializedIndexBuffer = false;
+        this->totalSubset = totalSubsets;
     }
 
-    void BUFFER_GL::initializeIndexBufferControl(
-        const uint32_t totalSubsets,
-        const int* indexStartSubset,
-        const int* indexCountSubset,
-        const util::INFO_DRAW_MODE* info_draw_mode)
+    void BUFFER_GL::initializeIndexBufferControl(const uint32_t totalSubsets,
+                                                 const uint32_t _sizeOfArrayVertex,
+                                                 const int* indexStartSubset,
+                                                 const int* indexCountSubset,
+                                                 const util::INFO_DRAW_MODE* info_draw_mode)
     {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
         if (this->indexStartIB)
             delete[] this->indexStartIB;
         if (this->indexCountIB)
             delete[] this->indexCountIB;
-        //if (this->vboIndexSubsetIB)
-        //    delete[] vboIndexSubsetIB;
 
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
         this->indexStartIB = nullptr;
         this->indexCountIB = nullptr;
-        
+        this->sizeOfArrayVertex = _sizeOfArrayVertex;
+
         if (totalSubsets > 0)
         {
-            this->indexStartIB = new int32_t[totalSubsets];
+            this->indexStartIB  = new int32_t[totalSubsets];
             this->indexCountIB = new int32_t[totalSubsets];
-            //this->vboIndexSubsetIB = new uint32_t[totalSubsets];
             for (uint32_t i = 0; i < totalSubsets; ++i)
             {
-                this->indexStartIB[i] = indexStartSubset[i];
-                this->indexCountIB[i] = indexCountSubset[i];
-                //this->vboIndexSubsetIB[i] = indexStartSubset[i]
+                this->indexStartIB[i]  = indexStartSubset[i];
+                this->indexCountIB[i]  = indexCountSubset[i];
             }
         }
         if (info_draw_mode)

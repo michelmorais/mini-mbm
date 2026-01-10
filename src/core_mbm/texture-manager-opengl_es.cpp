@@ -142,94 +142,7 @@ namespace mbm
         return true;
     }
 
-    TEXTURE_SHARED::TEXTURE_SHARED()
-    {
-        this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
-    }
-
-        std::shared_ptr<TEXTURE> TEXTURE_SHARED::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
-    {
-        const char *       fileName = nickName;
-        const uint32_t width    = renderToTarget->widthTexture;
-        const uint32_t height   = renderToTarget->heightTexture;
-        if (fileName == nullptr || fileName[0] == 0)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        GLGenFramebuffers(1, &idFrameBuffer);
-        GLGenRenderbuffers(1, &idRenderBuffer);
-        GLGenTextures(1, &idTexture2d);
-
-        // texture
-        GLBindTexture(GL_TEXTURE_2D, idTexture2d);
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        }
-        else
-        {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-
-        if (enableAlpha)
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        }
-        else
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        }
-        // depth buffer
-        GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
-        // frame buffer
-        GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
-        // attachments
-        GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
-        GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
-        //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE)
-        {
-            return nullptr;
-        }
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        GLBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        pTexture->idTexture                  = idTexture2d;
-        pTexture->width                      = width;
-        pTexture->height                     = height;
-        pTexture->useAlphaChannel            = enableAlpha;
-        pTexture->fileName                   = nickName;
-        return pTexture;
-    }
-
-        TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
+    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
                                               const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
@@ -310,13 +223,6 @@ namespace mbm
         texture->fileName                   = std::move(fileNameBase);
         lsTextures[texture->fileName]       = texture;
         return texture;
-    }
-
-    TEXTURE_MANAGER::TEXTURE_MANAGER()
-    {
-        this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
     }
 }
 

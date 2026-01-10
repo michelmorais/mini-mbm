@@ -220,76 +220,11 @@ namespace mbm
         return true;
     }
 
-    TEXTURE_SHARED::TEXTURE_SHARED()
-    {
-        this->maxTextureSize = 0;
-        #pragma message(REMINDER_TODO "  implement get max texture size");
-    }
+    
 
-        std::shared_ptr<TEXTURE> TEXTURE_SHARED::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
-    {
-        const char *       fileName = nickName;
-        const uint32_t width    = renderToTarget->widthTexture;
-        const uint32_t height   = renderToTarget->heightTexture;
-        if (fileName == nullptr || fileName[0] == 0)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and texture");
-
-        // texture
-        
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
-
-        }
-        else
-        {
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
-        }
-
-        if (enableAlpha)
-        {
-            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
-        }
-        else
-        {
-            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
-        }
-        // depth buffer
-        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
-        // frame buffer
-        
-        // attachments
-        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
-        //
-
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        pTexture->idTexture                  = idTexture2d;
-        pTexture->width                      = width;
-        pTexture->height                     = height;
-        pTexture->useAlphaChannel            = enableAlpha;
-        pTexture->fileName                   = nickName;
-        return pTexture;
-    }
-
-        TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
+    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, 
+                                                        const char *nickName,
+                                                        const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
         const auto width         = static_cast<int>(renderToTarget->widthTexture);
@@ -350,12 +285,6 @@ namespace mbm
         texture->fileName                   = std::move(fileNameBase);
         lsTextures[texture->fileName]       = texture;
         return texture;
-    }
-
-    TEXTURE_MANAGER::TEXTURE_MANAGER()
-    {
-        this->maxTextureSize = 0;
-        #pragma message(REMINDER_TODO "  implement get max texture size");
     }
 }
 

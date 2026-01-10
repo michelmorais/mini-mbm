@@ -398,185 +398,6 @@ namespace mbm
     }
 #endif
     
-    TEXTURE_SHARED * TEXTURE_SHARED::getInstance()
-    {
-        if (instanceTextureShared == nullptr)
-            instanceTextureShared = new TEXTURE_SHARED();
-        return instanceTextureShared;
-    }
-    
-    void TEXTURE_SHARED::release()
-    {
-        if (instanceTextureShared != nullptr)
-            delete instanceTextureShared;
-        instanceTextureShared = nullptr;
-    }
-
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const IMAGE_RESOURCE *imageResource)
-    {
-        if (!imageResource)
-            return nullptr;
-        if (static_cast<int>(imageResource->width) > this->maxTextureSize || static_cast<int>(imageResource->height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.",imageResource->width > imageResource->height ? imageResource->width : imageResource->height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(imageResource->nickName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromResourceData(imageResource))
-        {
-            pTexture->fileName = imageResource->nickName;
-            return pTexture;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s",imageResource->nickName);
-            return std::shared_ptr<TEXTURE>();
-        }
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, channel == 4))
-        {
-            pTexture->fileName = fileName;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", nickName);
-        }
-        if (channel == 4)
-            pTexture->useAlphaChannel = true;
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel,
-                         const bool hasAlpha)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s", nickName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const char *fileName, const bool hasAlpha)
-    {
-        if (!fileName)
-            return nullptr;
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->load(fileName, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                     std::vector<VEC2> *lsWidthLetterOut, const float heightLetter)
-    {
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileNameTTF);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,false))
-        {
-            pTexture->fileName = fileNameTTF;
-            pTexture->useAlphaChannel = true;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileNameTTF);
-        }
-        return pTexture;
-    }
-    
-    bool TEXTURE_SHARED::existTexture(const char *fileNametexture)
-    {
-        if (fileNametexture == nullptr)
-            return false;
-        std::shared_ptr<TEXTURE> tex = cache[fileNametexture].lock();
-        if (tex && tex->isLoaded())
-            return true;
-        return false;
-    }
-    
-    void TEXTURE_SHARED::setPath(const char *PathSource)
-    {
-        strncpy(pathSource, PathSource,sizeof(pathSource)-1);
-    }
-    
-    bool TEXTURE_SHARED::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
-                              const uint32_t width, const uint32_t height, char *strMessageError)
-    {
-        unsigned  int error = 0;
-        std::vector<uint8_t> png;
-        error = lodepng::encode(png, image, width, height, channel == 3 ? LCT_RGB : LCT_RGBA);
-        if (error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        error = lodepng::save_file(png, fileName);
-        if(error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        return true;
-    }
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadFromCache(const std::string &fileName)
-    {
-        std::shared_ptr<TEXTURE> objPtr = cache[fileName].lock();
-        if(!objPtr)
-        {
-            std::shared_ptr<TEXTURE> tex(new TEXTURE());
-            cache[fileName] = tex;
-            return tex;
-        }
-        return objPtr;
-    }
-
-    TEXTURE_SHARED* TEXTURE_SHARED::instanceTextureShared = nullptr; 
-
     TEXTURE_MANAGER * TEXTURE_MANAGER::getInstance()
     {
         if (instanceTextureManager == nullptr)
@@ -1015,6 +836,23 @@ namespace mbm
         }
     }
 #endif
+
+    TEXTURE_MANAGER::TEXTURE_MANAGER()
+    {
+        memset(pathSource, 0, sizeof(pathSource));
+        this->maxTextureSize = 0;
+        this->maxTextureWidth = 0;
+        this->maxTextureHeight = 0;
+        //Remember to implement setTextureCapabilities by engine backend
+    }
+
+    void TEXTURE_MANAGER::setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound)
+    {
+        this->maxTextureSize = maxTextureSizeFound;
+        this->maxTextureWidth = maxTextureWidthFound;
+        this->maxTextureHeight = maxTextureHeightFound;
+    }
+
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
 }
 

@@ -142,7 +142,7 @@ namespace mbm
         VEC3            _position[4];
         VEC3            normal[4];
         VEC2            uv[4];
-        unsigned short int index[6]      = {0, 2, 1, 2, 3, 1};
+        unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();

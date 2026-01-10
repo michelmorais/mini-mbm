@@ -69,19 +69,11 @@ namespace mbm
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
 
-        union
-        {
-            struct
-            {
-                int32_t* indexStartIB;      // index start subset IB
-                int32_t* indexCountIB;      // index count subset IB
-            };
-            struct
-            {
-                int32_t* vertexStartVB;     // Start vertex buffer per each subset VB
-                int32_t* vertexCountVB;     // Total vertex buffer per each subset VB
-            };
-        };
+        int32_t* indexStartIB;      // index start subset IB
+        int32_t* indexCountIB;      // index count subset IB
+        int32_t* vertexStartVB;     // Start vertex buffer per each subset VB
+        int32_t* vertexCountVB;     // Total vertex buffer per each subset VB
+        uint32_t sizeOfArrayVertex; // Size of Vertx array
 
         uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
         uint32_t mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
@@ -96,15 +88,19 @@ namespace mbm
       private:
         bool     initializedIndexBuffer;
         
-        void initializeVertexBufferControl( const uint32_t totalSubsets, 
-                                            const int* vertexStartSubset, 
-                                            const int* vertexCountSubset,
-                                            const util::INFO_DRAW_MODE* info_draw_mode);
+        void initializeVertexBufferControl(const uint32_t totalSubsets,
+                                           const uint32_t _sizeOfArrayVertex,
+                                           const int* vertexStartSubset,
+                                           const int* vertexCountSubset,
+                                           const util::INFO_DRAW_MODE* info_draw_mode);
 
-        void initializeIndexBufferControl(  const uint32_t totalSubsets,
-                                            const int* indexStartSubset,
-                                            const int* indexCountSubset,
-                                            const util::INFO_DRAW_MODE* info_draw_mode);
+        void initializeIndexBufferControl(const uint32_t totalSubsets,
+                                          const uint32_t _sizeOfArrayVertex,
+                                          const int* indexStartSubset,
+                                          const int* indexCountSubset,
+                                          const util::INFO_DRAW_MODE* info_draw_mode);
+
+
         std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
         TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
     };

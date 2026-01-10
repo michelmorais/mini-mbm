@@ -33,6 +33,8 @@ namespace mbm
     BUFFER_GL::BUFFER_GL() noexcept :
         indexStartIB(nullptr),
         indexCountIB(nullptr),
+        vertexStartVB(nullptr),
+        vertexCountVB(nullptr),
         mode_draw(GL_TRIANGLES),
         mode_cull_face(GL_BACK),
         mode_front_face_direction(GL_CW),
@@ -107,7 +109,7 @@ namespace mbm
         this->bs->vboVertexSubsetVB  = new uint32_t[totalSubset];
         this->bs->vboNormalSubsetVB  = new uint32_t[totalSubset];
         this->bs->vboTextureSubsetVB = new uint32_t[totalSubset];
-        this->initializeVertexBufferControl(totalSubsets, vertexStartSubset, vertexCountSubset, info_draw_mode);
+        this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         memset(this->bs->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->bs->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->bs->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
@@ -162,7 +164,7 @@ namespace mbm
             return false;
         this->totalSubset      = totalSubsets;
         this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
-        this->initializeIndexBufferControl(totalSubsets, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
         if (!this->bs->vboIndexSubsetIB[0])
@@ -206,7 +208,7 @@ namespace mbm
         this->totalSubset      = totalSubsets;
         this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
         memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
-        this->initializeIndexBufferControl(totalSubsets, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
         if (!this->bs->vboIndexSubsetIB[0])
         {

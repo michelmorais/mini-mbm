@@ -35,6 +35,8 @@ namespace mbm
     BUFFER_GL::BUFFER_GL() noexcept :
         indexStartIB(nullptr),
         indexCountIB(nullptr),
+        vertexStartVB(nullptr),
+        vertexCountVB(nullptr),
         mode_draw(util::MODE_DRAW_TRIANGLES),
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
@@ -108,60 +110,60 @@ namespace mbm
         {
             switch (FVF)
             {
-            case FVF_PROVIDE_BY_ENGINE::FVF_POS:
-            {
-                VEC3* vertex = static_cast<VEC3*>(pvertex);
-                for (unsigned int i = 0; i < size_array; ++i)
+                case FVF_PROVIDE_BY_ENGINE::FVF_POS:
                 {
-                    vertex[i].x = pos[i].x;
-                    vertex[i].y = pos[i].y;
-                    vertex[i].z = pos[i].z;
+                    VEC3* vertex = static_cast<VEC3*>(pvertex);
+                    for (unsigned int i = 0; i < size_array; ++i)
+                    {
+                        vertex[i].x = pos[i].x;
+                        vertex[i].y = pos[i].y;
+                        vertex[i].z = pos[i].z;
+                    }
                 }
-            }
-            break;
-            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
-            {
-                VERTEX_NORMAL* vertex = static_cast<VERTEX_NORMAL*>(pvertex);
-                for (unsigned int i = 0; i < size_array; ++i)
+                break;
+                case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
                 {
-                    vertex[i].x = pos[i].x;
-                    vertex[i].y = pos[i].y;
-                    vertex[i].z = pos[i].z;
-                    vertex[i].nx = normal[i].x;
-                    vertex[i].ny = normal[i].y;
-                    vertex[i].nz = normal[i].z;
+                    VERTEX_NORMAL* vertex = static_cast<VERTEX_NORMAL*>(pvertex);
+                    for (unsigned int i = 0; i < size_array; ++i)
+                    {
+                        vertex[i].x = pos[i].x;
+                        vertex[i].y = pos[i].y;
+                        vertex[i].z = pos[i].z;
+                        vertex[i].nx = normal[i].x;
+                        vertex[i].ny = normal[i].y;
+                        vertex[i].nz = normal[i].z;
+                    }
                 }
-            }
-            break;
-            case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
-            {
-                VERTEX_UV* vertex = static_cast<VERTEX_UV*>(pvertex);
-                for (unsigned int i = 0; i < size_array; ++i)
+                break;
+                case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
                 {
-                    vertex[i].x = pos[i].x;
-                    vertex[i].y = pos[i].y;
-                    vertex[i].z = pos[i].z;
-                    vertex[i].u = uv[i].x;
-                    vertex[i].v = uv[i].y;
+                    VERTEX_UV* vertex = static_cast<VERTEX_UV*>(pvertex);
+                    for (unsigned int i = 0; i < size_array; ++i)
+                    {
+                        vertex[i].x = pos[i].x;
+                        vertex[i].y = pos[i].y;
+                        vertex[i].z = pos[i].z;
+                        vertex[i].u = uv[i].x;
+                        vertex[i].v = uv[i].y;
+                    }
                 }
-            }
-            break;
-            case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
-            {
-                VERTEX_NORMAL_UV* vertex = static_cast<VERTEX_NORMAL_UV*>(pvertex);
-                for (unsigned int i = 0; i < size_array; ++i)
+                break;
+                case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
                 {
-                    vertex[i].x = pos[i].x;
-                    vertex[i].y = pos[i].y;
-                    vertex[i].z = pos[i].z;
-                    vertex[i].nx = normal[i].x;
-                    vertex[i].ny = normal[i].y;
-                    vertex[i].nz = normal[i].z;
-                    vertex[i].u = uv[i].x;
-                    vertex[i].v = uv[i].y;
+                    VERTEX_NORMAL_UV* vertex = static_cast<VERTEX_NORMAL_UV*>(pvertex);
+                    for (unsigned int i = 0; i < size_array; ++i)
+                    {
+                        vertex[i].x = pos[i].x;
+                        vertex[i].y = pos[i].y;
+                        vertex[i].z = pos[i].z;
+                        vertex[i].nx = normal[i].x;
+                        vertex[i].ny = normal[i].y;
+                        vertex[i].nz = normal[i].z;
+                        vertex[i].u = uv[i].x;
+                        vertex[i].v = uv[i].y;
+                    }
                 }
-            }
-            break;
+                break;
             }
         }
     }
@@ -210,7 +212,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         constexpr DWORD DFVF = 0;// Non-FVF buffers
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
-        this->initializeVertexBufferControl(totalSubsets, vertexStartSubset, vertexCountSubset, info_draw_mode);
+        this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         for (uint32_t i = 0; i < totalSubset; ++i)
         {
             const uint32_t vertexStartVB = vertexStartSubset[i];
@@ -254,7 +256,7 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         constexpr DWORD DFVF = 0;// Non-FVF buffers
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
-        this->initializeIndexBufferControl(totalSubsets, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
         this->bs->FVF = d3d_converter.getFVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
@@ -285,8 +287,9 @@ namespace mbm
         {
             sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
         }
+        const UINT sizeIndexBufferInBytes = sizeIndexBuffer * sizeof(uint16_t);
 
-        if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBuffer,
+        if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBufferInBytes,
             D3DUSAGE_WRITEONLY,
             D3DFMT_INDEX16,
             D3DPOOL_DEFAULT,
@@ -303,8 +306,7 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "failed to lock INDEX BUFFER");
             return false;
         }
-        memcpy(pIndex, arrayIndices, sizeIndexBuffer * sizeof(uint16_t));
-        
+        memcpy(pIndex, arrayIndices, sizeIndexBufferInBytes);
         this->bs->pIndexBuffer->Unlock();
 
         return true;
@@ -316,7 +318,7 @@ namespace mbm
         release();
         if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        this->initializeIndexBufferControl(totalSubsets, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         #pragma message(REMINDER_TODO "  generate buffers");
 
         for (uint32_t i = 0; i < this->totalSubset; ++i)
@@ -547,6 +549,12 @@ namespace mbm
                 return false;
             };
 
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
+                return false;
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
@@ -571,7 +579,7 @@ namespace mbm
                 {
                     pd3dDevice->SetTexture(1, nullptr);
                 }
-                
+
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
 
                 switch (pBufferId->mode_draw)
@@ -599,14 +607,10 @@ namespace mbm
                     case util::MODE_DRAW_TRIANGLES:
                     {
                         const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
-                        const UINT numVertices   = pBufferId->vertexCountVB[i];
-                        const UINT vertexStartVB = pBufferId->vertexStartVB[i];
+                        const UINT numVertices   = pBufferId->sizeOfArrayVertex;
+                        const UINT vertexStartVB = 0;
                         constexpr UINT MinVertexIndex = 0;
-                        if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
-                        {
-                            ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
-                            return false;
-                        }
+                        
                         if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
                                                                     vertexStartVB, 
                                                                     MinVertexIndex,

@@ -106,8 +106,7 @@ namespace mbm
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
         if (this->texture == nullptr)
             return false;
-        const bool idFrame =
-            this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
+        const bool idFrame = this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
         if (idFrame == false)
             return false;
         this->bufferGL.setTextureByStage(this->texture, 0, 0);

@@ -37,7 +37,6 @@ namespace mbm
 
     class TEXTURE
     {
-        friend class TEXTURE_SHARED;
         friend class TEXTURE_MANAGER;
     public:
     
@@ -70,35 +69,6 @@ namespace mbm
                                  const uint32_t w, const uint32_t h, const uint16_t depth,
                                  const uint16_t channel, const bool hasAlpha);
         bool loadFromResourceData(const IMAGE_RESOURCE *image);
-    };
-
-    class TEXTURE_SHARED
-    {
-    public:
-        static TEXTURE_SHARED *getInstance();
-        static void release();
-        int maxTextureSize;
-        char pathSource[255];
-        TEXTURE_SHARED();
-        std::shared_ptr<TEXTURE> createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                                  const bool enableAlpha);
-        std::shared_ptr<TEXTURE> load(const IMAGE_RESOURCE *imageResource);
-        std::shared_ptr<TEXTURE> load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                             const char *nickName, const uint16_t depth, const uint16_t channel);
-        std::shared_ptr<TEXTURE> load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                             const char *nickName, const uint16_t depth, const uint16_t channel,
-                             const bool hasAlpha);
-        std::shared_ptr<TEXTURE> load(const char *fileName, const bool hasAlpha);
-        std::shared_ptr<TEXTURE> loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                         std::vector<VEC2> *lsWidthLetterOut, const float heightLetter);
-        bool existTexture(const char *fileNametexture);
-        void setPath(const char *PathSource);
-        bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
-                                  const uint32_t width, const uint32_t height, char *strMessageError);
-    private:
-        static TEXTURE_SHARED * instanceTextureShared;
-        std::shared_ptr<TEXTURE> loadFromCache(const std::string &fileName);
-        std::unordered_map<std::string,std::weak_ptr<TEXTURE>> cache;
     };
 
     struct INFO_GIF
@@ -135,6 +105,7 @@ namespace mbm
                                   const uint32_t width, const uint32_t height, char *strMessageError);
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
+        API_IMPL void setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound);
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
         std::unordered_map<std::string,TEXTURE *> lsTextures;
@@ -143,7 +114,9 @@ namespace mbm
         const char *getFilePathTexture(const char *fileName,const char* fullFileName);
         const char *findInAllPaths(const char *fileNameTexture);
         char                     pathSource[255];
-        int                      maxTextureSize;
+        int32_t                  maxTextureSize;
+        int32_t                  maxTextureHeight;
+        int32_t                  maxTextureWidth;
     };
 }
 
