@@ -7774,6 +7774,7 @@ namespace mbm
                     {
                         ptrWin->run = false;
                         closeAllWindows();
+                        // TODO: check this
                         if (windowHandle && *(int *)windowHandle)
                             DestroyWindow(windowHandle);
                         return true;

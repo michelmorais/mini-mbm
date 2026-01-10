@@ -44,7 +44,7 @@ namespace mbm
         useAlphaChannel = false;
     }
 
-        bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
+    bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
                              const uint32_t w, const uint32_t h, const uint16_t depth,
                              const uint16_t channel, const bool hasAlpha)
     {
@@ -56,7 +56,7 @@ namespace mbm
         const uint8_t *img = uberImg.getImage8bitsPerPixel(data, w, h, depth, channel);
         if (img == nullptr)
         {
-            PRINT_IF_DEBUG("failed to get texture from DATA");
+            ERROR_AT(__LINE__, __FILE__, "failed to get texture from DATA");
             return false;
         }
         this->width  = w;
@@ -71,7 +71,7 @@ namespace mbm
         {
             uint8_t* rgba            = new uint8_t[width * height * 4];
             const uint32_t sizeImage = width * height * 3;
-            rgba_toDelete                = rgba;
+            rgba_toDelete            = rgba;
             for (uint32_t i = 0, j = 0; i < sizeImage; i += 3, j += 4)
             {
                 const uint8_t r = img[i];
@@ -80,20 +80,21 @@ namespace mbm
                 rgba[j]         = r;
                 rgba[j + 1]     = g;
                 rgba[j + 2]     = b;
-                rgba[j + 3]     = 255; // 255 - Opaco
+                rgba[j + 3]     = 0xff; // 255 - Opaco
             }
         }
         
-        //TODO:  Needed to check TEXTURE::no_filter
         IDirect3DSurface9* surfaceDest = nullptr;
         D3DSURFACE_DESC	descSurfaceDest;
         D3DLOCKED_RECT	lockDestRect;
 		mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+
+        const UINT mipMap = TEXTURE::no_filter ? 1 : 4;
         
 		if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
             h,
-            1,
+            mipMap,
             D3DUSAGE_DYNAMIC,
             requested_format,
             D3DPOOL_DEFAULT,//,
@@ -157,12 +158,12 @@ namespace mbm
                 const uint8_t r = dataImage[i];
                 const uint8_t g = dataImage[i + 1];
                 const uint8_t b = dataImage[i + 2];
-                dataDest[i] = r;
+                dataDest[i]     = b;
                 dataDest[i + 1] = g;
-                dataDest[i + 2] = b;
+                dataDest[i + 2] = r;
             }
         }
-        else
+        else if (descSurfaceDest.Format == D3DFMT_A8R8G8B8)
         {
             const uint32_t sizeImage = width * height * 4;
             for (uint32_t i = 0; i < sizeImage; i += 4)
@@ -171,11 +172,15 @@ namespace mbm
                 const uint8_t g = dataImage[i + 1];
                 const uint8_t b = dataImage[i + 2];
                 const uint8_t a = dataImage[i + 3];
-                dataDest[i] = r;
-                dataDest[i + 1] = g;
-                dataDest[i + 2] = b;
-                dataDest[i + 3] = a;
+                dataDest[i]     = b; // blue
+                dataDest[i + 1] = g; // green
+                dataDest[i + 2] = r; // red
+                dataDest[i + 3] = a; // alpha
             }
+        }
+        else
+        {
+            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
         }
 
         if (rgba_toDelete)

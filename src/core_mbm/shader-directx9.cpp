@@ -278,18 +278,34 @@ namespace mbm
         }
         d3d_converter.copyTod3dVertexBuffer(pvertex);
         this->bs->pVertexBuffer->Unlock();
-        
-        // index vertex
 
-        //if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBuffer,
-        //    D3DUSAGE_WRITEONLY,
-        //    D3DFMT_INDEX16,
-        //    D3DPOOL_DEFAULT,
-        //    &this->bs->pIndexBuffer, nullptr)))
-        //{
-        //    ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
-        //    return false;
-        //}
+        // index vertex
+        UINT sizeIndexBuffer = 0;
+        for (int i = 0; i < totalSubsets; ++i)
+        {
+            sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
+        }
+
+        if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBuffer,
+            D3DUSAGE_WRITEONLY,
+            D3DFMT_INDEX16,
+            D3DPOOL_DEFAULT,
+            &this->bs->pIndexBuffer, nullptr)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
+            return false;
+        }
+
+        uint16_t* pIndex = nullptr;
+        void** ppIndex = reinterpret_cast<void**>(&pIndex);
+        if (FAILED(this->bs->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock INDEX BUFFER");
+            return false;
+        }
+        memcpy(pIndex, arrayIndices, sizeIndexBuffer * sizeof(uint16_t));
+        
+        this->bs->pIndexBuffer->Unlock();
 
         return true;
     }
@@ -495,13 +511,20 @@ namespace mbm
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
         if (pBufferId->bs->pVertexBuffer == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "IDirect3DVertexBuffer9 is null, you must load the object first");
             return false;
+        };
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
 
-        D3DMATRIX* WORLD = reinterpret_cast<D3DMATRIX*>(&SHADER::modelView);
-        pd3dDevice->SetTransform(D3DTS_WORLD, WORLD);
+        const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
+        if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "Failed to set SetTransform D3DTS_WORLD for modelView");
+            return false;
+        };
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -509,12 +532,20 @@ namespace mbm
             // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
             // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
             // pd3dDevice->SetFVF(0);//Maybe not needed to disable
-            pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF));
-            if (FAILED(pd3dDevice->SetStreamSource(0,//Stream Se houver Multiplos Streams
-                pBufferId->bs->pVertexBuffer,//Ponteiro De Nosso Objeto Criado
-                0,		//Posicao Em Bytes Do inicio  Do Stream Atual
-                pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
                 return false;
+            };
+
+            if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
+                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                0,		//Position in bytes of start stream
+                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
+                return false;
+            };
 
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -568,17 +599,24 @@ namespace mbm
                     case util::MODE_DRAW_TRIANGLES:
                     {
                         const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
-                        const UINT numVertices = pBufferId->vertexCountVB[i];
-                        const UINT startIndex = pBufferId->vertexStartVB[i];
+                        const UINT numVertices   = pBufferId->vertexCountVB[i];
+                        const UINT vertexStartVB = pBufferId->vertexStartVB[i];
                         constexpr UINT MinVertexIndex = 0;
-                        //pd3dDevice->SetIndices(pBufferId->bs->pVertexBuffer);
+                        if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+                        {
+                            ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
+                            return false;
+                        }
                         if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
-                                                                    pBufferId->indexStartIB[i], 
+                                                                    vertexStartVB, 
                                                                     MinVertexIndex,
                                                                     numVertices,
-                                                                    startIndex,
+                                                                    pBufferId->indexStartIB[i],
                                                                     countTriangle)))
+                        {
+                            ERROR_AT(__LINE__, __FILE__, "Failed to draw indexed primitive");
                             return false;
+                        }
                     };
                     break;
                     case util::MODE_DRAW_TRIANGLE_STRIP:
