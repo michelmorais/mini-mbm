@@ -314,6 +314,10 @@ namespace mbm
         {
             my_args.insert(my_args.begin(),"mini_mbm.exe");
         }
+#if _DEBUG
+        my_args.push_back("--addPath");
+        my_args.push_back("C:\\Users\\miche\\Documents\\mini-mbm\\editor");
+#endif
     #else
         my_args.insert(my_args.begin(),"mini_mbm");
         push_arg("--name",progam_name);

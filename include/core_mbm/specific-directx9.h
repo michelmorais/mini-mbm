@@ -21,15 +21,36 @@
 #define DIRECTX9_SPECIFIC_H
 #if defined (USE_DIRECTX9)
 
-#include <d3d9.h>
-#include <d3dx9.h>
+
 
 //#include <dsetup.h>
 //#include <comdef.h>
 
 #ifndef __MINGW32__
 #pragma comment (lib, "d3d9.lib")
-#pragma comment (lib, "d3dx9.lib")
+#if defined _DEBUG
+    #define D3D_DEBUG_INFO
+    // https://learn.microsoft.com/en-us/windows/win32/direct3d9/enabling-direct3d-debug-information
+    // The debug runtime is part of the DirectX SDK.
+    //Enable the regedit HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Direct3D
+    // set 
+    //HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Direct3D\D3D9Debugging
+    //HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Direct3D\\D3D9Debugging\\EnableCreationStack
+    // to 1 enables call stack tracking for object creation, which helps detect resource leaks.
+    // Enable in
+    // C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Utilities\bin\x86\dxcpl.exe
+    //
+    // Building your application with debug enabled will give you access to this additional variable :
+    // LPCWSTR CreationCallStack;
+    #pragma comment (lib, "d3dx9d.lib") // Debug
+#else
+    #pragma comment (lib, "d3dx9.lib")
+#endif
+
+#include <d3d9.h>
+#include <d3dx9.h>
+
+// 
 //#pragma comment (lib,"comsuppwd.lib")
 //#pragma comment (lib, "dsetup.lib") //Directx version setup
 
@@ -113,6 +134,7 @@ namespace mbm
         void copyTod3dVertexBuffer(void* pvertex) const noexcept;
         uint32_t getSizeOfStructureInBytes() const noexcept;
         FVF_PROVIDE_BY_ENGINE getFVF() const noexcept;
+        DWORD get3d3FVF() const;
     private:
         FVF_PROVIDE_BY_ENGINE FVF;
         const VEC3* pos;

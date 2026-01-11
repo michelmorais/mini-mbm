@@ -24,13 +24,14 @@
 #include <render/texture-view.h>
 #include <core_mbm/core-manager.h>
 #include <render/gif-view.h>
-
+#include <render/sprite.h>
 
 class MY_SCENE : public mbm::SCENE
 {
   public:
     mbm::TEXTURE_VIEW * texBox;
     mbm::GIF_VIEW* gif;
+    mbm::SPRITE* sprite;
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();

@@ -4480,11 +4480,11 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
                 }
                 buffer[currentFrame].pBufferGL = new BUFFER_GL();
-                /*if(this->is3d == false)
-                {
-                    //Não precisamos mais utilizar isto pois ja estamos gravando invertido no directx
-                    this->invertMap(false,true,pTexture,headerFrame.sizeVertexBuffer);
-                }*/
+                ////if(this->is3d == false)
+                //{
+                //    //Não precisamos mais utilizar isto pois ja estamos gravando invertido no directx
+                //    this->invertMap(false,true,pTexture,headerFrame.sizeVertexBuffer);
+                //}
                 auto indexStart = new int[buffer[currentFrame].totalSubset];
                 auto indexCount = new int[buffer[currentFrame].totalSubset];
                 for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)

@@ -32,29 +32,6 @@
 #include <texture-manager.h>
 namespace mbm
 {
-    BUFFER_GL::BUFFER_GL() noexcept :
-        indexStartIB(nullptr),
-        indexCountIB(nullptr),
-        vertexStartVB(nullptr),
-        vertexCountVB(nullptr),
-        mode_draw(util::MODE_DRAW_TRIANGLES),
-        mode_cull_face(util::CULL_BACK),
-        mode_front_face_direction(util::CCW),
-        totalSubset(0),
-        texture1(nullptr)
-    {
-        bs = new BUFFER_SPECIFIC();
-    }
-
-    BUFFER_GL::~BUFFER_GL()
-    {
-        if (bs)
-            delete bs;
-        bs = nullptr;
-        texture1 = nullptr;
-        texture0.clear();
-    }
-
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
         FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS),
         sizeStructVertexInBytes(0),
@@ -75,10 +52,48 @@ namespace mbm
         pIndexBuffer = nullptr;
         sizeStructVertexInBytes = 0;
     }
-    
+
+    BUFFER_GL::BUFFER_GL() noexcept :
+        indexStartIB(nullptr),
+        indexCountIB(nullptr),
+        vertexStartVB(nullptr),
+        vertexCountVB(nullptr),
+        mode_draw(util::MODE_DRAW_TRIANGLES),
+        mode_cull_face(util::CULL_BACK),
+        mode_front_face_direction(util::CCW),
+        totalSubset(0),
+        texture1(nullptr)
+    {
+        //we initialize this at the moment (just once)
+        bs = new BUFFER_SPECIFIC();
+    }
+
+    BUFFER_GL::~BUFFER_GL()
+    {
+        if (bs)
+            delete bs;
+        bs = nullptr;
+        texture1 = nullptr;
+        texture0.clear();
+    }
 
     void BUFFER_GL::release()
     {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        this->sizeOfArrayVertex = 0;
+        this->initializedIndexBuffer = false;
         #pragma message(REMINDER_TODO "  implement delete buffer");
         totalSubset   = 0;
     }
@@ -173,6 +188,35 @@ namespace mbm
         return FVF;
     }
 
+    DWORD D3D_VERTEX_CONVERTER::get3d3FVF() const
+    {
+        DWORD d3dFVF = 0;
+        switch (this->FVF)
+        {
+        case FVF_PROVIDE_BY_ENGINE::FVF_POS:
+        {
+            d3dFVF = (D3DFVF_XYZ);
+        }
+        break;
+        case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR:
+        {
+            d3dFVF = (D3DFVF_XYZ | D3DFVF_NORMAL);
+        }
+        break;
+        case FVF_PROVIDE_BY_ENGINE::FVF_POS_UV:
+        {
+            d3dFVF = (D3DFVF_XYZ | D3DFVF_TEX0);
+        }
+        break;
+        case FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV:
+        {
+            d3dFVF = (D3DFVF_XYZ | D3DFVF_NORMAL| D3DFVF_TEX0);
+        }
+        break;
+        }
+        return d3dFVF;
+    }
+
     uint32_t D3D_VERTEX_CONVERTER::getSizeOfStructureInBytes() const noexcept
     {
         uint32_t sizeStructVertexInBytes = 0;
@@ -210,7 +254,7 @@ namespace mbm
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        constexpr DWORD DFVF = 0;// Non-FVF buffers
+        
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         for (uint32_t i = 0; i < totalSubset; ++i)
@@ -219,6 +263,7 @@ namespace mbm
             const uint32_t vertexCountVB = vertexCountSubset[i];
             const D3D_VERTEX_CONVERTER d3d_converter(&vertex[vertexStartVB], &normal[vertexStartVB], &uv[vertexStartVB], vertexCountVB);
             this->bs->FVF = d3d_converter.getFVF();
+            const DWORD DFVF = d3d_converter.get3d3FVF();
             const uint32_t sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
             //TODO: Fix this loop
             if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
@@ -254,18 +299,18 @@ namespace mbm
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        constexpr DWORD DFVF = 0;// Non-FVF buffers
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
         this->bs->FVF = d3d_converter.getFVF();
+        const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
 
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
             this->bs->sizeStructVertexInBytes * sizeOfArrayVertex,
             D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
             DFVF,//FVF
-            D3DPOOL_DEFAULT,//local memory
+            D3DPOOL_MANAGED,//local memory
             &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
             nullptr)))				//Always null
         {
@@ -292,14 +337,14 @@ namespace mbm
         if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBufferInBytes,
             D3DUSAGE_WRITEONLY,
             D3DFMT_INDEX16,
-            D3DPOOL_DEFAULT,
+            D3DPOOL_MANAGED,
             &this->bs->pIndexBuffer, nullptr)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
             return false;
         }
 
-        uint16_t* pIndex = nullptr;
+        int16_t* pIndex = nullptr;
         void** ppIndex = reinterpret_cast<void**>(&pIndex);
         if (FAILED(this->bs->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
         {
@@ -528,6 +573,16 @@ namespace mbm
             return false;
         };
 
+        // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
+        // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
+        // but DirectX 9 does not use this specific constant or naming convention.
+
+        // Instead, DirectX 9 uses the D3DCULL enumeration to define which polygon faces to cull during rendering.
+        // The equivalent behavior to OpenGL's GL_FRONT culling can be achieved by setting the culling mode to D3DCULL_NONE (to render both front and back faces), 
+        // D3DCULL_CCW (counter-clockwise, typically front-facing), or D3DCULL_CW (clockwise, typically back-facing), depending on the desired rendering behavior.
+        // TODO: use the correct CULLMODE
+        pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE); // D3DCULL_CCW
+
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             // When converting a legacy application to Direct3D 9, 
@@ -606,6 +661,30 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_TRIANGLES:
                     {
+                        // set the view transform
+                        /*D3DXMATRIX matView;    // the view transform matrix
+                        D3DXMatrixLookAtLH(&matView,
+                            &D3DXVECTOR3(0.0f, 8.0f, 200),    // the camera position
+                            &D3DXVECTOR3(0.0f, 0.0f, 0.0f),      // the look-at position
+                            &D3DXVECTOR3(0.0f, 1.0f, 0.0f));    // the up direction
+                        pd3dDevice->SetTransform(D3DTS_VIEW, &matView);    // set the view transform to matView 
+
+                        // set the projection transform
+                        D3DXMATRIX matProjection;    // the projection transform matrix
+                        D3DXMatrixPerspectiveFovLH(&matProjection,
+                            D3DXToRadian(45),    // the horizontal field of view
+                            (FLOAT)device->backBufferWidth / device->backBufferHeight, // aspect ratio
+                            1.0f,   // the near view-plane
+                            100.0f);    // the far view-plane
+                        pd3dDevice->SetTransform(D3DTS_PROJECTION, &matProjection); // set the projection
+
+                        // set the world transform
+                        static float index = 0.0f; index += 0.03f; // an ever-increasing float value
+                        D3DXMATRIX matRotateY;    // a matrix to store the rotation for each triangle
+                        D3DXMatrixRotationY(&matRotateY, index);    // the rotation matrix
+                        pd3dDevice->SetTransform(D3DTS_WORLD, &(matRotateY));    // set the world transform
+                        */
+
                         const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
                         const UINT numVertices   = pBufferId->sizeOfArrayVertex;
                         const UINT vertexStartVB = 0;

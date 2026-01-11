@@ -577,11 +577,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
             //    return 1;
             //}
             //TODO: move to begin render in Core manager
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onBeginRender();
-            }
+            
             EVENT_KEY event;
             while (this->popEvent(&event))
             {
@@ -740,12 +736,12 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 PLUGIN * plugin = this->lsPlugins[i];
                 plugin->onLoop(this->device->delta);
             }
-            this->render();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
             {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onEndRender();
+                PLUGIN* plugin = this->lsPlugins[i];
+                plugin->onBeginRender();
             }
+            this->render();
             //this->device->specificContextDevice->pd3dDevice->EndScene();
 			//Swap buffers
             this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);

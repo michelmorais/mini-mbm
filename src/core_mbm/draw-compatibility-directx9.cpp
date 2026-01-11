@@ -151,13 +151,13 @@ namespace util
     {
         switch(mode_draw)
         {
-            //case GL_POINTS		   : return true;
-            //case GL_LINES		   : return true;
-            //case GL_LINE_LOOP	   : return true;
-            //case GL_LINE_STRIP	   : return true;
-            //case GL_TRIANGLES 	   : return true;
-            //case GL_TRIANGLE_STRIP : return true;
-            //case GL_TRIANGLE_FAN   : return true;
+            case MODE_DRAW::MODE_DRAW_POINTS:         return false;
+            case MODE_DRAW::MODE_DRAW_LINES:          return false;
+            case MODE_DRAW::MODE_DRAW_LINE_LOOP:      return false;
+            case MODE_DRAW::MODE_DRAW_LINE_STRIP:     return false;
+            case MODE_DRAW::MODE_DRAW_TRIANGLES:      return true;
+            case MODE_DRAW::MODE_DRAW_TRIANGLE_STRIP: return false;
+            case MODE_DRAW::MODE_DRAW_TRIANGLE_FAN:   return false;
             default                : return false;
         }
     }
@@ -166,10 +166,10 @@ namespace util
     {
         switch(mode_cull_face)
         {
-            //case GL_FRONT		   : return true;
-            //case GL_BACK		   : return true;
-            //case GL_FRONT_AND_BACK : return true;
-            default                : return false;
+            case CULL_MODE::CULL_FRONT		    : return true;
+            case CULL_MODE::CULL_BACK		    : return true;
+            case CULL_MODE::CULL_FRONT_AND_BACK : return true;
+            default                             : return false;
         }
     }
 
@@ -177,8 +177,8 @@ namespace util
     {
         switch(mode_front_face_direction)
         {
-            //case GL_CW   		   : return true;
-            //case GL_CCW  		   : return true;
+            case FACE_DIRECTION::CW: return true;
+            case FACE_DIRECTION::CCW  		   : return true;
             default                : return false;
         }
     }

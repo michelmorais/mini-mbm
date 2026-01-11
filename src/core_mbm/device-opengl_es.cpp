@@ -19,7 +19,7 @@
 
 #include <device.h>
 
-#if defined (USE_OPENGL_ES) && !defined USE_DUMMY_BACK_END_ENGINE
+#if defined (USE_OPENGL_ES)
 
 #include <scene.h>
 #include <texture-manager.h>

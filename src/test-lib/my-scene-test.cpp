@@ -20,17 +20,23 @@
 
 #include "my-scene-test.h"
 #include <core_mbm/util-interface.h>
+//#include <core >
 
 MY_SCENE::MY_SCENE()
 {
     texBox = nullptr;
     gif    = nullptr;
+    sprite = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
 {
-    delete texBox;
-    delete gif;
+    if(texBox)
+        delete texBox;
+    if(gif)
+        delete gif;
+    if(sprite)
+        delete sprite;
 }
 
 void MY_SCENE::startLoading()
@@ -45,14 +51,19 @@ void MY_SCENE::endLoading()
 
 void MY_SCENE::init() 
 {
-    mbm::DEVICE * device = mbm::DEVICE::getInstance();
+    mbm::DEVICE * device    = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
-    this->texBox                  = new mbm::TEXTURE_VIEW(this, false, true);
+    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
-    this->texBox->load("wooden-box.jpg", 200, 200);
-    gif = new mbm::GIF_VIEW(this,false,false);
-    gif->load("Lion-King.gif");
+    //this->texBox->load("wooden-box.jpg", 200, 200);
+    //gif = new mbm::GIF_VIEW(this,false,false);
+    //gif->load("Lion-King.gif");
+
+    sprite = new mbm::SPRITE(this, false, true);
+    sprite->load("C:\\Users\\miche\\Documents\\tower-defense\\sprite\\archer-1.spt");
+    sprite->alwaysRenderize = true;
+    //sprite->angle.x = 3.14;
 }
 
 void MY_SCENE::logic()
@@ -75,6 +86,11 @@ void MY_SCENE::onTouchMove(int, float x, float y)
         this->texBox->position.x = x;
         this->texBox->position.y = y;
     }
+    if (sprite)
+    {
+        sprite->position.x = x;
+        sprite->position.y = y;
+    }
 }
 
 void MY_SCENE::onTouchZoom(float)
@@ -85,8 +101,25 @@ void MY_SCENE::onFinalizeScene()
 {
 }
 
-void MY_SCENE::onKeyDown(int)
+void MY_SCENE::onKeyDown(int key)
 {
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    if (key == 39)//right
+    {
+        device->camera.position2d.x += 10;
+    }
+    else if (key == 37)//left
+    {
+        device->camera.position2d.x -= 10;
+    }
+    else if (key == 38)//up
+    {
+        device->camera.position2d.y += 10;
+    }
+    else if (key == 40)//down
+    {
+        device->camera.position2d.y -= 10;
+    }
 }
 
 void MY_SCENE::onKeyUp(int)
