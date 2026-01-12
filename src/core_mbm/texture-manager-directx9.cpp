@@ -44,6 +44,62 @@ namespace mbm
         useAlphaChannel = false;
     }
 
+    static void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
+                                        const uint32_t width, 
+                                        const uint32_t height, 
+                                        D3DLOCKED_RECT & lockDestRect, 
+                                        const uint8_t* dataImage) noexcept
+    {   // compute bytes per pixel in source and destination
+        const bool destIsA8R8G8B8 = (descSurfaceDest.Format == D3DFMT_A8R8G8B8);
+        const uint32_t dstBpp = destIsA8R8G8B8 ? 4u : 3u;
+        const uint32_t srcBpp = dstBpp; // dataImage already converted to match dst format (rgba_toDelete or image->data)
+        const uint32_t rowSrcBytes = width * srcBpp;
+        uint8_t* dataDest = static_cast<uint8_t*>(lockDestRect.pBits);
+        uint8_t* destRowBase = dataDest;
+        const uint8_t* srcRowBase = dataImage;
+
+        if (descSurfaceDest.Format != D3DFMT_R8G8B8 && descSurfaceDest.Format != D3DFMT_A8R8G8B8)
+        {
+            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
+        }
+
+        // copy per row respecting Pitch. Also swap RGB->BGR when required by DirectX
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            uint8_t* destRow = destRowBase + static_cast<size_t>(y) * lockDestRect.Pitch;
+            const uint8_t* srcRow = srcRowBase + static_cast<size_t>(y) * rowSrcBytes;
+
+            if (destIsA8R8G8B8)
+            {
+                // dest layout: B G R A
+                for (uint32_t x = 0, s = 0, d = 0; x < width; ++x, s += 4, d += 4)
+                {
+                    const uint8_t r = srcRow[s + 0];
+                    const uint8_t g = srcRow[s + 1];
+                    const uint8_t b = srcRow[s + 2];
+                    const uint8_t a = srcRow[s + 3];
+                    destRow[d + 0] = b;
+                    destRow[d + 1] = g;
+                    destRow[d + 2] = r;
+                    destRow[d + 3] = a;
+                }
+            }
+            else // D3DFMT_R8G8B8
+            {
+                // dest layout: B G R (3 bytes). Note: pitch may include padding.
+                for (uint32_t x = 0, s = 0, d = 0; x < width; ++x, s += 3, d += 3)
+                {
+                    const uint8_t r = srcRow[s + 0];
+                    const uint8_t g = srcRow[s + 1];
+                    const uint8_t b = srcRow[s + 2];
+                    destRow[d + 0] = b;
+                    destRow[d + 1] = g;
+                    destRow[d + 2] = r;
+                }
+            }
+        }
+    }
+
     bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
                              const uint32_t w, const uint32_t h, const uint16_t depth,
                              const uint16_t channel, const bool hasAlpha)
@@ -90,12 +146,13 @@ namespace mbm
 		mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
 
-        const UINT mipMap = TEXTURE::no_filter ? 1 : 4;
+        const UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+        const DWORD usage = mipMap == 0 ? (D3DUSAGE_AUTOGENMIPMAP | D3DUSAGE_DYNAMIC) : D3DUSAGE_DYNAMIC;
         
 		if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
             h,
             mipMap,
-            D3DUSAGE_DYNAMIC,
+            usage,
             requested_format,
             D3DPOOL_DEFAULT,//,
             pp3DTexture9, nullptr)))
@@ -149,39 +206,8 @@ namespace mbm
         {
             dataImage = rgba_toDelete;
         }
-        uint8_t* dataDest = static_cast<uint8_t*>(lockDestRect.pBits);
-        if (descSurfaceDest.Format == D3DFMT_R8G8B8)
-        {
-            const uint32_t sizeImage = width * height * 3;
-            for (uint32_t i = 0; i < sizeImage; i += 3)
-            {
-                const uint8_t r = dataImage[i];
-                const uint8_t g = dataImage[i + 1];
-                const uint8_t b = dataImage[i + 2];
-                dataDest[i]     = b;
-                dataDest[i + 1] = g;
-                dataDest[i + 2] = r;
-            }
-        }
-        else if (descSurfaceDest.Format == D3DFMT_A8R8G8B8)
-        {
-            const uint32_t sizeImage = width * height * 4;
-            for (uint32_t i = 0; i < sizeImage; i += 4)
-            {
-                const uint8_t r = dataImage[i];
-                const uint8_t g = dataImage[i + 1];
-                const uint8_t b = dataImage[i + 2];
-                const uint8_t a = dataImage[i + 3];
-                dataDest[i]     = b; // blue
-                dataDest[i + 1] = g; // green
-                dataDest[i + 2] = r; // red
-                dataDest[i + 3] = a; // alpha
-            }
-        }
-        else
-        {
-            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
-        }
+        
+        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, dataImage);
 
         if (rgba_toDelete)
             delete[] rgba_toDelete;
@@ -193,6 +219,14 @@ namespace mbm
         }
         surfaceDest = nullptr;
         this->useAlphaChannel = hasAlpha ? true : false;
+        // If we created a full mip chain, generate the mipmaps from level 0.
+        if (mipMap == 0)
+        {
+            // Try to autogenerate using the texture method if supported.
+            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
+            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
+            p3DTexture9->GenerateMipSubLevels();
+        }
         return true;
     }
     
@@ -211,12 +245,13 @@ namespace mbm
         D3DSURFACE_DESC	descSurfaceDest;
         D3DLOCKED_RECT	lockDestRect;
         
-        const UINT mipMap = TEXTURE::no_filter ? 1 : 4;
+        const UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+        const DWORD usage = mipMap == 0 ? (D3DUSAGE_AUTOGENMIPMAP | D3DUSAGE_DYNAMIC) : D3DUSAGE_DYNAMIC;
 
         if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
             image->height,
             mipMap,
-            D3DUSAGE_DYNAMIC,
+            usage,
             requested_format,
             D3DPOOL_DEFAULT,//,
             pp3DTexture9, nullptr)))
@@ -255,46 +290,23 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
             return false;
         }
-        uint8_t* dataDest = static_cast<uint8_t*>(lockDestRect.pBits);
-        const uint8_t* dataImage = reinterpret_cast<const uint8_t*>(image->data);
-        if (descSurfaceDest.Format == D3DFMT_R8G8B8)
-        {
-            const uint32_t sizeImage = width * height * 3;
-            for (uint32_t i = 0; i < sizeImage; i += 3)
-            {
-                const uint8_t r = dataImage[i];
-                const uint8_t g = dataImage[i + 1];
-                const uint8_t b = dataImage[i + 2];
-                dataDest[i] = b;
-                dataDest[i + 1] = g;
-                dataDest[i + 2] = r;
-            }
-        }
-        else if (descSurfaceDest.Format == D3DFMT_A8R8G8B8)
-        {
-            const uint32_t sizeImage = width * height * 4;
-            for (uint32_t i = 0; i < sizeImage; i += 4)
-            {
-                const uint8_t r = dataImage[i];
-                const uint8_t g = dataImage[i + 1];
-                const uint8_t b = dataImage[i + 2];
-                const uint8_t a = dataImage[i + 3];
-                dataDest[i] = b; // blue
-                dataDest[i + 1] = g; // green
-                dataDest[i + 2] = r; // red
-                dataDest[i + 3] = a; // alpha
-            }
-        }
-        else
-        {
-            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
-        }
+
+        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, reinterpret_cast<const uint8_t*>(image->data));
+
         if (surfaceDest != nullptr)
         {
             surfaceDest->UnlockRect();
             surfaceDest->Release();
         }
         surfaceDest = nullptr;
+        // If we created a full mip chain, generate the mipmaps from level 0.
+        if (mipMap == 0)
+        {
+            // Try to autogenerate using the texture method if supported.
+            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
+            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
+            p3DTexture9->GenerateMipSubLevels();
+        }
         return true;
     }
 
