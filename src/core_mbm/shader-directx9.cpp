@@ -257,35 +257,30 @@ namespace mbm
         
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
-        for (uint32_t i = 0; i < totalSubset; ++i)
+        const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
+        this->bs->FVF = d3d_converter.getFVF();
+        const DWORD DFVF = d3d_converter.get3d3FVF();
+        this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+        
+        if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
+            this->bs->sizeStructVertexInBytes  * sizeOfArrayVertex,
+            D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
+            DFVF,//FVF
+            D3DPOOL_MANAGED,//local memory
+            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            nullptr)))				//Always null
         {
-            const uint32_t vertexStartVB = vertexStartSubset[i];
-            const uint32_t vertexCountVB = vertexCountSubset[i];
-            const D3D_VERTEX_CONVERTER d3d_converter(&vertex[vertexStartVB], &normal[vertexStartVB], &uv[vertexStartVB], vertexCountVB);
-            this->bs->FVF = d3d_converter.getFVF();
-            const DWORD DFVF = d3d_converter.get3d3FVF();
-            const uint32_t sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
-            //TODO: Fix this loop
-            if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
-                sizeStructVertexInBytes * vertexCountVB,
-                D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
-                DFVF,//FVF
-                D3DPOOL_DEFAULT,//local memory
-                &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
-                nullptr)))				//Always null
-            {
-                ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
-                return false;
-            }
-            void* pvertex = nullptr;
-            if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
-            {
-                ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
-                return false;
-            }
-            d3d_converter.copyTod3dVertexBuffer(pvertex);
-            this->bs->pVertexBuffer->Unlock();
+            ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
+            return false;
         }
+        void* pvertex = nullptr;
+        if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+            return false;
+        }
+        d3d_converter.copyTod3dVertexBuffer(pvertex);
+        this->bs->pVertexBuffer->Unlock();
         this->totalSubset = totalSubsets;
         return true;
     }
@@ -784,18 +779,15 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_TRIANGLES:
                     {
-                        //const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
-                        //if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLELIST, pBufferId->indexStartIB[i], countTriangle)))
-                        //    return false;
-                        const UINT countTriangle = pBufferId->indexCountIB[i] - 2;
-                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->indexStartIB[i], countTriangle)))
+                        const UINT countTriangle = pBufferId->vertexCountVB[i] - 2;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->vertexStartVB[i], countTriangle)))
                             return false;
                     };
                     break;
                     case util::MODE_DRAW_TRIANGLE_STRIP:
                     {
-                        const UINT countTriangle = pBufferId->indexCountIB[i] - 2;
-                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->indexStartIB[i], countTriangle)))
+                        const UINT countTriangle = pBufferId->vertexCountVB[i] - 2;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, pBufferId->vertexStartVB[i], countTriangle)))
                             return false;
                     };
                     break;

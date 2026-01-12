@@ -57,7 +57,8 @@ void MY_SCENE::init()
     device->camera.focus    = mbm::VEC3(0, 280, 0);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
-    util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
+    //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
+    util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
     //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
     //this->texBox->load("wooden-box.jpg", 200, 200);
     //this->texBox->alwaysRenderize = true;
@@ -69,9 +70,17 @@ void MY_SCENE::init()
     //sprite->alwaysRenderize = true;
     //sprite->setAnimation("attack-right");
     //sprite->angle.x = 3.14;
+    
+    //**************
+    //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails
+    //**************
 
     mesh = new mbm::MESH(this, false, false);
-    mesh->load("Axe1.mbm");
+    //mesh->load("crateShattered.mbm"); VB noi texture?
+    mesh->load("crateWreck1.mbm");
+    mesh->scale.x = 3;
+    mesh->scale.y = 3;
+    mesh->scale.z = 3;
 }
 
 void MY_SCENE::logic()
