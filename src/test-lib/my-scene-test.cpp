@@ -27,6 +27,7 @@ MY_SCENE::MY_SCENE()
     texBox = nullptr;
     gif    = nullptr;
     sprite = nullptr;
+    mesh   = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -54,18 +55,23 @@ void MY_SCENE::init()
     mbm::DEVICE * device    = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
-    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
-    this->texBox->load("wooden-box.jpg", 200, 200);
-    this->texBox->alwaysRenderize = true;
-    gif = new mbm::GIF_VIEW(this,false,false);
-    gif->load("Lion-King.gif");
+    util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
+    util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
+    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    //this->texBox->load("wooden-box.jpg", 200, 200);
+    //this->texBox->alwaysRenderize = true;
+    //gif = new mbm::GIF_VIEW(this,false,false);
+    //gif->load("Lion-King.gif");
 
-    sprite = new mbm::SPRITE(this, false, true);
-    sprite->load("C:\\Users\\miche\\Documents\\tower-defense\\sprite\\archer-1.spt");
-    sprite->alwaysRenderize = true;
-    sprite->setAnimation("attack-right");
+    //sprite = new mbm::SPRITE(this, false, true);
+    //sprite->load("C:\\Users\\miche\\Documents\\tower-defense\\sprite\\archer-1.spt");
+    //sprite->alwaysRenderize = true;
+    //sprite->setAnimation("attack-right");
     //sprite->angle.x = 3.14;
+
+    mesh = new mbm::MESH(this, false, false);
+    mesh->load("Axe1.mbm");
 }
 
 void MY_SCENE::logic()

@@ -59,7 +59,7 @@ namespace mbm
         util::HEADER_MESH					   headerMesh;
         INFO_PHYSICS                           infoPhysics;
         util::INFO_ANIMATION                   infoAnimation;
-		util::INFO_DRAW_MODE			       info_mode;
+        util::INFO_DRAW_MODE			       info_mode;
         VEC2                                   zoomEditorSprite;
         util::TYPE_MESH                        typeMe;
         int                                    sizeCoordTexFrame_0;
@@ -80,7 +80,7 @@ namespace mbm
                                   util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
                                   std::vector<util::STAGE_PARTICLE> & lsStageParticle);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
-		API_IMPL static std::string getExtension(const char* fileName);
+        API_IMPL static std::string getExtension(const char* fileName);
         API_IMPL util::TYPE_MESH getType() noexcept;
         API_IMPL util::TYPE_MESH getType(const char *fileNamePath);
         API_IMPL void calculateNormals();
@@ -101,8 +101,8 @@ namespace mbm
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;
         API_IMPL void fixDefaultBoud();
         API_IMPL void release();
-		API_IMPL void deleteExtraInfo();
-		void *       extraInfo;
+        API_IMPL void deleteExtraInfo();
+        void *       extraInfo;
       private:
         void fillAtLeastOneBound();
         std::vector<std::string> getKnowPathsToExtraHeader();
@@ -125,7 +125,7 @@ namespace mbm
         util::MATERIAL_GLES             material;
         INFO_PHYSICS                    infoPhysics;
         util::INFO_ANIMATION            infoAnimation;
-	util::INFO_DRAW_MODE		info_mode;
+        util::INFO_DRAW_MODE		    info_mode;
         
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
@@ -134,7 +134,7 @@ namespace mbm
         API_IMPL const char *getFilenameMesh() const;
         API_IMPL virtual ~MESH_MBM();
         API_IMPL void release();
-	      API_IMPL void deleteExtraInfo();
+        API_IMPL void deleteExtraInfo();
         API_IMPL bool isLoaded() const;
         API_IMPL bool render(const uint32_t indexFrame,const SHADER *pShader, TEXTURE* ptrTexture1);
         API_IMPL bool renderDynamic(const uint32_t indexFrame, SHADER *pShader, VEC3 *vertex, VEC3 *normal,
@@ -143,11 +143,11 @@ namespace mbm
         API_IMPL VEC2 getZoomEditorSprite() const;
         API_IMPL uint32_t getTotalFrame() const;
         API_IMPL uint32_t getTotalSubset(const uint32_t indexFrame) const;
-	      API_IMPL const INFO_BOUND_FONT* getInfoFont()const;
-	      const std::vector<util::STAGE_PARTICLE*>* getInfoParticle()const;
-	      API_IMPL const util::BTILE_INFO* getInfoTile()const;
+        API_IMPL const INFO_BOUND_FONT* getInfoFont()const;
+        const std::vector<util::STAGE_PARTICLE*>* getInfoParticle()const;
+        API_IMPL const util::BTILE_INFO* getInfoTile()const;
         API_IMPL const util::DYNAMIC_SHAPE* getInfoShape()const;
-		
+        
       private:
         MESH_MBM() noexcept;
         bool load(const char *fileNamePath);

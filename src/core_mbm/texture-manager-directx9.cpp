@@ -44,6 +44,44 @@ namespace mbm
         useAlphaChannel = false;
     }
 
+    struct PIXELS_FROM_3_DEPTH_TO_4
+    {
+        PIXELS_FROM_3_DEPTH_TO_4():rgba_toDelete(nullptr)
+        {
+
+        }
+        ~PIXELS_FROM_3_DEPTH_TO_4()
+        {
+            if (rgba_toDelete)
+                delete[] rgba_toDelete;
+            rgba_toDelete = nullptr;
+        }
+
+        const uint8_t* get(const uint32_t width, const uint32_t height, const uint8_t* imgSource)
+        {
+            if (rgba_toDelete)
+                delete[] rgba_toDelete;
+            rgba_toDelete = nullptr;
+            rgba_toDelete = new uint8_t[width * height * 4];
+            const uint32_t sizeImage = width * height * 3;
+            for (uint32_t i = 0, j = 0; i < sizeImage; i += 3, j += 4)
+            {
+                const uint8_t r = imgSource[i];
+                const uint8_t g = imgSource[i + 1];
+                const uint8_t b = imgSource[i + 2];
+                rgba_toDelete[j] = r;
+                rgba_toDelete[j + 1] = g;
+                rgba_toDelete[j + 2] = b;
+                rgba_toDelete[j + 3] = 0xff; // 255 - Opaco
+            }
+            return rgba_toDelete;
+        }
+    private:
+        uint8_t* rgba_toDelete;
+    };
+
+    
+
     static void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
                                         const uint32_t width, 
                                         const uint32_t height, 
@@ -117,39 +155,27 @@ namespace mbm
         }
         this->width  = w;
         this->height = h;
-        uint8_t *rgba_toDelete = nullptr;
         D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
+        PIXELS_FROM_3_DEPTH_TO_4 pixels_from_3_depth_to_4;
         if (channel == 3 && hasAlpha == false)
         {
             requested_format = D3DFMT_R8G8B8;
         }
         if (channel == 3 && hasAlpha == true) // requested to have alpha, so we added
         {
-            uint8_t* rgba            = new uint8_t[width * height * 4];
-            const uint32_t sizeImage = width * height * 3;
-            rgba_toDelete            = rgba;
-            for (uint32_t i = 0, j = 0; i < sizeImage; i += 3, j += 4)
-            {
-                const uint8_t r = img[i];
-                const uint8_t g = img[i + 1];
-                const uint8_t b = img[i + 2];
-                rgba[j]         = r;
-                rgba[j + 1]     = g;
-                rgba[j + 2]     = b;
-                rgba[j + 3]     = 0xff; // 255 - Opaco
-            }
+            img = pixels_from_3_depth_to_4.get(width, height, img);
         }
         
         IDirect3DSurface9* surfaceDest = nullptr;
         D3DSURFACE_DESC	descSurfaceDest;
         D3DLOCKED_RECT	lockDestRect;
-		mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
 
-        const UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
-        const DWORD usage = mipMap == 0 ? (D3DUSAGE_AUTOGENMIPMAP | D3DUSAGE_DYNAMIC) : D3DUSAGE_DYNAMIC;
+        UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
         
-		if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
+        if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
             h,
             mipMap,
             usage,
@@ -157,25 +183,52 @@ namespace mbm
             D3DPOOL_DEFAULT,//,
             pp3DTexture9, nullptr)))
         {
-            ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
-            if (rgba_toDelete)
-                delete[] rgba_toDelete;
-            return false;
+            mipMap = 1;
+            usage = D3DUSAGE_DYNAMIC;
+            if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
+                h,
+                mipMap,
+                usage,
+                requested_format,
+                D3DPOOL_DEFAULT,
+                pp3DTexture9, nullptr)))
+            {
+                // Always upload as A8R8G8B8 and set alpha to 0xFF when source has no alpha — avoids unsupported 24 - bit format.
+                if (channel == 3 && hasAlpha == false && requested_format == D3DFMT_R8G8B8) // we will force 24 bit format
+                {
+                    img = pixels_from_3_depth_to_4.get(width, height, img);
+                    requested_format = D3DFMT_A8R8G8B8;
+
+                    if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
+                        h,
+                        mipMap,
+                        usage,
+                        requested_format,
+                        D3DPOOL_DEFAULT,//,
+                        pp3DTexture9, nullptr)))
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
+                        return false;
+                    }
+                }
+                else
+                {
+                    ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
+                    return false;
+                }
+            }
         }
+        
         IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
         if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to get surface of texture");
-            if (rgba_toDelete)
-                delete[] rgba_toDelete;
             return false;
         }
         if (FAILED(surfaceDest->GetDesc(&descSurfaceDest)))
         {
             if (surfaceDest)
                 surfaceDest->Release();
-            if (rgba_toDelete)
-                delete[] rgba_toDelete;
             ERROR_AT(__LINE__, __FILE__, "failed to get description of texture");
             return false;
         }
@@ -183,8 +236,6 @@ namespace mbm
         {
             if (surfaceDest)
                 surfaceDest->Release();
-            if (rgba_toDelete)
-                delete[] rgba_toDelete;
             ERROR_AT(__LINE__, __FILE__, "failed to lock texture");
             return false;
         }
@@ -196,21 +247,11 @@ namespace mbm
                 surfaceDest->UnlockRect();
                 surfaceDest->Release();
             }
-            if (rgba_toDelete)
-                delete[] rgba_toDelete;
             ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
             return false;
         }
-        const uint8_t* dataImage = img;
-        if (rgba_toDelete)
-        {
-            dataImage = rgba_toDelete;
-        }
         
-        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, dataImage);
-
-        if (rgba_toDelete)
-            delete[] rgba_toDelete;
+        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, img);
 
         if (surfaceDest != nullptr)
         {
@@ -244,9 +285,9 @@ namespace mbm
         IDirect3DSurface9* surfaceDest = nullptr;
         D3DSURFACE_DESC	descSurfaceDest;
         D3DLOCKED_RECT	lockDestRect;
-        
-        const UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
-        const DWORD usage = mipMap == 0 ? (D3DUSAGE_AUTOGENMIPMAP | D3DUSAGE_DYNAMIC) : D3DUSAGE_DYNAMIC;
+
+        UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
 
         if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
             image->height,
@@ -256,8 +297,19 @@ namespace mbm
             D3DPOOL_DEFAULT,//,
             pp3DTexture9, nullptr)))
         {
-            ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
-            return false;
+            mipMap = 1;
+            usage = D3DUSAGE_DYNAMIC;
+            if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
+                image->height,
+                mipMap,
+                usage,
+                requested_format,
+                D3DPOOL_DEFAULT,
+                pp3DTexture9, nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
+                return false;
+            }
         }
         IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
         if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))

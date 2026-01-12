@@ -36,7 +36,6 @@ namespace util
         MODE_DRAW_TRIANGLE_FAN    = 6,
     };
 
-    API_IMPL uint32_t get_mode_draw_from_enum(const util::MODE_DRAW enum_mode_draw) noexcept ;
     API_IMPL const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret) noexcept;
     API_IMPL const uint32_t get_mode_draw_from_string(const char* str_mode_draw) noexcept;
     
@@ -47,7 +46,6 @@ namespace util
         CULL_FRONT_AND_BACK = 0x0408,
     };
 
-    API_IMPL uint32_t get_mode_cull_face_from_enum(const CULL_MODE enum_mode_cull_face) noexcept ;
     API_IMPL const char* get_mode_cull_face_from_uint(const uint32_t mode_cull_face, const char* default_mode_cull_face_ret) noexcept;
     API_IMPL const uint32_t get_mode_cull_face_from_string(const char* str_mode_cull_face) noexcept;
 
@@ -57,7 +55,6 @@ namespace util
         CCW = 0x0901,
     };
 
-    API_IMPL uint32_t get_mode_front_face_direction_enum(const FACE_DIRECTION enum_mode_front_face_direction) noexcept ;
     API_IMPL const char* get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret) noexcept;
     API_IMPL const uint32_t get_mode_front_face_direction_from_string(const char* str_mode_front_face_direction) noexcept;
 

@@ -28,22 +28,6 @@
 
 namespace util
 {
-    uint32_t get_mode_draw_from_enum(const util::MODE_DRAW enum_mode_draw) noexcept 
-    {
-        #pragma message(REMINDER_TODO "  implement me");
-        switch (enum_mode_draw)
-        {
-            case util::MODE_DRAW_POINTS:         return util::MODE_DRAW_POINTS;
-            case util::MODE_DRAW_LINES:          return util::MODE_DRAW_LINES;
-            case util::MODE_DRAW_LINE_LOOP:      return util::MODE_DRAW_LINE_LOOP;
-            case util::MODE_DRAW_LINE_STRIP:     return util::MODE_DRAW_LINE_STRIP;
-            case util::MODE_DRAW_TRIANGLES:      return util::MODE_DRAW_TRIANGLES;
-            case util::MODE_DRAW_TRIANGLE_STRIP: return util::MODE_DRAW_TRIANGLE_STRIP;
-            case util::MODE_DRAW_TRIANGLE_FAN:   return util::MODE_DRAW_TRIANGLE_FAN;
-            default: return std::numeric_limits<uint32_t>::max();
-        }
-    }
-
     const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret) noexcept 
     {
         switch (mode_draw)
@@ -56,18 +40,6 @@ namespace util
             case util::MODE_DRAW_TRIANGLE_STRIP: return "TRIANGLE_STRIP";
             case util::MODE_DRAW_TRIANGLE_FAN:   return "TRIANGLE_FAN";
             default: return default_mode_draw_ret;
-        }
-    }
-
-    uint32_t get_mode_cull_face_from_enum(const CULL_MODE enum_mode_cull_face) noexcept
-    {
-        #pragma message(REMINDER_TODO "  implement me");
-        switch (enum_mode_cull_face)
-        {
-            case util::CULL_FRONT:          return util::CULL_FRONT;
-            case util::CULL_BACK:           return util::CULL_BACK;
-            case util::CULL_FRONT_AND_BACK: return util::CULL_FRONT_AND_BACK;
-            default: return std::numeric_limits<uint32_t>::max();
         }
     }
 

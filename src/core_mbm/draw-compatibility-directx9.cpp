@@ -27,21 +27,6 @@
 
 namespace util
 {
-    uint32_t get_mode_draw_from_enum(const util::MODE_DRAW enum_mode_draw) noexcept 
-    {
-        switch (enum_mode_draw)
-        {
-            //case util::MODE_DRAW_POINTS:         return DX;
-            //case util::MODE_DRAW_LINES:          return GL_LINES;
-            //case util::MODE_DRAW_LINE_LOOP:      return GL_LINE_LOOP;
-            //case util::MODE_DRAW_LINE_STRIP:     return GL_LINE_STRIP;
-            //case util::MODE_DRAW_TRIANGLES:      return GL_TRIANGLES;
-            //case util::MODE_DRAW_TRIANGLE_STRIP: return GL_TRIANGLE_STRIP;
-            //case util::MODE_DRAW_TRIANGLE_FAN:   return GL_TRIANGLE_FAN;
-            default: return std::numeric_limits<uint32_t>::max();
-        }
-    }
-
     const char* get_mode_draw_from_uint(const uint32_t mode_draw, const char* default_mode_draw_ret) noexcept 
     {
         switch (mode_draw)
@@ -54,17 +39,6 @@ namespace util
             case util::MODE_DRAW_TRIANGLE_STRIP: return "TRIANGLE_STRIP";
             case util::MODE_DRAW_TRIANGLE_FAN:   return "TRIANGLE_FAN";
             default: return default_mode_draw_ret;
-        }
-    }
-
-    uint32_t get_mode_cull_face_from_enum(const CULL_MODE enum_mode_cull_face) noexcept
-    {
-        switch (enum_mode_cull_face)
-        {
-            //case util::CULL_FRONT:          return GL_FRONT;
-            //case util::CULL_BACK:           return GL_BACK;
-            //case util::CULL_FRONT_AND_BACK: return GL_FRONT_AND_BACK;
-            default: return std::numeric_limits<uint32_t>::max();
         }
     }
 
@@ -91,16 +65,6 @@ namespace util
         //if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
         //    return GL_FRONT_AND_BACK;
         return default_mode_cull_face_ret;
-    }
-
-    uint32_t get_mode_front_face_direction_enum(const FACE_DIRECTION enum_mode_front_face_direction) noexcept
-    {
-        switch (enum_mode_front_face_direction)
-        {
-            //case util::CW:  return GL_CW;
-            //case util::CCW: return GL_CCW;
-            default: return std::numeric_limits<uint32_t>::max();
-        }
     }
 
     const char* get_mode_front_face_direction_from_uint(const uint32_t mode_front_face_direction, const char* default_mode_front_face_direction_ret) noexcept
