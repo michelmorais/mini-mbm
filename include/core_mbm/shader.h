@@ -57,7 +57,7 @@ namespace mbm
     class BUFFER_GL
     {
       public:
-        API_IMPL BUFFER_GL() noexcept;
+        API_IMPL BUFFER_GL();
         API_IMPL virtual ~BUFFER_GL();
         API_IMPL bool isLoadedBuffer() const;
         API_IMPL void release();
@@ -78,8 +78,6 @@ namespace mbm
         uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
         uint32_t mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
         uint32_t mode_front_face_direction; //GL_CW, GL_CCW
-
-        //uint32_t* vboIndexSubsetIB; // vbo index buffer IB (when != null is index buffer)
 
         inline bool isIndexBuffer() const noexcept { return initializedIndexBuffer; }
         uint32_t totalSubset;   // Total of subset of this buffer

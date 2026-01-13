@@ -43,6 +43,11 @@ namespace mbm
 
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
     {
+        this->release();
+    }
+
+    void BUFFER_SPECIFIC::release()
+    {
         if (pVertexBuffer)
             pVertexBuffer->Release();
         pVertexBuffer = nullptr;
@@ -53,7 +58,7 @@ namespace mbm
         sizeStructVertexInBytes = 0;
     }
 
-    BUFFER_GL::BUFFER_GL() noexcept :
+    BUFFER_GL::BUFFER_GL() :
         indexStartIB(nullptr),
         indexCountIB(nullptr),
         vertexStartVB(nullptr),
@@ -96,7 +101,8 @@ namespace mbm
         this->indexCountIB = nullptr;
         this->sizeOfArrayVertex = 0;
         this->initializedIndexBuffer = false;
-        #pragma message(REMINDER_TODO "  implement delete buffer");
+        //we do not delete bs
+        bs->release();
         totalSubset   = 0;
     }
 
@@ -554,27 +560,126 @@ namespace mbm
     {
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        const char *defaultCodePs = "precision mediump float;"
-                                    "varying vec2 vTexCoord;"
-                                    "uniform sampler2D sample0;"
-                                    "void main()"
-                                    "{"
-                                    "    gl_FragColor = texture2D( sample0, vTexCoord );"
-                                    "}";
+        constexpr char *defaultCodePs = "Texture2D sample0 : register(t0);"
+                                        "SamplerState samplerState : register(s0);"
+                                        ""
+                                        "struct PS_INPUT"
+                                        "{"
+                                        "    float4 position : SV_POSITION;"
+                                        "    float2 vTexCoord : TEXCOORD0;"
+                                        "};"
+                                        ""
+                                        "float4 main(PS_INPUT input) : SV_TARGET"
+                                        "{"
+                                        "    return sample0.Sample(samplerState, input.vTexCoord);"
+                                        "}";
 
-        const char *defaultCodeVs =
-            "attribute vec4 aPosition;"
-            "attribute vec2 aTextCoord;"
-            "attribute vec3 aNormal;" // Per-vertex normal information we will pass in.
-            "uniform mat4 mvpMatrix;" // A constant representing the combined model/view/projection matrix.
-            "varying vec2 vTexCoord;"
-            "void main()"
-            "{"
-            "     gl_Position = mvpMatrix * aPosition;"
-            "     vTexCoord = aTextCoord;"
-            "}";
-        return true;
-        if (this->programObject)
+        constexpr char *defaultCodeVs =
+                                        "cbuffer TransformBuffer : register(b0)"
+                                        "{"
+                                        "    float4x4 mvpMatrix;"
+                                        "};"
+                                        ""
+                                        "struct VS_INPUT"
+                                        "{"
+                                        "    float4 aPosition : POSITION;"
+                                        "    float2 aTextCoord : TEXCOORD0;"
+                                        "    float3 aNormal : NORMAL;"
+                                        "};"
+                                        ""
+                                        "struct VS_OUTPUT"
+                                        "{"
+                                        "    float4 position : SV_POSITION;"
+                                        "    float2 vTexCoord : TEXCOORD0;"
+                                        "};"
+                                        ""
+                                        "VS_OUTPUT main(VS_INPUT input)"
+                                        "{"
+                                        "    VS_OUTPUT output;"
+                                        "    output.position = mul(input.aPosition, mvpMatrix);"
+                                        "    output.vTexCoord = input.aTextCoord;"
+                                        "    return output;"
+                                        "}";
+        
+
+
+        
+        constexpr char* mainFunction = "main";
+        constexpr char* versionPS = "ps_2_0";
+        constexpr char* versionVS = "vs_2_0";
+        ID3DXBuffer* bufferPS = nullptr;
+        ID3DXBuffer* bufferVS = nullptr;
+        ID3DXBuffer* errorBuffer = nullptr;
+        ID3DXConstantTable* constantTablePS = nullptr;//Modo de acessar variaveis shader
+        ID3DXConstantTable* constantTableVS = nullptr;
+        IDirect3DPixelShader9* pd3dPixelShader = nullptr;//Pixel Shader
+        IDirect3DVertexShader9* pd3dVertexShader = nullptr;//Vertex Shader
+        D3DXHANDLE						mvpMatrixHandle;
+        D3DXHANDLE						mvMatrixHandle;
+        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
+        const char* codeVS = ptrPshader ? this->vShader->getCode() : defaultCodeVs;
+        const int sizeOfCodePS = strlen(codePS);
+        const int sizeOfCodeVS = strlen(codeVS);
+#if defined _DEBUG
+        constexpr DWORD flag = D3DXSHADER_DEBUG;
+#else
+        constexpr DWORD flag = D3DXSHADER_SKIPVALIDATION;
+#endif
+        if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &constantTablePS)))
+        {
+            if (errorBuffer)
+            {
+                ERROR_AT(__LINE__,__FILE__, "error on load pixel shader:\n [%s]",static_cast<const char*>(errorBuffer->GetBufferPointer()));
+                errorBuffer->Release();
+                pShader = NULL;
+                return false;
+            }
+        }
+        if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &constantTableVS)))
+        {
+            if (errorBuffer)
+            {
+                ERROR_AT(__LINE__, __FILE__, "error on load vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+                errorBuffer->Release();
+                pShader = NULL;
+                return false;
+            }
+        }
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        if (FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &pd3dPixelShader)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "error on create pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+            return false;
+        }
+        if (FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &pd3dVertexShader)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "error on create vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+            return false;
+        }
+        if (constantTablePS)
+        {
+            constantTablePS->SetDefaults(pd3dDevice);
+        }
+        if (constantTableVS)
+        {
+            constantTableVS->SetDefaults(pd3dDevice);
+        }
+
+        //GLint aPosition = GLGetAttribLocation(programObject, "aPosition");
+        //this->positionHandle = static_cast<GLint>(aPosition);
+        //this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix");
+        //this->mvMatrixHandle = GLGetUniformLocation(programObject, "mvMatrix");
+        //GLint aTextCoord = GLGetAttribLocation(programObject, "aTextCoord");
+        //this->texCoordHandle = static_cast<GLint>(aTextCoord);
+        //this->samplerHandle0 = GLGetUniformLocation(programObject, "sample0");
+        //this->samplerHandle1 = GLGetUniformLocation(programObject, "sample1");
+        //GLint aNormal = GLGetAttribLocation(programObject, "aNormal")
+        //this->normalHandle = static_cast<GLint>(aNormal);
+        
+        
+        //TODO: we do not need to loadShaderProgram (remove from common) 
+        /*if (this->programObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]",this->programObject);
             return true;
@@ -598,7 +703,7 @@ namespace mbm
         {
             if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
                 return false;
-        }
+        }*/
         #pragma message(REMINDER_TODO "  implement get attrib and uniform locations");
         return true;
     }

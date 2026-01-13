@@ -46,9 +46,9 @@ namespace util
     {
         switch (mode_cull_face)
         {
-            //case util::CULL_FRONT:          return "FRONT";
-            //case util::CULL_BACK:           return "BACK";
-            //case util::CULL_FRONT_AND_BACK: return "FRONT_AND_BACK";
+            case util::CULL_FRONT:          return "FRONT";
+            case util::CULL_BACK:           return "BACK";
+            case util::CULL_FRONT_AND_BACK: return "FRONT_AND_BACK";
             default: return default_mode_cull_face_ret;
         }
     }
@@ -58,12 +58,12 @@ namespace util
         constexpr uint32_t default_mode_cull_face_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_cull_face == nullptr)
             return default_mode_cull_face_ret;
-        //if (strcmp(str_mode_cull_face, "FRONT") == 0)
-        //    return GL_FRONT;
-        //if (strcmp(str_mode_cull_face, "BACK") == 0)
-        //    return GL_BACK;
-        //if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
-        //    return GL_FRONT_AND_BACK;
+        if (strcmp(str_mode_cull_face, "FRONT") == 0)
+            return util::CULL_FRONT;
+        if (strcmp(str_mode_cull_face, "BACK") == 0)
+            return util::CULL_BACK;
+        if (strcmp(str_mode_cull_face, "FRONT_AND_BACK") == 0)
+            return util::CULL_FRONT_AND_BACK;
         return default_mode_cull_face_ret;
     }
 
@@ -71,8 +71,8 @@ namespace util
     {
         switch (mode_front_face_direction)
         {
-            //case util::CW:  return "CW";
-            //case util::CCW: return "CCW";
+            case util::CW:  return "CW";
+            case util::CCW: return "CCW";
             default: return default_mode_front_face_direction_ret;
         }
     }
@@ -82,20 +82,20 @@ namespace util
         constexpr uint32_t default_mode_draw_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_draw == nullptr)
             return default_mode_draw_ret;
-        //if (strcmp(str_mode_draw, "TRIANGLES") == 0)
-        //    return GL_TRIANGLES;
-        //if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
-        //    return GL_TRIANGLE_STRIP;
-        //if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
-        //    return GL_TRIANGLE_FAN;
-        //if (strcmp(str_mode_draw, "LINES") == 0)
-        //    return GL_LINES;
-        //if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
-        //    return GL_LINE_LOOP;
-        //if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
-        //    return GL_LINE_STRIP;
-        //if (strcmp(str_mode_draw, "POINTS") == 0)
-        //    return GL_POINTS;
+        if (strcmp(str_mode_draw, "TRIANGLES") == 0)
+            return util::MODE_DRAW_TRIANGLES;
+        if (strcmp(str_mode_draw, "TRIANGLE_STRIP") == 0)
+            return util::MODE_DRAW_TRIANGLE_STRIP;
+        if (strcmp(str_mode_draw, "TRIANGLE_FAN") == 0)
+            return util::MODE_DRAW_TRIANGLE_FAN;
+        if (strcmp(str_mode_draw, "LINES") == 0)
+            return util::MODE_DRAW_LINES;
+        if (strcmp(str_mode_draw, "LINE_LOOP") == 0)
+            return util::MODE_DRAW_LINE_LOOP;
+        if (strcmp(str_mode_draw, "LINE_STRIP") == 0)
+            return util::MODE_DRAW_LINE_STRIP;
+        if (strcmp(str_mode_draw, "POINTS") == 0)
+            return util::MODE_DRAW_POINTS;
         return default_mode_draw_ret;
     }
 
@@ -104,10 +104,10 @@ namespace util
         constexpr uint32_t default_mode_front_face_direction_ret = std::numeric_limits<uint32_t>::max();
         if (str_mode_front_face_direction == nullptr)
             return default_mode_front_face_direction_ret;
-        //if (strcmp(str_mode_front_face_direction, "CW") == 0)
-        //    return GL_CW;
-        //if (strcmp(str_mode_front_face_direction, "CCW") == 0)
-        //    return GL_CCW;
+        if (strcmp(str_mode_front_face_direction, "CW") == 0)
+            return util::FACE_DIRECTION::CW;
+        if (strcmp(str_mode_front_face_direction, "CCW") == 0)
+            return util::FACE_DIRECTION::CCW;
         return default_mode_front_face_direction_ret;
     }
 
@@ -141,9 +141,9 @@ namespace util
     {
         switch(mode_front_face_direction)
         {
-            case FACE_DIRECTION::CW: return true;
-            case FACE_DIRECTION::CCW  		   : return true;
-            default                : return false;
+            case FACE_DIRECTION::CW  : return true;
+            case FACE_DIRECTION::CCW : return true;
+            default                  : return false;
         }
     }
 
