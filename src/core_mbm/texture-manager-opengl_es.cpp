@@ -41,7 +41,7 @@ namespace mbm
         useAlphaChannel = false;
     }
 
-        bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
+    bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
                              const uint32_t w, const uint32_t h, const uint16_t depth,
                              const uint16_t channel, const bool hasAlpha)
     {
@@ -140,6 +140,11 @@ namespace mbm
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
         return true;
+    }
+
+    TEXTURE* TEXTURE_MANAGER::loadNativeEngine(const char* fileName, const bool forceAlpha) // No native implementation for OpenGl
+    {
+        return nullptr;
     }
 
     TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
