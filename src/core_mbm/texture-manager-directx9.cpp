@@ -138,6 +138,200 @@ namespace mbm
         }
     }
 
+    static bool created3dTexture(IDirect3DTexture9** pp3DTexture9, 
+                                const bool no_filter, 
+                                const uint8_t* data,
+                                const uint32_t width, const uint32_t height,
+                                const uint16_t channel, const bool hasAlpha)
+    {
+        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
+        PIXELS_FROM_3_DEPTH_TO_4 pixels_from_3_depth_to_4;
+        IDirect3DSurface9* surfaceDest = nullptr;
+        D3DSURFACE_DESC	descSurfaceDest;
+        D3DLOCKED_RECT	lockDestRect;
+
+        if (channel == 3 && hasAlpha == false)
+        {
+            requested_format = D3DFMT_R8G8B8;
+        }
+        if (channel == 3 && hasAlpha == true) // requested to have alpha, so we added
+        {
+            data = pixels_from_3_depth_to_4.get(width, height, data);
+        }
+        UINT mipMap = no_filter ? 1U : 0U; // 0 -> full mip chain
+        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
+        if (width <= 128 && height <= 128)
+        {
+            usage = D3DUSAGE_DYNAMIC;
+            mipMap = 1;
+        }
+
+        if (FAILED(pd3dDevice->CreateTexture(width,
+            height,
+            mipMap,
+            usage,
+            requested_format,
+            D3DPOOL_DEFAULT,//,
+            pp3DTexture9, nullptr)))
+        {
+            mipMap = 1;
+            usage = D3DUSAGE_DYNAMIC;
+            if (FAILED(pd3dDevice->CreateTexture(width,
+                height,
+                mipMap,
+                usage,
+                requested_format,
+                D3DPOOL_DEFAULT,
+                pp3DTexture9, nullptr)))
+            {
+                // Always upload as A8R8G8B8 and set alpha to 0xFF when source has no alpha — avoids unsupported 24 - bit format.
+                if (channel == 3 && hasAlpha == false && requested_format == D3DFMT_R8G8B8) // we will force 24 bit format
+                {
+                    data = pixels_from_3_depth_to_4.get(width, height, data);
+                    requested_format = D3DFMT_A8R8G8B8;
+
+                    if (FAILED(pd3dDevice->CreateTexture(width,
+                        height,
+                        mipMap,
+                        usage,
+                        requested_format,
+                        D3DPOOL_DEFAULT,//,
+                        pp3DTexture9, nullptr)))
+                    {
+                        PRINT_IF_DEBUG("failed to create dynamic texture ");
+                        return false;
+                    }
+                }
+                else
+                {
+                    PRINT_IF_DEBUG("failed to create dynamic texture ");
+                    return false;
+                }
+            }
+        }
+
+        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
+        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
+        {
+            PRINT_IF_DEBUG("failed to get surface of texture");
+            return false;
+        }
+        if (FAILED(surfaceDest->GetDesc(&descSurfaceDest)))
+        {
+            if (surfaceDest)
+                surfaceDest->Release();
+            PRINT_IF_DEBUG("failed to get description of texture");
+            return false;
+        }
+        if (D3DFMT_A8R8G8B8 != descSurfaceDest.Format && descSurfaceDest.Format != D3DFMT_R8G8B8)
+        {
+            if (surfaceDest)
+            {
+                surfaceDest->Release();
+            }
+            PRINT_IF_DEBUG("Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
+            return false;
+        }
+
+        DWORD lockFlags = (usage & D3DUSAGE_DYNAMIC) ? D3DLOCK_DISCARD : 0;
+        HRESULT hrLock = surfaceDest->LockRect(&lockDestRect, 0, lockFlags);
+        if (FAILED(hrLock))
+        {
+            // LockRect failed on GPU surface — try system-memory fallback:
+            PRINT_IF_DEBUG("LockRect failed on GPU surface (hr=0x%08x). Trying system memory fallback...", hrLock);
+
+            IDirect3DTexture9* texSys = nullptr;
+            HRESULT hrCreateSys = pd3dDevice->CreateTexture(
+                width, height,                          // width, height
+                1,                                      // single mip level for system copy
+                0,                                      // usage for system mem copy
+                requested_format,
+                D3DPOOL_SYSTEMMEM,
+                &texSys,
+                nullptr);
+
+            if (FAILED(hrCreateSys) || texSys == nullptr)
+            {
+                PRINT_IF_DEBUG("CreateTexture (SYSTEMMEM) failed (hr=0x%08x)", hrCreateSys);
+                surfaceDest->Release();
+                return false;
+            }
+
+            IDirect3DSurface9* surfSys = nullptr;
+            HRESULT hrGetSurf = texSys->GetSurfaceLevel(0, &surfSys);
+            if (FAILED(hrGetSurf) || surfSys == nullptr)
+            {
+                PRINT_IF_DEBUG("GetSurfaceLevel (SYSTEMMEM) failed (hr=0x%08x)", hrGetSurf);
+                texSys->Release();
+                surfaceDest->Release();
+                return false;
+            }
+
+            D3DSURFACE_DESC descSys;
+            if (FAILED(surfSys->GetDesc(&descSys)))
+            {
+                PRINT_IF_DEBUG("GetDesc (SYSTEMMEM) failed");
+                surfSys->Release();
+                texSys->Release();
+                surfaceDest->Release();
+                return false;
+            }
+
+            D3DLOCKED_RECT lrSys;
+            HRESULT hrLockSys = surfSys->LockRect(&lrSys, nullptr, 0);
+            if (FAILED(hrLockSys))
+            {
+                PRINT_IF_DEBUG("LockRect (SYSTEMMEM) failed (hr=0x%08x)", hrLockSys);
+                surfSys->Release();
+                texSys->Release();
+                surfaceDest->Release();
+                return false;
+            }
+
+            // copy pixels into system-memory surface
+            copy_pixels_per_row_Pitch(descSys, width, height, lrSys, data);
+
+            surfSys->UnlockRect();
+            // Now copy systemmem texture -> GPU texture
+            HRESULT hrUpdate = pd3dDevice->UpdateTexture(texSys, p3DTexture9);
+            if (FAILED(hrUpdate))
+            {
+                PRINT_IF_DEBUG("UpdateTexture failed (hr=0x%08x)", hrUpdate);
+                surfSys->Release();
+                texSys->Release();
+                surfaceDest->Release();
+                return false;
+            }
+
+            // cleanup system mem resources
+            surfSys->Release();
+            texSys->Release();
+
+            // GPU surface not locked but top-level has been updated — continue without LockRect.
+        }
+        else
+        {
+            copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, data);
+
+            if (surfaceDest != nullptr)
+            {
+                surfaceDest->UnlockRect();
+                surfaceDest->Release();
+            }
+        }
+        surfaceDest = nullptr;
+        // If we created a full mip chain, generate the mipmaps from level 0.
+        if (mipMap == 0)
+        {
+            // Try to autogenerate using the texture method if supported.
+            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
+            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
+            p3DTexture9->GenerateMipSubLevels();
+        }
+        return true;
+    }
+
     bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
                              const uint32_t w, const uint32_t h, const uint16_t depth,
                              const uint16_t channel, const bool hasAlpha)
@@ -150,125 +344,18 @@ namespace mbm
         const uint8_t *img = uberImg.getImage8bitsPerPixel(data, w, h, depth, channel);
         if (img == nullptr)
         {
-            ERROR_AT(__LINE__, __FILE__, "failed to get texture from DATA");
+            PRINT_IF_DEBUG("failed to get texture from DATA");
             return false;
         }
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
         this->width  = w;
         this->height = h;
-        D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
-        PIXELS_FROM_3_DEPTH_TO_4 pixels_from_3_depth_to_4;
-        if (channel == 3 && hasAlpha == false)
-        {
-            requested_format = D3DFMT_R8G8B8;
-        }
-        if (channel == 3 && hasAlpha == true) // requested to have alpha, so we added
-        {
-            img = pixels_from_3_depth_to_4.get(width, height, img);
-        }
-        
-        IDirect3DSurface9* surfaceDest = nullptr;
-        D3DSURFACE_DESC	descSurfaceDest;
-        D3DLOCKED_RECT	lockDestRect;
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
-
-        UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
-        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
-        
-        if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
-            h,
-            mipMap,
-            usage,
-            requested_format,
-            D3DPOOL_DEFAULT,//,
-            pp3DTexture9, nullptr)))
-        {
-            mipMap = 1;
-            usage = D3DUSAGE_DYNAMIC;
-            if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
-                h,
-                mipMap,
-                usage,
-                requested_format,
-                D3DPOOL_DEFAULT,
-                pp3DTexture9, nullptr)))
-            {
-                // Always upload as A8R8G8B8 and set alpha to 0xFF when source has no alpha — avoids unsupported 24 - bit format.
-                if (channel == 3 && hasAlpha == false && requested_format == D3DFMT_R8G8B8) // we will force 24 bit format
-                {
-                    img = pixels_from_3_depth_to_4.get(width, height, img);
-                    requested_format = D3DFMT_A8R8G8B8;
-
-                    if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(w,
-                        h,
-                        mipMap,
-                        usage,
-                        requested_format,
-                        D3DPOOL_DEFAULT,//,
-                        pp3DTexture9, nullptr)))
-                    {
-                        ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
-                        return false;
-                    }
-                }
-                else
-                {
-                    ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
-                    return false;
-                }
-            }
-        }
-        
-        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
-        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
-        {
-            ERROR_AT(__LINE__, __FILE__, "failed to get surface of texture");
-            return false;
-        }
-        if (FAILED(surfaceDest->GetDesc(&descSurfaceDest)))
-        {
-            if (surfaceDest)
-                surfaceDest->Release();
-            ERROR_AT(__LINE__, __FILE__, "failed to get description of texture");
-            return false;
-        }
-        if (FAILED(surfaceDest->LockRect(&lockDestRect, 0, D3DLOCK_DISCARD)))
-        {
-            if (surfaceDest)
-                surfaceDest->Release();
-            ERROR_AT(__LINE__, __FILE__, "failed to lock texture");
-            return false;
-        }
-
-        if (D3DFMT_A8R8G8B8 != descSurfaceDest.Format && descSurfaceDest.Format != D3DFMT_R8G8B8)
-        {
-            if (surfaceDest)
-            {
-                surfaceDest->UnlockRect();
-                surfaceDest->Release();
-            }
-            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
-            return false;
-        }
-        
-        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, img);
-
-        if (surfaceDest != nullptr)
-        {
-            surfaceDest->UnlockRect();
-            surfaceDest->Release();
-        }
-        surfaceDest = nullptr;
         this->useAlphaChannel = hasAlpha ? true : false;
-        // If we created a full mip chain, generate the mipmaps from level 0.
-        if (mipMap == 0)
-        {
-            // Try to autogenerate using the texture method if supported.
-            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
-            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
-            p3DTexture9->GenerateMipSubLevels();
-        }
-        return true;
+        return created3dTexture(pp3DTexture9,
+            TEXTURE::no_filter,
+            data,
+            width, height,
+            channel, hasAlpha);
     }
     
     bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE *image)
@@ -278,91 +365,92 @@ namespace mbm
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        const D3DFORMAT requested_format = D3DFMT_A8R8G8B8;
-        
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        const int  channel    = 4;
+        const bool alpha      = true;
+
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
-        IDirect3DSurface9* surfaceDest = nullptr;
-        D3DSURFACE_DESC	descSurfaceDest;
-        D3DLOCKED_RECT	lockDestRect;
-
-        UINT mipMap = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
-        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
-
-        if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
-            image->height,
-            mipMap,
-            usage,
-            requested_format,
-            D3DPOOL_DEFAULT,//,
-            pp3DTexture9, nullptr)))
-        {
-            mipMap = 1;
-            usage = D3DUSAGE_DYNAMIC;
-            if (FAILED(device->specificContextDevice->pd3dDevice->CreateTexture(image->width,
-                image->height,
-                mipMap,
-                usage,
-                requested_format,
-                D3DPOOL_DEFAULT,
-                pp3DTexture9, nullptr)))
-            {
-                ERROR_AT(__LINE__, __FILE__, "failed to create dynamic texture ");
-                return false;
-            }
-        }
-        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
-        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
-        {
-            ERROR_AT(__LINE__, __FILE__, "failed to get surface of texture");
-            return false;
-        }
-        if (FAILED(surfaceDest->GetDesc(&descSurfaceDest)))
-        {
-            if (surfaceDest)
-                surfaceDest->Release();
-            ERROR_AT(__LINE__, __FILE__, "failed to get description of texture");
-            return false;
-        }
-        if (FAILED(surfaceDest->LockRect(&lockDestRect, 0, D3DLOCK_DISCARD)))
-        {
-            if (surfaceDest)
-                surfaceDest->Release();
-            ERROR_AT(__LINE__, __FILE__, "failed to lock texture");
-            return false;
-        }
-
-        if (D3DFMT_A8R8G8B8 != descSurfaceDest.Format && descSurfaceDest.Format != D3DFMT_R8G8B8)
-        {
-            if (surfaceDest)
-            {
-                surfaceDest->UnlockRect();
-                surfaceDest->Release();
-            }
-            ERROR_AT(__LINE__, __FILE__, "Format of texture not as expected D3DFMT_A8R8G8B8 or D3DFMT_R8G8B8");
-            return false;
-        }
-
-        copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, reinterpret_cast<const uint8_t*>(image->data));
-
-        if (surfaceDest != nullptr)
-        {
-            surfaceDest->UnlockRect();
-            surfaceDest->Release();
-        }
-        surfaceDest = nullptr;
-        // If we created a full mip chain, generate the mipmaps from level 0.
-        if (mipMap == 0)
-        {
-            // Try to autogenerate using the texture method if supported.
-            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
-            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
-            p3DTexture9->GenerateMipSubLevels();
-        }
-        return true;
+        return created3dTexture(pp3DTexture9,
+            TEXTURE::no_filter,
+            reinterpret_cast<const uint8_t*>(image->data),
+            image->width, image->height,
+            channel, alpha);
     }
 
-    
+    TEXTURE* TEXTURE_MANAGER::loadNativeEngine(const char* fileName, const bool forceAlpha) // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
+    {
+        if (fileName == nullptr)
+            return nullptr;
+        std::string fileNameBase = util::getBaseName(fileName);
+        TEXTURE* tex = lsTextures[fileNameBase];
+        if (tex)
+            return tex;
+        fileName = getFilePathTexture(fileName, nullptr);
+        if (fileName == nullptr)
+            return nullptr;
+        tex = new TEXTURE();
+        D3DXIMAGE_INFO infoTexture;
+        infoTexture.Width = 0;
+        infoTexture.Height = 0;
+        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        if (SUCCEEDED(D3DXGetImageInfoFromFileA(fileName, &infoTexture)))
+        {
+            tex->width = infoTexture.Width;
+            tex->height = infoTexture.Height;
+            UINT MipLevels = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+            D3DFORMAT tFormat = forceAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_UNKNOWN;
+            IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&tex->ptrTexture);
+            
+            constexpr DWORD Usage = 0; //D3DUSAGE_RENDERTARGET D3DUSAGE_DYNAMIC 
+            DWORD Filter = D3DX_FILTER_BOX;
+            DWORD MipFilter = 0;
+            if (MipLevels == 0)//queremos uma imagem sem mipmap e filtro
+            {
+                Filter = D3DX_DEFAULT;//Mip Filter
+                MipFilter = D3DX_FILTER_BOX;
+            }
+            else
+            {
+                Filter = D3DX_DEFAULT;//Mip Filter
+                MipFilter = D3DX_FILTER_NONE;
+            }
+            if (FAILED(D3DXCreateTextureFromFileExA(pd3dDevice,
+                fileName,
+                tex->width,
+                tex->height,
+                MipLevels,//Número De miplevels Que desejamos Que a funçao crie>>>0 para Uma completa
+                Usage,//D3DUSAGE_RENDERTARGET D3DUSAGE_DYNAMIC 
+                tFormat,//D3DFORMAT Formato Do Pixel
+                D3DPOOL_MANAGED,//Maneira qu a Textura sera armazenada Na memória
+                Filter,//filtro No carregamento Da Textura pode inverter U e V
+                MipFilter,//Mip Filter
+                0,//Color Key recorte De pixels
+                &infoTexture,//Informação Da imagen 
+                nullptr,//Paleta_Bitmap_True_Color_24_Bits Da imagem
+                pp3DTexture9)))
+            {
+                delete tex;
+                PRINT_IF_DEBUG("failed to load texture from file [%s] ", fileName);
+                return nullptr;
+            }
+            if (MipLevels == 0)
+            {
+                IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
+                // Try to autogenerate using the texture method if supported.
+                // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
+                // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
+                p3DTexture9->GenerateMipSubLevels();
+            }
+            tex->useAlphaChannel = forceAlpha;
+            tex->fileName = fileName;
+            lsTextures[fileNameBase] = (tex);
+            return tex;
+        }
+        else
+        {
+            PRINT_IF_DEBUG("failed to load texture from file [%s] ", fileName);
+            return nullptr;
+        }
+    }
 
     TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, 
                                                         const char *nickName,

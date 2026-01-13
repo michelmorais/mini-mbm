@@ -314,19 +314,18 @@ namespace mbm
             int       x    = 0;
             int       y    = 0;
             int       comp = 0;
+            bool    result = false;
             const int n    = hasColorAlpha == true ? 4 : 3;
             stbi_uc * data = stbi_load(fileNameTexture, &x, &y, &comp, n);
             if (data && x && y && comp)
             {
                 this->width  = static_cast<uint32_t>(x);
                 this->height = static_cast<uint32_t>(y);
-                bool ret;
                 if (hasColorAlpha)
-                    ret = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
+                    result = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
                 else
-                    ret = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
+                    result = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
                 free(data);
-                return ret;
             }
             else
             {
@@ -344,8 +343,8 @@ namespace mbm
                 }
 #endif
                 PRINT_IF_DEBUG("failed to load texture %s .", fileNameTexture);
-                return false;
             }
+            return result;
         }
     }
 
@@ -526,7 +525,17 @@ namespace mbm
         {
             delete texture;
             texture = nullptr;
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            texture = this->loadNativeEngine(fileName, hasAlpha);// fallback try to load native load method (e.g using Directx, LoadTxtureFromFile)
+            if (texture)
+            {
+                texture->fileName = std::move(fileNameBase);
+                texture->useAlphaChannel = hasAlpha ? true : false;
+                lsTextures[texture->fileName] = texture;
+            }
+            else
+            {
+                PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            }
         }
         return texture;
     }

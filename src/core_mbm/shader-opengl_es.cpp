@@ -35,10 +35,12 @@ namespace mbm
         indexCountIB(nullptr),
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
+        sizeOfArrayVertex(0),
         mode_draw(GL_TRIANGLES),
         mode_cull_face(GL_BACK),
         mode_front_face_direction(GL_CW),
         totalSubset(0),
+        initializedIndexBuffer(false),
         texture1(nullptr)
     {
         bs = new BUFFER_SPECIFIC();

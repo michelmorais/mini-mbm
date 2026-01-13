@@ -28,6 +28,7 @@ MY_SCENE::MY_SCENE()
     gif    = nullptr;
     sprite = nullptr;
     mesh   = nullptr;
+    shape  = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -38,6 +39,10 @@ MY_SCENE::~MY_SCENE()
         delete gif;
     if(sprite)
         delete sprite;
+    if (mesh)
+        delete mesh;
+    if (shape)
+        delete shape;
 }
 
 void MY_SCENE::startLoading()
@@ -59,28 +64,32 @@ void MY_SCENE::init()
     util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
-    //this->texBox->load("wooden-box.jpg", 200, 200);
-    //this->texBox->alwaysRenderize = true;
-    //gif = new mbm::GIF_VIEW(this,false,false);
-    //gif->load("Lion-King.gif");
+    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    this->texBox->load("wooden-box.jpg", 200, 200);
+    this->texBox->alwaysRenderize = true;
+    gif = new mbm::GIF_VIEW(this,false,false);
+    gif->load("Lion-King.gif");
 
-    //sprite = new mbm::SPRITE(this, false, true);
-    //sprite->load("C:\\Users\\miche\\Documents\\tower-defense\\sprite\\archer-1.spt");
-    //sprite->alwaysRenderize = true;
-    //sprite->setAnimation("attack-right");
-    //sprite->angle.x = 3.14;
+    sprite = new mbm::SPRITE(this, false, true);
+    sprite->load("C:\\Users\\miche\\Documents\\tower-defense\\sprite\\archer-1.spt");
+    sprite->alwaysRenderize = true;
+    sprite->setAnimation("attack-right");
+    sprite->angle.x = 3.14;
     
     //**************
     //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails
     //**************
 
-    mesh = new mbm::MESH(this, false, false);
+    mesh = new mbm::MESH(this, true, false);
     //mesh->load("crateShattered.mbm"); VB noi texture?
     mesh->load("crateWreck1.mbm");
     mesh->scale.x = 3;
     mesh->scale.y = 3;
     mesh->scale.z = 3;
+
+    shape = new mbm::SHAPE_MESH(this, false, false);
+    shape->loadRectangle("quad", 25, 25, true, 2);
+    shape->position.x = 300;
 }
 
 void MY_SCENE::logic()

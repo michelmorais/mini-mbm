@@ -106,6 +106,7 @@ namespace mbm
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
         API_IMPL void setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound);
+        API_IMPL TEXTURE* loadNativeEngine(const char* fileName, const bool forceAlpha); // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
         std::unordered_map<std::string,TEXTURE *> lsTextures;

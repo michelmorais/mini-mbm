@@ -58,10 +58,12 @@ namespace mbm
         indexCountIB(nullptr),
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
+        sizeOfArrayVertex(0),
         mode_draw(util::MODE_DRAW_TRIANGLES),
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
         totalSubset(0),
+        initializedIndexBuffer(false),
         texture1(nullptr)
     {
         //we initialize this at the moment (just once)
@@ -356,18 +358,70 @@ namespace mbm
                                   int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         release();
-        if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
+        if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
-        #pragma message(REMINDER_TODO "  generate buffers");
-
-        for (uint32_t i = 0; i < this->totalSubset; ++i)
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        // Find the max vertex count
+        // and max size of index buffer
+        UINT sizeIndexBuffer = 0;
+        for (int i = 0; i < totalSubsets; ++i)
         {
+            const int ii = indexStartSubset[i];
+            sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
+            for (int j = 0; j < indexCountSubset[i]; ++j)
+            {
+                const uint16_t indexVertex = arrayIndices[ii + j];
+                sizeOfArrayVertex = std::max<uint16_t>(indexVertex, sizeOfArrayVertex);
+            }
+        }
+        sizeOfArrayVertex += 1; //because index start from zero base
+        const std::vector<VEC3> vertex(sizeOfArrayVertex);
+        const std::vector<VEC3> normal(sizeOfArrayVertex);
+        const std::vector<VEC2> uv(sizeOfArrayVertex);
+        this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
+        const D3D_VERTEX_CONVERTER d3d_converter(vertex.data(), normal.data(), uv.data(), sizeOfArrayVertex);
+        this->bs->FVF = d3d_converter.getFVF();
+        const DWORD DFVF = d3d_converter.get3d3FVF();
+        this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
+
+        // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+        //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+        const DWORD vbUsage = D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY;
+        if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
+            this->bs->sizeStructVertexInBytes * sizeOfArrayVertex,
+            vbUsage,
+            DFVF,//FVF
+            D3DPOOL_DEFAULT,//local memory
+            &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
+            nullptr)))				//Always null
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create VERTEX BUFFER");
+            return false;
         }
 
-        if(info_draw_mode)
-		{
-		}
+        const UINT sizeIndexBufferInBytes = sizeIndexBuffer * sizeof(uint16_t);
+
+        if (FAILED(pd3dDevice->CreateIndexBuffer(sizeIndexBufferInBytes,
+            D3DUSAGE_WRITEONLY,
+            D3DFMT_INDEX16,
+            D3DPOOL_MANAGED,
+            &this->bs->pIndexBuffer, nullptr)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create INDEX BUFFER");
+            return false;
+        }
+
+        int16_t* pIndex = nullptr;
+        void** ppIndex = reinterpret_cast<void**>(&pIndex);
+        if (FAILED(this->bs->pIndexBuffer->Lock(0, 0, ppIndex, 0)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to lock INDEX BUFFER");
+            return false;
+        }
+        memcpy(pIndex, arrayIndices, sizeIndexBufferInBytes);
+        this->bs->pIndexBuffer->Unlock();
+
         return true;
     }
 
@@ -552,7 +606,7 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        if (pBufferId->bs->pVertexBuffer == nullptr)
+        if (pBufferId->bs == nullptr || pBufferId->bs->pVertexBuffer == nullptr)
         {
             ERROR_AT(__LINE__, __FILE__, "IDirect3DVertexBuffer9 is null, you must load the object first");
             return false;
@@ -576,7 +630,26 @@ namespace mbm
         // The equivalent behavior to OpenGL's GL_FRONT culling can be achieved by setting the culling mode to D3DCULL_NONE (to render both front and back faces), 
         // D3DCULL_CCW (counter-clockwise, typically front-facing), or D3DCULL_CW (clockwise, typically back-facing), depending on the desired rendering behavior.
         // TODO: use the correct CULLMODE
-        pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE); // D3DCULL_CCW
+
+        switch (pBufferId->mode_cull_face)
+        {
+            case util::CULL_MODE::CULL_FRONT:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
+            }
+            break;
+            case util::CULL_MODE::CULL_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+            }
+            break;
+            case util::CULL_MODE::CULL_FRONT_AND_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+            }
+            break;
+        }
+        
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -656,30 +729,6 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_TRIANGLES:
                     {
-                        // set the view transform
-                        /*D3DXMATRIX matView;    // the view transform matrix
-                        D3DXMatrixLookAtLH(&matView,
-                            &D3DXVECTOR3(0.0f, 8.0f, 200),    // the camera position
-                            &D3DXVECTOR3(0.0f, 0.0f, 0.0f),      // the look-at position
-                            &D3DXVECTOR3(0.0f, 1.0f, 0.0f));    // the up direction
-                        pd3dDevice->SetTransform(D3DTS_VIEW, &matView);    // set the view transform to matView 
-
-                        // set the projection transform
-                        D3DXMATRIX matProjection;    // the projection transform matrix
-                        D3DXMatrixPerspectiveFovLH(&matProjection,
-                            D3DXToRadian(45),    // the horizontal field of view
-                            (FLOAT)device->backBufferWidth / device->backBufferHeight, // aspect ratio
-                            1.0f,   // the near view-plane
-                            100.0f);    // the far view-plane
-                        pd3dDevice->SetTransform(D3DTS_PROJECTION, &matProjection); // set the projection
-
-                        // set the world transform
-                        static float index = 0.0f; index += 0.03f; // an ever-increasing float value
-                        D3DXMATRIX matRotateY;    // a matrix to store the rotation for each triangle
-                        D3DXMatrixRotationY(&matRotateY, index);    // the rotation matrix
-                        pd3dDevice->SetTransform(D3DTS_WORLD, &(matRotateY));    // set the world transform
-                        */
-
                         const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
                         const UINT numVertices   = pBufferId->sizeOfArrayVertex;
                         const UINT vertexStartVB = 0;
@@ -809,74 +858,21 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-		#pragma message(REMINDER_TODO "  implement set cull face and front face");
-
-        if (pBufferId) // Index buffer
+		if (pBufferId && vertex && pBufferId->bs && pBufferId->bs->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
-            if (!pBufferId)
+            const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, pBufferId->sizeOfArrayVertex);
+            void* pvertex = nullptr;
+            if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                 return false;
-            //TODO: implement use program
-            //-----------------------------------------------------------------------------------------------------------
-            //TODO: Bind vertex array
-            //-----------------------------------------------------------------------------------------------------------
-            if (this->normalHandle != -1)
-            {
-                //TODO: implement enable vertex attrib array and set pointer
             }
-            //-----------------------------------------------------------------------------------------------------------
-            //TODO: implement enable vertex attrib array and set pointer
-            //-----------------------------------------------------------------------------------------------------------
-            //TODO: implement set uniform matrices
-            //-----------------------------------------------------------------------------------------------------------
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
-            {
-                //TODO: implement active texture and bind texture
+            d3d_converter.copyTod3dVertexBuffer(pvertex);
+            pBufferId->bs->pVertexBuffer->Unlock();
 
-                if (pBufferId)
-                {
-                    //TODO: implement bind texture and set uniform
-                }
-                else
-                {
-                    //TODO: implement bind texture 0
-                }
-                //TODO: implement draw elements
-            }
+            return render(pBufferId);
         }
-        else // Vertex buffer
-        {
-            if (!pBufferId)
-                return false;
-            //TODO: implement use program
-            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
-            {
-                //TODO: implement enable vertex attrib array and set pointer
-                //-----------------------------------------------------------------------------------------------------------
-                if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
-                {
-                    //TODO: implement enable vertex attrib array and set pointer
-                }
-                //-----------------------------------------------------------------------------------------------------------
-                //TODO: implement enable vertex attrib array and set pointer
-                //-----------------------------------------------------------------------------------------------------------
-                //TODO: implement set uniform matrices
-                //-----------------------------------------------------------------------------------------------------------
-                //TODO: implement active texture
-                
-                if (pBufferId)
-                {
-                    //TODO: implement bind texture and set uniform
-                }
-                else
-                {
-                    //TODO: implement bind texture 0
-                }
-
-                //TODO: implement draw arrays
-            }
-        }
-        //TODO: implement unbind buffer
-        return true;
+        return false;
     }
 
     uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)

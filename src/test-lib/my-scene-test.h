@@ -26,6 +26,7 @@
 #include <render/gif-view.h>
 #include <render/sprite.h>
 #include <render/mesh.h>
+#include <render/shape-mesh.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -34,6 +35,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::GIF_VIEW* gif;
     mbm::SPRITE* sprite;
     mbm::MESH* mesh;
+    mbm::SHAPE_MESH* shape;
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();
