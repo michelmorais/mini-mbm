@@ -238,6 +238,8 @@ namespace mbm
         HRESULT hrLock = surfaceDest->LockRect(&lockDestRect, 0, lockFlags);
         if (FAILED(hrLock))
         {
+            surfaceDest->Release();
+            surfaceDest = nullptr;
             // LockRect failed on GPU surface — try system-memory fallback:
             PRINT_IF_DEBUG("LockRect failed on GPU surface (hr=0x%08x). Trying system memory fallback...", hrLock);
 
@@ -254,7 +256,6 @@ namespace mbm
             if (FAILED(hrCreateSys) || texSys == nullptr)
             {
                 PRINT_IF_DEBUG("CreateTexture (SYSTEMMEM) failed (hr=0x%08x)", hrCreateSys);
-                surfaceDest->Release();
                 return false;
             }
 
@@ -264,7 +265,6 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("GetSurfaceLevel (SYSTEMMEM) failed (hr=0x%08x)", hrGetSurf);
                 texSys->Release();
-                surfaceDest->Release();
                 return false;
             }
 
@@ -274,7 +274,6 @@ namespace mbm
                 PRINT_IF_DEBUG("GetDesc (SYSTEMMEM) failed");
                 surfSys->Release();
                 texSys->Release();
-                surfaceDest->Release();
                 return false;
             }
 
@@ -285,7 +284,6 @@ namespace mbm
                 PRINT_IF_DEBUG("LockRect (SYSTEMMEM) failed (hr=0x%08x)", hrLockSys);
                 surfSys->Release();
                 texSys->Release();
-                surfaceDest->Release();
                 return false;
             }
 
@@ -300,7 +298,6 @@ namespace mbm
                 PRINT_IF_DEBUG("UpdateTexture failed (hr=0x%08x)", hrUpdate);
                 surfSys->Release();
                 texSys->Release();
-                surfaceDest->Release();
                 return false;
             }
 
@@ -313,12 +310,8 @@ namespace mbm
         else
         {
             copy_pixels_per_row_Pitch(descSurfaceDest, width, height, lockDestRect, data);
-
-            if (surfaceDest != nullptr)
-            {
-                surfaceDest->UnlockRect();
-                surfaceDest->Release();
-            }
+            surfaceDest->UnlockRect();
+            surfaceDest->Release();
         }
         surfaceDest = nullptr;
         // If we created a full mip chain, generate the mipmaps from level 0.
