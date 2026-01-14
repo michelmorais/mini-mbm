@@ -338,13 +338,13 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() : programObject(new GLuint(0)),
-        mvpMatrixHandle(new GLint(-1)),
-        mvMatrixHandle(new GLint(-1)),
+    SHADER::SHADER() : ptrProgramObject(new GLuint(0)),
+        ptrMvpMatrixHandle(new GLint(-1)),
+        ptrMvMatrixHandle(new GLint(-1)),
         positionHandle(-1),
         texCoordHandle(-1),
-        samplerHandle0(new GLint(-1)),
-        samplerHandle1(new GLint(-1)),
+        ptrSamplerHandle0(new GLint(-1)),
+        ptrSamplerHandle1(new GLint(-1)),
         normalHandle(-1),
         pShader(nullptr),
         vShader(nullptr)
@@ -353,32 +353,32 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        delete mvpMatrixHandle;
-        delete mvMatrixHandle;
-        delete samplerHandle0;
-        delete samplerHandle1;
-        GLuint* pprogramObject = static_cast<GLuint*>(this->programObject);
+        delete ptrMvpMatrixHandle;
+        delete ptrMvMatrixHandle;
+        delete ptrSamplerHandle0;
+        delete ptrSamplerHandle1;
+        GLuint* pprogramObject = static_cast<GLuint*>(this->ptrProgramObject);
         if (*pprogramObject)
         {
             GLDeleteProgram(*pprogramObject);
         }
-        delete programObject;
+        delete ptrProgramObject;
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
         *pimvpMatrixHandle       = -1;
         *pimvMatrixHandle        = -1;
         this->positionHandle     = -1;
         this->texCoordHandle     = -1;
-        GLint* psamplerHandle0   = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1   = static_cast<GLint*>(this->samplerHandle1);
+        GLint* psamplerHandle0   = static_cast<GLint*>(this->ptrSamplerHandle0);
+        GLint* psamplerHandle1   = static_cast<GLint*>(this->ptrSamplerHandle1);
         *psamplerHandle0         = -1;
         *psamplerHandle1         = -1;
         this->normalHandle       = -1;
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
         *pprogramObject          = 0;
         this->pShader            = nullptr;
         this->vShader            = nullptr;
@@ -386,20 +386,20 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
         *pimvpMatrixHandle       = -1;
         *pimvMatrixHandle        = -1;
         this->positionHandle     = -1;
         this->texCoordHandle     = -1;
-        GLint* psamplerHandle0   = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1   = static_cast<GLint*>(this->samplerHandle1);
+        GLint* psamplerHandle0   = static_cast<GLint*>(this->ptrSamplerHandle0);
+        GLint* psamplerHandle1   = static_cast<GLint*>(this->ptrSamplerHandle1);
         *psamplerHandle0         = -1;
         *psamplerHandle1         = -1;
         this->normalHandle       = -1;
         this->pShader            = nullptr;
         this->vShader            = nullptr;
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
         if (*pprogramObject)
         {
             GLDeleteProgram(*pprogramObject);
@@ -430,7 +430,7 @@ namespace mbm
             "     gl_Position = mvpMatrix * aPosition;"
             "     vTexCoord = aTextCoord;"
             "}";
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
         if (*pprogramObject)
         {
             PRINT_IF_DEBUG("programObject already has a value [%d]", *pprogramObject);
@@ -461,15 +461,15 @@ namespace mbm
         this->positionHandle     = static_cast<GLint>(aPosition);
         GLint imvpMatrixHandle   = GLGetUniformLocation(*pprogramObject, "mvpMatrix");
         GLint imvMatrixHandle    = GLGetUniformLocation(*pprogramObject, "mvMatrix");
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
         *pimvpMatrixHandle       = imvpMatrixHandle;
         *pimvMatrixHandle        = imvMatrixHandle;
 
         GLint aTextCoord       = GLGetAttribLocation(*pprogramObject, "aTextCoord");
         this->texCoordHandle   = static_cast<GLint>(aTextCoord);
-        GLint* psamplerHandle0 = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1 = static_cast<GLint*>(this->samplerHandle1);
+        GLint* psamplerHandle0 = static_cast<GLint*>(this->ptrSamplerHandle0);
+        GLint* psamplerHandle1 = static_cast<GLint*>(this->ptrSamplerHandle1);
         *psamplerHandle0       = GLGetUniformLocation(*pprogramObject, "sample0");
         *psamplerHandle1       = GLGetUniformLocation(*pprogramObject, "sample1");
         GLint aNormal          = GLGetAttribLocation(*pprogramObject, "aNormal")
@@ -482,11 +482,11 @@ namespace mbm
     {
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
-        GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
-        GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
-        GLuint* pprogramObject  = static_cast<GLuint*>(this->programObject);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
+        GLint* imvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
+        GLint* psamplerHandle0  = static_cast<GLint*>(this->ptrSamplerHandle0);
+        GLint* psamplerHandle1  = static_cast<GLint*>(this->ptrSamplerHandle1);
+        GLuint* pprogramObject  = static_cast<GLuint*>(this->ptrProgramObject);
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -593,11 +593,11 @@ namespace mbm
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
 
-        GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
-        GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
-        GLuint* pprogramObject  = static_cast<GLuint*>(this->programObject);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
+        GLint* imvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
+        GLint* psamplerHandle0  = static_cast<GLint*>(this->ptrSamplerHandle0);
+        GLint* psamplerHandle1  = static_cast<GLint*>(this->ptrSamplerHandle1);
+        GLuint* pprogramObject  = static_cast<GLuint*>(this->ptrProgramObject);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -729,7 +729,7 @@ namespace mbm
         uint32_t vertexShader;
         uint32_t fragmentShader;
         int          linked;
-        GLuint* pprogramObject = static_cast<GLuint*>(this->programObject);
+        GLuint* pprogramObject = static_cast<GLuint*>(this->ptrProgramObject);
         if (*pprogramObject)
         {
             PRINT_IF_DEBUG("programObject already exists");

@@ -242,21 +242,21 @@ namespace mbm
 
     bool SHADER::isLoad()
     {
-        return this->programObject != 0;
+        return (*static_cast<unsigned int*>(this->ptrProgramObject)) != 0; // simple check 
     }
 
     void SHADER::update()
     {
         if (this->pShader)
-            this->pShader->update(this->programObject);
+            this->pShader->update(this->ptrProgramObject);
 #if defined _DEBUG
-        else if (*static_cast<int*>(this->programObject) == 0)
+        else if (*static_cast<unsigned int*>(this->ptrProgramObject) == 0)
             PRINT_IF_DEBUG("missed shader!");
 #endif
         if (this->vShader)
-            this->vShader->update(this->programObject);
+            this->vShader->update(this->ptrProgramObject);
 #if defined _DEBUG
-        else if (*static_cast<int*>(this->programObject) == 0)
+        else if (*static_cast<unsigned int*>(this->ptrProgramObject) == 0)
             PRINT_IF_DEBUG("missed shader!");
 #endif
     }

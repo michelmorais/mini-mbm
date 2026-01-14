@@ -86,11 +86,11 @@ namespace mbm
             if (mesh == nullptr)
                 return false;
             this->texture = mesh->getTexture(0, 0);
-			const auto lsParticleInfo = mesh->getInfoParticle();
-			if(lsParticleInfo == nullptr)
+            const auto lsParticleInfo = mesh->getInfoParticle();
+            if(lsParticleInfo == nullptr)
             {
                 ERROR_LOG( "type of file is not particle!\ntype: %s",MESH_MANAGER::typeClassName(mesh->getTypeMesh()));
-				return false;
+                return false;
             }
             for (auto & i : *lsParticleInfo)
             {
@@ -302,12 +302,12 @@ namespace mbm
         {
             GLBindTexture(GL_TEXTURE_2D, 0);
         }
-        GLint* psamplerHandle0 = static_cast<GLint*>(anim->fx.shader.samplerHandle0);
-        GLint* psamplerHandle1 = static_cast<GLint*>(anim->fx.shader.samplerHandle1);
+        GLint* psamplerHandle0 = static_cast<GLint*>(anim->fx.shader.ptrSamplerHandle0);
 
         GLUniform1i(*psamplerHandle0, 0);
         if (anim->fx.textureOverrideStage2)
         {
+            GLint* psamplerHandle1 = static_cast<GLint*>(anim->fx.shader.ptrSamplerHandle1);
             glActiveTexture(GL_TEXTURE1);
             GLBindTexture(GL_TEXTURE_2D, anim->fx.textureOverrideStage2->idTexture);
             glUniform1i(*psamplerHandle1, 1);
@@ -319,7 +319,7 @@ namespace mbm
         }
         GLDisable(GL_DEPTH_TEST);
         this->blend.set(anim->blendState);
-        GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.mvpMatrixHandle);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.ptrMvpMatrixHandle);
 
         GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         // if(fx->shader.mvMatrixHandle != -1)
@@ -429,14 +429,14 @@ namespace mbm
         float defaultVar[4] = {1, 1, 1, 1};
         if (anim->fx.fxPS->ptrCurrentShader == nullptr || 
             anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,
-                                                       anim->fx.shader.programObject) == false)
+                                                       anim->fx.shader.ptrProgramObject) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
 #endif
         }
         if (anim->fx.fxPS->ptrCurrentShader == nullptr || anim->fx.fxPS->ptrCurrentShader->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
-                                                       anim->fx.shader.programObject) == false)
+                                                       anim->fx.shader.ptrProgramObject) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "enableAlphaFromColor",fileNamePs);

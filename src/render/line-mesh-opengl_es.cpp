@@ -78,9 +78,9 @@ namespace mbm
     {
         if (!this->vboVertexUvLine)
             return false;
-		//GLCullFace(pBufferId->mode_cull_face);
-		//GLFrontFace(pBufferId->mode_front_face_direction);
-        GLuint* pprogramObject = static_cast<GLuint*>(shader->programObject);
+        //GLCullFace(pBufferId->mode_cull_face);
+        //GLFrontFace(pBufferId->mode_front_face_direction);
+        GLuint* pprogramObject = static_cast<GLuint*>(shader->ptrProgramObject);
         GLUseProgram(*pprogramObject);
 
         GLBlendFunc(GL_SRC_ALPHA, 0x0303);
@@ -89,7 +89,7 @@ namespace mbm
         GLEnableVertexAttribArray(shader->positionHandle);
         GLVertexAttribPointer(shader->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-        GLint* imvpMatrixHandle = static_cast<GLint*>(shader->mvpMatrixHandle);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(shader->ptrMvpMatrixHandle);
         
         GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLBindTexture(GL_TEXTURE_2D, 0);
@@ -112,9 +112,9 @@ namespace mbm
     
     bool LINE_MESH::loadShaderDefault()
     {
-		auto * anim = this->getAnimation();
-		if (anim == nullptr)
-			return false;
+        auto * anim = this->getAnimation();
+        if (anim == nullptr)
+            return false;
         const char *fileNamePs  = "__line_color.ps";
         const char *fileNameVs  = "__line_color.vs";
         const char *codePScolor = "precision mediump float;\n"
@@ -144,7 +144,7 @@ namespace mbm
         else
         {
             float c[4] = {1, 0, 0, 1};
-            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c,anim->fx.shader.programObject))
+            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c,anim->fx.shader.ptrProgramObject))
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);

@@ -28,18 +28,18 @@ namespace mbm
 {
 
     FX::FX() noexcept
-	{
-		fxPS = new EFFECT_SHADER();
-		fxVS = new EFFECT_SHADER();
-		textureOverrideStage2 = nullptr;
-		blendOperation = 1;
-	}
+    {
+        fxPS = new EFFECT_SHADER();
+        fxVS = new EFFECT_SHADER();
+        textureOverrideStage2 = nullptr;
+        blendOperation = 1;
+    }
     
-	FX::~FX()
-	{
-		delete fxPS;
-		delete fxVS;
-	}
+    FX::~FX()
+    {
+        delete fxPS;
+        delete fxVS;
+    }
 
     bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
                                     SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs,
@@ -73,7 +73,7 @@ namespace mbm
             {
                 VAR_CFG *var = pShaderCfg->lsVar[i];
                 if (!fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.programObject))
+                                                               shader.ptrProgramObject))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),
@@ -98,7 +98,7 @@ namespace mbm
             {
                 VAR_CFG *var = vShaderCfg->lsVar[i];
                 if (!fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.programObject))
+                                                               shader.ptrProgramObject))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),

@@ -249,7 +249,7 @@ namespace mbm
             const float defaultVar[4] = {this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a};
             if (anim->fx.fxPS->ptrCurrentShader)
             {
-                if(anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,anim->fx.shader.programObject) == false)
+                if(anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,anim->fx.shader.ptrProgramObject) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }

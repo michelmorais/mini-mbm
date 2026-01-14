@@ -124,12 +124,12 @@ namespace mbm
         {
             GLBindTexture(GL_TEXTURE_2D, 0);
         }
-        GLint* psamplerHandle0 = static_cast<GLint*>(anim->fx.shader.samplerHandle0);
-        GLint* psamplerHandle1 = static_cast<GLint*>(anim->fx.shader.samplerHandle1);
-
+        GLint* psamplerHandle0 = static_cast<GLint*>(anim->fx.shader.ptrSamplerHandle0);
+        
         GLUniform1i(*psamplerHandle0, 0);
         if (anim->fx.textureOverrideStage2)
         {
+            GLint* psamplerHandle1 = static_cast<GLint*>(anim->fx.shader.ptrSamplerHandle1);
             glActiveTexture(GL_TEXTURE1);
             GLBindTexture(GL_TEXTURE_2D, anim->fx.textureOverrideStage2->idTexture);
             glUniform1i(*psamplerHandle1, 1);
@@ -140,7 +140,7 @@ namespace mbm
             GLBindTexture(GL_TEXTURE_2D, 0);
         }
         
-        GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.mvpMatrixHandle);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.ptrMvpMatrixHandle);
         GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
         VAR_SHADER *var = anim->fx.fxPS->ptrCurrentShader
@@ -256,7 +256,7 @@ namespace mbm
             const float defaultVar[4] = {this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a};
             if (anim->fx.fxPS->ptrCurrentShader)
             {
-                if(anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,anim->fx.shader.programObject) == false)
+                if(anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,anim->fx.shader.ptrProgramObject) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }

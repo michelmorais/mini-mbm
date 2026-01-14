@@ -535,13 +535,13 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() noexcept : programObject(0),
-        mvpMatrixHandle(new D3DXHANDLE(nullptr)),
-        mvMatrixHandle(new D3DXHANDLE(nullptr)),
+    SHADER::SHADER() : ptrProgramObject(0),
+        ptrMvpMatrixHandle(new D3DXHANDLE(nullptr)),
+        ptrMvMatrixHandle(new D3DXHANDLE(nullptr)),
         positionHandle(-1),
         texCoordHandle(-1),
-        samplerHandle0(new D3DXHANDLE(nullptr)),
-        samplerHandle1(new D3DXHANDLE(nullptr)),
+        ptrSamplerHandle0(new D3DXHANDLE(nullptr)),
+        ptrSamplerHandle1(new D3DXHANDLE(nullptr)),
         normalHandle(-1),
         pShader(nullptr),
         vShader(nullptr)
@@ -551,48 +551,48 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        delete mvpMatrixHandle;
-        delete mvMatrixHandle;
-        delete samplerHandle0;
-        delete samplerHandle1;
+        delete ptrMvpMatrixHandle;
+        delete ptrMvMatrixHandle;
+        delete ptrSamplerHandle0;
+        delete ptrSamplerHandle1;
         #pragma message(REMINDER_TODO "  implement release shader");
-        this->programObject = 0;
+        this->ptrProgramObject = 0;
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
-        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
         *pmvpMatrixHandle    = nullptr;
         *pmvpMatrixHandle    = nullptr;
         this->texCoordHandle = -1;
-        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
-        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
+        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
         *psamplerHandle0    = nullptr;
         *psamplerHandle1    = nullptr;
         this->normalHandle  = -1;
-        this->programObject = 0;
+        this->ptrProgramObject = 0;
         this->pShader = nullptr;
         this->vShader = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
-        D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
         *pmvpMatrixHandle     = nullptr;
         *pmvpMatrixHandle     = nullptr;
         this->positionHandle  = -1;
         this->texCoordHandle  = -1;
-        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
-        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
+        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
         *psamplerHandle0      = nullptr;
         *psamplerHandle1      = nullptr;
         this->normalHandle    = -1;
         this->pShader         = nullptr;
         this->vShader         = nullptr;
         #pragma message(REMINDER_TODO "  implement delete program");
-        this->programObject = 0;
+        this->ptrProgramObject = 0;
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
@@ -697,8 +697,8 @@ namespace mbm
         if (constantTablePS)
         {
             constantTablePS->SetDefaults(pd3dDevice);
-            D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
-            D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+            D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
+            D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
             *psamplerHandle0 = constantTablePS->GetConstantByName(nullptr, "sample0");
             *psamplerHandle1 = constantTablePS->GetConstantByName(nullptr, "sample1");
 
@@ -716,8 +716,8 @@ namespace mbm
         if (constantTableVS)
         {
             constantTableVS->SetDefaults(pd3dDevice);
-            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
             *pmvpMatrixHandle            = constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
             *pmvMatrixHandle             = constantTableVS->GetConstantByName(nullptr, "mvMatrix");
 
@@ -1082,10 +1082,10 @@ namespace mbm
         uint32_t fragmentShader=0;
         #pragma message(REMINDER_TODO "  Remove this function from common");
         int          linked=0;
-        if (this->programObject)
+        if (this->ptrProgramObject)
         {
             PRINT_IF_DEBUG("programObject already exists");
-            return *static_cast<uint32_t*>(programObject);
+            return *static_cast<uint32_t*>(ptrProgramObject);
         }
         
         if (vertexShader == 0)
@@ -1100,7 +1100,7 @@ namespace mbm
             return 0;
         }
         //TODO: implement create program
-        if (programObject == 0)
+        if (ptrProgramObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
             return 0;
@@ -1112,11 +1112,11 @@ namespace mbm
             PRINT_IF_DEBUG("linked status failed");
             //TODO: implement get program info log
             // Delete the program object
-            programObject = 0;
+            ptrProgramObject = 0;
             return 0;
         }
         #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
-        return *static_cast<uint32_t*>(programObject);
+        return *static_cast<uint32_t*>(ptrProgramObject);
     }
 }
 
