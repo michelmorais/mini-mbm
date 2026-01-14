@@ -80,8 +80,8 @@ namespace mbm
             return false;
 		//GLCullFace(pBufferId->mode_cull_face);
 		//GLFrontFace(pBufferId->mode_front_face_direction);
-
-        GLUseProgram(shader->programObject);
+        GLuint* pprogramObject = static_cast<GLuint*>(shader->programObject);
+        GLUseProgram(*pprogramObject);
 
         GLBlendFunc(GL_SRC_ALPHA, 0x0303);
 

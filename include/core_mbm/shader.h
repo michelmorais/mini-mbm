@@ -113,14 +113,14 @@ namespace mbm
         API_IMPL const char *getCode();
         API_IMPL VAR_SHADER *getVarByName(const char *nameVar);
         API_IMPL VAR_SHADER *getVar(const unsigned int indexVar);
-        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,const unsigned int programObject);
+        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* programObject);
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
-        void update(const unsigned int programObject);
+        void update(void* programObject);
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
@@ -131,7 +131,7 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        unsigned int programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
+        void* programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
         void* mvpMatrixHandle; // Handle para matrix x projection
         void* mvMatrixHandle;  // Handle para a matrix do modelo
         int positionHandle;

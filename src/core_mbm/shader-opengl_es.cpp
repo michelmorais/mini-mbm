@@ -101,8 +101,8 @@ namespace mbm
     }
 
     bool BUFFER_GL::loadBuffer(const mbm::VEC3 *vertex, // type vertex buffer
-		const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
+        const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
@@ -154,9 +154,9 @@ namespace mbm
     }
 
     bool BUFFER_GL::loadBuffer(const VEC3 *vertex, // type index buffer
-		const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
-		const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
+        const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
+        const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
@@ -229,7 +229,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       const uint32_t programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -250,7 +250,7 @@ namespace mbm
             }
             auto var       = new VAR_SHADER(typeVar);
             var->name      = nameVar;
-            var->handleVar = GLGetUniformLocation(programObject, nameVar);
+            var->handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);
             if (var->handleVar == -1)
             {
 #if defined _DEBUG
@@ -301,11 +301,11 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(const uint32_t programObject)
+    void BASE_SHADER::update(void* programObject)
     {
-        if (programObject == 0)
+        if (*static_cast<uint32_t*>(programObject) == 0)
             return;
-        GLUseProgram(programObject);
+        GLUseProgram(*static_cast<uint32_t*>(programObject));
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -338,7 +338,7 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() noexcept : programObject(0),
+    SHADER::SHADER() : programObject(new GLuint(0)),
         mvpMatrixHandle(new GLint(-1)),
         mvMatrixHandle(new GLint(-1)),
         positionHandle(-1),
@@ -357,29 +357,31 @@ namespace mbm
         delete mvMatrixHandle;
         delete samplerHandle0;
         delete samplerHandle1;
-        if (this->programObject)
+        GLuint* pprogramObject = static_cast<GLuint*>(this->programObject);
+        if (*pprogramObject)
         {
-            GLDeleteProgram(this->programObject);
+            GLDeleteProgram(*pprogramObject);
         }
-        this->programObject = 0;
+        delete programObject;
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
         GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
-        *pimvpMatrixHandle   = -1;
-        *pimvMatrixHandle    = -1;
-        this->positionHandle = -1;
-        this->texCoordHandle = -1;
-        GLint* psamplerHandle0 = static_cast<GLint*>(this->samplerHandle0);
-        GLint* psamplerHandle1 = static_cast<GLint*>(this->samplerHandle1);
-        *psamplerHandle0     = -1;
-        *psamplerHandle1     = -1;
-        this->normalHandle   = -1;
-        this->programObject  = 0;
-        this->pShader = nullptr;
-        this->vShader = nullptr;
+        *pimvpMatrixHandle       = -1;
+        *pimvMatrixHandle        = -1;
+        this->positionHandle     = -1;
+        this->texCoordHandle     = -1;
+        GLint* psamplerHandle0   = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1   = static_cast<GLint*>(this->samplerHandle1);
+        *psamplerHandle0         = -1;
+        *psamplerHandle1         = -1;
+        this->normalHandle       = -1;
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        *pprogramObject          = 0;
+        this->pShader            = nullptr;
+        this->vShader            = nullptr;
     }
 
     void SHADER::releaseShader()
@@ -397,11 +399,12 @@ namespace mbm
         this->normalHandle       = -1;
         this->pShader            = nullptr;
         this->vShader            = nullptr;
-        if (this->programObject)
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        if (*pprogramObject)
         {
-            GLDeleteProgram(this->programObject);
+            GLDeleteProgram(*pprogramObject);
         }
-        this->programObject = 0;
+        *pprogramObject = 0;
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
@@ -427,9 +430,10 @@ namespace mbm
             "     gl_Position = mvpMatrix * aPosition;"
             "     vTexCoord = aTextCoord;"
             "}";
-        if (this->programObject)
+        GLuint* pprogramObject   = static_cast<GLuint*>(this->programObject);
+        if (*pprogramObject)
         {
-            PRINT_IF_DEBUG("programObject already has a value [%d]",this->programObject);
+            PRINT_IF_DEBUG("programObject already has a value [%d]", *pprogramObject);
             return true;
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
@@ -453,22 +457,22 @@ namespace mbm
                 return false;
         }
 
-        GLint aPosition          = GLGetAttribLocation(programObject, "aPosition");
+        GLint aPosition          = GLGetAttribLocation(*pprogramObject, "aPosition");
         this->positionHandle     = static_cast<GLint>(aPosition);
-        GLint imvpMatrixHandle   = GLGetUniformLocation(programObject, "mvpMatrix");
-        GLint imvMatrixHandle    = GLGetUniformLocation(programObject, "mvMatrix");
+        GLint imvpMatrixHandle   = GLGetUniformLocation(*pprogramObject, "mvpMatrix");
+        GLint imvMatrixHandle    = GLGetUniformLocation(*pprogramObject, "mvMatrix");
         GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
         *pimvpMatrixHandle       = imvpMatrixHandle;
         *pimvMatrixHandle        = imvMatrixHandle;
 
-        GLint aTextCoord       = GLGetAttribLocation(programObject, "aTextCoord");
+        GLint aTextCoord       = GLGetAttribLocation(*pprogramObject, "aTextCoord");
         this->texCoordHandle   = static_cast<GLint>(aTextCoord);
         GLint* psamplerHandle0 = static_cast<GLint*>(this->samplerHandle0);
         GLint* psamplerHandle1 = static_cast<GLint*>(this->samplerHandle1);
-        *psamplerHandle0       = GLGetUniformLocation(programObject, "sample0");
-        *psamplerHandle1       = GLGetUniformLocation(programObject, "sample1");
-        GLint aNormal          = GLGetAttribLocation(programObject, "aNormal") 
+        *psamplerHandle0       = GLGetUniformLocation(*pprogramObject, "sample0");
+        *psamplerHandle1       = GLGetUniformLocation(*pprogramObject, "sample1");
+        GLint aNormal          = GLGetAttribLocation(*pprogramObject, "aNormal")
         this->normalHandle     = static_cast<GLint>(aNormal);
         return true;
     }
@@ -476,18 +480,19 @@ namespace mbm
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
-		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
+        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
+        GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
         GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
         GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
-		
+        GLuint* pprogramObject  = static_cast<GLuint*>(this->programObject);
+        
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             if (!pBufferId->bs->vboVertNorTexIB[0])
                 return false;
-            GLUseProgram(this->programObject);
+            GLUseProgram(*pprogramObject);
             //-----------------------------------------------------------------------------------------------------------
             GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[0]);
             GLEnableVertexAttribArray(this->positionHandle);
@@ -535,7 +540,7 @@ namespace mbm
         {
             if (!pBufferId->bs->vboVertexSubsetVB)
                 return false;
-            GLUseProgram(this->programObject);
+            GLUseProgram(*pprogramObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertexSubsetVB[i]);
@@ -585,19 +590,20 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
-		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
+        GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
+        GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
 
         GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
         GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
         GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
+        GLuint* pprogramObject  = static_cast<GLuint*>(this->programObject);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             if (!pBufferId->bs->vboIndexSubsetIB)
                 return false;
-            GLUseProgram(this->programObject);
+            GLUseProgram(*pprogramObject);
             //-----------------------------------------------------------------------------------------------------------
             GLEnableVertexAttribArray(this->positionHandle);
             GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
@@ -640,7 +646,7 @@ namespace mbm
         {
             if (!pBufferId->vertexCountVB)
                 return false;
-            GLUseProgram(this->programObject);
+            GLUseProgram(*pprogramObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLEnableVertexAttribArray(this->positionHandle);
@@ -723,10 +729,11 @@ namespace mbm
         uint32_t vertexShader;
         uint32_t fragmentShader;
         int          linked;
-        if (this->programObject)
+        GLuint* pprogramObject = static_cast<GLuint*>(this->programObject);
+        if (*pprogramObject)
         {
             PRINT_IF_DEBUG("programObject already exists");
-            return programObject;
+            return *pprogramObject;
         }
         // Load the vertex/fragment shaders
         vertexShader = compileCodeShader(GL_VERTEX_SHADER, vertShaderSrc);
@@ -743,40 +750,40 @@ namespace mbm
             return 0;
         }
         // Create the program object
-        this->programObject = GLCreateProgram();
-        if (programObject == 0)
+        *pprogramObject = GLCreateProgram();
+        if (*pprogramObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
             return 0;
         }
-        GLAttachShader(programObject, vertexShader);
-        GLAttachShader(programObject, fragmentShader);
+        GLAttachShader(*pprogramObject, vertexShader);
+        GLAttachShader(*pprogramObject, fragmentShader);
         // Link the program
-        GLLinkProgram(programObject);
+        GLLinkProgram(*pprogramObject);
         // Check the link status
-        GLGetProgramiv(programObject, GL_LINK_STATUS, &linked);
+        GLGetProgramiv(*pprogramObject, GL_LINK_STATUS, &linked);
         if (!linked)
         {
             GLDeleteShader(vertexShader);
             GLDeleteShader(fragmentShader);
             PRINT_IF_DEBUG("linked status failed");
             GLint infoLen = 0;
-            GLGetProgramiv(programObject, GL_INFO_LOG_LENGTH, &infoLen);
+            GLGetProgramiv(*pprogramObject, GL_INFO_LOG_LENGTH, &infoLen);
             if (infoLen > 1)
             {
                 auto *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
-                GLGetProgramInfoLog(programObject, infoLen, nullptr, infoLog);
+                GLGetProgramInfoLog(*pprogramObject, infoLen, nullptr, infoLog);
                 PRINT_IF_DEBUG("Error linking program:\n%s\n", infoLog);
                 free(infoLog);
             }
-            GLDeleteProgram(programObject);
-            programObject = 0;
+            GLDeleteProgram(*pprogramObject);
+            *pprogramObject = 0;
             return 0;
         }
         // Free up no longer needed shader resources
         GLDeleteShader(vertexShader);
         GLDeleteShader(fragmentShader);
-        return programObject;
+        return *pprogramObject;
     }
 }
 

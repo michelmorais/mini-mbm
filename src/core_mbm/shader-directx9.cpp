@@ -432,7 +432,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       const uint32_t programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -505,9 +505,9 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(const uint32_t programObject)
+    void BASE_SHADER::update(void * programObject)
     {
-        if (programObject == 0)
+        if (*static_cast<int*>(programObject) == 0) // simple check
             return;
         #pragma message(REMINDER_TODO "  implement use program");
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
@@ -699,16 +699,42 @@ namespace mbm
             constantTablePS->SetDefaults(pd3dDevice);
             D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
             D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
-            *psamplerHandle0 = constantTablePS->GetConstantByName(0, "sample0");
-            *psamplerHandle1 = constantTablePS->GetConstantByName(0, "sample1");
+            *psamplerHandle0 = constantTablePS->GetConstantByName(nullptr, "sample0");
+            *psamplerHandle1 = constantTablePS->GetConstantByName(nullptr, "sample1");
+
+            //D3DXCONSTANT_DESC desc;
+            //UINT count = 1;
+            //if (*psamplerHandle0 && SUCCEEDED(constantTablePS->GetConstantDesc(*psamplerHandle0, &desc, &count)))
+            //{
+            //    int pixelSamplerRegister0 = static_cast<int>(desc.RegisterIndex); // store as member int
+            //}
+            // set texture to sampler0 (pixel shader sampler index) (later)
+            //if (this->pixelSamplerRegister0 >= 0)
+            //    pd3dDevice->SetTexture(this->pixelSamplerRegister0, myTexture);
+
         }
         if (constantTableVS)
         {
             constantTableVS->SetDefaults(pd3dDevice);
             D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
             D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
-            *pmvpMatrixHandle            = constantTableVS->GetConstantByName(0, "mvpMatrix");
-            *pmvMatrixHandle             = constantTableVS->GetConstantByName(0, "mvMatrix");
+            *pmvpMatrixHandle            = constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
+            *pmvMatrixHandle             = constantTableVS->GetConstantByName(nullptr, "mvMatrix");
+
+            D3DXCONSTANT_DESC desc;
+            UINT count = 1;
+            if (*pmvpMatrixHandle && SUCCEEDED(constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
+            {
+                int vertexMvpRegister = static_cast<int>(desc.RegisterIndex);
+                int vertexMvpRegisterCount = static_cast<int>(desc.RegisterCount); // number of float4 registers
+
+                // set mvp matrix for vertex shader (uses float4 registers)
+                if (vertexMvpRegister >= 0 && vertexMvpRegisterCount > 0)
+                {
+                    // assume 'mat' is a float[4*vertexMvpRegisterCount] or D3DXMATRIX compatible
+                    pd3dDevice->SetVertexShaderConstantF(vertexMvpRegister, reinterpret_cast<const float*>(&SHADER::mvpMatrix), vertexMvpRegisterCount);
+                }
+            }
         }
 
         
@@ -1054,13 +1080,14 @@ namespace mbm
     {
         uint32_t vertexShader=0;
         uint32_t fragmentShader=0;
+        #pragma message(REMINDER_TODO "  Remove this function from common");
         int          linked=0;
         if (this->programObject)
         {
             PRINT_IF_DEBUG("programObject already exists");
-            return programObject;
+            return *static_cast<uint32_t*>(programObject);
         }
-        #pragma message(REMINDER_TODO "  Load the vertex/fragment shaders");
+        
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
@@ -1089,7 +1116,7 @@ namespace mbm
             return 0;
         }
         #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
-        return programObject;
+        return *static_cast<uint32_t*>(programObject);
     }
 }
 

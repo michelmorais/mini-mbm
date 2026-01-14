@@ -250,13 +250,13 @@ namespace mbm
         if (this->pShader)
             this->pShader->update(this->programObject);
 #if defined _DEBUG
-        else if (this->programObject == 0)
+        else if (*static_cast<int*>(this->programObject) == 0)
             PRINT_IF_DEBUG("missed shader!");
 #endif
         if (this->vShader)
             this->vShader->update(this->programObject);
 #if defined _DEBUG
-        else if (this->programObject == 0)
+        else if (*static_cast<int*>(this->programObject) == 0)
             PRINT_IF_DEBUG("missed shader!");
 #endif
     }
