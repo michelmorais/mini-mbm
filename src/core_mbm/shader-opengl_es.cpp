@@ -30,7 +30,7 @@
 
 namespace mbm
 {
-    BUFFER_GL::BUFFER_GL() noexcept :
+    BUFFER_GL::BUFFER_GL():
         indexStartIB(nullptr),
         indexCountIB(nullptr),
         vertexStartVB(nullptr),
@@ -338,8 +338,31 @@ namespace mbm
         }
     }
 
+    SHADER::SHADER() noexcept : programObject(0),
+        mvpMatrixHandle(new GLint(-1)),
+        mvMatrixHandle(new GLint(-1)),
+        positionHandle(-1),
+        texCoordHandle(-1),
+        samplerHandle0(-1),
+        samplerHandle1(-1),
+        normalHandle(-1),
+        pShader(nullptr),
+        vShader(nullptr)
+    {
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        *pimvpMatrixHandle = -1;
+        *pimvMatrixHandle = -1;
+    }
+
     SHADER::~SHADER()
     {
+        if(mvpMatrixHandle)
+            delete mvpMatrixHandle;
+        if(mvMatrixHandle)
+            delete mvMatrixHandle;
+        mvpMatrixHandle = nullptr;
+        mvMatrixHandle = nullptr;
         if (this->programObject)
         {
             GLDeleteProgram(this->programObject);
@@ -347,10 +370,28 @@ namespace mbm
         this->programObject = 0;
     }
 
+    void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
+    {
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        *pimvpMatrixHandle   = -1;
+        *pimvMatrixHandle    = -1;
+        this->positionHandle = -1;
+        this->texCoordHandle = -1;
+        this->samplerHandle0 = -1;
+        this->samplerHandle1 = -1;
+        this->normalHandle   = -1;
+        this->programObject  = 0;
+        this->pShader = nullptr;
+        this->vShader = nullptr;
+    }
+
     void SHADER::releaseShader()
     {
-        this->mvpMatrixHandle = -1;
-        this->mvMatrixHandle  = -1;
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        *pimvpMatrixHandle    = -1;
+        *pimvMatrixHandle     = -1;
         this->positionHandle  = -1;
         this->texCoordHandle  = -1;
         this->samplerHandle0  = -1;
@@ -413,10 +454,16 @@ namespace mbm
             if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
-        GLint aPosition       = GLGetAttribLocation(programObject, "aPosition");
-        this->positionHandle  = static_cast<GLint>(aPosition);
-        this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix");
-        this->mvMatrixHandle  = GLGetUniformLocation(programObject, "mvMatrix");
+
+        GLint aPosition          = GLGetAttribLocation(programObject, "aPosition");
+        this->positionHandle     = static_cast<GLint>(aPosition);
+        GLint imvpMatrixHandle   = GLGetUniformLocation(programObject, "mvpMatrix");
+        GLint imvMatrixHandle    = GLGetUniformLocation(programObject, "mvMatrix");
+        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        *pimvpMatrixHandle       = imvpMatrixHandle;
+        *pimvMatrixHandle        = imvMatrixHandle;
+
         GLint aTextCoord      = GLGetAttribLocation(programObject, "aTextCoord");
         this->texCoordHandle  = static_cast<GLint>(aTextCoord);
         this->samplerHandle0  = GLGetUniformLocation(programObject, "sample0");
@@ -431,6 +478,8 @@ namespace mbm
     {
 		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
 		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
+        GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
 		
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -453,8 +502,8 @@ namespace mbm
             GLEnableVertexAttribArray(this->texCoordHandle);
             GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -502,8 +551,8 @@ namespace mbm
                 GLEnableVertexAttribArray(this->texCoordHandle);
                 GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
@@ -537,6 +586,9 @@ namespace mbm
 		GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
 		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
 
+        GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
+        GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             if (!pBufferId->bs->vboIndexSubsetIB)
@@ -555,8 +607,8 @@ namespace mbm
             GLEnableVertexAttribArray(this->texCoordHandle);
             GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+            GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -599,8 +651,8 @@ namespace mbm
                 GLEnableVertexAttribArray(this->texCoordHandle);
                 GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(this->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(this->mvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);

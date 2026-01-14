@@ -89,7 +89,9 @@ namespace mbm
         GLEnableVertexAttribArray(shader->positionHandle);
         GLVertexAttribPointer(shader->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-        GLUniformMatrix4fv(shader->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(shader->mvpMatrixHandle);
+        
+        GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLBindTexture(GL_TEXTURE_2D, 0);
         GLDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(this->arrayLinesVec3.size()));
         GLBindBuffer(GL_ARRAY_BUFFER, 0);

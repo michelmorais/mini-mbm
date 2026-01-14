@@ -316,7 +316,9 @@ namespace mbm
         }
         GLDisable(GL_DEPTH_TEST);
         this->blend.set(anim->blendState);
-        GLUniformMatrix4fv(anim->fx.shader.mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.mvpMatrixHandle);
+
+        GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         // if(fx->shader.mvMatrixHandle != -1)
         //  GLUniformMatrix4fv(fx->shader.mvMatrixHandle, 1, GL_FALSE,SHADER::mvpMatrix.p);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);

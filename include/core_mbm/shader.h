@@ -132,8 +132,8 @@ namespace mbm
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
         unsigned int programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
-        int mvpMatrixHandle; // Handle para matrix x projection
-        int mvMatrixHandle;  // Handle para a matrix do modelo
+        void* mvpMatrixHandle; // Handle para matrix x projection
+        void* mvMatrixHandle;  // Handle para a matrix do modelo
         int positionHandle;
         int texCoordHandle;
         int samplerHandle0;

@@ -431,6 +431,20 @@ namespace mbm
         return true;
     }
 
+    SHADER::SHADER() noexcept : programObject(0),
+        mvpMatrixHandle(nullptr),
+        mvMatrixHandle(nullptr),
+        positionHandle(-1),
+        texCoordHandle(-1),
+        samplerHandle0(-1),
+        samplerHandle1(-1),
+        normalHandle(-1),
+        pShader(nullptr),
+        vShader(nullptr)
+    {
+        
+    }
+
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
                        const uint32_t programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
@@ -541,10 +555,24 @@ namespace mbm
         this->programObject = 0;
     }
 
+    void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
+    {
+        this->mvpMatrixHandle = nullptr;
+        this->mvMatrixHandle = nullptr;
+        this->positionHandle = -1;
+        this->texCoordHandle = -1;
+        this->samplerHandle0 = -1;
+        this->samplerHandle1 = -1;
+        this->normalHandle = -1;
+        this->programObject = 0;
+        this->pShader = nullptr;
+        this->vShader = nullptr;
+    }
+
     void SHADER::releaseShader()
     {
-        this->mvpMatrixHandle = -1;
-        this->mvMatrixHandle  = -1;
+        this->mvpMatrixHandle = nullptr;
+        this->mvMatrixHandle  = nullptr;
         this->positionHandle  = -1;
         this->texCoordHandle  = -1;
         this->samplerHandle0  = -1;

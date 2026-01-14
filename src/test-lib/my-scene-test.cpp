@@ -73,7 +73,7 @@ void MY_SCENE::init()
     sprite = new mbm::SPRITE(this, false, true);
     sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
     sprite->alwaysRenderize = true;
-    sprite->angle.x = 3.14;
+    
     
     //**************
     //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails

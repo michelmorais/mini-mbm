@@ -240,33 +240,6 @@ namespace mbm
         return false;
     }
 
-    SHADER::SHADER() noexcept : programObject(0),
-                                  mvpMatrixHandle(-1),
-                                  mvMatrixHandle(-1),
-                                  positionHandle(-1),
-                                  texCoordHandle(-1),
-                                  samplerHandle0(-1),
-                                  samplerHandle1(-1),
-                                  normalHandle(-1),
-                                  pShader(nullptr),
-                                  vShader(nullptr)
-    {
-    }
-
-    void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
-    {
-        this->mvpMatrixHandle = -1;
-        this->mvMatrixHandle  = -1;
-        this->positionHandle  = -1;
-        this->texCoordHandle  = -1;
-        this->samplerHandle0  = -1;
-        this->samplerHandle1  = -1;
-        this->normalHandle    = -1;
-        this->programObject   = 0;
-        this->pShader         = nullptr;
-        this->vShader         = nullptr;
-    }
-
     bool SHADER::isLoad()
     {
         return this->programObject != 0;
