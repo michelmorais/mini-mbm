@@ -17,11 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <blend.h>
-
 #if defined (USE_DIRECTX9)
 
-
+#include <blend.h>
 #include <specific-directx9.h>
 #include <device.h>
 
@@ -36,7 +34,7 @@ namespace mbm
             case BLEND_DISABLE:
             {
                 //Transparencia dos pixels definido no color Keying
-                pd3dDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+                pd3dDevice->SetRenderState(D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
                 pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
                 return;
             }
@@ -44,17 +42,17 @@ namespace mbm
         }
         switch (blendState)
         {
-            case BLEND_DISABLE: pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);              break;
-            case BLEND_ZERO:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);                break;
-            case BLEND_ONE:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);                  break;
-            case BLEND_SRCCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCCOLOR);        break;
-            case BLEND_INVSRCCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);  break;
-            case BLEND_SRCALPHA:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCALPHA);        break;
-            case BLEND_INVSRCALPHA:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);  break;
-            case BLEND_DESTALPHA:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTALPHA);      break;
-            case BLEND_INVDESTALPHA:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVDESTALPHA);break;
-            case BLEND_DESTCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);      break;
-            case BLEND_INVDESTCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVDESTCOLOR);break;
+            case BLEND_DISABLE:     pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);             break;
+            case BLEND_ZERO:        pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ZERO);           break;
+            case BLEND_ONE:         pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);            break;
+            case BLEND_SRCCOLOR:    pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCCOLOR);       break;
+            case BLEND_INVSRCCOLOR: pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);    break;
+            case BLEND_SRCALPHA:    pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_SRCALPHA);       break;
+            case BLEND_INVSRCALPHA: pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);    break;
+            case BLEND_DESTALPHA:   pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTALPHA);      break;
+            case BLEND_INVDESTALPHA:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVDESTALPHA);   break;
+            case BLEND_DESTCOLOR:   pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);      break;
+            case BLEND_INVDESTCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVDESTCOLOR);   break;
             default: {}
         }
     }

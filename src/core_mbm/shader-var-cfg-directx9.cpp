@@ -21,13 +21,15 @@
 #if defined (USE_DIRECTX9)
 #include <shader-var-cfg.h>
 #include <cstring>
+#include <specific-directx9.h>
 
 namespace mbm
 {
 
-    VAR_SHADER::VAR_SHADER(const TYPE_VAR_SHADER TypeVar) noexcept
+    VAR_SHADER::VAR_SHADER(const TYPE_VAR_SHADER TypeVar, const bool isPs) noexcept :
+        typeVar(TypeVar),
+        isPS(isPs)
     {
-        typeVar = TypeVar;
         memset(current, 0, sizeof(current));
         memset(this->min, 0, sizeof(min));
         memset(this->max, 0, sizeof(max));
@@ -45,7 +47,7 @@ namespace mbm
             break;
         }
 
-        ptrHandleVar = new int(-1);
+        ptrHandleVar = new D3DXHANDLE(nullptr);
     }
 
     VAR_SHADER::~VAR_SHADER()

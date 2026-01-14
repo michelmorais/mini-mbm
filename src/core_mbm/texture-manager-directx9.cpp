@@ -241,8 +241,6 @@ namespace mbm
             surfaceDest->Release();
             surfaceDest = nullptr;
             // LockRect failed on GPU surface — try system-memory fallback:
-            PRINT_IF_DEBUG("LockRect failed on GPU surface (hr=0x%08x). Trying system memory fallback...", hrLock);
-
             IDirect3DTexture9* texSys = nullptr;
             HRESULT hrCreateSys = pd3dDevice->CreateTexture(
                 width, height,                          // width, height

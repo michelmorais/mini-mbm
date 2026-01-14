@@ -432,7 +432,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       void* programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* programObject, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -451,18 +451,39 @@ namespace mbm
 #endif
                 return false;
             }
-            auto var       = new VAR_SHADER(typeVar);
+            auto var       = new VAR_SHADER(typeVar, isPS);
             var->name      = nameVar;
             #pragma message(REMINDER_TODO "  implement get uniform location");
             
-            if (var->handleVar == -1)
+            if (var->ptrHandleVar == nullptr)
             {
 #if defined _DEBUG
-                PRINT_IF_DEBUG("wasn't found: '%s' into shader GLES! \"", nameVar);
+                PRINT_IF_DEBUG("Not initialized ptrHandleVar: '%s' into shader HLSL! \"", nameVar);
 #endif
                 delete var;
                 return true;
             }
+            D3DXHANDLE* pHandleVar = static_cast<D3DXHANDLE*>(var->ptrHandleVar);
+            D3D_PS_VS* d3dPsVs     = static_cast<D3D_PS_VS*>(programObject);
+            if (isPS)
+            {
+                *pHandleVar = d3dPsVs->constantTablePS->GetConstantByName(nullptr, nameVar);
+            }
+            else
+            {
+                *pHandleVar = d3dPsVs->constantTableVS->GetConstantByName(nullptr, nameVar);
+            }
+            
+            if (*pHandleVar == nullptr)
+            {
+#if defined _DEBUG
+                PRINT_IF_DEBUG("Not found variable: '%s' into shader HLSL! \"", nameVar);
+#endif
+                delete var;
+                return true;
+            }
+            
+            
             switch (typeVar)
             {
                 case VAR_FLOAT: { var->current[0] = defaultValue[0];
@@ -510,23 +531,28 @@ namespace mbm
         if (programObject == nullptr || *static_cast<int*>(programObject) == 0) // simple check
             return;
         #pragma message(REMINDER_TODO "  implement use program");
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
             VAR_SHADER *var = lsVar[i];
             if (var)
             {
+                D3DXHANDLE* pHandleVar            = static_cast<D3DXHANDLE*>(var->ptrHandleVar);
+                D3D_PS_VS* d3dPsVs                = static_cast<D3D_PS_VS*>(programObject);
+                ID3DXConstantTable* constantTable = var->isPS ? d3dPsVs->constantTablePS : d3dPsVs->constantTableVS;
                 switch (var->typeVar)
                 {
                     // Uniform
-                    case VAR_FLOAT: {}
+                    case VAR_FLOAT: { constantTable->SetFloat(pd3dDevice, *pHandleVar, var->current[0]); }
                     break;
-                    case VAR_VECTOR2:{}
+                    case VAR_VECTOR2:{ constantTable->SetFloatArray(pd3dDevice, *pHandleVar, var->current, 2); }
                     break;
-                    case VAR_COLOR_RGB:{}
-                    case VAR_VECTOR: {};
+                    case VAR_COLOR_RGB:
+                    case VAR_VECTOR: { constantTable->SetFloatArray(pd3dDevice, *pHandleVar, var->current, 3); }
                     break;
-                    case VAR_COLOR_RGBA:{}
+                    case VAR_COLOR_RGBA: { constantTable->SetFloatArray(pd3dDevice, *pHandleVar, var->current, 4); }
                     break;
                     default: {}
                     break;

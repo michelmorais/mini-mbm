@@ -134,7 +134,7 @@ namespace mbm
         else
         {
             float c[4] = {1, 0, 0, 1};
-            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c,anim->fx.shader.ptrProgramObject))
+            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c,anim->fx.shader.ptrProgramObject, true))
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);

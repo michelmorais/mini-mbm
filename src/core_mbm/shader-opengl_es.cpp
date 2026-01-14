@@ -229,7 +229,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       void* programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* programObject, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -248,7 +248,7 @@ namespace mbm
 #endif
                 return false;
             }
-            auto var       = new VAR_SHADER(typeVar);
+            auto var       = new VAR_SHADER(typeVar, isPS);
             var->name      = nameVar;
             int32_t *handleVar = static_cast<int32_t*>(var->ptrHandleVar);
             *handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);

@@ -37,7 +37,8 @@ namespace mbm
 
     struct VAR_SHADER
     {
-        TYPE_VAR_SHADER typeVar;
+        const TYPE_VAR_SHADER typeVar;
+        const bool      isPS;
         void*           ptrHandleVar;
         std::string     name;
         int             sizeVar;
@@ -47,7 +48,8 @@ namespace mbm
         float           step[4];
         bool            control[4];
         bool            granThen[4]; // Test <=
-        API_IMPL VAR_SHADER(const TYPE_VAR_SHADER TypeVar) noexcept;
+        
+        API_IMPL VAR_SHADER(const TYPE_VAR_SHADER TypeVar,const bool isPS) noexcept;
         API_IMPL void set(const float newMin[4], const float newMax[4],const float timeAnim);
 
         ~VAR_SHADER();

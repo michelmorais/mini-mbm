@@ -113,7 +113,7 @@ namespace mbm
         API_IMPL const char *getCode();
         API_IMPL VAR_SHADER *getVarByName(const char *nameVar);
         API_IMPL VAR_SHADER *getVar(const unsigned int indexVar);
-        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* programObject);
+        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* programObject, const bool isPS);
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
