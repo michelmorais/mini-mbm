@@ -17,38 +17,41 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined (USE_OPENGL_ES)
 #include <shader-var-cfg.h>
 #include <cstring>
 
 namespace mbm
 {
 
-    void VAR_SHADER::set(const float newMin[4], const float newMax[4],const float timeAnim)
+    VAR_SHADER::VAR_SHADER(const TYPE_VAR_SHADER TypeVar) noexcept
     {
-        for (int i = 0; i < this->sizeVar; ++i)
+        typeVar = TypeVar;
+        memset(current, 0, sizeof(current));
+        memset(this->min, 0, sizeof(min));
+        memset(this->max, 0, sizeof(max));
+        memset(this->step, 0, sizeof(step));
+        memset(this->control, 1, sizeof(control));
+        memset(this->granThen, 0, sizeof(granThen));
+        switch (typeVar)
         {
-            this->min[i]         = newMin[i];
-            this->max[i]         = newMax[i];
-            const float minFloat = newMin[i];
-            const float maxFloat = newMax[i];
-            if (minFloat <= maxFloat)
-            {
-                const float interval = maxFloat - minFloat;
-                if (interval != 0.0f && timeAnim != 0.0f)
-                    this->step[i] = (interval / timeAnim);
-                else
-                    this->step[i] = 0.0f;
-                this->granThen[i] = true;
-            }
-            else
-            {
-                const float interval = (minFloat - maxFloat);
-                if (interval != 0.0f && timeAnim != 0.0f)
-                    this->step[i] = (interval / timeAnim) * -1.0f;
-                else
-                    this->step[i] = 0.0f;
-                this->granThen[i] = false;
-            }
+            case VAR_FLOAT: this->sizeVar      = 1; break;
+            case VAR_VECTOR: this->sizeVar     = 3; break;
+            case VAR_VECTOR2: this->sizeVar    = 2; break;
+            case VAR_COLOR_RGB: this->sizeVar  = 3; break;
+            case VAR_COLOR_RGBA: this->sizeVar = 4; break;
+            default: { this->sizeVar = 0;}
+            break;
         }
+
+        ptrHandleVar = new int32_t(-1);
     }
+
+    VAR_SHADER::~VAR_SHADER()
+    {
+        delete ptrHandleVar;
+    }
+
 }
+
+#endif

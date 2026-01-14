@@ -635,6 +635,12 @@
     <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">

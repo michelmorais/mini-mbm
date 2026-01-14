@@ -331,12 +331,13 @@ namespace mbm
 
         if (var)
         {
+            const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
             for (unsigned int i = 0; i < this->totalAlive; ++i)
             {
                 const float * vertex   = reinterpret_cast<float *>(&this->buffer[i * 4]);
                 ATT_PARTICLE *particle = &this->particles[i];
                 // GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
-                GLUniform4f(var->handleVar, particle->r, particle->g, particle->b, particle->a);
+                GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
                 GLEnableVertexAttribArray(anim->fx.shader.positionHandle);
                 GLVertexAttribPointer(anim->fx.shader.positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
                                       vertex);

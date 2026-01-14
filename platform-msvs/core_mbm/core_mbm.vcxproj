@@ -299,6 +299,8 @@
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp" />

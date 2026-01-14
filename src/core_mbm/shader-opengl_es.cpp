@@ -250,8 +250,9 @@ namespace mbm
             }
             auto var       = new VAR_SHADER(typeVar);
             var->name      = nameVar;
-            var->handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);
-            if (var->handleVar == -1)
+            int32_t *handleVar = static_cast<int32_t*>(var->ptrHandleVar);
+            *handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);
+            if (*handleVar == -1)
             {
 #if defined _DEBUG
                 PRINT_IF_DEBUG("wasn't found: '%s' into shader GLES! \"", nameVar);
@@ -312,22 +313,23 @@ namespace mbm
             VAR_SHADER *var = lsVar[i];
             if (var)
             {
+                const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
                 switch (var->typeVar)
                 {
                     // Uniform
-                    case VAR_FLOAT: { GLUniform1f(var->handleVar, var->current[0]);
+                    case VAR_FLOAT: { GLUniform1f(handleVar, var->current[0]);
                     }
                     break;
-                    case VAR_VECTOR2: { GLUniform2f(var->handleVar, var->current[0], var->current[1]);
+                    case VAR_VECTOR2: { GLUniform2f(handleVar, var->current[0], var->current[1]);
                     }
                     break;
                     case VAR_COLOR_RGB:
-                    case VAR_VECTOR: { GLUniform3f(var->handleVar, var->current[0], var->current[1], var->current[2]);
+                    case VAR_VECTOR: { GLUniform3f(handleVar, var->current[0], var->current[1], var->current[2]);
                     }
                     break;
                     case VAR_COLOR_RGBA:
                     {
-                        GLUniform4f(var->handleVar, var->current[0], var->current[1], var->current[2], var->current[3]);
+                        GLUniform4f(handleVar, var->current[0], var->current[1], var->current[2], var->current[3]);
                     }
                     break;
                     default: {

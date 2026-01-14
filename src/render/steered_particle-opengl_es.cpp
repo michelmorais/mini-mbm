@@ -150,7 +150,8 @@ namespace mbm
         {
             if (var)
             {
-                GLUniform4f(var->handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
+                const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
+                GLUniform4f(handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
@@ -185,7 +186,8 @@ namespace mbm
         {
             if (var)
             {
-                GLUniform4f(var->handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
+                const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
+                GLUniform4f(handleVar, this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a);
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float * vertex  = reinterpret_cast<float *>(&pGroup->vertex_particle[i * 4]);
