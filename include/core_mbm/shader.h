@@ -136,8 +136,8 @@ namespace mbm
         void* mvMatrixHandle;  // Handle para a matrix do modelo
         int positionHandle;
         int texCoordHandle;
-        int samplerHandle0;
-        int samplerHandle1;
+        void* samplerHandle0;
+        void* samplerHandle1;
         int normalHandle;
         SHADER() noexcept;
         virtual ~SHADER();

@@ -294,9 +294,9 @@ namespace mbm
     }
 
     bool BUFFER_GL::loadBuffer(const VEC3 *vertex, // type index buffer
-		const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
-		const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
-		const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,
+        const uint16_t *arrayIndices,const uint32_t totalSubsets,const int *indexStartSubset,
+        const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
     {
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
@@ -431,20 +431,6 @@ namespace mbm
         return true;
     }
 
-    SHADER::SHADER() noexcept : programObject(0),
-        mvpMatrixHandle(nullptr),
-        mvMatrixHandle(nullptr),
-        positionHandle(-1),
-        texCoordHandle(-1),
-        samplerHandle0(-1),
-        samplerHandle1(-1),
-        normalHandle(-1),
-        pShader(nullptr),
-        vShader(nullptr)
-    {
-        
-    }
-
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
                        const uint32_t programObject) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
@@ -549,21 +535,42 @@ namespace mbm
         }
     }
 
+    SHADER::SHADER() noexcept : programObject(0),
+        mvpMatrixHandle(new D3DXHANDLE(nullptr)),
+        mvMatrixHandle(new D3DXHANDLE(nullptr)),
+        positionHandle(-1),
+        texCoordHandle(-1),
+        samplerHandle0(new D3DXHANDLE(nullptr)),
+        samplerHandle1(new D3DXHANDLE(nullptr)),
+        normalHandle(-1),
+        pShader(nullptr),
+        vShader(nullptr)
+    {
+
+    }
+
     SHADER::~SHADER()
     {
+        delete mvpMatrixHandle;
+        delete mvMatrixHandle;
+        delete samplerHandle0;
+        delete samplerHandle1;
         #pragma message(REMINDER_TODO "  implement release shader");
         this->programObject = 0;
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        this->mvpMatrixHandle = nullptr;
-        this->mvMatrixHandle = nullptr;
-        this->positionHandle = -1;
+        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
+        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+        *pmvpMatrixHandle    = nullptr;
+        *pmvpMatrixHandle    = nullptr;
         this->texCoordHandle = -1;
-        this->samplerHandle0 = -1;
-        this->samplerHandle1 = -1;
-        this->normalHandle = -1;
+        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
+        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+        *psamplerHandle0    = nullptr;
+        *psamplerHandle1    = nullptr;
+        this->normalHandle  = -1;
         this->programObject = 0;
         this->pShader = nullptr;
         this->vShader = nullptr;
@@ -571,12 +578,16 @@ namespace mbm
 
     void SHADER::releaseShader()
     {
-        this->mvpMatrixHandle = nullptr;
-        this->mvMatrixHandle  = nullptr;
+        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
+        D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+        *pmvpMatrixHandle     = nullptr;
+        *pmvpMatrixHandle     = nullptr;
         this->positionHandle  = -1;
         this->texCoordHandle  = -1;
-        this->samplerHandle0  = -1;
-        this->samplerHandle1  = -1;
+        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
+        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+        *psamplerHandle0      = nullptr;
+        *psamplerHandle1      = nullptr;
         this->normalHandle    = -1;
         this->pShader         = nullptr;
         this->vShader         = nullptr;
@@ -642,8 +653,6 @@ namespace mbm
         ID3DXConstantTable* constantTableVS = nullptr;
         IDirect3DPixelShader9* pd3dPixelShader = nullptr;//Pixel Shader
         IDirect3DVertexShader9* pd3dVertexShader = nullptr;//Vertex Shader
-        D3DXHANDLE						mvpMatrixHandle;
-        D3DXHANDLE						mvMatrixHandle;
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
         const char* codeVS = ptrPshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
@@ -688,20 +697,29 @@ namespace mbm
         if (constantTablePS)
         {
             constantTablePS->SetDefaults(pd3dDevice);
+            D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->samplerHandle0);
+            D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->samplerHandle1);
+            *psamplerHandle0 = constantTablePS->GetConstantByName(0, "sample0");
+            *psamplerHandle1 = constantTablePS->GetConstantByName(0, "sample1");
         }
         if (constantTableVS)
         {
             constantTableVS->SetDefaults(pd3dDevice);
+            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->mvpMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->mvMatrixHandle);
+            *pmvpMatrixHandle            = constantTableVS->GetConstantByName(0, "mvpMatrix");
+            *pmvMatrixHandle             = constantTableVS->GetConstantByName(0, "mvMatrix");
         }
 
+        
         //GLint aPosition = GLGetAttribLocation(programObject, "aPosition");
         //this->positionHandle = static_cast<GLint>(aPosition);
-        //this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix");
-        //this->mvMatrixHandle = GLGetUniformLocation(programObject, "mvMatrix");
+        //this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix"); OK
+        //this->mvMatrixHandle = GLGetUniformLocation(programObject, "mvMatrix");   OK
         //GLint aTextCoord = GLGetAttribLocation(programObject, "aTextCoord");
         //this->texCoordHandle = static_cast<GLint>(aTextCoord);
-        //this->samplerHandle0 = GLGetUniformLocation(programObject, "sample0");
-        //this->samplerHandle1 = GLGetUniformLocation(programObject, "sample1");
+        //this->samplerHandle0 = GLGetUniformLocation(programObject, "sample0"); OK
+        //this->samplerHandle1 = GLGetUniformLocation(programObject, "sample1"); OK
         //GLint aNormal = GLGetAttribLocation(programObject, "aNormal")
         //this->normalHandle = static_cast<GLint>(aNormal);
         
@@ -991,7 +1009,7 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-		if (pBufferId && vertex && pBufferId->bs && pBufferId->bs->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
+        if (pBufferId && vertex && pBufferId->bs && pBufferId->bs->pVertexBuffer && pBufferId->sizeOfArrayVertex > 0)
         {
             const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, pBufferId->sizeOfArrayVertex);
             void* pvertex = nullptr;

@@ -124,12 +124,15 @@ namespace mbm
         {
             GLBindTexture(GL_TEXTURE_2D, 0);
         }
-        GLUniform1i(anim->fx.shader.samplerHandle0, 0);
+        GLint* psamplerHandle0 = static_cast<GLint*>(anim->fx.shader.samplerHandle0);
+        GLint* psamplerHandle1 = static_cast<GLint*>(anim->fx.shader.samplerHandle1);
+
+        GLUniform1i(*psamplerHandle0, 0);
         if (anim->fx.textureOverrideStage2)
         {
             glActiveTexture(GL_TEXTURE1);
             GLBindTexture(GL_TEXTURE_2D, anim->fx.textureOverrideStage2->idTexture);
-            glUniform1i(anim->fx.shader.samplerHandle1, 1);
+            glUniform1i(*psamplerHandle1, 1);
         }
         else
         {

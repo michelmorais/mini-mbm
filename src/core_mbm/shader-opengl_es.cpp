@@ -343,26 +343,20 @@ namespace mbm
         mvMatrixHandle(new GLint(-1)),
         positionHandle(-1),
         texCoordHandle(-1),
-        samplerHandle0(-1),
-        samplerHandle1(-1),
+        samplerHandle0(new GLint(-1)),
+        samplerHandle1(new GLint(-1)),
         normalHandle(-1),
         pShader(nullptr),
         vShader(nullptr)
     {
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
-        *pimvpMatrixHandle = -1;
-        *pimvMatrixHandle = -1;
     }
 
     SHADER::~SHADER()
     {
-        if(mvpMatrixHandle)
-            delete mvpMatrixHandle;
-        if(mvMatrixHandle)
-            delete mvMatrixHandle;
-        mvpMatrixHandle = nullptr;
-        mvMatrixHandle = nullptr;
+        delete mvpMatrixHandle;
+        delete mvMatrixHandle;
+        delete samplerHandle0;
+        delete samplerHandle1;
         if (this->programObject)
         {
             GLDeleteProgram(this->programObject);
@@ -378,8 +372,10 @@ namespace mbm
         *pimvMatrixHandle    = -1;
         this->positionHandle = -1;
         this->texCoordHandle = -1;
-        this->samplerHandle0 = -1;
-        this->samplerHandle1 = -1;
+        GLint* psamplerHandle0 = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1 = static_cast<GLint*>(this->samplerHandle1);
+        *psamplerHandle0     = -1;
+        *psamplerHandle1     = -1;
         this->normalHandle   = -1;
         this->programObject  = 0;
         this->pShader = nullptr;
@@ -390,15 +386,17 @@ namespace mbm
     {
         GLint* pimvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* pimvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
-        *pimvpMatrixHandle    = -1;
-        *pimvMatrixHandle     = -1;
-        this->positionHandle  = -1;
-        this->texCoordHandle  = -1;
-        this->samplerHandle0  = -1;
-        this->samplerHandle1  = -1;
-        this->normalHandle    = -1;
-        this->pShader         = nullptr;
-        this->vShader         = nullptr;
+        *pimvpMatrixHandle       = -1;
+        *pimvMatrixHandle        = -1;
+        this->positionHandle     = -1;
+        this->texCoordHandle     = -1;
+        GLint* psamplerHandle0   = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1   = static_cast<GLint*>(this->samplerHandle1);
+        *psamplerHandle0         = -1;
+        *psamplerHandle1         = -1;
+        this->normalHandle       = -1;
+        this->pShader            = nullptr;
+        this->vShader            = nullptr;
         if (this->programObject)
         {
             GLDeleteProgram(this->programObject);
@@ -464,12 +462,14 @@ namespace mbm
         *pimvpMatrixHandle       = imvpMatrixHandle;
         *pimvMatrixHandle        = imvMatrixHandle;
 
-        GLint aTextCoord      = GLGetAttribLocation(programObject, "aTextCoord");
-        this->texCoordHandle  = static_cast<GLint>(aTextCoord);
-        this->samplerHandle0  = GLGetUniformLocation(programObject, "sample0");
-        this->samplerHandle1  = GLGetUniformLocation(programObject, "sample1");
-        GLint aNormal         = GLGetAttribLocation(programObject, "aNormal") 
-        this->normalHandle    = static_cast<GLint>(aNormal);
+        GLint aTextCoord       = GLGetAttribLocation(programObject, "aTextCoord");
+        this->texCoordHandle   = static_cast<GLint>(aTextCoord);
+        GLint* psamplerHandle0 = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1 = static_cast<GLint*>(this->samplerHandle1);
+        *psamplerHandle0       = GLGetUniformLocation(programObject, "sample0");
+        *psamplerHandle1       = GLGetUniformLocation(programObject, "sample1");
+        GLint aNormal          = GLGetAttribLocation(programObject, "aNormal") 
+        this->normalHandle     = static_cast<GLint>(aNormal);
         return true;
     }
 
@@ -480,6 +480,8 @@ namespace mbm
 		GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
         GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
 		
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -512,7 +514,7 @@ namespace mbm
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(samplerHandle0, 0);
+                GLUniform1i(*psamplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
                 GLActiveTexture(GL_TEXTURE1);
@@ -520,7 +522,7 @@ namespace mbm
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(samplerHandle1, 1);
+                    GLUniform1i(*psamplerHandle1, 1);
                 }
                 else
                 {
@@ -559,14 +561,14 @@ namespace mbm
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(samplerHandle0, 0);
+                GLUniform1i(*psamplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(samplerHandle1, 1);
+                    GLUniform1i(*psamplerHandle1, 1);
                 }
                 else
                 {
@@ -588,6 +590,8 @@ namespace mbm
 
         GLint* imvpMatrixHandle = static_cast<GLint*>(this->mvpMatrixHandle);
         GLint* imvMatrixHandle  = static_cast<GLint*>(this->mvMatrixHandle);
+        GLint* psamplerHandle0  = static_cast<GLint*>(this->samplerHandle0);
+        GLint* psamplerHandle1  = static_cast<GLint*>(this->samplerHandle1);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -615,7 +619,7 @@ namespace mbm
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(samplerHandle0, 0);
+                GLUniform1i(*psamplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
@@ -623,7 +627,7 @@ namespace mbm
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(samplerHandle1, 1);
+                    GLUniform1i(*psamplerHandle1, 1);
                 }
                 else
                 {
@@ -657,14 +661,14 @@ namespace mbm
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(samplerHandle0, 0);
+                GLUniform1i(*psamplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(samplerHandle1, 1);
+                    GLUniform1i(*psamplerHandle1, 1);
                 }
                 else
                 {
