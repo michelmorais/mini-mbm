@@ -175,6 +175,44 @@ namespace mbm
         IDirect3DIndexBuffer9* pIndexBuffer;
         void release();
     };
+
+    struct D3D_PS_VS
+    {
+        IDirect3DPixelShader9* pd3dPixelShader = nullptr;//Pixel Shader
+        IDirect3DVertexShader9* pd3dVertexShader = nullptr;//Vertex Shader
+        ID3DXConstantTable* constantTablePS = nullptr;
+        ID3DXConstantTable* constantTableVS = nullptr;
+
+        D3D_PS_VS() noexcept = default;
+
+        ~D3D_PS_VS()
+        {
+            if (pd3dPixelShader)
+            {
+                pd3dPixelShader->Release();
+                pd3dPixelShader = nullptr;
+            }
+            if (pd3dVertexShader)
+            {
+                pd3dVertexShader->Release();
+                pd3dVertexShader = nullptr;
+            }
+            if (constantTablePS)
+            {
+                constantTablePS->Release();
+                constantTablePS = nullptr;
+            }
+            if (constantTableVS)
+            {
+                constantTableVS->Release();
+                constantTableVS = nullptr;
+            }
+        }
+
+        // Prevent copying (COM objects should not be copied)
+        D3D_PS_VS(const D3D_PS_VS&) = delete;
+        D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
+    };
 }
 
 #endif

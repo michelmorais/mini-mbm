@@ -461,7 +461,7 @@ namespace mbm
                 PRINT_IF_DEBUG("wasn't found: '%s' into shader GLES! \"", nameVar);
 #endif
                 delete var;
-                return false;
+                return true;
             }
             switch (typeVar)
             {
@@ -507,7 +507,7 @@ namespace mbm
 
     void BASE_SHADER::update(void * programObject)
     {
-        if (*static_cast<int*>(programObject) == 0) // simple check
+        if (programObject == nullptr || *static_cast<int*>(programObject) == 0) // simple check
             return;
         #pragma message(REMINDER_TODO "  implement use program");
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
@@ -535,7 +535,7 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() : ptrProgramObject(0),
+    SHADER::SHADER() : ptrProgramObject(new D3D_PS_VS()),
         ptrMvpMatrixHandle(new D3DXHANDLE(nullptr)),
         ptrMvMatrixHandle(new D3DXHANDLE(nullptr)),
         positionHandle(-1),
@@ -555,6 +555,7 @@ namespace mbm
         delete ptrMvMatrixHandle;
         delete ptrSamplerHandle0;
         delete ptrSamplerHandle1;
+        delete ptrProgramObject;
         #pragma message(REMINDER_TODO "  implement release shader");
         this->ptrProgramObject = 0;
     }
@@ -649,10 +650,9 @@ namespace mbm
         ID3DXBuffer* bufferPS = nullptr;
         ID3DXBuffer* bufferVS = nullptr;
         ID3DXBuffer* errorBuffer = nullptr;
-        ID3DXConstantTable* constantTablePS = nullptr;//Modo de acessar variaveis shader
-        ID3DXConstantTable* constantTableVS = nullptr;
-        IDirect3DPixelShader9* pd3dPixelShader = nullptr;//Pixel Shader
-        IDirect3DVertexShader9* pd3dVertexShader = nullptr;//Vertex Shader
+        
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
         const char* codeVS = ptrPshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
@@ -662,7 +662,7 @@ namespace mbm
 #else
         constexpr DWORD flag = D3DXSHADER_SKIPVALIDATION;
 #endif
-        if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &constantTablePS)))
+        if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &d3dPsVs->constantTablePS)))
         {
             if (errorBuffer)
             {
@@ -672,7 +672,7 @@ namespace mbm
                 return false;
             }
         }
-        if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &constantTableVS)))
+        if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &d3dPsVs->constantTableVS)))
         {
             if (errorBuffer)
             {
@@ -684,23 +684,35 @@ namespace mbm
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
-        if (FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &pd3dPixelShader)))
+
+        if (d3dPsVs->pd3dPixelShader)
+        {
+            d3dPsVs->pd3dPixelShader->Release();
+            d3dPsVs->pd3dPixelShader = nullptr;
+        }
+        if (d3dPsVs->pd3dVertexShader)
+        {
+            d3dPsVs->pd3dVertexShader->Release();
+            d3dPsVs->pd3dVertexShader = nullptr;
+        }
+
+        if (FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &d3dPsVs->pd3dPixelShader)))
         {
             ERROR_AT(__LINE__, __FILE__, "error on create pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
             return false;
         }
-        if (FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &pd3dVertexShader)))
+        if (FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &d3dPsVs->pd3dVertexShader)))
         {
             ERROR_AT(__LINE__, __FILE__, "error on create vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
             return false;
         }
-        if (constantTablePS)
+        if (d3dPsVs->constantTablePS)
         {
-            constantTablePS->SetDefaults(pd3dDevice);
+            d3dPsVs->constantTablePS->SetDefaults(pd3dDevice);
             D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
             D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
-            *psamplerHandle0 = constantTablePS->GetConstantByName(nullptr, "sample0");
-            *psamplerHandle1 = constantTablePS->GetConstantByName(nullptr, "sample1");
+            *psamplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
+            *psamplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
@@ -713,17 +725,17 @@ namespace mbm
             //    pd3dDevice->SetTexture(this->pixelSamplerRegister0, myTexture);
 
         }
-        if (constantTableVS)
+        if (d3dPsVs->constantTableVS)
         {
-            constantTableVS->SetDefaults(pd3dDevice);
+            d3dPsVs->constantTableVS->SetDefaults(pd3dDevice);
             D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
             D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-            *pmvpMatrixHandle            = constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
-            *pmvMatrixHandle             = constantTableVS->GetConstantByName(nullptr, "mvMatrix");
+            *pmvpMatrixHandle            = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
+            *pmvMatrixHandle             = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
 
             D3DXCONSTANT_DESC desc;
             UINT count = 1;
-            if (*pmvpMatrixHandle && SUCCEEDED(constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
+            if (*pmvpMatrixHandle && SUCCEEDED(d3dPsVs->constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
             {
                 int vertexMvpRegister = static_cast<int>(desc.RegisterIndex);
                 int vertexMvpRegisterCount = static_cast<int>(desc.RegisterCount); // number of float4 registers
@@ -798,6 +810,50 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "Failed to set SetTransform D3DTS_WORLD for modelView");
             return false;
         };
+
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+
+        if (d3dPsVs->pd3dPixelShader)
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(d3dPsVs->pd3dPixelShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
+                return false;
+            }
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader to null");
+                return false;
+            }
+        }
+
+        if (d3dPsVs->pd3dVertexShader)
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(d3dPsVs->pd3dVertexShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
+                return false;
+            }
+            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
+
+            const D3DXMATRIX* pMvpMatrix = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader to null");
+                return false;
+            }
+        }
 
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
