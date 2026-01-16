@@ -64,7 +64,8 @@ namespace mbm
         bool   bOnErrorStopScript;
         float  backBufferWidth;
         float  backBufferHeight;
-        COLOR  colorClearBackGround;
+        //Using GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA (or GL_SRC_ALPHA, GL_ONE for additive) makes particle visibility depend on the particle alpha value, not on whatever was previously written into the destination alpha.
+        COLOR  colorClearBackGround; //	Clear the back buffer alpha to 1.0 , this make the ALPHA operation work
         CAMERA camera;
     
         uint32_t      totalObjectsOnFrustum3D;
