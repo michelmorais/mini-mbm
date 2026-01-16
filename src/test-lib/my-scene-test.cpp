@@ -66,6 +66,7 @@ void MY_SCENE::init()
     mbm::DEVICE * device    = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
+    device->colorClearBackGround.b = 0.5f;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
@@ -103,8 +104,11 @@ void MY_SCENE::init()
     //lines.push_back(mbm::VEC3(100,100, 0));
     //line->add(std::move(lines));
 
-    particle = new mbm::PARTICLE(this, false, true);
-    particle->load("particle.ptl", nullptr, nullptr, 100, true);
+    particle = new mbm::PARTICLE(this, false, false);
+    if (particle->load("particle.ptl", nullptr, nullptr, 100, true))
+    {
+        particle->addParticle(1000,true);
+    }
     particle->alwaysRenderize = true;
     
 }
