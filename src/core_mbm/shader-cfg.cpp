@@ -722,7 +722,7 @@ namespace mbm
 
     bool SHADER_CFG_LOADER::parserCFGFromResource()
     {
-        for (const char **str = resourceShader; *str; str += 3)
+        for (const char **str = getShaderEngineBuiltIn(); *str; str += 3)
         {
             const char *fileInResource = str[0];
             const char *code           = str[1];

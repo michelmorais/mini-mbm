@@ -26,6 +26,7 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <core_mbm/shader.h>
 
 namespace util
 {
@@ -101,6 +102,7 @@ namespace mbm
         bool isOnFrustum() override;
         bool render() override;
         void updateAnimationParticle();
+        void updateParticleStage(const util::STAGE_PARTICLE* sPart);
         void onStop() override;
         bool releaseOnFail();
         bool onRestoreDevice() override;
@@ -110,6 +112,7 @@ namespace mbm
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
+        mbm::BUFFER_GL bufferGl;
         uint32_t vboIndexBuffer;
     
         uint32_t     lenArrayParticlesData;

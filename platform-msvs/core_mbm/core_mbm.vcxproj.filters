@@ -306,12 +306,6 @@
     <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\shader-resource-opengl_es.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\core_mbm\shader-resource-directx9.h">
-      <Filter>Header Files\core_mbm</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -627,6 +621,12 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-windows.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-directx9.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>

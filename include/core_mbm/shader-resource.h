@@ -20,9 +20,10 @@
 #ifndef SHADER_RESOURCE_H
 #define SHADER_RESOURCE_H
 
-#if defined (USE_OPENGL_ES)
-#include <shader-resource-opengl_es.h>
-#elif defined (USE_DIRECTX9)
-#include <shader-resource-directx9.h>
-#endif
+namespace mbm
+{
+    const char** getShaderEngineBuiltIn();
+    const char* getCodePScolorFor_LINE_MESH();
+    const char* getCodeVScolorFor_LINE_MESH();
+}
 #endif

@@ -195,50 +195,50 @@ namespace mbm
         if(ptr == nullptr)
             return;
         float w,h = 0.0f;
-		ptr->updateAABB();
+        ptr->updateAABB();
         if(ptr->is3D)
         {
             /*
-			   f________________g
-			   /               /|
-			  /               / |
-		   b /_______________/c |
-			|   |           |   |
-			|   |           |   |
-			|   |   back    |   |
-			|  e|___________|___|h
-			|  /            |  /
-			| /             | /
-			|/______________|/
-			a   front       d
+               f________________g
+               /               /|
+              /               / |
+           b /_______________/c |
+            |   |           |   |
+            |   |           |   |
+            |   |   back    |   |
+            |  e|___________|___|h
+            |  /            |  /
+            | /             | /
+            |/______________|/
+            a   front       d
 
-	        */
+            */
             float d = 0.0f;
             if(useAABB)
                 ptr->getAABB(&w,&h,&d);
             else
                 ptr->getWidthHeight(&w,&h,&d);
-			std::vector<VEC3> box(16);
+            std::vector<VEC3> box(16);
             w = (w * 0.5f);
-			h = (h * 0.5f);
-			const float z = d > 0.0f ? (d * 0.5f) : 1.0f;
+            h = (h * 0.5f);
+            const float z = d > 0.0f ? (d * 0.5f) : 1.0f;
 
-			box[0 ]  = VEC3(-w,-h,-z);// --a 1
-			box[1 ]  = VEC3(-w, h,-z);// --b 2
-			box[2 ]  = VEC3( w, h,-z);// --c 3 
-			box[3 ]  = VEC3( w,-h,-z);// --d 4
-			box[4 ]  = VEC3(-w,-h,-z);// --a 1
-			box[5 ]  = VEC3(-w,-h, z);// --e 5
-			box[6 ]  = VEC3(-w, h, z);// --f 6
-			box[7 ]  = VEC3(-w, h,-z);// --b 2
-			box[8 ]  = VEC3(-w, h, z);// --f 6
-			box[9 ]  = VEC3( w, h, z);// --g 7
-			box[10]  = VEC3( w,-h, z);// --h 8
-			box[11]  = VEC3( w,-h,-z);// --d 4
-			box[12]  = VEC3( w, h,-z);// --c 3 
-			box[13]  = VEC3( w, h, z);// --g 7
-			box[14]  = VEC3( w,-h, z);// --h 8
-			box[15]  = VEC3(-w,-h, z);// --e 5
+            box[0 ]  = VEC3(-w,-h,-z);// --a 1
+            box[1 ]  = VEC3(-w, h,-z);// --b 2
+            box[2 ]  = VEC3( w, h,-z);// --c 3 
+            box[3 ]  = VEC3( w,-h,-z);// --d 4
+            box[4 ]  = VEC3(-w,-h,-z);// --a 1
+            box[5 ]  = VEC3(-w,-h, z);// --e 5
+            box[6 ]  = VEC3(-w, h, z);// --f 6
+            box[7 ]  = VEC3(-w, h,-z);// --b 2
+            box[8 ]  = VEC3(-w, h, z);// --f 6
+            box[9 ]  = VEC3( w, h, z);// --g 7
+            box[10]  = VEC3( w,-h, z);// --h 8
+            box[11]  = VEC3( w,-h,-z);// --d 4
+            box[12]  = VEC3( w, h,-z);// --c 3 
+            box[13]  = VEC3( w, h, z);// --g 7
+            box[14]  = VEC3( w,-h, z);// --h 8
+            box[15]  = VEC3(-w,-h, z);// --e 5
 
             if(this->lsLines.size() > 0)
                 this->set(std::move(box),0);
@@ -378,8 +378,8 @@ namespace mbm
         const char* fileNamePs = "__line_color.ps";
         const char* fileNameVs = "__line_color.vs";
 
-        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, codePScolor_LINE_MESH, TYPE_ANIMATION_PAUSED);
-        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, codeVsColor_LINE_MESH, TYPE_ANIMATION_PAUSED);
+        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
+        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
         if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
             return false;
         const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader);
@@ -409,18 +409,18 @@ namespace mbm
         return true;
     }
 
-	FX*  LINE_MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  LINE_MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  LINE_MESH::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  LINE_MESH::getAnimationManager()
+    {
+        return this;
+    }
     
     const mbm::INFO_PHYSICS * LINE_MESH::getInfoPhysics() const
     {

@@ -61,6 +61,220 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
     }
+
+    void PARTICLE::updateParticleStage(const util::STAGE_PARTICLE* sPart)
+    {
+        ANIMATION* anim = this->getAnimation();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        anim->fx.shader.update();
+        anim->fx.setBlendOp();
+        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        const VEC2  dist(maxv - minv);
+        const float diffSize = sPart->maxSizeParticle - sPart->minSizeParticle;
+        const float rDiff = sPart->maxColor.x - sPart->minColor.x;
+        const float gDiff = sPart->maxColor.y - sPart->minColor.y;
+        const float bDiff = sPart->maxColor.z - sPart->minColor.z;
+        for (unsigned int i = 0; i < this->totalAlive; ++i)
+        {
+            ATT_PARTICLE* particle = &this->particles[i];
+            VERTEX_PARTICLE* vertex = &this->buffer[i * 4];
+            particle->timeLifeCurrent += device->delta;
+            if (particle->timeLifeCurrent > particle->timeLife)
+            {
+                if (sPart->revive)
+                {
+                    this->restartParticle(sPart, particle, vertex, &dist);
+                }
+                else
+                {
+                    if (this->totalAlive)
+                        this->totalAlive--;
+                    ATT_PARTICLE* lastParticle = &this->particles[this->totalAlive];
+                    memcpy(static_cast<void*>(particle), lastParticle, sizeof(ATT_PARTICLE));
+                }
+            }
+            else
+            {
+                const float x = particle->direction.x * device->delta * particle->speed;
+                const float y = particle->direction.y * device->delta * particle->speed;
+                const float z = particle->direction.z * device->delta * particle->speed;
+                float       incrSize = 0.0f;
+                if (sPart->sizeMin2Max)//grow
+                {
+                    if (particle->aSize < sPart->maxSizeParticle)
+                    {
+                        incrSize = (diffSize / particle->timeLife) * device->delta;
+                        particle->aSize = vertex[2].x - vertex[0].x;
+                        float perc = (particle->aSize - sPart->minSizeParticle) / diffSize;
+                        particle->a = perc; // 0 -> 0,99
+                        particle->r = (rDiff * perc) + sPart->minColor.x;
+                        particle->g = (gDiff * perc) + sPart->minColor.y;
+                        particle->b = (bDiff * perc) + sPart->minColor.z;
+                    }
+                }
+                else
+                {
+                    if (particle->aSize > sPart->minSizeParticle)
+                    {
+                        incrSize = -(diffSize / particle->timeLife) * device->delta;
+                        particle->aSize = vertex[2].x - vertex[0].x;
+                        float perc = 1.0f - ((particle->aSize - sPart->minSizeParticle) / diffSize);
+                        particle->a = perc; // 0,99 -> 0,0 => 0 -> 0,99
+                        particle->r = (rDiff * perc) + sPart->minColor.x;
+                        particle->g = (gDiff * perc) + sPart->minColor.y;
+                        particle->b = (bDiff * perc) + sPart->minColor.z;
+                    }
+                }
+
+                if (sPart->invert_alpha)
+                    particle->a = 1.0f - particle->a;
+                if (sPart->invert_red)
+                    particle->r = 1.0f - particle->r;
+                if (sPart->invert_green)
+                    particle->g = 1.0f - particle->g;
+                if (sPart->invert_blue)
+                    particle->b = 1.0f - particle->b;
+
+                vertex[0].x += x - incrSize;
+                vertex[0].y += y - incrSize;
+                vertex[0].z += z;
+
+                vertex[1].x += x - incrSize;
+                vertex[1].y += y + incrSize;
+                vertex[1].z += z;
+
+                vertex[2].x += x + incrSize;
+                vertex[2].y += y - incrSize;
+                vertex[2].z += z;
+
+                vertex[3].x += x + incrSize;
+                vertex[3].y += y + incrSize;
+                vertex[3].z += z;
+
+                if (sPart->segmented)
+                {
+                    vertex[0].u = (vertex[0].x - minv.x) / dist.x;
+                    vertex[0].v = (vertex[0].y - minv.y) / dist.y;
+
+                    vertex[1].u = (vertex[1].x - minv.x) / dist.x;
+                    vertex[1].v = (vertex[1].y - minv.y) / dist.y;
+
+                    vertex[2].u = (vertex[2].x - minv.x) / dist.x;
+                    vertex[2].v = (vertex[2].y - minv.y) / dist.y;
+
+                    vertex[3].u = (vertex[3].x - minv.x) / dist.x;
+                    vertex[3].v = (vertex[3].y - minv.y) / dist.y;
+                }
+                if (vertex->x < minv.x)
+                    minv.x = vertex->x;
+                if (vertex->y < minv.y)
+                    minv.y = vertex->y;
+
+                if (vertex->x > maxv.x)
+                    maxv.x = vertex->x;
+                if (vertex->y > maxv.y)
+                    maxv.y = vertex->y;
+            }
+        }
+    }
+
+    
+
+    bool PARTICLE::loadParticleShader(const char* operatorShader, const char* newCodeLine)
+    {
+        const char* defaultCodePs_1 = "precision mediump float;\n"
+            "uniform vec4 color;\n"
+            "uniform float enableAlphaFromColor;\n"
+            "varying vec2 vTexCoord;\n"
+            "uniform sampler2D sample0;\n"
+            "void main()\n"
+            "{\n"
+            "  vec4 texColor;\n"
+            "  vec4 outColor;\n"
+            "  texColor = texture2D( sample0, vTexCoord );\n"
+            "  if(enableAlphaFromColor > 0.5)\n"
+            "     outColor.a = color.a;\n"
+            "  else\n"
+            "     outColor.a = texColor.a;\n"
+            "  outColor.rgb = color.rgb ";
+
+        const char* defaultCodePs_2 = " texColor.rgb;\n";
+
+        const char* defaultCodePs_3 = "  gl_FragColor = outColor;\n"
+            "}\n";
+        std::string defaultCodePs(defaultCodePs_1);
+        operatorShader = operatorShader ? operatorShader : "*";
+        defaultCodePs += operatorShader;
+        defaultCodePs += defaultCodePs_2;
+        this->_operatorShader = operatorShader[0];
+        if (newCodeLine)
+        {
+            defaultCodePs += newCodeLine;
+            this->_newCodeLine = newCodeLine;
+        }
+        else
+        {
+            this->_newCodeLine.clear();
+        }
+        defaultCodePs += defaultCodePs_3;
+        //printf(defaultCodePs.c_str());
+        /*
+            precision mediump float;
+            uniform vec4 color;
+            uniform float enableAlphaFromColor;
+            varying vec2 vTexCoord;
+            uniform sampler2D sample0;
+            void main()
+            {
+              vec4 texColor;
+              vec4 outColor;
+              texColor = texture2D( sample0, vTexCoord );
+              if(enableAlphaFromColor > 0.5)
+                 outColor.a = color.a;
+              else
+                 outColor.a = texColor.a;
+              outColor.rgb = color.rgb * texColor.rgb;
+              gl_FragColor = outColor;
+            }
+        */
+        const char* defaultCodeVs = "attribute vec4 aPosition;"
+            "attribute vec2 aTextCoord;"
+            "uniform mat4 mvpMatrix;"
+            "varying vec2 vTexCoord;"
+            "void main()"
+            "{"
+            "     gl_Position = mvpMatrix * aPosition;"
+            "     vTexCoord = aTextCoord;"
+            "}";
+
+        const char* fileNamePs = "__particle.ps";
+        const char* fileNameVs = "__particle.vs";
+
+        ANIMATION* anim = this->getAnimation();
+
+        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED);
+        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
+        anim->fx.shader.releaseShader();
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
+            return false;
+        float defaultVar[4] = { 1, 1, 1, 1 };
+        if (anim->fx.fxPS->ptrCurrentShader == nullptr ||
+            anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,
+                anim->fx.shader.ptrProgramObject, true) == false)
+        {
+#if defined _DEBUG
+            PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
+#endif
+        }
+        if (anim->fx.fxPS->ptrCurrentShader == nullptr || anim->fx.fxPS->ptrCurrentShader->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
+            anim->fx.shader.ptrProgramObject, true) == false)
+        {
+#if defined _DEBUG
+            PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "enableAlphaFromColor", fileNamePs);
+#endif
+        }
+        return true;
+    }
     
     bool PARTICLE::addParticle(const unsigned int numParticles,const bool forceNow)
     {
@@ -647,18 +861,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  PARTICLE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  PARTICLE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  PARTICLE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  PARTICLE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool PARTICLE::isLoaded() const
     {
@@ -666,5 +880,3 @@ namespace mbm
     }
 
 }
-
-

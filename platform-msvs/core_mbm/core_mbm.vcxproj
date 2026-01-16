@@ -206,8 +206,6 @@
     <ClInclude Include="..\..\include\core_mbm\renderizable.h" />
     <ClInclude Include="..\..\include\core_mbm\scene.h" />
     <ClInclude Include="..\..\include\core_mbm\shader-cfg.h" />
-    <ClInclude Include="..\..\include\core_mbm\shader-resource-directx9.h" />
-    <ClInclude Include="..\..\include\core_mbm\shader-resource-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\shader-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\shader-fx.h" />
     <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h" />
@@ -300,6 +298,8 @@
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-directx9.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />

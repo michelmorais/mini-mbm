@@ -54,7 +54,8 @@ namespace mbm
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
 
-    class BUFFER_GL
+    
+    class BUFFER_GL // Buffer graphic layer (must be implemented by specific backend, e.g.: Opengl_es, Directx, Vulkan)
     {
       public:
         API_IMPL BUFFER_GL();
