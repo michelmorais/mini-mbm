@@ -623,6 +623,12 @@
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-x11.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-windows.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">
