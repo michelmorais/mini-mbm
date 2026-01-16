@@ -25,6 +25,7 @@
 #include <core-manager.h>
 #include <device.h>
 #include <specific-opengl_es.h>
+#include <cassert>
 
 #if defined( __linux__) || defined(__APPLE__)
     #include <thread>
@@ -32,6 +33,12 @@
     #include <X11/Xutil.h>
     #include <X11/XKBlib.h>
 #endif
+
+#ifdef __APPLE__
+//#include <X11/extensions/Xcomposite.h>
+//#include <X11/Xmu/WinUtil.h>
+#endif
+
 
 namespace mbm
 {
@@ -128,6 +135,181 @@ namespace mbm
             }
         }
     }
+
+    void CORE_MANAGER::getScreenSize(int *width,int *height)
+    {
+        Screen * screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
+        if(screen)
+        {
+            *width  = screen->width;
+            *height = screen->height;
+        }
+    }
+
+    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+    
+    void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name, int x, int y, uint32_t width,unsigned  int height, bool border)
+    {
+        static const EGLint attribs[] = {
+            // 32 bit color
+            EGL_RED_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
+            // at least 24 bit depth
+            EGL_DEPTH_SIZE, 24,
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            // want opengl-es 3.x conformant CONTEXT
+            EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
+            EGL_NONE};
+
+        static const EGLint es1ContextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE};
+        static const EGLint es2ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 2, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
+        static const EGLint es3ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
+
+        int                  scrnum;
+        XSetWindowAttributes attr;
+        unsigned long        mask;
+        Window               root;
+        XVisualInfo *        visInfo, visTemplate;
+        int                  num_visuals;
+        EGLConfig            config;
+        EGLint               num_configs;
+        EGLint               vid;
+
+        scrnum = DefaultScreen(display_x11);
+        root   = RootWindow(display_x11, scrnum);
+
+        if (!eglChooseConfig(eglDisplay, attribs, &config, 1, &num_configs))
+        {
+            static const EGLint attribs_gl2[] = {
+            // 32 bit color
+            EGL_RED_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
+            // at least 24 bit depth
+            EGL_DEPTH_SIZE, 24,
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            // want opengl-es 2.x conformant CONTEXT
+            EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT),
+            EGL_NONE};
+            if (!eglChooseConfig(eglDisplay, attribs_gl2, &config, 1, &num_configs))
+            {
+                printf("Error: couldn't get an EGL visual config\n");
+                exit(1);
+            }
+        }
+
+        assert(config);
+        assert(num_configs > 0);
+
+        if (!eglGetConfigAttrib(eglDisplay, config, EGL_NATIVE_VISUAL_ID, &vid))
+        {
+            printf("Error: eglGetConfigAttrib() failed\n");
+            exit(1);
+        }
+
+        /* The X window visual must match the EGL config */
+        visTemplate.visualid = static_cast<VisualID>(vid);
+        visInfo              = XGetVisualInfo(display_x11, VisualIDMask, &visTemplate, &num_visuals);
+        if (!visInfo)
+        {
+            printf("Error: couldn't get X visual\n");
+            exit(1);
+        }
+
+        /* window attributes */
+        attr.background_pixel = 0;
+        attr.border_pixel     = 0;
+        attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
+        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | ResizeRedirectMask;
+        mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
+        if(border == false)
+        {
+            attr.override_redirect= 1;
+            mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
+        }
+
+        window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, x < 0 ? 0 : x, y < 0 ? 0 : y, width, height, 0, visInfo->depth, InputOutput,
+                            visInfo->visual, mask, &attr));
+
+        /* set hints and properties */
+        {
+            XSizeHints sizehints;
+            sizehints.x      = x;
+            sizehints.y      = y;
+            sizehints.width  = static_cast<EGLint>(width);
+            sizehints.height = static_cast<EGLint>(height);
+            sizehints.flags  = USSize | USPosition;
+            XSetNormalHints(display_x11, window_x11, &sizehints);
+            XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
+        }
+
+#if defined USE_FULL_GL /* XXX fix this when eglBindAPI() works */
+        eglBindAPI(EGL_OPENGL_API);
+#else
+        eglBindAPI(EGL_OPENGL_ES_API);
+#endif
+
+        this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es3ContextAttribs);
+        if (!this->eglContext)
+        {
+            this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es2ContextAttribs);
+            if (!this->eglContext)
+            {
+                this->eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, es1ContextAttribs);
+                if (!this->eglContext)
+                {
+                    printf("Error: eglCreateContext failed\n");
+                    exit(1);
+                }
+                #ifndef USE_FULL_GL /* test eglQueryContext() */
+                else
+                {
+                    EGLint val;
+                    eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
+                    assert(val == 1);
+                }
+                #endif
+            }
+            #ifndef USE_FULL_GL /* test eglQueryContext() */
+            else
+            {
+                EGLint val;
+                eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
+                assert(val == 2);
+            }
+            #endif
+        }
+        #ifndef USE_FULL_GL /* test eglQueryContext() */
+        else
+        {
+            EGLint val;
+            eglQueryContext(eglDisplay, this->eglContext, EGL_CONTEXT_CLIENT_VERSION, &val);
+            assert(val == 3);
+        }
+        #endif
+        const EGLint *attrib_list = nullptr;
+        this->eglSurface = eglCreateWindowSurface(eglDisplay, config, reinterpret_cast<EGLNativeWindowType>(window_x11), attrib_list);
+        if (!this->eglSurface)
+        {
+            printf("Error: eglCreateWindowSurface failed\n");
+            exit(1);
+        }
+
+        /* sanity checks */
+        {
+            EGLint val;
+            eglQuerySurface(eglDisplay, this->eglSurface, EGL_WIDTH, &val);
+            assert(val == static_cast<EGLint>(width));
+            eglQuerySurface(eglDisplay, this->eglSurface, EGL_HEIGHT, &val);
+            assert(val == static_cast<EGLint>(height));
+            assert(eglGetConfigAttrib(eglDisplay, config, EGL_SURFACE_TYPE, &val));
+            assert(val & EGL_WINDOW_BIT);
+        }
+
+        XFree(visInfo);
+    }
+#endif
 }
 
 #endif // USE_OPENGL_ES
