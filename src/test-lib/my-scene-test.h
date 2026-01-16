@@ -28,6 +28,7 @@
 #include <render/mesh.h>
 #include <render/shape-mesh.h>
 #include <render/line-mesh.h>
+#include <render/particle.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -38,6 +39,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::MESH* mesh;
     mbm::SHAPE_MESH* shape;
     mbm::LINE_MESH* line;
+    mbm::PARTICLE* particle;
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();

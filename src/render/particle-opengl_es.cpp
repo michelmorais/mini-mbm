@@ -79,6 +79,8 @@ namespace mbm
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
         GLBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeIndexBuffer, index, GL_STATIC_DRAW);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        fileNameTextureOrMesh = fileNameTextureOrMesh ? fileNameTextureOrMesh : "#FFFFFFFF";
+        operatorShader = operatorShader ? operatorShader : "*";
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
         {
@@ -179,7 +181,7 @@ namespace mbm
         this->vboIndexBuffer = 0;
     }
 
-        bool PARTICLE::renderParticle(const util::STAGE_PARTICLE * sPart)
+    bool PARTICLE::renderParticle(const util::STAGE_PARTICLE * sPart)
     {
         ANIMATION *  anim   = this->getAnimation();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -393,7 +395,8 @@ namespace mbm
         const char *defaultCodePs_3 = "  gl_FragColor = outColor;\n"
                                       "}\n";
         std::string defaultCodePs(defaultCodePs_1);
-        defaultCodePs += operatorShader;
+        operatorShader = operatorShader ? operatorShader : "*";
+        defaultCodePs += operatorShader ;
         defaultCodePs += defaultCodePs_2;
         this->_operatorShader = operatorShader[0];
         if (newCodeLine)

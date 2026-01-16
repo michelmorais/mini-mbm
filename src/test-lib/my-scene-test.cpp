@@ -20,15 +20,17 @@
 
 #include "my-scene-test.h"
 #include <core_mbm/util-interface.h>
-//#include <core >
+
 
 MY_SCENE::MY_SCENE()
 {
-    texBox = nullptr;
-    gif    = nullptr;
-    sprite = nullptr;
-    mesh   = nullptr;
-    shape  = nullptr;
+    texBox   = nullptr;
+    gif      = nullptr;
+    sprite   = nullptr;
+    mesh     = nullptr;
+    shape    = nullptr;
+    line     = nullptr;
+    particle = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -45,6 +47,8 @@ MY_SCENE::~MY_SCENE()
         delete shape;
     if (line)
         delete line;
+    if (particle)
+        delete particle;
 }
 
 void MY_SCENE::startLoading()
@@ -63,6 +67,7 @@ void MY_SCENE::init()
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
+    util::addPath("C:\\Users\\miche\\Downloads");
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
@@ -92,11 +97,16 @@ void MY_SCENE::init()
     //shape->loadRectangle("quad", 25, 25, true, 2);
     //shape->position.x = 300;
 
-    line = new mbm::LINE_MESH(this, false, false);
-    std::vector<mbm::VEC3> lines;
-    lines.push_back(mbm::VEC3(0, 0, 0));
-    lines.push_back(mbm::VEC3(100,100, 0));
-    line->add(std::move(lines));
+    //line = new mbm::LINE_MESH(this, false, false);
+    //std::vector<mbm::VEC3> lines;
+    //lines.push_back(mbm::VEC3(0, 0, 0));
+    //lines.push_back(mbm::VEC3(100,100, 0));
+    //line->add(std::move(lines));
+
+    particle = new mbm::PARTICLE(this, false, true);
+    particle->load("particle.ptl", nullptr, nullptr, 100, true);
+    particle->alwaysRenderize = true;
+    
 }
 
 void MY_SCENE::logic()
