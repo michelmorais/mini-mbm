@@ -152,6 +152,7 @@ namespace mbm
         API_IMPL bool initGraphics(const int width = 800, const int height = 600);
     #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
+        void initializeWindowx11();
     #else
         #error "undefined platform"
         API_IMPL bool initGraphics();
@@ -178,6 +179,7 @@ namespace mbm
         API_IMPL void render();
     
       private:
+        void handleEventFromWindow();
         void _updateDimFrustum();
         void adjustScaleScreen2d();
         void updateAudio();

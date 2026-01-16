@@ -990,6 +990,100 @@ void printGLString(const char *name, GLenum s)
         return true;
     }
 
+    void CORE_MANAGER::initializeWindowx11()
+    {
+        XSelectInput(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
+                     ResizeRedirectMask |(KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) /*| ExposureMask | StructureNotifyMask*/);
+        XkbSetDetectableAutoRepeat(this->device->specificContextDevice->display_x11, true, nullptr);
+        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
+        XFlush(this->device->specificContextDevice->display_x11);
+        
+        XSizeHints xsize;
+        xsize.flags         = PMaxSize|PMinSize|USPosition; // only what we wish (for now not PMaxSize)
+        xsize.min_width     = static_cast<int>(device->backBufferWidth);
+        xsize.min_height    = static_cast<int>(device->backBufferHeight);
+        xsize.max_width     = static_cast<int>(device->backBufferWidth);
+        xsize.max_height    = static_cast<int>(device->backBufferHeight);
+        xsize.base_width    = static_cast<int>(device->backBufferWidth);
+        xsize.base_height   = static_cast<int>(device->backBufferHeight);
+        xsize.width         = static_cast<int>(device->backBufferWidth);
+        xsize.height        = static_cast<int>(device->backBufferHeight);
+        xsize.width_inc     = 0;
+        xsize.height_inc    = 0;
+        xsize.x             = 0;
+        xsize.y             = 0;
+        XSetWMNormalHints(this->device->specificContextDevice->display_x11,this->device->specificContextDevice->window_x11,&xsize);
+    }
+
+    void CORE_MANAGER::handleEventFromWindow()
+    {
+        while(XPending(this->device->specificContextDevice->display_x11))
+        {
+            XEvent xevent;
+            XNextEvent(this->device->specificContextDevice->display_x11, &xevent);
+            switch (xevent.type)
+            {
+                case KeyPress:
+                {
+                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    if (key >= 'a' && key <= 'z')
+                        key = toupper(key);
+                    if(key == XK_Caps_Lock)
+                        this->keyCapsLockState =  ((xevent.xbutton.state & 2) == 0);// == 0 is on
+                    this->onKeyDown(key);
+                }
+                break;
+                case KeyRelease:
+                {
+                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    if (key >= 'a' && key <= 'z')
+                        key = toupper(key);
+                    this->onKeyUp(key);
+                }
+                break;
+                case ButtonPress:
+                {
+                    switch (xevent.xbutton.button)
+                    {
+                        case Button1: this->onTouchDown(0, xevent.xbutton.x, xevent.xbutton.y); break;
+                        case Button2: this->onTouchDown(2, xevent.xbutton.x, xevent.xbutton.y); break;
+                        case Button3: this->onTouchDown(1, xevent.xbutton.x, xevent.xbutton.y); break;
+                        case 4: // zomm in
+                            this->onTouchZoom(1.0f);
+                            break;
+                        case 5: // zomm out
+                            this->onTouchZoom(-1.0f);
+                            break;
+                    }
+                }
+                break;
+                case ButtonRelease:
+                {
+                    switch (xevent.xbutton.button)
+                    {
+                        case Button1: this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); break;
+                        case Button2: this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); break;
+                        case Button3: this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); break;
+                    }
+                }
+                break;
+                case MotionNotify: 
+                { 
+                    this->onTouchMove(0, xevent.xmotion.x, xevent.xmotion.y);
+                }
+                break;
+                case ResizeRequest:
+                {
+                    XResizeRequestEvent xResize = xevent.xresizerequest;
+                    this->onResizeWindow(xResize.width,xResize.height);
+                }
+                break;
+                default: {}
+                break;
+            }
+        }
+    }
+
 #ifdef ANDROID
     int CORE_MANAGER::loop(JNIEnv *, jobject)
     {
@@ -1019,6 +1113,36 @@ void printGLString(const char *name, GLenum s)
     }
 
 #elif (defined(_WIN32) || defined (__MINGW32__))
+void CORE_MANAGER::handleEventFromWindow()
+{
+    this->device->window.doEvents();
+    bool first_menu = true;
+    while (mbm::WINDOW::isAnyMenuVisible() && device->window.run)
+    {
+        if (first_menu)
+        {
+            Sleep(50);
+            mbm::WINDOW::refreshMenu();
+        }
+        this->device->window.doEvents();
+        if (first_menu)
+        {
+            Sleep(50);
+            mbm::WINDOW::refreshMenu();
+        }
+        first_menu = false;
+    }
+    if (this->device->window.run)
+    {
+        INFO_JOYSTICK_INIT_PLAYER info;
+        while (this->popEvent(&info))
+        {
+            if (this->device->scene && this->__sceneWasInit)
+                this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                                                            info.extraInfo.c_str());
+        }
+    }
+}
 
     int CORE_MANAGER::loop()
     {
@@ -1046,33 +1170,11 @@ void printGLString(const char *name, GLenum s)
         memset(&messageMain, 0, sizeof(messageMain));
         while (messageMain.message != WM_QUIT && device->run && this->device->window.run)
         {
-            this->device->window.doEvents();
-            bool first_menu = true;
-            while (mbm::WINDOW::isAnyMenuVisible() && device->window.run)
-            {
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                this->device->window.doEvents();
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                first_menu = false;
-            }
+            handleEventFromWindow();
+
             if (!this->device->window.run)
                 break;
 
-            INFO_JOYSTICK_INIT_PLAYER info;
-            while (this->popEvent(&info))
-            {
-                if (this->device->scene && this->__sceneWasInit)
-                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
-                                                              info.extraInfo.c_str());
-            }
             for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
             {
                 PLUGIN * plugin = this->lsPlugins[i];
@@ -1289,95 +1391,12 @@ void printGLString(const char *name, GLenum s)
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
-        XSelectInput(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
-                     ResizeRedirectMask |(KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) /*| ExposureMask | StructureNotifyMask*/);
-        XkbSetDetectableAutoRepeat(this->device->specificContextDevice->display_x11, true, nullptr);
-        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
-        XFlush(this->device->specificContextDevice->display_x11);
-        
-        XSizeHints xsize;
-        xsize.flags         = PMaxSize|PMinSize|USPosition; // only what we wish (for now not PMaxSize)
-        xsize.min_width     = static_cast<int>(device->backBufferWidth);
-        xsize.min_height    = static_cast<int>(device->backBufferHeight);
-        xsize.max_width     = static_cast<int>(device->backBufferWidth);
-        xsize.max_height    = static_cast<int>(device->backBufferHeight);
-        xsize.base_width    = static_cast<int>(device->backBufferWidth);
-        xsize.base_height   = static_cast<int>(device->backBufferHeight);
-        xsize.width         = static_cast<int>(device->backBufferWidth);
-        xsize.height        = static_cast<int>(device->backBufferHeight);
-        xsize.width_inc     = 0;
-        xsize.height_inc    = 0;
-        xsize.x             = 0;
-        xsize.y             = 0;
-        XSetWMNormalHints(this->device->specificContextDevice->display_x11,this->device->specificContextDevice->window_x11,&xsize);
-
+        #if defined(__linux__) || defined(__APPLE__)
+        initializeWindowx11();
+        #endif
         while (this->device->run)
         {
-            while(XPending(this->device->specificContextDevice->display_x11))
-            {
-                XEvent xevent;
-                XNextEvent(this->device->specificContextDevice->display_x11, &xevent);
-                switch (xevent.type)
-                {
-                    case KeyPress:
-                    {
-                        auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
-                        if (key >= 'a' && key <= 'z')
-                            key = toupper(key);
-                        if(key == XK_Caps_Lock)
-                            this->keyCapsLockState =  ((xevent.xbutton.state & 2) == 0);// == 0 is on
-                        this->onKeyDown(key);
-                    }
-                    break;
-                    case KeyRelease:
-                    {
-                        auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
-                        if (key >= 'a' && key <= 'z')
-                            key = toupper(key);
-                        this->onKeyUp(key);
-                    }
-                    break;
-                    case ButtonPress:
-                    {
-                        switch (xevent.xbutton.button)
-                        {
-                            case Button1: this->onTouchDown(0, xevent.xbutton.x, xevent.xbutton.y); break;
-                            case Button2: this->onTouchDown(2, xevent.xbutton.x, xevent.xbutton.y); break;
-                            case Button3: this->onTouchDown(1, xevent.xbutton.x, xevent.xbutton.y); break;
-                            case 4: // zomm in
-                                this->onTouchZoom(1.0f);
-                                break;
-                            case 5: // zomm out
-                                this->onTouchZoom(-1.0f);
-                                break;
-                        }
-                    }
-                    break;
-                    case ButtonRelease:
-                    {
-                        switch (xevent.xbutton.button)
-                        {
-                            case Button1: this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); break;
-                            case Button2: this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); break;
-                            case Button3: this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); break;
-                        }
-                    }
-                    break;
-                    case MotionNotify: 
-                    { 
-                        this->onTouchMove(0, xevent.xmotion.x, xevent.xmotion.y);
-                    }
-                    break;
-                    case ResizeRequest:
-                    {
-                        XResizeRequestEvent xResize = xevent.xresizerequest;
-                        this->onResizeWindow(xResize.width,xResize.height);
-                    }
-                    break;
-                    default: {}
-                    break;
-                }
-            }
+            handleEventFromWindow();
             for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
             {
                 PLUGIN * plugin = this->lsPlugins[i];

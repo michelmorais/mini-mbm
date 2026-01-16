@@ -107,7 +107,7 @@ void MY_SCENE::init()
     particle = new mbm::PARTICLE(this, false, false);
     if (particle->load(nullptr, nullptr, nullptr, 100, true))
     {
-        particle->addParticle(1000,true);
+        //particle->addParticle(1000,true);
     }
     particle->alwaysRenderize = true;
     
