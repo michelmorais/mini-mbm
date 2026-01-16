@@ -581,9 +581,6 @@
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-common.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-opengl_es.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
@@ -612,12 +609,6 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp">

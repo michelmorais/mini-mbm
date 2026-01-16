@@ -268,8 +268,6 @@
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
@@ -320,7 +318,6 @@
     <ClCompile Include="..\..\src\core_mbm\device-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility-common.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\draw-compatibility-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable-directx9.cpp" />
