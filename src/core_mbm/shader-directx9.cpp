@@ -503,8 +503,7 @@ namespace mbm
 #endif
                 return false;
             }
-            auto var       = new VAR_SHADER(typeVar, isPS);
-            var->name      = nameVar;
+            auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
             #pragma message(REMINDER_TODO "  implement get uniform location");
             
             if (var->ptrHandleVar == nullptr)

@@ -113,7 +113,7 @@ namespace util
         switch (mode_draw)
         {
         case MODE_DRAW::MODE_DRAW_POINTS:         return false;
-        case MODE_DRAW::MODE_DRAW_LINES:          return false;
+        case MODE_DRAW::MODE_DRAW_LINES:          return true;
         case MODE_DRAW::MODE_DRAW_LINE_LOOP:      return false;
         case MODE_DRAW::MODE_DRAW_LINE_STRIP:     return false;
         case MODE_DRAW::MODE_DRAW_TRIANGLES:      return true;
@@ -127,8 +127,8 @@ namespace util
     {
         switch (mode_cull_face)
         {
-        case CULL_MODE::CULL_FRONT: return true;
-        case CULL_MODE::CULL_BACK: return true;
+        case CULL_MODE::CULL_FRONT:          return true;
+        case CULL_MODE::CULL_BACK:           return true;
         case CULL_MODE::CULL_FRONT_AND_BACK: return true;
         default: return false;
         }
@@ -138,7 +138,7 @@ namespace util
     {
         switch (mode_front_face_direction)
         {
-        case FACE_DIRECTION::CW: return true;
+        case FACE_DIRECTION::CW:  return true;
         case FACE_DIRECTION::CCW: return true;
         default: return false;
         }

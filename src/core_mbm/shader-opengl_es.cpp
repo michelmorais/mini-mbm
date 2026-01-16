@@ -293,8 +293,7 @@ namespace mbm
 #endif
                 return false;
             }
-            auto var       = new VAR_SHADER(typeVar, isPS);
-            var->name      = nameVar;
+            auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
             int32_t *handleVar = static_cast<int32_t*>(var->ptrHandleVar);
             *handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);
             if (*handleVar == -1)

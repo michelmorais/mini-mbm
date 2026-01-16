@@ -24,9 +24,10 @@
 namespace mbm
 {
 
-    VAR_SHADER::VAR_SHADER(const TYPE_VAR_SHADER TypeVar, const bool isPs) noexcept :
+    VAR_SHADER::VAR_SHADER(const std::string Name, const TYPE_VAR_SHADER TypeVar, const bool isPS) noexcept :
+        name(Name),
         typeVar(TypeVar),
-        isPS(isPs)
+        isPS(isPS)
     {
         memset(current, 0, sizeof(current));
         memset(this->min, 0, sizeof(min));
