@@ -72,9 +72,10 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
-    this->texBox->load("wooden-box.jpg", 200, 200);
-    this->texBox->alwaysRenderize = true;
+    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    //this->texBox->load("wooden-box.jpg", 200, 200);
+    //this->texBox->position.z = 1;
+    //this->texBox->alwaysRenderize = true;
     //gif = new mbm::GIF_VIEW(this,false,false);
     //gif->load("Lion-King.gif");
 
@@ -107,7 +108,7 @@ void MY_SCENE::init()
     particle = new mbm::PARTICLE(this, false, false);
     if (particle->load(nullptr, nullptr, nullptr, 100, true))
     {
-        //particle->addParticle(1000,true);
+        particle->addParticle(1000,true);
     }
     particle->alwaysRenderize = true;
     

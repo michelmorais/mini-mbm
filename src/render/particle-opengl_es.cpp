@@ -319,6 +319,8 @@ namespace mbm
             GLActiveTexture(GL_TEXTURE1);
             GLBindTexture(GL_TEXTURE_2D, 0);
         }
+        GLboolean depthTestEnabled = true;
+        glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
         this->blend.set(anim->blendState);
         GLint* imvpMatrixHandle = static_cast<GLint*>(anim->fx.shader.ptrMvpMatrixHandle);
@@ -368,7 +370,10 @@ namespace mbm
             }
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        GLEnable(GL_DEPTH_TEST);
+        if (depthTestEnabled)
+        {
+            GLEnable(GL_DEPTH_TEST);
+        }
         return true;
     }
 

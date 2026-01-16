@@ -57,7 +57,7 @@ namespace mbm
 		verbose					   = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
-        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 0.0f);
+        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
         totalObjectsOnFrustum3D    = 0;
         totalObjectsOnFrustum2D    = 0;
         totalObjectsIsRendering3D  = 0;
