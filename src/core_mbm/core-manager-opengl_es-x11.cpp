@@ -21,7 +21,18 @@
 #if defined(USE_OPENGL_ES)
 #if !defined(ANDROID)
 #if defined(__linux__) || defined(__APPLE__)
+
 #include <core-manager.h>
+#include <device.h>
+#include <specific-opengl_es.h>
+
+#if defined( __linux__) || defined(__APPLE__)
+    #include <thread>
+    #include <X11/Xlib.h>
+    #include <X11/Xutil.h>
+    #include <X11/XKBlib.h>
+#endif
+
 namespace mbm
 {
     void CORE_MANAGER::initializeWindowx11()
@@ -122,4 +133,3 @@ namespace mbm
 #endif // USE_OPENGL_ES
 #endif //!ANDROID
 #endif //(__linux__) || defined(__APPLE__)
-

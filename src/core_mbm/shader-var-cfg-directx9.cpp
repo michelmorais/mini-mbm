@@ -53,7 +53,7 @@ namespace mbm
 
     VAR_SHADER::~VAR_SHADER()
     {
-        delete ptrHandleVar;
+        delete static_cast<D3DXHANDLE*>(ptrHandleVar);
     }
 
 }

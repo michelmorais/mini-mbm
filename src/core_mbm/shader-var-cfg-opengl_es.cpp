@@ -51,7 +51,8 @@ namespace mbm
 
     VAR_SHADER::~VAR_SHADER()
     {
-        delete ptrHandleVar;
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        delete static_cast<int32_t*>(ptrHandleVar);
     }
 
 }

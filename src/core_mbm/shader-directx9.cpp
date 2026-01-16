@@ -77,8 +77,11 @@ namespace mbm
 
     BUFFER_GL::~BUFFER_GL()
     {
-        if (bs)
-            delete bs;
+        if(bs)
+        {
+            // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+            delete static_cast<BUFFER_SPECIFIC*>(bs);
+        }
         bs = nullptr;
         texture1 = nullptr;
         texture0.clear();
@@ -628,13 +631,13 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        delete ptrMvpMatrixHandle;
-        delete ptrMvMatrixHandle;
-        delete ptrSamplerHandle0;
-        delete ptrSamplerHandle1;
-        delete ptrProgramObject;
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        delete static_cast<D3DXHANDLE*>(ptrMvpMatrixHandle);
+        delete static_cast<D3DXHANDLE*>(ptrMvMatrixHandle);
+        delete static_cast<D3DXHANDLE*>(ptrSamplerHandle0);
+        delete static_cast<D3DXHANDLE*>(ptrSamplerHandle1);
+        delete static_cast<D3D_PS_VS*>(ptrProgramObject);
         #pragma message(REMINDER_TODO "  implement release shader");
-        this->ptrProgramObject = 0;
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente

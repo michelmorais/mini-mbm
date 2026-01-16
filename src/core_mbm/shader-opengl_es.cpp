@@ -49,7 +49,10 @@ namespace mbm
     BUFFER_GL::~BUFFER_GL()
     {
         if(bs)
-            delete bs;
+        {
+            // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+            delete static_cast<BUFFER_SPECIFIC*>(bs);
+        }
         bs = nullptr;
         texture1 = nullptr;
         texture0.clear();
@@ -399,16 +402,18 @@ namespace mbm
 
     SHADER::~SHADER()
     {
-        delete ptrMvpMatrixHandle;
-        delete ptrMvMatrixHandle;
-        delete ptrSamplerHandle0;
-        delete ptrSamplerHandle1;
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        delete static_cast<GLint*>(ptrMvpMatrixHandle);
+        delete static_cast<GLint*>(ptrMvMatrixHandle);
+        delete static_cast<GLint*>(ptrSamplerHandle0);
+        delete static_cast<GLint*>(ptrSamplerHandle1);
+
         GLuint* pprogramObject = static_cast<GLuint*>(this->ptrProgramObject);
         if (*pprogramObject)
         {
             GLDeleteProgram(*pprogramObject);
         }
-        delete ptrProgramObject;
+        delete static_cast<GLuint*>(ptrProgramObject);
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente

@@ -38,12 +38,7 @@
 #include <cr-static-local.h>
 
 #if defined(ANDROID)
-#include <platform/common-jni.h>
-#elif defined( __linux__) || defined(__APPLE__)
-    #include <thread>
-    #include <X11/Xlib.h>
-    #include <X11/Xutil.h>
-    #include <X11/XKBlib.h>
+    #include <platform/common-jni.h>
 #elif defined(_WIN32)
     #include <GLES2/gl2ext.h>
 #endif
@@ -1047,8 +1042,10 @@ void printGLString(const char *name, GLenum s)
 #endif
         while (this->device->run)
         {
+            #if defined(_WIN32) || defined(__MINGW32__)
             if (this->device->window.run == false)
                 break;
+            #endif
             handleEventFromWindow();
             for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
             {
