@@ -284,65 +284,65 @@ namespace mbm
     "[ps-color-keying.ps][rgba][colorSrc]              = min 10 20 30  255    max 125 128 250 255  default 125 128 50 255  #cor RGBA\n",
     // Color Keying *********************
 
-	// tile map *********************
-	"tiled map.ps",
+    // tile map *********************
+    "tiled map.ps",
 
-	"precision mediump float;\n"
-	"\n"
-	"uniform float enableColorKeying;\n"
-	"uniform float granThen;\n"
-	"uniform float alpha;\n"
-	"uniform float tolerance;\n"
-	"uniform vec3 colorSrc;\n"
-	"uniform sampler2D sample0;\n"
-	"varying vec2 vTexCoord;\n"
-	"\n"
-	"\n"
-	"void main()\n"
-	"{\n"
-	"  vec4 color = texture2D(sample0, vTexCoord);\n"
-	"  color.a  -= alpha;\n"
-	"  if (color.a <= 0.0)\n"
-	"  {\n"
-	"     discard;\n"
-	"  }\n"
-	"  else if (enableColorKeying > 0.5)\n"
-	"  {\n"
-	"    if (granThen > 0.5)\n"
-	"    {\n"
-	"        if (all(lessThan(abs((color.xyz - colorSrc.xyz)), vec3(tolerance))))\n"
-	"        {\n"
-	"            discard;\n"
-	"        }\n"
-	"        else\n"
-	"        {\n"
-	"          gl_FragColor = color;\n"
-	"        }\n"
-	"    }\n"
-	"    else\n"
-	"    {\n"
-	"      if (all(greaterThan(abs((color.xyz - colorSrc.xyz)), vec3(tolerance))))\n"
-	"      {\n"
-	"         discard;\n"
-	"      }\n"
-	"      else\n"
-	"      {\n"
-	"        gl_FragColor = color;\n"
-	"      }\n"
-	"    }\n"
-	"  }\n"
-	"  else\n"
-	"  {\n"
-	"    gl_FragColor = color;\n"
-	"  }\n"
-	"}\n",
+    "precision mediump float;\n"
+    "\n"
+    "uniform float enableColorKeying;\n"
+    "uniform float granThen;\n"
+    "uniform float alpha;\n"
+    "uniform float tolerance;\n"
+    "uniform vec3 colorSrc;\n"
+    "uniform sampler2D sample0;\n"
+    "varying vec2 vTexCoord;\n"
+    "\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "  vec4 color = texture2D(sample0, vTexCoord);\n"
+    "  color.a  -= alpha;\n"
+    "  if (color.a <= 0.0)\n"
+    "  {\n"
+    "     discard;\n"
+    "  }\n"
+    "  else if (enableColorKeying > 0.5)\n"
+    "  {\n"
+    "    if (granThen > 0.5)\n"
+    "    {\n"
+    "        if (all(lessThan(abs((color.xyz - colorSrc.xyz)), vec3(tolerance))))\n"
+    "        {\n"
+    "            discard;\n"
+    "        }\n"
+    "        else\n"
+    "        {\n"
+    "          gl_FragColor = color;\n"
+    "        }\n"
+    "    }\n"
+    "    else\n"
+    "    {\n"
+    "      if (all(greaterThan(abs((color.xyz - colorSrc.xyz)), vec3(tolerance))))\n"
+    "      {\n"
+    "         discard;\n"
+    "      }\n"
+    "      else\n"
+    "      {\n"
+    "        gl_FragColor = color;\n"
+    "      }\n"
+    "    }\n"
+    "  }\n"
+    "  else\n"
+    "  {\n"
+    "    gl_FragColor = color;\n"
+    "  }\n"
+    "}\n",
 
-	"[ps-tiled-map.ps] = tiled map.ps\n"
-	"[ps-tiled-map.ps][float][alpha]                = min 0.0        max 1.0          default 0.0\n"
-	"[ps-tiled-map.ps][float][enableColorKeying]    = min 0.0        max 1.0          default 0.0\n"
-	"[ps-tiled-map.ps][float][granThen]             = min 0.0        max 1.0          default 1.0\n"
-	"[ps-tiled-map.ps][float][tolerance]            = min 0.0        max 1.0          default 0.3\n"
-	"[ps-tiled-map.ps][rgb][colorSrc]               = min 0 0 0      max 255 255 255  default 255 0 255\n",
+    "[ps-tiled-map.ps] = tiled map.ps\n"
+    "[ps-tiled-map.ps][float][alpha]                = min 0.0        max 1.0          default 0.0\n"
+    "[ps-tiled-map.ps][float][enableColorKeying]    = min 0.0        max 1.0          default 0.0\n"
+    "[ps-tiled-map.ps][float][granThen]             = min 0.0        max 1.0          default 1.0\n"
+    "[ps-tiled-map.ps][float][tolerance]            = min 0.0        max 1.0          default 0.3\n"
+    "[ps-tiled-map.ps][rgb][colorSrc]               = min 0 0 0      max 255 255 255  default 255 0 255\n",
 
     // transparent *********************
     "transparent.ps",
@@ -2534,6 +2534,22 @@ namespace mbm
     */
 
     nullptr, nullptr, nullptr};
+
+    // Pixel Shader for line LINE_MESH (we do not expose to user, that is why is not part of resourceShader)
+    static const char* codePScolor_LINE_MESH = "precision mediump float;\n"
+        "uniform vec4 color;\n"
+        "void main()\n"
+        "{\n"
+        " gl_FragColor =  color;\n"
+        "}\n";
+
+    // Pixel Shader for line LINE_MESH (we do not expose to user, that is why is not part of resourceShader)
+    static const char* codeVsColor_LINE_MESH = "attribute vec4 aPosition;\n"
+        "uniform mat4 mvpMatrix;\n"
+        "void main()\n"
+        "{\n"
+        "   gl_Position = mvpMatrix * aPosition;\n"
+        "}\n";
 }
 
 #endif

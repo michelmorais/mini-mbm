@@ -51,7 +51,7 @@ namespace util
 
     enum FACE_DIRECTION : uint32_t
     {
-        CW = 0x0900,
+        CW  = 0x0900,
         CCW = 0x0901,
     };
 

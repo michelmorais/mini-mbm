@@ -25,649 +25,649 @@
 
 namespace mbm
 {
-	static const char* resourceShader[] = {//organizado de 3 em 3. sendo: Nome do arquivo, Codigo shader e configuraões CFG.
-
-
-		/* Alpha It -----------------------------------------------------------------------------------------------------*/
-
-		//AlphaIt *********************
-		"alpharit.ps",
-
-		"float alpha : register(C0); \n"
-		"float ray : register(C1); \n"
-		"float2 center : register(C2); \n"
-		"float2 prop : register(C3); \n"
-		"sampler2D sample0 : register(S0); \n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR \n"
-		"{ \n"
-		"	float4 color = tex2D(sample0, uv); \n"
-		"	float2 v2    = float2((uv.x - center.x) / prop.x,(uv.y - center.y) / prop.y) ;\n"
-		"	float dist   = length(v2); \n"
-		"	if(dist < ray) \n"
-		"	{\n"
-		"		color.a -= alpha; \n"
-		"	}\n"
-		"	return color; \n"
-		"}",
-
-		"[ps-alpharit.ps] = alpharit.ps\n"
-		"[ps-alpharit.ps][float][ray] = min 0.000000 max 1.000000 default 0.05000000\n"
-		"[ps-alpharit.ps][vector2][center] = min 0.000000 0.000000 max 1.000000 1.000000 default 0.500000 0.500000\n"
-		"[ps-alpharit.ps][vector2][prop] = min 0.000000 0.000000 max 100.000000 100.000000 default 1.000000 1.33333\n"
-		"[ps-alpharit.ps][float][alpha] = min 0.000000 max 1.000000 default 1.000000",
-
-
-		// color it **********************
-		"color it.ps",
-
-		"sampler2D sample0 : register(S0);\n"
-		"float3 color : register(C0);\n"
-		"float enable : register(C1);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR \n"
-		"{\n"
-		"   float4 c = tex2D( sample0, uv.xy );\n"
-		"   if(enable > 0.5)\n"
-		"      return float4(color.r,color.g,color.b,c.a);\n"
-		"   else\n"
-		"      return c;\n"
-		"}\n",
-
-		"[ps-color-it.ps] = color it.ps\n"
-		"[ps-color-it.ps][float][enable]        = min 0.0   max 1.0   default 1.0 \n"
-		"[ps-color-it.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
-
-		//blend *********************
-		"blend.ps",
-
-		"sampler2D sample0 : register(S0);\n"
-		"sampler2D sample1 : register(S1);\n"
-		"float3 colorAdd : register(C0);\n"
-		"float4 junctionRemove : register(c1);\n"
-		"float invertSample : register(C2);\n"
-		"float disableSample1 : register(C3);\n\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 c0,c1;\n"
-		"	float4 output;\n"
-		"	float4 original;\n"
-		"	if (invertSample > 0.5)\n"
-		"	{\n"
-		"		c0 = tex2D(sample1, uv.xy);//sample1 precisa ter alpha\n"
-		"		c1 = tex2D(sample0, uv.xy);//sample0 nao precisa ter alpha\n"
-		"	}\n"
-		"	else\n"
-		"	{\n"
-		"		c0 = tex2D(sample0, uv.xy);//sample0 nao precisa ter alpha\n"
-		"		c1 = tex2D(sample1, uv.xy);//sample1 precisa ter alpha\n"
-		"	}\n"
-		"	if(disableSample1 > 0.5)\n"
-		"	{\n"
-		"		c0.rgb += colorAdd;\n"
-		"		return c0;\n"
-		"	}\n"
-		"	c1 -= junctionRemove;\n"
-		"	original = c0;\n"
-		"	output.a = c0.a; \n"
-		"	c1.rgb = c1.rgb * c0.a;\n"
-		"	output.rgb = ((c0.rgb * (1 - c1.a)) + c1.rgb); \n"
-		"	output = lerp(original,output,c1.a);\n"
-		"	output.rgb += colorAdd;\n"
-		"	return output;\n"
-		"}",
-
-		"[ps-blend.ps] = blend.ps\n"
-		"[ps-blend.ps][float][invertSample] = min 0 max 1 default 0 \n"
-		"[ps-blend.ps][float][disableSample1] = min 0 max 1 default 0 \n"
-		"[ps-blend.ps][rgb][colorAdd] = min 0 0 0 max 255 255 255 default 255 0 0 \n"
-		"[ps-blend.ps][rgba][junctionRemove] = min 0 0 0 0 max 255 255 255 255 default 0.2 0.2 0.2 0.0  \n",
-		//blend *********************
-
-
-
-		//font *********************
-		"font.ps",
-
-		"float3 colorFont			: register(C0);\n"
-		"sampler2D sample0	: register(S0);\n"
-
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D( sample0, uv );\n"
-		"	float3 c2 = float3(1.0 - colorFont.r,1.0 - colorFont.g,1.0 - colorFont.b);\n"
-		"	color.rgb -= c2;\n"
-		"	return color;\n"
-		"}\n",
-
-		"[ps-font.ps] = font.ps\n"
-		"[ps-font.ps][rgb][colorFont]             = min 0 0 0   max 1.0 1.0 1.0 default 1.0 1.0 1.0   \n",
-		//Font *********************
-
-		//Color Keying *********************
-		"color keying.ps",
-
-		"float4 colorSrc : register(C0);\n"
-		"float4 colorDst : register(C1);\n"
-		"float tolerance : register(C2);\n"
-		"float granThen : register(C3);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	if (color.a == 0.0)\n"
-		"		return color;\n"
-		"	if (granThen > 0.5f)\n"
-		"	{\n"
-		"		if (all(abs(color.rgb - colorSrc.rgb) < tolerance))\n"
-		"		{\n"
-		"			color.rgba = colorDst;\n"
-		"		}\n"
-		"	}\n"
-		"	else\n"
-		"	{\n"
-		"		if (all(abs(color.rgb - colorSrc.rgb) > tolerance))\n"
-		"		{\n"
-		"			color.rgba = colorDst;\n"
-		"		}\n"
-		"	}\n"
-		"	return color;\n"
-		"}\n",
-
-		"[ps-color-keying.ps] = color keying.ps\n"
-		"[ps-color-keying.ps][float][granThen]             = min 0.0              max 1.0              default 1.0             #boolean\n"
-		"[ps-color-keying.ps][float][tolerance]            = min 0.0              max 1.0              default 0.3             #float\n"
-		"[ps-color-keying.ps][rgba][colorDst]              = min 0.1 0.2 0.3 1.0  max 1.0 1.0 1.0 1.0  default 1.0 0.0 1.0 1.0 #cor RGBA definida como float\n"
-		"[ps-color-keying.ps][rgba][colorSrc]              = min 10 20 30  255    max 125 128 250 255  default 125 128 50 255  #cor RGBA\n",
-		//Color Keying *********************
-
-		//transparent *********************
-		"transparent.ps",
-
-		"float alpha : register(C0);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	color.a -= alpha;\n"
-		"	return color;\n"
-		"}\n",
-
-		"[ps-transparent.ps] = transparent.ps\n"
-		"[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 1.0\n",
-		//transparent *********************
-
-		//saturate *********************
-		"saturate.ps",
-
-		"float3 color : register(C0);\n"
-		"\n"
-		"sampler2D sample0 : register(S0);\n"
-		"\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 c1;\n"
-		"	c1 = tex2D(sample0, uv.xy);\n"
-		"	c1.rgb *= color.rgb;\n"
-		"	return c1;\n"
-		"}\n",
-
-		"[ps-saturate.ps] = saturate.ps\n"
-		"[ps-saturate.ps][rgb][color]                = min 0.0 0.0 0.0           max 1.0 1.0 1.0           default 1.0 1.0 1.0\n",
-		//saturate *********************
-
-		//Night Vision **********************
-		"night vision.ps",
-
-		"sampler sample0 : register(s0);\n"
-		"float fInverseViewportWidth;\n"
-		"float fInverseViewportHeight;\n"
-		"const float4 samples[9] =\n"
-		"{\n"
-		"	-1.0,\n"
-		"	-1.0,\n"
-		"	0,\n"
-		"	1.0 / 16.0,\n"
-		"	-1.0,\n"
-		"	1.0,\n"
-		"	0,\n"
-		"	1.0 / 16.0,\n"
-		"	1.0,\n"
-		"	-1.0,\n"
-		"	0,\n"
-		"	1.0 / 16.0,\n"
-		"	1.0,\n"
-		"	1.0,\n"
-		"	0,\n"
-		"	1.0 / 16.0,\n"
-		"	-1.0,\n"
-		"	0.0,\n"
-		"	0,\n"
-		"	2.0 / 16.0,\n"
-		"	1.0,\n"
-		"	0.0,\n"
-		"	0,\n"
-		"	2.0 / 16.0,\n"
-		"	0.0,\n"
-		"	-1.0,\n"
-		"	0,\n"
-		"	2.0 / 16.0,\n"
-		"	0.0,\n"
-		"	1.0,\n"
-		"	0,\n"
-		"	2.0 / 16.0,\n"
-		"	0.0,\n"
-		"	0.0,\n"
-		"	0,\n"
-		"	4.0 / 16.0\n"
-		"};\n"
-		"\n"
-		"float4 main(float2 uv : TEXCOORD0, float4 color0 : COLOR0) : COLOR\n"
-		"{\n"
-		"	float4 col = tex2D(sample0, uv);\n"
-		"	for (int i = 0; i < 9; ++i)\n"
-		"	{\n"
-		"		float2 offset = float2(samples[i].x * fInverseViewportWidth, samples[i].y * fInverseViewportHeight);\n"
-		"		float4 newColor = tex2D(sample0, uv + offset);\n"
-		"		col += samples[i].w * newColor;\n"
-		"	}\n"
-		"	col = 0.299 * col.r + 0.587 * col.g + 0.184 * col.b;\n"
-		"	col = float4(col.xxx, col.a);\n"
-		"	col.g *= 3;\n"
-		"	col = col * color0 * 0.5f;\n"
-		"	return col;\n"
-		"}\n"
-		"\n",
-
-		"[ps-night-vision.ps] = night vision.ps\n"
-		"[ps-night-vision.ps][float][fInverseViewportWidth]   = min 0.00001    max 1.0      default 1.0\n"
-		"[ps-night-vision.ps][float][fInverseViewportHeight]  = min 0.00001    max 1.0      default 1.0\n",
-		//Night Vision **********************
-
-		//Night Vision blur **********************
-		"night vision blur.ps",
-
-		"sampler sample0;\n"
-		"float brightness : register(C0);\n"
-		"float contrast : register(C1);\n"
-		"float4 main(float2 texCoord : TEXCOORD0) : COLOR0\n"
-		"{\n"
-		"	float4 pixelColor = tex2D(sample0, texCoord);\n"
-		"	float4 color0 = pixelColor;\n"
-		"	pixelColor = 0.299 * pixelColor.r + 0.587 * pixelColor.g + 0.184 * pixelColor.b;\n"
-		"	pixelColor.rgb /= pixelColor.a;\n"
-		"	pixelColor.rgb = ((pixelColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;\n"
-		"	pixelColor.g += brightness;\n"
-		"	pixelColor.rgb *= pixelColor.a;\n"
-		"	return pixelColor * color0 * 0.25f;\n"
-		"}\n",
-
-		"[ps-night-vision-blur.ps] = night vision blur.ps\n"
-		"[ps-night-vision-blur.ps][float][brightness]   = min 0.00001    max 100.0     default 10\n"
-		"[ps-night-vision-blur.ps][float][contrast]     = min 0.00001    max 10.0      default 6.8\n",
-		//Night Vision blur **********************
-
-		//Multi textura **********************
-		"multi textura.ps",
-
-		"float gamma : register(C0);\n"
-
-		"sampler2D sample0;\n"
-		"sampler2D sample1;\n"
-		"\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color1;\n"
-		"	float4 color2;\n"
-		"	float4 blendColor;\n"
-		"\n"
-		"	// Get the pixel color from the first texture.\n"
-		"	color1 = tex2D(sample0, uv.xy);\n"
-		"\n"
-		"	// Get the pixel color from the second texture.\n"
-		"	color2 = tex2D(sample1, uv.xy);\n"
-		"\n"
-		"	// Blend the two pixels together and multiply by the gamma value.\n"
-		"	blendColor = color1 * color2 * gamma;\n"
-		"	\n"
-		"	// Saturate the final color.\n"
-		"	blendColor = saturate(blendColor);\n"
-		"\n"
-		"	return blendColor;\n"
-		"}\n",
-
-		"[ps-multi-textura.ps] = multi textura.ps\n"
-		"[ps-multi-textura.ps][float][gamma]   	= min 0.0    max 100.0     default 2.0\n",
-		//Multi Textura **********************
-
-		//Wave **********************
-		"wave.ps",
-
-		"sampler2D sample0 : register(s0);\n"
-		"float effectTime : register(C0);\n"
-		"float sizeWave: register(C1);\n"
-		"float dist(float a, float b, float c, float d)\n"
-		"{\n"
-		"   return sqrt((a - c) * (a - c) + (b - d) * (b - d));\n"
-		"}\n"
-		"float4 main(float2 uv : TEXCOORD0) : COLOR0\n"
-		"{   \n"
-		"   float4 Color = 0;\n"
-		"   float f = sin(dist(uv.x + effectTime, uv.y, 0.128, 0.128)*sizeWave)\n"
-		"				  + sin(dist(uv.x, uv.y, 0.64, 0.64)*sizeWave)\n"
-		"				  + sin(dist(uv.x, uv.y + effectTime / 7, 0.192, 0.64)*sizeWave);\n"
-		"  uv.xy = uv.xy+((f/sizeWave));\n"
-		"   Color= tex2D( sample0 , uv.xy);\n"
-		"   return Color;   \n"
-		"}\n",
-
-		"[ps-wave.ps] = wave.ps\n"
-		"[ps-wave.ps][float][effectTime]   = min 0.0    max 10.0      default 0.0\n"
-		"[ps-wave.ps][float][sizeWave]     = min 0.0    max 100.0     default 10\n",
-		//Wave **********************
-
-		//Bands **********************
-		"bands.ps",
-
-		"float bandDensity : register(C0);\n"
-		"float bandIntensity : register(C1);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color;\n"
-		"	color = tex2D(sample0, uv.xy);\n"
-		"	color.rgb += tan(uv.x * bandDensity) * bandIntensity;\n"
-		"	return color;\n"
-		"}\n",
-
-		"[ps-bands.ps] = bands.ps\n"
-		"[ps-bands.ps][float][bandDensity]   = min 0.0   max 150.0   default 65.0\n"
-		"[ps-bands.ps][float][bandIntensity] = min 0.001 max 0.56    default 0.56\n",
-		//Bands **********************
-
-		//Bloom **********************
-		"bloom.ps",
-
-		"float BloomIntensity : register(C0);\n"
-		"float BaseIntensity : register(C1);\n"
-		"float BloomSaturation : register(C2);\n"
-		"float BaseSaturation : register(C3);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float3 AdjustSaturation(float3 color, float saturation)\n"
-		"{\n"
-		"	float grey = dot(color, float3(0.3, 0.59, 0.11));\n"
-		"	return lerp(grey, color.rgb, saturation);\n"
-		"}\n"
-
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float BloomThreshold = 0.25f;\n"
-
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	float3 base = color.rgb / color.a;\n"
-		"	float3 bloom = saturate((base - BloomThreshold) / (1 - BloomThreshold));\n"
-		// Adjust color saturation and intensity.
-	"	bloom = AdjustSaturation(bloom, BloomSaturation) * BloomIntensity;\n"
-	"	base = AdjustSaturation(base, BaseSaturation) * BaseIntensity;\n"
-		// Darken down the base image in areas where there is a lot of bloom,
-		// to prevent things looking excessively burned-out.
-	"	base *= (1 - saturate(bloom));\n"
-		// Combine the two images.
-	"	return float4((base + bloom) * color.a, color.a);\n"
-	"}\n",
-
-	"[ps-bloom.ps] = bloom.ps\n"
-	"[ps-bloom.ps][float][BloomIntensity]   = min 0.0   max 2.0   default 1.0\n"
-	"[ps-bloom.ps][float][BaseIntensity]    = min 0.0   max 2.0   default 0.5\n"
-	"[ps-bloom.ps][float][BloomSaturation]  = min 0.0   max 2.0   default 1.0\n"
-	"[ps-bloom.ps][float][BaseSaturation]   = min 0.0   max 2.0   default 0.5\n",
-		//Bloom **********************
-
-		//Bright Extract **********************
-		"bright extract.ps",
-
-		"float threshold : register(C0);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 originalColor = tex2D(sample0, uv);\n"
-		// Undo pre-multiplied alpha.
-	"	float3 rgb = originalColor.rgb / originalColor.a;\n"
-		// Adjust RGB to keep only values brighter than the specified threshold.
-	"	rgb = saturate((rgb - threshold) / (1 - threshold));\n"
-		// Re-apply alpha.
-	"	return float4(rgb * originalColor.a, originalColor.a);\n"
-	"}\n",
-
-	"[ps-bright-extract.ps] = bright extract.ps\n"
-	"[ps-bright-extract.ps][float][threshold]   = min 0.0   max 1.0   default 0.5\n",
-		//Bright Extract **********************
-
-		//Color Tone **********************
-		"color tone.ps",
-
-		"float desaturation : register(C0);\n"
-		"float toned : register(C1);\n"
-		"float4 lightColor : register(C2);\n"
-		"float4 darkColor : register(C3);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	float3 scnColor = lightColor * (color.rgb / color.a);\n"
-		"	float gray = dot(float3(0.3, 0.59, 0.11), scnColor);\n"
-
-		"	float3 muted = lerp(scnColor, gray.xxx, desaturation);\n"
-		"	float3 middle = lerp(darkColor, lightColor, gray);\n"
-
-		"	scnColor = lerp(muted, middle, toned);\n"
-		"	return float4(scnColor * color.a, color.a);\n"
-		"}",
-
-		"[ps-color-tone.ps] = color tone.ps\n"
-		"[ps-color-tone.ps][float][desaturation] = min 0.0      max 1.0              default 0.5\n"
-		"[ps-color-tone.ps][float][toned]        = min 0.0      max 1.0              default 0.5\n"
-		"[ps-color-tone.ps][rgba][lightColor]    = min 0 0 0 0  max 255 255 255 255  default 255 255 255 255\n"
-		"[ps-color-tone.ps][rgba][darkColor]     = min 0 0 0 0  max 255 255 255 255  default 255 255 0 0.7\n",
-		//Color Tone **********************
-
-		//Brightness **********************
-		"brightness.ps",
-
-		"float brightness : register(C0);\n"
-		"float contrast : register(C1);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 pixelColor = tex2D(sample0, uv);\n"
-		"	pixelColor.rgb /= pixelColor.a;\n"
-		// Apply contrast.
-	"	pixelColor.rgb = ((pixelColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;\n"
-		// Apply brightness.
-	"	pixelColor.rgb += brightness;\n"
-		// Return final pixel color.
-	"	pixelColor.rgb *= pixelColor.a;\n"
-	"	return pixelColor;\n"
-	"}\n",
-
-	"[ps-brightness.ps] = brightness.ps\n"
-	"[ps-brightness.ps][float][brightness] = min 0.0      max 1.0              default 0.5\n"
-	"[ps-brightness.ps][float][contrast]   = min 0.0      max 2.0              default 1.5\n",
-		//Brightness **********************
-
-		//Blur Directional **********************
-		"blur directional.ps",
-
-		"float angle : register(C0);\n"
-		"float blurAmount : register(C1);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	float4 c = 0;\n"
-		"	float rad = angle * 0.0174533f;\n"
-		"	float xOffset = cos(rad);\n"
-		"	float yOffset = sin(rad);\n"
-		"	for (int i = 0; i < 16; ++i)\n"
-		"	{\n"
-		"		uv.x = uv.x - blurAmount * xOffset;\n"
-		"		uv.y = uv.y - blurAmount * yOffset;\n"
-		"		c += tex2D(sample0, uv);\n"
-		"	}\n"
-		"	c /= 16;\n"
-		"	return c;\n"
-		"}\n",
-
-		"[ps-blur-directional.ps] = blur directional.ps\n"
-		"[ps-blur-directional.ps][float][angle]      = min 0.0      max 360.0      default 0.0\n"
-		"[ps-blur-directional.ps][float][blurAmount] = min 0.000    max 0.01       default 0.000\n",
-		//Blur Direcional **********************
-
-		//Embossed **********************
-		"embossed.ps",
-
-		"float amount : register(C0);\n"
-		"float width : register(C1);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 color = tex2D(sample0, uv);\n"
-		"	if (color.a == 0.0)\n"
-		"		return color;\n"
-		"	float4 outC =\n"
-		"	{\n"
-		"		0.5,\n"
-		"		0.5,\n"
-		"		0.5,\n"
-		"		1.0\n"
-		"	};\n"
-		"	outC -= tex2D(sample0, uv - width) * amount;\n"
-		"	outC += tex2D(sample0, uv + width) * amount;\n"
-		"	outC.rgb = (outC.r + outC.g + outC.b) / 3.0f;\n"
-		"	return outC;\n"
-		"}\n",
-
-		"[ps-embossed.ps] = embossed.ps\n"
-		"[ps-embossed.ps][float][amount]      = min 0.0      max 1.0      default 0.5\n"
-		"[ps-embossed.ps][float][width]       = min 0.0      max 0.1      default 0.0022999998\n",
-		//Embossed **********************
-
-		//Frosty out line **********************
-		"frosty out line.ps",
-
-		"float width : register(C0);\n"
-		"float height : register(C1);\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 middle : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float2 topLeft;\n"
-		"	float2 left;\n"
-		"	float2 bottomLeft;\n"
-		"	float2 top;\n"
-		"	float2 bottom;\n"
-		"	float2 topRight;\n"
-		"	float2 right;\n"
-		"	float2 bottomRight;\n"
-		"	topLeft.x = middle.x - 1/width;\n"
-		"	topLeft.y = middle.y - 1/height;\n"
-		"	top.x = middle.x;\n"
-		"	top.y = middle.y - 1/height;\n"
-		"	topRight.x = middle.x + 1/width;\n"
-		"	topRight.y = middle.y - 1/height;\n"
-		"	left.x = middle.x - 1/width;\n"
-		"	left.y = middle.y;\n"
-		"	right.x = middle.x + 1/width;\n"
-		"	right.y = middle.y;\n"
-		"	bottomLeft.x = middle.x - 1/width;\n"
-		"	bottomLeft.y = middle.y + 1/height;\n"
-		"	bottom.x = middle.x;\n"
-		"	bottom.y = middle.y + 1/height;\n"
-		"	bottomRight.x = middle.x + 1/width;\n"
-		"	bottomRight.y = middle.y + 1/height;\n"
-
-		"	float4 m = tex2D (sample0 , middle);\n"
-		"	float4 tl = tex2D (sample0, topLeft);\n"
-		"	float4 l = tex2D (sample0, left);\n"
-		"	float4 bl = tex2D (sample0, bottomLeft);\n"
-		"	float4 t = tex2D (sample0, top);\n"
-		"	float4 b = tex2D (sample0, bottom);\n"
-		"	float4 tr = tex2D (sample0, topRight);\n"
-		"	float4 r = tex2D (sample0, right);\n"
-		"	float4 br = tex2D (sample0, bottomRight);\n"
-
-		"	float4 color = (-tl-t-tr) + (-l+8*m-r) + (-bl-b-br);\n"
-		"	float4 color2 = tex2D(sample0,middle);\n"
-		"	float avg=color.r+color.g+color.b;\n"
-		"	avg/=3;\n"
-		"	color.rgb=avg;\n"
-		"	color.a = 1;\n"
-		"	return color2+color;\n"
-		"}\n",
-
-		"[ps-frosty-out-line.ps] = frosty out line.ps\n"
-		"[ps-frosty-out-line.ps][float][width]      = min 0.0      max 650.0      default 300.0\n"
-		"[ps-frosty-out-line.ps][float][height]     = min 0.0      max 500.0      default 300.0\n",
-		//Frosty Out Line **********************
-
-		//Glass Tile **********************
-		"glass tile.ps",
-
-		"float tiles : register(C0);\n"
-		"float bevelWidth : register(C1);\n"
-		"float4 groutColor : register(C2);\n"
-		"float offset: register(C3);\n"
-		"sampler2D sample0 : register(s0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float2 newUV1;\n"
-		"	newUV1.xy = uv.xy + tan((tiles*2.5)*uv.xy + offset)*(bevelWidth/100);\n"
-		"	float4 c1 = tex2D(sample0, newUV1); \n"
-		"	if(newUV1.x<0 || newUV1.x>1 || newUV1.y<0 || newUV1.y>1)\n"
-		"	{\n"
-		"		c1 = groutColor;\n"
-		"	}\n"
-		"	c1.a=1;\n"
-		"	return c1;\n"
-		"}\n",
-
-		"[ps-glass-tile.ps] = glass tile.ps\n"
-		"[ps-glass-tile.ps][float][tiles]        = min 0.0           max 20.0                 default 5.0\n"
-		"[ps-glass-tile.ps][float][bevelWidth]   = min 1.0           max 10.0                 default 300.0\n"
-		"[ps-glass-tile.ps][float][offset]       = min 0.0           max 3.0                  default 300.0\n"
-		"[ps-glass-tile.ps][rgba][groutColor]    = min 0 0 0 0       max 255 255 255 255      default 0 0 0 0 \n",
-		//Glass Tile **********************
-
-		//Poisson **********************
-		"poisson.ps",
-
-		"float poisson : register(C0);\n"
-		"float2 inputSize : register(C1);\n"
-
-		"static const float2 poissonArray[12] = \n"
-		"{\n"
-		"		float2(-0.326212f, -0.40581f),\n"
-		"		float2(-0.840144f, -0.07358f),\n"
-		"		float2(-0.695914f, 0.457137f),\n"
-		"		float2(-0.203345f, 0.620716f),\n"
-		"		float2(0.96234f, -0.194983f),\n"
-		"		float2(0.473434f, -0.480026f),\n"
-		"		float2(0.519456f, 0.767022f),\n"
-		"		float2(0.185461f, -0.893124f),\n"
-		"		float2(0.507431f, 0.064425f),\n"
-		"		float2(0.89642f, 0.412458f),\n"
-		"		float2(-0.32194f, -0.932615f),\n"
-		"		float2(-0.791559f, -0.59771f)\n"
-		"};\n"
-		"sampler2D sample0 : register(S0);\n"
-		"float4 main(float2 uv : TEXCOORD) : COLOR\n"
-		"{\n"
-		"	float4 cOut;\n"
-		// center tap
-	"	cOut = tex2D(sample0, uv);\n"
-	"	for(int tap = 0; tap < 12; tap++)\n"
-	"	{\n"
-	"		float2 coord= uv.xy + (poissonArray[tap] / inputSize * poisson);\n"
-		// Sample pixel
+    static const char* resourceShader[] = {//organizado de 3 em 3. sendo: Nome do arquivo, Codigo shader e configuraões CFG.
+
+
+        /* Alpha It -----------------------------------------------------------------------------------------------------*/
+
+        //AlphaIt *********************
+        "alpharit.ps",
+
+        "float alpha : register(C0); \n"
+        "float ray : register(C1); \n"
+        "float2 center : register(C2); \n"
+        "float2 prop : register(C3); \n"
+        "sampler2D sample0 : register(S0); \n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR \n"
+        "{ \n"
+        "	float4 color = tex2D(sample0, uv); \n"
+        "	float2 v2    = float2((uv.x - center.x) / prop.x,(uv.y - center.y) / prop.y) ;\n"
+        "	float dist   = length(v2); \n"
+        "	if(dist < ray) \n"
+        "	{\n"
+        "		color.a -= alpha; \n"
+        "	}\n"
+        "	return color; \n"
+        "}",
+
+        "[ps-alpharit.ps] = alpharit.ps\n"
+        "[ps-alpharit.ps][float][ray] = min 0.000000 max 1.000000 default 0.05000000\n"
+        "[ps-alpharit.ps][vector2][center] = min 0.000000 0.000000 max 1.000000 1.000000 default 0.500000 0.500000\n"
+        "[ps-alpharit.ps][vector2][prop] = min 0.000000 0.000000 max 100.000000 100.000000 default 1.000000 1.33333\n"
+        "[ps-alpharit.ps][float][alpha] = min 0.000000 max 1.000000 default 1.000000",
+
+
+        // color it **********************
+        "color it.ps",
+
+        "sampler2D sample0 : register(S0);\n"
+        "float3 color : register(C0);\n"
+        "float enable : register(C1);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR \n"
+        "{\n"
+        "   float4 c = tex2D( sample0, uv.xy );\n"
+        "   if(enable > 0.5)\n"
+        "      return float4(color.r,color.g,color.b,c.a);\n"
+        "   else\n"
+        "      return c;\n"
+        "}\n",
+
+        "[ps-color-it.ps] = color it.ps\n"
+        "[ps-color-it.ps][float][enable]        = min 0.0   max 1.0   default 1.0 \n"
+        "[ps-color-it.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
+
+        //blend *********************
+        "blend.ps",
+
+        "sampler2D sample0 : register(S0);\n"
+        "sampler2D sample1 : register(S1);\n"
+        "float3 colorAdd : register(C0);\n"
+        "float4 junctionRemove : register(c1);\n"
+        "float invertSample : register(C2);\n"
+        "float disableSample1 : register(C3);\n\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 c0,c1;\n"
+        "	float4 output;\n"
+        "	float4 original;\n"
+        "	if (invertSample > 0.5)\n"
+        "	{\n"
+        "		c0 = tex2D(sample1, uv.xy);//sample1 precisa ter alpha\n"
+        "		c1 = tex2D(sample0, uv.xy);//sample0 nao precisa ter alpha\n"
+        "	}\n"
+        "	else\n"
+        "	{\n"
+        "		c0 = tex2D(sample0, uv.xy);//sample0 nao precisa ter alpha\n"
+        "		c1 = tex2D(sample1, uv.xy);//sample1 precisa ter alpha\n"
+        "	}\n"
+        "	if(disableSample1 > 0.5)\n"
+        "	{\n"
+        "		c0.rgb += colorAdd;\n"
+        "		return c0;\n"
+        "	}\n"
+        "	c1 -= junctionRemove;\n"
+        "	original = c0;\n"
+        "	output.a = c0.a; \n"
+        "	c1.rgb = c1.rgb * c0.a;\n"
+        "	output.rgb = ((c0.rgb * (1 - c1.a)) + c1.rgb); \n"
+        "	output = lerp(original,output,c1.a);\n"
+        "	output.rgb += colorAdd;\n"
+        "	return output;\n"
+        "}",
+
+        "[ps-blend.ps] = blend.ps\n"
+        "[ps-blend.ps][float][invertSample] = min 0 max 1 default 0 \n"
+        "[ps-blend.ps][float][disableSample1] = min 0 max 1 default 0 \n"
+        "[ps-blend.ps][rgb][colorAdd] = min 0 0 0 max 255 255 255 default 255 0 0 \n"
+        "[ps-blend.ps][rgba][junctionRemove] = min 0 0 0 0 max 255 255 255 255 default 0.2 0.2 0.2 0.0  \n",
+        //blend *********************
+
+
+
+        //font *********************
+        "font.ps",
+
+        "float3 colorFont			: register(C0);\n"
+        "sampler2D sample0	: register(S0);\n"
+
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D( sample0, uv );\n"
+        "	float3 c2 = float3(1.0 - colorFont.r,1.0 - colorFont.g,1.0 - colorFont.b);\n"
+        "	color.rgb -= c2;\n"
+        "	return color;\n"
+        "}\n",
+
+        "[ps-font.ps] = font.ps\n"
+        "[ps-font.ps][rgb][colorFont]             = min 0 0 0   max 1.0 1.0 1.0 default 1.0 1.0 1.0   \n",
+        //Font *********************
+
+        //Color Keying *********************
+        "color keying.ps",
+
+        "float4 colorSrc : register(C0);\n"
+        "float4 colorDst : register(C1);\n"
+        "float tolerance : register(C2);\n"
+        "float granThen : register(C3);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	if (color.a == 0.0)\n"
+        "		return color;\n"
+        "	if (granThen > 0.5f)\n"
+        "	{\n"
+        "		if (all(abs(color.rgb - colorSrc.rgb) < tolerance))\n"
+        "		{\n"
+        "			color.rgba = colorDst;\n"
+        "		}\n"
+        "	}\n"
+        "	else\n"
+        "	{\n"
+        "		if (all(abs(color.rgb - colorSrc.rgb) > tolerance))\n"
+        "		{\n"
+        "			color.rgba = colorDst;\n"
+        "		}\n"
+        "	}\n"
+        "	return color;\n"
+        "}\n",
+
+        "[ps-color-keying.ps] = color keying.ps\n"
+        "[ps-color-keying.ps][float][granThen]             = min 0.0              max 1.0              default 1.0             #boolean\n"
+        "[ps-color-keying.ps][float][tolerance]            = min 0.0              max 1.0              default 0.3             #float\n"
+        "[ps-color-keying.ps][rgba][colorDst]              = min 0.1 0.2 0.3 1.0  max 1.0 1.0 1.0 1.0  default 1.0 0.0 1.0 1.0 #cor RGBA definida como float\n"
+        "[ps-color-keying.ps][rgba][colorSrc]              = min 10 20 30  255    max 125 128 250 255  default 125 128 50 255  #cor RGBA\n",
+        //Color Keying *********************
+
+        //transparent *********************
+        "transparent.ps",
+
+        "float alpha : register(C0);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	color.a -= alpha;\n"
+        "	return color;\n"
+        "}\n",
+
+        "[ps-transparent.ps] = transparent.ps\n"
+        "[ps-transparent.ps][float][alpha]                = min 0.0              max 1.0              default 1.0\n",
+        //transparent *********************
+
+        //saturate *********************
+        "saturate.ps",
+
+        "float3 color : register(C0);\n"
+        "\n"
+        "sampler2D sample0 : register(S0);\n"
+        "\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 c1;\n"
+        "	c1 = tex2D(sample0, uv.xy);\n"
+        "	c1.rgb *= color.rgb;\n"
+        "	return c1;\n"
+        "}\n",
+
+        "[ps-saturate.ps] = saturate.ps\n"
+        "[ps-saturate.ps][rgb][color]                = min 0.0 0.0 0.0           max 1.0 1.0 1.0           default 1.0 1.0 1.0\n",
+        //saturate *********************
+
+        //Night Vision **********************
+        "night vision.ps",
+
+        "sampler sample0 : register(s0);\n"
+        "float fInverseViewportWidth;\n"
+        "float fInverseViewportHeight;\n"
+        "const float4 samples[9] =\n"
+        "{\n"
+        "	-1.0,\n"
+        "	-1.0,\n"
+        "	0,\n"
+        "	1.0 / 16.0,\n"
+        "	-1.0,\n"
+        "	1.0,\n"
+        "	0,\n"
+        "	1.0 / 16.0,\n"
+        "	1.0,\n"
+        "	-1.0,\n"
+        "	0,\n"
+        "	1.0 / 16.0,\n"
+        "	1.0,\n"
+        "	1.0,\n"
+        "	0,\n"
+        "	1.0 / 16.0,\n"
+        "	-1.0,\n"
+        "	0.0,\n"
+        "	0,\n"
+        "	2.0 / 16.0,\n"
+        "	1.0,\n"
+        "	0.0,\n"
+        "	0,\n"
+        "	2.0 / 16.0,\n"
+        "	0.0,\n"
+        "	-1.0,\n"
+        "	0,\n"
+        "	2.0 / 16.0,\n"
+        "	0.0,\n"
+        "	1.0,\n"
+        "	0,\n"
+        "	2.0 / 16.0,\n"
+        "	0.0,\n"
+        "	0.0,\n"
+        "	0,\n"
+        "	4.0 / 16.0\n"
+        "};\n"
+        "\n"
+        "float4 main(float2 uv : TEXCOORD0, float4 color0 : COLOR0) : COLOR\n"
+        "{\n"
+        "	float4 col = tex2D(sample0, uv);\n"
+        "	for (int i = 0; i < 9; ++i)\n"
+        "	{\n"
+        "		float2 offset = float2(samples[i].x * fInverseViewportWidth, samples[i].y * fInverseViewportHeight);\n"
+        "		float4 newColor = tex2D(sample0, uv + offset);\n"
+        "		col += samples[i].w * newColor;\n"
+        "	}\n"
+        "	col = 0.299 * col.r + 0.587 * col.g + 0.184 * col.b;\n"
+        "	col = float4(col.xxx, col.a);\n"
+        "	col.g *= 3;\n"
+        "	col = col * color0 * 0.5f;\n"
+        "	return col;\n"
+        "}\n"
+        "\n",
+
+        "[ps-night-vision.ps] = night vision.ps\n"
+        "[ps-night-vision.ps][float][fInverseViewportWidth]   = min 0.00001    max 1.0      default 1.0\n"
+        "[ps-night-vision.ps][float][fInverseViewportHeight]  = min 0.00001    max 1.0      default 1.0\n",
+        //Night Vision **********************
+
+        //Night Vision blur **********************
+        "night vision blur.ps",
+
+        "sampler sample0;\n"
+        "float brightness : register(C0);\n"
+        "float contrast : register(C1);\n"
+        "float4 main(float2 texCoord : TEXCOORD0) : COLOR0\n"
+        "{\n"
+        "	float4 pixelColor = tex2D(sample0, texCoord);\n"
+        "	float4 color0 = pixelColor;\n"
+        "	pixelColor = 0.299 * pixelColor.r + 0.587 * pixelColor.g + 0.184 * pixelColor.b;\n"
+        "	pixelColor.rgb /= pixelColor.a;\n"
+        "	pixelColor.rgb = ((pixelColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;\n"
+        "	pixelColor.g += brightness;\n"
+        "	pixelColor.rgb *= pixelColor.a;\n"
+        "	return pixelColor * color0 * 0.25f;\n"
+        "}\n",
+
+        "[ps-night-vision-blur.ps] = night vision blur.ps\n"
+        "[ps-night-vision-blur.ps][float][brightness]   = min 0.00001    max 100.0     default 10\n"
+        "[ps-night-vision-blur.ps][float][contrast]     = min 0.00001    max 10.0      default 6.8\n",
+        //Night Vision blur **********************
+
+        //Multi textura **********************
+        "multi textura.ps",
+
+        "float gamma : register(C0);\n"
+
+        "sampler2D sample0;\n"
+        "sampler2D sample1;\n"
+        "\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color1;\n"
+        "	float4 color2;\n"
+        "	float4 blendColor;\n"
+        "\n"
+        "	// Get the pixel color from the first texture.\n"
+        "	color1 = tex2D(sample0, uv.xy);\n"
+        "\n"
+        "	// Get the pixel color from the second texture.\n"
+        "	color2 = tex2D(sample1, uv.xy);\n"
+        "\n"
+        "	// Blend the two pixels together and multiply by the gamma value.\n"
+        "	blendColor = color1 * color2 * gamma;\n"
+        "	\n"
+        "	// Saturate the final color.\n"
+        "	blendColor = saturate(blendColor);\n"
+        "\n"
+        "	return blendColor;\n"
+        "}\n",
+
+        "[ps-multi-textura.ps] = multi textura.ps\n"
+        "[ps-multi-textura.ps][float][gamma]   	= min 0.0    max 100.0     default 2.0\n",
+        //Multi Textura **********************
+
+        //Wave **********************
+        "wave.ps",
+
+        "sampler2D sample0 : register(s0);\n"
+        "float effectTime : register(C0);\n"
+        "float sizeWave: register(C1);\n"
+        "float dist(float a, float b, float c, float d)\n"
+        "{\n"
+        "   return sqrt((a - c) * (a - c) + (b - d) * (b - d));\n"
+        "}\n"
+        "float4 main(float2 uv : TEXCOORD0) : COLOR0\n"
+        "{   \n"
+        "   float4 Color = 0;\n"
+        "   float f = sin(dist(uv.x + effectTime, uv.y, 0.128, 0.128)*sizeWave)\n"
+        "				  + sin(dist(uv.x, uv.y, 0.64, 0.64)*sizeWave)\n"
+        "				  + sin(dist(uv.x, uv.y + effectTime / 7, 0.192, 0.64)*sizeWave);\n"
+        "  uv.xy = uv.xy+((f/sizeWave));\n"
+        "   Color= tex2D( sample0 , uv.xy);\n"
+        "   return Color;   \n"
+        "}\n",
+
+        "[ps-wave.ps] = wave.ps\n"
+        "[ps-wave.ps][float][effectTime]   = min 0.0    max 10.0      default 0.0\n"
+        "[ps-wave.ps][float][sizeWave]     = min 0.0    max 100.0     default 10\n",
+        //Wave **********************
+
+        //Bands **********************
+        "bands.ps",
+
+        "float bandDensity : register(C0);\n"
+        "float bandIntensity : register(C1);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color;\n"
+        "	color = tex2D(sample0, uv.xy);\n"
+        "	color.rgb += tan(uv.x * bandDensity) * bandIntensity;\n"
+        "	return color;\n"
+        "}\n",
+
+        "[ps-bands.ps] = bands.ps\n"
+        "[ps-bands.ps][float][bandDensity]   = min 0.0   max 150.0   default 65.0\n"
+        "[ps-bands.ps][float][bandIntensity] = min 0.001 max 0.56    default 0.56\n",
+        //Bands **********************
+
+        //Bloom **********************
+        "bloom.ps",
+
+        "float BloomIntensity : register(C0);\n"
+        "float BaseIntensity : register(C1);\n"
+        "float BloomSaturation : register(C2);\n"
+        "float BaseSaturation : register(C3);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float3 AdjustSaturation(float3 color, float saturation)\n"
+        "{\n"
+        "	float grey = dot(color, float3(0.3, 0.59, 0.11));\n"
+        "	return lerp(grey, color.rgb, saturation);\n"
+        "}\n"
+
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float BloomThreshold = 0.25f;\n"
+
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	float3 base = color.rgb / color.a;\n"
+        "	float3 bloom = saturate((base - BloomThreshold) / (1 - BloomThreshold));\n"
+        // Adjust color saturation and intensity.
+    "	bloom = AdjustSaturation(bloom, BloomSaturation) * BloomIntensity;\n"
+    "	base = AdjustSaturation(base, BaseSaturation) * BaseIntensity;\n"
+        // Darken down the base image in areas where there is a lot of bloom,
+        // to prevent things looking excessively burned-out.
+    "	base *= (1 - saturate(bloom));\n"
+        // Combine the two images.
+    "	return float4((base + bloom) * color.a, color.a);\n"
+    "}\n",
+
+    "[ps-bloom.ps] = bloom.ps\n"
+    "[ps-bloom.ps][float][BloomIntensity]   = min 0.0   max 2.0   default 1.0\n"
+    "[ps-bloom.ps][float][BaseIntensity]    = min 0.0   max 2.0   default 0.5\n"
+    "[ps-bloom.ps][float][BloomSaturation]  = min 0.0   max 2.0   default 1.0\n"
+    "[ps-bloom.ps][float][BaseSaturation]   = min 0.0   max 2.0   default 0.5\n",
+        //Bloom **********************
+
+        //Bright Extract **********************
+        "bright extract.ps",
+
+        "float threshold : register(C0);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 originalColor = tex2D(sample0, uv);\n"
+        // Undo pre-multiplied alpha.
+    "	float3 rgb = originalColor.rgb / originalColor.a;\n"
+        // Adjust RGB to keep only values brighter than the specified threshold.
+    "	rgb = saturate((rgb - threshold) / (1 - threshold));\n"
+        // Re-apply alpha.
+    "	return float4(rgb * originalColor.a, originalColor.a);\n"
+    "}\n",
+
+    "[ps-bright-extract.ps] = bright extract.ps\n"
+    "[ps-bright-extract.ps][float][threshold]   = min 0.0   max 1.0   default 0.5\n",
+        //Bright Extract **********************
+
+        //Color Tone **********************
+        "color tone.ps",
+
+        "float desaturation : register(C0);\n"
+        "float toned : register(C1);\n"
+        "float4 lightColor : register(C2);\n"
+        "float4 darkColor : register(C3);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	float3 scnColor = lightColor * (color.rgb / color.a);\n"
+        "	float gray = dot(float3(0.3, 0.59, 0.11), scnColor);\n"
+
+        "	float3 muted = lerp(scnColor, gray.xxx, desaturation);\n"
+        "	float3 middle = lerp(darkColor, lightColor, gray);\n"
+
+        "	scnColor = lerp(muted, middle, toned);\n"
+        "	return float4(scnColor * color.a, color.a);\n"
+        "}",
+
+        "[ps-color-tone.ps] = color tone.ps\n"
+        "[ps-color-tone.ps][float][desaturation] = min 0.0      max 1.0              default 0.5\n"
+        "[ps-color-tone.ps][float][toned]        = min 0.0      max 1.0              default 0.5\n"
+        "[ps-color-tone.ps][rgba][lightColor]    = min 0 0 0 0  max 255 255 255 255  default 255 255 255 255\n"
+        "[ps-color-tone.ps][rgba][darkColor]     = min 0 0 0 0  max 255 255 255 255  default 255 255 0 0.7\n",
+        //Color Tone **********************
+
+        //Brightness **********************
+        "brightness.ps",
+
+        "float brightness : register(C0);\n"
+        "float contrast : register(C1);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 pixelColor = tex2D(sample0, uv);\n"
+        "	pixelColor.rgb /= pixelColor.a;\n"
+        // Apply contrast.
+    "	pixelColor.rgb = ((pixelColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;\n"
+        // Apply brightness.
+    "	pixelColor.rgb += brightness;\n"
+        // Return final pixel color.
+    "	pixelColor.rgb *= pixelColor.a;\n"
+    "	return pixelColor;\n"
+    "}\n",
+
+    "[ps-brightness.ps] = brightness.ps\n"
+    "[ps-brightness.ps][float][brightness] = min 0.0      max 1.0              default 0.5\n"
+    "[ps-brightness.ps][float][contrast]   = min 0.0      max 2.0              default 1.5\n",
+        //Brightness **********************
+
+        //Blur Directional **********************
+        "blur directional.ps",
+
+        "float angle : register(C0);\n"
+        "float blurAmount : register(C1);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	float4 c = 0;\n"
+        "	float rad = angle * 0.0174533f;\n"
+        "	float xOffset = cos(rad);\n"
+        "	float yOffset = sin(rad);\n"
+        "	for (int i = 0; i < 16; ++i)\n"
+        "	{\n"
+        "		uv.x = uv.x - blurAmount * xOffset;\n"
+        "		uv.y = uv.y - blurAmount * yOffset;\n"
+        "		c += tex2D(sample0, uv);\n"
+        "	}\n"
+        "	c /= 16;\n"
+        "	return c;\n"
+        "}\n",
+
+        "[ps-blur-directional.ps] = blur directional.ps\n"
+        "[ps-blur-directional.ps][float][angle]      = min 0.0      max 360.0      default 0.0\n"
+        "[ps-blur-directional.ps][float][blurAmount] = min 0.000    max 0.01       default 0.000\n",
+        //Blur Direcional **********************
+
+        //Embossed **********************
+        "embossed.ps",
+
+        "float amount : register(C0);\n"
+        "float width : register(C1);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 color = tex2D(sample0, uv);\n"
+        "	if (color.a == 0.0)\n"
+        "		return color;\n"
+        "	float4 outC =\n"
+        "	{\n"
+        "		0.5,\n"
+        "		0.5,\n"
+        "		0.5,\n"
+        "		1.0\n"
+        "	};\n"
+        "	outC -= tex2D(sample0, uv - width) * amount;\n"
+        "	outC += tex2D(sample0, uv + width) * amount;\n"
+        "	outC.rgb = (outC.r + outC.g + outC.b) / 3.0f;\n"
+        "	return outC;\n"
+        "}\n",
+
+        "[ps-embossed.ps] = embossed.ps\n"
+        "[ps-embossed.ps][float][amount]      = min 0.0      max 1.0      default 0.5\n"
+        "[ps-embossed.ps][float][width]       = min 0.0      max 0.1      default 0.0022999998\n",
+        //Embossed **********************
+
+        //Frosty out line **********************
+        "frosty out line.ps",
+
+        "float width : register(C0);\n"
+        "float height : register(C1);\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 middle : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float2 topLeft;\n"
+        "	float2 left;\n"
+        "	float2 bottomLeft;\n"
+        "	float2 top;\n"
+        "	float2 bottom;\n"
+        "	float2 topRight;\n"
+        "	float2 right;\n"
+        "	float2 bottomRight;\n"
+        "	topLeft.x = middle.x - 1/width;\n"
+        "	topLeft.y = middle.y - 1/height;\n"
+        "	top.x = middle.x;\n"
+        "	top.y = middle.y - 1/height;\n"
+        "	topRight.x = middle.x + 1/width;\n"
+        "	topRight.y = middle.y - 1/height;\n"
+        "	left.x = middle.x - 1/width;\n"
+        "	left.y = middle.y;\n"
+        "	right.x = middle.x + 1/width;\n"
+        "	right.y = middle.y;\n"
+        "	bottomLeft.x = middle.x - 1/width;\n"
+        "	bottomLeft.y = middle.y + 1/height;\n"
+        "	bottom.x = middle.x;\n"
+        "	bottom.y = middle.y + 1/height;\n"
+        "	bottomRight.x = middle.x + 1/width;\n"
+        "	bottomRight.y = middle.y + 1/height;\n"
+
+        "	float4 m = tex2D (sample0 , middle);\n"
+        "	float4 tl = tex2D (sample0, topLeft);\n"
+        "	float4 l = tex2D (sample0, left);\n"
+        "	float4 bl = tex2D (sample0, bottomLeft);\n"
+        "	float4 t = tex2D (sample0, top);\n"
+        "	float4 b = tex2D (sample0, bottom);\n"
+        "	float4 tr = tex2D (sample0, topRight);\n"
+        "	float4 r = tex2D (sample0, right);\n"
+        "	float4 br = tex2D (sample0, bottomRight);\n"
+
+        "	float4 color = (-tl-t-tr) + (-l+8*m-r) + (-bl-b-br);\n"
+        "	float4 color2 = tex2D(sample0,middle);\n"
+        "	float avg=color.r+color.g+color.b;\n"
+        "	avg/=3;\n"
+        "	color.rgb=avg;\n"
+        "	color.a = 1;\n"
+        "	return color2+color;\n"
+        "}\n",
+
+        "[ps-frosty-out-line.ps] = frosty out line.ps\n"
+        "[ps-frosty-out-line.ps][float][width]      = min 0.0      max 650.0      default 300.0\n"
+        "[ps-frosty-out-line.ps][float][height]     = min 0.0      max 500.0      default 300.0\n",
+        //Frosty Out Line **********************
+
+        //Glass Tile **********************
+        "glass tile.ps",
+
+        "float tiles : register(C0);\n"
+        "float bevelWidth : register(C1);\n"
+        "float4 groutColor : register(C2);\n"
+        "float offset: register(C3);\n"
+        "sampler2D sample0 : register(s0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float2 newUV1;\n"
+        "	newUV1.xy = uv.xy + tan((tiles*2.5)*uv.xy + offset)*(bevelWidth/100);\n"
+        "	float4 c1 = tex2D(sample0, newUV1); \n"
+        "	if(newUV1.x<0 || newUV1.x>1 || newUV1.y<0 || newUV1.y>1)\n"
+        "	{\n"
+        "		c1 = groutColor;\n"
+        "	}\n"
+        "	c1.a=1;\n"
+        "	return c1;\n"
+        "}\n",
+
+        "[ps-glass-tile.ps] = glass tile.ps\n"
+        "[ps-glass-tile.ps][float][tiles]        = min 0.0           max 20.0                 default 5.0\n"
+        "[ps-glass-tile.ps][float][bevelWidth]   = min 1.0           max 10.0                 default 300.0\n"
+        "[ps-glass-tile.ps][float][offset]       = min 0.0           max 3.0                  default 300.0\n"
+        "[ps-glass-tile.ps][rgba][groutColor]    = min 0 0 0 0       max 255 255 255 255      default 0 0 0 0 \n",
+        //Glass Tile **********************
+
+        //Poisson **********************
+        "poisson.ps",
+
+        "float poisson : register(C0);\n"
+        "float2 inputSize : register(C1);\n"
+
+        "static const float2 poissonArray[12] = \n"
+        "{\n"
+        "		float2(-0.326212f, -0.40581f),\n"
+        "		float2(-0.840144f, -0.07358f),\n"
+        "		float2(-0.695914f, 0.457137f),\n"
+        "		float2(-0.203345f, 0.620716f),\n"
+        "		float2(0.96234f, -0.194983f),\n"
+        "		float2(0.473434f, -0.480026f),\n"
+        "		float2(0.519456f, 0.767022f),\n"
+        "		float2(0.185461f, -0.893124f),\n"
+        "		float2(0.507431f, 0.064425f),\n"
+        "		float2(0.89642f, 0.412458f),\n"
+        "		float2(-0.32194f, -0.932615f),\n"
+        "		float2(-0.791559f, -0.59771f)\n"
+        "};\n"
+        "sampler2D sample0 : register(S0);\n"
+        "float4 main(float2 uv : TEXCOORD) : COLOR\n"
+        "{\n"
+        "	float4 cOut;\n"
+        // center tap
+    "	cOut = tex2D(sample0, uv);\n"
+    "	for(int tap = 0; tap < 12; tap++)\n"
+    "	{\n"
+    "		float2 coord= uv.xy + (poissonArray[tap] / inputSize * poisson);\n"
+        // Sample pixel
 "		cOut += tex2D(sample0, coord);\n"
 "	}\n"
 
@@ -1492,120 +1492,134 @@ namespace mbm
 //Escala simples **********************
 
 
-	//Escala Diff **********************
-	"scale diff.vs",
+    //Escala Diff **********************
+    "scale diff.vs",
 
-	"float4x4 mvpMatrix;\n"
-	"float scale;\n"
-	"float maxHeight;\n"
-	"float height;\n"
-	"\n"
-	"struct VS_OUTPUT\n"
-	"{\n"
-	"	float4 pos : POSITION;\n"
-	"	float2 uv : TEXCOORD0;\n"
-	"};\n"
-	"\n"
-	"VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
-	"{\n"
-	"	VS_OUTPUT ret;\n"
-	"	if (pos.y > height)\n"
-	"	{\n"
-	"		const float num = scale * (abs(pos.y) / maxHeight);\n"
-	"		pos.x *= num;\n"
-	"		pos.z *= num;\n"
-	"	}\n"
-	"	else\n"
-	"	{\n"
-	"		const float num = (1.0 - scale) * (1.0 - (abs(pos.y) / maxHeight));\n"
-	"		pos.x *= num;\n"
-	"		pos.z *= num;\n"
-	"	}\n"
-	"	ret.pos = mul(pos, mvpMatrix);\n"
-	"	ret.uv = uv;\n"
-	"	return (ret);\n"
-	"}\n",
+    "float4x4 mvpMatrix;\n"
+    "float scale;\n"
+    "float maxHeight;\n"
+    "float height;\n"
+    "\n"
+    "struct VS_OUTPUT\n"
+    "{\n"
+    "	float4 pos : POSITION;\n"
+    "	float2 uv : TEXCOORD0;\n"
+    "};\n"
+    "\n"
+    "VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+    "{\n"
+    "	VS_OUTPUT ret;\n"
+    "	if (pos.y > height)\n"
+    "	{\n"
+    "		const float num = scale * (abs(pos.y) / maxHeight);\n"
+    "		pos.x *= num;\n"
+    "		pos.z *= num;\n"
+    "	}\n"
+    "	else\n"
+    "	{\n"
+    "		const float num = (1.0 - scale) * (1.0 - (abs(pos.y) / maxHeight));\n"
+    "		pos.x *= num;\n"
+    "		pos.z *= num;\n"
+    "	}\n"
+    "	ret.pos = mul(pos, mvpMatrix);\n"
+    "	ret.uv = uv;\n"
+    "	return (ret);\n"
+    "}\n",
 
-	"[vs-scale-diff.vs] = scale diff.vs\n"
-	"[vs-scale-diff.vs][float][scale]       = min 0.0         max 3.0                 default 1.0 \n"
-	"[vs-scale-diff.vs][float][height]      = min -100.0      max 100.0               default 0.0 \n"
-	"[vs-scale-diff.vs][float][maxHeight]   = min -100.0      max 100.0               default 0.0 \n",
-	//Escala Diff **********************
+    "[vs-scale-diff.vs] = scale diff.vs\n"
+    "[vs-scale-diff.vs][float][scale]       = min 0.0         max 3.0                 default 1.0 \n"
+    "[vs-scale-diff.vs][float][height]      = min -100.0      max 100.0               default 0.0 \n"
+    "[vs-scale-diff.vs][float][maxHeight]   = min -100.0      max 100.0               default 0.0 \n",
+    //Escala Diff **********************
 
-	//Escala Diff by Y **********************
-	"scale diff by y.vs",
+    //Escala Diff by Y **********************
+    "scale diff by y.vs",
 
-	"float4x4 mvpMatrix;\n"
-	"float scale;\n"
-	"float maxHeight;\n"
-	"float height;\n"
-	"\n"
-	"struct VS_OUTPUT\n"
-	"{\n"
-	"	float4 pos : POSITION;\n"
-	"	float2 uv : TEXCOORD0;\n"
-	"};\n"
-	"\n"
-	"\n"
-	"VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
-	"{\n"
-	"	VS_OUTPUT ret;\n"
-	"	if (pos.y > height)\n"
-	"	{\n"
-	"		const float num = scale * (abs(pos.y) / maxHeight);\n"
-	"		pos.y *= num;\n"
-	"		pos.z *= num;\n"
-	"	}\n"
-	"	else\n"
-	"	{\n"
-	"		const float num = (1.0 - scale) * (1.0 - (abs(pos.y) / maxHeight));\n"
-	"		pos.y *= num;\n"
-	"		pos.z *= num;\n"
-	"	}\n"
-	"	ret.pos = mul(pos, mvpMatrix);\n"
-	"	ret.uv = uv;\n"
-	"	return (ret);\n"
-	"}\n",
+    "float4x4 mvpMatrix;\n"
+    "float scale;\n"
+    "float maxHeight;\n"
+    "float height;\n"
+    "\n"
+    "struct VS_OUTPUT\n"
+    "{\n"
+    "	float4 pos : POSITION;\n"
+    "	float2 uv : TEXCOORD0;\n"
+    "};\n"
+    "\n"
+    "\n"
+    "VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+    "{\n"
+    "	VS_OUTPUT ret;\n"
+    "	if (pos.y > height)\n"
+    "	{\n"
+    "		const float num = scale * (abs(pos.y) / maxHeight);\n"
+    "		pos.y *= num;\n"
+    "		pos.z *= num;\n"
+    "	}\n"
+    "	else\n"
+    "	{\n"
+    "		const float num = (1.0 - scale) * (1.0 - (abs(pos.y) / maxHeight));\n"
+    "		pos.y *= num;\n"
+    "		pos.z *= num;\n"
+    "	}\n"
+    "	ret.pos = mul(pos, mvpMatrix);\n"
+    "	ret.uv = uv;\n"
+    "	return (ret);\n"
+    "}\n",
 
-	"[vs-scale-diff-by-y.vs] = scale diff by y.vs\n"
-	"[vs-scale-diff-by-y.vs][float][scale]       = min 0.0         max 3.0                 default 1.0 \n"
-	"[vs-scale-diff-by-y.vs][float][height]      = min -100.0      max 100.0               default 0.0 \n"
-	"[vs-scale-diff-by-y.vs][float][maxHeight]   = min -100.0      max 100.0               default 0.0 \n",
-	//Escala Diff by Y **********************
+    "[vs-scale-diff-by-y.vs] = scale diff by y.vs\n"
+    "[vs-scale-diff-by-y.vs][float][scale]       = min 0.0         max 3.0                 default 1.0 \n"
+    "[vs-scale-diff-by-y.vs][float][height]      = min -100.0      max 100.0               default 0.0 \n"
+    "[vs-scale-diff-by-y.vs][float][maxHeight]   = min -100.0      max 100.0               default 0.0 \n",
+    //Escala Diff by Y **********************
 
 
-	//Fluttering **********************
-	"fluttering.vs",
+    //Fluttering **********************
+    "fluttering.vs",
 
-	"float4x4 mvpMatrix;\n"
-	"float wave;\n"
-	"float deepth;\n"
-	"\n"
-	"struct VS_OUTPUT\n"
-	"{\n"
-	"	float4 pos : POSITION;\n"
-	"	float2 uv : TEXCOORD0;\n"
-	"};\n"
-	"\n"
-	"VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
-	"{\n"
-	"	VS_OUTPUT ret;\n"
-	"	ret.pos = pos;\n"
-	"	float angle = (wave % 360) * 2;\n"
-	"	ret.pos.z = sin(ret.pos.x + angle);\n"
-	"	ret.pos.z += sin(ret.pos.y / 2 + angle);\n"
-	"	ret.pos.z *= (ret.pos.x * 0.09f) + nor.z * deepth;\n"
-	"	ret.pos = ret.pos + mul(ret.pos, mvpMatrix);\n"
-	"	ret.uv = uv;\n"
-	"	return ret;\n"
-	"}\n",
+    "float4x4 mvpMatrix;\n"
+    "float wave;\n"
+    "float deepth;\n"
+    "\n"
+    "struct VS_OUTPUT\n"
+    "{\n"
+    "	float4 pos : POSITION;\n"
+    "	float2 uv : TEXCOORD0;\n"
+    "};\n"
+    "\n"
+    "VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+    "{\n"
+    "	VS_OUTPUT ret;\n"
+    "	ret.pos = pos;\n"
+    "	float angle = (wave % 360) * 2;\n"
+    "	ret.pos.z = sin(ret.pos.x + angle);\n"
+    "	ret.pos.z += sin(ret.pos.y / 2 + angle);\n"
+    "	ret.pos.z *= (ret.pos.x * 0.09f) + nor.z * deepth;\n"
+    "	ret.pos = ret.pos + mul(ret.pos, mvpMatrix);\n"
+    "	ret.uv = uv;\n"
+    "	return ret;\n"
+    "}\n",
 
-	"[vs-fluttering.vs] = fluttering.vs\n"
-	"[vs-fluttering.vs][float][wave]       = min 0.0         max 1.0                 default 1.0 \n"
-	"[vs-fluttering.vs][float][deepth]     = min 0.0         max 10.0                default 1.0 \n",
-	//Fluttering **********************
+    "[vs-fluttering.vs] = fluttering.vs\n"
+    "[vs-fluttering.vs][float][wave]       = min 0.0         max 1.0                 default 1.0 \n"
+    "[vs-fluttering.vs][float][deepth]     = min 0.0         max 10.0                default 1.0 \n",
+    //Fluttering **********************
 
-nullptr,nullptr,nullptr };
+    nullptr,nullptr,nullptr };
+
+    // Pixel Shader for line LINE_MESH (we do not expose to user, that is why is not part of resourceShader)
+    static const char* codePScolor_LINE_MESH = "float4 color : register(c0);\n"
+    "float4 main() : COLOR\n"
+    "{\n"
+    "    return color;\n"
+    "}\n";
+
+    // Vertex Shader for line LINE_MESH (we do not expose to user, that is why is not part of resourceShader)
+    static const char* codeVsColor_LINE_MESH = "float4x4 mvpMatrix : register(c0);\n"
+    "float4 main(float4 aPosition : POSITION) : POSITION\n"
+    "{\n"
+    "    return mul(aPosition, mvpMatrix);\n"
+    "}\n";
 }
 
 

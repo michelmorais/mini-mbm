@@ -335,10 +335,7 @@
     <ClCompile Include="..\..\src\render\font.cpp" />
     <ClCompile Include="..\..\src\render\gif-view.cpp" />
     <ClCompile Include="..\..\src\render\HMD.cpp" />
-    <ClCompile Include="..\..\src\render\line-mesh-directx9.cpp" />
-    <ClCompile Include="..\..\src\render\line-mesh-dummy.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh.cpp" />
-    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\mesh.cpp" />
     <ClCompile Include="..\..\src\render\particle-directx9.cpp" />
     <ClCompile Include="..\..\src\render\particle-dummy.cpp" />

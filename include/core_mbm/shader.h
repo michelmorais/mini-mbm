@@ -62,9 +62,37 @@ namespace mbm
         API_IMPL bool isLoadedBuffer() const;
         API_IMPL void release();
         
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer, must be implemented by specific backend engine
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const uint32_t sizeOfArrayVertex,const uint16_t *arrayIndices,const unsigned int totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
-        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, unsigned int totalSubsets, int *indexStartSubset,int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// Dynamic buffer, must be implemented by specific backend engine
+        API_IMPL bool loadBuffer(const VEC3 *vertex,
+                                 const VEC3 *normal,
+                                 const VEC2 *uv,
+                                 const uint32_t sizeOfArrayVertex,
+                                 const uint32_t totalSubsets,
+                                 const int *vertexStartSubset,
+                                 const int *vertexCountSubset,
+                                 const util::INFO_DRAW_MODE * info_draw_mode,
+                                 const bool isDynamic);// type vertex buffer, must be implemented by specific backend engine
+
+        API_IMPL bool loadBuffer(const VEC3 *vertex,
+                                 const VEC3 *normal,
+                                 const VEC2 *uv,
+                                 const uint32_t sizeOfArrayVertex,
+                                 const uint16_t *arrayIndices,
+                                 const unsigned int totalSubsets,
+                                 const int *indexStartSubset,
+                                 const int *indexCountSubset,
+                                 const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
+
+        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, 
+                                        unsigned int totalSubsets, 
+                                        int *indexStartSubset,
+                                        int *indexCountSubset,
+                                        const util::INFO_DRAW_MODE * info_draw_mode);// Dynamic Index buffer, must be implemented by specific backend engine
+
+        API_IMPL bool updateDynamic(const VEC3* vertex,
+                                    const VEC3* normal,
+                                    const VEC2* uv,
+                                    const int* vertexStartSubset,
+                                    const int* vertexCountSubset);// update vertex buffer when dynamic
 
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation

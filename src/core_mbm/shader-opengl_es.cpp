@@ -102,12 +102,13 @@ namespace mbm
 
     bool BUFFER_GL::loadBuffer(const mbm::VEC3 *vertex, // type vertex buffer
         const mbm::VEC3 *normal,const mbm::VEC2 *uv,const uint32_t sizeOfArrayVertex,
-        const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+        const uint32_t totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode, const bool isDynamic)
     {
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
             return false;
-        this->totalSubset        = totalSubsets;
+        const GLenum usage           = isDynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
+        this->totalSubset            = totalSubsets;
         this->bs->vboVertexSubsetVB  = new uint32_t[totalSubset];
         this->bs->vboNormalSubsetVB  = new uint32_t[totalSubset];
         this->bs->vboTextureSubsetVB = new uint32_t[totalSubset];
@@ -134,18 +135,16 @@ namespace mbm
         for (uint32_t i = 0; i < totalSubset; ++i)
         {
             GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertexSubsetVB[i]);
-            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(mbm::VEC3) *  static_cast<size_t>(this->vertexCountVB[i])), &vertex[this->vertexStartVB[i]],GL_STATIC_DRAW);
+            GLBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(mbm::VEC3) *  static_cast<size_t>(this->vertexCountVB[i])), &vertex[this->vertexStartVB[i]], usage);
             if (normal)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboNormalSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC3) * static_cast<size_t>(this->vertexCountVB[i])), &normal[this->vertexStartVB[i]],
-                             GL_STATIC_DRAW);
+                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC3) * static_cast<size_t>(this->vertexCountVB[i])), &normal[this->vertexStartVB[i]],usage);
             }
             if (uv)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboTextureSubsetVB[i]);
-                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC2) * static_cast<size_t>(this->vertexCountVB[i])), &uv[this->vertexStartVB[i]],
-                             GL_STATIC_DRAW);
+                GLBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>( sizeof(mbm::VEC2) * static_cast<size_t>(this->vertexCountVB[i])), &uv[this->vertexStartVB[i]],usage);
             }
         }
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -225,6 +224,52 @@ namespace mbm
         }
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        return true;
+    }
+
+    bool BUFFER_GL::updateDynamic(const VEC3* vertex,
+                                  const VEC3* normal,
+                                  const VEC2* uv,
+                                  const int* vertexStartSubset,
+                                  const int* vertexCountSubset)// update when dynamic
+    {
+        for (uint32_t i = 0; i < this->totalSubset; ++i)
+        {
+            const uint32_t vertexStart = vertexStartSubset[i];
+            const uint32_t vertexCount = vertexCountSubset[i];
+            if (vertexCount > this->sizeOfArrayVertex)
+            {
+                return false;
+            }
+            if ((vertexStart + vertexCount) > this->sizeOfArrayVertex)
+            {
+                return false;
+            }
+            const mbm::VEC3* pVertexStart = &vertex[vertexStart];
+            const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
+            const mbm::VEC2* pUvStart     = uv ? &uv[vertexStart]         : nullptr;
+            if (this->initializedIndexBuffer)
+            {
+                // TODO: for index buffer
+                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
+                return false;
+            }
+            else
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboVertexSubsetVB[i]);
+                GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pVertexStart, GL_DYNAMIC_DRAW);
+                if (pNormalStart && this->bs->vboNormalSubsetVB[i] != 0)
+                {
+                    GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboNormalSubsetVB[i]);
+                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * vertexCount, pNormalStart, GL_DYNAMIC_DRAW);
+                }
+                if (pUvStart && this->bs->vboTextureSubsetVB[i] != 0)
+                {
+                    GLBindBuffer(GL_ARRAY_BUFFER, this->bs->vboTextureSubsetVB[i]);
+                    GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC2) * vertexCount, pUvStart, GL_DYNAMIC_DRAW);
+                }
+            }
+        }
         return true;
     }
 
@@ -507,9 +552,12 @@ namespace mbm
                 GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[2]);
-            GLEnableVertexAttribArray(this->texCoordHandle);
-            GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+            if (this->texCoordHandle != -1)
+            {
+                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[2]);
+                GLEnableVertexAttribArray(this->texCoordHandle);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+            }
             //-----------------------------------------------------------------------------------------------------------
             GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
             GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
@@ -556,9 +604,12 @@ namespace mbm
                     GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+                if (this->texCoordHandle != -1)
+                {
+                    GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
+                    GLEnableVertexAttribArray(this->texCoordHandle);
+                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+                }
                 //-----------------------------------------------------------------------------------------------------------
                 GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
                 GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);

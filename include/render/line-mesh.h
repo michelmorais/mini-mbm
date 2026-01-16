@@ -27,13 +27,14 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 
+
 namespace mbm
 {
     class MY_LINES
     {
+        friend class LINE_MESH;
       public:
-        uint32_t vboVertexUvLine;
-        MY_LINES()noexcept;
+        MY_LINES() noexcept = default;
         virtual ~MY_LINES();
         void release();
         VEC3 *getArray();
@@ -41,7 +42,9 @@ namespace mbm
         bool setLines(std::vector<VEC3> && arrayPoints,const bool invert_Y);
         bool renderLines(SHADER *shader);
         bool onRestore();
-      private:
+    protected:
+        mbm::BUFFER_GL buffer;
+    private:
         std::vector<VEC3> arrayLinesVec3;
     };
 

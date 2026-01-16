@@ -18,23 +18,71 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <line-mesh.h>
-#include <shader-var-cfg.h>
-#include <texture-manager.h>
+#include <header-mesh.h>
+#include <draw-compatibility.h>
 #include <util-interface.h>
 #include <core_mbm/scene.h>
+#include <shader-resource.h>
+#include <shader-var-cfg.h>
+
 
 namespace mbm
 {
 
-    MY_LINES::MY_LINES() noexcept
-    {
-        this->vboVertexUvLine = 0;
-    }
-    
     MY_LINES::~MY_LINES()
     {
-        
         this->release();
+    }
+
+    void MY_LINES::release()
+    {
+        arrayLinesVec3.clear();
+        buffer.release();
+    }
+
+    bool MY_LINES::onRestore()
+    {
+        buffer.release();
+        std::vector<VEC3> the_arrayLinesVec3(arrayLinesVec3);
+        return setLines(std::move(the_arrayLinesVec3), false);
+    }
+
+    bool MY_LINES::setLines(std::vector<VEC3>&& arrayPoints, const bool invert_Y)
+    {
+        arrayLinesVec3 = std::move(arrayPoints);
+        const int vertexStartSubset = 0;
+        const int vertexCountSubset = arrayLinesVec3.size();
+        if (buffer.isLoadedBuffer())
+        {
+            if (buffer.sizeOfArrayVertex != arrayLinesVec3.size())
+            {
+                buffer.release();
+            }
+        }
+
+        if (buffer.isLoadedBuffer() == false)
+        {
+            const uint32_t totalSubsets = 1;
+
+            constexpr bool isDynamic = true;
+            util::INFO_DRAW_MODE infoDraw;
+            infoDraw.mode_cull_face = util::CULL_MODE::CULL_FRONT_AND_BACK;
+            infoDraw.mode_draw = util::MODE_DRAW::MODE_DRAW_LINE_STRIP;
+            infoDraw.mode_front_face_direction = util::FACE_DIRECTION::CCW;
+            if (buffer.loadBuffer(arrayLinesVec3.data(), nullptr, nullptr, arrayLinesVec3.size(), totalSubsets, &vertexStartSubset, &vertexCountSubset, &infoDraw, isDynamic) == false)
+            {
+                arrayLinesVec3.clear();
+                return false;
+            }
+        }
+        if (invert_Y)
+        {
+            for (auto& vec3 : arrayLinesVec3)
+            {
+                vec3.y = -vec3.y;
+            }
+        }
+        return buffer.updateDynamic(arrayLinesVec3.data(), nullptr, nullptr, &vertexStartSubset, &vertexCountSubset);
     }
     
     VEC3 * MY_LINES::getArray()
@@ -46,7 +94,22 @@ namespace mbm
     {
         return arrayLinesVec3.size();
     }
-    
+
+    bool MY_LINES::renderLines(SHADER* shader)
+    {
+        if (buffer.isLoadedBuffer() == false)
+            return false;
+        //TODO: check the need of set GLBlendFunc(GL_SRC_ALPHA, 0x0303); (old way)
+        return shader->render(&buffer);
+    }
+
+    void LINE_MESH::onStop()
+    {
+        for (auto line : this->lsLines)
+        {
+            line->buffer.release();
+        }
+    }
   
     LINE_MESH::LINE_MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_LINE_MESH, _is3d && _is2dScreen == false, _is2dScreen)
@@ -304,6 +367,45 @@ namespace mbm
         this->lsAnimation.push_back(anim);
         if (!loadShaderDefault())
             return false;
+        return true;
+    }
+
+    bool LINE_MESH::loadShaderDefault()
+    {
+        auto* anim = this->getAnimation();
+        if (anim == nullptr)
+            return false;
+        const char* fileNamePs = "__line_color.ps";
+        const char* fileNameVs = "__line_color.vs";
+
+        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, codePScolor_LINE_MESH, TYPE_ANIMATION_PAUSED);
+        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, codeVsColor_LINE_MESH, TYPE_ANIMATION_PAUSED);
+        if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
+            return false;
+        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader);
+        if (!ret)
+        {
+            PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
+            return false;
+        }
+        else
+        {
+            float c[4] = { 1, 0, 0, 1 };
+            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c, anim->fx.shader.ptrProgramObject, true))
+            {
+#if defined _DEBUG
+                PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);
+#endif
+            }
+            for (unsigned int i = 0; i < anim->fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
+            {
+                VAR_SHADER* varShader = anim->fx.fxPS->ptrCurrentShader->getVar(i);
+                if (varShader)
+                {
+                    varShader->set(c, c, 1.0f);
+                }
+            }
+        }
         return true;
     }
 

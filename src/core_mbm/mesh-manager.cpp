@@ -4525,6 +4525,7 @@ namespace mbm
                 VEC3 *pPosition = nullptr;
                 VEC3 *pNormal   = nullptr;
                 VEC2 *pTexture  = nullptr;
+                constexpr bool isDynamic = false;
                 if (!this->loadFromSplited(fp, headerFrame.sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
                                            headerMesh.hasNorText, nullptr, 0, headerFrame.stride))
                 {
@@ -4540,7 +4541,7 @@ namespace mbm
                 }
                 if (!buffer[currentFrame].pBufferGL->loadBuffer(
                         pPosition, pNormal, pTexture, static_cast<uint32_t>(headerFrame.sizeVertexBuffer), buffer[currentFrame].totalSubset,
-                        vertexStart, vertexCount,&this->info_mode))
+                        vertexStart, vertexCount,&this->info_mode, isDynamic))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -5288,6 +5289,7 @@ namespace mbm
         auto mesh = this->lsMeshes[fileNameBase];
         if(mesh)
             return mesh;
+        constexpr bool isDynamic              = false;
         mesh                                  = new MESH_MBM();
         mesh->buffer                          = new BUFFER_MESH[1];
         mesh->totalFramesMesh                 = 1;
@@ -5308,7 +5310,7 @@ namespace mbm
 
         if (!mesh->buffer[0].pBufferGL->loadBuffer(
                 reinterpret_cast<VEC3 *>(pPosition), reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture), sizeVertexBuffer / 3, mesh->buffer[0].totalSubset,
-                &mesh->buffer[0].subset[0].vertexStart, &mesh->buffer[0].subset[0].vertexCount,info_mode))
+                &mesh->buffer[0].subset[0].vertexStart, &mesh->buffer[0].subset[0].vertexCount,info_mode, isDynamic))
         {
             PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;

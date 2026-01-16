@@ -359,9 +359,6 @@
     <ClCompile Include="..\..\src\render\line-mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\line-mesh-opengl_es.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\render\mesh.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
@@ -541,12 +538,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp">
       <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\line-mesh-directx9.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\line-mesh-dummy.cpp">
-      <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\particle-directx9.cpp">
       <Filter>Source Files\render</Filter>

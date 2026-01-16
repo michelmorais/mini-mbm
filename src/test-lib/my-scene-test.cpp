@@ -43,6 +43,8 @@ MY_SCENE::~MY_SCENE()
         delete mesh;
     if (shape)
         delete shape;
+    if (line)
+        delete line;
 }
 
 void MY_SCENE::startLoading()
@@ -70,9 +72,9 @@ void MY_SCENE::init()
     //gif = new mbm::GIF_VIEW(this,false,false);
     //gif->load("Lion-King.gif");
 
-    sprite = new mbm::SPRITE(this, false, true);
-    sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
-    sprite->alwaysRenderize = true;
+    //sprite = new mbm::SPRITE(this, false, true);
+    //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
+    //sprite->alwaysRenderize = true;
     
     
     //**************
@@ -89,6 +91,12 @@ void MY_SCENE::init()
     //shape = new mbm::SHAPE_MESH(this, false, false);
     //shape->loadRectangle("quad", 25, 25, true, 2);
     //shape->position.x = 300;
+
+    line = new mbm::LINE_MESH(this, false, false);
+    std::vector<mbm::VEC3> lines;
+    lines.push_back(mbm::VEC3(0, 0, 0));
+    lines.push_back(mbm::VEC3(100,100, 0));
+    line->add(std::move(lines));
 }
 
 void MY_SCENE::logic()

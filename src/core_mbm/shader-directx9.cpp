@@ -254,9 +254,15 @@ namespace mbm
         return sizeStructVertexInBytes;
     }
     
-    bool BUFFER_GL::loadBuffer(const mbm::VEC3* vertex, // type vertex buffer
-        const mbm::VEC3* normal, const mbm::VEC2* uv, const uint32_t sizeOfArrayVertex,
-        const uint32_t totalSubsets, const int* vertexStartSubset, const int* vertexCountSubset, const util::INFO_DRAW_MODE* info_draw_mode)
+    bool BUFFER_GL::loadBuffer(const VEC3* vertex,
+                               const VEC3* normal,
+                               const VEC2* uv,
+                               const uint32_t sizeOfArrayVertex,
+                               const uint32_t totalSubsets,
+                               const int* vertexStartSubset,
+                               const int* vertexCountSubset,
+                               const util::INFO_DRAW_MODE* info_draw_mode,
+                               const bool isDynamic)// type vertex buffer, must be implemented by specific backend engine
     {
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
@@ -270,11 +276,13 @@ namespace mbm
         const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
         
+        const DWORD bufferUsage = isDynamic ? (D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY) : D3DUSAGE_WRITEONLY;
+        const D3DPOOL d3dPoll = isDynamic ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED;
         if (FAILED(pd3dDevice->CreateVertexBuffer(//Tamanho Do Vertex Buffer (array * sturtura)
             this->bs->sizeStructVertexInBytes  * sizeOfArrayVertex,
-            D3DUSAGE_WRITEONLY, //Usage D3DUSAGE_WRITEONLY
+            bufferUsage, //Usage
             DFVF,//FVF
-            D3DPOOL_MANAGED,//local memory
+            d3dPoll,//memory
             &this->bs->pVertexBuffer,//IDirect3DVertexBuffer9
             nullptr)))				//Always null
         {
@@ -428,6 +436,50 @@ namespace mbm
         memcpy(pIndex, arrayIndices, sizeIndexBufferInBytes);
         this->bs->pIndexBuffer->Unlock();
 
+        return true;
+    }
+
+    bool BUFFER_GL::updateDynamic(const VEC3* vertex,
+                                  const VEC3* normal,
+                                  const VEC2* uv,
+                                  const int* vertexStartSubset,
+                                  const int* vertexCountSubset)// update when dynamic
+    {
+        
+        for (uint32_t i = 0; i < this->totalSubset; ++i)
+        {
+            const uint32_t vertexStart = vertexStartSubset[i];
+            const uint32_t vertexCount = vertexCountSubset[i];
+            if (vertexCount > this->sizeOfArrayVertex)
+            {
+                return false;
+            }
+            if ((vertexStart + vertexCount) > this->sizeOfArrayVertex)
+            {
+                return false;
+            }
+            const mbm::VEC3* pVertexStart = &vertex[vertexStart];
+            const mbm::VEC3* pNormalStart = normal ? &normal[vertexStart] : nullptr;
+            const mbm::VEC2* pUvStart     = uv     ? &uv[vertexStart]:      nullptr;
+            if (this->initializedIndexBuffer)
+            {
+                // TODO: for index buffer
+                ERROR_AT(__LINE__, __FILE__, "TODO: Update vertex not implemented for index buffer");
+                return false;
+            }
+            else
+            {
+                const D3D_VERTEX_CONVERTER d3d_converter(pVertexStart, normal, uv, vertexCount);
+                void* pvertex = nullptr;
+                if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+                {
+                    ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+                    return false;
+                }
+                d3d_converter.copyTod3dVertexBuffer(pvertex);
+                this->bs->pVertexBuffer->Unlock();
+            }
+        }
         return true;
     }
 
@@ -759,20 +811,20 @@ namespace mbm
             *pmvpMatrixHandle            = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
             *pmvMatrixHandle             = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
 
-            D3DXCONSTANT_DESC desc;
-            UINT count = 1;
-            if (*pmvpMatrixHandle && SUCCEEDED(d3dPsVs->constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
-            {
-                int vertexMvpRegister = static_cast<int>(desc.RegisterIndex);
-                int vertexMvpRegisterCount = static_cast<int>(desc.RegisterCount); // number of float4 registers
-
-                // set mvp matrix for vertex shader (uses float4 registers)
-                if (vertexMvpRegister >= 0 && vertexMvpRegisterCount > 0)
-                {
-                    // assume 'mat' is a float[4*vertexMvpRegisterCount] or D3DXMATRIX compatible
-                    pd3dDevice->SetVertexShaderConstantF(vertexMvpRegister, reinterpret_cast<const float*>(&SHADER::mvpMatrix), vertexMvpRegisterCount);
-                }
-            }
+            //D3DXCONSTANT_DESC desc;
+            //UINT count = 1;
+            //if (*pmvpMatrixHandle && SUCCEEDED(d3dPsVs->constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
+            //{
+            //    int vertexMvpRegister = static_cast<int>(desc.RegisterIndex);
+            //    int vertexMvpRegisterCount = static_cast<int>(desc.RegisterCount); // number of float4 registers
+            //
+            //    // set mvp matrix for vertex shader (uses float4 registers)
+            //    if (vertexMvpRegister >= 0 && vertexMvpRegisterCount > 0)
+            //    {
+            //        // assume 'mat' is a float[4*vertexMvpRegisterCount] or D3DXMATRIX compatible
+            //        pd3dDevice->SetVertexShaderConstantF(vertexMvpRegister, reinterpret_cast<const float*>(&SHADER::mvpMatrix), vertexMvpRegisterCount);
+            //    }
+            //}
         }
 
         
@@ -1082,7 +1134,9 @@ namespace mbm
                     break;
                     case util::MODE_DRAW_LINE_STRIP:
                     {
-                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_STRIP");
+                        const UINT countLine = pBufferId->vertexCountVB[i] - 1;
+                        if (FAILED(pd3dDevice->DrawPrimitive(D3DPT_LINESTRIP, 0, countLine)))
+                            return false;
                     };
                     break;
                     case util::MODE_DRAW_TRIANGLES:
