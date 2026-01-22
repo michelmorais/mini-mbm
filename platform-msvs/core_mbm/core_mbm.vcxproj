@@ -338,8 +338,6 @@
     <ClCompile Include="..\..\src\render\HMD.cpp" />
     <ClCompile Include="..\..\src\render\line-mesh.cpp" />
     <ClCompile Include="..\..\src\render\mesh.cpp" />
-    <ClCompile Include="..\..\src\render\particle-directx9.cpp" />
-    <ClCompile Include="..\..\src\render\particle-dummy.cpp" />
     <ClCompile Include="..\..\src\render\particle.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-directx9.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp" />
