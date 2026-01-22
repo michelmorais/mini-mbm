@@ -36,6 +36,7 @@ namespace mbm
     class TEXTURE;
     struct VAR_SHADER;
     struct BUFFER_SPECIFIC;
+    struct PARTICLE_CONTROL;
     enum TYPE_VAR_SHADER : char;
 
     enum TYPE_ANIMATION : char
@@ -94,6 +95,8 @@ namespace mbm
                                     const VEC2* uv,
                                     const int* vertexStartSubset,
                                     const int* vertexCountSubset);// update vertex buffer when dynamic
+
+        API_IMPL bool loadParticleBuffer();// type index buffer only, must be implemented by specific backend engine
 
         API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
         API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
@@ -175,6 +178,7 @@ namespace mbm
         bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader);
         bool isLoad();
         bool render(const BUFFER_GL *pBufferId) const;
+        bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:

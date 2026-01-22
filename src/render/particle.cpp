@@ -24,6 +24,7 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <core_mbm/scene.h>
+#include <shader-resource.h>
 #include <climits>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
@@ -36,23 +37,18 @@ namespace mbm
     PARTICLE::PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_PARTICLE, _is3d && _is2dScreen == false, _is2dScreen)
     {
-        this->lenArrayParticlesData = 0;
-        this->totalAlive            = 0;
-        this->enableRender          = true;
-        this->buffer                = nullptr;
         this->texture               = nullptr;
-        this->indexStage = 0;
-        this->wTexture  = 0.0f;
-        this->hTexture  = 0.0f;
-        this->particles = nullptr;
-        this->currentTimeArise = 0.0f;
-        this->minv = VEC2(0, 0);
-        this->maxv = VEC2(1, 1);
-
-        this->vboIndexBuffer        = 0;
         this->_operatorShader       = '+';
+        this->control.setOnEndAnimationParticleControl(PARTICLE::onEndAnimationParticleControl);
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
+    }
+
+    void PARTICLE::release()
+    {
+        this->releaseAnimation();
+        this->bufferGl.release();
+        this->control.release();
     }
     
     PARTICLE::~PARTICLE()
@@ -62,191 +58,131 @@ namespace mbm
         device->removeRenderizable(this);
     }
 
-    void PARTICLE::updateParticleStage(const util::STAGE_PARTICLE* sPart)
+    bool PARTICLE::load(const char* fileNameTextureOrMesh, const char* operatorShader, const char* newCodeLine, const unsigned int sizeOfParticle, const bool initializeParticleData)
     {
-        ANIMATION* anim = this->getAnimation();
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        anim->fx.shader.update();
-        anim->fx.setBlendOp();
-        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
-        const VEC2  dist(maxv - minv);
-        const float diffSize = sPart->maxSizeParticle - sPart->minSizeParticle;
-        const float rDiff = sPart->maxColor.x - sPart->minColor.x;
-        const float gDiff = sPart->maxColor.y - sPart->minColor.y;
-        const float bDiff = sPart->maxColor.z - sPart->minColor.z;
-        for (unsigned int i = 0; i < this->totalAlive; ++i)
+        this->release();
+        unsigned int             totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
+        this->texture = nullptr;
+
+        bufferGl.loadParticleBuffer();
+        fileNameTextureOrMesh = fileNameTextureOrMesh ? fileNameTextureOrMesh : "#FFFFFFFF";
+        operatorShader = operatorShader ? operatorShader : "*";
+        const size_t lFile = strlen(fileNameTextureOrMesh);
+        if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
         {
-            ATT_PARTICLE* particle = &this->particles[i];
-            VERTEX_PARTICLE* vertex = &this->buffer[i * 4];
-            particle->timeLifeCurrent += device->delta;
-            if (particle->timeLifeCurrent > particle->timeLife)
+            MESH_MBM* mesh = MESH_MANAGER::getInstance()->load(fileNameTextureOrMesh);
+            if (mesh == nullptr)
+                return false;
+            this->texture = mesh->getTexture(0, 0);
+            const auto lsParticleInfo = mesh->getInfoParticle();
+            if (lsParticleInfo == nullptr)
             {
-                if (sPart->revive)
+                ERROR_LOG("type of file is not particle!\ntype: %s", MESH_MANAGER::typeClassName(mesh->getTypeMesh()));
+                return false;
+            }
+            char newOperator[2] = { '*',0 };
+            for (auto& i : *lsParticleInfo)
+            {
+                if (control.addStageFromOther(i) == 1) // first
                 {
-                    this->restartParticle(sPart, particle, vertex, &dist);
-                }
-                else
-                {
-                    if (this->totalAlive)
-                        this->totalAlive--;
-                    ATT_PARTICLE* lastParticle = &this->particles[this->totalAlive];
-                    memcpy(static_cast<void*>(particle), lastParticle, sizeof(ATT_PARTICLE));
+                    newOperator[0] = i->_operator;
                 }
             }
-            else
+            
+            if (!this->createAnimationAndShader2Particle(newOperator, newCodeLine))
             {
-                const float x = particle->direction.x * device->delta * particle->speed;
-                const float y = particle->direction.y * device->delta * particle->speed;
-                const float z = particle->direction.z * device->delta * particle->speed;
-                float       incrSize = 0.0f;
-                if (sPart->sizeMin2Max)//grow
+                ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+                return false;
+            }
+            ANIMATION* anim = this->getAnimation();
+            const util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[0];
+            if (anim && mesh->infoAnimation.lsHeaderAnim.size() && infoHead->headerAnim)
+            {
+                anim->blendState = static_cast<BLEND_STATE>(infoHead->headerAnim->blendState);
+                if (infoHead->effetcShader)
                 {
-                    if (particle->aSize < sPart->maxSizeParticle)
-                    {
-                        incrSize = (diffSize / particle->timeLife) * device->delta;
-                        particle->aSize = vertex[2].x - vertex[0].x;
-                        float perc = (particle->aSize - sPart->minSizeParticle) / diffSize;
-                        particle->a = perc; // 0 -> 0,99
-                        particle->r = (rDiff * perc) + sPart->minColor.x;
-                        particle->g = (gDiff * perc) + sPart->minColor.y;
-                        particle->b = (bDiff * perc) + sPart->minColor.z;
-                    }
+                    anim->fx.blendOperation = infoHead->effetcShader->blendOperation;
                 }
-                else
-                {
-                    if (particle->aSize > sPart->minSizeParticle)
-                    {
-                        incrSize = -(diffSize / particle->timeLife) * device->delta;
-                        particle->aSize = vertex[2].x - vertex[0].x;
-                        float perc = 1.0f - ((particle->aSize - sPart->minSizeParticle) / diffSize);
-                        particle->a = perc; // 0,99 -> 0,0 => 0 -> 0,99
-                        particle->r = (rDiff * perc) + sPart->minColor.x;
-                        particle->g = (gDiff * perc) + sPart->minColor.y;
-                        particle->b = (bDiff * perc) + sPart->minColor.z;
-                    }
-                }
-
-                if (sPart->invert_alpha)
-                    particle->a = 1.0f - particle->a;
-                if (sPart->invert_red)
-                    particle->r = 1.0f - particle->r;
-                if (sPart->invert_green)
-                    particle->g = 1.0f - particle->g;
-                if (sPart->invert_blue)
-                    particle->b = 1.0f - particle->b;
-
-                vertex[0].x += x - incrSize;
-                vertex[0].y += y - incrSize;
-                vertex[0].z += z;
-
-                vertex[1].x += x - incrSize;
-                vertex[1].y += y + incrSize;
-                vertex[1].z += z;
-
-                vertex[2].x += x + incrSize;
-                vertex[2].y += y - incrSize;
-                vertex[2].z += z;
-
-                vertex[3].x += x + incrSize;
-                vertex[3].y += y + incrSize;
-                vertex[3].z += z;
-
-                if (sPart->segmented)
-                {
-                    vertex[0].u = (vertex[0].x - minv.x) / dist.x;
-                    vertex[0].v = (vertex[0].y - minv.y) / dist.y;
-
-                    vertex[1].u = (vertex[1].x - minv.x) / dist.x;
-                    vertex[1].v = (vertex[1].y - minv.y) / dist.y;
-
-                    vertex[2].u = (vertex[2].x - minv.x) / dist.x;
-                    vertex[2].v = (vertex[2].y - minv.y) / dist.y;
-
-                    vertex[3].u = (vertex[3].x - minv.x) / dist.x;
-                    vertex[3].v = (vertex[3].y - minv.y) / dist.y;
-                }
-                if (vertex->x < minv.x)
-                    minv.x = vertex->x;
-                if (vertex->y < minv.y)
-                    minv.y = vertex->y;
-
-                if (vertex->x > maxv.x)
-                    maxv.x = vertex->x;
-                if (vertex->y > maxv.y)
-                    maxv.y = vertex->y;
             }
         }
+        else if (!this->createAnimationAndShader2Particle(operatorShader, newCodeLine))
+        {
+            ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+            return false;
+        }
+        if (this->texture == nullptr)
+            this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTextureOrMesh, true);
+        if (this->texture)
+        {
+            bufferGl.setTextureByStage(this->texture, 0, 0);
+            control.initializeBuffer(totalParticleToLoad, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            if (initializeParticleData)
+            {
+                if (this->control.getTotalStage() == 0)
+                {
+                    util::STAGE_PARTICLE sPart;
+                    sPart.totalParticle = totalParticleToLoad;
+                    this->control.addStageFromOther(&sPart);
+                }
+                else
+                {
+                    util::STAGE_PARTICLE * sPart = this->control.getStageParticle(0);
+                    sPart->totalParticle = totalParticleToLoad;
+                }
+                this->control.onResuscitate(this->control.getStageParticle(0), control.getTotalParticle());
+            }
+            char strTemp[255];
+            snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, totalParticleToLoad, operatorShader, newCodeLine ? newCodeLine : "nullptr");
+            this->fileName = strTemp;
+            this->enableRender = true;
+            this->alwaysRenderize = true;
+            if (sizeOfParticle == 0)
+                this->control.setTotalAlive(0);
+            this->updateAABB();
+            return true;
+        }
+        return false;
     }
 
-    
+    void PARTICLE::onStop()
+    {
+        bufferGl.release();
+    }
 
     bool PARTICLE::loadParticleShader(const char* operatorShader, const char* newCodeLine)
     {
-        const char* defaultCodePs_1 = "precision mediump float;\n"
-            "uniform vec4 color;\n"
-            "uniform float enableAlphaFromColor;\n"
-            "varying vec2 vTexCoord;\n"
-            "uniform sampler2D sample0;\n"
-            "void main()\n"
-            "{\n"
-            "  vec4 texColor;\n"
-            "  vec4 outColor;\n"
-            "  texColor = texture2D( sample0, vTexCoord );\n"
-            "  if(enableAlphaFromColor > 0.5)\n"
-            "     outColor.a = color.a;\n"
-            "  else\n"
-            "     outColor.a = texColor.a;\n"
-            "  outColor.rgb = color.rgb ";
-
-        const char* defaultCodePs_2 = " texColor.rgb;\n";
-
-        const char* defaultCodePs_3 = "  gl_FragColor = outColor;\n"
-            "}\n";
-        std::string defaultCodePs(defaultCodePs_1);
+        std::string defaultCodePs(getParticlePSCode());
         operatorShader = operatorShader ? operatorShader : "*";
-        defaultCodePs += operatorShader;
-        defaultCodePs += defaultCodePs_2;
+        const std::size_t pOperator = defaultCodePs.find('?');
+
+        if (pOperator == std::string::npos)
+        {
+            ERROR_AT(__LINE__, __FILE__, "Expected shader with question mark '?' but it was not found!\n shader:%s", defaultCodePs.c_str());
+            return false;
+        }
+        defaultCodePs[pOperator] = operatorShader[0];
         this->_operatorShader = operatorShader[0];
+        const std::size_t pNewCode = defaultCodePs.find('#');
+        if (pNewCode == std::string::npos)
+        {
+            ERROR_AT(__LINE__, __FILE__, "Expected shader with hashtag '#' but it was not found!\n shader:%s", defaultCodePs.c_str());
+            return false;
+        }
+        std::string newCode = defaultCodePs.substr(0, pNewCode);
+        
         if (newCodeLine)
         {
-            defaultCodePs += newCodeLine;
+            newCode += newCodeLine;
             this->_newCodeLine = newCodeLine;
         }
         else
         {
             this->_newCodeLine.clear();
         }
-        defaultCodePs += defaultCodePs_3;
-        //printf(defaultCodePs.c_str());
-        /*
-            precision mediump float;
-            uniform vec4 color;
-            uniform float enableAlphaFromColor;
-            varying vec2 vTexCoord;
-            uniform sampler2D sample0;
-            void main()
-            {
-              vec4 texColor;
-              vec4 outColor;
-              texColor = texture2D( sample0, vTexCoord );
-              if(enableAlphaFromColor > 0.5)
-                 outColor.a = color.a;
-              else
-                 outColor.a = texColor.a;
-              outColor.rgb = color.rgb * texColor.rgb;
-              gl_FragColor = outColor;
-            }
-        */
-        const char* defaultCodeVs = "attribute vec4 aPosition;"
-            "attribute vec2 aTextCoord;"
-            "uniform mat4 mvpMatrix;"
-            "varying vec2 vTexCoord;"
-            "void main()"
-            "{"
-            "     gl_Position = mvpMatrix * aPosition;"
-            "     vTexCoord = aTextCoord;"
-            "}";
+        newCode += defaultCodePs.substr(pNewCode + 1);
+        defaultCodePs = newCode;
 
+        const char* defaultCodeVs = getParticleVSCode();
         const char* fileNamePs = "__particle.ps";
         const char* fileNameVs = "__particle.vs";
 
@@ -278,114 +214,61 @@ namespace mbm
     
     bool PARTICLE::addParticle(const unsigned int numParticles,const bool forceNow)
     {
-        if (numParticles == 0 || this->buffer == nullptr)
-            return false;
-        util::STAGE_PARTICLE* sPart = nullptr;
-        if (this->indexStage < this->lsParticleStage.size())
-            sPart = this->lsParticleStage[this->indexStage];
-        else if (this->lsParticleStage.size() == 0)
-        {
-            sPart = new util::STAGE_PARTICLE();
-            this->lsParticleStage.push_back(sPart);
-        }
-        else
-            sPart = this->lsParticleStage[0];
-        if ((this->totalAlive + numParticles) > this->lenArrayParticlesData)
-            sPart->totalParticle += this->totalAlive + numParticles - this->lenArrayParticlesData;
-        if (forceNow)
-        {
-            const bool ret = this->_addParticle(numParticles);
-            if (sPart->totalParticle < this->lenArrayParticlesData)
-                sPart->totalParticle = this->lenArrayParticlesData;
-            return ret;
-        }
-        const float n1 = (sPart->ariseTime != 0.0f ? sPart->ariseTime : 0.0001f);
-        float n2 = sPart->totalParticle / n1;
-        if (n2 <= 0.0f)
-            n2 = 0.0001f;
-        this->currentTimeArise = sPart->ariseTime - (numParticles / n2);
-        if(this->currentTimeArise < 0.0f)
-            this->currentTimeArise = 0.0f;
-        return true;
+        return control.addParticle(numParticles, forceNow);
     }
     
     unsigned int PARTICLE::getTotalParticleAlive() const
     {
-        return this->totalAlive;
+        return this->control.getTotalParticleAlive();
     }
 
     uint32_t PARTICLE::getTotalParticleByStage(const uint32_t index) const
     {
-        if (index < this->lsParticleStage.size())
-            return this->lsParticleStage[index]->totalParticle;
-        return 0;
+        return control.getTotalParticleByStage(index);
     }
     void PARTICLE::setTotalParticleByStage(const uint32_t index,const uint32_t numParticles)
     {
-        if (index < this->lsParticleStage.size())
-        {
-            auto * sPart                 = this->lsParticleStage[index];
-            if(this->lenArrayParticlesData < numParticles)
-            {
-                const auto diff = numParticles - this->lenArrayParticlesData;
-                this->addParticle(diff,false);
-                sPart->totalParticle = numParticles;
-            }
-            else
-            {
-                sPart->totalParticle = numParticles;
-                if(this->totalAlive > numParticles)
-                    this->totalAlive     = numParticles;
-                this->currentTimeArise  = 0;
-            }
-        }
+        control.setTotalParticleByStage(index, numParticles);
     }
     
     unsigned int PARTICLE::getTotalParticle() const
     {
-        return this->lenArrayParticlesData;
+        return control.getTotalParticle();
     }
 
     util::STAGE_PARTICLE * PARTICLE::getStageParticle(const unsigned int index)
     {
-        if (index < this->lsParticleStage.size())
-            return this->lsParticleStage[index];
-        return nullptr;
+        return control.getStageParticle(index);
     }
 
     util::STAGE_PARTICLE * PARTICLE::getStageParticle()
     {
-        if (this->indexStage < static_cast<unsigned int>(this->lsParticleStage.size()))
-            return this->lsParticleStage[this->indexStage];
-        return nullptr;
+        return control.getStageParticle();
     }
 
     unsigned int PARTICLE::addStage()
     {
-        auto  stage = new util::STAGE_PARTICLE();
-        this->lsParticleStage.push_back(stage);
-        return static_cast<unsigned int>(this->lsParticleStage.size());
+        return control.addStage();
     }
 
     unsigned int PARTICLE::getIndexStageParticle() const
     {
-        return this->indexStage;
+        return control.getIndexStageParticle();
     }
 
     void PARTICLE::setIndexStageParticle(const unsigned int index)
     {
-        if(index < static_cast<unsigned int>(lsParticleStage.size()))
-            this->indexStage = index;
+        control.setIndexStageParticle(index);
     }
 
     unsigned int PARTICLE::getTotalStage() const
     {
-        return static_cast<unsigned int>(this->lsParticleStage.size());
+        return control.getTotalStage();
     }
 
     void PARTICLE::restartAnimationParticle()
     {
-        if (this->lenArrayParticlesData)
+        if (this->control.getTotalParticle() > 0)
         {
             ANIMATION* anim = this->getAnimation();
             if (anim)
@@ -394,9 +277,7 @@ namespace mbm
                 anim->currentWayGrowingOfAnimation = false;
                 sprintf(anim->nameAnimation, "stage:%d", 1);
             }
-            this->indexStage        = 0;
-            this->totalAlive        = 0;
-            this->currentTimeArise  = 0;
+            this->control.restartAnimationParticle();
         }
     }
     const char* PARTICLE::getTextureFileName()const
@@ -406,147 +287,68 @@ namespace mbm
         return nullptr;
     }
     
-    bool PARTICLE::_addParticle(const unsigned int numParticles)
-    {
-        if (this->lenArrayParticlesData == 0 || numParticles == 0 || this->buffer == nullptr)
-            return false;
-        util::STAGE_PARTICLE* sPart = nullptr;
-        if (this->indexStage < this->lsParticleStage.size())
-            sPart = this->lsParticleStage[this->indexStage];
-        else if (this->lsParticleStage.size() == 0)
-        {
-            sPart = new util::STAGE_PARTICLE();
-            this->lsParticleStage.push_back(sPart);
-        }
-        else
-          sPart = this->lsParticleStage[0];
-        if ((this->totalAlive + numParticles) <= this->lenArrayParticlesData)
-        {
-            this->onResuscitate(sPart, this->totalAlive + numParticles);
-        }
-        else
-        {
-            const unsigned int tTotalParticle = this->totalAlive + numParticles;
-            auto particlesTemp = new ATT_PARTICLE[tTotalParticle];
-            memcpy(static_cast<void*>(particlesTemp), this->particles, this->lenArrayParticlesData * sizeof(ATT_PARTICLE));
-            delete[] this->particles;
-            this->particles = particlesTemp;
-
-            const unsigned int newBufferSize = tTotalParticle * 4; // x4 porque nosso quadrado possui 4 vertex indexados
-            auto   tempVertex = new VERTEX_PARTICLE[newBufferSize];
-            memcpy(static_cast<void*>(tempVertex), this->buffer, this->lenArrayParticlesData * sizeof(VERTEX_PARTICLE) * 4); // x4 porque nosso quadrado possui 4 vertex indexados
-            delete[] this->buffer;
-            this->buffer = tempVertex;
-            this->lenArrayParticlesData = tTotalParticle;
-            this->onResuscitate(sPart, tTotalParticle);
-            char        strTemp[255];
-            std::vector<std::string> result;
-            util::split(result, this->fileName.c_str(), '@');
-            if (result.size() == 4)
-            {
-                snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", result[0].c_str(), this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
-                this->fileName = strTemp;
-            }
-            else
-            {
-                const char *fileNameTexture = this->texture->getFileNameTexture();
-                snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", fileNameTexture, this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
-                this->fileName = strTemp;
-            }
-        }
-        return true;
-    }
-    
-    void PARTICLE::onResuscitate(const util::STAGE_PARTICLE* sPart, const unsigned int total_To_Resuscitate)
-    {
-        const VEC2 dist(maxv - minv);
-        while (this->totalAlive < total_To_Resuscitate)
-        {
-            unsigned int          index  = this->totalAlive;
-            VERTEX_PARTICLE *vertex = &this->buffer[index * 4]; // x4 porque nosso quadrado possui 4 vertex indexados
-            this->restartParticle(sPart,&this->particles[index], vertex, &dist);
-            this->totalAlive++;
-        }
-    }
-
-    void PARTICLE::restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE *particle, VERTEX_PARTICLE pPartBuffer[4], const VEC2 *dist)
-    {
-        particle->aSize              = sPart->sizeMin2Max ? sPart->minSizeParticle : sPart->maxSizeParticle;//grow
-        const float halfSizeParticle = particle->aSize * 0.5f;
-        const float x                = util::getRandomFloat(sPart->minOffsetPosition.x, sPart->maxOffsetPosition.x);
-        const float y                = util::getRandomFloat(sPart->minOffsetPosition.y, sPart->maxOffsetPosition.y);
-        const float z                = util::getRandomFloat(sPart->minOffsetPosition.z, sPart->maxOffsetPosition.z);
-
-        pPartBuffer[0].x = x - halfSizeParticle;
-        pPartBuffer[0].y = y - halfSizeParticle;
-        pPartBuffer[0].z = z;
-
-        pPartBuffer[1].x = x - halfSizeParticle;
-        pPartBuffer[1].y = y + halfSizeParticle;
-        pPartBuffer[1].z = z;
-
-        pPartBuffer[2].x = x + halfSizeParticle;
-        pPartBuffer[2].y = y - halfSizeParticle;
-        pPartBuffer[2].z = z;
-
-        pPartBuffer[3].x = x + halfSizeParticle;
-        pPartBuffer[3].y = y + halfSizeParticle;
-        pPartBuffer[3].z = z;
-
-        const float ax    = util::getRandomFloat(sPart->minDirection.x, sPart->maxDirection.x);
-        const float ay    = util::getRandomFloat(sPart->minDirection.y, sPart->maxDirection.y);
-        const float angle = mbm::calcAzimuth(ax,ay);
-        particle->direction.x = sinf(angle);
-        particle->direction.y = cosf(angle);
-
-        const float angleZ = mbm::calcAzimuth(ax,util::getRandomFloat(sPart->minDirection.z, sPart->maxDirection.z));
-        particle->direction.z = cosf(angleZ);
-
-        vec3Normalize(&particle->direction, &particle->direction);
-
-        particle->speed = util::getRandomFloat(sPart->minSpeed, sPart->maxSpeed);
-
-        particle->timeLife        = util::getRandomFloat(sPart->minTimeLife, sPart->maxTimeLife);
-        particle->timeLifeCurrent = 0.0f;
-
-        if (sPart->segmented)
-        {
-            pPartBuffer[0].u = (pPartBuffer[0].x - minv.x) / dist->x;
-            pPartBuffer[0].v = (pPartBuffer[0].y - minv.y) / dist->y;
-
-            pPartBuffer[1].u = (pPartBuffer[1].x - minv.x) / dist->x;
-            pPartBuffer[1].v = (pPartBuffer[1].y - minv.y) / dist->y;
-
-            pPartBuffer[2].u = (pPartBuffer[2].x - minv.x) / dist->x;
-            pPartBuffer[2].v = (pPartBuffer[2].y - minv.y) / dist->y;
-
-            pPartBuffer[3].u = (pPartBuffer[3].x - minv.x) / dist->x;
-            pPartBuffer[3].v = (pPartBuffer[3].y - minv.y) / dist->y;
-        }
-        else
-        {
-            pPartBuffer[0].u = 0;
-            pPartBuffer[0].v = 1;
-            pPartBuffer[1].u = 0;
-            pPartBuffer[1].v = 0;
-            pPartBuffer[2].u = 1;
-            pPartBuffer[2].v = 1;
-            pPartBuffer[3].u = 1;
-            pPartBuffer[3].v = 0;
-        }
-        particle->a = 0.0f;
-        particle->r = 0.0f;
-        particle->g = 0.0f;
-        particle->b = 0.0f;
-    }
+    //bool PARTICLE::_addParticle(const unsigned int numParticles)
+    //{
+    //    if (this->lenArrayParticlesData == 0 || numParticles == 0 || this->buffer == nullptr)
+    //        return false;
+    //    util::STAGE_PARTICLE* sPart = nullptr;
+    //    if (this->indexStage < this->lsParticleStage.size())
+    //        sPart = this->lsParticleStage[this->indexStage];
+    //    else if (this->lsParticleStage.size() == 0)
+    //    {
+    //        sPart = new util::STAGE_PARTICLE();
+    //        this->lsParticleStage.push_back(sPart);
+    //    }
+    //    else
+    //      sPart = this->lsParticleStage[0];
+    //    if ((this->totalAlive + numParticles) <= this->lenArrayParticlesData)
+    //    {
+    //        this->onResuscitate(sPart, this->totalAlive + numParticles);
+    //    }
+    //    else
+    //    {
+    //        const unsigned int tTotalParticle = this->totalAlive + numParticles;
+    //        auto particlesTemp = new ATT_PARTICLE[tTotalParticle];
+    //        memcpy(static_cast<void*>(particlesTemp), this->particles, this->lenArrayParticlesData * sizeof(ATT_PARTICLE));
+    //        delete[] this->particles;
+    //        this->particles = particlesTemp;
+    //
+    //        const unsigned int newBufferSize = tTotalParticle * 4; // x4 porque nosso quadrado possui 4 vertex indexados
+    //        auto   tempVertex = new VERTEX_PARTICLE[newBufferSize];
+    //        memcpy(static_cast<void*>(tempVertex), this->buffer, this->lenArrayParticlesData * sizeof(VERTEX_PARTICLE) * 4); // x4 porque nosso quadrado possui 4 vertex indexados
+    //        delete[] this->buffer;
+    //        this->buffer = tempVertex;
+    //        this->lenArrayParticlesData = tTotalParticle;
+    //        this->onResuscitate(sPart, tTotalParticle);
+    //        char        strTemp[255];
+    //        std::vector<std::string> result;
+    //  TODO: do this
+    //        util::split(result, this->fileName.c_str(), '@');
+    //        if (result.size() == 4)
+    //        {
+    //            snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", result[0].c_str(), this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
+    //            this->fileName = strTemp;
+    //        }
+    //        else
+    //        {
+    //            const char *fileNameTexture = this->texture->getFileNameTexture();
+    //            snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", fileNameTexture, this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
+    //            this->fileName = strTemp;
+    //        }
+    //    }
+    //    return true;
+    //}
+    //
+    //
+    //
     
     bool PARTICLE::isOnFrustum()
     {
         if (this->isRender2Texture)
             return false;
-        if (this->lenArrayParticlesData && this->totalAlive)
+        if (this->control.getTotalParticle() >0  && this->control.getTotalParticleAlive() > 0)
         {
-            const VEC2  dim(maxv - minv);
+            const VEC2  dim(this->control.getDim());
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             const float w5 = device->getScaleBackBufferWidth() * 0.5f;
             const float h5 = device->getScaleBackBufferHeight() * 0.5f;
@@ -558,8 +360,8 @@ namespace mbm
             {
                 if (this->angle.z != 0.0f || this->angle.y != 0.0f || this->angle.x != 0.0f)
                 {
-                    const float sw = this->wTexture * this->scale.x * 0.5f;
-                    const float sh = this->hTexture * this->scale.y * 0.5f;
+                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
                     if (device->isSphereAtFrustum(this->position, sw > sh ? sw : sh))
                         return true;
                     if (device->isSphereAtFrustum(this->position, dim.x > dim.y ? dim.x : dim.y))
@@ -568,8 +370,8 @@ namespace mbm
                 else
                 {
                     CUBE   base;
-                    const float sw = this->wTexture * this->scale.x * 0.5f;
-                    const float sh = this->hTexture * this->scale.y * 0.5f;
+                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
                     base.halfDim.x = sw;
                     base.halfDim.y = sh;
                     base.halfDim.z = sw > sh ? sw : sh;
@@ -586,8 +388,8 @@ namespace mbm
             {
                 if (this->angle.z != 0.0f) // check as circle
                 {
-                    const float sw = this->wTexture * this->scale.x * 0.5f;
-                    const float sh = this->hTexture * this->scale.y * 0.5f;
+                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
                     if (device->isCircleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                         sw > sh ? sw : sh))
                         return true;
@@ -598,8 +400,8 @@ namespace mbm
                 else
                 {
                     if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                           this->wTexture * this->scale.x,
-                                                                           this->hTexture * this->scale.y))
+                                                                           this->control.getWTexture() * this->scale.x,
+                                                                           this->control.getHTexture() * this->scale.y))
                         return true;
                     if (device->isRectangleScreen2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                            dim.x * this->scale.x, dim.y * this->scale.y))
@@ -610,8 +412,8 @@ namespace mbm
             {
                 if (this->angle.z != 0.0f) // check as circle
                 {
-                    const float sw = this->wTexture * this->scale.x * 0.5f;
-                    const float sh = this->hTexture * this->scale.y * 0.5f;
+                    const float sw = this->control.getWTexture() * this->scale.x * 0.5f;
+                    const float sh = this->control.getHTexture() * this->scale.y * 0.5f;
                     if (device->isCircleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                        sw > sh ? sw : sh))
                         return true;
@@ -622,8 +424,8 @@ namespace mbm
                 else
                 {
                     if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
-                                                                          this->wTexture * this->scale.x,
-                                                                          this->hTexture * this->scale.y))
+                                                                          this->control.getWTexture() * this->scale.x,
+                                                                          this->control.getHTexture() * this->scale.y))
                         return true;
                     if (device->isRectangleWorld2dOnScreen2D_scaled(this->position.x, this->position.y,
                                                                           dim.x * this->scale.x, dim.y * this->scale.y))
@@ -636,9 +438,9 @@ namespace mbm
     
     bool PARTICLE::render()
     {
-        if (this->totalAlive)
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        if (this->control.getTotalAlive())
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
@@ -658,80 +460,28 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             
-            if (this->indexStage < this->lsParticleStage.size())
+            const util::STAGE_PARTICLE* sPart = control.getStageParticle();
+            if (sPart)
             {
-                const util::STAGE_PARTICLE* sPart = this->lsParticleStage[this->indexStage];
-                this->updateAnimationParticle();
+                
+                this->control.updateAnimationParticle(this, this->getAnimation(),device->delta);
                 return this->renderParticle(sPart);
             }
         }
         else 
         {
-            this->updateAnimationParticle();
+            this->control.updateAnimationParticle(this, this->getAnimation(), device->delta);
         }
         return false;
     }
-    
-    void PARTICLE::updateAnimationParticle()
+
+    void PARTICLE::onEndAnimationParticleControl(void * that, const char* nameAnimation)
     {
-        if (this->lenArrayParticlesData)
+        PARTICLE* theParticle = static_cast<PARTICLE*>(that);
+        RENDERIZABLE* renderizable = reinterpret_cast<RENDERIZABLE*>(theParticle);
+        if (theParticle->onEndAnimation)
         {
-            ANIMATION* anim = this->getAnimation();
-            if (this->indexStage < this->lsParticleStage.size())
-            {
-                mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                const util::STAGE_PARTICLE* sPart = this->lsParticleStage[this->indexStage];
-                const float prev = this->currentTimeArise;
-                this->currentTimeArise += device->delta;
-                if (this->totalAlive < sPart->totalParticle)
-                {
-                    if (this->currentTimeArise <= sPart->ariseTime || prev <= device->delta)
-                    {
-                        if (prev <= 0.0f && sPart->ariseTime <= 0.0f)
-                        {
-                            this->_addParticle(sPart->totalParticle);
-                        }
-                        else
-                        {
-                            const float expected = ((static_cast<float>(sPart->totalParticle) / (sPart->ariseTime <= 0.0f ? this->currentTimeArise : sPart->ariseTime)) * this->currentTimeArise);
-                            const auto diff = static_cast<int>(ceil(expected) - this->totalAlive);
-                            if (diff > 0 && diff < INT_MAX )
-                                this->_addParticle(static_cast<unsigned int>(diff));
-                        }
-                    }
-                }
-                if (anim->isEndedThisAnimation == false && this->currentTimeArise > sPart->stageTime)
-                {
-                    anim->isEndedThisAnimation = true;
-                    if (onEndAnimation)
-                    {
-                        onEndAnimation(anim->nameAnimation, this);
-                    }
-                    if ((this->indexStage + 1) < this->lsParticleStage.size())
-                    {
-                        this->indexStage++;
-                        sprintf(anim->nameAnimation, "stage:%d", static_cast<int>(this->indexStage + 1));
-                        anim->isEndedThisAnimation = false;
-                        anim->currentWayGrowingOfAnimation = false;
-                        this->currentTimeArise = 0.0f;
-                    }
-                }
-                if (anim->currentWayGrowingOfAnimation == false &&
-                    this->currentTimeArise > device->delta &&
-                    this->totalAlive == 0)
-                {
-                    anim->currentWayGrowingOfAnimation = true;
-                    if (onEndAnimation)
-                    {
-                        sprintf(anim->nameAnimation, "particle:0");
-                        onEndAnimation(anim->nameAnimation, this);
-                    }
-                    if ((this->indexStage) < this->lsParticleStage.size())
-                    {
-                        sprintf(anim->nameAnimation, "stage:%d", static_cast<int>(this->indexStage));
-                    }
-                }
-            }
+            theParticle->onEndAnimation(nameAnimation, renderizable);
         }
     }
 
@@ -748,18 +498,12 @@ namespace mbm
         util::split(result, this->fileName.c_str(), '@');
         if (result.size() < 4)
             return this->releaseOnFail();
-        if (this->lenArrayParticlesData == 0)
+        if (this->control.getTotalParticle() == 0)
             return this->releaseOnFail();
-        const unsigned int tTotal = this->totalAlive;
+        const unsigned int tTotal = this->control.getTotalAlive();
         const auto s = static_cast<const unsigned int>(std::atoi(result[1].c_str()));
-        if (s != this->lenArrayParticlesData)
+        if (s != this->control.getTotalParticle())
             return this->releaseOnFail();
-        ATT_PARTICLE *particlesTemp      = this->particles;
-        this->particles                  = nullptr;
-        VERTEX_PARTICLE *vertexTemp      = this->buffer;
-        this->buffer                     = nullptr;
-        const VEC2 tMinv                 = this->minv;
-        const VEC2 tMaxv                 = this->maxv;
         const char *newCodeLine = result[3].compare("nullptr") == 0 ? nullptr : result[3].c_str();
         bool enableAlphaFromColor = false;
         ANIMATION *       anim   = this->getAnimation();
@@ -773,23 +517,12 @@ namespace mbm
             }
         }
         const bool  ret         = this->load(result[0].c_str(), result[2].c_str(), newCodeLine, 0, true);
-        if (ret && this->buffer && this->particles)
-        {
-            delete[] this->particles;
-            delete[] this->buffer;
-            this->particles = particlesTemp;
-            this->buffer    = vertexTemp;
-        }
-        else
+        if (ret == false)
         {
             return this->releaseOnFail();
         }
-        this->minv                    = tMinv;
-        this->maxv                    = tMaxv;
-        this->totalAlive              = tTotal;
 
-
-        anim   = this->getAnimation();
+        anim = this->getAnimation();
         varEnableAlphaFromColor = (anim && anim->fx.fxPS && anim->fx.fxPS->ptrCurrentShader) ? anim->fx.fxPS->ptrCurrentShader->getVarByName("enableAlphaFromColor") : nullptr;
         if (varEnableAlphaFromColor)
         {
@@ -850,6 +583,19 @@ namespace mbm
             return false;
         return true;
     }
+
+    bool PARTICLE::renderParticle(const util::STAGE_PARTICLE* sPart)
+    {
+        ANIMATION* anim = this->getAnimation();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        anim->fx.shader.update();
+        anim->fx.setBlendOp();
+        this->blend.set(anim->blendState);
+        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        this->control.updateParticleStage(sPart, device->delta);
+
+        return anim->fx.shader.renderParticle(&this->bufferGl, &this->control);
+    }
     
     const INFO_PHYSICS * PARTICLE::getInfoPhysics() const
     {
@@ -876,7 +622,7 @@ namespace mbm
     
     bool PARTICLE::isLoaded() const
     {
-        return this->lenArrayParticlesData > 0;
+        return this->control.getTotalParticle() > 0;
     }
 
 }

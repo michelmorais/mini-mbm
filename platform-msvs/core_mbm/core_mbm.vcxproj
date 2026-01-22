@@ -199,6 +199,7 @@
     <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\order-render.h" />
     <ClInclude Include="..\..\include\core_mbm\file-util.h" />
+    <ClInclude Include="..\..\include\core_mbm\particle-control.h" />
     <ClInclude Include="..\..\include\core_mbm\physics.h" />
     <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
     <ClInclude Include="..\..\include\core_mbm\primitives.h" />
@@ -290,6 +291,7 @@
     <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\particle-control.cpp" />
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
@@ -339,7 +341,6 @@
     <ClCompile Include="..\..\src\render\particle-directx9.cpp" />
     <ClCompile Include="..\..\src\render\particle-dummy.cpp" />
     <ClCompile Include="..\..\src\render\particle.cpp" />
-    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-directx9.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp" />
     <ClCompile Include="..\..\src\render\render-2-texture.cpp" />

@@ -25,5 +25,7 @@ namespace mbm
     const char** getShaderEngineBuiltIn();
     const char* getCodePScolorFor_LINE_MESH();
     const char* getCodeVScolorFor_LINE_MESH();
+    const char* getParticlePSCode();
+    const char* getParticleVSCode();
 }
 #endif

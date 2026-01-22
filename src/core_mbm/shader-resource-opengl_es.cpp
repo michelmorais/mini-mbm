@@ -2550,6 +2550,7 @@ namespace mbm
 
         return codePScolor_LINE_MESH;
     }
+
     const char* getCodeVScolorFor_LINE_MESH()
     {
         // Pixel Shader for line LINE_MESH (we do not expose to user, that is why is not part of resourceShader)
@@ -2561,6 +2562,44 @@ namespace mbm
             "}\n";
 
         return codeVsColor_LINE_MESH;
+    }
+
+    const char* getParticlePSCode()
+    {
+        static const char* psParticleCode = "precision mediump float;\n"
+            "uniform vec4 color;\n"
+            "uniform float enableAlphaFromColor;\n"
+            "varying vec2 vTexCoord;\n"
+            "uniform sampler2D sample0;\n"
+            "void main()\n"
+            "{\n"
+            "  vec4 texColor;\n"
+            "  vec4 outColor;\n"
+            "  texColor = texture2D( sample0, vTexCoord );\n"
+            "  if(enableAlphaFromColor > 0.5)\n"
+            "     outColor.a = color.a;\n"
+            "  else\n"
+            "     outColor.a = texColor.a;\n"
+            "  outColor.rgb = color.rgb ? texColor.rgb;\n"
+            "  #\n"
+            "  gl_FragColor = outColor;\n"
+            "}\n";
+        return psParticleCode;
+    }
+
+    const char* getParticleVSCode()
+    {
+        static const char* vsParticleCode = 
+            "attribute vec4 aPosition;\n"
+            "attribute vec2 aTextCoord;\n"
+            "uniform mat4 mvpMatrix;\n"
+            "varying vec2 vTexCoord;\n"
+            "void main()\n"
+            "{\n"
+            "     gl_Position = mvpMatrix * aPosition;\n"
+            "     vTexCoord = aTextCoord;\n"
+            "}";
+        return vsParticleCode;
     }
 }
 

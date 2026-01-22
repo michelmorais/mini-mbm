@@ -306,6 +306,9 @@
     <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\particle-control.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -357,9 +360,6 @@
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\particle.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\particle-opengl_es.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture.cpp">
@@ -627,6 +627,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\particle-control.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>

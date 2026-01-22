@@ -26,7 +26,9 @@
 #include <util-interface.h>
 #include <shader-var-cfg.h>
 #include <cstdlib>
+#include <draw-compatibility.h>
 #include <header-mesh.h>
+#include <particle-control.h>
 
 namespace mbm
 {
@@ -273,6 +275,37 @@ namespace mbm
                 }
             }
         }
+        return true;
+    }
+
+    bool BUFFER_GL::loadParticleBuffer()// type index buffer only, must be implemented by specific backend engine
+    {
+        release();
+        const uint16_t arrayIndices[6] = { 0, 1, 2, 2, 1, 3 };
+        constexpr GLsizeiptr sizeIndexBuffer = sizeof(arrayIndices);
+        constexpr int indexStartSubset = 0;
+        constexpr int indexCountSubset = sizeof(arrayIndices) / sizeof(uint16_t);
+        constexpr uint32_t sizeOfArrayVertex = 0;
+
+        this->totalSubset = 1;
+        this->bs->vboIndexSubsetIB = new uint32_t[this->totalSubset];
+
+        this->initializeIndexBufferControl(this->totalSubset, sizeOfArrayVertex, &indexStartSubset, &indexCountSubset, nullptr);
+        memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
+        GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
+        if (!this->bs->vboIndexSubsetIB[0])
+        {
+            this->release();
+            return false;
+        }
+
+        for (uint32_t i = 0; i < this->totalSubset; ++i)
+        {
+            GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->bs->vboIndexSubsetIB[i]);
+            GLBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeIndexBuffer, arrayIndices, GL_STATIC_DRAW);
+        }
+
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         return true;
     }
 
@@ -533,11 +566,11 @@ namespace mbm
     {
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
-        GLint* imvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
-        GLint* imvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
-        GLint* psamplerHandle0  = static_cast<GLint*>(this->ptrSamplerHandle0);
-        GLint* psamplerHandle1  = static_cast<GLint*>(this->ptrSamplerHandle1);
-        GLuint* pprogramObject  = static_cast<GLuint*>(this->ptrProgramObject);
+        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+        const GLint* imvMatrixHandle  = static_cast<const GLint*>(this->ptrMvMatrixHandle);
+        const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
+        const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
+        const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -650,11 +683,11 @@ namespace mbm
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
 
-        GLint* imvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
-        GLint* imvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
-        GLint* psamplerHandle0  = static_cast<GLint*>(this->ptrSamplerHandle0);
-        GLint* psamplerHandle1  = static_cast<GLint*>(this->ptrSamplerHandle1);
-        GLuint* pprogramObject  = static_cast<GLuint*>(this->ptrProgramObject);
+        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+        const GLint* imvMatrixHandle  = static_cast<const GLint*>(this->ptrMvMatrixHandle);
+        const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
+        const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
+        const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -742,6 +775,91 @@ namespace mbm
             }
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        return true;
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
+    {
+        constexpr uint32_t index_subset = 0;
+        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
+        GLActiveTexture(GL_TEXTURE0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        const GLint* psamplerHandle0 = static_cast<const GLint*>(this->ptrSamplerHandle0);
+        
+        GLUniform1i(*psamplerHandle0, 0);
+
+        GLActiveTexture(GL_TEXTURE1);
+        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
+        if (texture1)
+        {
+            const GLint* psamplerHandle1 = static_cast<const GLint*>(this->ptrSamplerHandle1);
+            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLUniform1i(*psamplerHandle1, 1);
+        }
+        else
+        {
+            GLBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        GLboolean depthTestEnabled = true;
+        glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
+        GLDisable(GL_DEPTH_TEST);
+        
+        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+
+        GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        // if(fx->shader.mvMatrixHandle != -1)
+        //  GLUniformMatrix4fv(fx->shader.mvMatrixHandle, 1, GL_FALSE,SHADER::mvpMatrix.p);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[0]);
+        VAR_SHADER* var = this->pShader
+            ? this->pShader->getVarByName("color")
+            : nullptr;
+
+        const uint32_t totalAlive = particleControl->getTotalAlive();
+        const VERTEX_PARTICLE* buffer = particleControl->getVertexBuffer();
+        if (var)
+        {
+            const ATT_PARTICLE* particles = particleControl->getAttParticle();
+            const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
+            for (unsigned int i = 0; i < totalAlive; ++i)
+            {
+                const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
+                const ATT_PARTICLE* particle = &particles[i];
+                // GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
+                GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
+                GLEnableVertexAttribArray(this->positionHandle);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
+                    vertex);
+        
+                GLEnableVertexAttribArray(this->texCoordHandle);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
+                    &vertex[3]);
+        
+                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+            }
+        }
+        else
+        {
+            
+            for (unsigned int i = 0; i < totalAlive; ++i)
+            {
+                const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
+                GLEnableVertexAttribArray(this->positionHandle);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
+                    vertex);
+        
+                GLEnableVertexAttribArray(this->texCoordHandle);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
+                    &vertex[3]);
+        
+                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+            }
+        }
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        if (depthTestEnabled)
+        {
+            GLEnable(GL_DEPTH_TEST);
+        }
         return true;
     }
 
