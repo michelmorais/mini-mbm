@@ -308,7 +308,7 @@ function adjustTextureSize()
         tRender.alpha  = tTextureOptions.bAlpha
 
         tRender:release()
-        local result, texture_name, id = tRender:create(tTextureOptions.fWidth,tTextureOptions.fHeight,tTextureOptions.bAlpha,getNextNickName())
+        local result, texture_name = tRender:create(tTextureOptions.fWidth,tTextureOptions.fHeight,tTextureOptions.bAlpha,getNextNickName())
         if result then
             tRender:enableFrame(false)
             tShapeHoverImage:destroy()

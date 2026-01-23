@@ -25,13 +25,14 @@
 
 MY_SCENE::MY_SCENE()
 {
-    texBox   = nullptr;
-    gif      = nullptr;
-    sprite   = nullptr;
-    mesh     = nullptr;
-    shape    = nullptr;
-    line     = nullptr;
-    particle = nullptr;
+    texBox         = nullptr;
+    gif            = nullptr;
+    sprite         = nullptr;
+    mesh           = nullptr;
+    shape          = nullptr;
+    line           = nullptr;
+    particle       = nullptr;
+    render2Texture = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -50,6 +51,8 @@ MY_SCENE::~MY_SCENE()
         delete line;
     if (particle)
         delete particle;
+    if (render2Texture)
+        delete render2Texture;
 }
 
 void MY_SCENE::startLoading()
@@ -114,6 +117,14 @@ void MY_SCENE::init()
     //mesh->scale.y = 3;
     //mesh->scale.z = 3;
     //
+
+    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
+    
+    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
+    {
+        render2Texture->addObject2Render(gif);
+    }
+
     shape = new mbm::SHAPE_MESH(this, false, false);
     shape->loadRectangle("quad", 100, 100, true, 2);
     shape->position.x = 300;

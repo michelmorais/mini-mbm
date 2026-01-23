@@ -58,7 +58,7 @@ namespace mbm
         API_IMPL virtual ~RENDER_2_TEXTURE();
         API_IMPL void removeFromRender2Texture(RENDERIZABLE *ptr) override;
         API_IMPL virtual void release();
-        API_IMPL bool load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha, int * texture_id_out);
+        API_IMPL TEXTURE* load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha);
         API_IMPL void flip_vertically(uint8_t *pixels, const int width, const int height, const int bytes_per_pixel);
         API_IMPL bool saveAsPNG(const char* newFileOutNamePNG,const int x,const int y,const int _width,const int _height);//specific backend engine
         API_IMPL bool addObject2Render(RENDERIZABLE *ptr);

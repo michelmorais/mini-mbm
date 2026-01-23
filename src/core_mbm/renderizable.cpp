@@ -241,56 +241,43 @@ RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, c
         }
     }
 
-
-    RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept:
-    RENDERIZABLE(scene->getIdScene() ,newTypeClass,_is3d,_is2ds)
+    bool RENDERIZABLE::clone(RENDERIZABLE* renderizable_clone) const
     {
-        this->idDepthRenderbuffer    = 0;
-        this->idFrameBuffer          = 0;
-        this->idTextureDynamic       = 0;
-        this->colorClearBackGround   = COLOR(255, 255, 255); // alpha em 0 significa transparente
-        this->colorClearBackGround.a = 1.0f;
-        this->widthTexture           = 0;
-        this->heightTexture          = 0;
+        if(renderizable_clone && this->isLoaded())
+        {
+            renderizable_clone->fileName = this->fileName;
+            if(renderizable_clone->onRestoreDevice())
+            {
+                renderizable_clone->position = this->position;
+                renderizable_clone->scale    = this->scale;
+                renderizable_clone->angle    = this->angle;
+                return true;
+            }
+        }
+        return false;
     }
 
-    bool RENDERIZABLE::clone(RENDERIZABLE* renderizable_clone) const
-	{
-		if(renderizable_clone && this->isLoaded())
-		{
-			renderizable_clone->fileName = this->fileName;
-			if(renderizable_clone->onRestoreDevice())
-			{
-				renderizable_clone->position = this->position;
-				renderizable_clone->scale    = this->scale;
-				renderizable_clone->angle    = this->angle;
-				return true;
-			}
-		}
-		return false;
-	}
-
-	const char * RENDERIZABLE::getTypeClassName() const noexcept
+    const char * RENDERIZABLE::getTypeClassName() const noexcept
     {
         switch (typeClass)
         {
             case TYPE_CLASS_MESH                : return "mesh";
-			case TYPE_CLASS_SPRITE              : return "sprite";
-			case TYPE_CLASS_TEXTURE             : return "texture";
-			case TYPE_CLASS_BACKGROUND          : return "backGround";
-			case TYPE_CLASS_GIF                 : return "gif";
-			case TYPE_CLASS_TEXT                : return "font";
-			case TYPE_CLASS_PRIMITIVE           : return "primitive";
-			case TYPE_CLASS_LIGHT               : return "light";
-			case TYPE_CLASS_TEMP                : return "temp";
-			case TYPE_CLASS_SHAPE_MESH          : return "shape-mesh";
-			case TYPE_CLASS_LINE_MESH           : return "line-mesh";
-			case TYPE_CLASS_PARTICLE            : return "particle";
+            case TYPE_CLASS_SPRITE              : return "sprite";
+            case TYPE_CLASS_TEXTURE             : return "texture";
+            case TYPE_CLASS_BACKGROUND          : return "backGround";
+            case TYPE_CLASS_GIF                 : return "gif";
+            case TYPE_CLASS_TEXT                : return "font";
+            case TYPE_CLASS_PRIMITIVE           : return "primitive";
+            case TYPE_CLASS_LIGHT               : return "light";
+            case TYPE_CLASS_TEMP                : return "temp";
+            case TYPE_CLASS_SHAPE_MESH          : return "shape-mesh";
+            case TYPE_CLASS_LINE_MESH           : return "line-mesh";
+            case TYPE_CLASS_PARTICLE            : return "particle";
             case TYPE_CLASS_STEERED_PARTICLE    : return "steered-particle";
-			case TYPE_CLASS_RENDER_2_TEX        : return "render-to-texture";
-			case TYPE_CLASS_TILE                : return "tile";
-			case TYPE_CLASS_TILE_OBJ            : return "tile-obj";
-			default                             : return "unknown";
+            case TYPE_CLASS_RENDER_2_TEX        : return "render-to-texture";
+            case TYPE_CLASS_TILE                : return "tile";
+            case TYPE_CLASS_TILE_OBJ            : return "tile-obj";
+            default                             : return "unknown";
         }
     }
 }

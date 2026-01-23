@@ -106,7 +106,7 @@ namespace mbm
         this->bufferGL.release();
     }
     
-    bool RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha, int * texture_id_out)
+    TEXTURE* RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha)
     {
         #if defined _WIN32
             const char *messageError =
@@ -148,15 +148,17 @@ namespace mbm
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
                     this->bufferGL.setTextureByStage(this->texture, 0, 0 );
-                    if(texture_id_out)
-                        *texture_id_out          = this->texture->idTexture;
                 }
                 else
                 {
-                    return false;
+                    this->texture = nullptr;
+                    return this->texture;
                 }
                 if (!createAnimationAndShader2Render2Texture())
-                    return false;
+                {
+                    this->texture = nullptr;
+                    return this->texture;
+                }
                 char strTemp[255];
                 snprintf(strTemp,sizeof(strTemp) -1, "rende2texture|%s|%u|%u|%u|%u|%s", 
                     nickName, 
@@ -180,7 +182,7 @@ namespace mbm
                 this->updateAABB();
             }
         }
-        return (this->texture != nullptr);
+        return this->texture;
     }
     
     void RENDER_2_TEXTURE::flip_vertically(unsigned char *pixels, const int width, const int height, const int bytes_per_pixel)
@@ -426,7 +428,7 @@ namespace mbm
             CUBE *      cube            = this->infoPhysics.lsCube[0];
             const float widthFrame      = cube->halfDim.x * 2.0f;
             const float heightFrame     = cube->halfDim.y * 2.0f;
-            if (!this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha, nullptr))
+            if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
 #if defined DEBUG_RESTORE
             PRINT_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));

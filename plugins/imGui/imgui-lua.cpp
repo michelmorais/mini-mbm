@@ -4664,6 +4664,7 @@ int onArrowButtonImGuiLua(lua_State *lua)
 
 int onImageImGuiLua(lua_State *lua)
 {
+    // TODO: make this work in Directx, test in spritre maker 
     int index_input                     = 1;
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;

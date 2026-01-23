@@ -295,7 +295,6 @@
     <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
     <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
     <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\renderizable-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
@@ -324,8 +323,6 @@
     <ClCompile Include="..\..\src\core_mbm\device-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\renderizable-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\renderizable-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx-directx9.cpp" />

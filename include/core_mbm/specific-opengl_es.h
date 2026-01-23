@@ -608,6 +608,16 @@ namespace mbm
         //uint32_t mode_front_face_direction; //GL_CW, GL_CCW
         void release();
     };
+
+    struct RENDER2TARGET_GLES
+    {
+        GLuint  idFrameBuffer;
+        GLuint  idDepthRenderbuffer;
+        GLuint  idTextureDynamic;
+        void     release();
+        RENDER2TARGET_GLES();
+        ~RENDER2TARGET_GLES();
+    };
     
 }
 #endif

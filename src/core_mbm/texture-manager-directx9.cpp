@@ -450,6 +450,8 @@ namespace mbm
         std::string fileNameBase    = util::getBaseName(nickName);
         const auto width         = static_cast<int>(renderToTarget->widthTexture);
         const auto height        = static_cast<int>(renderToTarget->heightTexture);
+        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+
         if (fileNameBase.size() == 0)
             return nullptr;
         if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
@@ -462,39 +464,34 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and");
-
-        // texture
-        #pragma message(REMINDER_TODO "  implement generate texture");
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
-
-        }
-        else
+        IDirect3DSurface9* surfaceDest = nullptr;
+        
+        //TEXTURE::no_filter
+        // TILE MAP Mode
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        const D3DFORMAT Format = enableAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
+        if (FAILED(pd3dDevice->CreateTexture(width, height, 1,
+            D3DUSAGE_RENDERTARGET,
+            Format, D3DPOOL_DEFAULT,
+            pp3DTexture9,
+            nullptr)))
         {
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
+            ERROR_AT(__LINE__, __FILE__, "failed to create render to target texture");
+            return nullptr;
         }
+        IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
 
-        if (enableAlpha)
+        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
         {
-            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
+            ERROR_AT(__LINE__, __FILE__, "failed to get surface description level");
+            return nullptr;
         }
-        else
-        {
-            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
-        }
-        // depth buffer
-        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
-        // frame buffer
-        #pragma message(REMINDER_TODO "  implement bind framebuffer");
-        // attachments
-        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
-        //
+        //tex->width = width;
+        //tex->height = height;
+        //tex->useAlphaChannel = enableAlpha;
+        //strcpy(tex->fileName, nickName);
+        //lsTextures[nickName] = tex;
+
         
         renderToTarget->idFrameBuffer       = idFrameBuffer;
         renderToTarget->idDepthRenderbuffer = idRenderBuffer;

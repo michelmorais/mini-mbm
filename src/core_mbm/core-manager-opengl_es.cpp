@@ -1083,10 +1083,11 @@ void printGLString(const char *name, GLenum s)
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
+            const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(renderTarget->specificConfig);
             GLViewport(0, 0, static_cast<GLsizei>(renderTarget->widthTexture), static_cast<GLsizei>(renderTarget->heightTexture));
-            GLBindFramebuffer(GL_FRAMEBUFFER, renderTarget->idFrameBuffer);
-            GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, static_cast<GLuint>(renderTarget->idTextureDynamic),0);
-            GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,renderTarget->idDepthRenderbuffer);
+            GLBindFramebuffer(GL_FRAMEBUFFER, sf->idFrameBuffer);
+            GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sf->idTextureDynamic,0);
+            GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, sf->idDepthRenderbuffer);
             GLClearColor(renderTarget->colorClearBackGround.r, renderTarget->colorClearBackGround.g,
                          renderTarget->colorClearBackGround.b, renderTarget->colorClearBackGround.a);
             GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

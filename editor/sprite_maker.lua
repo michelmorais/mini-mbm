@@ -1958,6 +1958,7 @@ function showFrameAdd()
                         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0,g=1,b=0,a=1})
                         pushed_color = 2
                     end
+                    -- TODO: make this work in any backend engine . e.g.: Directx
                     if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
                         tFrameAddOptions.iIndexSelectedNode       = i
                         tFrameAddOptions.bValidFrameSelected      = true

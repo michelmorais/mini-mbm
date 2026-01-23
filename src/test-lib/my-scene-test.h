@@ -29,6 +29,7 @@
 #include <render/shape-mesh.h>
 #include <render/line-mesh.h>
 #include <render/particle.h>
+#include <render/render-2-texture.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -40,6 +41,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::SHAPE_MESH* shape;
     mbm::LINE_MESH* line;
     mbm::PARTICLE* particle;
+    mbm::RENDER_2_TEXTURE* render2Texture;
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();

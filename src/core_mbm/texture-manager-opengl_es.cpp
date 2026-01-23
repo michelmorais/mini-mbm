@@ -218,9 +218,11 @@ namespace mbm
         GLBindFramebuffer(GL_FRAMEBUFFER, 0);
         GLBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
+        RENDER2TARGET_GLES* sf = static_cast<RENDER2TARGET_GLES*>(renderToTarget->specificConfig);
+
+        sf->idFrameBuffer                   = idFrameBuffer;
+        sf->idDepthRenderbuffer             = idRenderBuffer;
+        sf->idTextureDynamic                = idTexture2d;
         texture->idTexture                  = idTexture2d;
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
