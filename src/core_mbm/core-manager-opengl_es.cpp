@@ -25,15 +25,11 @@
 #include <scene.h>
 #include <renderizable.h>
 #include <texture-manager.h>
-#include <mesh-manager.h>
 #include <specific-opengl_es.h>
 #include <util-interface.h>
 #include <audio-interface.h>
 #include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
-#include <algorithm>
-#include <cstring>
-#include <log-util.h>
 #include <cr-static-local.h>
 
 #if defined(ANDROID)
@@ -43,8 +39,6 @@
 #endif
 
 #include <plugin-callback.h>
-#include <dynamic-var.h>
-#include <specific-opengl_es.h>
 
 
 namespace mbm
