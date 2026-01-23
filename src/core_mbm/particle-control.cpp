@@ -21,6 +21,7 @@
 #include <header-mesh.h>
 #include <util.h>
 #include <animation.h>
+#include <limits>
 
 namespace mbm
 {
@@ -462,7 +463,7 @@ namespace mbm
                         {
                             const float expected = ((static_cast<float>(sPart->totalParticle) / (sPart->ariseTime <= 0.0f ? this->currentTimeArise : sPart->ariseTime)) * this->currentTimeArise);
                             const auto diff = static_cast<int>(ceil(expected) - this->totalAlive);
-                            if (diff > 0 && diff < INT_MAX)
+                            if (diff > 0 && diff < std::numeric_limits<int>::max())
                                 this->_addParticle(static_cast<unsigned int>(diff));
                         }
                     }
