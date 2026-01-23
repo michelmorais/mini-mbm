@@ -20,6 +20,8 @@
 #ifndef SHADER_RESOURCE_H
 #define SHADER_RESOURCE_H
 
+#include <core_mbm/core-exports.h>
+
 namespace mbm
 {
     const char** getShaderEngineBuiltIn();
@@ -27,5 +29,10 @@ namespace mbm
     const char* getCodeVScolorFor_LINE_MESH();
     const char* getParticlePSCode();
     const char* getParticleVSCode();
+
+    API_IMPL const char* getPSVersion();
+    API_IMPL const char* getVSVersion();
+    API_IMPL void setPSVersion(const char * version);
+    API_IMPL void setVSVersion(const char* version);
 }
 #endif

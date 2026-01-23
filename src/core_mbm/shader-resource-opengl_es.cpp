@@ -20,6 +20,7 @@
 #if defined (USE_OPENGL_ES)
 
 #include <stdio.h>
+#include <string>
 
 namespace mbm
 {
@@ -2600,6 +2601,30 @@ namespace mbm
             "     vTexCoord = aTextCoord;\n"
             "}";
         return vsParticleCode;
+    }
+
+    static std::string PS_Vesrion("ps_2_0");
+    static std::string VS_Vesrion("vs_2_0");
+
+    const char* getPSVersion()
+    {
+        return PS_Vesrion.c_str();
+    }
+    const char* getVSVersion()
+    {
+        return VS_Vesrion.c_str();
+    }
+    void setPSVersion(const char* version)
+    {
+        if (version == nullptr)
+            version = "";
+        PS_Vesrion = version;
+    }
+    void setVSVersion(const char* version)
+    {
+        if (version == nullptr)
+            version = "";
+        VS_Vesrion = version;
     }
 }
 

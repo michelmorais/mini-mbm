@@ -75,21 +75,8 @@ namespace mbm
         bool isLoaded() const override;
         static void onEndAnimationParticleControl(void * that, const char* nameAnimation);
         mbm::BUFFER_GL bufferGl;
-        //uint32_t vboIndexBuffer;
-
         PARTICLE_CONTROL control;
-    
-        //uint32_t     lenArrayParticlesData;
-        //uint32_t     totalAlive;
-        //uint32_t     indexStage;
-        //float           currentTimeArise;
-        //std::vector<util::STAGE_PARTICLE*> lsParticleStage;
         mbm::TEXTURE *   texture;
-        //float            wTexture, hTexture;
-        //VEC2             minv;
-        //VEC2             maxv;
-        //ATT_PARTICLE *   particles;
-        //VERTEX_PARTICLE *buffer;
         std::string      _newCodeLine;          // onRestore
         char             _operatorShader;       // onRestore
     };

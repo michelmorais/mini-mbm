@@ -19,6 +19,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "my-scene-test.h"
+#include <core_mbm/texture-manager.h>
 #include <core_mbm/util-interface.h>
 
 
@@ -53,12 +54,12 @@ MY_SCENE::~MY_SCENE()
 
 void MY_SCENE::startLoading()
 {
-	INFO_LOG("Starting loading scene...");
+    INFO_LOG("Starting loading scene...");
 }
-	
+    
 void MY_SCENE::endLoading()
 {
-	INFO_LOG("End loading scene...");
+    INFO_LOG("End loading scene...");
 }
 
 void MY_SCENE::init() 
@@ -72,12 +73,30 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
-    //this->texBox->load("wooden-box.jpg", 200, 200);
-    //this->texBox->position.z = 1;
-    //this->texBox->alwaysRenderize = true;
-    //gif = new mbm::GIF_VIEW(this,false,false);
-    //gif->load("Lion-King.gif");
+    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    this->texBox->load("wooden-box.jpg", 200, 200);
+    this->texBox->position.z = 1;
+    this->texBox->alwaysRenderize = true;
+
+    bool loaded = this->texBox->getTexture() != nullptr;
+    INFO_LOG("texBox load returned: %d", loaded ? 1 : 0);
+    if (loaded)
+    {
+        INFO_LOG("texBox texture name: %s", this->texBox->getFileNameTexture().c_str());
+        INFO_LOG("texBox size: %u x %u  alpha:%d", this->texBox->getTexture()->getWidth(),
+            this->texBox->getTexture()->getHeight(),
+            this->texBox->getTexture()->useAlphaChannel ? 1 : 0);
+    }
+    else
+    {
+        // quick test: try absolute path or solid color
+        INFO_LOG("Retrying with solid color test...");
+        this->texBox->load("#FF0000", 200, 200);
+        this->texBox->getTexture() ? INFO_LOG("Retry succeeded") : INFO_LOG("Retry failed");
+    }
+
+    gif = new mbm::GIF_VIEW(this,false,false);
+    gif->load("Lion-King.gif");
 
     //sprite = new mbm::SPRITE(this, false, true);
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
@@ -95,18 +114,19 @@ void MY_SCENE::init()
     //mesh->scale.y = 3;
     //mesh->scale.z = 3;
     //
-    //shape = new mbm::SHAPE_MESH(this, false, false);
-    //shape->loadRectangle("quad", 25, 25, true, 2);
-    //shape->position.x = 300;
+    shape = new mbm::SHAPE_MESH(this, false, false);
+    shape->loadRectangle("quad", 100, 100, true, 2);
+    shape->position.x = 300;
 
-    //line = new mbm::LINE_MESH(this, false, false);
-    //std::vector<mbm::VEC3> lines;
-    //lines.push_back(mbm::VEC3(0, 0, 0));
-    //lines.push_back(mbm::VEC3(100,100, 0));
-    //line->add(std::move(lines));
-
+    line = new mbm::LINE_MESH(this, false, false);
+    std::vector<mbm::VEC3> lines;
+    lines.push_back(mbm::VEC3(0, 0, 0));
+    lines.push_back(mbm::VEC3(100,100, 0));
+    line->add(std::move(lines));
+    //AARRGGBB
+    const char * fileNameTextureOrMesh = "#FFFF0000";
     particle = new mbm::PARTICLE(this, false, false);
-    if (particle->load(nullptr, nullptr, nullptr, 100, true))
+    if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
     {
         particle->addParticle(1000,true);
     }
@@ -197,9 +217,9 @@ void MY_SCENE::onResizeWindow()
 
 bool GAME::existScene(const int idScene)
 {
-	if(idScene == this->myScene.getIdScene())
-		return true;
-	return false;
+    if(idScene == this->myScene.getIdScene())
+        return true;
+    return false;
 }
 
 
@@ -211,4 +231,3 @@ GAME::~GAME()
 {
     mbm::DEVICE::quit();
 }
-

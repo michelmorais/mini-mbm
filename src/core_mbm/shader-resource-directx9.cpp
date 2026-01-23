@@ -19,7 +19,7 @@
 
 #if defined (USE_DIRECTX9)
 
-
+#include <string>
 #include <stdio.h>
 
 namespace mbm
@@ -1632,6 +1632,81 @@ namespace mbm
             "}\n";
 
         return codeVsColor_LINE_MESH;
+    }
+
+    const char* getParticlePSCode()
+    {
+        static const char* psParticleCode = 
+            "float4 color : register(c0);\n"
+            "float enableAlphaFromColor : register(c1);\n"
+            "sampler2D sample0 : register(s0);\n"
+            "\n"
+            "float4 main(float2 vTexCoord : TEXCOORD0) : COLOR\n"
+            "{\n"
+            "    float4 texColor = tex2D(sample0, vTexCoord);\n"
+            "    float4 outColor;\n"
+            "    \n"
+            "    if(enableAlphaFromColor > 0.5)\n"
+            "        outColor.a = color.a;\n"
+            "    else\n"
+            "        outColor.a = texColor.a;\n"
+            "    \n"
+            "    outColor.rgb = color.rgb ? texColor.rgb;\n"
+            "    #\n"
+            "    return outColor;\n"
+            "}\n";
+        return psParticleCode;
+    }
+
+    const char* getParticleVSCode()
+    {
+        static const char* vsParticleCode =
+            "float4x4 mvpMatrix : register(c0);\n"
+            "\n"
+            "struct VS_INPUT\n"
+            "{\n"
+            "    float4 aPosition : POSITION;\n"
+            "    float2 aTextCoord : TEXCOORD0;\n"
+            "};\n"
+            "\n"
+            "struct VS_OUTPUT\n"
+            "{\n"
+            "    float4 position : POSITION;\n"
+            "    float2 vTexCoord : TEXCOORD0;\n"
+            "};\n"
+            "\n"
+            "VS_OUTPUT main(VS_INPUT input)\n"
+            "{\n"
+            "    VS_OUTPUT output;\n"
+            "    output.position = mul(input.aPosition, mvpMatrix);\n"
+            "    output.vTexCoord = input.aTextCoord;\n"
+            "    return output;\n"
+            "}\n";
+        return vsParticleCode;
+    }
+
+    static std::string PS_Vesrion("ps_2_0");
+    static std::string VS_Vesrion("vs_2_0");
+
+    const char* getPSVersion()
+    {
+        return PS_Vesrion.c_str();
+    }
+    const char* getVSVersion()
+    {
+        return VS_Vesrion.c_str();
+    }
+    void setPSVersion(const char* version)
+    {
+        if (version == nullptr)
+            version = "";
+        PS_Vesrion = version;
+    }
+    void setVSVersion(const char* version)
+    {
+        if (version == nullptr)
+            version = "";
+        VS_Vesrion = version;
     }
 }
 

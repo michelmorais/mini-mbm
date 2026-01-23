@@ -187,6 +187,14 @@ namespace mbm
 
         ~D3D_PS_VS()
         {
+            release();
+        }
+
+        // Prevent copying (COM objects should not be copied)
+        D3D_PS_VS(const D3D_PS_VS&) = delete;
+        D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
+        void release()
+        {
             if (pd3dPixelShader)
             {
                 pd3dPixelShader->Release();
@@ -208,10 +216,6 @@ namespace mbm
                 constantTableVS = nullptr;
             }
         }
-
-        // Prevent copying (COM objects should not be copied)
-        D3D_PS_VS(const D3D_PS_VS&) = delete;
-        D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
     };
 }
 

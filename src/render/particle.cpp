@@ -25,11 +25,7 @@
 #include <shader-var-cfg.h>
 #include <core_mbm/scene.h>
 #include <shader-resource.h>
-#include <climits>
 
-#if (defined _DEBUG || defined DEBUG_RESTORE)
-    #include <log-util.h>
-#endif
 
 
 namespace mbm
@@ -61,10 +57,11 @@ namespace mbm
     bool PARTICLE::load(const char* fileNameTextureOrMesh, const char* operatorShader, const char* newCodeLine, const unsigned int sizeOfParticle, const bool initializeParticleData)
     {
         this->release();
-        unsigned int             totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
+        const unsigned int totalParticleToLoad = sizeOfParticle ? sizeOfParticle : 1;
         this->texture = nullptr;
 
-        bufferGl.loadParticleBuffer();
+        if (bufferGl.loadParticleBuffer() == false)
+            return false;
         fileNameTextureOrMesh = fileNameTextureOrMesh ? fileNameTextureOrMesh : "#FFFFFFFF";
         operatorShader = operatorShader ? operatorShader : "*";
         const size_t lFile = strlen(fileNameTextureOrMesh);
@@ -624,5 +621,4 @@ namespace mbm
     {
         return this->control.getTotalParticle() > 0;
     }
-
 }

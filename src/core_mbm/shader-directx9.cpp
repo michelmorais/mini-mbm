@@ -30,6 +30,9 @@
 #include <header-mesh.h>
 #include <draw-compatibility.h>
 #include <texture-manager.h>
+#include <particle-control.h>
+#include <shader-resource.h>
+
 namespace mbm
 {
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept :
@@ -371,8 +374,13 @@ namespace mbm
         return true;
     }
 
-    bool BUFFER_GL::loadBufferDynamic(uint16_t *arrayIndices, uint32_t totalSubsets, int *indexStartSubset,
-                                  int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+    bool BUFFER_GL::loadBufferDynamic(  const uint16_t* arrayIndices,
+                                        const unsigned int totalSubsets,
+                                        const int* indexStartSubset,
+                                        const int* indexCountSubset,
+                                        const bool hasNormal,
+                                        const bool hasUv,
+                                        const util::INFO_DRAW_MODE* info_draw_mode)
     {
         release();
         if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
@@ -394,10 +402,10 @@ namespace mbm
         }
         sizeOfArrayVertex += 1; //because index start from zero base
         const std::vector<VEC3> vertex(sizeOfArrayVertex);
-        const std::vector<VEC3> normal(sizeOfArrayVertex);
-        const std::vector<VEC2> uv(sizeOfArrayVertex);
+        const std::vector<VEC3> normal(hasNormal ? sizeOfArrayVertex : 0);
+        const std::vector<VEC2> uv(hasUv ? sizeOfArrayVertex : 0);
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
-        const D3D_VERTEX_CONVERTER d3d_converter(vertex.data(), normal.data(), uv.data(), sizeOfArrayVertex);
+        const D3D_VERTEX_CONVERTER d3d_converter(vertex.data(), hasNormal ? normal.data() : nullptr, hasUv ? uv.data() : nullptr, sizeOfArrayVertex);
         this->bs->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
@@ -442,6 +450,17 @@ namespace mbm
         return true;
     }
 
+    bool BUFFER_GL::loadParticleBuffer()
+    {
+        constexpr uint32_t totalSubset = 1;
+        constexpr uint16_t arrayIndices[6] = { 0, 1, 2, 2, 1, 3 };
+        constexpr int indexStartSubset = 0;
+        constexpr int indexCountSubset = sizeof(arrayIndices) / sizeof(uint16_t);
+        constexpr bool hasNormal       = false;
+        constexpr bool hasUv           = true;
+        return loadBufferDynamic(arrayIndices, totalSubset, &indexStartSubset, &indexCountSubset, hasNormal, hasUv, nullptr);
+    }
+
     bool BUFFER_GL::updateDynamic(const VEC3* vertex,
                                   const VEC3* normal,
                                   const VEC2* uv,
@@ -474,7 +493,9 @@ namespace mbm
             {
                 const D3D_VERTEX_CONVERTER d3d_converter(pVertexStart, normal, uv, vertexCount);
                 void* pvertex = nullptr;
-                if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+                // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+                // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+                if (FAILED(this->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
                 {
                     ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                     return false;
@@ -652,7 +673,7 @@ namespace mbm
         *psamplerHandle0    = nullptr;
         *psamplerHandle1    = nullptr;
         this->normalHandle  = -1;
-        this->ptrProgramObject = 0;
+        //this->ptrProgramObject = 0;
         this->pShader = nullptr;
         this->vShader = nullptr;
     }
@@ -673,51 +694,41 @@ namespace mbm
         this->pShader         = nullptr;
         this->vShader         = nullptr;
         #pragma message(REMINDER_TODO "  implement delete program");
-        this->ptrProgramObject = 0;
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        d3dPsVs->release();
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
     {
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        constexpr char *defaultCodePs = "Texture2D sample0 : register(t0);"
-                                        "SamplerState samplerState : register(s0);"
+        constexpr char *defaultCodePs = "sampler2D sample0 : register(s0);"
                                         ""
-                                        "struct PS_INPUT"
+                                        "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
                                         "{"
-                                        "    float4 position : SV_POSITION;"
-                                        "    float2 vTexCoord : TEXCOORD0;"
-                                        "};"
-                                        ""
-                                        "float4 main(PS_INPUT input) : SV_TARGET"
-                                        "{"
-                                        "    return sample0.Sample(samplerState, input.vTexCoord);"
+                                        "    return tex2D(sample0, texCoord);"
                                         "}";
 
-        constexpr char *defaultCodeVs =
-                                        "cbuffer TransformBuffer : register(b0)"
-                                        "{"
-                                        "    float4x4 mvpMatrix;"
-                                        "};"
+        constexpr char *defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
                                         ""
                                         "struct VS_INPUT"
                                         "{"
-                                        "    float4 aPosition : POSITION;"
-                                        "    float2 aTextCoord : TEXCOORD0;"
-                                        "    float3 aNormal : NORMAL;"
+                                        "    float4 position : POSITION;"
+                                        "    float2 texCoord : TEXCOORD0;"
+                                        "    float3 normal : NORMAL;"
                                         "};"
                                         ""
                                         "struct VS_OUTPUT"
                                         "{"
-                                        "    float4 position : SV_POSITION;"
-                                        "    float2 vTexCoord : TEXCOORD0;"
+                                        "    float4 position : POSITION;"
+                                        "    float2 texCoord : TEXCOORD0;"
                                         "};"
                                         ""
                                         "VS_OUTPUT main(VS_INPUT input)"
                                         "{"
                                         "    VS_OUTPUT output;"
-                                        "    output.position = mul(input.aPosition, mvpMatrix);"
-                                        "    output.vTexCoord = input.aTextCoord;"
+                                        "    output.position = mul(input.position, mvpMatrix);"
+                                        "    output.texCoord = input.texCoord;"
                                         "    return output;"
                                         "}";
         
@@ -725,8 +736,8 @@ namespace mbm
 
         
         constexpr char* mainFunction = "main";
-        constexpr char* versionPS = "ps_2_0";
-        constexpr char* versionVS = "vs_2_0";
+        const char* versionPS = getPSVersion();
+        const char* versionVS = getVSVersion();
         ID3DXBuffer* bufferPS = nullptr;
         ID3DXBuffer* bufferVS = nullptr;
         ID3DXBuffer* errorBuffer = nullptr;
@@ -734,7 +745,7 @@ namespace mbm
         D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
         
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
-        const char* codeVS = ptrPshader ? this->vShader->getCode() : defaultCodeVs;
+        const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
 #if defined _DEBUG
@@ -900,6 +911,8 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
                 return false;
             }
+            //D3DXHANDLE psamplerHandle0 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
+            //D3DXHANDLE psamplerHandle1 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
         }
         else
         {
@@ -918,9 +931,9 @@ namespace mbm
                 return false;
             }
             D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
 
-            const D3DXMATRIX* pMvpMatrix = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
+            const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
             const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
 
             d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
@@ -1023,21 +1036,25 @@ namespace mbm
                     case util::MODE_DRAW_POINTS:
                     {
                         ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_POINTS");
+                        return false;
                     };
                     break;
                     case util::MODE_DRAW_LINES:
                     {
                         ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINES");
+                        return false;
                     };
                     break;
                     case util::MODE_DRAW_LINE_LOOP:
                     {
                         ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_LOOP");
+                        return false;
                     };
                     break;
                     case util::MODE_DRAW_LINE_STRIP:
                     {
                         ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_STRIP");
+                        return false;
                     };
                     break;
                     case util::MODE_DRAW_TRIANGLES:
@@ -1069,6 +1086,7 @@ namespace mbm
                     case util::MODE_DRAW_TRIANGLE_FAN:
                     {
                         ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_FAN");
+                        return false;
                     };
                     break;
                     default: 
@@ -1177,7 +1195,9 @@ namespace mbm
         {
             const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, pBufferId->sizeOfArrayVertex);
             void* pvertex = nullptr;
-            if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, 0)))
+            // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+            // If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+            if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
                 return false;
@@ -1188,6 +1208,286 @@ namespace mbm
             return render(pBufferId);
         }
         return false;
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        DWORD depthTestEnabled = FALSE;
+
+        pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
+        pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+
+        const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
+        if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "Failed to set SetTransform D3DTS_WORLD for modelView");
+            return false;
+        };
+
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+
+        if (d3dPsVs->pd3dPixelShader)
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(d3dPsVs->pd3dPixelShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
+                return false;
+            }
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader to null");
+                return false;
+            }
+        }
+
+        if (d3dPsVs->pd3dVertexShader)
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(d3dPsVs->pd3dVertexShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
+                return false;
+            }
+            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
+
+            const D3DXMATRIX* pMvpMatrix = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader to null");
+                return false;
+            }
+        }
+
+        // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
+        // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
+        // but DirectX 9 does not use this specific constant or naming convention.
+
+        // Instead, DirectX 9 uses the D3DCULL enumeration to define which polygon faces to cull during rendering.
+        // The equivalent behavior to OpenGL's GL_FRONT culling can be achieved by setting the culling mode to D3DCULL_NONE (to render both front and back faces), 
+        // D3DCULL_CCW (counter-clockwise, typically front-facing), or D3DCULL_CW (clockwise, typically back-facing), depending on the desired rendering behavior.
+        // TODO: use the correct CULLMODE
+
+        switch (pBufferId->mode_cull_face)
+        {
+            case util::CULL_MODE::CULL_FRONT:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
+            }
+            break;
+            case util::CULL_MODE::CULL_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+            }
+            break;
+            case util::CULL_MODE::CULL_FRONT_AND_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+            }
+            break;
+        }
+
+        if (pBufferId->isIndexBuffer()) // Index buffer
+        {
+            // When converting a legacy application to Direct3D 9, 
+            // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
+            // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
+            // pd3dDevice->SetFVF(0);//Maybe not needed to disable
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
+                return false;
+            };
+
+            if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
+                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                0,		//Position in bytes of start stream
+                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
+                return false;
+            };
+
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
+                return false;
+            }
+
+            VAR_SHADER* varColor = this->pShader
+                ? this->pShader->getVarByName("color")
+                : nullptr;
+
+            const uint32_t totalAlive = particleControl->getTotalAlive();
+            const VERTEX_PARTICLE* buffer = particleControl->getVertexBuffer();
+
+            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            {
+                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                if (texture0)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+
+                if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                    pd3dDevice->SetTexture(1, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(1, nullptr);
+                }
+
+                //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
+
+                switch (pBufferId->mode_draw)
+                {
+                    case util::MODE_DRAW_POINTS:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_POINTS for particles");
+                        return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_LINES:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINES for particles");
+                        return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_LINE_LOOP:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_LOOP for particles");
+                        return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_LINE_STRIP:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_STRIP for particles");
+                        return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLES:
+                    {
+                        
+                        const UINT countTriangle      = pBufferId->indexCountIB[i] / 3;
+                        const UINT numVertices        = pBufferId->sizeOfArrayVertex;
+                        const UINT vertexStartVB      = 0;
+                        constexpr UINT MinVertexIndex = 0;
+                        const ATT_PARTICLE* particles = particleControl->getAttParticle();
+
+                        if (varColor)
+                        {
+                            const D3DXHANDLE handleVarColor = *static_cast<const D3DXHANDLE*>(varColor->ptrHandleVar);
+                            for (unsigned int j = 0; j < totalAlive; ++j)
+                            {
+                                const VERTEX_PARTICLE* vertex = &buffer[j * 4];
+                                const ATT_PARTICLE*  particle = &particles[j];
+                                void* pvertex = nullptr;
+                                // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+                                //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                {
+                                    ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+                                    return false;
+                                }
+                                memcpy(pvertex, vertex, sizeof(VERTEX_PARTICLE) * 4);
+                                pBufferId->bs->pVertexBuffer->Unlock();
+
+                                d3dPsVs->constantTablePS->SetFloatArray(pd3dDevice, handleVarColor, particle->color, 4);
+
+                                if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
+                                    vertexStartVB,
+                                    MinVertexIndex,
+                                    numVertices,
+                                    pBufferId->indexStartIB[i],
+                                    countTriangle)))
+                                {
+                                    ERROR_AT(__LINE__, __FILE__, "Failed to draw indexed primitive");
+                                    return false;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            for (unsigned int j = 0; j < totalAlive; ++j)
+                            {
+                                const VERTEX_PARTICLE* vertex = &buffer[j * 4];
+                                const ATT_PARTICLE* particle  = &particles[j];
+                                void* pvertex = nullptr;
+                                // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+                                //•	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+                                if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                                {
+                                    ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+                                    return false;
+                                }
+                                memcpy(pvertex, vertex, sizeof(VERTEX_PARTICLE) * 4);
+                                pBufferId->bs->pVertexBuffer->Unlock();
+
+                                if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
+                                    vertexStartVB,
+                                    MinVertexIndex,
+                                    numVertices,
+                                    pBufferId->indexStartIB[i],
+                                    countTriangle)))
+                                {
+                                    ERROR_AT(__LINE__, __FILE__, "Failed to draw indexed primitive");
+                                    return false;
+                                }
+                            }
+                        }
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLE_STRIP:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_STRIP for particles");
+                        return false;
+                    };
+                    break;
+                    case util::MODE_DRAW_TRIANGLE_FAN:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_FAN for particles");
+                        return false;
+                    };
+                    break;
+                    default:
+                    {
+                        ERROR_AT(__LINE__, __FILE__, "Wrong mode draw for particles");
+                        return false;
+                    }
+                }
+            }
+        }
+        else // Vertex buffer
+        {
+            ERROR_AT(__LINE__, __FILE__, "Not implemented vertex buffer for particle");
+            return false;
+        }
+
+        if (depthTestEnabled)
+        {
+            pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+        }
+        return true;
     }
 
     uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)

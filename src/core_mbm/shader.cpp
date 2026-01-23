@@ -20,7 +20,6 @@
 #include <shader.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
-#include <cstdlib>
 #include <header-mesh.h>
 #include <texture-manager.h>
 #include <draw-compatibility.h>

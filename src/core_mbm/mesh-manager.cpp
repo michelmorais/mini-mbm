@@ -996,11 +996,11 @@ namespace mbm
             return log_util::onFailed(file,__FILE__, __LINE__, "Failed to save file [%s]", fileOut);
 
 
-		// 2 extra header MBM -------------------------------------------------------------------------------
+        // 2 extra header MBM -------------------------------------------------------------------------------
         for (size_t i = 0; i < ls_paths.size(); i++)
         {
             util::EXTRA_HEADER extra;
-			const std::string& path = ls_paths[i];
+            const std::string& path = ls_paths[i];
             extra.type = 1;
             extra.sizeExtraHeader = path.size();
             if (!util::addToFileBinary(fileOut, &extra, sizeof(util::EXTRA_HEADER), &file))
@@ -1318,8 +1318,8 @@ namespace mbm
                 }
                 else
                     strncpy(headerDescSubset.nameTexture, "default",sizeof(headerDescSubset.nameTexture)-1);
-				bool exists = false;
-				std::string full_path_texture = util::getFullPath(headerDescSubset.nameTexture, &exists);
+                bool exists = false;
+                std::string full_path_texture = util::getFullPath(headerDescSubset.nameTexture, &exists);
                 if (exists && full_path_texture.size() < sizeof(headerDescSubset.nameTexture))
                 {
                     strncpy(headerDescSubset.nameTexture, full_path_texture.c_str(), sizeof(headerDescSubset.nameTexture) - 1);
@@ -2911,11 +2911,11 @@ namespace mbm
 
     std::vector<std::string> MESH_MBM_DEBUG::getKnowPathsToExtraHeader()
     {
-		mbm::TEXTURE_MANAGER* textureManager = mbm::TEXTURE_MANAGER::getInstance();
+        mbm::TEXTURE_MANAGER* textureManager = mbm::TEXTURE_MANAGER::getInstance();
         std::vector<std::string> allTexturesFullPaths;
         textureManager->getAllTexturesFullPaths(allTexturesFullPaths);
 
-		std::unordered_set<std::string> uniquePaths;
+        std::unordered_set<std::string> uniquePaths;
         for(const auto& fullPath : allTexturesFullPaths)
         {
             std::string path = util::getPathFromFullPathName(fullPath.c_str());
@@ -2923,11 +2923,11 @@ namespace mbm
             {
                 uniquePaths.insert(path);
             }
-		}
+        }
         std::vector<std::string> result;
         for (const auto & path : uniquePaths)
         {
-			result.insert(result.end(), path);
+            result.insert(result.end(), path);
         }
         return result;
     }
@@ -3760,7 +3760,7 @@ namespace mbm
             {
                 std::string path(extra.sizeExtraHeader + 1, 0);
                 if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
-					return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
                 #ifndef ANDROID
                 util::addPath(path.c_str());
                 #endif
@@ -5393,6 +5393,8 @@ namespace mbm
         mesh->buffer[0].totalSubset           = 1;
         mesh->buffer[0].subset[0].vertexCount = sizeVertexBuffer / 3;
         mesh->buffer[0].subset[0].indexCount  = static_cast<int>(sizeIndex);
+        const bool hasNormal                  = dynamic_shape_info.size_normal > 0;
+        const bool hasUv                      = dynamic_shape_info.size_uv > 0;
 
         std::string which_mode;
         if(info_draw_mode && is_any_mode_valid(*info_draw_mode,which_mode) == false)
@@ -5404,7 +5406,8 @@ namespace mbm
 
         if (!mesh->buffer[0].pBufferGL->loadBufferDynamic(index, mesh->buffer[0].totalSubset,
                                                           &mesh->buffer[0].subset[0].indexStart,
-                                                          &mesh->buffer[0].subset[0].indexCount,info_draw_mode))
+                                                          &mesh->buffer[0].subset[0].indexCount, 
+                                                          hasNormal, hasUv, info_draw_mode))
         {
             PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
@@ -5462,7 +5465,7 @@ namespace mbm
             case util::TYPE_MESH_SHAPE        : return "shape";
             case util::TYPE_MESH_PARTICLE     : return "particle";
             case util::TYPE_MESH_TILE_MAP     : return "tile map";
-			default                           : return "unknown";
+            default                           : return "unknown";
         }
     }
 }

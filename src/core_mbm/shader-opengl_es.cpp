@@ -32,6 +32,54 @@
 
 namespace mbm
 {
+    static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
+    {
+        switch (mode_draw)
+        {
+            case util::MODE_DRAW_POINTS:
+            {
+                return GL_POINTS;
+            }
+            break;
+            case util::MODE_DRAW_LINES:
+            {
+                return GL_LINES;
+            }
+            break;
+            case util::MODE_DRAW_LINE_LOOP:
+            {
+                return GL_LINE_LOOP;
+            }
+            break;
+            case util::MODE_DRAW_LINE_STRIP:
+            {
+                return GL_LINE_STRIP;
+            }
+            break;
+            case util::MODE_DRAW_TRIANGLES:
+            {
+                return GL_TRIANGLES;
+            }
+            break;
+            case util::MODE_DRAW_TRIANGLE_STRIP:
+            {
+                return GL_TRIANGLE_STRIP;
+            }
+            break;
+            case util::MODE_DRAW_TRIANGLE_FAN:
+            {
+                return GL_TRIANGLE_FAN;
+            }
+            break;
+            default:
+            {
+                ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs incorrect!, returning GL_TRIANGLES");
+            }
+            break;
+        }
+        return GL_TRIANGLES;
+    }
+
     BUFFER_GL::BUFFER_GL():
         indexStartIB(nullptr),
         indexCountIB(nullptr),
@@ -205,8 +253,13 @@ namespace mbm
         return true;
     }
 
-    bool BUFFER_GL::loadBufferDynamic(uint16_t *arrayIndices, uint32_t totalSubsets, int *indexStartSubset,
-                                  int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode)
+    bool BUFFER_GL::loadBufferDynamic(const uint16_t *arrayIndices, 
+                                      const unsigned int totalSubsets, 
+                                      const int *indexStartSubset,
+                                      const int *indexCountSubset,
+                                      const bool hasNormal,
+                                      const bool hasUv,
+                                      const util::INFO_DRAW_MODE * info_draw_mode)
     {
         release();
         if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
@@ -571,6 +624,7 @@ namespace mbm
         const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
         const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
         const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
+        const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -620,7 +674,7 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
-                GLDrawElements(pBufferId->mode_draw, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
+                GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
         }
         else // Vertex buffer
@@ -670,7 +724,7 @@ namespace mbm
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
 
-                GLDrawArrays(pBufferId->mode_draw, 0, pBufferId->vertexCountVB[i]);
+                GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
             }
         }
         GLBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -688,6 +742,7 @@ namespace mbm
         const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
         const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
         const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
+        const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
@@ -729,7 +784,7 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
-                GLDrawElements(pBufferId->mode_draw, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
+                GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
         }
         else // Vertex buffer
@@ -771,7 +826,7 @@ namespace mbm
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
 
-                GLDrawArrays(pBufferId->mode_draw, 0, pBufferId->vertexCountVB[i]);
+                GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
             }
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -785,6 +840,12 @@ namespace mbm
         GLActiveTexture(GL_TEXTURE0);
         GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
         const GLint* psamplerHandle0 = static_cast<const GLint*>(this->ptrSamplerHandle0);
+        const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
+        if (GL_TRIANGLES != modeDrawGl)
+        {
+            ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
+            return false;
+        }
         
         GLUniform1i(*psamplerHandle0, 0);
 
@@ -828,14 +889,12 @@ namespace mbm
                 // GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
                 GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
                 GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                    vertex);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), vertex);
         
                 GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                    &vertex[3]);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), &vertex[3]);
         
-                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
         }
         else
@@ -845,14 +904,12 @@ namespace mbm
             {
                 const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
                 GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                    vertex);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), vertex);
         
                 GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE),
-                    &vertex[3]);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), &vertex[3]);
         
-                GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

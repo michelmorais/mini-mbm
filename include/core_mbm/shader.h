@@ -84,10 +84,12 @@ namespace mbm
                                  const int *indexCountSubset,
                                  const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
 
-        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, 
-                                        unsigned int totalSubsets, 
-                                        int *indexStartSubset,
-                                        int *indexCountSubset,
+        API_IMPL bool loadBufferDynamic(const uint16_t *arrayIndices, 
+                                        const unsigned int totalSubsets, 
+                                        const int *indexStartSubset,
+                                        const int *indexCountSubset,
+                                        const bool hasNormal,
+                                        const bool hasUv,
                                         const util::INFO_DRAW_MODE * info_draw_mode);// Dynamic Index buffer, must be implemented by specific backend engine
 
         API_IMPL bool updateDynamic(const VEC3* vertex,

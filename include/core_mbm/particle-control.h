@@ -45,7 +45,16 @@ struct ATT_PARTICLE
     float timeLife;
     float timeLifeCurrent;
     float aSize;
-    float a, r, g, b;
+    union {
+        struct
+        {
+            float a, r, g, b;
+        };
+        struct
+        {
+            float color[4];
+        };
+    };
 };
 
 
