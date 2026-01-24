@@ -269,7 +269,7 @@ namespace mbm
         for( const auto from : other->lsTriangle)
         {
             mbm::TRIANGLE* to = new mbm::TRIANGLE();
-            memcpy(to->point,from->point,sizeof(to->point));
+            memcpy(to->point->v,from->point,sizeof(to->point));
             to->position = from->position;
             this->lsTriangle.emplace_back(to);
         }

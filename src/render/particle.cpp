@@ -497,7 +497,7 @@ namespace mbm
             return this->releaseOnFail();
         if (this->control.getTotalParticle() == 0)
             return this->releaseOnFail();
-        const unsigned int tTotal = this->control.getTotalAlive();
+        //const unsigned int tTotal = this->control.getTotalAlive();
         const auto s = static_cast<const unsigned int>(std::atoi(result[1].c_str()));
         if (s != this->control.getTotalParticle())
             return this->releaseOnFail();

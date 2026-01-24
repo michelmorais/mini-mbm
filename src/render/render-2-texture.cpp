@@ -135,7 +135,7 @@ namespace mbm
             if (nickName == nullptr || _widthTexture == 0 || _heightTexture == 0)
             {
                 PRINT_IF_DEBUG("nickName == nullptr || widthTexture == 0 || heightTexture == 0");
-                return false;
+                return nullptr;
             }
             this->widthTexture  = _widthTexture;
             this->heightTexture = _heightTexture;
