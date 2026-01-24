@@ -184,39 +184,29 @@ namespace mbm
         ID3DXConstantTable* constantTableVS = nullptr;
 
         D3D_PS_VS() noexcept = default;
-
-        ~D3D_PS_VS()
-        {
-            release();
-        }
-
+        ~D3D_PS_VS();
+        void release() noexcept;
         // Prevent copying (COM objects should not be copied)
         D3D_PS_VS(const D3D_PS_VS&) = delete;
         D3D_PS_VS& operator=(const D3D_PS_VS&) = delete;
-        void release()
-        {
-            if (pd3dPixelShader)
-            {
-                pd3dPixelShader->Release();
-                pd3dPixelShader = nullptr;
-            }
-            if (pd3dVertexShader)
-            {
-                pd3dVertexShader->Release();
-                pd3dVertexShader = nullptr;
-            }
-            if (constantTablePS)
-            {
-                constantTablePS->Release();
-                constantTablePS = nullptr;
-            }
-            if (constantTableVS)
-            {
-                constantTableVS->Release();
-                constantTableVS = nullptr;
-            }
-        }
     };
+
+    struct RENDER2TARGET_DIRECTX9
+    {
+        IDirect3DSurface9* pRenderSurface = nullptr;
+        void release() noexcept;
+        RENDER2TARGET_DIRECTX9() noexcept = default;
+        ~RENDER2TARGET_DIRECTX9();
+        // Prevent copying (COM objects should not be copied)
+        RENDER2TARGET_DIRECTX9(const RENDER2TARGET_DIRECTX9&) = delete;
+        RENDER2TARGET_DIRECTX9& operator=(const RENDER2TARGET_DIRECTX9&) = delete;
+    };
+
+    void copy_pixels_per_row_Pitch(D3DSURFACE_DESC& descSurfaceDest,
+        const uint32_t width,
+        const uint32_t height,
+        D3DLOCKED_RECT& lockDestRect,
+        const uint8_t* dataImage) noexcept;
 }
 
 #endif

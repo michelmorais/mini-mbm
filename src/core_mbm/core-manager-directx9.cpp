@@ -773,16 +773,63 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
 
     bool CORE_MANAGER::renderToTargets()
     {
-        bool oneRender = false;
+        bool oneRender                 = false;
+        IDirect3DDevice9* pd3dDevice   = this->device->specificContextDevice->pd3dDevice;
+        IDirect3DSurface9* pBackBuffer = NULL;
+        
+        pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+        if (FAILED(pd3dDevice->GetRenderTarget(0, &pBackBuffer)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to backup backbuffer before render to target");
+            return false;
+        }
         for (auto renderTarget : this->device->lsObjectRenderToTarget)
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
-            #pragma message(REMINDER_TODO "  set viewport to render target")
+            RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderTarget->specificConfig);
+            HRESULT hr = pd3dDevice->SetRenderTarget(0, sf->pRenderSurface);
+
+            //begin rendering to texture
+            if (FAILED(hr))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Error renderToTargets HRESULT: 0x%x use DXErr to verify!", hr);
+                pd3dDevice->SetRenderTarget(0, pBackBuffer);
+                return false;
+            }
+
+            hr = pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, renderTarget->colorClearBackGround, 1.0f, 0);
+            //clear color and z-buffer
+            if (FAILED(hr))
+            {
+                ERROR_AT(__LINE__, __FILE__,"Error Clear Z buffer of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                pd3dDevice->SetRenderTarget(0, pBackBuffer);
+                return false;
+            }
+
+            hr = pd3dDevice->BeginScene();
+            if (FAILED(hr))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Error BeginScene of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                pd3dDevice->SetRenderTarget(0, pBackBuffer);
+                return false;
+            }
             
+            //this->device->camera.updateCam(false, static_cast<float>(renderTarget->widthTexture), static_cast<float>(renderTarget->heightTexture));
+            //RENDER_2_TEXTURE::render2Texture() update the matrix of projection, so, later we need to restore, see this->device->camera.updateCam
             if (!renderTarget->render2Texture())
             {
-                #pragma message(REMINDER_TODO "  Set viewport to back buffer")
+                ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
+                pd3dDevice->SetRenderTarget(0, pBackBuffer);
+                this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
+                return false;
+            }
+            hr = pd3dDevice->EndScene();
+            if (FAILED(hr))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Error EndScene of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                pd3dDevice->SetRenderTarget(0, pBackBuffer);
+                this->device->camera.updateCam(false, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 return false;
             }
@@ -790,7 +837,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         }
         if (oneRender)
         {
-            #pragma message(REMINDER_TODO "  Set viewport to back buffer")
+            pd3dDevice->SetRenderTarget(0, pBackBuffer);
             this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
         }
         return true;

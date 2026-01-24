@@ -42,6 +42,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::LINE_MESH* line;
     mbm::PARTICLE* particle;
     mbm::RENDER_2_TEXTURE* render2Texture;
+    mbm::RENDERIZABLE* toTrack;
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();
@@ -66,7 +67,7 @@ class GAME : public mbm::CORE_MANAGER
 {
 public:
     MY_SCENE myScene;
-	bool existScene(const int idScene)override;
+    bool existScene(const int idScene)override;
     GAME();
     virtual ~GAME();
 };

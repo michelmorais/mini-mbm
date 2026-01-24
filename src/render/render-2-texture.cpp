@@ -38,10 +38,14 @@ namespace mbm
     
     void CAMERA_TARGET::enableMode2D(mbm::DEVICE *device, const float width, const float height)
     {
+		//TODO: may need adjust this in the future
+        // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
+        constexpr float zNear2d = -100;
+        constexpr float zFar2d = 100;
         const VEC3 posCam(-this->position.x, -this->position.y, 100);
         MatrixIdentity(&this->matrixView);
         MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &this->angle, &this->scale);
-        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear, zFar);
+        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear2d, zFar2d);
         MatrixMultiply(&device->camera.matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
     }
     
@@ -466,6 +470,19 @@ namespace mbm
             normal[i].y = 0;
             normal[i].z = 1;
         }
+        // OpenGL ES : Origin at bottom - left, Y - axis points up(standard math convention)
+        //	DirectX9 : Origin at top - left, Y - axis points down(screen convention)
+        //  So when rendering to texture, DirectX9's render target flips the Y-axis relative to what OpenGL ES produces.
+#if defined(USE_DIRECTX9)
+        uv[0].x = 0;
+        uv[0].y = 1;
+        uv[1].x = 0;
+        uv[1].y = 0;
+        uv[2].x = 1;
+        uv[2].y = 1;
+        uv[3].x = 1;
+        uv[3].y = 0;
+#else
         uv[0].x = 0;
         uv[0].y = 0;
         uv[1].x = 0;
@@ -474,6 +491,7 @@ namespace mbm
         uv[2].y = 0;
         uv[3].x = 1;
         uv[3].y = 1;
+#endif
     }
     
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()

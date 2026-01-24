@@ -29,6 +29,8 @@
 int main()
 {
     GAME game;
+	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
+    game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);
     if(game.initGraphics("Hello-world"))
         return game.loop();
     return -1;

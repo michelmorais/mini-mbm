@@ -146,6 +146,10 @@ namespace mbm
         }
         else
         {
+            // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
+            //TODO: may need adjust this in the future
+            constexpr float zNear2d = -100;
+            constexpr float zFar2d  = 100;
 			VEC2 perfectPosition(this->position2d);
 			if (perfectPixel)
 			{
@@ -156,7 +160,7 @@ namespace mbm
             static const VEC3 angleDefault(0, 0, 0);
             MatrixIdentity(&this->matrixView2d);
             MatrixTranslationRotationScale(&this->matrixView2d, &posCam, &angleDefault, &this->scale2d);
-            MatrixOrthoLH(&matrixOrtho, width, height, zNear, zFar);
+            MatrixOrthoLH(&matrixOrtho, width, height, zNear2d, zFar2d);
             MatrixMultiply(&this->matrixPerspective2d, &matrixView2d, &matrixOrtho);
         }
     }

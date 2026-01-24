@@ -20,6 +20,7 @@
 
 #include "my-scene-test.h"
 #include <core_mbm/texture-manager.h>
+#include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
 
 
@@ -33,6 +34,7 @@ MY_SCENE::MY_SCENE()
     line           = nullptr;
     particle       = nullptr;
     render2Texture = nullptr;
+    toTrack        = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -78,32 +80,36 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
     this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
     this->texBox->load("wooden-box.jpg", 200, 200);
-    this->texBox->position.z = 1;
-    this->texBox->alwaysRenderize = true;
+    
+    
+    //this->texBox->position.z = 0.11;
+    //this->texBox->alwaysRenderize = true;
 
-    bool loaded = this->texBox->getTexture() != nullptr;
-    INFO_LOG("texBox load returned: %d", loaded ? 1 : 0);
-    if (loaded)
-    {
-        INFO_LOG("texBox texture name: %s", this->texBox->getFileNameTexture().c_str());
-        INFO_LOG("texBox size: %u x %u  alpha:%d", this->texBox->getTexture()->getWidth(),
-            this->texBox->getTexture()->getHeight(),
-            this->texBox->getTexture()->useAlphaChannel ? 1 : 0);
-    }
-    else
-    {
-        // quick test: try absolute path or solid color
-        INFO_LOG("Retrying with solid color test...");
-        this->texBox->load("#FF0000", 200, 200);
-        this->texBox->getTexture() ? INFO_LOG("Retry succeeded") : INFO_LOG("Retry failed");
-    }
+    //bool loaded = this->texBox->getTexture() != nullptr;
+    //INFO_LOG("texBox load returned: %d", loaded ? 1 : 0);
+    //if (loaded)
+    //{
+    //    INFO_LOG("texBox texture name: %s", this->texBox->getFileNameTexture().c_str());
+    //    INFO_LOG("texBox size: %u x %u  alpha:%d", this->texBox->getTexture()->getWidth(),
+    //        this->texBox->getTexture()->getHeight(),
+    //        this->texBox->getTexture()->useAlphaChannel ? 1 : 0);
+    //}
+    //else
+    //{
+    //    // quick test: try absolute path or solid color
+    //    INFO_LOG("Retrying with solid color test...");
+    //    this->texBox->load("#FF0000", 200, 200);
+    //    this->texBox->getTexture() ? INFO_LOG("Retry succeeded") : INFO_LOG("Retry failed");
+    //}
 
     gif = new mbm::GIF_VIEW(this,false,false);
     gif->load("Lion-King.gif");
+    gif->position.z = 0.11;
 
-    //sprite = new mbm::SPRITE(this, false, true);
-    //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
-    //sprite->alwaysRenderize = true;
+    
+    sprite = new mbm::SPRITE(this, false, true);
+    sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
+    sprite->alwaysRenderize = true;
     
     
     //**************
@@ -119,11 +125,6 @@ void MY_SCENE::init()
     //
 
     render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
-    
-    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
-    {
-        render2Texture->addObject2Render(gif);
-    }
 
     shape = new mbm::SHAPE_MESH(this, false, false);
     shape->loadRectangle("quad", 100, 100, true, 2);
@@ -132,22 +133,44 @@ void MY_SCENE::init()
     line = new mbm::LINE_MESH(this, false, false);
     std::vector<mbm::VEC3> lines;
     lines.push_back(mbm::VEC3(0, 0, 0));
-    lines.push_back(mbm::VEC3(100,100, 0));
+    lines.push_back(mbm::VEC3(100, 100, 0));
     line->add(std::move(lines));
-    //AARRGGBB
-    const char * fileNameTextureOrMesh = "#FFFF0000";
-    particle = new mbm::PARTICLE(this, false, false);
-    if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
+    
+    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
     {
-        particle->addParticle(1000,true);
+        render2Texture->addObject2Render(gif);
+        render2Texture->addObject2Render(this->texBox);
+        render2Texture->addObject2Render(sprite);
+        render2Texture->addObject2Render(shape);
+        render2Texture->addObject2Render(line);
     }
-    particle->alwaysRenderize = true;
+
+    this->toTrack = texBox;
+    
+
+    
+    //AARRGGBB
+    //const char * fileNameTextureOrMesh = "#FFFF0000";
+    //particle = new mbm::PARTICLE(this, false, false);
+    //if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
+    //{
+    //    particle->addParticle(1000,true);
+    //}
+    //particle->alwaysRenderize = true;
     
 }
 
 void MY_SCENE::logic()
 {
-    
+    static int count = 0;
+    count++;
+    if (count == 30)
+    {
+        //if (render2Texture && render2Texture->saveAsPNG("C:\\Users\\miche\\Downloads\\test.png", 0, 0, render2Texture->widthTexture, render2Texture->heightTexture))
+        //{
+        //    INFO_LOG("Image saved at download");
+        //}
+    }
 }
 
 void MY_SCENE::onTouchDown(int, float, float)
@@ -160,15 +183,10 @@ void MY_SCENE::onTouchUp(int, float, float)
 
 void MY_SCENE::onTouchMove(int, float x, float y)
 {
-    if(this->texBox)
+    if(this->toTrack)
     {
-        this->texBox->position.x = x;
-        this->texBox->position.y = y;
-    }
-    if (sprite)
-    {
-        sprite->position.x = x;
-        sprite->position.y = y;
+        this->toTrack->position.x = x;
+        this->toTrack->position.y = y;
     }
 }
 

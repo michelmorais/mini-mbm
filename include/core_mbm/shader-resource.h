@@ -32,7 +32,10 @@ namespace mbm
 
     API_IMPL const char* getPSVersion();
     API_IMPL const char* getVSVersion();
-    API_IMPL void setPSVersion(const char * version);
-    API_IMPL void setVSVersion(const char* version);
+    void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept;
+    bool useDefaultPSWhenNoShader() noexcept;
+    bool useDefaultVSWhenNoShader() noexcept;
+    void setPSVersion(const char * version);
+    void setVSVersion(const char* version);
 }
 #endif

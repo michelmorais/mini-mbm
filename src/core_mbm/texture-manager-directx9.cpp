@@ -82,7 +82,7 @@ namespace mbm
 
     
 
-    static void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
+    void copy_pixels_per_row_Pitch( D3DSURFACE_DESC	&descSurfaceDest, 
                                         const uint32_t width, 
                                         const uint32_t height, 
                                         D3DLOCKED_RECT & lockDestRect, 
@@ -448,9 +448,9 @@ namespace mbm
                                                         const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width         = static_cast<int>(renderToTarget->widthTexture);
-        const auto height        = static_cast<int>(renderToTarget->heightTexture);
-        auto pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        const auto width            = static_cast<int>(renderToTarget->widthTexture);
+        const auto height           = static_cast<int>(renderToTarget->heightTexture);
+        auto pd3dDevice             = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
 
         if (fileNameBase.size() == 0)
             return nullptr;
@@ -464,11 +464,7 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-        IDirect3DSurface9* surfaceDest = nullptr;
-        
-        //TEXTURE::no_filter
-        // TILE MAP Mode
-        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
+        IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&texture->ptrTexture);
         const D3DFORMAT Format = enableAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
         if (FAILED(pd3dDevice->CreateTexture(width, height, 1,
             D3DUSAGE_RENDERTARGET,
@@ -477,26 +473,19 @@ namespace mbm
             nullptr)))
         {
             ERROR_AT(__LINE__, __FILE__, "failed to create render to target texture");
+            delete texture;
             return nullptr;
         }
         IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
 
-        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &surfaceDest)))
+        RENDER2TARGET_DIRECTX9* sf = static_cast<RENDER2TARGET_DIRECTX9*>(renderToTarget->specificConfig);
+
+        if (FAILED(p3DTexture9->GetSurfaceLevel(0, &sf->pRenderSurface)))
         {
+            delete texture;
             ERROR_AT(__LINE__, __FILE__, "failed to get surface description level");
             return nullptr;
         }
-        //tex->width = width;
-        //tex->height = height;
-        //tex->useAlphaChannel = enableAlpha;
-        //strcpy(tex->fileName, nickName);
-        //lsTextures[nickName] = tex;
-
-        
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        texture->idTexture                  = idTexture2d;
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;

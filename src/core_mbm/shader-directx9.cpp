@@ -112,6 +112,36 @@ namespace mbm
         totalSubset   = 0;
     }
 
+
+    D3D_PS_VS::~D3D_PS_VS()
+    {
+        release();
+    }
+
+    void D3D_PS_VS::release() noexcept
+    {
+        if (pd3dPixelShader)
+        {
+            pd3dPixelShader->Release();
+            pd3dPixelShader = nullptr;
+        }
+        if (pd3dVertexShader)
+        {
+            pd3dVertexShader->Release();
+            pd3dVertexShader = nullptr;
+        }
+        if (constantTablePS)
+        {
+            constantTablePS->Release();
+            constantTablePS = nullptr;
+        }
+        if (constantTableVS)
+        {
+            constantTableVS->Release();
+            constantTableVS = nullptr;
+        }
+    }
+    
     D3D_VERTEX_CONVERTER::D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept:
         pos(_pos), normal(_normal),uv(_uv), size_array(_size_array)
     {
@@ -753,24 +783,30 @@ namespace mbm
 #else
         constexpr DWORD flag = D3DXSHADER_SKIPVALIDATION;
 #endif
-        if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &d3dPsVs->constantTablePS)))
+        if (ptrPshader || (ptrPshader == nullptr && useDefaultPSWhenNoShader()))
         {
-            if (errorBuffer)
+            if (FAILED(D3DXCompileShader(codePS, sizeOfCodePS, 0, 0, mainFunction, versionPS, flag, &bufferPS, &errorBuffer, &d3dPsVs->constantTablePS)))
             {
-                ERROR_AT(__LINE__,__FILE__, "error on load pixel shader:\n [%s]",static_cast<const char*>(errorBuffer->GetBufferPointer()));
-                errorBuffer->Release();
-                pShader = NULL;
-                return false;
+                if (errorBuffer)
+                {
+                    ERROR_AT(__LINE__, __FILE__, "error on load pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+                    errorBuffer->Release();
+                    pShader = NULL;
+                    return false;
+                }
             }
         }
-        if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &d3dPsVs->constantTableVS)))
+        if (ptrVshader || (ptrVshader == nullptr && useDefaultVSWhenNoShader()))
         {
-            if (errorBuffer)
+            if (FAILED(D3DXCompileShader(codeVS, sizeOfCodeVS, 0, 0, mainFunction, versionVS, flag, &bufferVS, &errorBuffer, &d3dPsVs->constantTableVS)))
             {
-                ERROR_AT(__LINE__, __FILE__, "error on load vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
-                errorBuffer->Release();
-                pShader = NULL;
-                return false;
+                if (errorBuffer)
+                {
+                    ERROR_AT(__LINE__, __FILE__, "error on load vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
+                    errorBuffer->Release();
+                    pShader = NULL;
+                    return false;
+                }
             }
         }
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -787,12 +823,12 @@ namespace mbm
             d3dPsVs->pd3dVertexShader = nullptr;
         }
 
-        if (FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &d3dPsVs->pd3dPixelShader)))
+        if (bufferPS && FAILED(pd3dDevice->CreatePixelShader(static_cast<DWORD*>(bufferPS->GetBufferPointer()), &d3dPsVs->pd3dPixelShader)))
         {
             ERROR_AT(__LINE__, __FILE__, "error on create pixel shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
             return false;
         }
-        if (FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &d3dPsVs->pd3dVertexShader)))
+        if (bufferVS && FAILED(pd3dDevice->CreateVertexShader(static_cast<DWORD*>(bufferVS->GetBufferPointer()), &d3dPsVs->pd3dVertexShader)))
         {
             ERROR_AT(__LINE__, __FILE__, "error on create vertex shader:\n [%s]", static_cast<const char*>(errorBuffer->GetBufferPointer()));
             return false;

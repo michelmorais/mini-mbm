@@ -28,12 +28,18 @@
 #include <algorithm>
 #include <plugin-callback.h>
 #include <dynamic-var.h>
+#include <shader-resource.h>
 #if defined USE_EDITOR_FEATURES
 #include <thread>
 #endif
 
 namespace mbm
 {
+    void CORE_MANAGER::setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
+    {
+        _setUsageOfDefaultPS_VS_WhenNoShader(_useDeafultPSwhenNoPsShader, _useDeafultVSwhenNoVSShader);
+    }
+
     void CORE_MANAGER::setScene(SCENE *currentScene)
     {
         this->device->scene = currentScene;

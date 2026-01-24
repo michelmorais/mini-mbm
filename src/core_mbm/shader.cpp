@@ -262,4 +262,23 @@ namespace mbm
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)
     mbm::MATRIX mbm::SHADER::mvpMatrix; // ModelView x projection (perspectiva) (automaticamente setada)
+    
+	// Effect on Directx where it is possible not use shader code for PS or VS
+    static bool useDeafultPSwhenNoPsShader = true;
+    static bool useDeafultVSwhenNoVsShader = true;
+
+    void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
+    {
+        useDeafultPSwhenNoPsShader = _useDeafultPSwhenNoPsShader;
+        useDeafultVSwhenNoVsShader = _useDeafultVSwhenNoVSShader;
+    }
+
+    bool useDefaultPSWhenNoShader() noexcept
+    {
+        return useDeafultPSwhenNoPsShader;
+    }
+    bool useDefaultVSWhenNoShader() noexcept
+    {
+        return useDeafultVSwhenNoVsShader;
+    }
 }
