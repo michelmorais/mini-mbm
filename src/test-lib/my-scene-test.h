@@ -30,6 +30,7 @@
 #include <render/line-mesh.h>
 #include <render/particle.h>
 #include <render/render-2-texture.h>
+#include <render/steered_particle.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -43,6 +44,10 @@ class MY_SCENE : public mbm::SCENE
     mbm::PARTICLE* particle;
     mbm::RENDER_2_TEXTURE* render2Texture;
     mbm::RENDERIZABLE* toTrack;
+	mbm::STEERED_PARTICLE* steeredParticle;
+    bool randomizeParticleEachLoop;
+
+	void randomSteeredParticlePositions();
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();

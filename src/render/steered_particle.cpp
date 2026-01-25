@@ -317,7 +317,9 @@ namespace mbm
             }
             for (FLUID_GROUP* pGroup : this->lsParticleGroup)
             {
-                return this->renderParticle(pGroup);
+                const bool ret = this->renderParticle(pGroup);
+                if(ret == false)
+					return false;
             }
         }
         return false;

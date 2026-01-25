@@ -77,6 +77,7 @@ namespace mbm
         API_IMPL const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
         API_IMPL const COLOR getColor() const { return this->shader_color; };
         API_IMPL void setColor(const COLOR &color ) { shader_color = color; };
+		API_IMPL const TEXTURE* getTexture() const { return this->texture; };
         
       private:
         bool isOnFrustum() override;

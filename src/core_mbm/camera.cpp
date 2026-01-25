@@ -147,9 +147,9 @@ namespace mbm
         else
         {
             // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
-            //TODO: may need adjust this in the future
-            constexpr float zNear2d = -100;
-            constexpr float zFar2d  = 100;
+            // The position of camera influence in what is cutoff, so if we put z near -200 and far 200 and the position z 100, then we have visible from -100 to 100 in z axis
+            constexpr float zNear2d = -200;
+            constexpr float zFar2d  = 200;
 			VEC2 perfectPosition(this->position2d);
 			if (perfectPixel)
 			{

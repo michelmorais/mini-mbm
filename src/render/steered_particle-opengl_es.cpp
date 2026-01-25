@@ -114,6 +114,14 @@ namespace mbm
         anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
+
+        // Validate shader state before rendering
+        if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+        {
+            PRINT_IF_DEBUG("Error: Shader attributes not properly initialized");
+            return false;
+        }
+
         GLDisable(GL_DEPTH_TEST);
         GLActiveTexture(GL_TEXTURE0);
         if (this->texture)
@@ -222,6 +230,7 @@ namespace mbm
     
     bool STEERED_PARTICLE::loadParticleShader(const COLOR *p_color)
     {
+        ANIMATION* anim = this->getAnimation();
         if(p_color)
         {
             this->shader_color = *p_color;
@@ -248,13 +257,19 @@ namespace mbm
             const char *fileNamePs = "__steered_particle.ps";
             const char *fileNameVs = "__steered_particle.vs";
 
-            ANIMATION *  anim   = this->getAnimation();
-            
             anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_GROWING);
             anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
             anim->fx.shader.releaseShader();
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
+
+            // Validate that attribute handles are valid
+            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+            {
+                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
+                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
+                return false;
+            }
             const float defaultVar[4] = {this->shader_color.r, this->shader_color.g, this->shader_color.b, this->shader_color.a};
             if (anim->fx.fxPS->ptrCurrentShader)
             {
@@ -291,13 +306,18 @@ namespace mbm
             const char *fileNamePs = "__steered_particle.ps";
             const char *fileNameVs = "__steered_particle.vs";
 
-            ANIMATION *  anim   = this->getAnimation();
-            
             anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
             anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
             anim->fx.shader.releaseShader();
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
+            // Validate that attribute handles are valid
+            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+            {
+                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
+                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
+                return false;
+            }
         }
         return true;
     }

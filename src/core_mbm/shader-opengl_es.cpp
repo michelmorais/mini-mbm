@@ -594,8 +594,10 @@ namespace mbm
                 return false;
         }
 
-        GLint aPosition          = GLGetAttribLocation(*pprogramObject, "aPosition");
-        this->positionHandle     = static_cast<GLint>(aPosition);
+        // In OpenGL, a uniform location of - 1 means "not found", 
+        // but a handle of 0 suggests GLGetUniformLocation() isn't finding the uniform in your shader.
+
+        this->positionHandle     = GLGetAttribLocation(*pprogramObject, "aPosition");
         GLint imvpMatrixHandle   = GLGetUniformLocation(*pprogramObject, "mvpMatrix");
         GLint imvMatrixHandle    = GLGetUniformLocation(*pprogramObject, "mvMatrix");
         GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
@@ -603,14 +605,12 @@ namespace mbm
         *pimvpMatrixHandle       = imvpMatrixHandle;
         *pimvMatrixHandle        = imvMatrixHandle;
 
-        GLint aTextCoord       = GLGetAttribLocation(*pprogramObject, "aTextCoord");
-        this->texCoordHandle   = static_cast<GLint>(aTextCoord);
+        this->texCoordHandle   = GLGetAttribLocation(*pprogramObject, "aTextCoord");
         GLint* psamplerHandle0 = static_cast<GLint*>(this->ptrSamplerHandle0);
         GLint* psamplerHandle1 = static_cast<GLint*>(this->ptrSamplerHandle1);
         *psamplerHandle0       = GLGetUniformLocation(*pprogramObject, "sample0");
         *psamplerHandle1       = GLGetUniformLocation(*pprogramObject, "sample1");
-        GLint aNormal          = GLGetAttribLocation(*pprogramObject, "aNormal")
-        this->normalHandle     = static_cast<GLint>(aNormal);
+        this->normalHandle     = GLGetAttribLocation(*pprogramObject, "aNormal")
         return true;
     }
 

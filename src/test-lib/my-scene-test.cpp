@@ -1,4 +1,3 @@
-
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
@@ -22,19 +21,21 @@
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
-
+#include <random>
 
 MY_SCENE::MY_SCENE()
 {
-    texBox         = nullptr;
-    gif            = nullptr;
-    sprite         = nullptr;
-    mesh           = nullptr;
-    shape          = nullptr;
-    line           = nullptr;
-    particle       = nullptr;
-    render2Texture = nullptr;
-    toTrack        = nullptr;
+    randomizeParticleEachLoop = false;
+    texBox          = nullptr;
+    gif             = nullptr;
+    sprite          = nullptr;
+    mesh            = nullptr;
+    shape           = nullptr;
+    line            = nullptr;
+    particle        = nullptr;
+    render2Texture  = nullptr;
+    toTrack         = nullptr;
+    steeredParticle = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -55,6 +56,8 @@ MY_SCENE::~MY_SCENE()
         delete particle;
     if (render2Texture)
         delete render2Texture;
+    if (steeredParticle)
+        delete steeredParticle;
 }
 
 void MY_SCENE::startLoading()
@@ -78,8 +81,8 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
-    this->texBox->load("wooden-box.jpg", 200, 200);
+    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    //this->texBox->load("wooden-box.jpg", 200, 200);
     
     
     //this->texBox->position.z = 0.11;
@@ -104,12 +107,11 @@ void MY_SCENE::init()
 
     gif = new mbm::GIF_VIEW(this,false,false);
     gif->load("Lion-King.gif");
-    gif->position.z = 0.11;
-
     
-    sprite = new mbm::SPRITE(this, false, true);
-    sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
-    sprite->alwaysRenderize = true;
+    
+    //sprite = new mbm::SPRITE(this, false, true);
+    //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
+    //sprite->alwaysRenderize = true;
     
     
     //**************
@@ -124,29 +126,70 @@ void MY_SCENE::init()
     //mesh->scale.z = 3;
     //
 
-    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
+    //render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
 
-    shape = new mbm::SHAPE_MESH(this, false, false);
-    shape->loadRectangle("quad", 100, 100, true, 2);
-    shape->position.x = 300;
+    //shape = new mbm::SHAPE_MESH(this, false, false);
+    //shape->loadRectangle("quad", 100, 100, true, 2);
+    //shape->position.x = 300;
 
-    line = new mbm::LINE_MESH(this, false, false);
-    std::vector<mbm::VEC3> lines;
-    lines.push_back(mbm::VEC3(0, 0, 0));
-    lines.push_back(mbm::VEC3(100, 100, 0));
-    line->add(std::move(lines));
+    //line = new mbm::LINE_MESH(this, false, false);
+    //std::vector<mbm::VEC3> lines;
+    //lines.push_back(mbm::VEC3(0, 0, 0));
+    //lines.push_back(mbm::VEC3(100, 100, 0));
+    //line->add(std::move(lines));
     
-    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
-    {
-        render2Texture->addObject2Render(gif);
-        render2Texture->addObject2Render(this->texBox);
-        render2Texture->addObject2Render(sprite);
-        render2Texture->addObject2Render(shape);
-        render2Texture->addObject2Render(line);
-    }
+    //if (render2Texture->load(512, 512, 512, 512, "my-render", true))
+    //{
+    //    render2Texture->addObject2Render(gif);
+    //    render2Texture->addObject2Render(this->texBox);
+    //    render2Texture->addObject2Render(sprite);
+    //    render2Texture->addObject2Render(shape);
+    //    render2Texture->addObject2Render(line);
+    //}
 
     this->toTrack = texBox;
     
+
+    mbm::INFO_PHYSICS infoPhysiscs;
+	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
+    steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
+	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
+    if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", nullptr, &infoPhysiscs))
+    {
+        steeredParticle->addParticle(1432, steeredParticle->addGroup() - 1);
+        steeredParticle->setRadiusScale(2);
+        
+        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+        group->aSizeParticle = 10.0f;
+
+        randomSteeredParticlePositions();
+
+        INFO_LOG("Particle z position %f", steeredParticle->position.z);
+
+        INFO_LOG("Steered Particle loaded successfully");
+        INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
+        INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
+        if (group)
+        {
+            INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
+        }
+
+        if (steeredParticle->getTexture())
+        {
+            INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
+        }
+        else
+        {
+            INFO_LOG("ERROR: Texture not loaded!");
+        }
+
+        INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
+    }
+    else
+    {
+        INFO_LOG("ERROR: Failed to load steered particle");
+    }
+	
 
     
     //AARRGGBB
@@ -160,6 +203,31 @@ void MY_SCENE::init()
     
 }
 
+void MY_SCENE::randomSteeredParticlePositions()
+{
+    if (steeredParticle)
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+        if (group)
+        {
+            group->aSizeParticle = 10.0f;
+
+            static std::random_device rd;
+            static std::mt19937 gen(rd());
+            std::uniform_real_distribution<float> disX(-static_cast<float>(device->backBufferWidth) * 0.5f, static_cast<float>(device->backBufferWidth) * 0.5f);
+            std::uniform_real_distribution<float> disY(-static_cast<float>(device->backBufferHeight) * 0.5f, static_cast<float>(device->backBufferHeight) * 0.5f);
+
+            for (uint32_t i = 0; i < group->size_particle_array; i++)
+            {
+                float randomX = disX(gen);
+                float randomY = disY(gen);
+                group->particle_positions[i] = mbm::VEC3(randomX, randomY, 0);
+            }
+        }
+    }
+}
+
 void MY_SCENE::logic()
 {
     static int count = 0;
@@ -170,6 +238,10 @@ void MY_SCENE::logic()
         //{
         //    INFO_LOG("Image saved at download");
         //}
+    }
+    if (randomizeParticleEachLoop)
+    {
+        randomSteeredParticlePositions();
     }
 }
 

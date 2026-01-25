@@ -46,7 +46,9 @@
     #include <X11/XKBlib.h>
 #endif
 
-
+#ifdef _DEBUG
+#include <util-interface.h>
+#endif
 
 namespace log_util
 {
@@ -79,8 +81,34 @@ namespace log_util
 #endif
 
 #ifdef _DEBUG
+static GLint checkUniformLocation(const GLint location, const char * name)
+{
+    if (location == -1)
+    {
+        ERROR_LOG("Uniform location invalid [%s] in shader program.\n"
+            "The variable name does not correspond to an active uniform in the program or \n"
+            "The name starts with the reserved prefix \"gl_\"\n"
+            "or The uniform is part of a structure, an array of structures, "
+            "a vector/matrix subcomponent, an atomic counter, or a named uniform block.", name);
+    }
+	return location;
+}
+
+static GLint checkAttribLocation(const GLint location, const char* name)
+{
+    if (location == -1)
+    {
+        ERROR_LOG("Attribute location invalid [%s] in shader program.\n"
+            "The attribute variable is not active in the program (i.e., not used in the shader) or \n"
+            "The name starts with the reserved prefix \"gl_\"\n", name);
+    }
+    return location;
+}
+#endif
+
+#ifdef _DEBUG
 #define GLGetUniformLocation(program, name)                                                                              \
-    glGetUniformLocation(program, name);                                                                                 \
+    checkUniformLocation(glGetUniformLocation(program, name),name);                                                      \
     log_util::checkGlError(__FILE__, __LINE__);
 #else
     #define GLGetUniformLocation(program, name) glGetUniformLocation(program, name);
@@ -96,7 +124,7 @@ namespace log_util
 
 #ifdef _DEBUG
 #define GLGetAttribLocation(program, name)                                                                               \
-    glGetAttribLocation(program, name);                                                                                  \
+    checkAttribLocation(glGetAttribLocation(program, name), name);                                                       \
     log_util::checkGlError(__FILE__, __LINE__);
 #else
     #define GLGetAttribLocation(program, name) glGetAttribLocation(program, name);
