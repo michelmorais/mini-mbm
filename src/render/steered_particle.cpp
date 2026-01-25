@@ -176,6 +176,7 @@ namespace mbm
         this->enableRender          = true;
         this->texture               = nullptr;
         this->vboIndexBuffer        = 0;
+        this->radiusScale           = 1;
         mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
