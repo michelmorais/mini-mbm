@@ -122,12 +122,18 @@ namespace mbm
 
     struct D3D_PS_VS
     {
-        IDirect3DPixelShader9* pd3dPixelShader = nullptr;//Pixel Shader
-        IDirect3DVertexShader9* pd3dVertexShader = nullptr;//Vertex Shader
-        ID3DXConstantTable* constantTablePS = nullptr;
-        ID3DXConstantTable* constantTableVS = nullptr;
+        IDirect3DPixelShader9* pd3dPixelShader;//Pixel Shader
+        IDirect3DVertexShader9* pd3dVertexShader;//Vertex Shader
+        ID3DXConstantTable* constantTablePS;
+        ID3DXConstantTable* constantTableVS;
 
-        D3D_PS_VS() noexcept = default;
+        
+        D3DXHANDLE mvpMatrixHandle;
+        D3DXHANDLE mvMatrixHandle;
+        D3DXHANDLE samplerHandle0;
+        D3DXHANDLE samplerHandle1;
+
+        D3D_PS_VS() noexcept;
         ~D3D_PS_VS();
         void release() noexcept;
         // Prevent copying (COM objects should not be copied)

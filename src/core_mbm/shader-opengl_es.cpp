@@ -31,6 +31,9 @@
 
 namespace mbm
 {
+    static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader, void* ptrShaderSpecific, const char* vertShaderSrc, const char* fragShaderSrc);
+    static uint32_t compileCodeShader(BASE_SHADER* ptrShader, const unsigned int type, const char* shaderSrc);
+
     static GLenum getOpenGlEsModeDraw(const uint32_t mode_draw)
     {
         switch (mode_draw)
@@ -553,7 +556,7 @@ namespace mbm
         const char *defaultCodeVs =
             "attribute vec4 aPosition;"
             "attribute vec2 aTextCoord;"
-            "attribute vec3 aNormal;" // Per-vertex normal information we will pass in.
+            // "attribute vec3 aNormal;" // Per-vertex normal information we will pass in. (not used, removed since cause confusion
             "uniform mat4 mvpMatrix;" // A constant representing the combined model/view/projection matrix.
             "varying vec2 vTexCoord;"
             "void main()"
@@ -569,22 +572,22 @@ namespace mbm
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
-            if (!this->loadShaderProgram(defaultCodeVs, defaultCodePs))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs, defaultCodePs))
                 return false;
         }
         else if (this->pShader == nullptr && this->vShader)
         {
-            if (!this->loadShaderProgram(this->vShader->getCode(), defaultCodePs))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), defaultCodePs))
                 return false;
         }
         else if (this->pShader && this->vShader == nullptr)
         {
-            if (!this->loadShaderProgram(defaultCodeVs, this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs, this->pShader->getCode()))
                 return false;
         }
         else if (this->pShader && this->vShader)
         {
-            if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), this->pShader->getCode()))
                 return false;
         }
 
@@ -610,6 +613,7 @@ namespace mbm
 			//This will cause normalHandle to remain -1 if the attribute is not used (has no effect in shader)
             //If debug mode, it will print the follwoing error:
             // "Attribute location invalid [aNormal] in shader program"
+            // updated: removed
             gles_shaderSpecific->normalHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aNormal")
         }
         if (bothShaderCode.find("aTextCoord") != std::string::npos)
@@ -1034,7 +1038,7 @@ namespace mbm
         return true;
     }
 
-    uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)
+    static uint32_t compileCodeShader(BASE_SHADER* ptrShader,  const unsigned int type, const char *shaderSrc)
     {
         GLint compiled = 0;
         // Create the shader object
@@ -1060,7 +1064,7 @@ namespace mbm
                 auto *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
                 GLGetShaderInfoLog(shader, infoLen, nullptr, infoLog);
                 PRINT_IF_DEBUG("Error compiling shader:%s\n%s\n",
-                             this->pShader ? this->pShader->fileName.c_str() : "nullptr", infoLog);
+                    ptrShader ? ptrShader->fileName.c_str() : "nullptr", infoLog);
                 free(infoLog);
             }
             GLDeleteShader(shader);
@@ -1069,7 +1073,7 @@ namespace mbm
         return shader;
     }
 
-    uint32_t SHADER::loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc)
+    static uint32_t loadShaderProgram(BASE_SHADER* pShader, BASE_SHADER* vShader,  void * ptrShaderSpecific, const char *vertShaderSrc, const char *fragShaderSrc)
     {
         GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
         GLint linked = 0;
@@ -1079,13 +1083,13 @@ namespace mbm
             return gles_shaderSpecific->programObject;
         }
         // Load the vertex/fragment shaders
-        uint32_t vertexShader = compileCodeShader(GL_VERTEX_SHADER, vertShaderSrc);
+        uint32_t vertexShader = compileCodeShader(pShader, GL_VERTEX_SHADER, vertShaderSrc);
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
             return 0;
         }
-        uint32_t fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
+        uint32_t fragmentShader = compileCodeShader(vShader, GL_FRAGMENT_SHADER, fragShaderSrc);
         if (fragmentShader == 0)
         {
             PRINT_IF_DEBUG("fragmentShader == 0");

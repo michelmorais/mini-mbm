@@ -180,8 +180,6 @@ namespace mbm
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:
-        unsigned int compileCodeShader(const unsigned int type, const char *shaderSrc);
-        unsigned int loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc);
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

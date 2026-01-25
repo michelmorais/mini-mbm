@@ -21,34 +21,33 @@
 
 namespace mbm
 {
-	RENDER2TARGET_GLES::RENDER2TARGET_GLES():
-		idFrameBuffer(0),
-		idDepthRenderbuffer(0),
-		idTextureDynamic(0)
-	{
+    RENDER2TARGET_GLES::RENDER2TARGET_GLES():
+        idFrameBuffer(0),
+        idDepthRenderbuffer(0),
+        idTextureDynamic(0)
+    {
+    }
 
-	}
+    void RENDER2TARGET_GLES::release()
+    {
+        if (this->idDepthRenderbuffer)
+        {
+            GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
+        }
+        this->idDepthRenderbuffer = 0;
 
-	void RENDER2TARGET_GLES::release()
-	{
-		if (this->idDepthRenderbuffer)
-		{
-			GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
-		}
-		this->idDepthRenderbuffer = 0;
+        if (this->idFrameBuffer)
+        {
+            GLDeleteFramebuffers(1, &this->idFrameBuffer);
+        }
+        this->idFrameBuffer = 0;
+        this->idTextureDynamic = 0;
 
-		if (this->idFrameBuffer)
-		{
-			GLDeleteFramebuffers(1, &this->idFrameBuffer);
-		}
-		this->idFrameBuffer = 0;
-		this->idTextureDynamic = 0;
+    }
 
-	}
-
-	RENDER2TARGET_GLES::~RENDER2TARGET_GLES()
-	{
-		release();
-	}
+    RENDER2TARGET_GLES::~RENDER2TARGET_GLES()
+    {
+        release();
+    }
 }
 #endif

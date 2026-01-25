@@ -146,7 +146,7 @@ namespace mbm
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
-        this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
+        this->fillvertexQuadTexture(_position, uv, diameter <= 0.0f ? 100.0f : diameter,
                                     diameter <= 0.0f ? 100.0f : diameter);
 		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
@@ -175,13 +175,13 @@ namespace mbm
         int                indexStart = 0;
         int                indexCount = 6;
         VEC3            _position[4];
-        VEC3            normal[4];
+        VEC3*            normal = nullptr;
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
-        this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
+        this->fillvertexQuadTexture(_position, uv, width <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
 		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
@@ -386,8 +386,7 @@ namespace mbm
         return true;
     }
     
-    void GIF_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
-                                      const float height)
+    void GIF_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC2 *uv, const float width, const float height)
     {
         const float x  = width * 0.5f;
         const float y  = height * 0.5f;
@@ -406,13 +405,7 @@ namespace mbm
         _position[3].x = x;
         _position[3].y = y;
         _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
-        }
-
+        
         //----------------------------------------
         uv[0].x = 0;
         uv[0].y = 1;

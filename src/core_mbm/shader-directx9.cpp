@@ -20,8 +20,6 @@
 
 #if defined (USE_DIRECTX9)
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
-
 #include <shader.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
@@ -112,36 +110,6 @@ namespace mbm
         totalSubset   = 0;
     }
 
-
-    D3D_PS_VS::~D3D_PS_VS()
-    {
-        release();
-    }
-
-    void D3D_PS_VS::release() noexcept
-    {
-        if (pd3dPixelShader)
-        {
-            pd3dPixelShader->Release();
-            pd3dPixelShader = nullptr;
-        }
-        if (pd3dVertexShader)
-        {
-            pd3dVertexShader->Release();
-            pd3dVertexShader = nullptr;
-        }
-        if (constantTablePS)
-        {
-            constantTablePS->Release();
-            constantTablePS = nullptr;
-        }
-        if (constantTableVS)
-        {
-            constantTableVS->Release();
-            constantTableVS = nullptr;
-        }
-    }
-    
     D3D_VERTEX_CONVERTER::D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept:
         pos(_pos), normal(_normal),uv(_uv), size_array(_size_array)
     {
@@ -375,7 +343,7 @@ namespace mbm
 
         // index vertex
         UINT sizeIndexBuffer = 0;
-        for (int i = 0; i < totalSubsets; ++i)
+        for (uint32_t i = 0; i < totalSubsets; ++i)
         {
             sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
         }
@@ -420,7 +388,7 @@ namespace mbm
         // Find the max vertex count
         // and max size of index buffer
         UINT sizeIndexBuffer = 0;
-        for (int i = 0; i < totalSubsets; ++i)
+        for (uint32_t i = 0; i < totalSubsets; ++i)
         {
             const int ii = indexStartSubset[i];
             sizeIndexBuffer += static_cast<UINT>(indexCountSubset[i]);
@@ -538,7 +506,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       void* programObject, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* ptrShaderSpecific, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -558,7 +526,6 @@ namespace mbm
                 return false;
             }
             auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
-            #pragma message(REMINDER_TODO "  implement get uniform location");
             
             if (var->ptrHandleVar == nullptr)
             {
@@ -568,8 +535,8 @@ namespace mbm
                 delete var;
                 return true;
             }
+            const D3D_PS_VS* d3dPsVs = static_cast<const D3D_PS_VS*>(ptrShaderSpecific);
             D3DXHANDLE* pHandleVar = static_cast<D3DXHANDLE*>(var->ptrHandleVar);
-            D3D_PS_VS* d3dPsVs     = static_cast<D3D_PS_VS*>(programObject);
             if (isPS)
             {
                 *pHandleVar = d3dPsVs->constantTablePS->GetConstantByName(nullptr, nameVar);
@@ -631,11 +598,11 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void * programObject)
+    void BASE_SHADER::update(void * ptrShaderSpecific)
     {
-        if (programObject == nullptr || *static_cast<int*>(programObject) == 0) // simple check
+        const D3D_PS_VS* d3dPsVs = static_cast<const D3D_PS_VS*>(ptrShaderSpecific);
+        if (d3dPsVs->pd3dPixelShader == nullptr && d3dPsVs->pd3dVertexShader == nullptr) // simple check
             return;
-        #pragma message(REMINDER_TODO "  implement use program");
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
@@ -645,7 +612,6 @@ namespace mbm
             if (var)
             {
                 D3DXHANDLE* pHandleVar            = static_cast<D3DXHANDLE*>(var->ptrHandleVar);
-                D3D_PS_VS* d3dPsVs                = static_cast<D3D_PS_VS*>(programObject);
                 ID3DXConstantTable* constantTable = var->isPS ? d3dPsVs->constantTablePS : d3dPsVs->constantTableVS;
                 switch (var->typeVar)
                 {
@@ -666,66 +632,77 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() : ptrProgramObject(new D3D_PS_VS()),
-        ptrMvpMatrixHandle(new D3DXHANDLE(nullptr)),
-        ptrMvMatrixHandle(new D3DXHANDLE(nullptr)),
-        positionHandle(-1),
-        texCoordHandle(-1),
-        ptrSamplerHandle0(new D3DXHANDLE(nullptr)),
-        ptrSamplerHandle1(new D3DXHANDLE(nullptr)),
-        normalHandle(-1),
+    D3D_PS_VS::D3D_PS_VS() noexcept :
+        pd3dPixelShader(nullptr),
+        pd3dVertexShader(nullptr),
+        constantTablePS(nullptr),
+        constantTableVS(nullptr),
+        mvpMatrixHandle(nullptr),
+        mvMatrixHandle(nullptr),
+        samplerHandle0(nullptr),
+        samplerHandle1(nullptr)
+    {
+    }
+
+    D3D_PS_VS::~D3D_PS_VS()
+    {
+        release();
+    }
+
+    void D3D_PS_VS::release() noexcept
+    {
+        if (pd3dPixelShader)
+        {
+            pd3dPixelShader->Release();
+            pd3dPixelShader = nullptr;
+        }
+        if (pd3dVertexShader)
+        {
+            pd3dVertexShader->Release();
+            pd3dVertexShader = nullptr;
+        }
+        if (constantTablePS)
+        {
+            constantTablePS->Release();
+            constantTablePS = nullptr;
+        }
+        if (constantTableVS)
+        {
+            constantTableVS->Release();
+            constantTableVS = nullptr;
+        }
+
+        mvpMatrixHandle = nullptr;
+        mvMatrixHandle  = nullptr;
+        samplerHandle0  = nullptr;
+        samplerHandle1  = nullptr;
+    }
+
+    SHADER::SHADER() : 
+        ptrShaderSpecific(new D3D_PS_VS()),
         pShader(nullptr),
         vShader(nullptr)
     {
-
     }
 
     SHADER::~SHADER()
     {
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<D3DXHANDLE*>(ptrMvpMatrixHandle);
-        delete static_cast<D3DXHANDLE*>(ptrMvMatrixHandle);
-        delete static_cast<D3DXHANDLE*>(ptrSamplerHandle0);
-        delete static_cast<D3DXHANDLE*>(ptrSamplerHandle1);
-        delete static_cast<D3D_PS_VS*>(ptrProgramObject);
-        #pragma message(REMINDER_TODO "  implement release shader");
+        delete static_cast<D3D_PS_VS*>(ptrShaderSpecific);
     }
 
-    void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
+    void SHADER::onRestore()
     {
-        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-        *pmvpMatrixHandle    = nullptr;
-        *pmvpMatrixHandle    = nullptr;
-        this->texCoordHandle = -1;
-        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
-        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
-        *psamplerHandle0    = nullptr;
-        *psamplerHandle1    = nullptr;
-        this->normalHandle  = -1;
-        //this->ptrProgramObject = 0;
+        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
         this->pShader = nullptr;
         this->vShader = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-        D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-        *pmvpMatrixHandle     = nullptr;
-        *pmvpMatrixHandle     = nullptr;
-        this->positionHandle  = -1;
-        this->texCoordHandle  = -1;
-        D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
-        D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
-        *psamplerHandle0      = nullptr;
-        *psamplerHandle1      = nullptr;
-        this->normalHandle    = -1;
+        static_cast<D3D_PS_VS*>(ptrShaderSpecific)->release();
         this->pShader         = nullptr;
         this->vShader         = nullptr;
-        #pragma message(REMINDER_TODO "  implement delete program");
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
-        d3dPsVs->release();
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
@@ -745,7 +722,7 @@ namespace mbm
                                         "{"
                                         "    float4 position : POSITION;"
                                         "    float2 texCoord : TEXCOORD0;"
-                                        "    float3 normal : NORMAL;"
+                                        // "    float3 normal : NORMAL;" Per-vertex normal information we will pass in. (not used, removed since cause confusion
                                         "};"
                                         ""
                                         "struct VS_OUTPUT"
@@ -766,13 +743,13 @@ namespace mbm
 
         
         constexpr char* mainFunction = "main";
-        const char* versionPS = getPSVersion();
-        const char* versionVS = getVSVersion();
-        ID3DXBuffer* bufferPS = nullptr;
-        ID3DXBuffer* bufferVS = nullptr;
-        ID3DXBuffer* errorBuffer = nullptr;
+        const char* versionPS        = getPSVersion();
+        const char* versionVS        = getVSVersion();
+        ID3DXBuffer* bufferPS        = nullptr;
+        ID3DXBuffer* bufferVS        = nullptr;
+        ID3DXBuffer* errorBuffer     = nullptr;
         
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
         
         const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
@@ -836,14 +813,12 @@ namespace mbm
         if (d3dPsVs->constantTablePS)
         {
             d3dPsVs->constantTablePS->SetDefaults(pd3dDevice);
-            D3DXHANDLE* psamplerHandle0 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
-            D3DXHANDLE* psamplerHandle1 = static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
-            *psamplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
-            *psamplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
+            d3dPsVs->samplerHandle0 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample0");
+            d3dPsVs->samplerHandle1 = d3dPsVs->constantTablePS->GetConstantByName(nullptr, "sample1");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
-            //if (*psamplerHandle0 && SUCCEEDED(constantTablePS->GetConstantDesc(*psamplerHandle0, &desc, &count)))
+            //if (d3dPsVs->samplerHandle0 && SUCCEEDED(constantTablePS->GetConstantDesc(d3dPsVs->samplerHandle0, &desc, &count)))
             //{
             //    int pixelSamplerRegister0 = static_cast<int>(desc.RegisterIndex); // store as member int
             //}
@@ -855,14 +830,12 @@ namespace mbm
         if (d3dPsVs->constantTableVS)
         {
             d3dPsVs->constantTableVS->SetDefaults(pd3dDevice);
-            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-            *pmvpMatrixHandle            = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
-            *pmvMatrixHandle             = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
+            d3dPsVs->mvpMatrixHandle = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvpMatrix");
+            d3dPsVs->mvMatrixHandle  = d3dPsVs->constantTableVS->GetConstantByName(nullptr, "mvMatrix");
 
             //D3DXCONSTANT_DESC desc;
             //UINT count = 1;
-            //if (*pmvpMatrixHandle && SUCCEEDED(d3dPsVs->constantTableVS->GetConstantDesc(*pmvpMatrixHandle, &desc, &count)))
+            //if (d3dPsVs->mvpMatrixHandle && SUCCEEDED(d3dPsVs->constantTableVS->GetConstantDesc(d3dPsVs->mvpMatrixHandle, &desc, &count)))
             //{
             //    int vertexMvpRegister = static_cast<int>(desc.RegisterIndex);
             //    int vertexMvpRegisterCount = static_cast<int>(desc.RegisterCount); // number of float4 registers
@@ -875,47 +848,6 @@ namespace mbm
             //    }
             //}
         }
-
-        
-        //GLint aPosition = GLGetAttribLocation(programObject, "aPosition");
-        //this->positionHandle = static_cast<GLint>(aPosition);
-        //this->mvpMatrixHandle = GLGetUniformLocation(programObject, "mvpMatrix"); OK
-        //this->mvMatrixHandle = GLGetUniformLocation(programObject, "mvMatrix");   OK
-        //GLint aTextCoord = GLGetAttribLocation(programObject, "aTextCoord");
-        //this->texCoordHandle = static_cast<GLint>(aTextCoord);
-        //this->samplerHandle0 = GLGetUniformLocation(programObject, "sample0"); OK
-        //this->samplerHandle1 = GLGetUniformLocation(programObject, "sample1"); OK
-        //GLint aNormal = GLGetAttribLocation(programObject, "aNormal")
-        //this->normalHandle = static_cast<GLint>(aNormal);
-        
-        
-        //TODO: we do not need to loadShaderProgram (remove from common) 
-        /*if (this->programObject)
-        {
-            PRINT_IF_DEBUG("programObject already has a value [%d]",this->programObject);
-            return true;
-        }
-        if (this->pShader == nullptr && this->vShader == nullptr)
-        {
-            if (!this->loadShaderProgram(defaultCodeVs, defaultCodePs))
-                return false;
-        }
-        else if (this->pShader == nullptr && this->vShader)
-        {
-            if (!this->loadShaderProgram(this->vShader->getCode(), defaultCodePs))
-                return false;
-        }
-        else if (this->pShader && this->vShader == nullptr)
-        {
-            if (!this->loadShaderProgram(defaultCodeVs, this->pShader->getCode()))
-                return false;
-        }
-        else if (this->pShader && this->vShader)
-        {
-            if (!this->loadShaderProgram(this->vShader->getCode(), this->pShader->getCode()))
-                return false;
-        }*/
-        #pragma message(REMINDER_TODO "  implement get attrib and uniform locations");
         return true;
     }
 
@@ -938,7 +870,7 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -966,14 +898,11 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
                 return false;
             }
-            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-
             const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
             const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
 
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle, pMatrixHandle);
         }
         else
         {
@@ -1262,7 +1191,7 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1288,14 +1217,11 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
                 return false;
             }
-            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-
-            const D3DXMATRIX* pMvpMatrix = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
+            const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
             const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
 
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle,  pMatrixHandle);
         }
         else
         {
@@ -1543,7 +1469,7 @@ namespace mbm
             return false;
         };
 
-        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
 
         if (d3dPsVs->pd3dPixelShader)
         {
@@ -1569,14 +1495,11 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
                 return false;
             }
-            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
-            D3DXHANDLE* pmvMatrixHandle  = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
-
             const D3DXMATRIX* pMvpMatrix    = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
             const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
 
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
-            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, d3dPsVs->mvMatrixHandle, pMatrixHandle);
         }
         else
         {
@@ -1854,73 +1777,6 @@ namespace mbm
             pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
         }
         return true;
-    }
-
-    uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)
-    {
-        uint32_t shader=0;
-        int          compiled=0;
-        // Create the shader object
-        #pragma message(REMINDER_TODO "  implement create shader");
-        if (shader == 0)
-        {
-            PRINT_IF_DEBUG("GLCreateShader returned 0");
-            return 0;
-        }
-        //TODO: Load the shader source
-        //TODO: Compile the shader
-        //TODO: Check the compile status
-        if (!compiled)
-        {
-            PRINT_IF_DEBUG("failed on compile shader [%s]",shaderSrc ? shaderSrc : "null");
-            //TODO: implement get shader info log
-            // Delete the shader object
-            return 0;
-        }
-        return shader;
-    }
-
-    uint32_t SHADER::loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc)
-    {
-        uint32_t vertexShader=0;
-        uint32_t fragmentShader=0;
-        #pragma message(REMINDER_TODO "  Remove this function from common");
-        int          linked=0;
-        if (this->ptrProgramObject)
-        {
-            PRINT_IF_DEBUG("programObject already exists");
-            return *static_cast<uint32_t*>(ptrProgramObject);
-        }
-        
-        if (vertexShader == 0)
-        {
-            PRINT_IF_DEBUG("vertexShader == 0");
-            return 0;
-        }
-        //fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
-        if (fragmentShader == 0)
-        {
-            PRINT_IF_DEBUG("fragmentShader == 0");
-            return 0;
-        }
-        //TODO: implement create program
-        if (ptrProgramObject == 0)
-        {
-            PRINT_IF_DEBUG("Failed to create programObject");
-            return 0;
-        }
-        //TODO: Link the program
-        //TODO: Check the link status
-        if (!linked)
-        {
-            PRINT_IF_DEBUG("linked status failed");
-            //TODO: implement get program info log
-            // Delete the program object
-            ptrProgramObject = 0;
-            return 0;
-        }
-        #pragma message(REMINDER_TODO "  Free up no longer needed shader resources");
-        return *static_cast<uint32_t*>(ptrProgramObject);
     }
 }
 
