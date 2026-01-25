@@ -877,7 +877,7 @@ namespace mbm
             : nullptr;
 
         const uint32_t totalAlive = particleControl->getTotalAlive();
-        const VERTEX_PARTICLE* buffer = particleControl->getVertexBuffer();
+        const VERTEX_UV* buffer = particleControl->getVertexBuffer();
         if (var)
         {
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
@@ -888,10 +888,10 @@ namespace mbm
                 const ATT_PARTICLE* particle = &particles[i];
                 GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
                 GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), vertex);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
         
                 GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), &vertex[3]);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
         
                 GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
@@ -903,10 +903,10 @@ namespace mbm
             {
                 const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
                 GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), vertex);
+                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
         
                 GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), &vertex[3]);
+                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
         
                 GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
@@ -972,7 +972,7 @@ namespace mbm
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
-                    const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);
+					const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);// note that when segmented we have different uv for each particle
                     GLEnableVertexAttribArray(this->positionHandle);
                     GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
                     GLEnableVertexAttribArray(this->texCoordHandle);
@@ -986,7 +986,7 @@ namespace mbm
                 {
                     //if(i != 168/2 && i != 168/2+1 && i != 168/2+2 && i != 168/2+4)
                     {
-                        const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
+                        const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);// note that when segmented we have different uv for each particle
                         const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);
                         GLEnableVertexAttribArray(this->positionHandle);
                         GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
@@ -1006,7 +1006,7 @@ namespace mbm
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
-                    const float* uv = reinterpret_cast<float*>(pGroup->uv);
+					const float* uv = reinterpret_cast<float*>(pGroup->uv);//note that when not segmented we have same uv for all particles
                     GLEnableVertexAttribArray(this->positionHandle);
                     GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
                     GLEnableVertexAttribArray(this->texCoordHandle);
@@ -1019,7 +1019,7 @@ namespace mbm
                 for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
-                    const float* uv = reinterpret_cast<float*>(pGroup->uv);
+                    const float* uv = reinterpret_cast<float*>(pGroup->uv);//note that when not segmented we have same uv for all particles
                     GLEnableVertexAttribArray(this->positionHandle);
                     GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
                     GLEnableVertexAttribArray(this->texCoordHandle);

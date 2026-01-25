@@ -228,6 +228,59 @@ struct API_IMPL VEC3
     }
 };
 
+struct API_IMPL VERTEX_NORMAL_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+            float	uv[2];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_NORMAL
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	uv[2];
+        };
+    };
+};
+
 struct API_IMPL COLOR
 {
   public:

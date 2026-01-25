@@ -85,7 +85,6 @@ namespace mbm
         const int sizeImage = _width * _height * channel;
         IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
         D3DSURFACE_DESC	descSurfaceDest;
-        D3DLOCKED_RECT	lockDestRect;
         std::vector<uint8_t> imageData(sizeImage);
 
         if (FAILED(sf->pRenderSurface->GetDesc(&descSurfaceDest)))

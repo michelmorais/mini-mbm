@@ -58,22 +58,6 @@ struct ATT_PARTICLE
 };
 
 
-struct VERTEX_PARTICLE
-{
-    union {
-        struct
-        {
-            float x, y, z;
-            float u, v;
-        };
-        struct
-        {
-            float position[3];
-            float uv[2];
-        };
-    };
-};
-
 typedef void (*OnEndAnimationParticleControl)(void* owner, const char* nameAnimation);
 
 struct PARTICLE_CONTROL
@@ -109,9 +93,9 @@ struct PARTICLE_CONTROL
     inline void setOnEndAnimationParticleControl(OnEndAnimationParticleControl _onEndAnimationParticleControl) noexcept { onEndAnimationParticleControl = _onEndAnimationParticleControl; }
     void updateAnimationParticle(void* owner, ANIMATION* anim, const float delta);
     inline const ATT_PARTICLE* getAttParticle() const noexcept { return particles;}
-    inline const VERTEX_PARTICLE* getVertexBuffer() const noexcept { return buffer; }
+    inline const VERTEX_UV* getVertexBuffer() const noexcept { return buffer; }
 protected:
-    void restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE* particle, VERTEX_PARTICLE pPartBuffer[4], const VEC2* dist);
+    void restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE* particle, VERTEX_UV pPartBuffer[4], const VEC2* dist);
     bool _addParticle(const unsigned int numParticles);
 private:
 
@@ -124,7 +108,7 @@ private:
     VEC2             minv;
     VEC2             maxv;
     ATT_PARTICLE*    particles;
-    VERTEX_PARTICLE* buffer;
+    VERTEX_UV*       buffer;
     std::vector<util::STAGE_PARTICLE*> lsParticleStage;
     OnEndAnimationParticleControl onEndAnimationParticleControl;
 };
@@ -138,7 +122,7 @@ struct FLUID_GROUP
     VEC3* particle_positions;
     VEC3* vertex_particle;
     VEC2* uv;
-    bool           segmented;
+	bool           segmented;//when true: we have uv calculation based on the aabb of the group of particles, when false: uv is set to (0,0)(1,0)(0,1)(1,1) for each particle (so the size is constant)
     COLOR*         color;
 
     API_IMPL FLUID_GROUP(const bool b_segmented, const float _radiusScale, const COLOR *theColor) noexcept;

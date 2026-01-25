@@ -60,59 +60,6 @@
 
 namespace mbm
 {
-    struct VERTEX_NORMAL_UV
-    {
-        union
-        {
-            struct
-            {
-                float x, y, z;
-                float nx, ny, nz;
-                float u, v;
-            };
-            struct
-            {
-                float	position[3];
-                float	normal[3];
-                float	uv[2];
-            };
-        };
-    };
-
-    struct VERTEX_NORMAL
-    {
-        union
-        {
-            struct
-            {
-                float x, y, z;
-                float nx, ny, nz;
-            };
-            struct
-            {
-                float	position[3];
-                float	normal[3];
-            };
-        };
-    };
-
-    struct VERTEX_UV
-    {
-        union
-        {
-            struct
-            {
-                float x, y, z;
-                float u, v;
-            };
-            struct
-            {
-                float	position[3];
-                float	uv[2];
-            };
-        };
-    };
-
     enum class FVF_PROVIDE_BY_ENGINE // we only provide those type of FVF for this engine
     {
         FVF_POS,
@@ -142,9 +89,6 @@ namespace mbm
         const VEC2* uv;
         unsigned int size_array;
     };
-
-
-    
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

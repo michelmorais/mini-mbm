@@ -86,7 +86,7 @@ namespace mbm
         this->particles = new ATT_PARTICLE[this->lenArrayParticlesData];
         if (this->buffer)
             delete[] this->buffer;
-        this->buffer = new VERTEX_PARTICLE[this->lenArrayParticlesData * 4];
+        this->buffer = new VERTEX_UV[this->lenArrayParticlesData * 4];
         this->minv.x = -this->wTexture * 0.5f;
         this->maxv.x =  this->wTexture * 0.5f;
         this->minv.y = -this->hTexture * 0.5f;
@@ -103,7 +103,7 @@ namespace mbm
         for (unsigned int i = 0; i < this->totalAlive; ++i)
         {
             ATT_PARTICLE* particle = &this->particles[i];
-            VERTEX_PARTICLE* vertex = &this->buffer[i * 4];
+            VERTEX_UV* vertex = &this->buffer[i * 4];
             particle->timeLifeCurrent += delta;
             if (particle->timeLifeCurrent > particle->timeLife)
             {
@@ -204,7 +204,7 @@ namespace mbm
         }
     }
 
-    void PARTICLE_CONTROL::restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE* particle, VERTEX_PARTICLE pPartBuffer[4], const VEC2* dist)
+    void PARTICLE_CONTROL::restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE* particle, VERTEX_UV pPartBuffer[4], const VEC2* dist)
     {
         particle->aSize = sPart->sizeMin2Max ? sPart->minSizeParticle : sPart->maxSizeParticle;//grow
         const float halfSizeParticle = particle->aSize * 0.5f;
@@ -281,7 +281,7 @@ namespace mbm
         while (this->totalAlive < total_To_Resuscitate)
         {
             unsigned int          index = this->totalAlive;
-            VERTEX_PARTICLE* vertex = &this->buffer[index * 4]; // x4 porque nosso quadrado possui 4 vertex indexados
+            VERTEX_UV* vertex = &this->buffer[index * 4]; // x4 porque nosso quadrado possui 4 vertex indexados
             this->restartParticle(sPart, &this->particles[index], vertex, &dist);
             this->totalAlive++;
         }
@@ -419,8 +419,8 @@ namespace mbm
             this->particles = particlesTemp;
 
             const unsigned int newBufferSize = tTotalParticle * 4; // x4 porque nosso quadrado possui 4 vertex indexados
-            auto   tempVertex = new VERTEX_PARTICLE[newBufferSize];
-            memcpy(static_cast<void*>(tempVertex), this->buffer, this->lenArrayParticlesData * sizeof(VERTEX_PARTICLE) * 4); // x4 porque nosso quadrado possui 4 vertex indexados
+            auto   tempVertex = new VERTEX_UV[newBufferSize];
+            memcpy(static_cast<void*>(tempVertex), this->buffer, this->lenArrayParticlesData * sizeof(VERTEX_UV) * 4); // x4 porque nosso quadrado possui 4 vertex indexados
             delete[] this->buffer;
             this->buffer = tempVertex;
             this->lenArrayParticlesData = tTotalParticle;
@@ -563,6 +563,7 @@ namespace mbm
             }
             if (segmented)
             {
+                // when true: we have uv calculation based on the aabb of the group of particles
                 const unsigned int newBufferSize = new_size * 4; // x4 because we have 4 vertex indexed 
                 auto   tempUv = new VEC2[newBufferSize];
                 if (this->uv)
@@ -588,6 +589,7 @@ namespace mbm
             }
             else
             {
+                //when false: uv is set to (0,0)(1,0)(0,1)(1,1) for each particle (so the size is constant)
                 if (this->uv == nullptr)
                 {
                     this->uv = new VEC2[4];
