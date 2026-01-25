@@ -160,8 +160,8 @@ void MY_SCENE::init()
         steeredParticle->setRadiusScale(2);
         
         mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
-        group->aSizeParticle = 10.0f;
-
+        group->aSizeParticle = 20.0f;
+		
         randomSteeredParticlePositions();
 
         INFO_LOG("Particle z position %f", steeredParticle->position.z);
@@ -211,8 +211,6 @@ void MY_SCENE::randomSteeredParticlePositions()
         mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
         if (group)
         {
-            group->aSizeParticle = 10.0f;
-
             static std::random_device rd;
             static std::mt19937 gen(rd());
             std::uniform_real_distribution<float> disX(-static_cast<float>(device->backBufferWidth) * 0.5f, static_cast<float>(device->backBufferWidth) * 0.5f);

@@ -35,7 +35,7 @@ namespace mbm
         uint32_t       size_particle_array;
         uint32_t       totalParticleToRender;
         float          aSizeParticle;//
-        float          radiusScale;
+        float          radiusScale;// The actual size of particle is: aSizeParticle * radiusScale (let 1.0f to not influence
         VEC3 *         particle_positions;
         VEC3 *         vertex_particle;
         VEC2 *         uv;
@@ -48,6 +48,7 @@ namespace mbm
         API_IMPL void setUv(VEC2 pUv[4], const VEC2 & pos,const VEC2 & halParticleSizeInUv);
     };
     
+	// Steered Particle System are particles that can be controlled by forces to move to desired positions.
     class STEERED_PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
