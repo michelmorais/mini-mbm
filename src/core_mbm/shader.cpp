@@ -239,24 +239,19 @@ namespace mbm
         return false;
     }
 
-    bool SHADER::isLoad()
-    {
-        return (*static_cast<unsigned int*>(this->ptrProgramObject)) != 0; // simple check 
-    }
-
     void SHADER::update()
     {
         if (this->pShader)
-            this->pShader->update(this->ptrProgramObject);
+            this->pShader->update(this->ptrShaderSpecific);
 #if defined _DEBUG
-        else if (*static_cast<unsigned int*>(this->ptrProgramObject) == 0)
-            PRINT_IF_DEBUG("missed shader!");
+        else
+            PRINT_IF_DEBUG("Default PS shader, Nothing to do!");
 #endif
         if (this->vShader)
-            this->vShader->update(this->ptrProgramObject);
+            this->vShader->update(this->ptrShaderSpecific);
 #if defined _DEBUG
-        else if (*static_cast<unsigned int*>(this->ptrProgramObject) == 0)
-            PRINT_IF_DEBUG("missed shader!");
+        else
+            PRINT_IF_DEBUG("Default VS shader, Nothing to do!");
 #endif
     }
 

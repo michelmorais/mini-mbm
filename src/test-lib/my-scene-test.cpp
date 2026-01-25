@@ -154,7 +154,7 @@ void MY_SCENE::init()
 	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
     steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
 	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
-    if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", nullptr, &infoPhysiscs))
+    if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", &colorParticle, &infoPhysiscs))
     {
         steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
         steeredParticle->setRadiusScale(2);

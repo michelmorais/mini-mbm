@@ -255,15 +255,6 @@ namespace mbm
         anim->fx.setBlendOp();
         anim->fx.shader.update();
 
-#if defined USE_OPENGL_ES
-        // Validate shader state before rendering
-
-        if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
-        {
-            PRINT_IF_DEBUG("Error: Shader attributes not properly initialized");
-            return false;
-        }
-#endif
         return anim->fx.shader.renderParticle(&this->bufferGl, pGroup);
     }
 
@@ -287,19 +278,10 @@ namespace mbm
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
 
-#if defined USE_OPENGL_ES
-            // Validate that attribute handles are valid
-            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
-            {
-                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
-                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
-                return false;
-            }
-#endif
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
             if (anim->fx.fxPS->ptrCurrentShader)
             {
-                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, anim->fx.shader.ptrProgramObject, true) == false)
+                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, anim->fx.shader.ptrShaderSpecific, true) == false)
                 {
                     PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
                 }
@@ -326,15 +308,6 @@ namespace mbm
             anim->fx.shader.releaseShader();
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
-            // Validate that attribute handles are valid
-#if defined USE_OPENGL_ES
-            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
-            {
-                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
-                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
-                return false;
-            }
-#endif
         }
         return true;
     }

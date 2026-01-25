@@ -904,7 +904,7 @@ namespace mbm
                         for (auto var : cfgShader->lsVar)
                         {
                             if (!anim->fx.fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
-                                                                            anim->fx.shader.ptrProgramObject, true))
+                                                                            anim->fx.shader.ptrShaderSpecific, true))
                             {
                                 ERROR_LOG( "failed to include variable %s shader %s!",var->name.c_str(), data->fileNameShader);
                                 return false;
@@ -954,7 +954,7 @@ namespace mbm
                         for (auto var : cfgShader->lsVar)
                         {
                             if (!anim->fx.fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default,
-                                                                            anim->fx.shader.ptrProgramObject, false))
+                                                                            anim->fx.shader.ptrShaderSpecific, false))
                             {
                                 ERROR_LOG( "failed to include variable [%s] shader [%s]!",var->name.c_str(), data->fileNameShader);
                                 return false;

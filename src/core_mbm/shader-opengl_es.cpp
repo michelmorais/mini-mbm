@@ -25,7 +25,6 @@
 #include <specific-opengl_es.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
-#include <cstdlib>
 #include <draw-compatibility.h>
 #include <header-mesh.h>
 #include <particle-control.h>
@@ -363,7 +362,7 @@ namespace mbm
     }
 
     bool BASE_SHADER::addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,
-                       void* programObject, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
+                       void* ptrShaderSpecific, const bool isPS) // Adiciona uma variavel para o shader indicando o nome da mesma
                                                          // no código e o tipo.
     {
         if (nameVar)
@@ -382,9 +381,10 @@ namespace mbm
 #endif
                 return false;
             }
+            const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
             auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
             int32_t *handleVar = static_cast<int32_t*>(var->ptrHandleVar);
-            *handleVar = GLGetUniformLocation(*static_cast<GLuint*>(programObject), nameVar);
+            *handleVar = GLGetUniformLocation(gles_shaderSpecific->programObject, nameVar);
             if (*handleVar == -1)
             {
 #if defined _DEBUG
@@ -435,11 +435,12 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void* programObject)
+    void BASE_SHADER::update(void* ptrShaderSpecific)
     {
-        if (*static_cast<uint32_t*>(programObject) == 0)
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
+        if (gles_shaderSpecific->programObject == 0)
             return;
-        GLUseProgram(*static_cast<uint32_t*>(programObject));
+        GLUseProgram(gles_shaderSpecific->programObject);
         const std::vector<VAR_SHADER *>::size_type s = lsVar.size();
         for (std::vector<VAR_SHADER *>::size_type i = 0; i < s; ++i)
         {
@@ -473,14 +474,40 @@ namespace mbm
         }
     }
 
-    SHADER::SHADER() : ptrProgramObject(new GLuint(0)),
-        ptrMvpMatrixHandle(new GLint(-1)),
-        ptrMvMatrixHandle(new GLint(-1)),
-        positionHandle(-1),
-        texCoordHandle(-1),
-        ptrSamplerHandle0(new GLint(-1)),
-        ptrSamplerHandle1(new GLint(-1)),
-        normalHandle(-1),
+    GLES_PS_VS::GLES_PS_VS() noexcept
+        : positionHandle(-1),
+          texCoordHandle(-1),
+          normalHandle(-1),
+          mvpMatrixHandle(-1),
+          mvMatrixHandle(-1),
+          samplerHandle0(-1),
+          samplerHandle1(-1),
+          programObject(0)
+    {
+	}
+
+    GLES_PS_VS::~GLES_PS_VS()
+    {
+        release();
+    }
+
+    void GLES_PS_VS::release() noexcept
+    {
+        positionHandle  = -1;
+        texCoordHandle  = -1;
+        normalHandle    = -1;
+        mvpMatrixHandle = -1;
+        mvMatrixHandle  = -1;
+        samplerHandle0  = -1;
+        samplerHandle1  = -1;
+        if (programObject)
+        {
+            GLDeleteProgram(programObject);
+        }
+        programObject  = 0;
+    }
+
+    SHADER::SHADER() : ptrShaderSpecific(new GLES_PS_VS()),
         pShader(nullptr),
         vShader(nullptr)
     {
@@ -489,59 +516,26 @@ namespace mbm
     SHADER::~SHADER()
     {
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        delete static_cast<GLint*>(ptrMvpMatrixHandle);
-        delete static_cast<GLint*>(ptrMvMatrixHandle);
-        delete static_cast<GLint*>(ptrSamplerHandle0);
-        delete static_cast<GLint*>(ptrSamplerHandle1);
-
-        GLuint* pprogramObject = static_cast<GLuint*>(this->ptrProgramObject);
-        if (*pprogramObject)
-        {
-            GLDeleteProgram(*pprogramObject);
-        }
-        delete static_cast<GLuint*>(ptrProgramObject);
+        delete static_cast<GLES_PS_VS*>(ptrShaderSpecific);
     }
 
     void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
     {
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
-        *pimvpMatrixHandle       = -1;
-        *pimvMatrixHandle        = -1;
-        this->positionHandle     = -1;
-        this->texCoordHandle     = -1;
-        GLint* psamplerHandle0   = static_cast<GLint*>(this->ptrSamplerHandle0);
-        GLint* psamplerHandle1   = static_cast<GLint*>(this->ptrSamplerHandle1);
-        *psamplerHandle0         = -1;
-        *psamplerHandle1         = -1;
-        this->normalHandle       = -1;
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
-        *pprogramObject          = 0;
+        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();//TODO: check this: maybe only attribute 0 is enough
         this->pShader            = nullptr;
         this->vShader            = nullptr;
     }
 
     void SHADER::releaseShader()
     {
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
-        *pimvpMatrixHandle       = -1;
-        *pimvMatrixHandle        = -1;
-        this->positionHandle     = -1;
-        this->texCoordHandle     = -1;
-        GLint* psamplerHandle0   = static_cast<GLint*>(this->ptrSamplerHandle0);
-        GLint* psamplerHandle1   = static_cast<GLint*>(this->ptrSamplerHandle1);
-        *psamplerHandle0         = -1;
-        *psamplerHandle1         = -1;
-        this->normalHandle       = -1;
+        static_cast<GLES_PS_VS*>(ptrShaderSpecific)->release();
         this->pShader            = nullptr;
         this->vShader            = nullptr;
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
-        if (*pprogramObject)
-        {
-            GLDeleteProgram(*pprogramObject);
-        }
-        *pprogramObject = 0;
+    }
+
+    bool SHADER::isLoad() const noexcept
+    {
+        return static_cast<const GLES_PS_VS*>(ptrShaderSpecific)->programObject != 0;
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
@@ -567,10 +561,10 @@ namespace mbm
             "     gl_Position = mvpMatrix * aPosition;"
             "     vTexCoord = aTextCoord;"
             "}";
-        GLuint* pprogramObject   = static_cast<GLuint*>(this->ptrProgramObject);
-        if (*pprogramObject)
+        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        if (gles_shaderSpecific->programObject)
         {
-            PRINT_IF_DEBUG("programObject already has a value [%d]", *pprogramObject);
+            PRINT_IF_DEBUG("programObject already has a value [%d]", gles_shaderSpecific->programObject);
             return true;
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
@@ -597,61 +591,77 @@ namespace mbm
         // In OpenGL, a uniform location of - 1 means "not found", 
         // but a handle of 0 suggests GLGetUniformLocation() isn't finding the uniform in your shader.
 
-        this->positionHandle     = GLGetAttribLocation(*pprogramObject, "aPosition");
-        GLint imvpMatrixHandle   = GLGetUniformLocation(*pprogramObject, "mvpMatrix");
-        GLint imvMatrixHandle    = GLGetUniformLocation(*pprogramObject, "mvMatrix");
-        GLint* pimvpMatrixHandle = static_cast<GLint*>(this->ptrMvpMatrixHandle);
-        GLint* pimvMatrixHandle  = static_cast<GLint*>(this->ptrMvMatrixHandle);
-        *pimvpMatrixHandle       = imvpMatrixHandle;
-        *pimvMatrixHandle        = imvMatrixHandle;
+		const std::string bothShaderCode(std::string(this->pShader ? this->pShader->getCode() : defaultCodePs) + std::string(this->vShader ? this->vShader->getCode() : defaultCodeVs));
 
-        this->texCoordHandle   = GLGetAttribLocation(*pprogramObject, "aTextCoord");
-        GLint* psamplerHandle0 = static_cast<GLint*>(this->ptrSamplerHandle0);
-        GLint* psamplerHandle1 = static_cast<GLint*>(this->ptrSamplerHandle1);
-        *psamplerHandle0       = GLGetUniformLocation(*pprogramObject, "sample0");
-        *psamplerHandle1       = GLGetUniformLocation(*pprogramObject, "sample1");
-        this->normalHandle     = GLGetAttribLocation(*pprogramObject, "aNormal")
+        if (bothShaderCode.find("aPosition") != std::string::npos)
+        {
+            gles_shaderSpecific->positionHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aPosition");
+        }
+        if (bothShaderCode.find("mvpMatrix") != std::string::npos)
+        {
+            gles_shaderSpecific->mvpMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvpMatrix");
+        }
+        if (bothShaderCode.find("mvMatrix") != std::string::npos)
+        {
+            gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvMatrix");
+        }
+        if (bothShaderCode.find("aNormal") != std::string::npos)
+		{   // Note that aNormal is in the default pisel shader but not in the default vertex shader.
+			//This will cause normalHandle to remain -1 if the attribute is not used (has no effect in shader)
+            //If debug mode, it will print the follwoing error:
+            // "Attribute location invalid [aNormal] in shader program"
+            gles_shaderSpecific->normalHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aNormal")
+        }
+        if (bothShaderCode.find("aTextCoord") != std::string::npos)
+        {
+            gles_shaderSpecific->texCoordHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aTextCoord");
+        }
+        if (bothShaderCode.find("sample0") != std::string::npos)
+        {
+            gles_shaderSpecific->samplerHandle0 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample0");
+        }
+        if (bothShaderCode.find("sample1") != std::string::npos)
+        {
+            gles_shaderSpecific->samplerHandle1 = GLGetUniformLocation(gles_shaderSpecific->programObject, "sample1");
+        }
+        
         return true;
     }
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT 1028, GL_BACK 1029, GL_FRONT_AND_BACK 1032(CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW 2305 , GL_CW 2304(FrontFaceDirection)
-        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
-        const GLint* imvMatrixHandle  = static_cast<const GLint*>(this->ptrMvMatrixHandle);
-        const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
-        const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
-        const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
         
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             if (!pBufferId->bs->vboVertNorTexIB[0])
                 return false;
-            GLUseProgram(*pprogramObject);
+            GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
             GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[0]);
-            GLEnableVertexAttribArray(this->positionHandle);
-            GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+            GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+            GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             //-----------------------------------------------------------------------------------------------------------
-            if (this->normalHandle != -1) // Normal (nem sempre temos normal nos shaders)
+            if (gles_shaderSpecific->normalHandle != -1) // Normal (nem sempre temos normal nos shaders)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[1]);
-                GLEnableVertexAttribArray(this->normalHandle);
-                GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+                GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
-            if (this->texCoordHandle != -1)
+            if (gles_shaderSpecific->texCoordHandle != -1)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertNorTexIB[2]);
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+                GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
@@ -660,7 +670,7 @@ namespace mbm
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(*psamplerHandle0, 0);
+                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
                 GLActiveTexture(GL_TEXTURE1);
@@ -668,7 +678,7 @@ namespace mbm
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(*psamplerHandle1, 1);
+                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
                 {
@@ -681,43 +691,43 @@ namespace mbm
         {
             if (!pBufferId->bs->vboVertexSubsetVB)
                 return false;
-            GLUseProgram(*pprogramObject);
+            GLUseProgram(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboVertexSubsetVB[i]);
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+                GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 //-----------------------------------------------------------------------------------------------------------
-                if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
+                if (gles_shaderSpecific->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
                     GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboNormalSubsetVB[i]);
-                    GLEnableVertexAttribArray(this->normalHandle);
-                    GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                if (this->texCoordHandle != -1)
+                if (gles_shaderSpecific->texCoordHandle != -1)
                 {
                     GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
-                    GLEnableVertexAttribArray(this->texCoordHandle);
-                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 // if(pBufferId->hasColorKeying[i])
                 //  glEnable(GL_BLEND);
                 const TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(*psamplerHandle0, 0);
+                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE* texture1 = pBufferId->getTextureByStage(0, i);
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(*psamplerHandle1, 1);
+                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
                 {
@@ -734,43 +744,38 @@ namespace mbm
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
         GLCullFace(pBufferId->mode_cull_face);//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK (CullFaceMode)
         GLFrontFace(pBufferId->mode_front_face_direction);//GL_CCW, GL_CW (FrontFaceDirection)
-
-        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
-        const GLint* imvMatrixHandle  = static_cast<const GLint*>(this->ptrMvMatrixHandle);
-        const GLint* psamplerHandle0  = static_cast<const GLint*>(this->ptrSamplerHandle0);
-        const GLint* psamplerHandle1  = static_cast<const GLint*>(this->ptrSamplerHandle1);
-        const GLuint* pprogramObject  = static_cast<const GLuint*>(this->ptrProgramObject);
         const GLenum modeDrawGl       = getOpenGlEsModeDraw(pBufferId->mode_draw);
 
         if (pBufferId->isIndexBuffer()) // Index buffer
         {
             if (!pBufferId->bs->vboIndexSubsetIB)
                 return false;
-            GLUseProgram(*pprogramObject);
+            GLUseProgram(gles_shaderSpecific->programObject);
             //-----------------------------------------------------------------------------------------------------------
-            GLEnableVertexAttribArray(this->positionHandle);
-            GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+            GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+            GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
             //-----------------------------------------------------------------------------------------------------------
-            if (this->normalHandle != -1)
+            if (gles_shaderSpecific->normalHandle != -1)
             {
-                GLEnableVertexAttribArray(this->normalHandle);
-                GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
+                GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
             }
             //-----------------------------------------------------------------------------------------------------------
-            GLEnableVertexAttribArray(this->texCoordHandle);
-            GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+            GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+            GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
             //-----------------------------------------------------------------------------------------------------------
-            GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-            GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+            GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
             //-----------------------------------------------------------------------------------------------------------
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(*psamplerHandle0, 0);
+                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
                 GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[i]);
 
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
@@ -778,7 +783,7 @@ namespace mbm
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(*psamplerHandle1, 1);
+                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
                 {
@@ -791,35 +796,35 @@ namespace mbm
         {
             if (!pBufferId->vertexCountVB)
                 return false;
-            GLUseProgram(*pprogramObject);
+            GLUseProgram(gles_shaderSpecific->programObject);
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
                 //-----------------------------------------------------------------------------------------------------------
-                if (this->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
+                if (gles_shaderSpecific->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
                 {
-                    GLEnableVertexAttribArray(this->normalHandle);
-                    GLVertexAttribPointer(this->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                 //-----------------------------------------------------------------------------------------------------------
-                GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
-                GLUniformMatrix4fv(*imvMatrixHandle, 1, GL_FALSE, modelView.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
+                GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
                 //-----------------------------------------------------------------------------------------------------------
                 GLActiveTexture(GL_TEXTURE0);
                 const TEXTURE * texture0 = pBufferId->getTextureByStage(0, i);
                 GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-                GLUniform1i(*psamplerHandle0, 0);
+                GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
                 GLActiveTexture(GL_TEXTURE1);
                 const TEXTURE * texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture1)
                 {
                     GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-                    GLUniform1i(*psamplerHandle1, 1);
+                    GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
                 }
                 else
                 {
@@ -835,11 +840,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
         constexpr uint32_t index_subset = 0;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
         GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-        const GLint* psamplerHandle0 = static_cast<const GLint*>(this->ptrSamplerHandle0);
         const GLenum modeDrawGl      = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -847,15 +852,14 @@ namespace mbm
             return false;
         }
         
-        GLUniform1i(*psamplerHandle0, 0);
+        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
         GLActiveTexture(GL_TEXTURE1);
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            const GLint* psamplerHandle1 = static_cast<const GLint*>(this->ptrSamplerHandle1);
             GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-            GLUniform1i(*psamplerHandle1, 1);
+            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else
         {
@@ -866,11 +870,8 @@ namespace mbm
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
         
-        const GLint imvpMatrixHandle = *static_cast<const GLint*>(this->ptrMvpMatrixHandle);
-        const GLint imvMatrixHandle  = *static_cast<const GLint*>(this->ptrMvMatrixHandle);
-
-        GLUniformMatrix4fv(imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(imvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
+        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
@@ -887,11 +888,11 @@ namespace mbm
                 const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
                 const ATT_PARTICLE* particle = &particles[i];
                 GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
+                GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
         
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
+                GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
         
                 GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
@@ -902,11 +903,11 @@ namespace mbm
             for (unsigned int i = 0; i < totalAlive; ++i)
             {
                 const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
-                GLEnableVertexAttribArray(this->positionHandle);
-                GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
+                GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), vertex);
         
-                GLEnableVertexAttribArray(this->texCoordHandle);
-                GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
+                GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VERTEX_UV), &vertex[3]);
         
                 GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
@@ -921,11 +922,11 @@ namespace mbm
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
+        const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
         constexpr uint32_t index_subset = 0;
         const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
         GLActiveTexture(GL_TEXTURE0);
         GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
-        const GLint* psamplerHandle0 = static_cast<const GLint*>(this->ptrSamplerHandle0);
         const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
         if (GL_TRIANGLES != modeDrawGl)
         {
@@ -933,15 +934,14 @@ namespace mbm
             return false;
         }
 
-        GLUniform1i(*psamplerHandle0, 0);
+        GLUniform1i(gles_shaderSpecific->samplerHandle0, 0);
 
         GLActiveTexture(GL_TEXTURE1);
         const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
         if (texture1)
         {
-            const GLint* psamplerHandle1 = static_cast<const GLint*>(this->ptrSamplerHandle1);
             GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
-            GLUniform1i(*psamplerHandle1, 1);
+            GLUniform1i(gles_shaderSpecific->samplerHandle1, 1);
         }
         else
         {
@@ -952,11 +952,8 @@ namespace mbm
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
 
-        const GLint imvpMatrixHandle = *static_cast<const GLint*>(this->ptrMvpMatrixHandle);
-        const GLint imvMatrixHandle  = *static_cast<const GLint*>(this->ptrMvMatrixHandle);
-
-        GLUniformMatrix4fv(imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLUniformMatrix4fv(imvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+        GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
@@ -973,10 +970,10 @@ namespace mbm
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
 					const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);// note that when segmented we have different uv for each particle
-                    GLEnableVertexAttribArray(this->positionHandle);
-                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
-                    GLEnableVertexAttribArray(this->texCoordHandle);
-                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                     GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
                 }
             }
@@ -988,10 +985,10 @@ namespace mbm
                     {
                         const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);// note that when segmented we have different uv for each particle
                         const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);
-                        GLEnableVertexAttribArray(this->positionHandle);
-                        GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
-                        GLEnableVertexAttribArray(this->texCoordHandle);
-                        GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                        GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                        GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                        GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                        GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                         GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
                     }
                 }
@@ -1007,10 +1004,10 @@ namespace mbm
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
 					const float* uv = reinterpret_cast<float*>(pGroup->uv);//note that when not segmented we have same uv for all particles
-                    GLEnableVertexAttribArray(this->positionHandle);
-                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
-                    GLEnableVertexAttribArray(this->texCoordHandle);
-                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                     GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
                 }
             }
@@ -1020,10 +1017,10 @@ namespace mbm
                 {
                     const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
                     const float* uv = reinterpret_cast<float*>(pGroup->uv);//note that when not segmented we have same uv for all particles
-                    GLEnableVertexAttribArray(this->positionHandle);
-                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
-                    GLEnableVertexAttribArray(this->texCoordHandle);
-                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
                     GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
                 }
             }
@@ -1039,10 +1036,9 @@ namespace mbm
 
     uint32_t SHADER::compileCodeShader(const unsigned int type, const char *shaderSrc)
     {
-        uint32_t shader;
-        int          compiled;
+        GLint compiled = 0;
         // Create the shader object
-        shader = GLCreateShader(type);
+        uint32_t shader = GLCreateShader(type);
         if (shader == 0)
         {
             PRINT_IF_DEBUG("GLCreateShader returned 0");
@@ -1075,23 +1071,21 @@ namespace mbm
 
     uint32_t SHADER::loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc)
     {
-        uint32_t vertexShader;
-        uint32_t fragmentShader;
-        int          linked;
-        GLuint* pprogramObject = static_cast<GLuint*>(this->ptrProgramObject);
-        if (*pprogramObject)
+        GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
+        GLint linked = 0;
+        if (gles_shaderSpecific->programObject)
         {
             PRINT_IF_DEBUG("programObject already exists");
-            return *pprogramObject;
+            return gles_shaderSpecific->programObject;
         }
         // Load the vertex/fragment shaders
-        vertexShader = compileCodeShader(GL_VERTEX_SHADER, vertShaderSrc);
+        uint32_t vertexShader = compileCodeShader(GL_VERTEX_SHADER, vertShaderSrc);
         if (vertexShader == 0)
         {
             PRINT_IF_DEBUG("vertexShader == 0");
             return 0;
         }
-        fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
+        uint32_t fragmentShader = compileCodeShader(GL_FRAGMENT_SHADER, fragShaderSrc);
         if (fragmentShader == 0)
         {
             PRINT_IF_DEBUG("fragmentShader == 0");
@@ -1099,40 +1093,40 @@ namespace mbm
             return 0;
         }
         // Create the program object
-        *pprogramObject = GLCreateProgram();
-        if (*pprogramObject == 0)
+        gles_shaderSpecific->programObject = GLCreateProgram();
+        if (gles_shaderSpecific->programObject == 0)
         {
             PRINT_IF_DEBUG("Failed to create programObject");
             return 0;
         }
-        GLAttachShader(*pprogramObject, vertexShader);
-        GLAttachShader(*pprogramObject, fragmentShader);
+        GLAttachShader(gles_shaderSpecific->programObject, vertexShader);
+        GLAttachShader(gles_shaderSpecific->programObject, fragmentShader);
         // Link the program
-        GLLinkProgram(*pprogramObject);
+        GLLinkProgram(gles_shaderSpecific->programObject);
         // Check the link status
-        GLGetProgramiv(*pprogramObject, GL_LINK_STATUS, &linked);
-        if (!linked)
+        GLGetProgramiv(gles_shaderSpecific->programObject, GL_LINK_STATUS, &linked);
+        if (linked == 0)
         {
             GLDeleteShader(vertexShader);
             GLDeleteShader(fragmentShader);
             PRINT_IF_DEBUG("linked status failed");
             GLint infoLen = 0;
-            GLGetProgramiv(*pprogramObject, GL_INFO_LOG_LENGTH, &infoLen);
+            GLGetProgramiv(gles_shaderSpecific->programObject, GL_INFO_LOG_LENGTH, &infoLen);
             if (infoLen > 1)
             {
-                auto *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
-                GLGetProgramInfoLog(*pprogramObject, infoLen, nullptr, infoLog);
+                char *infoLog = static_cast<char *>(malloc(sizeof(char) * static_cast<size_t>(infoLen)));
+                GLGetProgramInfoLog(gles_shaderSpecific->programObject, infoLen, nullptr, infoLog);
                 PRINT_IF_DEBUG("Error linking program:\n%s\n", infoLog);
                 free(infoLog);
             }
-            GLDeleteProgram(*pprogramObject);
-            *pprogramObject = 0;
+            GLDeleteProgram(gles_shaderSpecific->programObject);
+            gles_shaderSpecific->programObject = 0;
             return 0;
         }
         // Free up no longer needed shader resources
         GLDeleteShader(vertexShader);
         GLDeleteShader(fragmentShader);
-        return *pprogramObject;
+        return gles_shaderSpecific->programObject;
     }
 }
 

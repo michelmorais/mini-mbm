@@ -149,14 +149,14 @@ namespace mbm
         API_IMPL const char *getCode();
         API_IMPL VAR_SHADER *getVarByName(const char *nameVar);
         API_IMPL VAR_SHADER *getVar(const unsigned int indexVar);
-        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* programObject, const bool isPS);
+        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* ptrShaderSpecific, const bool isPS);
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
-        void update(void* programObject);
+        void update(void* ptrShaderSpecific);
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
@@ -167,21 +167,13 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        void* ptrProgramObject;   // Our shader specific by the backend engine
-        void* ptrMvpMatrixHandle; // Handle para matrix x projection
-        void* ptrMvMatrixHandle;  // Handle para a matrix do modelo
-		// TODO: remove from common shader, specific for opengles
-        int positionHandle;
-        int texCoordHandle;
-        void* ptrSamplerHandle0;
-        void* ptrSamplerHandle1;
-        int normalHandle;
+        void* ptrShaderSpecific;  // Our shader specific by the backend engine
         SHADER();
         virtual ~SHADER();
         void releaseShader();
         void onRestore();
         bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader);
-        bool isLoad();
+        bool isLoad() const noexcept;
         bool render(const BUFFER_GL *pBufferId) const;
         bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
         bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;

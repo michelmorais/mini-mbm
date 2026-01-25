@@ -193,14 +193,14 @@ namespace mbm
         float defaultVar[4] = { 1, 1, 1, 1 };
         if (anim->fx.fxPS->ptrCurrentShader == nullptr ||
             anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar,
-                anim->fx.shader.ptrProgramObject, true) == false)
+                anim->fx.shader.ptrShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
 #endif
         }
         if (anim->fx.fxPS->ptrCurrentShader == nullptr || anim->fx.fxPS->ptrCurrentShader->addVar("enableAlphaFromColor", VAR_FLOAT, defaultVar,
-            anim->fx.shader.ptrProgramObject, true) == false)
+            anim->fx.shader.ptrShaderSpecific, true) == false)
         {
 #if defined _DEBUG
             PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "enableAlphaFromColor", fileNamePs);
