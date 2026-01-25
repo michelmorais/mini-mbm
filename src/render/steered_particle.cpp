@@ -31,152 +31,32 @@
 
 namespace mbm
 {
-
-
-    FLUID_GROUP::FLUID_GROUP(const bool b_segmented,const float _radiusScale):
-    size_particle_array(0),
-    totalParticleToRender(0),
-    aSizeParticle(1.0f),
-    radiusScale(_radiusScale),
-    particle_positions(nullptr),
-    vertex_particle(nullptr),
-    uv(nullptr),
-    segmented(b_segmented)
+    void STEERED_PARTICLE::release()
     {
-    }
-
-    FLUID_GROUP::~FLUID_GROUP()
-    {
-        if(vertex_particle)
-            delete [] vertex_particle;
-        vertex_particle = nullptr;
-
-        if(particle_positions)
-            delete [] particle_positions;
-        particle_positions = nullptr;
-
-        if(uv)
-            delete [] uv;
-        uv = nullptr;
-    }
-
-    void FLUID_GROUP::resizeParticleData(const uint32_t new_size)
-    {
-        
-        if (new_size > this->size_particle_array)
+        this->releaseAnimation();
+        this->enableRender = false;
+        this->bufferGl.release();
+        for (unsigned int i = 0; i < this->lsParticleGroup.size(); ++i)
         {
-            //printf("resizeParticleData old %u new %u\n",this->size_particle_array,new_size);
-            {
-                auto particlesTemp = new VEC3[new_size];
-                if(this->particle_positions)
-                {
-                    memcpy(static_cast<void*>(particlesTemp), this->particle_positions, this->size_particle_array * sizeof(VEC3));
-                    delete[] this->particle_positions;
-                }
-                this->particle_positions = particlesTemp;
-            }
-            {
-                const unsigned int newBufferSize = new_size * 4; // x4 because we have 4 vertex indexed 
-                auto   tempVertex = new VEC3[newBufferSize];
-                if(this->vertex_particle)
-                {
-                    memcpy(static_cast<void*>(tempVertex), this->vertex_particle, this->size_particle_array * sizeof(VEC3) * 4); // x4 because we have 4 vertex indexed 
-                    delete[] this->vertex_particle;
-                }
-                this->vertex_particle      = tempVertex;
-            }
-            if(segmented)
-            {
-                const unsigned int newBufferSize = new_size * 4; // x4 because we have 4 vertex indexed 
-                auto   tempUv = new VEC2[newBufferSize];
-                if(this->uv)
-                {
-                    memcpy(static_cast<void*>(tempUv), this->uv, this->size_particle_array * sizeof(VEC2) * 4); // x4 because we have 4 vertex indexed 
-                    delete[] this->uv;
-
-                    for(uint32_t i = this->size_particle_array; i < new_size; ++i)
-                    {
-                        uint32_t index_buffer = i * 4;
-                        VEC2 * p_uv = &tempUv[index_buffer];
-                        p_uv[0].x = 0;
-                        p_uv[0].y = 1;
-                        p_uv[1].x = 0;
-                        p_uv[1].y = 0;
-                        p_uv[2].x = 1;
-                        p_uv[2].y = 1;
-                        p_uv[3].x = 1;
-                        p_uv[3].y = 0;
-                    }
-                }
-                this->uv      = tempUv;
-            }
-            else
-            {
-                if(this->uv == nullptr)
-                {
-                    this->uv = new VEC2[4];
-                    this->uv[0].x = 0;
-                    this->uv[0].y = 1;
-                    this->uv[1].x = 0;
-                    this->uv[1].y = 0;
-                    this->uv[2].x = 1;
-                    this->uv[2].y = 1;
-                    this->uv[3].x = 1;
-                    this->uv[3].y = 0;
-                }
-            }
-            this->size_particle_array  = new_size;
+            FLUID_GROUP* pGroup = lsParticleGroup[i];
+            delete pGroup;
         }
-        this->totalParticleToRender = new_size;
-    } 
-
-    void FLUID_GROUP::setVertex(const VEC3 * const position, VEC3 pVertex[4])
-    {
-        const float halfSizeParticle = this->aSizeParticle * 0.5f * this->radiusScale;
-        pVertex[0].x = position->x - halfSizeParticle;
-        pVertex[0].y = position->y - halfSizeParticle;
-        pVertex[0].z = position->z;
-
-        pVertex[1].x = position->x - halfSizeParticle;
-        pVertex[1].y = position->y + halfSizeParticle;
-        pVertex[1].z = position->z;
-
-        pVertex[2].x = position->x + halfSizeParticle;
-        pVertex[2].y = position->y - halfSizeParticle;
-        pVertex[2].z = position->z;
-
-        pVertex[3].x = position->x + halfSizeParticle;
-        pVertex[3].y = position->y + halfSizeParticle;
-        pVertex[3].z = position->z;
+        lsParticleGroup.clear();
     }
 
-    void FLUID_GROUP::setUv(VEC2 pUv[4], const VEC2 & pos,const VEC2 & halParticleSizeInUv)
+    void STEERED_PARTICLE::onStop()
     {
-        pUv[0].x = pos.x - halParticleSizeInUv.x;
-        pUv[0].y = pos.y + halParticleSizeInUv.y;
-
-        pUv[1].x = pos.x - halParticleSizeInUv.x;
-        pUv[1].y = pos.y - halParticleSizeInUv.y;
-
-        pUv[2].x = pos.x + halParticleSizeInUv.x;
-        pUv[2].y = pos.y + halParticleSizeInUv.y;
-
-        pUv[3].x = pos.x + halParticleSizeInUv.x;
-        pUv[3].y = pos.y - halParticleSizeInUv.y;
+        bufferGl.release();
     }
-
-
-
     
     STEERED_PARTICLE::STEERED_PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen,const bool b_segmented,const float* _scale_physics_engine)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_STEERED_PARTICLE, _is3d && _is2dScreen == false, _is2dScreen),
         scale_physics_engine(_scale_physics_engine),
-        segmented(b_segmented)
+        texture(nullptr),
+        segmented(b_segmented),
+        radiusScale(1.0f),
+        loadedColored(nullptr)
     {
-        this->enableRender          = true;
-        this->texture               = nullptr;
-        this->vboIndexBuffer        = 0;
-        this->radiusScale           = 1;
         mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
     }
@@ -187,8 +67,39 @@ namespace mbm
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeRenderizable(this);
         infoPhysics.release();
+        if (loadedColored)
+            delete loadedColored;
+        loadedColored = nullptr;
     }
 
+    const COLOR STEERED_PARTICLE::getColor(const uint32_t index_group) const noexcept
+    {
+        if (index_group < this->lsParticleGroup.size())
+        {
+            FLUID_GROUP* pGroup = this->lsParticleGroup[index_group];
+            if(pGroup->color)
+                return *pGroup->color;
+        }
+        return COLOR(1.0f,1.0f,1.0f,1.0f);
+    }
+    
+    void STEERED_PARTICLE::setColor(const COLOR& color, const uint32_t index_group) noexcept
+    {
+        if (loadedColored == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE is not loaded with lolored option!");
+        }
+        else if (index_group < this->lsParticleGroup.size())
+        {
+            FLUID_GROUP* pGroup = this->lsParticleGroup[index_group];
+            if(pGroup->color)
+                *pGroup->color = color;
+            else
+            {
+                ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE should be loaded with coloro option!");
+            }
+        }
+    };
 
     bool STEERED_PARTICLE::addParticle(const uint32_t numParticle,const uint32_t index_group)
     {
@@ -243,9 +154,9 @@ namespace mbm
         return nullptr;
     }
 
-    uint32_t STEERED_PARTICLE::addGroup()
+    uint32_t STEERED_PARTICLE::addGroup(const COLOR* color)
     {
-        auto  group = new FLUID_GROUP(this->segmented,this->radiusScale);
+        auto  group = new FLUID_GROUP(this->segmented,this->radiusScale, color ? color : this->loadedColored);
         this->lsParticleGroup.push_back(group);
         return static_cast<uint32_t>(this->lsParticleGroup.size());
     }
@@ -291,6 +202,161 @@ namespace mbm
             return true;
         return false;
     }
+
+    bool STEERED_PARTICLE::load(const char* fileNameTexture,
+        const COLOR* p_color,
+        const mbm::INFO_PHYSICS* const p_infoPhysics)
+    {
+        this->release();
+        if (p_infoPhysics == nullptr)
+            return false;
+        if ((p_infoPhysics != &this->infoPhysics) && (infoPhysics.clone(p_infoPhysics) == false))
+            return false;
+        if (bufferGl.loadParticleBuffer() == false)
+            return false;
+        this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
+        if (this->texture)
+        {
+            bufferGl.setTextureByStage(this->texture, 0, 0);
+            if (!this->createAnimationAndShader2Particle(p_color))
+            {
+                ERROR_AT(__LINE__, __FILE__, "error on add animation!!");
+                return false;
+            }
+            this->fileName = fileNameTexture;
+            this->enableRender = true;
+            this->alwaysRenderize = true;
+            this->updateAABB();
+            return true;
+        }
+        return false;
+    }
+
+
+    bool STEERED_PARTICLE::renderParticle(FLUID_GROUP* pGroup)
+    {
+        if (pGroup->totalParticleToRender == 0)
+            return false;
+        for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
+        {
+            const VEC3* particle = &pGroup->particle_positions[i];
+            VEC3* vertex = &pGroup->vertex_particle[i * 4];
+            pGroup->setVertex(particle, vertex);
+        }
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        ANIMATION* anim = this->getAnimation();
+        this->blend.set(anim->blendState);
+        anim->updateAnimation(device->delta, this, nullptr, this->onEndFx);
+        anim->fx.setBlendOp();
+        anim->fx.shader.update();
+
+        // Validate shader state before rendering
+        if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+        {
+            PRINT_IF_DEBUG("Error: Shader attributes not properly initialized");
+            return false;
+        }
+        return anim->fx.shader.renderParticle(&this->bufferGl, pGroup);
+    }
+
+    bool STEERED_PARTICLE::loadParticleShader(const COLOR* p_color)
+    {
+        ANIMATION* anim = this->getAnimation();
+        if (p_color)
+        {
+            if (this->loadedColored)
+                delete this->loadedColored;
+            this->loadedColored = new COLOR(*p_color);
+            const char* defaultCodePs_1 = "precision mediump float;\n"
+                "uniform vec4 color;\n"
+                "varying vec2 vTexCoord;\n"
+                "uniform sampler2D sample0;\n"
+                "void main()\n"
+                "{\n"
+                "  vec4 texColor = texture2D( sample0, vTexCoord );\n"
+                "  gl_FragColor = color * texColor;\n"
+                "}\n";
+            std::string defaultCodePs(defaultCodePs_1);
+            const char* defaultCodeVs = "attribute vec4 aPosition;"
+                "attribute vec2 aTextCoord;"
+                "uniform mat4 mvpMatrix;"
+                "varying vec2 vTexCoord;"
+                "void main()"
+                "{"
+                "     gl_Position = mvpMatrix * aPosition;"
+                "     vTexCoord = aTextCoord;"
+                "}";
+
+            const char* fileNamePs = "__steered_particle.ps";
+            const char* fileNameVs = "__steered_particle.vs";
+
+            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_GROWING);
+            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
+            anim->fx.shader.releaseShader();
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
+                return false;
+
+            // Validate that attribute handles are valid
+            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+            {
+                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
+                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
+                return false;
+            }
+            const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
+            if (anim->fx.fxPS->ptrCurrentShader)
+            {
+                if (anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, defaultVar, anim->fx.shader.ptrProgramObject, true) == false)
+                {
+                    PRINT_IF_DEBUG("failed to included variable [%s] shader [%s]!", "color", fileNamePs);
+                }
+                VAR_SHADER* colorVar = anim->fx.fxPS->ptrCurrentShader->getVarByName("color");
+                if (colorVar)
+                {
+                    colorVar->set(defaultVar, defaultVar, 1.0f);
+                }
+            }
+        }
+        else
+        {
+            if (this->loadedColored)
+                delete this->loadedColored;
+            this->loadedColored = nullptr;
+            const char* defaultCodePs = "precision mediump float;\n"
+                "varying vec2 vTexCoord;\n"
+                "uniform sampler2D sample0;\n"
+                "void main()\n"
+                "{\n"
+                "  gl_FragColor = texture2D( sample0, vTexCoord );\n"
+                "}\n";
+            const char* defaultCodeVs = "attribute vec4 aPosition;"
+                "attribute vec2 aTextCoord;"
+                "uniform mat4 mvpMatrix;"
+                "varying vec2 vTexCoord;"
+                "void main()"
+                "{"
+                "     gl_Position = mvpMatrix * aPosition;"
+                "     vTexCoord = aTextCoord;"
+                "}";
+
+            const char* fileNamePs = "__steered_particle.ps";
+            const char* fileNameVs = "__steered_particle.vs";
+
+            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
+            anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
+            anim->fx.shader.releaseShader();
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
+                return false;
+            // Validate that attribute handles are valid
+            if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
+            {
+                PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
+                    anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
+                return false;
+            }
+        }
+        return true;
+    }
     
     bool STEERED_PARTICLE::render()
     {
@@ -319,7 +385,7 @@ namespace mbm
             {
                 const bool ret = this->renderParticle(pGroup);
                 if(ret == false)
-					return false;
+                    return false;
             }
         }
         return false;
@@ -346,7 +412,7 @@ namespace mbm
             VAR_SHADER *varColor = anim->fx.fxPS->ptrCurrentShader->getVarByName("color");
             if(varColor)
             {
-                p_color = &shader_color;
+                p_color = lsParticleGroupBackup.size() > 0 ? lsParticleGroupBackup[0]->color : nullptr;
             }
         }
         const bool  ret              = this->load(fileNameTexture,p_color,&this->infoPhysics);
@@ -369,6 +435,7 @@ namespace mbm
             if (stage == 0)
             {
                 this->texture = newTex;
+                bufferGl.setTextureByStage(this->texture, 0, 0);
                 return true;
             }
             else
@@ -377,6 +444,7 @@ namespace mbm
                 if(anim)
                 {
                     anim->fx.textureOverrideStage2 = newTex;
+                    bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
             }
@@ -409,18 +477,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  STEERED_PARTICLE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  STEERED_PARTICLE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  STEERED_PARTICLE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  STEERED_PARTICLE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool STEERED_PARTICLE::isLoaded() const
     {

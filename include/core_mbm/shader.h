@@ -22,9 +22,11 @@
 
 #include "core-exports.h"
 #include "primitives.h"
+#include "particle-control.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
+
 
 namespace util
 {
@@ -181,6 +183,7 @@ namespace mbm
         bool isLoad();
         bool render(const BUFFER_GL *pBufferId) const;
         bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
+        bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:

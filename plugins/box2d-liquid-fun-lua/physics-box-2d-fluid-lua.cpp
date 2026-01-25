@@ -796,31 +796,53 @@ namespace mbm
 
     int onSetColorFluidParticleBox2d(lua_State *lua)
     {
+        // TODO: check lua code in editors and update documentation
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-        COLOR c = p_steered_particle->getColor();
-        if(lua_type(lua,2) == LUA_TTABLE)
+        const int top = lua_gettop(lua);
+        if (lua_type(lua, 2) != LUA_TNUMBER)
         {
-            getFieldPrimaryFromTable(lua,2,"r",LUA_TNUMBER,&c.r);
-            getFieldPrimaryFromTable(lua,2,"g",LUA_TNUMBER,&c.g);
-            getFieldPrimaryFromTable(lua,2,"b",LUA_TNUMBER,&c.b);
-            getFieldPrimaryFromTable(lua,2,"a",LUA_TNUMBER,&c.a);
+            return lua_error_debug(lua, "expected fluid:([renderizable | physics],index 'of group', table ={r,g,b,a*} ). args received %d", top - 1);
+        }
+		const uint32_t index = luaL_checkinteger(lua, 2);
+        
+        
+        if (index >= p_steered_particle->getTotalGroup())
+        {
+            return lua_error_debug(lua, "Index out of range fro group. index received %d, total group %d", index, p_steered_particle->getTotalGroup());
+        }
+
+        COLOR c = p_steered_particle->getColor(index);
+
+        if(lua_type(lua,3) == LUA_TTABLE)
+        {
+            getFieldPrimaryFromTable(lua,3,"r",LUA_TNUMBER,&c.r);
+            getFieldPrimaryFromTable(lua,3,"g",LUA_TNUMBER,&c.g);
+            getFieldPrimaryFromTable(lua,3,"b",LUA_TNUMBER,&c.b);
+            getFieldPrimaryFromTable(lua,3,"a",LUA_TNUMBER,&c.a);
         }
         else
         {
-            const int top = lua_gettop(lua);
-            c.r = luaL_checknumber(lua,2);
-            c.g = luaL_checknumber(lua,3);
-            c.b = luaL_checknumber(lua,4);
-            c.a = top  > 4 ? luaL_checknumber(lua,5) : c.a;
+            
+            c.r = luaL_checknumber(lua,3);
+            c.g = luaL_checknumber(lua,4);
+            c.b = luaL_checknumber(lua,5);
+            c.a = top  > 5 ? luaL_checknumber(lua,6) : c.a;
         }
-        p_steered_particle->setColor(c);
+        p_steered_particle->setColor(c, index);
         return 0;
     }
 
     int onGetColorFluidParticleBox2d(lua_State *lua)
     {
         mbm::STEERED_PARTICLE*  p_steered_particle = getRenderizableFluidBox2dlfFromRawTable(lua,1,1);
-        COLOR c = p_steered_particle->getColor();
+        const int top = lua_gettop(lua);
+        if (lua_type(lua, 2) != LUA_TNUMBER)
+        {
+            return lua_error_debug(lua, "expected fluid:([renderizable | physics],index 'of group'. args received %d", top - 1);
+        }
+        const uint32_t index = luaL_checkinteger(lua, 2);
+
+        COLOR c = p_steered_particle->getColor(index);
         lua_pushnumber(lua,c.r);
         lua_pushnumber(lua,c.g);
         lua_pushnumber(lua,c.b);

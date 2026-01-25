@@ -866,12 +866,12 @@ namespace mbm
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
         
-        const GLint* imvpMatrixHandle = static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+        const GLint imvpMatrixHandle = *static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+        const GLint imvMatrixHandle  = *static_cast<const GLint*>(this->ptrMvMatrixHandle);
 
-        GLUniformMatrix4fv(*imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        // if(fx->shader.mvMatrixHandle != -1)
-        //  GLUniformMatrix4fv(fx->shader.mvMatrixHandle, 1, GL_FALSE,SHADER::mvpMatrix.p);
-        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[0]);
+        GLUniformMatrix4fv(imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLUniformMatrix4fv(imvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
             : nullptr;
@@ -886,7 +886,6 @@ namespace mbm
             {
                 const float* vertex = reinterpret_cast<const float*>(&buffer[i * 4]);
                 const ATT_PARTICLE* particle = &particles[i];
-                // GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vboIndexBuffer);
                 GLUniform4f(handleVar, particle->r, particle->g, particle->b, particle->a);
                 GLEnableVertexAttribArray(this->positionHandle);
                 GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VERTEX_PARTICLE), vertex);
@@ -912,6 +911,124 @@ namespace mbm
                 GLDrawElements(modeDrawGl, 6, GL_UNSIGNED_SHORT, nullptr);
             }
         }
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        if (depthTestEnabled)
+        {
+            GLEnable(GL_DEPTH_TEST);
+        }
+        return true;
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
+    {
+        constexpr uint32_t index_subset = 0;
+        const TEXTURE* texture0 = pBufferId->getTextureByStage(0, index_subset);
+        GLActiveTexture(GL_TEXTURE0);
+        GLBindTexture(GL_TEXTURE_2D, texture0 ? texture0->idTexture : 0);
+        const GLint* psamplerHandle0 = static_cast<const GLint*>(this->ptrSamplerHandle0);
+        const GLenum modeDrawGl = getOpenGlEsModeDraw(pBufferId->mode_draw);
+        if (GL_TRIANGLES != modeDrawGl)
+        {
+            ERROR_AT(__LINE__, __FILE__, "Mode draw for OpenGlEs renderParticle not supported!");
+            return false;
+        }
+
+        GLUniform1i(*psamplerHandle0, 0);
+
+        GLActiveTexture(GL_TEXTURE1);
+        const TEXTURE* texture1 = pBufferId->getTextureByStage(1, index_subset);
+        if (texture1)
+        {
+            const GLint* psamplerHandle1 = static_cast<const GLint*>(this->ptrSamplerHandle1);
+            GLBindTexture(GL_TEXTURE_2D, texture1->idTexture);
+            GLUniform1i(*psamplerHandle1, 1);
+        }
+        else
+        {
+            GLBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        GLboolean depthTestEnabled = true;
+        glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
+        GLDisable(GL_DEPTH_TEST);
+
+        const GLint imvpMatrixHandle = *static_cast<const GLint*>(this->ptrMvpMatrixHandle);
+        const GLint imvMatrixHandle  = *static_cast<const GLint*>(this->ptrMvMatrixHandle);
+
+        GLUniformMatrix4fv(imvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
+        GLUniformMatrix4fv(imvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
+
+        GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
+        VAR_SHADER* var = this->pShader
+            ? this->pShader->getVarByName("color")
+            : nullptr;
+        if (pGroup->segmented)
+        {
+            if (var && pGroup->color)
+            {
+                const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
+                GLUniform4f(handleVar, pGroup->color->r, pGroup->color->g, pGroup->color->b, pGroup->color->a);
+
+                for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
+                {
+                    const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
+                    const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);
+                    GLEnableVertexAttribArray(this->positionHandle);
+                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(this->texCoordHandle);
+                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                }
+            }
+            else
+            {
+                for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
+                {
+                    //if(i != 168/2 && i != 168/2+1 && i != 168/2+2 && i != 168/2+4)
+                    {
+                        const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
+                        const float* uv = reinterpret_cast<float*>(&pGroup->uv[i * 4]);
+                        GLEnableVertexAttribArray(this->positionHandle);
+                        GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                        GLEnableVertexAttribArray(this->texCoordHandle);
+                        GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                        GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (var && pGroup->color)
+            {
+                const int32_t handleVar = *static_cast<int32_t*>(var->ptrHandleVar);
+                GLUniform4f(handleVar, pGroup->color->r, pGroup->color->g, pGroup->color->b, pGroup->color->a);
+                for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
+                {
+                    const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
+                    const float* uv = reinterpret_cast<float*>(pGroup->uv);
+                    GLEnableVertexAttribArray(this->positionHandle);
+                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(this->texCoordHandle);
+                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                }
+            }
+            else
+            {
+                for (unsigned int i = 0; i < pGroup->totalParticleToRender; ++i)
+                {
+                    const float* vertex = reinterpret_cast<float*>(&pGroup->vertex_particle[i * 4]);
+                    const float* uv = reinterpret_cast<float*>(pGroup->uv);
+                    GLEnableVertexAttribArray(this->positionHandle);
+                    GLVertexAttribPointer(this->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
+                    GLEnableVertexAttribArray(this->texCoordHandle);
+                    GLVertexAttribPointer(this->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                    GLDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+                }
+            }
+        }
+
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         if (depthTestEnabled)
         {

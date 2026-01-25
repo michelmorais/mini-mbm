@@ -129,6 +129,28 @@ private:
     OnEndAnimationParticleControl onEndAnimationParticleControl;
 };
 
+struct FLUID_GROUP
+{
+    uint32_t       size_particle_array;
+    uint32_t       totalParticleToRender;
+    float          aSizeParticle;//
+    float          radiusScale;// The actual size of particle is: aSizeParticle * radiusScale (let 1.0f to not influence
+    VEC3* particle_positions;
+    VEC3* vertex_particle;
+    VEC2* uv;
+    bool           segmented;
+    COLOR*         color;
+
+    API_IMPL FLUID_GROUP(const bool b_segmented, const float _radiusScale, const COLOR *theColor) noexcept;
+    API_IMPL ~FLUID_GROUP();
+    FLUID_GROUP (const FLUID_GROUP&) = delete;
+    FLUID_GROUP & operator=(const FLUID_GROUP&) = delete;
+
+    API_IMPL void resizeParticleData(const uint32_t new_size);
+    API_IMPL void setVertex(const VEC3* const position, VEC3 pVertex[4]) noexcept;
+    API_IMPL void setUv(VEC2 pUv[4], const VEC2& pos, const VEC2& halParticleSizeInUv) noexcept;
+};
+
 }
 
 #if defined _WIN32

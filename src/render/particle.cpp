@@ -284,61 +284,6 @@ namespace mbm
         return nullptr;
     }
     
-    //bool PARTICLE::_addParticle(const unsigned int numParticles)
-    //{
-    //    if (this->lenArrayParticlesData == 0 || numParticles == 0 || this->buffer == nullptr)
-    //        return false;
-    //    util::STAGE_PARTICLE* sPart = nullptr;
-    //    if (this->indexStage < this->lsParticleStage.size())
-    //        sPart = this->lsParticleStage[this->indexStage];
-    //    else if (this->lsParticleStage.size() == 0)
-    //    {
-    //        sPart = new util::STAGE_PARTICLE();
-    //        this->lsParticleStage.push_back(sPart);
-    //    }
-    //    else
-    //      sPart = this->lsParticleStage[0];
-    //    if ((this->totalAlive + numParticles) <= this->lenArrayParticlesData)
-    //    {
-    //        this->onResuscitate(sPart, this->totalAlive + numParticles);
-    //    }
-    //    else
-    //    {
-    //        const unsigned int tTotalParticle = this->totalAlive + numParticles;
-    //        auto particlesTemp = new ATT_PARTICLE[tTotalParticle];
-    //        memcpy(static_cast<void*>(particlesTemp), this->particles, this->lenArrayParticlesData * sizeof(ATT_PARTICLE));
-    //        delete[] this->particles;
-    //        this->particles = particlesTemp;
-    //
-    //        const unsigned int newBufferSize = tTotalParticle * 4; // x4 porque nosso quadrado possui 4 vertex indexados
-    //        auto   tempVertex = new VERTEX_PARTICLE[newBufferSize];
-    //        memcpy(static_cast<void*>(tempVertex), this->buffer, this->lenArrayParticlesData * sizeof(VERTEX_PARTICLE) * 4); // x4 porque nosso quadrado possui 4 vertex indexados
-    //        delete[] this->buffer;
-    //        this->buffer = tempVertex;
-    //        this->lenArrayParticlesData = tTotalParticle;
-    //        this->onResuscitate(sPart, tTotalParticle);
-    //        char        strTemp[255];
-    //        std::vector<std::string> result;
-    //  TODO: do this
-    //        util::split(result, this->fileName.c_str(), '@');
-    //        if (result.size() == 4)
-    //        {
-    //            snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", result[0].c_str(), this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
-    //            this->fileName = strTemp;
-    //        }
-    //        else
-    //        {
-    //            const char *fileNameTexture = this->texture->getFileNameTexture();
-    //            snprintf(strTemp,sizeof(strTemp), "%s@%u@%c@%s", fileNameTexture, this->lenArrayParticlesData,this->_operatorShader, this->_newCodeLine.size() ? this->_newCodeLine.c_str() : "nullptr");
-    //            this->fileName = strTemp;
-    //        }
-    //    }
-    //    return true;
-    //}
-    //
-    //
-    //
-    
     bool PARTICLE::isOnFrustum()
     {
         if (this->isRender2Texture)
@@ -551,6 +496,7 @@ namespace mbm
             if (stage == 0)
             {
                 this->texture = newTex;
+                bufferGl.setTextureByStage(this->texture, 0, 0);
                 return true;
             }
             else
@@ -559,6 +505,7 @@ namespace mbm
                 if(anim)
                 {
                     anim->fx.textureOverrideStage2 = newTex;
+                    bufferGl.setTextureByStage(newTex, stage, 0);
                     return true;
                 }
             }

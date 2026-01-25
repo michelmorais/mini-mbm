@@ -504,4 +504,140 @@ namespace mbm
             }
         }
     }
+
+    FLUID_GROUP::FLUID_GROUP(const bool b_segmented, const float _radiusScale, const COLOR* theColor) noexcept :
+        size_particle_array(0),
+        totalParticleToRender(0),
+        aSizeParticle(1.0f),
+        radiusScale(_radiusScale),
+        particle_positions(nullptr),
+        vertex_particle(nullptr),
+        uv(nullptr),
+        segmented(b_segmented),
+		color(theColor ? new COLOR(*theColor) : nullptr)
+    {
+    }
+
+    FLUID_GROUP::~FLUID_GROUP()
+    {
+        if (vertex_particle)
+            delete[] vertex_particle;
+        vertex_particle = nullptr;
+
+        if (particle_positions)
+            delete[] particle_positions;
+        particle_positions = nullptr;
+
+        if (uv)
+            delete[] uv;
+        uv = nullptr;
+        if (color)
+            delete color;
+        color = nullptr;
+    }
+
+    void FLUID_GROUP::resizeParticleData(const uint32_t new_size)
+    {
+
+        if (new_size > this->size_particle_array)
+        {
+            //printf("resizeParticleData old %u new %u\n",this->size_particle_array,new_size);
+            {
+                auto particlesTemp = new VEC3[new_size];
+                if (this->particle_positions)
+                {
+                    memcpy(static_cast<void*>(particlesTemp), this->particle_positions, this->size_particle_array * sizeof(VEC3));
+                    delete[] this->particle_positions;
+                }
+                this->particle_positions = particlesTemp;
+            }
+            {
+                const unsigned int newBufferSize = new_size * 4; // x4 because we have 4 vertex indexed 
+                auto   tempVertex = new VEC3[newBufferSize];
+                if (this->vertex_particle)
+                {
+                    memcpy(static_cast<void*>(tempVertex), this->vertex_particle, this->size_particle_array * sizeof(VEC3) * 4); // x4 because we have 4 vertex indexed 
+                    delete[] this->vertex_particle;
+                }
+                this->vertex_particle = tempVertex;
+            }
+            if (segmented)
+            {
+                const unsigned int newBufferSize = new_size * 4; // x4 because we have 4 vertex indexed 
+                auto   tempUv = new VEC2[newBufferSize];
+                if (this->uv)
+                {
+                    memcpy(static_cast<void*>(tempUv), this->uv, this->size_particle_array * sizeof(VEC2) * 4); // x4 because we have 4 vertex indexed 
+                    delete[] this->uv;
+
+                    for (uint32_t i = this->size_particle_array; i < new_size; ++i)
+                    {
+                        uint32_t index_buffer = i * 4;
+                        VEC2* p_uv = &tempUv[index_buffer];
+                        p_uv[0].x = 0;
+                        p_uv[0].y = 1;
+                        p_uv[1].x = 0;
+                        p_uv[1].y = 0;
+                        p_uv[2].x = 1;
+                        p_uv[2].y = 1;
+                        p_uv[3].x = 1;
+                        p_uv[3].y = 0;
+                    }
+                }
+                this->uv = tempUv;
+            }
+            else
+            {
+                if (this->uv == nullptr)
+                {
+                    this->uv = new VEC2[4];
+                    this->uv[0].x = 0;
+                    this->uv[0].y = 1;
+                    this->uv[1].x = 0;
+                    this->uv[1].y = 0;
+                    this->uv[2].x = 1;
+                    this->uv[2].y = 1;
+                    this->uv[3].x = 1;
+                    this->uv[3].y = 0;
+                }
+            }
+            this->size_particle_array = new_size;
+        }
+        this->totalParticleToRender = new_size;
+    }
+
+    void FLUID_GROUP::setVertex(const VEC3* const position, VEC3 pVertex[4]) noexcept
+    {
+        const float halfSizeParticle = this->aSizeParticle * 0.5f * this->radiusScale;
+        pVertex[0].x = position->x - halfSizeParticle;
+        pVertex[0].y = position->y - halfSizeParticle;
+        pVertex[0].z = position->z;
+
+        pVertex[1].x = position->x - halfSizeParticle;
+        pVertex[1].y = position->y + halfSizeParticle;
+        pVertex[1].z = position->z;
+
+        pVertex[2].x = position->x + halfSizeParticle;
+        pVertex[2].y = position->y - halfSizeParticle;
+        pVertex[2].z = position->z;
+
+        pVertex[3].x = position->x + halfSizeParticle;
+        pVertex[3].y = position->y + halfSizeParticle;
+        pVertex[3].z = position->z;
+    }
+
+    void FLUID_GROUP::setUv(VEC2 pUv[4], const VEC2& pos, const VEC2& halParticleSizeInUv) noexcept
+    {
+        pUv[0].x = pos.x - halParticleSizeInUv.x;
+        pUv[0].y = pos.y + halParticleSizeInUv.y;
+
+        pUv[1].x = pos.x - halParticleSizeInUv.x;
+        pUv[1].y = pos.y - halParticleSizeInUv.y;
+
+        pUv[2].x = pos.x + halParticleSizeInUv.x;
+        pUv[2].y = pos.y + halParticleSizeInUv.y;
+
+        pUv[3].x = pos.x + halParticleSizeInUv.x;
+        pUv[3].y = pos.y - halParticleSizeInUv.y;
+    }
 }

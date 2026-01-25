@@ -1258,7 +1258,7 @@ namespace mbm
                     p_steered_particle->removeGroup(0);
                 else
                 {
-                    uint32_t index_this_group = p_steered_particle->addGroup();
+                    uint32_t index_this_group = p_steered_particle->addGroup(nullptr);
                     mbm::FLUID_GROUP * fluidGroup = p_steered_particle->getParticleGroup(index_this_group-1);
                     fluidGroup->aSizeParticle = info->particleSystem->GetRadius() * this->scale * 2;
                     

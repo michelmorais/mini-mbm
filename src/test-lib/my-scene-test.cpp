@@ -156,7 +156,7 @@ void MY_SCENE::init()
 	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
     if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", nullptr, &infoPhysiscs))
     {
-        steeredParticle->addParticle(1432, steeredParticle->addGroup() - 1);
+        steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
         steeredParticle->setRadiusScale(2);
         
         mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);

@@ -506,9 +506,6 @@
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\render\steered_particle-opengl_es.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp">
       <Filter>Source Files\wave</Filter>
     </ClCompile>
@@ -534,12 +531,6 @@
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture-dummy.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\steered_particle-directx9.cpp">
-      <Filter>Source Files\render</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\render\steered_particle-dummy.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\blend-directx9.cpp">
