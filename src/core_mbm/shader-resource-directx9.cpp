@@ -1685,6 +1685,58 @@ namespace mbm
         return vsParticleCode;
     }
 
+    const char* getSteeredParticlePSCode(bool hasColor)
+    {
+        if (hasColor)
+        {
+            return  "float4 color   : register(c4);"
+                    "sampler2D sample0 : register(s0);"
+                    ""
+                    "struct PSInput {"
+                    "    float2 vTexCoord : TEXCOORD0;"
+                    "};"
+                    ""
+                    "float4 main(PSInput input) : COLOR0 {"
+                    "    float4 texColor = tex2D(sample0, input.vTexCoord);"
+                    "    return color * texColor;"
+                    "}";
+        }
+        else
+        {
+            return  "sampler2D sample0 : register(s0);"
+                    ""
+                    "struct PSInput {"
+                    "    float2 vTexCoord : TEXCOORD0;"
+                    "};"
+                    ""
+                    "float4 main(PSInput input) : COLOR0 {"
+                    "    float4 texColor = tex2D(sample0, input.vTexCoord);"
+                    "    return texColor;"
+                    "}";
+        }
+    }
+    const char* getSteeredParticleVSCode()
+    {
+        return "float4x4 mvpMatrix : register(c0);"
+                ""
+                "struct VSInput {"
+                "    float4 aPosition : POSITION;"
+                "    float2 aTextCoord : TEXCOORD0;"
+                "};"
+                ""
+                "struct VSOutput {"
+                "    float4 gl_Position : POSITION;"
+                "    float2 vTexCoord : TEXCOORD0;"
+                "};"
+                ""
+                "VSOutput main(VSInput input) {"
+                "    VSOutput o;"
+                "    o.gl_Position = mul(input.aPosition, mvpMatrix);"
+                "    o.vTexCoord = input.aTextCoord;"
+                "    return o;"
+                "}";
+    }
+
     static std::string PS_Vesrion("ps_2_0");
     static std::string VS_Vesrion("vs_2_0");
 

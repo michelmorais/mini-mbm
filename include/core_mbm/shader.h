@@ -170,6 +170,7 @@ namespace mbm
         void* ptrProgramObject;   // Our shader specific by the backend engine
         void* ptrMvpMatrixHandle; // Handle para matrix x projection
         void* ptrMvMatrixHandle;  // Handle para a matrix do modelo
+		// TODO: remove from common shader, specific for opengles
         int positionHandle;
         int texCoordHandle;
         void* ptrSamplerHandle0;

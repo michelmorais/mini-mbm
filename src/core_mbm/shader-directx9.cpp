@@ -1433,6 +1433,7 @@ namespace mbm
                         if (varColor)
                         {
                             const D3DXHANDLE handleVarColor = *static_cast<const D3DXHANDLE*>(varColor->ptrHandleVar);
+
                             for (unsigned int j = 0; j < totalAlive; ++j)
                             {
                                 const VERTEX_PARTICLE* vertex = &buffer[j * 4];
@@ -1510,6 +1511,278 @@ namespace mbm
                         ERROR_AT(__LINE__, __FILE__, "Wrong mode draw for particles");
                         return false;
                     }
+                }
+            }
+        }
+        else // Vertex buffer
+        {
+            ERROR_AT(__LINE__, __FILE__, "Not implemented vertex buffer for particle");
+            return false;
+        }
+
+        if (depthTestEnabled)
+        {
+            pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+        }
+        return true;
+    }
+
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
+        DWORD depthTestEnabled = FALSE;
+
+        pd3dDevice->GetRenderState(D3DRS_ZENABLE, &depthTestEnabled);
+        pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+
+        const D3DMATRIX* modelView = reinterpret_cast<const D3DMATRIX*>(&SHADER::modelView);
+        if (FAILED(pd3dDevice->SetTransform(D3DTS_WORLD, modelView)))
+        {
+            ERROR_AT(__LINE__, __FILE__, "Failed to set SetTransform D3DTS_WORLD for modelView");
+            return false;
+        };
+
+        D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrProgramObject);
+
+        if (d3dPsVs->pd3dPixelShader)
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(d3dPsVs->pd3dPixelShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
+                return false;
+            }
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetPixelShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader to null");
+                return false;
+            }
+        }
+
+        if (d3dPsVs->pd3dVertexShader)
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(d3dPsVs->pd3dVertexShader)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader");
+                return false;
+            }
+            D3DXHANDLE* pmvpMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvpMatrixHandle);
+            D3DXHANDLE* pmvMatrixHandle = static_cast<D3DXHANDLE*>(this->ptrMvMatrixHandle);
+
+            const D3DXMATRIX* pMvpMatrix = reinterpret_cast<const D3DXMATRIX*>(&SHADER::mvpMatrix);
+            const D3DXMATRIX* pMatrixHandle = reinterpret_cast<const D3DXMATRIX*>(&SHADER::modelView);
+
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvpMatrixHandle, pMvpMatrix);
+            d3dPsVs->constantTableVS->SetMatrix(pd3dDevice, *pmvMatrixHandle, pMatrixHandle);
+        }
+        else
+        {
+            if (FAILED(pd3dDevice->SetVertexShader(nullptr)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set Vertex Shader to null");
+                return false;
+            }
+        }
+
+        // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
+        // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
+        // but DirectX 9 does not use this specific constant or naming convention.
+
+        // Instead, DirectX 9 uses the D3DCULL enumeration to define which polygon faces to cull during rendering.
+        // The equivalent behavior to OpenGL's GL_FRONT culling can be achieved by setting the culling mode to D3DCULL_NONE (to render both front and back faces), 
+        // D3DCULL_CCW (counter-clockwise, typically front-facing), or D3DCULL_CW (clockwise, typically back-facing), depending on the desired rendering behavior.
+        // TODO: use the correct CULLMODE
+
+        switch (pBufferId->mode_cull_face)
+        {
+            case util::CULL_MODE::CULL_FRONT:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
+            }
+            break;
+            case util::CULL_MODE::CULL_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+            }
+            break;
+            case util::CULL_MODE::CULL_FRONT_AND_BACK:
+            {
+                pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+            }
+            break;
+        }
+
+        if (pBufferId->isIndexBuffer()) // Index buffer
+        {
+            // When converting a legacy application to Direct3D 9, 
+            // you must add a call to either IDirect3DDevice9::SetFVF to use the fixed function pipeline, 
+            // or IDirect3DDevice9::SetVertexDeclaration to use a vertex shader before you make any Draw calls.
+            // pd3dDevice->SetFVF(0);//Maybe not needed to disable
+            if (FAILED(pd3dDevice->SetVertexDeclaration(device->specificContextDevice->getFVF(pBufferId->bs->FVF))))
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetVertexDeclaration failed");
+                return false;
+            };
+
+            if (FAILED(pd3dDevice->SetStreamSource(0,//Stream if have multiples
+                pBufferId->bs->pVertexBuffer,//Pointer from IDirect3DVertexBuffer9 created
+                0,		//Position in bytes of start stream
+                pBufferId->bs->sizeStructVertexInBytes)))//Size of structure vertex
+            {
+                ERROR_AT(__LINE__, __FILE__, "SetStreamSource failed");
+                return false;
+            };
+
+            if (FAILED(pd3dDevice->SetIndices(pBufferId->bs->pIndexBuffer)))
+            {
+                ERROR_AT(__LINE__, __FILE__, "Failed to set index vertex");
+                return false;
+            }
+
+            VAR_SHADER* varColor = this->pShader
+                ? this->pShader->getVarByName("color")
+                : nullptr;
+
+            for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
+            {
+                TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                if (texture0)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(0, nullptr);
+                }
+
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+
+                if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                    pd3dDevice->SetTexture(1, pp3DTexture9);
+                }
+                else
+                {
+                    pd3dDevice->SetTexture(1, nullptr);
+                }
+
+                //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
+
+                switch (pBufferId->mode_draw)
+                {
+                case util::MODE_DRAW_POINTS:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_POINTS for particles");
+                    return false;
+                };
+                break;
+                case util::MODE_DRAW_LINES:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINES for particles");
+                    return false;
+                };
+                break;
+                case util::MODE_DRAW_LINE_LOOP:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_LOOP for particles");
+                    return false;
+                };
+                break;
+                case util::MODE_DRAW_LINE_STRIP:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_LINE_STRIP for particles");
+                    return false;
+                };
+                break;
+                case util::MODE_DRAW_TRIANGLES:
+                {
+
+                    const UINT countTriangle = pBufferId->indexCountIB[i] / 3;
+                    const UINT numVertices = pBufferId->sizeOfArrayVertex;
+                    const UINT vertexStartVB = 0;
+                    constexpr UINT MinVertexIndex = 0;
+
+                    if (varColor && pGroup->color)
+                    {
+                        const D3DXHANDLE handleVarColor = *static_cast<const D3DXHANDLE*>(varColor->ptrHandleVar);
+                        d3dPsVs->constantTablePS->SetFloatArray(pd3dDevice, handleVarColor, *pGroup->color, 4);
+                    }
+                    for (unsigned int j = 0; j < pGroup->totalParticleToRender; ++j)
+                    {
+                        const VEC3* pParticle = &pGroup->vertex_particle[j * 4];
+                        const VEC2* uv     = &pGroup->uv[j * 4];
+                        VERTEX_PARTICLE vertex[4];
+                        vertex[0].x = pParticle[j].x;
+                        vertex[0].y = pParticle[j].y;
+                        vertex[0].z = pParticle[j].z;
+                        vertex[0].u = uv[j].x; 
+                        vertex[0].v = uv[j].y;
+
+                        vertex[1].x = pParticle[j + 1].x;
+                        vertex[1].y = pParticle[j + 1].y;
+                        vertex[1].z = pParticle[j + 1].z;
+                        vertex[1].u = uv[j + 1].x;
+                        vertex[1].v = uv[j + 1].y;
+
+                        vertex[2].x = pParticle[j + 2].x;
+                        vertex[2].y = pParticle[j + 2].y;
+                        vertex[2].z = pParticle[j + 2].z;
+                        vertex[2].u = uv[j + 2].x;
+                        vertex[2].v = uv[j + 2].y;
+
+                        vertex[3].x = pParticle[j + 3].x;
+                        vertex[3].y = pParticle[j + 3].y;
+                        vertex[3].z = pParticle[j + 3].z;
+                        vertex[3].u = uv[j + 3].x;
+                        vertex[3].v = uv[j + 3].y;
+
+                        void* pvertex = nullptr;
+                        // Dynamic buffers must be created in D3DPOOL_DEFAULT (not MANAGED) and typically with WRITEONLY.
+                        //	If you later need to update parts of the dynamic buffer, use D3DLOCK_NOOVERWRITE for partial updates and D3DLOCK_DISCARD when rewriting whole buffer.
+                        if (FAILED(pBufferId->bs->pVertexBuffer->Lock(0, 0, (void**)&pvertex, D3DLOCK_DISCARD)))
+                        {
+                            ERROR_AT(__LINE__, __FILE__, "failed to lock VERTEX BUFFER");
+                            return false;
+                        }
+                        memcpy(pvertex, vertex, sizeof(vertex));
+                        pBufferId->bs->pVertexBuffer->Unlock();
+
+                                
+                        if (FAILED(pd3dDevice->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,
+                            vertexStartVB,
+                            MinVertexIndex,
+                            numVertices,
+                            pBufferId->indexStartIB[i],
+                            countTriangle)))
+                        {
+                            ERROR_AT(__LINE__, __FILE__, "Failed to draw indexed primitive");
+                            return false;
+                        }
+                    }
+                };
+                break;
+                case util::MODE_DRAW_TRIANGLE_STRIP:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_STRIP for particles");
+                    return false;
+                };
+                break;
+                case util::MODE_DRAW_TRIANGLE_FAN:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Not implemented mode draw for render MODE_DRAW_TRIANGLE_FAN for particles");
+                    return false;
+                };
+                break;
+                default:
+                {
+                    ERROR_AT(__LINE__, __FILE__, "Wrong mode draw for particles");
+                    return false;
+                }
                 }
             }
         }

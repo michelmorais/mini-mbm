@@ -30,6 +30,9 @@ namespace mbm
     const char* getParticlePSCode();
     const char* getParticleVSCode();
 
+    const char* getSteeredParticlePSCode(bool hasColor);
+    const char* getSteeredParticleVSCode();
+
     API_IMPL const char* getPSVersion();
     API_IMPL const char* getVSVersion();
     void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept;

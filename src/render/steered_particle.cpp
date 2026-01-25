@@ -22,7 +22,7 @@
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/scene.h>
-#include <climits>
+#include <core_mbm/shader-resource.h>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
     #include <core_mbm/log-util.h>
@@ -87,7 +87,7 @@ namespace mbm
     {
         if (loadedColored == nullptr)
         {
-            ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE is not loaded with lolored option!");
+            ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE is not loaded with color option!");
         }
         else if (index_group < this->lsParticleGroup.size())
         {
@@ -96,7 +96,7 @@ namespace mbm
                 *pGroup->color = color;
             else
             {
-                ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE should be loaded with coloro option!");
+                ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE should be loaded with color option!");
             }
         }
     };
@@ -156,6 +156,11 @@ namespace mbm
 
     uint32_t STEERED_PARTICLE::addGroup(const COLOR* color)
     {
+		if (color && this->loadedColored == nullptr)
+        {
+            ERROR_AT(__LINE__, __FILE__, "STEERED_PARTICLE is not loaded with color option!");
+            color = nullptr;
+        }
         auto  group = new FLUID_GROUP(this->segmented,this->radiusScale, color ? color : this->loadedColored);
         this->lsParticleGroup.push_back(group);
         return static_cast<uint32_t>(this->lsParticleGroup.size());
@@ -250,12 +255,15 @@ namespace mbm
         anim->fx.setBlendOp();
         anim->fx.shader.update();
 
+#if defined USE_OPENGL_ES
         // Validate shader state before rendering
+
         if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
         {
             PRINT_IF_DEBUG("Error: Shader attributes not properly initialized");
             return false;
         }
+#endif
         return anim->fx.shader.renderParticle(&this->bufferGl, pGroup);
     }
 
@@ -267,35 +275,19 @@ namespace mbm
             if (this->loadedColored)
                 delete this->loadedColored;
             this->loadedColored = new COLOR(*p_color);
-            const char* defaultCodePs_1 = "precision mediump float;\n"
-                "uniform vec4 color;\n"
-                "varying vec2 vTexCoord;\n"
-                "uniform sampler2D sample0;\n"
-                "void main()\n"
-                "{\n"
-                "  vec4 texColor = texture2D( sample0, vTexCoord );\n"
-                "  gl_FragColor = color * texColor;\n"
-                "}\n";
-            std::string defaultCodePs(defaultCodePs_1);
-            const char* defaultCodeVs = "attribute vec4 aPosition;"
-                "attribute vec2 aTextCoord;"
-                "uniform mat4 mvpMatrix;"
-                "varying vec2 vTexCoord;"
-                "void main()"
-                "{"
-                "     gl_Position = mvpMatrix * aPosition;"
-                "     vTexCoord = aTextCoord;"
-                "}";
+            const char* defaultCodePs = getSteeredParticlePSCode(true);
+            const char* defaultCodeVs = getSteeredParticleVSCode();
 
             const char* fileNamePs = "__steered_particle.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
-            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_GROWING);
+            anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING);
             anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
             anim->fx.shader.releaseShader();
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
 
+#if defined USE_OPENGL_ES
             // Validate that attribute handles are valid
             if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
             {
@@ -303,6 +295,7 @@ namespace mbm
                     anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
                 return false;
             }
+#endif
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
             if (anim->fx.fxPS->ptrCurrentShader)
             {
@@ -322,24 +315,10 @@ namespace mbm
             if (this->loadedColored)
                 delete this->loadedColored;
             this->loadedColored = nullptr;
-            const char* defaultCodePs = "precision mediump float;\n"
-                "varying vec2 vTexCoord;\n"
-                "uniform sampler2D sample0;\n"
-                "void main()\n"
-                "{\n"
-                "  gl_FragColor = texture2D( sample0, vTexCoord );\n"
-                "}\n";
-            const char* defaultCodeVs = "attribute vec4 aPosition;"
-                "attribute vec2 aTextCoord;"
-                "uniform mat4 mvpMatrix;"
-                "varying vec2 vTexCoord;"
-                "void main()"
-                "{"
-                "     gl_Position = mvpMatrix * aPosition;"
-                "     vTexCoord = aTextCoord;"
-                "}";
+            const char* defaultCodePs = getSteeredParticlePSCode(false);
+            const char* defaultCodeVs = getSteeredParticleVSCode();
 
-            const char* fileNamePs = "__steered_particle.ps";
+            const char* fileNamePs = "__steered_particle_no_color.ps";
             const char* fileNameVs = "__steered_particle.vs";
 
             anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
@@ -348,12 +327,14 @@ namespace mbm
             if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
                 return false;
             // Validate that attribute handles are valid
+#if defined USE_OPENGL_ES
             if (anim->fx.shader.positionHandle < 0 || anim->fx.shader.texCoordHandle < 0)
             {
                 PRINT_IF_DEBUG("Error: Invalid attribute handles - position: %d, texCoord: %d",
                     anim->fx.shader.positionHandle, anim->fx.shader.texCoordHandle);
                 return false;
             }
+#endif
         }
         return true;
     }

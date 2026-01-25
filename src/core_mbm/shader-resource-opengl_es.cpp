@@ -2606,6 +2606,46 @@ namespace mbm
     static std::string PS_Vesrion("ps_2_0");
     static std::string VS_Vesrion("vs_2_0");
 
+    const char* getSteeredParticlePSCode(bool hasColor)
+    {
+        if (hasColor)
+        {
+            return  "precision mediump float;\n"
+                "uniform vec4 color;\n"
+                "varying vec2 vTexCoord;\n"
+                "uniform sampler2D sample0;\n"
+                "void main()\n"
+                "{\n"
+                "  vec4 texColor = texture2D( sample0, vTexCoord );\n"
+                "  gl_FragColor = color * texColor;\n"
+                "}\n";
+        }
+        else
+        {
+            return  "precision mediump float;\n"
+                "varying vec2 vTexCoord;\n"
+                "uniform sampler2D sample0;\n"
+                "void main()\n"
+                "{\n"
+                "  vec4 texColor = texture2D( sample0, vTexCoord );\n"
+                "  gl_FragColor = texColor;\n"
+				"}\n";
+        }
+    }
+    const char* getSteeredParticleVSCode()
+    {
+        return "attribute vec4 aPosition;"
+                "attribute vec2 aTextCoord;"
+                "uniform mat4 mvpMatrix;"
+                "varying vec2 vTexCoord;"
+                "void main()"
+                "{"
+                "     gl_Position = mvpMatrix * aPosition;"
+                "     vTexCoord = aTextCoord;"
+            "}";
+    }
+    
+
     const char* getPSVersion()
     {
         return PS_Vesrion.c_str();
