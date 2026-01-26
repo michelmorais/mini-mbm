@@ -130,7 +130,10 @@ namespace mbm
                 this->onResizeWindow(xResize.width, xResize.height);
             }
             break;
-            default: {}
+            default: 
+            {
+                printf("Event: %d\n", xevent.type);
+            }
                    break;
             }
         }

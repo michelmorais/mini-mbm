@@ -161,16 +161,9 @@ namespace mbm
     #else
         API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
     #endif
-    #if defined(_WIN32)
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
-    #elif defined (ANDROID)
-        API_IMPL bool initGraphics(const int width = 800, const int height = 600);
-    #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
+    #if (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         void initializeWindowx11();
-    #else
-        #error "undefined platform"
-        API_IMPL bool initGraphics();
     #endif
 
 #ifdef ANDROID
@@ -272,13 +265,14 @@ namespace mbm
     #if defined _WIN32
         std::mutex mutexEvents;
     #endif
-        EVENT_KEY lastEvent;
-        WHICH_FOR which_for;
+        std::string  nameAplication;
+        EVENT_KEY    lastEvent;
+        WHICH_FOR    which_for;
         STEP_RETORE  stepRestore;
-        uint32_t indexOnRestore;
-        uint32_t totalForByLoop;
-        float stepRestoreInfo;
-        float percentRestoreInfo;
+        uint32_t     indexOnRestore;
+        uint32_t     totalForByLoop;
+        float        stepRestoreInfo;
+        float        percentRestoreInfo;
     };
 
     

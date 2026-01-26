@@ -121,6 +121,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         int x = width;
         int y = height;
         DEVICE* device = DEVICE::getInstance();
+        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
         device->window.setNameAplication(nameAplication);
         if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
             this->idIcon, false))

@@ -168,6 +168,7 @@ namespace mbm
                     {
                         if (this->device->scene && this->__sceneWasInit)
                             this->device->scene->onKeyDown(event.key);
+                        #if defined(_WIN32) || defined(__MINGW32__)
                         if (event.key == VK_CAPITAL)
                         {
                             if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
@@ -175,6 +176,9 @@ namespace mbm
                             else
                                 this->keyCapsLockState = false;
                         }
+                        #elif defined(__linux__) || defined(__APPLE__)
+                        //TODO: implement CapsLock state detection for linux and macOS
+                        #endif
                         for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
                         {
                             PLUGIN* plugin = this->lsPlugins[i];
@@ -763,7 +767,7 @@ namespace mbm
 #endif
             this->ReleaseGraphics();
 
-            if (initGraphics(this->device->window.getNameAplication(), width, height, px, py, false, false))
+            if (initGraphics(this->nameAplication.c_str(), width, height, px, py, false, false))
             {
 #if defined _DEBUG
                 WARN_LOG("onLostDevice step %d function initGraphics sucess!", stepRestore);

@@ -164,19 +164,11 @@ void printGLString(const char *name, GLenum s)
 	}
     
 
-#if defined(_WIN32) 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
-#elif defined (ANDROID)
-    bool CORE_MANAGER::initGraphics(const int width, const int height)
-#elif defined (__linux__) || defined(__APPLE__)
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const bool border)
-#else
-    #error "undefined initGraphics"
-    bool CORE_MANAGER::initGraphics()
-#endif
     {
         int x = width;
         int y = height;
+        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
 #ifdef _WIN32
         DEVICE* device = DEVICE::getInstance();
         device->window.setNameAplication(nameAplication);
@@ -525,9 +517,9 @@ void printGLString(const char *name, GLenum s)
             height -= 60;
             y = height;
         }
-        const int px = screen ? (screen->width - width) / 2 : 0;
-        const int py = screen ? (screen->height - height) / 2 : 0;
-        this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
+        const int cx = screen ? (screen->width - width) / 2 : 0;
+        const int cy = screen ? (screen->height - height) / 2 : 0;
+        this->device->specificContextDevice->make_x_window(nameAplication, cx, cy, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
 
         XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
         if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))

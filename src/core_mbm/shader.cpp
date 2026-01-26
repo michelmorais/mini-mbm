@@ -243,16 +243,16 @@ namespace mbm
     {
         if (this->pShader)
             this->pShader->update(this->ptrShaderSpecific);
-#if defined _DEBUG
-        else
-            PRINT_IF_DEBUG("Default PS shader, Nothing to do!");
-#endif
+//#if defined _DEBUG
+//        else
+//            PRINT_IF_DEBUG("Default PS shader, Nothing to do!");
+//#endif
         if (this->vShader)
             this->vShader->update(this->ptrShaderSpecific);
-#if defined _DEBUG
-        else
-            PRINT_IF_DEBUG("Default VS shader, Nothing to do!");
-#endif
+//#if defined _DEBUG
+//        else
+//            PRINT_IF_DEBUG("Default VS shader, Nothing to do!");
+//#endif
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)
