@@ -67,7 +67,6 @@ namespace mbm
     private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() override;
         bool loadShaderDefault();
         bool createAnimationAndShader2Line();

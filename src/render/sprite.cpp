@@ -170,11 +170,11 @@ namespace mbm
         }
     }
     
-    void SPRITE::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void SPRITE::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * SPRITE::getInfoPhysics() const
     {

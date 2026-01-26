@@ -829,14 +829,14 @@ namespace mbm
         uv[3].y = 0;
     }
     
-    void BACKGROUND::onStop() 
-    {
-        this->releaseAnimation();
-        if (this->buffer)
-            delete this->buffer;
-        this->buffer = nullptr;
-        this->mesh   = nullptr;
-    }
+    //void BACKGROUND::onStop() 
+    //{
+    //    this->releaseAnimation();
+    //    if (this->buffer)
+    //        delete this->buffer;
+    //    this->buffer = nullptr;
+    //    this->mesh   = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 
     {

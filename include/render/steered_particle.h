@@ -60,12 +60,11 @@ namespace mbm
         API_IMPL const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
         API_IMPL const COLOR getColor(const uint32_t index_group) const noexcept;
         API_IMPL void setColor(const COLOR &color, const uint32_t index_group) noexcept;
-		API_IMPL const TEXTURE* getTexture() const { return this->texture; };
+        API_IMPL const TEXTURE* getTexture() const { return this->texture; };
         
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool releaseOnFail();
         bool onRestoreDevice() override;
         bool renderParticle(FLUID_GROUP * pGroup);

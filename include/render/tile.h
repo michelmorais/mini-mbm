@@ -56,7 +56,6 @@ namespace mbm
         virtual bool isOnFrustum() override;
         virtual bool render() override;
         virtual bool onRestoreDevice() override;
-        virtual void onStop()override;
         INFO_PHYSICS infoPhysics;
         TILE *      ptr_tileMap;
         MESH_MBM *  ptr_Mesh;
@@ -94,7 +93,6 @@ namespace mbm
         bool                    render() override;
         bool                    renderLayer(const uint32_t index_layer);
         bool                    onRestoreDevice() override;
-        void                    onStop() override;
         const INFO_PHYSICS *	getInfoPhysics() const override;
         const MESH_MBM *        getMesh() const override;
         bool                    isLoaded() const override;

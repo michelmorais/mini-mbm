@@ -103,13 +103,13 @@ namespace mbm
         return shader->render(&buffer);
     }
 
-    void LINE_MESH::onStop()
-    {
-        for (auto line : this->lsLines)
-        {
-            line->buffer.release();
-        }
-    }
+    //void LINE_MESH::onStop()
+    //{
+    //    for (auto line : this->lsLines)
+    //    {
+    //        line->buffer.release();
+    //    }
+    //}
   
     LINE_MESH::LINE_MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_LINE_MESH, _is3d && _is2dScreen == false, _is2dScreen)

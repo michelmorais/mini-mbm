@@ -204,7 +204,6 @@ namespace mbm
         bool isOnFrustum()     override;
         bool render()          override;
         bool onRestoreDevice() override;
-        void onStop()          override;
 
         bool renderMap(SHADER *shader);
         bool renderTileSet();

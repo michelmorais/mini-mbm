@@ -38,7 +38,7 @@ namespace mbm
     
     void CAMERA_TARGET::enableMode2D(mbm::DEVICE *device, const float width, const float height)
     {
-		//TODO: may need adjust this in the future
+        //TODO: may need adjust this in the future
         // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
         constexpr float zNear2d = -100;
         constexpr float zFar2d = 100;
@@ -287,11 +287,6 @@ namespace mbm
         return true;
     }
     
-    void RENDER_2_TEXTURE::onStop()
-    {
-        this->release();
-    }
-    
     bool RENDER_2_TEXTURE::render() // Renderiza a textura
     {
         if (this->bufferGL.isLoadedBuffer())
@@ -514,18 +509,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  RENDER_2_TEXTURE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  RENDER_2_TEXTURE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool RENDER_2_TEXTURE::isLoaded() const
     {

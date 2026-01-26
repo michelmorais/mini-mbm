@@ -68,7 +68,6 @@ namespace mbm
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     
       protected:
-        void onStop() override;
         virtual bool render() override;
         bool render2Texture() override;
         virtual bool isOnFrustum() override;

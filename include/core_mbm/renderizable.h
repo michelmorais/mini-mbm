@@ -109,7 +109,8 @@ namespace mbm
         API_IMPL virtual bool isOnFrustum()     = 0;
         API_IMPL virtual bool render()          = 0;
         API_IMPL virtual bool onRestoreDevice() = 0;
-        API_IMPL virtual void onStop()          = 0;
+        API_IMPL virtual void onStop() final;
+        API_IMPL virtual void onRestoreAnimationsState() final;
       public:
         API_IMPL virtual void updateAABB();
 

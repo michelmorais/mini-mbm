@@ -545,11 +545,11 @@ namespace mbm
         
     }
     
-    void TILE::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void TILE::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * TILE::getInfoPhysics() const
     {
@@ -1064,8 +1064,8 @@ namespace mbm
         return true; //The parent will take care
     }
 
-    void TILE_OBJ::onStop()
-    {
-        //do nothing
-    }
+    //void TILE_OBJ::onStop()
+    //{
+    //    //do nothing
+    //}
 }

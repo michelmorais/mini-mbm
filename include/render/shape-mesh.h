@@ -106,7 +106,6 @@ namespace mbm
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics()  const  noexcept override;
         const MESH_MBM *getMesh() const noexcept override;

@@ -36,7 +36,12 @@ namespace mbm
 
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-        if(vertex_declaration_pos)
+		this->realease();
+    };
+
+    void SPECIFIC_AUX_CONTEXT_DEVICE::realease() noexcept
+    {
+        if (vertex_declaration_pos)
             vertex_declaration_pos->Release();
         if (vertex_declaration_pos_norm)
             vertex_declaration_pos_norm->Release();
@@ -60,7 +65,7 @@ namespace mbm
             pD3D->Release();
             pD3D = nullptr;
         }
-    };
+    }
 
     IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF)
     {

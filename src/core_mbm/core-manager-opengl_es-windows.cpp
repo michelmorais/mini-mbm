@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined(USE_OPENGL_ES)
 #if defined(_WIN32) || defined(__MINGW32__)
 
 #include <core-manager.h>
@@ -56,8 +55,10 @@ namespace mbm
                         info.extraInfo.c_str());
             }
         }
+        else
+        {
+            this->device->run = false;
+		}
     }
-
 }
 #endif // USE_OPENGL_ES
-#endif //defined(_WIN32) || defined(__MINGW32__)

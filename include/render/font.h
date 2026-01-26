@@ -75,7 +75,6 @@ namespace mbm
         bool render() override;
         ANIMATION *getNextIndexSpecialAnim(const std::string &textDraw, const uint32_t s, uint32_t *curIndex,uint32_t & indexNewAnim);
         bool onRestoreDevice() override;
-        void onStop() override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

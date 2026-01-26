@@ -62,9 +62,22 @@ namespace mbm
         ONRESIZEWINDOW
     };
 
-    enum WHICH_FOR : char;
+    enum WHICH_FOR : char
+    {
+        WFOR_INITIAL,
+        WFOR_2DS,
+        WFOR_2DW,
+        WFOR_3D,
+        WFOR_DONE
+    };
 
-    enum STEP_RETORE : char;
+    enum STEP_RETORE : char
+    {
+        STEP_RES_INIT_GL,
+        STEP_RES_DRAW_HOURGLASS,
+        STEP_RES_OBJ,
+        STEP_RES_END,
+    };
 
     struct API_IMPL EVENT_KEY
     {
@@ -179,6 +192,7 @@ namespace mbm
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
         API_IMPL void render();
+		API_IMPL void ReleaseGraphics();//this function release the graphics device and all resources
     
       private:
         void handleEventFromWindow();
@@ -189,8 +203,10 @@ namespace mbm
         void initEnableRenders();
         void logic();
         void reinitTimers();
-        bool beginRender();
-        void endRender();
+        bool beginRender(); // prepare to render
+        void endRender(); // end render
+        void swapBuffers(); // Swap buffers
+		bool resetDeviceWithNewDimensions(int newWidth, int newHeight);// need to be implemented in each backend engine
         void enableRender(const int idScene);
         void disableRender(const int idScene);
         void pushEvent(EVENT_KEY *event);

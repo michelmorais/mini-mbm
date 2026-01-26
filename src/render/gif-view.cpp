@@ -85,7 +85,6 @@ namespace mbm
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        this->bufferGL.release();
         if (!createAnimationAndShader2Texture())
             return false;
         
@@ -322,68 +321,34 @@ namespace mbm
         return false;
     }
     
-    void GIF_VIEW::onStop()
-    {
-        this->release();
-    }
-    
     bool GIF_VIEW::onRestoreDevice()
     {
         std::vector<std::string> result;
         util::split(result, this->fileName.c_str(), '|');
         if (result.size() != 3)
-            return false;
-        ANIMATION* anim = this->getAnimation();
-        const TYPE_ANIMATION myType = anim ? anim->type : TYPE_ANIMATION_GROWING_LOOP;
-        const int indexCurrentFrame = anim ?  anim->indexCurrentFrame : 0;
-        const auto width       = static_cast<float>(atof(result[1].c_str()));
-        const auto height      = static_cast<float>(atof(result[2].c_str()));
-        this->bufferGL.release();
-        if (!createAnimationAndShader2Texture())
-            return false;
-        const char* fileNameTexture = result[0].c_str();
-        TEXTURE_MANAGER* manTex = TEXTURE_MANAGER::getInstance();
-        INFO_GIF infoGif;
-        if (manTex->loadGIF(fileNameTexture, infoGif) == false)
         {
-            #if defined _DEBUG
-                PRINT_IF_DEBUG("Failed to load [%s]", log_util::basename(fileNameTexture));
-            #endif
-            return false;
-        }
-        for(unsigned int i=0; i< infoGif.totalFrames; ++i)
-        {
-            TEXTURE* texture = manTex->load(infoGif.fileNames[i].c_str(),true);
-            if(texture)
-            {
-                this->textures.push_back(texture);
-                this->interval.push_back(infoGif.interval[i]);
-            }
-            else
-            {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("Failed to load [%s]", log_util::basename(infoGif.fileNames[i].c_str()));
-#endif
-                this->textures.clear();
-                return false;
-            }
-        }
-        const bool idFrame = this->setFrame(width <= 0.0f ? infoGif.widthTexture : width, height <= 0.0f ? infoGif.heightTexture : height);
-        if (idFrame == false)
-            return false;
-        if(anim)
-        {
-            anim->indexCurrentFrame     = indexCurrentFrame;
-            anim->indexInitialFrame     = 0;
-            anim->indexFinalFrame       = infoGif.totalFrames -1;
-            anim->type                  = myType;
-            anim->intervalChangeFrame   = infoGif.interval[0];
-        }
-        this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
 #if defined DEBUG_RESTORE
-        PRINT_IF_DEBUG("Gif [%s] successfully restored",log_util::basename(fileNameTexture));
+            PRINT_IF_DEBUG("Restore information missing");
 #endif
-        return true;
+            return false;
+        }
+        const auto width = static_cast<float>(atof(result[1].c_str()));
+        const auto height = static_cast<float>(atof(result[2].c_str()));
+
+        this->release();
+
+        if (this->load(result[0].c_str(), static_cast<float>(atof(result[1].c_str())), static_cast<float>(atof(result[2].c_str()))))
+        {
+#if defined DEBUG_RESTORE
+            PRINT_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));
+#endif
+            return true;
+        }
+#if defined DEBUG_RESTORE
+        PRINT_IF_DEBUG("Failed to restore Gif [%s]", log_util::basename(result[0].c_str()));
+#endif
+        return false;
+
     }
     
     void GIF_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC2 *uv, const float width, const float height)

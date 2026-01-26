@@ -64,7 +64,6 @@ namespace mbm
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool releaseOnFail();
         bool onRestoreDevice() override;
         bool renderParticle(const util::STAGE_PARTICLE * sPart);

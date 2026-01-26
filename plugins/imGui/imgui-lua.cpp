@@ -985,9 +985,12 @@ public:
         MousePos.y     = 0;
         MousePosPrev.x = 0;
         MousePosPrev.y = 0;
+        beginRenderWasCalled = false;
+
     }
     const int       KEY_SPACE,KEY_0,KEY_1,KEY_9,KEY_A,KEY_Z;
     float           delta,sx,sy;
+	bool            beginRenderWasCalled;
     
     ImVec2 MousePos,MousePosPrev;
 
@@ -1099,7 +1102,6 @@ public:
             imGuIo.KeyMap[ImGuiKey_Z]           = 'Z';
         #endif
             key_mouse::KeyCapital               = isCapsLockOn();
-            onBeginRender();//first render
         }
         else
         {
@@ -1628,9 +1630,9 @@ public:
     void onInfoDeviceJoystick(int, int, const char *,const char *)
     {
     }
-    void onBeginRender()
+    void onPrepare()
     {
-        if(imGuiContext)
+        if(imGuiContext && beginRenderWasCalled == false)
         {
             ImGuiIO& imGuIo         = ImGui::GetIO();
             imGuIo.MouseWheel       += key_mouse::mouse_wheel;
@@ -1663,6 +1665,7 @@ public:
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             sx = device->camera.scale2d.x;
             sy = device->camera.scale2d.y;
+            beginRenderWasCalled = true;
         }
     }
 
@@ -1671,10 +1674,11 @@ public:
         delta = d;
     }
 
-    void onEndRender()
+    void onRender()
     {
-        if(imGuiContext)
+        if(imGuiContext && beginRenderWasCalled)
         {
+            beginRenderWasCalled = false;
             updateCursorMouse();
             ImGui::EndFrame();
             ImGui::Render();

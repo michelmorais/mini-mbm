@@ -31,6 +31,7 @@
 #include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <cr-static-local.h>
+#include <mesh-manager.h>
 
 #if defined(ANDROID)
     #include <platform/common-jni.h>
@@ -44,23 +45,7 @@
 namespace mbm
 {
 
-    enum WHICH_FOR : char
-    {
-        WFOR_INITIAL,
-        WFOR_2DS,
-        WFOR_2DW,
-        WFOR_3D,
-        WFOR_DONE
-    };
-
-    enum STEP_RETORE : char
-    {
-        STEP_RES_INIT_GL,
-        STEP_RES_DRAW_HOURGLASS,
-        STEP_RES_OBJ,
-        STEP_RES_END,
-    };
-
+    
 constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
     {}
         
@@ -165,238 +150,19 @@ void printGLString(const char *name, GLenum s)
     {
         DEVICE::quit();
     }
-    
-    
 
-#if defined ANDROID
-    bool CORE_MANAGER::onLostDevice(JNIEnv *jenv, jobject , int width, int height)
-#else
-    bool CORE_MANAGER::onLostDevice(int width, int height,const int px,const int py)
-#endif
+    void CORE_MANAGER::swapBuffers()
     {
-#ifdef ANDROID
-        device->jni->jenv = jenv;
-#endif
-        if (stepRestore == STEP_RES_INIT_GL)
-        {
-            #if defined _DEBUG
-            ERROR_LOG("onLostDevice step %d",stepRestore);
-            #endif
-#ifndef ANDROID
-    #define __nameAplication "Mini-mbm " MBM_VERSION " GLES"
-#endif
-#if defined(_WIN32)
-            if (initGraphics(__nameAplication, width, height,px,py, false,false))
-#elif defined(ANDROID)
-            if (initGraphics(width, height))
-#elif defined(__linux__) || defined(__APPLE__)
-            (void)px;
-            (void)py;
-            if (width && height)
-#else
-            #error "undefined platform"
-#endif
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics sucess!",stepRestore);
-                #endif
-                
-                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
-                this->adjustScaleScreen2d();
-                stepRestore = STEP_RES_DRAW_HOURGLASS;
-                return false;
-            }
-            else
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics failed!",stepRestore);
-                #endif
-                return false;
-            }
-        }
-        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
-        {
-            #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d draw Hourglass.",stepRestore);
-            #endif
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
-            GLClearColor(device->colorClearBackGround.r, device->colorClearBackGround.g, device->colorClearBackGround.b,
-                         device->colorClearBackGround.a);
-            GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear The Screen And The Depth Buffer
-            GLClearDepthf(1.0f);
-            if (device->scene)
-                device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
-            stepRestore = STEP_RES_OBJ;
-            this->which_for =  WFOR_INITIAL;
-            #if defined(_WIN32) 
-            eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-            #endif
-            return false;
-        }
-        else if (stepRestore == STEP_RES_OBJ)
-        {
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
-            GLClearColor(device->colorClearBackGround.r, device->colorClearBackGround.g, device->colorClearBackGround.b,
-                         device->colorClearBackGround.a);
-            GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear The Screen And The Depth Buffer
-            GLClearDepthf(1.0f);
-            switch(this->which_for)
-            {
-                case WFOR_INITIAL:
-                {
-                    #if defined _DEBUG
-                        WARN_LOG("onLostDevice step %d restoring objs.",stepRestore);
-                    #endif
-                    const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
-                    if(t > 0.0f)
-                    {
-                        this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
-                        this->stepRestoreInfo = 98.0f /  t * static_cast<float>(this->totalForByLoop);
-                    }
-                    else
-                    {
-                        this->stepRestoreInfo = 0.001f;
-                        this->totalForByLoop = 1;
-                    }
-                    this->percentRestoreInfo = 0.0f;
-                    this->which_for = WFOR_2DW;
-                    this->indexOnRestore = 0;
-                    return false;
-                }
-                break;
-                case WFOR_2DW:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                    i < this->device->lsObjectRender2DW.size(); 
-                    ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender2DW[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32) 
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_2DS;
-                    return false;
-                }
-                break;
-                case WFOR_2DS:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                        i < this->device->lsObjectRender2DS.size(); ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender2DS[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32) 
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_3D;
-                    return false;
-                }
-                break;
-                case WFOR_3D:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                    i < this->device->lsObjectRender3D.size(); ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender3D[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32) 
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_DONE;
-                }
-                break;
-                default:{};
-            }
-            stepRestore = STEP_RES_END;
-            #if defined(_WIN32) 
-            eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-            #endif
-            return false;
-        }
-        else if (stepRestore == STEP_RES_END)
-        {
-            #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d resumeGame",stepRestore);
-            #endif
-            stepRestore             = STEP_RES_INIT_GL;
-            device->clearBackGround = true;
-            this->device->resumeGame();
-            this->device->resumeTimer();
-            if (device->scene)
-                device->scene->onRestore(100);
-            return true;
-        }
-        return false;
+		eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
     }
 
+    void CORE_MANAGER::ReleaseGraphics()
+    {
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->release();
+	}
+    
 
 #if defined(_WIN32) 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
@@ -839,223 +605,7 @@ void printGLString(const char *name, GLenum s)
 
 #elif (defined(_WIN32) || defined (__MINGW32__) || defined(__linux__) || defined(__APPLE__))
     
-    int CORE_MANAGER::loop()
-    {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!this->device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG("\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
-        }
-#if defined(__linux__) || defined(__APPLE__)
-        initializeWindowx11();
-#endif
-        while (this->device->run)
-        {
-            #if defined(_WIN32) || defined(__MINGW32__)
-            if (this->device->window.run == false)
-                break;
-            #endif
-            handleEventFromWindow();
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN* plugin = this->lsPlugins[i];
-                plugin->onBeginRender();
-            }
-            EVENT_KEY event;
-            while (this->popEvent(&event))
-            {
-                switch (event.eventType)
-                {
-                case UNKNOWN: {
-                }
-                            break;
-                case ONRESIZEWINDOW:
-                {
-                    const GLsizei width = static_cast<int>(event.x);
-                    const GLsizei height = static_cast<int>(event.y);
-                    if (width > 0 && height > 0 && (width != static_cast<GLsizei>(this->device->backBufferWidth) || height != static_cast<GLsizei>(this->device->backBufferHeight)))
-                    {
-                        glViewport(0, 0, width, height);
-                        if (glIsEnabled(GL_SCISSOR_TEST))
-                        {
-                            INFO_LOG("glIsEnabled is enabled");
-                            glScissor(0, 0, width, height);
-                        }
-                        this->device->backBufferWidth = event.x;
-                        this->device->backBufferHeight = event.y;
-                        if (this->device->scene)
-                        {
-                            INFO_LOG("Resizing window to %dx%d not working properly on Linux", static_cast<int>(event.x), static_cast<int>(event.y));
-                            this->device->scene->onResizeWindow();
-                        }
-                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN* plugin = this->lsPlugins[i];
-                            plugin->onResizeWindow(static_cast<int>(event.x), static_cast<int>(event.y));
-                        }
-                    }
-                }
-                break;
-                case ONTOUCHDOWN:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onTouchDown(event.key, event.x, event.y);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onTouchDown(event.key, event.x, event.y);
-                    }
-                }
-                break;
-                case ONTOUCHUP:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onTouchUp(event.key, event.x, event.y);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onTouchUp(event.key, event.x, event.y);
-                    }
-                }
-                break;
-                case ONTOUCHMOVE:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onTouchMove(event.key, event.x, event.y);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onTouchMove(event.key, event.x, event.y);
-                    }
-                }
-                break;
-                case ONTOUCHZOOM:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onTouchZoom(static_cast<float>(event.key));
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onTouchZoom(static_cast<float>(event.key));
-                    }
-                }
-                break;
-                case ONKEYDOWN:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onKeyDown(event.key);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onKeyDown(event.key);
-                    }
-                }
-                break;
-                case ONKEYUP:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onKeyUp(event.key);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onKeyUp(event.key);
-                    }
-                }
-                break;
-                case ONDOUBLECLICK:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onDoubleClick(event.x, event.y, event.key);
-                    }
-                }
-                break;
-                case ONSTREAMSTOPED: {
-                }
-                                   break;
-                case ONCALLBACKCOMMANDS: {
-                }
-                                       break;
-                case ONKEYDOWNJOYSTICK:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onKeyDownJoystick(event.player, event.key);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onKeyDownJoystick(event.player, event.key);
-                    }
-                }
-                break;
-                case ONKEYUPJOYSTICK:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onKeyUpJoystick(event.player, event.key);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onKeyUpJoystick(event.player, event.key);
-                    }
-                }
-                break;
-                case ONMOVEJOYSTICK:
-                {
-                    if (this->device->scene && this->__sceneWasInit)
-                        this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                    for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-                    {
-                        PLUGIN* plugin = this->lsPlugins[i];
-                        plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                    }
-                }
-                break;
-                }
-                if (!this->device->run)
-                {
-                    break;
-                }
-            }
-            this->update();
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN* plugin = this->lsPlugins[i];
-                plugin->onLoop(this->device->delta);
-            }
-            this->render();
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN* plugin = this->lsPlugins[i];
-                plugin->onEndRender();
-            }
-            eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-        }
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-        {
-            PLUGIN* plugin = this->lsPlugins[i];
-            plugin->onDestroy();
-        }
-        if (this->device->audioInterface)
-            this->device->audioInterface->stopAll();
-        return 0;
-    }
+    
 
 #elif defined(__linux__) || defined(__APPLE__)
 
@@ -1064,6 +614,11 @@ void printGLString(const char *name, GLenum s)
 #else
     #error "platform not suported"
 #endif
+
+    bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
+    {
+        return false;
+    }
 
     bool CORE_MANAGER::beginRender()
     {

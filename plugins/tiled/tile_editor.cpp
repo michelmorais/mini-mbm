@@ -854,11 +854,6 @@ namespace mbm
         return false;
     }
 
-    void TILE_EDITOR::onStop()
-    {
-        
-    }
-
     bool TILE_EDITOR::renderMap(SHADER *shader)
     {
         if(tileMap.background.a > 0 || tileMap.background_texture)

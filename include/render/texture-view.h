@@ -56,7 +56,6 @@ namespace mbm
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() override;
         void fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
                                           const float height);

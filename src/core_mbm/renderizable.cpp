@@ -20,7 +20,7 @@
 #include <renderizable.h>
 #include <dynamic-var.h>
 #include <device.h>
-#include <scene.h>
+#include <animation.h>
 #include <physics.h>
 #include <util-interface.h>
 #include <algorithm>
@@ -278,6 +278,24 @@ RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, c
             case TYPE_CLASS_TILE                : return "tile";
             case TYPE_CLASS_TILE_OBJ            : return "tile-obj";
             default                             : return "unknown";
+        }
+    }
+
+    void RENDERIZABLE::onStop()
+    {
+        ANIMATION_MANAGER* AnimationManager = this->getAnimationManager();
+        if(AnimationManager)
+        {
+            AnimationManager->backupAnimations();
+        }
+    }
+
+    void RENDERIZABLE::onRestoreAnimationsState()
+    {
+        ANIMATION_MANAGER* AnimationManager = this->getAnimationManager();
+        if (AnimationManager)
+        {
+            AnimationManager->restoreBackupAnimations();
         }
     }
 }

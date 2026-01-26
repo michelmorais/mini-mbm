@@ -499,17 +499,17 @@ namespace mbm
         }
     }
 
-	bool EFFECT_SHADER::isEndedFx()const
-	{
-		if(this->statusFx == FX_END)
-			return true;
-		if(this->statusFx == FX_END_CALLBACK)
-			return true;
-		return false;
-	}
+    bool EFFECT_SHADER::isEndedFx()const
+    {
+        if(this->statusFx == FX_END)
+            return true;
+        if(this->statusFx == FX_END_CALLBACK)
+            return true;
+        return false;
+    }
 
-	void EFFECT_SHADER::forceEndFx()
-	{
+    void EFFECT_SHADER::forceEndFx()
+    {
         if(this->ptrCurrentShader)
         {
             switch (this->typeAnim)
@@ -539,8 +539,8 @@ namespace mbm
                 break;
             }
         }
-		this->statusFx = FX_END;
-	}
+        this->statusFx = FX_END;
+    }
 
     bool EFFECT_SHADER::endEffect()
     {
@@ -621,23 +621,23 @@ namespace mbm
         if (delta <= 0.0f)
             return;
         if(fx.fxPS->isEndedFx() == false)
-		{
-			fx.fxPS->updateEffect(delta);
-			if (fx.fxPS->endEffect())
-			{
-				if (onEndFX && fx.fxPS->ptrCurrentShader)
-					onEndFX(fx.fxPS->ptrCurrentShader->fileName.c_str(),me);
-			}
-		}
-		if (fx.fxVS->isEndedFx() == false)
-		{
-			fx.fxVS->updateEffect(delta);
-			if (fx.fxVS->endEffect())
-			{
-				if (onEndFX && fx.fxVS->ptrCurrentShader)
-					onEndFX(fx.fxVS->ptrCurrentShader->fileName.c_str(), me);
-			}
-		}
+        {
+            fx.fxPS->updateEffect(delta);
+            if (fx.fxPS->endEffect())
+            {
+                if (onEndFX && fx.fxPS->ptrCurrentShader)
+                    onEndFX(fx.fxPS->ptrCurrentShader->fileName.c_str(),me);
+            }
+        }
+        if (fx.fxVS->isEndedFx() == false)
+        {
+            fx.fxVS->updateEffect(delta);
+            if (fx.fxVS->endEffect())
+            {
+                if (onEndFX && fx.fxVS->ptrCurrentShader)
+                    onEndFX(fx.fxVS->ptrCurrentShader->fileName.c_str(), me);
+            }
+        }
         if (type != TYPE_ANIMATION_PAUSED)
         {
             switch (type)
@@ -787,27 +787,27 @@ namespace mbm
         for (std::vector<util::INFO_ANIMATION::INFO_HEADER_ANIM *>::size_type i = 0; i < mesh->infoAnimation.lsHeaderAnim.size(); ++i)
         {
             util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead = mesh->infoAnimation.lsHeaderAnim[i];
-			if(infoHead->effetcShader)
-			{
-				util::INFO_SHADER_DATA *infoPS         = infoHead->effetcShader->dataPS;
-				ANIMATION *anim                         = i < this->lsAnimation.size() ? this->lsAnimation[i] : nullptr;
-				if (infoPS && infoPS->fileNameTextureStage2)
-				{
-					TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
-					if (anim && tex)
-						anim->fx.textureOverrideStage2 = tex;
-				}
+            if(infoHead->effetcShader)
+            {
+                util::INFO_SHADER_DATA *infoPS         = infoHead->effetcShader->dataPS;
+                ANIMATION *anim                         = i < this->lsAnimation.size() ? this->lsAnimation[i] : nullptr;
+                if (infoPS && infoPS->fileNameTextureStage2)
+                {
+                    TEXTURE *  tex  = texMan->load(infoPS->fileNameTextureStage2, true);
+                    if (anim && tex)
+                        anim->fx.textureOverrideStage2 = tex;
+                }
 
-				util::INFO_SHADER_DATA *infoVS = infoHead->effetcShader->dataVS;
-				if (infoVS && infoVS->fileNameTextureStage2)
-				{
-					TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
-					if (anim && tex)
-						anim->fx.textureOverrideStage2 = tex;
-				}
-				if(anim)
-					anim->blendState = static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState);
-			}
+                util::INFO_SHADER_DATA *infoVS = infoHead->effetcShader->dataVS;
+                if (infoVS && infoVS->fileNameTextureStage2)
+                {
+                    TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
+                    if (anim && tex)
+                        anim->fx.textureOverrideStage2 = tex;
+                }
+                if(anim)
+                    anim->blendState = static_cast<mbm::BLEND_STATE>(infoHead->headerAnim->blendState);
+            }
         }
     }
 
@@ -1126,6 +1126,16 @@ namespace mbm
         this->lsAnimation.clear();
     }
 
+    void ANIMATION_MANAGER::backupAnimations() noexcept
+    {
+		animationBackup.backup(this);
+    }
+
+    void ANIMATION_MANAGER::restoreBackupAnimations() noexcept
+    {
+		animationBackup.restore(this);
+    }
+
     bool ANIMATION_MANAGER::setTexture(
         const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
         const char *fileNametexture, const uint32_t stage, const bool hasAlpha)
@@ -1170,4 +1180,69 @@ namespace mbm
         }
         return false;
     }
-}
+    
+    void ANIMATION_BACKUP::backup(ANIMATION_MANAGER* animationManager)
+    {
+        if (animationManager)
+        {
+            this->lsAnimationState.clear();
+            for (std::vector<ANIMATION*>::size_type i = 0; i < animationManager->lsAnimation.size(); ++i)
+            {
+                ANIMATION* anim = animationManager->lsAnimation[i];
+                ANIMATION_STATE state;
+                memset(&state, 0, sizeof(ANIMATION_STATE));
+                strncpy(state.nameAnimation, anim->nameAnimation, sizeof(state.nameAnimation));
+                state.intervalChangeFrame           = anim->intervalChangeFrame;
+                state.indexInitialFrame             = anim->indexInitialFrame;
+                state.indexFinalFrame               = anim->indexFinalFrame;
+                state.indexCurrentFrame             = anim->indexCurrentFrame;
+                state.blendState                    = anim->blendState;
+                state.isEndedThisAnimation          = anim->isEndedThisAnimation;
+                state.currentWayGrowingOfAnimation  = anim->currentWayGrowingOfAnimation;
+                state.type                          = anim->type;
+                state.currentTimeToChangeAnimation  = anim->currentTimeToChangeAnimation;
+                //fx
+                state.fx_textureOverrideStage2      = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->getFileNameTexture() : "";
+                state.fx_textureOverrideStage2Alpha = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->useAlphaChannel : false;
+                state.fx_blendOperation             = anim->fx.blendOperation;
+                this->lsAnimationState.push_back(state);
+            }
+            this->indexCurrentAnimation = animationManager->indexCurrentAnimation;
+        }
+    }
+
+    void ANIMATION_BACKUP::restore(ANIMATION_MANAGER* animationManager)
+    {
+        if (animationManager)
+        {
+            mbm::TEXTURE_MANAGER* texManager = mbm::TEXTURE_MANAGER::getInstance();
+            for (std::vector<ANIMATION_STATE>::size_type i = 0; i < this->lsAnimationState.size(); ++i)
+            {
+                const ANIMATION_STATE& state = this->lsAnimationState[i];
+                mbm::ANIMATION* anim = animationManager->getAnimation(i);
+                if (anim == nullptr)
+                {
+                    anim = animationManager->getAnimation(animationManager->addAnimation());
+                }
+                if (anim)
+                {
+                    strncpy(anim->nameAnimation, state.nameAnimation, sizeof(anim->nameAnimation));
+                    anim->intervalChangeFrame          = state.intervalChangeFrame;
+                    anim->indexInitialFrame            = state.indexInitialFrame;
+                    anim->indexFinalFrame              = state.indexFinalFrame;
+                    anim->indexCurrentFrame            = state.indexCurrentFrame;
+                    anim->blendState                   = state.blendState;
+                    anim->isEndedThisAnimation         = state.isEndedThisAnimation;
+                    anim->currentWayGrowingOfAnimation = state.currentWayGrowingOfAnimation;
+                    anim->type                         = state.type;
+                    anim->currentTimeToChangeAnimation = state.currentTimeToChangeAnimation;
+                    //fx
+                    anim->fx.textureOverrideStage2     = state.fx_textureOverrideStage2.size() > 0 ? texManager->load(state.fx_textureOverrideStage2.c_str(), state.fx_textureOverrideStage2Alpha) : nullptr;
+                    anim->fx.blendOperation            = state.fx_blendOperation;
+                }
+            }
+            animationManager->indexCurrentAnimation = this->indexCurrentAnimation;
+        }
+        this->lsAnimationState.clear();
+    }
+}   

@@ -29,6 +29,7 @@
 #include <plugin-callback.h>
 #include <dynamic-var.h>
 #include <shader-resource.h>
+#include <util-interface.h>
 #if defined USE_EDITOR_FEATURES
 #include <thread>
 #endif
@@ -43,6 +44,223 @@ namespace mbm
     void CORE_MANAGER::setScene(SCENE *currentScene)
     {
         this->device->scene = currentScene;
+    }
+
+    int CORE_MANAGER::loop()
+    {
+        static bool variablesInitialized = false;
+        if (!device)
+            return -1;
+        if (!variablesInitialized)
+        {
+            // Cfg shader from memory----
+            if (!this->device->cfg.parserCFGFromResource())
+            {
+                PRINT_IF_DEBUG("\nerror on Parse CFG from memory.");
+                return -1;
+            }
+            this->device->cfg.sortShader();
+            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
+            this->device->updateFps();
+            initEnableRenders();
+            this->_updateDimFrustum();
+            variablesInitialized = true;
+            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
+            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
+        }
+        while (device->run)
+        {
+            handleEventFromWindow();
+            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            {
+                PLUGIN* plugin = this->lsPlugins[i];
+                plugin->onPrepare();
+            }
+
+            INFO_JOYSTICK_INIT_PLAYER info;
+            while (this->popEvent(&info))
+            {
+                if (this->device->scene && this->__sceneWasInit)
+                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                        info.extraInfo.c_str());
+            }
+            
+            EVENT_KEY event;
+            while (this->popEvent(&event))
+            {
+                switch (event.eventType)
+                {
+                    case UNKNOWN: {
+                    }
+                    break;
+                    case ONRESIZEWINDOW:
+                    {
+                        this->device->backBufferWidth = event.x;
+                        this->device->backBufferHeight = event.y;
+                        if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
+                        {
+                            // Call onStop and forceRestore to ensure all resources are reloaded
+                            this->onStop();
+                            // trigger full restore
+                            this->forceRestore();
+                        }
+                        // Update viewport
+                        // Update projection and camera
+                        device->setProjectionMode(true, event.x, event.y);
+                        this->device->camera.updateCam(true, event.x, event.y);
+                        this->_updateDimFrustum();
+
+                        // Notify scene and plugins
+                        if (this->device->scene)
+                            this->device->scene->onResizeWindow();
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onResizeWindow(static_cast<int>(event.x), static_cast<int>(event.y));
+                        }
+                    }
+                    break;
+                    case ONTOUCHDOWN:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onTouchDown(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onTouchDown(event.key, event.x, event.y);
+                        }
+                    }
+                    break;
+                    case ONTOUCHUP:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onTouchUp(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onTouchUp(event.key, event.x, event.y);
+                        }
+                    }
+                    break;
+                    case ONTOUCHMOVE:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onTouchMove(event.key, event.x, event.y);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onTouchMove(event.key, event.x, event.y);
+                        }
+                    }
+                    break;
+                    case ONTOUCHZOOM:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onTouchZoom((float)event.key);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onTouchZoom((float)event.key);
+                        }
+                    }
+                    break;
+                    case ONKEYDOWN:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onKeyDown(event.key);
+                        if (event.key == VK_CAPITAL)
+                        {
+                            if ((GetKeyState(VK_CAPITAL) & 0x0001) != 0)
+                                this->keyCapsLockState = true;
+                            else
+                                this->keyCapsLockState = false;
+                        }
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onKeyDown(event.key);
+                        }
+                    }
+                    break;
+                    case ONKEYUP:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onKeyUp(event.key);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onKeyUp(event.key);
+                        }
+                    }
+                    break;
+                    case ONDOUBLECLICK:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onDoubleClick(event.x, event.y, event.key);
+                        }
+                    }
+                    break;
+                    case ONSTREAMSTOPED: {
+                    }
+                                       break;
+                    case ONCALLBACKCOMMANDS: {
+                    }
+                                           break;
+                    case ONKEYDOWNJOYSTICK:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onKeyDownJoystick(event.player, event.key);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onKeyDownJoystick(event.player, event.key);
+                        }
+                    }
+                    break;
+                    case ONKEYUPJOYSTICK:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onKeyUpJoystick(event.player, event.key);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onKeyUpJoystick(event.player, event.key);
+                        }
+                    }
+                    break;
+                    case ONMOVEJOYSTICK:
+                    {
+                        if (this->device->scene && this->__sceneWasInit)
+                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
+                        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+                        {
+                            PLUGIN* plugin = this->lsPlugins[i];
+                            plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
+                        }
+                    }
+                    break;
+                }
+                if (!this->device->run)
+                {
+                    break;
+                }
+            }
+            this->update();
+            this->render();
+            this->swapBuffers();
+        }
+        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        {
+            PLUGIN* plugin = this->lsPlugins[i];
+            plugin->onDestroy();
+        }
+        if (this->device->audioInterface)
+            this->device->audioInterface->stopAll();
+        return 0;
     }
     
     void CORE_MANAGER::onStop()
@@ -75,6 +293,11 @@ namespace mbm
         this->logic();
         this->updatePhysis();
         this->updateAudio();
+        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        {
+            PLUGIN* plugin = this->lsPlugins[i];
+            plugin->onLoop(this->device->delta);
+        }
     }
     
     void CORE_MANAGER::prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,
@@ -238,6 +461,12 @@ namespace mbm
                     ++device->totalObjectsIsRendering2D;
             }
             device->setDephtTest(true);
+
+            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            {
+                PLUGIN* plugin = this->lsPlugins[i];
+                plugin->onRender();
+            }
             this->endRender();
         }
     }
@@ -523,5 +752,215 @@ namespace mbm
         device->lsDynamicVarGlobal[name] = dyVar;
     }
     #endif
+
+
+    bool CORE_MANAGER::onLostDevice(int width, int height, const int px, const int py)
+    {
+        if (stepRestore == STEP_RES_INIT_GL)
+        {
+#if defined _DEBUG
+            ERROR_LOG("onLostDevice step %d", stepRestore);
+#endif
+            this->ReleaseGraphics();
+
+            if (initGraphics(this->device->window.getNameAplication(), width, height, px, py, false, false))
+            {
+#if defined _DEBUG
+                WARN_LOG("onLostDevice step %d function initGraphics sucess!", stepRestore);
+#endif
+
+                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
+                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
+                this->adjustScaleScreen2d();
+                stepRestore = STEP_RES_DRAW_HOURGLASS;
+                return false;
+            }
+            else
+            {
+#if defined _DEBUG
+                WARN_LOG("onLostDevice step %d function initGraphics failed!", stepRestore);
+#endif
+                return false;
+            }
+        }
+        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
+        {
+#if defined _DEBUG
+            WARN_LOG("onLostDevice step %d draw Hourglass.", stepRestore);
+#endif
+            if (this->beginRender())
+            {
+                device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+                device->setDephtTest(false);
+                device->clearDepthColored();
+                if (device->scene)
+                    device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
+                stepRestore = STEP_RES_OBJ;
+                this->which_for = WFOR_INITIAL;
+                this->endRender();
+                this->swapBuffers();
+            }
+            return false;
+        }
+        else if (stepRestore == STEP_RES_OBJ)
+        {
+            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+            device->setDephtTest(false);
+            device->clearDepthColored();
+            switch (this->which_for)
+            {
+            case WFOR_INITIAL:
+            {
+#if defined _DEBUG
+                WARN_LOG("onLostDevice step %d restoring objs.", stepRestore);
+#endif
+                const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
+                if (t > 0.0f)
+                {
+                    this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
+                    this->stepRestoreInfo = 98.0f / t * static_cast<float>(this->totalForByLoop);
+                }
+                else
+                {
+                    this->stepRestoreInfo = 0.001f;
+                    this->totalForByLoop = 1;
+                }
+                this->percentRestoreInfo = 0.0f;
+                this->which_for = WFOR_2DW;
+                this->indexOnRestore = 0;
+                return false;
+            }
+            break;
+            case WFOR_2DW:
+            {
+                if (this->beginRender())
+                {
+                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DW.size(); ++i)
+                    {
+                        RENDERIZABLE* ptr = this->device->lsObjectRender2DW[i];
+                        const bool    alwaysRenderize = ptr->alwaysRenderize;
+                        const bool    enableRender = ptr->enableRender;
+                        ptr->alwaysRenderize = false;
+                        ptr->enableRender = false;
+                        if (ptr->onRestoreDevice())
+                        {
+                            ptr->alwaysRenderize = alwaysRenderize;
+                            ptr->enableRender = enableRender;
+                            ptr->onRestoreAnimationsState();
+                        }
+                        this->indexOnRestore = (i + 1);
+                        if (++j >= this->totalForByLoop)
+                        {
+                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            if (device->scene)
+                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            break;
+                        }
+                    }
+                    this->endRender();
+                    this->swapBuffers();
+                    if (this->indexOnRestore >= this->device->lsObjectRender2DW.size())
+                    {
+                        this->indexOnRestore = 0;
+                        this->which_for = WFOR_2DS;
+                    }
+                }
+                return false;
+            }
+            break;
+            case WFOR_2DS:
+            {
+                if (this->beginRender())
+                {
+                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DS.size(); ++i)
+                    {
+                        RENDERIZABLE* ptr = this->device->lsObjectRender2DS[i];
+                        const bool    alwaysRenderize = ptr->alwaysRenderize;
+                        const bool    enableRender = ptr->enableRender;
+                        ptr->alwaysRenderize = false;
+                        ptr->enableRender = false;
+                        if (ptr->onRestoreDevice())
+                        {
+                            ptr->alwaysRenderize = alwaysRenderize;
+                            ptr->enableRender = enableRender;
+                            ptr->onRestoreAnimationsState();
+                        }
+                        this->indexOnRestore = (i + 1);
+                        if (++j >= this->totalForByLoop)
+                        {
+                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            if (device->scene)
+                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            break;
+                        }
+                    }
+                    this->endRender();
+                    this->swapBuffers();
+                    if (this->indexOnRestore >= this->device->lsObjectRender2DS.size())
+                    {
+                        this->indexOnRestore = 0;
+                        this->which_for = WFOR_3D;
+                    }
+                }
+                return false;
+            }
+            break;
+            case WFOR_3D:
+            {
+                if (this->beginRender())
+                {
+                    for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
+                    {
+                        RENDERIZABLE* ptr = this->device->lsObjectRender3D[i];
+                        const bool    alwaysRenderize = ptr->alwaysRenderize;
+                        const bool    enableRender = ptr->enableRender;
+                        ptr->alwaysRenderize = false;
+                        ptr->enableRender = false;
+                        if (ptr->onRestoreDevice())
+                        {
+                            ptr->alwaysRenderize = alwaysRenderize;
+                            ptr->enableRender = enableRender;
+                            ptr->onRestoreAnimationsState();
+                        }
+                        this->indexOnRestore = (i + 1);
+                        if (++j >= this->totalForByLoop)
+                        {
+                            this->percentRestoreInfo += this->stepRestoreInfo;
+                            if (device->scene)
+                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
+                            break;
+                        }
+                    }
+                    this->endRender();
+                    this->swapBuffers();
+                    if (this->indexOnRestore >= this->device->lsObjectRender3D.size())
+                    {
+                        this->indexOnRestore = 0;
+                        this->which_for = WFOR_DONE;
+                    }
+                    return false;
+                }
+            }
+            break;
+            default: {};
+            }
+            stepRestore = STEP_RES_END;
+            return false;
+        }
+        else if (stepRestore == STEP_RES_END)
+        {
+#if defined _DEBUG
+            WARN_LOG("onLostDevice step %d resumeGame", stepRestore);
+#endif
+            stepRestore = STEP_RES_INIT_GL;
+            device->clearBackGround = true;
+            this->device->resumeGame();
+            this->device->resumeTimer();
+            if (device->scene)
+                device->scene->onRestore(100);
+            return true;
+        }
+        return false;
+    }
 
 }

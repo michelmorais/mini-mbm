@@ -44,14 +44,13 @@ namespace mbm
         API_IMPL TEXTURE *getTexture() const;
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh, const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;// fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
         API_IMPL void setTextureToNull();
-            API_IMPL FX*  getFx() const override;
-            API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        API_IMPL FX*  getFx() const override;
+        API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
         
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
-        bool onRestoreDevice() override;
+        bool onRestoreDevice() override;// In this function, make sure that the object is loaded, later the engine will fill in the animation state
         void fillvertexQuadTexture(VEC3 *_position, VEC2 *uv, const float width, const float height);
         void updateRestoreTexture(const float w, const float h);
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;

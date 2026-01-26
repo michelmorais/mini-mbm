@@ -32,36 +32,33 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <audio-interface.h>
-#include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
-#include <cassert>
-#include <algorithm>
 #include <cstring>
-#include <log-util.h>
-#include <cr-static-local.h>
 #include <plugin-callback.h>
-#include <dynamic-var.h>
 
 
 namespace mbm
 {
-    
-    enum WHICH_FOR : char
+    static D3DPRESENT_PARAMETERS getd3dPARAMETERS(const UINT x,const UINT y, HWND hwnd)
     {
-        WFOR_INITIAL,
-        WFOR_2DS,
-        WFOR_2DW,
-        WFOR_3D,
-        WFOR_DONE
-    };
-
-    enum STEP_RETORE : char
-    {
-        STEP_RES_INIT_GL,
-        STEP_RES_DRAW_HOURGLASS,
-        STEP_RES_OBJ,
-        STEP_RES_END,
-    };
+        D3DPRESENT_PARAMETERS				d3dParams;
+        ZeroMemory(&d3dParams, sizeof(d3dParams));
+        d3dParams.BackBufferWidth = x;
+        d3dParams.BackBufferHeight = y;
+        d3dParams.BackBufferFormat = D3DFMT_A8R8G8B8;
+        d3dParams.BackBufferCount = 1;
+        d3dParams.MultiSampleType = D3DMULTISAMPLE_NONE;//Use pD3D->CheckDeviceMultiSampleType
+        d3dParams.MultiSampleQuality = 0;
+        d3dParams.SwapEffect = D3DSWAPEFFECT_COPY;
+        d3dParams.hDeviceWindow = hwnd;
+        d3dParams.Windowed = true;//Full Screen = false
+        d3dParams.EnableAutoDepthStencil = true;//Keep / create the Buffer Depht/Stencil automatically
+        d3dParams.AutoDepthStencilFormat = D3DFMT_D24S8;//Bits Reservados Para O Stencil = 8
+        d3dParams.Flags = 0;
+        d3dParams.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;//Rate render
+        d3dParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;//Present imediately
+        return d3dParams;
+    }
 
 constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
     {}
@@ -96,7 +93,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
-		this->indexOnRestore   = 0;
+        this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
         this->percentRestoreInfo = 0.0f;
         this->stepRestoreInfo  = 0.1f;
@@ -112,233 +109,13 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         DEVICE::quit();
     }
     
-    
-    bool CORE_MANAGER::onLostDevice(int width, int height,const int px,const int py)
+    void CORE_MANAGER::ReleaseGraphics()
     {
-        if (stepRestore == STEP_RES_INIT_GL)
-        {
-            #if defined _DEBUG
-            ERROR_LOG("onLostDevice step %d",stepRestore);
-            #endif
-
-            const HRESULT hr = this->device->specificContextDevice->pd3dDevice->TestCooperativeLevel();
-
-            if (FAILED(hr))
-            {
-                // Se o dispositivo foi perdido, não renderiza até carregar de volta
-                if (D3DERR_DEVICELOST == hr || D3DERR_DRIVERINTERNALERROR == hr)
-                    return false;
-                // Verifica se precisa resetar o dispositivo
-                if (D3DERR_DEVICENOTRESET == hr)
-                {
-                    TEXTURE_MANAGER::getInstance()->release();
-                    MESH_MANAGER::getInstance()->release();
-                    if (this->device->specificContextDevice->pD3D != NULL)
-                        this->device->specificContextDevice->pD3D->Release();
-                    this->device->specificContextDevice->pD3D = NULL;
-
-                    if (this->device->specificContextDevice->pd3dDevice != NULL)
-                        this->device->specificContextDevice->pd3dDevice->Release();
-                    this->device->specificContextDevice->pd3dDevice = NULL;
-
-                    
-                    return false;
-                }
-                return false;
-            }
-			//TODO: test lost device DirectX9
-            #define __nameAplication "Mini-mbm " MBM_VERSION " DUMMY"
-            if (initGraphics(__nameAplication, width, height,px,py, false,false))
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics sucess!",stepRestore);
-                #endif
-                
-                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
-                this->adjustScaleScreen2d();
-                stepRestore = STEP_RES_DRAW_HOURGLASS;
-                return false;
-            }
-            else
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics failed!",stepRestore);
-                #endif
-                return false;
-            }
-        }
-        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
-        {
-            #if defined _DEBUG
-            WARN_LOG("onLostDevice step %d draw Hourglass.",stepRestore);
-            #endif
-            if (SUCCEEDED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-            {
-
-                device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-                device->setDephtTest(false);
-                device->clearDepthColored();
-                if (device->scene)
-                    device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
-                stepRestore = STEP_RES_OBJ;
-                this->which_for = WFOR_INITIAL;
-                //Swap buffers
-                this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
-            }
-            return false;
-        }
-        else if (stepRestore == STEP_RES_OBJ)
-        {
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
-            device->clearDepthColored();
-            switch(this->which_for)
-            {
-                case WFOR_INITIAL:
-                {
-                    #if defined _DEBUG
-                        WARN_LOG("onLostDevice step %d restoring objs.",stepRestore);
-                    #endif
-                    const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
-                    if(t > 0.0f)
-                    {
-                        this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
-                        this->stepRestoreInfo = 98.0f /  t * static_cast<float>(this->totalForByLoop);
-                    }
-                    else
-                    {
-                        this->stepRestoreInfo = 0.001f;
-                        this->totalForByLoop = 1;
-                    }
-                    this->percentRestoreInfo = 0.0f;
-                    this->which_for = WFOR_2DW;
-                    this->indexOnRestore = 0;
-                    return false;
-                }
-                break;
-                case WFOR_2DW:
-                {
-                    if (SUCCEEDED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-                    {
-                        for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DW.size(); ++i)
-                        {
-                            RENDERIZABLE* ptr = this->device->lsObjectRender2DW[i];
-                            const bool    alwaysRenderize = ptr->alwaysRenderize;
-                            const bool    enableRender = ptr->enableRender;
-                            ptr->alwaysRenderize = false;
-                            ptr->enableRender = false;
-                            if (ptr->onRestoreDevice())
-                            {
-                                ptr->alwaysRenderize = alwaysRenderize;
-                                ptr->enableRender = enableRender;
-                            }
-                            if (++j >= this->totalForByLoop)
-                            {
-                                this->indexOnRestore = (i + 1);
-                                this->percentRestoreInfo += this->stepRestoreInfo;
-                                if (device->scene)
-                                    device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                                break;
-                            }
-                        }
-                        //Swap buffers
-                        this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
-                        return false;
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_2DS;
-                    return false;
-                }
-                break;
-                case WFOR_2DS:
-                {
-                    if (SUCCEEDED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-                    {
-                        for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender2DS.size(); ++i)
-                        {
-                            RENDERIZABLE* ptr = this->device->lsObjectRender2DS[i];
-                            const bool    alwaysRenderize = ptr->alwaysRenderize;
-                            const bool    enableRender = ptr->enableRender;
-                            ptr->alwaysRenderize = false;
-                            ptr->enableRender = false;
-                            if (ptr->onRestoreDevice())
-                            {
-                                ptr->alwaysRenderize = alwaysRenderize;
-                                ptr->enableRender = enableRender;
-                            }
-                            if (++j >= this->totalForByLoop)
-                            {
-                                this->indexOnRestore = (i + 1);
-                                this->percentRestoreInfo += this->stepRestoreInfo;
-                                if (device->scene)
-                                    device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                                break;
-                            }
-                            //Swap buffers
-                            this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_3D;
-                    return false;
-                }
-                break;
-                case WFOR_3D:
-                {
-                    if (SUCCEEDED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-                    {
-                        for (uint32_t i = this->indexOnRestore, j = 0; i < this->device->lsObjectRender3D.size(); ++i)
-                        {
-                            RENDERIZABLE* ptr = this->device->lsObjectRender3D[i];
-                            const bool    alwaysRenderize = ptr->alwaysRenderize;
-                            const bool    enableRender = ptr->enableRender;
-                            ptr->alwaysRenderize = false;
-                            ptr->enableRender = false;
-                            if (ptr->onRestoreDevice())
-                            {
-                                ptr->alwaysRenderize = alwaysRenderize;
-                                ptr->enableRender = enableRender;
-                            }
-                            if (++j >= this->totalForByLoop)
-                            {
-                                this->indexOnRestore = (i + 1);
-                                this->percentRestoreInfo += this->stepRestoreInfo;
-                                if (device->scene)
-                                    device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                                break;
-                            }
-                        }
-                        //Swap buffers
-                        this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
-                        return false;
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_DONE;
-                }
-                break;
-                default:{};
-            }
-            stepRestore = STEP_RES_END;
-            return false;
-        }
-        else if (stepRestore == STEP_RES_END)
-        {
-            #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d resumeGame",stepRestore);
-            #endif
-            stepRestore             = STEP_RES_INIT_GL;
-            device->clearBackGround = true;
-            this->device->resumeGame();
-            this->device->resumeTimer();
-            if (device->scene)
-                device->scene->onRestore(100);
-            return true;
-        }
-        return false;
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->realease();
     }
-
+    
     bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
     {
         int x = width;
@@ -402,23 +179,8 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                 HIWORD(dwRevision), LOWORD(dwRevision));
         }*/
 
-        D3DPRESENT_PARAMETERS				d3dParams;
-        ZeroMemory(&d3dParams, sizeof(d3dParams));
-        d3dParams.BackBufferWidth = x;
-        d3dParams.BackBufferHeight = y;
-        d3dParams.BackBufferFormat = D3DFMT_A8R8G8B8;
-        d3dParams.BackBufferCount = 1;
-        d3dParams.MultiSampleType = D3DMULTISAMPLE_NONE;//Use pD3D->CheckDeviceMultiSampleType
-        d3dParams.MultiSampleQuality = 0;
-        d3dParams.SwapEffect = D3DSWAPEFFECT_COPY;
-        d3dParams.hDeviceWindow = mNativeWindow;
-        d3dParams.Windowed = true;//Full Screen = false
-        d3dParams.EnableAutoDepthStencil = true;//Keep / create the Buffer Depht/Stencil automatically
-        d3dParams.AutoDepthStencilFormat = D3DFMT_D24S8;//Bits Reservados Para O Stencil = 8
-        d3dParams.Flags = 0;
-        d3dParams.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;//Rate render
-        d3dParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;//Present imediately
-
+        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(x, y, mNativeWindow);
+        
         D3DCAPS9 cap;
 
         D3DDEVTYPE _typeDevice = D3DDEVTYPE_HAL;
@@ -502,13 +264,13 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         }
         
         device->window.disableRender(mNativeWindow);
-		//TODO: set real version from DirectX
+        //TODO: set real version from DirectX
         INFO_LOG("\nDIRECTX Version: %s\n", "9");
-		if (device->verbose)
-		{
-			MINIZ::showVersion();
+        if (device->verbose)
+        {
+            MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
-		}
+        }
 
         #pragma message(REMINDER_TODO "  set viewport and other initial states for ANY")
         if (x > 0)
@@ -518,242 +280,52 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         return true;
     }
 
-    int CORE_MANAGER::loop()
+    bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)// need to be implemented in each backend engine
     {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!this->device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized                  = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
-        }
-        MSG messageMain;
-        memset(&messageMain, 0, sizeof(messageMain));
-        while (messageMain.message != WM_QUIT && device->run && this->device->window.run)
-        {
-            this->device->window.doEvents();
-            bool first_menu = true;
-            while (mbm::WINDOW::isAnyMenuVisible() && device->window.run)
-            {
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                this->device->window.doEvents();
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                first_menu = false;
-            }
-            if (!this->device->window.run)
-                break;
+        // Reset D3D device with new dimensions
+        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(static_cast<UINT>(newWidth), static_cast<UINT>(newHeight), this->device->window.getHwnd());
 
-            INFO_JOYSTICK_INIT_PLAYER info;
-            while (this->popEvent(&info))
-            {
-                if (this->device->scene && this->__sceneWasInit)
-                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
-                                                              info.extraInfo.c_str());
-            }
-            //if (FAILED(this->device->specificContextDevice->pd3dDevice->BeginScene()))
-            //{
-			//	ERROR_AT(__LINE__, __FILE__, "failed to begin the scene");
-            //    return 1;
-            //}
-            //TODO: move to begin render in Core manager
-            
-            EVENT_KEY event;
-            while (this->popEvent(&event))
-            {
-                switch (event.eventType)
-                {
-                    case UNKNOWN: {
-                    }
-                    break;
-                    case ONRESIZEWINDOW:
-                    {
-                        #pragma message(REMINDER_TODO "  Implement on resize windows here")
-                        this->device->backBufferWidth  = event.x;
-                        this->device->backBufferHeight = event.y;
-                        if(this->device->scene)
-                            this->device->scene->onResizeWindow();
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onResizeWindow(static_cast<int>(event.x),static_cast<int>(event.y));
-                        }
-                    }
-                    break;
-                    case ONTOUCHDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchDown(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchDown(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchUp(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchUp(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHMOVE:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchMove(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchMove(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHZOOM:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchZoom((float)event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchZoom((float)event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDown(event.key);
-                        if(event.key == VK_CAPITAL)
-                        {
-                            if ((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
-                                this->keyCapsLockState = true;
-                            else
-                                this->keyCapsLockState = false;
-                        }
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDown(event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUp(event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUp(event.key);
-                        }
-                    }
-                    break;
-                    case ONDOUBLECLICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onDoubleClick(event.x, event.y, event.key);
-                        }
-                    }
-                    break;
-                    case ONSTREAMSTOPED: {
-                    }
-                    break;
-                    case ONCALLBACKCOMMANDS: {
-                    }
-                    break;
-                    case ONKEYDOWNJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDownJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDownJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUPJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUpJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUpJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONMOVEJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        }
-                    }
-                    break;
-                }
-                if (!this->device->run)
-                {
-                    break;
-                }
-            }
-            
-            this->update();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onLoop(this->device->delta);
-            }
-            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN* plugin = this->lsPlugins[i];
-                plugin->onBeginRender();
-            }
-            this->render();
-            //this->device->specificContextDevice->pd3dDevice->EndScene();
-			//Swap buffers
-            this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
-        }
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
+        // Verify window handle is valid
+        if (!IsWindow(d3dParams.hDeviceWindow))
         {
-            PLUGIN * plugin = this->lsPlugins[i];
-            plugin->onDestroy();
+            ERROR_AT(__LINE__, __FILE__, "Invalid window handle during resize");
+            return false;
         }
-        if(this->device->audioInterface)
-            this->device->audioInterface->stopAll();
-        return 0;
+        // Attempt reset
+        HRESULT hr = this->device->specificContextDevice->pd3dDevice->Reset(&d3dParams);
+
+        if (FAILED(hr))
+        {
+#if defined _DEBUG
+            ERROR_LOG("ONRESIZEWINDOW: Reset failed with HRESULT: 0x%x", hr);
+#endif
+            if (D3DERR_DEVICELOST == hr)
+            {
+                // Trigger full device restore sequence
+                ERROR_AT(__LINE__, __FILE__, "Reason device reset fail - D3DERR_DEVICELOST");
+            }
+            if (D3DERR_DEVICENOTRESET == hr)
+            {
+                // Trigger full device restore sequence
+                ERROR_AT(__LINE__, __FILE__, "Reason device reset fail - D3DERR_DEVICENOTRESET");
+            }
+            if (D3DERR_DRIVERINTERNALERROR == hr)
+            {
+                // Trigger full device restore sequence
+                ERROR_AT(__LINE__, __FILE__, "Reason device reset fail - D3DERR_DRIVERINTERNALERROR");
+            }
+            else if (D3DERR_INVALIDCALL == hr)
+            {
+                // Invalid parameters or device state
+                ERROR_AT(__LINE__, __FILE__, "Reason device reset fail - D3DERR_INVALIDCALL");
+            }
+            else if (D3DERR_OUTOFVIDEOMEMORY == hr)
+            {
+                ERROR_AT(__LINE__, __FILE__, "Reason device reset fail - D3DERR_OUTOFVIDEOMEMORY");
+            }
+            return false;
+        }
+        return true;
     }
 
     bool CORE_MANAGER::beginRender()
@@ -769,6 +341,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
     void CORE_MANAGER::endRender()
     {
         this->device->specificContextDevice->pd3dDevice->EndScene();
+    }
+
+    void CORE_MANAGER::swapBuffers()
+    {
+        this->device->specificContextDevice->pd3dDevice->Present(NULL, NULL, NULL, NULL);
     }
 
     bool CORE_MANAGER::renderToTargets()
@@ -861,7 +438,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                     case ONTOUCHMOVE:
                     {
                         if (event->key == this->lastEvent.key &&  //-V550
-							event->x == this->lastEvent.x &&
+                            event->x == this->lastEvent.x &&
                             event->y == this->lastEvent.y) //-V550
                         {
 #if defined _WIN32
@@ -874,7 +451,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                     case ONDOUBLECLICK:
                     {
                         if (event->key == this->lastEvent.key &&  //-V550
-							event->x == this->lastEvent.x &&
+                            event->x == this->lastEvent.x &&
                             event->y == this->lastEvent.y) //-V550
                         {
 #if defined _WIN32
@@ -1082,7 +659,6 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
 
     void CORE_MANAGER::forceRestore()
     {
-        this->onStop();
         while (!this->onLostDevice(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
     }
 

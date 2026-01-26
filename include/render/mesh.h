@@ -47,7 +47,6 @@ class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
-    void                     onStop() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;

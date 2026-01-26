@@ -286,11 +286,6 @@ namespace mbm
         return false;
     }
     
-    void TEXTURE_VIEW::onStop()
-    {
-        this->release();
-    }
-    
     bool TEXTURE_VIEW::onRestoreDevice()
     {
         this->texture = nullptr;

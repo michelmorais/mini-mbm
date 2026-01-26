@@ -44,11 +44,6 @@ namespace mbm
         lsParticleGroup.clear();
     }
 
-    void STEERED_PARTICLE::onStop()
-    {
-        bufferGl.release();
-    }
-    
     STEERED_PARTICLE::STEERED_PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen,const bool b_segmented,const float* _scale_physics_engine)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_STEERED_PARTICLE, _is3d && _is2dScreen == false, _is2dScreen),
         scale_physics_engine(_scale_physics_engine),

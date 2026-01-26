@@ -141,10 +141,10 @@ namespace mbm
         return false;
     }
 
-    void PARTICLE::onStop()
-    {
-        bufferGl.release();
-    }
+    //void PARTICLE::onStop()
+    //{
+    //    bufferGl.release();
+    //}
 
     bool PARTICLE::loadParticleShader(const char* operatorShader, const char* newCodeLine)
     {

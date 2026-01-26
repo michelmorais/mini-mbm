@@ -596,19 +596,30 @@ namespace mbm
             this->display_x11 = nullptr;
     #endif
         }
+
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
         {
-        #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            eglDestroyContext(this->eglDisplay, this->eglContext);
-            eglDestroySurface(this->eglDisplay, this->eglSurface);
-            eglTerminate(this->eglDisplay);
-    
-        if(this->display_x11 != nullptr && this->window_x11 != 0)
-        {
-            XDestroyWindow(this->display_x11, this->window_x11);
-            XCloseDisplay(this->display_x11);
+            release();
         }
-        #endif
+
+        void release()
+        {
+            if(this->eglContext != EGL_NO_CONTEXT)
+                eglDestroyContext(this->eglDisplay, this->eglContext);
+            if(this->eglSurface != EGL_NO_SURFACE)
+                eglDestroySurface(this->eglDisplay, this->eglSurface);
+            if(this->eglDisplay != EGL_NO_DISPLAY)
+                eglTerminate(this->eglDisplay);
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            if (this->display_x11 != nullptr && this->window_x11 != 0)
+            {
+                XDestroyWindow(this->display_x11, this->window_x11);
+                XCloseDisplay(this->display_x11);
+            }
+#endif
+            this->eglDisplay = EGL_NO_DISPLAY;
+            this->eglSurface = EGL_NO_SURFACE;
+            this->eglContext = EGL_NO_CONTEXT;
         }
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;

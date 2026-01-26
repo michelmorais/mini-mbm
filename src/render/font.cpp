@@ -808,12 +808,12 @@ namespace mbm
         return ret;
     }
     
-    void TEXT_DRAW::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-        this->parentFONT_DRAW->onStop();
-    }
+    //void TEXT_DRAW::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //    this->parentFONT_DRAW->onStop();
+    //}
     
     const mbm::INFO_PHYSICS * TEXT_DRAW::getInfoPhysics() const
     {

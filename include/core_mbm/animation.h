@@ -59,8 +59,8 @@ namespace mbm
         API_IMPL void restart();
         API_IMPL void updateEffect(const float delta);
         API_IMPL bool endEffect();
-		API_IMPL bool isEndedFx()const;
-		API_IMPL void forceEndFx();
+        API_IMPL bool isEndedFx()const;
+        API_IMPL void forceEndFx();
         API_IMPL bool setNewTimeAnim(const float newTimeAnim);
         API_IMPL bool adjustMinMax(const uint32_t indexVar, const float min[4], const float max[4], const float timeAnim);
       private:
@@ -71,13 +71,14 @@ namespace mbm
     class ANIMATION
     {
         friend class ANIMATION_MANAGER;
+        friend class ANIMATION_BACKUP;
       public:
         char           nameAnimation[32];
         float          intervalChangeFrame;  
         int            indexInitialFrame;    
         int            indexFinalFrame;      
         int            indexCurrentFrame;    
-        BLEND_STATE blendState;           
+        BLEND_STATE    blendState;
         bool           isEndedThisAnimation; 
         bool           currentWayGrowingOfAnimation;
         TYPE_ANIMATION type; // Tipo_Animacao (TYPE_ANIMATION): 0:Pausa A Anima��o 1:Crescente ->Ex.:Anima��o De 1 a 5 >>Vai
@@ -97,6 +98,35 @@ namespace mbm
                                         OnEndEffect onEndFX);
       private:
         float currentTimeToChangeAnimation; 
+    };
+
+    class ANIMATION_BACKUP
+    {
+    public:
+        API_IMPL void backup(ANIMATION_MANAGER* animationManager);
+        API_IMPL void restore(ANIMATION_MANAGER* animationManager);
+    private:
+        struct ANIMATION_STATE
+        {
+            char           nameAnimation[32];
+            float          intervalChangeFrame;
+            int            indexInitialFrame;
+            int            indexFinalFrame;
+            int            indexCurrentFrame;
+            BLEND_STATE    blendState;
+            bool           isEndedThisAnimation;
+            bool           currentWayGrowingOfAnimation;
+            TYPE_ANIMATION type;
+            float          currentTimeToChangeAnimation;
+
+            std::string    fx_textureOverrideStage2; // fx
+            bool           fx_textureOverrideStage2Alpha; // fx
+            int            fx_blendOperation; // fx
+            
+            
+        };
+        std::vector<ANIMATION_STATE> lsAnimationState;
+        uint32_t                     indexCurrentAnimation;
     };
 
     class ANIMATION_MANAGER
@@ -119,15 +149,18 @@ namespace mbm
         API_IMPL uint32_t addAnimation();
         API_IMPL bool isEndedAnimation() const noexcept;
         API_IMPL void releaseAnimation();
-        
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
+		API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
+        API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
     
-        uint32_t             indexCurrentAnimation;
-        OnEndAnimation           onEndAnimation;
-        OnEndEffect              onEndFx;
-        std::vector<ANIMATION *> lsAnimation;
+        uint32_t                    indexCurrentAnimation;
+        OnEndAnimation              onEndAnimation;
+        OnEndEffect                 onEndFx;
+        std::vector<ANIMATION *>    lsAnimation;
+        ANIMATION_BACKUP   animationBackup;// to be used on restore device
     };
 
+    
 }
 
 #endif

@@ -172,11 +172,11 @@ namespace mbm
         return false;
     }
     
-    void MESH::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void MESH::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * MESH::getInfoPhysics() const
     {
