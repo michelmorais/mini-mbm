@@ -29,10 +29,7 @@
 #include "time-control.h"
 
 #if defined ANDROID
-    namespace util
-    {
-        class COMMON_JNI;
-    };
+    // Android specific includes
 #elif defined __linux__  || defined(__APPLE__) && !defined ANDROID
     #include <X11/Xlib.h>
 #elif defined _WIN32
@@ -88,12 +85,6 @@ namespace mbm
         mbm::ORDER_RENDER   orderRender;
         int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
-
-    #ifdef ANDROID
-        util::COMMON_JNI *jni;
-        void callQuitInJava();
-        void streamStopped(const int indexJNI);
-    #endif
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
 		API_IMPL void setAppReturnCode(const int returnCode) noexcept;
@@ -116,6 +107,7 @@ namespace mbm
         API_IMPL void stopRender2Texture2(RENDERIZABLE *ptr);
         API_IMPL void removeRenderizable(RENDERIZABLE *object);
         API_IMPL void setDephtTest(const bool enable);
+        API_IMPL void refreshDevice();
         API_IMPL bool rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const;
         API_IMPL bool transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,const float howFarZFromCamera) const;
         API_IMPL void transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept;
@@ -142,7 +134,9 @@ namespace mbm
         API_IMPL const char* getBackendEngineVersion()const noexcept;
         API_IMPL void clearDepthColored();
         API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
+        API_IMPL AUDIO_MANAGER_INTERFACE* getAudioManagerInterface() const noexcept;
 	    API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
+        API_IMPL const char* copyFileFromAsset(const char* assetName, const char* mode);// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
 
       private:
         int	                                  returnCodeApp;

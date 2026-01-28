@@ -122,8 +122,6 @@ namespace mbm
             std::string    fx_textureOverrideStage2; // fx
             bool           fx_textureOverrideStage2Alpha; // fx
             int            fx_blendOperation; // fx
-            
-            
         };
         std::vector<ANIMATION_STATE> lsAnimationState;
         uint32_t                     indexCurrentAnimation;

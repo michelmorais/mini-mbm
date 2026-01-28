@@ -22,7 +22,6 @@
 #include <image-resource.h>
 #include <util-interface.h>
 #include <string>
-#include <platform/common-jni.h>
 #include <core_mbm/scene.h>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
@@ -332,12 +331,12 @@ namespace mbm
 #endif
             return false;
         }
-        const auto width = static_cast<float>(atof(result[1].c_str()));
-        const auto height = static_cast<float>(atof(result[2].c_str()));
+        const float width  = static_cast<float>(atof(result[1].c_str()));
+        const float height = static_cast<float>(atof(result[2].c_str()));
 
         this->release();
 
-        if (this->load(result[0].c_str(), static_cast<float>(atof(result[1].c_str())), static_cast<float>(atof(result[2].c_str()))))
+        if (this->load(result[0].c_str(), width, height))
         {
 #if defined DEBUG_RESTORE
             PRINT_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));

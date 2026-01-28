@@ -21,8 +21,9 @@
 #include <stdlib.h>
 
 #include <core_mbm/device.h>
+#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
-#include <platform/common-jni.h>
+
 
 #include "scene-1.h" // your scene C++
 
@@ -364,7 +365,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
         return JNI_FALSE;
     }
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
-    util::COMMON_JNI *jniInstance = util::COMMON_JNI::getInstance();
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
     jniInstance->jenv            = env;
     jniInstance->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;

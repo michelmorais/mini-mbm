@@ -26,7 +26,8 @@
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
-
+    #include <jni.h>
+    #include <string>
 #elif defined __MINGW32__ | defined __CYGWIN__
     #include <gles/EGL/egl.h>
     #include <gles/GLES2/gl2.h>
@@ -574,27 +575,71 @@ namespace log_util
 
 namespace mbm
 {
+    
+
+#if defined(ANDROID)
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
+    {
+      public:
+        JNIEnv *    jenv;
+        std::string absPath, apkPath;
+        jclass      jclassFileJniEngine;
+        jclass      jclassDoCommandsJniEngine;
+        jclass      jclassKeyCodeJniEngine;
+        jclass      jclassInstanceActivityEngine;
+        jclass      jclassAudioManagerJniEngine;
+        SPECIFIC_AUX_CONTEXT_DEVICE();
+        ~SPECIFIC_AUX_CONTEXT_DEVICE();
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+        
+        void release();
+        const char *getStrToDelete(const char *str);
+        void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
+        void callQuitInJava();
+        void streamStopped(const int indexJNI);
+      private:
+        char              packageName[255];
+        char              packageNameMiniMBMClasses[255];
+        std::string       retPath;
+        std::string       buffer_new_stringUTF[10];
+        int               index_string_utf;
+        jclass getClass(const char *nameClass);
+      public:
+        const char* get_safe_string_utf(const char* string_input);
+        #if _DEBUG
+            FILE *onFailOpenFile(const int lineNumber, const char *fileName, const char *message);
+        #else
+            FILE *onFailOpenFile(const int, const char *, const char *);
+        #endif
+        const int onFailExistFile(const int lineNumber, const char *fileName, const char *message);
+        void addPathDroid(const char *fileName);
+        int existFileOnAssets(const char *fileName);
+        const char *copyFileFromAsset(const char *fileName, const char *mode);
+        uint8_t *getImageDataFromDroid(const char *fileName, int *width, int *height);
+        FILE *fopenAsset(const char *fileName, const char *mode = "rb");
+    };
+
+
+    #elif (defined(__linux__) || defined(__APPLE__))
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
         EGLDisplay eglDisplay;
         EGLSurface eglSurface;
         EGLContext eglContext;
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
             Window     window_x11;
             Display *  display_x11;
     
     void make_x_window(const char *name, int x, int y,uint32_t width,uint32_t height, bool border);
             
-    #endif
         SPECIFIC_AUX_CONTEXT_DEVICE()
         {
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
             this->window_x11 = 0;
             this->display_x11 = nullptr;
-    #endif
         }
 
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
@@ -604,19 +649,17 @@ namespace mbm
 
         void release()
         {
-            if(this->eglContext != EGL_NO_CONTEXT)
-                eglDestroyContext(this->eglDisplay, this->eglContext);
-            if(this->eglSurface != EGL_NO_SURFACE)
-                eglDestroySurface(this->eglDisplay, this->eglSurface);
             if(this->eglDisplay != EGL_NO_DISPLAY)
                 eglTerminate(this->eglDisplay);
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+            if(this->eglSurface != EGL_NO_SURFACE)
+                eglDestroySurface(this->eglDisplay, this->eglSurface);
+            if(this->eglContext != EGL_NO_CONTEXT)
+                eglDestroyContext(this->eglDisplay, this->eglContext);
             if (this->display_x11 != nullptr && this->window_x11 != 0)
             {
                 XDestroyWindow(this->display_x11, this->window_x11);
                 XCloseDisplay(this->display_x11);
             }
-#endif
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
@@ -624,6 +667,8 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
     };
+
+#endif
 
     struct BUFFER_SPECIFIC
     {

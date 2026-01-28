@@ -26,6 +26,7 @@
 #include <list>
 #include <mutex>
 #include "core-exports.h"
+#include <core_mbm/joystick-base.h>
 
 #if defined _WIN32
     #include <joystick-win32/joystick.h>
@@ -94,10 +95,27 @@ namespace mbm
         int                player;
         float              rx, ry;
         EVENT_TYPE_ACTIONS eventType;
-        constexpr EVENT_KEY() noexcept;
-        constexpr EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept;
+        constexpr EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
+        {}
+            
+        constexpr EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
+            : x(_x),
+                y(_y),
+                key(_key),
+                player(0),
+                rx(0.0f),
+                ry(0.0f),
+                eventType(_eventName)
+        {}
         constexpr EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                            const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept; 
+                            const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
+                                                                                                ly(_ly),
+                                                                                                key(_key),
+                                                                                                player(_player),
+                                                                                                rx(_rx),
+                                                                                                ry(_ry),
+                                                                                                eventType(_eventName)
+        {}
         
     };
 
@@ -112,14 +130,9 @@ namespace mbm
                                   const char *_extraInfo);
     };
 
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-
-
     class API_IMPL EVENTS
     {
       public:
-        EVENTS() noexcept;
-        virtual ~EVENTS();
         virtual void onTouchDown(int key, float x, float y) = 0;
         virtual void onTouchUp(int key, float x, float y) = 0;
         virtual void onTouchMove(int key, float x, float y) = 0;
@@ -132,13 +145,8 @@ namespace mbm
         virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
         virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
     };
-    #endif
 
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-    class CORE_MANAGER : public EVENTS
-    #else
-    class CORE_MANAGER : public EVENTS, public JOYSTICK
-    #endif
+    class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
     {
       public:
         DEVICE *device;
@@ -156,23 +164,13 @@ namespace mbm
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
-    #if defined ANDROID
-        API_IMPL bool onLostDevice(JNIEnv *jenv, jobject jobj, int width, int height);
-    #else
-        API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
-    #endif
+        API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #if (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         void initializeWindowx11();
     #endif
 
-#ifdef ANDROID
-        API_IMPL int loop(JNIEnv *, jobject);
-#elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL int loop();
-#else
-#error "platform not suported!"
-#endif
+    API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
     
 
     #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
@@ -206,7 +204,7 @@ namespace mbm
         bool popEvent(EVENT_KEY *event);
         void pushEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
-    #if defined(ANDROID)
+
       public:
         API_IMPL void onTouchDown(int key, float x, float y);
         API_IMPL void onTouchUp(int key, float x, float y);
@@ -220,39 +218,10 @@ namespace mbm
         API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
         API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
         API_IMPL void onResizeWindow(int width, int height);
-    
-    #elif defined __linux__ || defined(__APPLE__)
-      public:
-        API_IMPL void onTouchDown(int key, float x, float y);
-        API_IMPL void onTouchUp(int key, float x, float y);
-        API_IMPL void onTouchMove(int key, float x, float y);
-        API_IMPL void onTouchZoom(float zoom);
-        API_IMPL void onKeyDown(int key);
-        API_IMPL void onKeyUp(int key);
-        API_IMPL void onDoubleClick(float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(int width, int height);
-    #elif defined _WIN32
-        API_IMPL void onTouchDown(HWND, int key, float x, float y);
-        API_IMPL void onTouchUp(HWND, int key, float x, float y);
-        API_IMPL void onTouchMove(HWND, float x, float y);
-        API_IMPL void onTouchZoom(HWND, float zoom);
-        API_IMPL void onKeyDown(HWND, int key);
-        API_IMPL void onKeyUp(HWND,int key);
-        API_IMPL void onDoubleClick(HWND, float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(HWND w, int width, int height);
-        
-    #endif
+
       public:
         bool __sceneWasInit;
-        API_IMPL void forceRestore();
+        API_IMPL void forceRestore(const bool doSwapBuffers);
         bool keyCapsLockState;
     #if defined _WIN32
         DWORD idIcon;

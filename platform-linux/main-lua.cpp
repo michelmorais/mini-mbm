@@ -38,7 +38,7 @@ int main(const int argc,const char **argv)
     }
     mbm::LUA_MANAGER luaCore(argc, argv);
     log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
-    if (luaCore.initializeSceneLua(luaCore.noBorder == false))
+    if (luaCore.initializeSceneLua(luaCore.widthWindow,luaCore.heightWindow,1024, 768, luaCore.noBorder == false))
     {
         const int ret = luaCore.run();
         const int returnCode = luaCore.device->getAppReturnCode();

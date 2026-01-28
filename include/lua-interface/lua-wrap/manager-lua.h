@@ -126,11 +126,7 @@ namespace mbm
         void setExpectedSizeOfWindow(int expectedWidth,int expectedHeight,const char * stretch);
 		void getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight,std::string & stretch);
         bool execute_string(lua_State *lua);
-    #if defined ANDROID
-        bool initializeSceneLua(int w, int h,int expectedWidth,int expectedHeight);
-    #else
-        bool initializeSceneLua(const bool border);
-    #endif
+        bool initializeSceneLua(int w, int h,int _expectedWidth,int _expectedHeight, const bool border);
         int run();
       private:
 		bool hasValueTextureLogo;

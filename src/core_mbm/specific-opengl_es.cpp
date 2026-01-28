@@ -19,6 +19,18 @@
 #if defined (USE_OPENGL_ES)
 #include <specific-opengl_es.h>
 
+#if defined ANDROID
+    #include <android/asset_manager.h>
+    #include <android/log.h>
+    #include <jni.h>
+    #include <unistd.h>
+    #include <dirent.h>
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #include <errno.h>
+    #include <util-interface.h>
+#endif
+
 namespace mbm
 {
     RENDER2TARGET_GLES::RENDER2TARGET_GLES():
@@ -49,5 +61,6 @@ namespace mbm
     {
         release();
     }
+
 }
 #endif

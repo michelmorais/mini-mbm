@@ -24,7 +24,7 @@
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
-#include <platform/common-jni.h>
+#include <specific-opengl_es.h>
 
 
 namespace mbm
@@ -44,9 +44,10 @@ namespace mbm
 		const char *methodName = "onDestroyAudioJniEngine";
 		const char *signature = "(I)V"; // void (int)
 
-		util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-		JNIEnv *         jenv = cJni->jenv;
-		jmethodID        mid = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+		mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+		JNIEnv * jenv                     = device->specificContextDevice->jenv;
+		jmethodID mid                     = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
 		if (mid == nullptr)
         {
 			PRINT_IF_DEBUG("method not found: %s", methodName);
@@ -62,9 +63,10 @@ namespace mbm
     {
         const char *methodName = "onSetVolumeAudioJniEngine";
         const char *signature  = "(IF)V"; // void (int,float)
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv * jenv                     = cJni->jenv;
+        jmethodID        mid              = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI, volume);
@@ -75,9 +77,10 @@ namespace mbm
     {
         const char *methodName = "onSetPanAudioJniEngine";
         const char *signature  = "(IF)V"; // void (int,float)
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv * jenv                     = cJni->jenv;
+        jmethodID        mid              = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI, pan);
@@ -90,9 +93,10 @@ namespace mbm
         {
             const char *methodName = "onPauseAudioJniEngine";
             const char *signature  = "(I)V"; // void (int)
-            util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-            JNIEnv *         jenv = cJni->jenv;
-            jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+            mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+            SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+            JNIEnv * jenv                     = cJni->jenv;
+            jmethodID        mid              = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
             if (mid == nullptr)
                 return log("method not found:", methodName, __LINE__);
             jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -108,7 +112,8 @@ namespace mbm
         {
             const char *     methodName = "onResumeAudioJniEngine";
             const char *     signature  = "(I)V"; // void (int)
-            util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+            mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+            SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
             JNIEnv *         jenv       = cJni->jenv;
             jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
             if (mid == nullptr)
@@ -123,9 +128,10 @@ namespace mbm
     {
         const char *methodName = "onStopAudioJniEngine";
         const char *signature  = "(I)V"; // void (int)
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv      = cJni->jenv;
+        jmethodID        mid              = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -135,11 +141,12 @@ namespace mbm
     
     bool AUDIO::setPitch(const float pitch) // range from 0.5 to 2.0.  default is 1.0. - ok somente sound
     {
-        const char *methodName = "onSetPitchAudioJniEngine";
-        const char *signature  = "(IF)V"; // void (int,float)
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        const char *methodName            = "onSetPitchAudioJniEngine";
+        const char *signature             = "(IF)V"; // void (int,float)
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI, pitch);
@@ -152,12 +159,12 @@ namespace mbm
             return false;
 		if(isLoaded())
 			return true;
-        const char *methodName = "onLoadAudioJniEngine";
-        const char *signature  = "(ILjava/lang/String;ZZ)Z"; // bool (int,string, bool, bool)
-
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        const char *methodName            = "onLoadAudioJniEngine";
+        const char *signature             = "(ILjava/lang/String;ZZ)Z"; // bool (int,string, bool, bool)
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(filenameSound));//fixed issue using local std::string
@@ -175,9 +182,10 @@ namespace mbm
         const char *methodName = "onPlayAudioJniEngine";
         const char *signature  = "(IZ)Z"; // bool (int,bool)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jboolean result = jenv->CallStaticBooleanMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI, loop);
@@ -192,9 +200,10 @@ namespace mbm
         const char *methodName = "onIsPlayingAudioJniEngine";
         const char *signature  = "(I)Z"; // bool (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jboolean result = jenv->CallStaticBooleanMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -210,9 +219,10 @@ namespace mbm
         const char *methodName = "onIsPausedAudioJniEngine";
         const char *signature  = "(I)Z"; // bool (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         const jboolean result = jenv->CallStaticBooleanMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -224,9 +234,10 @@ namespace mbm
         const char *methodName = "onGetVolumeAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         const jfloat result = jenv->CallStaticFloatMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -238,9 +249,10 @@ namespace mbm
         const char *methodName = "onGetPanAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         const jfloat result = jenv->CallStaticFloatMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -252,9 +264,10 @@ namespace mbm
         const char *methodName = "onGetPitchAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         const jfloat result = jenv->CallStaticFloatMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -266,9 +279,10 @@ namespace mbm
         const char *methodName = "onGetLengthAudioJniEngine";
         const char *signature  = "(I)I"; // int (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         const jint result = jenv->CallStaticIntMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -280,9 +294,10 @@ namespace mbm
         const char *methodName = "onResetAudioJniEngine";
         const char *signature  = "(I)V"; // void (int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI);
@@ -294,9 +309,10 @@ namespace mbm
         const char *methodName = "onSetPositionAudioJniEngine";
         const char *signature  = "(II)V"; // void (int,int)
 
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID    mid                  = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (mid == nullptr)
             return log("method not found:", methodName, __LINE__);
         jenv->CallStaticVoidMethod(cJni->jclassAudioManagerJniEngine, mid, this->indexJNI, pos);
@@ -326,11 +342,12 @@ namespace mbm
     
     bool AUDIO::onNew_AudioJniEngine(int *retIndexJni)
     {
-        const char *     methodName           = "onNewAudioJniEngine";
-        const char *     signature            = "()I";
-        util::COMMON_JNI *cJni                = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv                 = cJni->jenv;
-        jmethodID        midNew_AudioJniEngine = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
+        const char *     methodName       = "onNewAudioJniEngine";
+        const char *     signature        = "()I";
+        mbm::DEVICE *device               = mbm::DEVICE::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *     jenv                 = cJni->jenv;
+        jmethodID midNew_AudioJniEngine   = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (midNew_AudioJniEngine == nullptr)
             return log("method not found:", methodName, __LINE__);
         jint result  = jenv->CallStaticIntMethod(cJni->jclassAudioManagerJniEngine, midNew_AudioJniEngine);

@@ -24,10 +24,9 @@
 #include <physics.h>
 #include <util-interface.h>
 #include <dynamic-var.h>
+#include <core-manager.h>
 
-#if defined ANDROID
-    #include <platform/common-jni.h>
-#elif defined _WIN32
+#if defined _WIN32
     #include <plusWindows/defaultThemePlusWindows.h>
 #endif
 
@@ -46,9 +45,6 @@ namespace mbm
 
     DEVICE::DEVICE()
     {
-    #ifdef ANDROID
-        jni = util::COMMON_JNI::getInstance();
-    #endif
         bOnErrorStopScript         = false;
         clearBackGround            = true;
         ptrManager                 = nullptr;
@@ -708,6 +704,11 @@ namespace mbm
 		this->audioInterface = _audioInterface;
 	}
 
+    AUDIO_MANAGER_INTERFACE* DEVICE::getAudioManagerInterface() const noexcept
+    {
+        return this->audioInterface;
+    }
+
     void * DEVICE::get_lua_state()//if we are using lua we should be able to retrieve the current state
     {
         if(this->scene)
@@ -724,6 +725,12 @@ namespace mbm
         }
         this->lsDynamicVarGlobal.clear();
         this->destroySpecificContext();
+    }
+
+    void DEVICE::refreshDevice()
+    {
+        //force refresh window by sending resize event
+        this->ptrManager->onResizeWindow(static_cast<int>(this->backBufferWidth), static_cast<int>(this->backBufferHeight));
     }
 
     #if defined _WIN32

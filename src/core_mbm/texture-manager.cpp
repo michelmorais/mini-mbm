@@ -27,7 +27,10 @@
 #include <stb/stb-interface.h>
 
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    #include <device.h>
+    #if defined     USE_OPENGL_ES
+    #include <core_mbm/specific-opengl_es.h>
+    #endif
 #endif
 
 #include <platform/mismatch-platform.h>
@@ -366,10 +369,11 @@ namespace mbm
 #if defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
     {
-        util::COMMON_JNI *jni   = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         int              wint   = 0;
         int              hint   = 0;
-        uint8_t *  pixels = jni->getImageDataFromDroid(_fileName, &wint, &hint);
+        uint8_t *  pixels = cJni->getImageDataFromDroid(_fileName, &wint, &hint);
         if (pixels)
         {
             if (wint < 0 && hint < 0)

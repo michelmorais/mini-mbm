@@ -44,8 +44,8 @@
         #define access_file access
 
     #elif defined ANDROID
-        //do nothing
-
+        int access_file(const char *fileName, int);
+        #define access_file access
     #elif defined(__linux__) // __APPLE__ bellow untested
         #include <unistd.h>
         #define access_file access

@@ -17,8 +17,9 @@
     #include <errno.h>
 #endif
 
-#if defined          ANDROID
-    #include <platform/common-jni.h>
+#if defined USE_OPENGL_ES && defined ANDROID
+    #include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/device.h>
 #endif
 
 #include "sqlite3ext.h"
@@ -37,7 +38,8 @@ static std::vector<std::string> paths;
 void addPathToEngine(const char * sPath)
 {
     #if defined ANDROID
-        util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
         cJni->addPathDroid(sPath);
     #endif
     paths.push_back(sPath);
@@ -135,7 +137,8 @@ const char * createRandomPath(sqlite3_context *context)
     #else
 
     #if defined          ANDROID
-        util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
         const char *     currentPath  = cJni->absPath.c_str();
         char template_name[255]       = "";
         snprintf(template_name,sizeof(template_name),"%s/asset_XXXXXX",currentPath);
@@ -392,7 +395,8 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
             if(strcmp(sPath,".") == 0)
             {
             #if defined          ANDROID
-                util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
                 const char *     currentPath  = cJni->absPath.c_str();
                 sPath                         = currentPath;
                 cJni->addPathDroid(currentPath);
@@ -415,7 +419,8 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
             {
                 char dir_name[255]            = "";
                 #if defined          ANDROID
-                util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
                 const char *     currentPath  = cJni->absPath.c_str();
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
                     snprintf(dir_name,sizeof(dir_name),"%s%s",currentPath,sPath);
@@ -462,7 +467,8 @@ static void addAssetFolderFunc(sqlite3_context *context,int argc,sqlite3_value *
         else
         {
             #if defined          ANDROID
-                util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
                 const char *     currentPath  = cJni->absPath.c_str();
                 char template_name[255]       = "";
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')

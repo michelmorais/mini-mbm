@@ -33,9 +33,7 @@
 #include <cr-static-local.h>
 #include <mesh-manager.h>
 
-#if defined(ANDROID)
-    #include <platform/common-jni.h>
-#elif defined(_WIN32)
+#if defined(_WIN32)
     #include <GLES2/gl2ext.h>
 #endif
 
@@ -44,30 +42,6 @@
 
 namespace mbm
 {
-
-    
-constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
-    {}
-        
-    constexpr EVENT_KEY::EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
-        : x(_x),
-            y(_y),
-            key(_key),
-            player(0),
-            rx(0.0f),
-            ry(0.0f),
-            eventType(_eventName)
-    {}
-    constexpr EVENT_KEY::EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                        const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
-                                                                                            ly(_ly),
-                                                                                            key(_key),
-                                                                                            player(_player),
-                                                                                            rx(_rx),
-                                                                                            ry(_ry),
-                                                                                            eventType(_eventName)
-    {}
-
     INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
     {}
 
@@ -75,15 +49,7 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
                                 const char *_extraInfo)
         : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
     {}
-
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-
-    EVENTS::EVENTS() noexcept
-    = default;
-    EVENTS::~EVENTS() = default;
-
-    #endif
-
+    
 void printGLString(const char *name, GLenum s);
 void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
@@ -153,7 +119,9 @@ void printGLString(const char *name, GLenum s)
 
     void CORE_MANAGER::swapBuffers()
     {
+        #if !defined (ANDROID)
 		eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
+        #endif
     }
 
     void CORE_MANAGER::ReleaseGraphics()
@@ -567,45 +535,7 @@ void printGLString(const char *name, GLenum s)
         return true;
     }
 
-#ifdef ANDROID
-    int CORE_MANAGER::loop(JNIEnv *, jobject)
-    {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized                  = true;
-            device->camera.expectedScreen.x = device->backBufferWidth;
-            device->camera.expectedScreen.y = device->backBufferHeight;
-        }
-        this->update();
-        this->render();
-        return 0;
-    }
-
-#elif (defined(_WIN32) || defined (__MINGW32__) || defined(__linux__) || defined(__APPLE__))
-    
-    
-
-#elif defined(__linux__) || defined(__APPLE__)
-
-    // TODO: check before merge directx with master
-
-#else
-    #error "platform not suported"
-#endif
+    //int CORE_MANAGER::loop(JNIEnv *, jobject)
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
@@ -816,87 +746,6 @@ void printGLString(const char *name, GLenum s)
             return false;
         }
     }
-#if defined(ANDROID)
-    
-    void CORE_MANAGER::onTouchDown(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchDown(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchUp(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchUp(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchMove(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchMove(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos dedos. É
-                                 // enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchZoom(zoom);
-    }
-    
-    void CORE_MANAGER::onKeyDown(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyDown(key);
-    }
-    
-    void CORE_MANAGER::onKeyUp(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyUp(key);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(float x, float y, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onDoubleClick(x, y, key);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyDownJoystick(player, key);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyUpJoystick(player, key);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onMoveJoystick(player, lx, ly, rx, ry);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onInfoDeviceJoystick(player, maxNumberButton, strDeviceName, extraInfo);
-    }
-
-    void CORE_MANAGER::onResizeWindow(int, int)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onResizeWindow();
-    }
-#elif defined __linux__ || defined __APPLE__
 
     void CORE_MANAGER::onTouchDown(int key, float x, float y)
     {
@@ -984,105 +833,6 @@ void printGLString(const char *name, GLenum s)
         EVENT_KEY ev(static_cast<float>(width),static_cast<float>(height),0,EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
         this->pushEvent(&ev);
     }
-#elif _WIN32
-    
-    void CORE_MANAGER::onTouchDown(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchUp(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchMove(HWND, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, 0, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(HWND, float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos
-                                       // dedos. É enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        EVENT_KEY ev(0, 0, (int)zoom, EVENT_TYPE_ACTIONS::ONTOUCHZOOM);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDown(HWND, int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUp(HWND,int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(HWND, float x, float y, int key)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYDOWNJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYUPJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        constexpr float pProp_128 = 1.0f / 128.f;
-        constexpr float pProp_127 = 1.0f / 127.f;
-        const float        flx       = lx > 0 ? lx * pProp_127 : lx * pProp_128;
-        const float        fly       = ly > 0 ? ly * pProp_127 : ly * pProp_128;
-        const float        frx       = rx > 0 ? rx * pProp_127 : rx * pProp_128;
-        const float        fry       = ry > 0 ? ry * pProp_127 : ry * pProp_128;
-        EVENT_KEY          ev(flx, fly, 0, player, frx, fry, EVENT_TYPE_ACTIONS::ONMOVEJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        INFO_JOYSTICK_INIT_PLAYER ev(player, maxNumberButton, strDeviceName, extraInfo);
-        this->pushEvent(&ev);
-    }
-
-    void CORE_MANAGER::onResizeWindow(HWND, int width, int height)
-    {
-        EVENT_KEY ev(static_cast<float>(width),static_cast<float>(height),0,EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
-        this->pushEvent(&ev);
-    }
-    #endif
-
-    void CORE_MANAGER::forceRestore()
-    {
-        this->onStop();
-        #if defined ANDROID
-        while (!this->onLostDevice(this->device->jni->jenv,nullptr,static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight)));
-        #else
-        while (!this->onLostDevice(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
-        #endif
-    }
 
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
@@ -1103,7 +853,9 @@ void printGLString(const char *name, GLenum s)
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 handle = this->device->specificContextDevice->display_x11;
             #elif defined(ANDROID)
-                handle = this->device->jni->jenv;
+                SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+                JNIEnv *     jenv                 = cJni->jenv;
+                handle                            = jenv;
             #endif
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
             return this->lsPlugins.size() - 1;

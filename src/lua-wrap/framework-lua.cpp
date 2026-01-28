@@ -68,7 +68,7 @@
 #include <vector>
 #include <audio-interface.h>
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    // no includes here
 #elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
     #include <unistd.h>
     #include <X11/Xlib.h>
@@ -186,7 +186,7 @@ namespace mbm
         const char *what = luaL_checkstring(lua, 1);
         if (strcasecmp(what, "API-level") == 0)
         {
-            util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
             JNIEnv *         jenv = cJni->jenv;
             jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, "getAPILevel", "()I");
             if (mid == NULL)
@@ -201,8 +201,8 @@ namespace mbm
         }
         else if (strcasecmp(what, "vibrate") == 0)
         {
+            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
             const int        milliseconds = (int)luaL_checkinteger(lua, 2);
-            util::COMMON_JNI *cJni         = util::COMMON_JNI::getInstance();
             JNIEnv *         jenv         = cJni->jenv;
             jmethodID        mid          = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, "vibrate", "(I)V");
             if (mid == NULL)
@@ -217,7 +217,7 @@ namespace mbm
         }
         else
         {
-            util::COMMON_JNI *cJni  = util::COMMON_JNI::getInstance();
+            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
             JNIEnv *         jenv  = cJni->jenv;
             const int        top   = lua_gettop(lua);
             const char *     parm1 = what;
@@ -261,7 +261,7 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-    }
+    }*/
 
     #else
     // defined on manager-lua.cpp
@@ -309,7 +309,7 @@ namespace mbm
     #if defined          ANDROID
         const char *     methodName = "displayMetrics";
         const char *     signature  = "()[B"; //() byte array
-        util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -460,7 +460,7 @@ namespace mbm
         char             dir[255]   = "";
         dir[0]                      = 0;
     #if defined          ANDROID
-        util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         const char *     currentPath = cJni->absPath.c_str();
         if (currentPath)
             strncpy(dir, currentPath,sizeof(dir)-1);
@@ -1012,7 +1012,7 @@ namespace mbm
         {
             bool             sucess = false;
     #if defined              ANDROID
-            util::COMMON_JNI *cJni   = util::COMMON_JNI::getInstance();
+            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
             const char *     newPath = util::getFullPath(cJni->copyFileFromAsset(fileName, "rt"),nullptr);
     #else
             const char *  newPath = util::getFullPath(fileName, nullptr);
@@ -1553,7 +1553,7 @@ namespace mbm
             return 0;
         }
     #elif defined ANDROID
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyCode", "(Ljava/lang/String;)I");
         if (mid == NULL)
@@ -1789,7 +1789,7 @@ namespace mbm
             };
         }
     #elif defined ANDROID
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyName", "(I)Ljava/lang/String;");
         if (mid == NULL)
@@ -1974,7 +1974,7 @@ namespace mbm
     #elif defined ANDROID
         const char *     methodName = "getIdiom";
         const char *     signature  = "()Ljava/lang/String;"; //(string) void
-        util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -2026,7 +2026,7 @@ namespace mbm
     #elif defined ANDROID
         const char *     methodName = "getUserName";
         const char *     signature  = "()Ljava/lang/String;"; //(string) void
-        util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -2586,7 +2586,7 @@ namespace mbm
 
         const char *     methodName = "saveFile";
         const char *     signature  = "(Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -2701,7 +2701,7 @@ namespace mbm
 
         const char *     methodName = allowMultipleSelects ? "openMultFile" : "getImage";
         const char *     signature  = "(Ljava/lang/String;)V"; // void (string)
-        util::COMMON_JNI *cJni       = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv       = cJni->jenv;
         jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
         if (mid == NULL)
@@ -2766,7 +2766,7 @@ namespace mbm
     {
         const char *methodName = "messageBox";
         const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"; // boolean (string,string,string)
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)
@@ -2837,7 +2837,7 @@ namespace mbm
     #if defined           ANDROID
         const char *      methodName = "openFolder";
         const char *      signature  = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"; // String (string)
-        util::COMMON_JNI * cJni      = util::COMMON_JNI::getInstance();
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
         JNIEnv *          jenv       = cJni->jenv;
         jmethodID         mid        = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)
@@ -3438,8 +3438,9 @@ namespace mbm
 
     int onRefresh(lua_State * )
     {
+        //force refresh window by sending resize event
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->forceRestore();
+        device->refreshDevice();
         return 0;
     }
 

@@ -1188,9 +1188,8 @@ namespace mbm
             this->lsAnimationState.clear();
             for (std::vector<ANIMATION*>::size_type i = 0; i < animationManager->lsAnimation.size(); ++i)
             {
-                ANIMATION* anim = animationManager->lsAnimation[i];
-                ANIMATION_STATE state;
-                memset(&state, 0, sizeof(ANIMATION_STATE));
+                ANIMATION* anim                     = animationManager->lsAnimation[i];
+                ANIMATION_STATE state               = {};
                 strncpy(state.nameAnimation, anim->nameAnimation, sizeof(state.nameAnimation));
                 state.intervalChangeFrame           = anim->intervalChangeFrame;
                 state.indexInitialFrame             = anim->indexInitialFrame;

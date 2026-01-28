@@ -34,7 +34,7 @@
 #include <dynamic-var.h>
 
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    //
 #elif defined _WIN32
     #include <plusWindows/defaultThemePlusWindows.h>
 #elif defined(__linux__) || defined(__APPLE__)

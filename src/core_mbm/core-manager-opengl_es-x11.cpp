@@ -132,7 +132,7 @@ namespace mbm
             break;
             default: 
             {
-                printf("Event: %d\n", xevent.type);
+                //printf("Event: %d\n", xevent.type);
             }
                    break;
             }
@@ -224,7 +224,7 @@ namespace mbm
         attr.background_pixel = 0;
         attr.border_pixel     = 0;
         attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
-        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | ResizeRedirectMask;
+        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ResizeRedirectMask;
         mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
         if(border == false)
         {

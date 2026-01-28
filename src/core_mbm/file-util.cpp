@@ -30,7 +30,6 @@
     #include <direct.h>
     #pragma warning(disable : 4996) //access
 #elif defined ANDROID
-    #include <platform/common-jni.h>
     #include <android/asset_manager.h>
     #include <android/log.h>
     #include <jni.h>
@@ -39,6 +38,8 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
+    #include <device.h>
+    #include <specific-opengl_es.h>
 #elif __linux__ || defined(__APPLE__)
     #include <climits>
     #include <cstdarg>
@@ -265,9 +266,10 @@ namespace util
         if(folder_base_name == nullptr) // will create a tmp folder
         {
             #if defined          ANDROID
-                util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
-                const char *     currentPath  = cJni->absPath.c_str();
-                char template_name[255]       = "";
+                mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni  = device->specificContextDevice;
+                const char *     currentPath            = cJni->absPath.c_str();
+                char template_name[255]                 = "";
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
                     snprintf(template_name,sizeof(template_name),"%sasset_XXXXXX",currentPath);
                 else
@@ -373,7 +375,8 @@ namespace util
             {
                 char dir_name[255]            = "";
                 #if defined          ANDROID
-                util::COMMON_JNI *cJni        = util::COMMON_JNI::getInstance();
+                mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
+                mbm::SPECIFIC_AUX_CONTEXT_DEVICE*  cJni = device->specificContextDevice;
                 const char *     currentPath  = cJni->absPath.c_str();
                 if(cJni->absPath.size() > 0 && cJni->absPath[cJni->absPath.size()-1] == '/')
                     snprintf(dir_name,sizeof(dir_name),"%s%s",currentPath,folder_base_name);
@@ -435,8 +438,9 @@ namespace util
 #if defined ANDROID
         if (mode && strchr(mode, 'w'))
         {
-            util::COMMON_JNI *commonJni = util::COMMON_JNI::getInstance();
-            const char *currentPath = commonJni->absPath.c_str();
+            mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+            const char *currentPath                = cJni->absPath.c_str();
             if (currentPath)
             {
                 std::string file(currentPath);
@@ -540,10 +544,11 @@ namespace util
             return nullptr;
 		if(strlen(fileName) == 0)
 			return fileName;
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         if(strstr(fileName,util::getDecompressModelFileName()) != nullptr)
         {
-            util::COMMON_JNI *commonJni = util::COMMON_JNI::getInstance();
-            const char *currentPath = commonJni->absPath.c_str();
+            const char *currentPath = cJni->absPath.c_str();
             if (currentPath)
             {
                 static std::string fileDecompress;
@@ -559,7 +564,6 @@ namespace util
             }
         }
         fileName                  = getCorrectSeparator2SO(fileName);
-        util::COMMON_JNI *commonJni = util::COMMON_JNI::getInstance();
         if (access_file(fileName, 0) != 0)
         { // file doesnt exist
             const char *nameOnly = getNameOnly(fileName);
@@ -567,7 +571,7 @@ namespace util
             {
                 if (existPath)
                     *existPath              = true;
-                const char *fileNameAndorid = commonJni->copyFileFromAsset(fileName, "r");
+                const char *fileNameAndorid = cJni->copyFileFromAsset(fileName, "r");
                 if (fileNameAndorid)
                 {
                     addPath(fileNameAndorid);
@@ -575,7 +579,7 @@ namespace util
                 }
                 else
                 {
-                    nameOnly = commonJni->copyFileFromAsset(nameOnly, "r");
+                    nameOnly = cJni->copyFileFromAsset(nameOnly, "r");
                     if (nameOnly)
                     {
                         addPath(nameOnly);
@@ -598,7 +602,7 @@ namespace util
                     if (existPath)
                         *existPath              = true;
                     pathRet               = fullPath;
-                    const char *fileNameAndorid = commonJni->copyFileFromAsset(fullPath.c_str(), "r");
+                    const char *fileNameAndorid = cJni->copyFileFromAsset(fullPath.c_str(), "r");
                     if (fileNameAndorid)
                     {
                         addPath(fileNameAndorid);
@@ -621,7 +625,7 @@ namespace util
         {
             if (existPath)
                 *existPath              = true;
-            const char *fileNameAndorid = commonJni->copyFileFromAsset(fileName, "r");
+            const char *fileNameAndorid = cJni->copyFileFromAsset(fileName, "r");
             if (fileNameAndorid)
             {
                 addPath(fileNameAndorid);
@@ -708,20 +712,18 @@ namespace util
 			if(onAddPathScript)
 				onAddPathScript(path);
     #ifdef ANDROID // add anyway bacause we are going to search in the files of Android
-            util::COMMON_JNI *jni = util::COMMON_JNI::getInstance();
-            if (jni)
+            mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+            cJni->addPathDroid(path);
+            for (uint32_t i = 0; i < lsPath.size(); ++i)
             {
-                jni->addPathDroid(path);
-                for (uint32_t i = 0; i < lsPath.size(); ++i)
+                if (lsPath[i].compare(path) == 0) // Ja existe este path
                 {
-                    if (lsPath[i].compare(path) == 0) // Ja existe este path
-                    {
-                        return;
-                    }
+                    return;
                 }
-                lsPath.push_back(path);
-                return;
             }
+            lsPath.push_back(path);
+            return;
     #endif
             if (path && strlen(path))
             {

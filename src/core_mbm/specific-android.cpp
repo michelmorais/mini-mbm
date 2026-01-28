@@ -17,18 +17,36 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#ifdef ANDROID
 
-#include <platform/common-jni.h>
 #include <unistd.h>
 #include <core_mbm/util-interface.h>
+#include <specific-opengl_es.h>
+#include <device.h>
+#include <audio-interface.h>
 
-
-
-namespace util
+namespace mbm
 {
-    extern const char * getDecompressModelFileName();
-
-    COMMON_JNI::COMMON_JNI()
+    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
+    jenv(nullptr),
+    absPath(""),
+    apkPath(""),
+    jclassFileJniEngine(nullptr),
+    jclassDoCommandsJniEngine(nullptr),
+    jclassKeyCodeJniEngine(nullptr),
+    jclassInstanceActivityEngine(nullptr),
+    jclassAudioManagerJniEngine(nullptr)
+    {
+        memset(this->packageName, 0, sizeof(this->packageName));
+        memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
+    }
+    
+    SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE()
+    {
+        release();
+    }   
+    
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release()
     {
         this->jenv                          = nullptr;
         this->jclassFileJniEngine           = nullptr;
@@ -37,30 +55,12 @@ namespace util
         this->jclassInstanceActivityEngine  = nullptr;
         this->jclassAudioManagerJniEngine   = nullptr;
         this->index_string_utf              = 0;
-
+    
         memset(this->packageName, 0, sizeof(this->packageName));
         memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
     }
 
-    COMMON_JNI * COMMON_JNI::getInstance()
-    {
-        if (instanceComunJni == nullptr)
-        {
-            instanceComunJni = new COMMON_JNI();
-        }
-        return instanceComunJni;
-    }
-
-    void COMMON_JNI::release()
-    {
-        if (instanceComunJni != nullptr)
-        {
-            delete instanceComunJni;
-        }
-        instanceComunJni = nullptr;
-    }
-
-    const char * COMMON_JNI::getStrToDelete(const char *str)
+    const char * SPECIFIC_AUX_CONTEXT_DEVICE::getStrToDelete(const char *str)
     {
         retPath.clear();
         if (str)
@@ -68,7 +68,7 @@ namespace util
         return retPath.c_str();
     }
 
-    void COMMON_JNI::cacheJavaClasses(const char *_packageNameMiniMBMClasses)
+    void SPECIFIC_AUX_CONTEXT_DEVICE::cacheJavaClasses(const char *_packageNameMiniMBMClasses)
     {
         strncpy(packageNameMiniMBMClasses, _packageNameMiniMBMClasses,sizeof(packageNameMiniMBMClasses)-1);
         this->jclassFileJniEngine              = this->getClass("FileJniEngine");
@@ -78,7 +78,7 @@ namespace util
         this->jclassAudioManagerJniEngine      = this->getClass("AudioManagerJniEngine");
     }
 
-    jclass COMMON_JNI::getClass(const char *nameClass)
+    jclass SPECIFIC_AUX_CONTEXT_DEVICE::getClass(const char *nameClass)
     {
         sprintf(this->packageName, "%s/%s", this->packageNameMiniMBMClasses, nameClass);
         jclass localClass = jenv->FindClass(this->packageName);
@@ -104,26 +104,27 @@ namespace util
 
     
 #if _DEBUG
-    FILE * COMMON_JNI::onFailOpenFile(const int lineNumber, const char *fileName, const char *message)
+    FILE * SPECIFIC_AUX_CONTEXT_DEVICE::onFailOpenFile(const int lineNumber, const char *fileName, const char *message)
     {
         ERROR_AT(lineNumber, fileName, message);
         return nullptr;
     }
 #else
-    FILE * COMMON_JNI::onFailOpenFile(const int, const char *, const char *)
+    FILE * SPECIFIC_AUX_CONTEXT_DEVICE::onFailOpenFile(const int, const char *, const char *)
     {
         return nullptr;
     }
 #endif
-    const int COMMON_JNI::onFailExistFile(const int lineNumber, const char *fileName, const char *message)
+    const int SPECIFIC_AUX_CONTEXT_DEVICE::onFailExistFile(const int lineNumber, const char *fileName, const char *message)
     {
         ERROR_AT(lineNumber, fileName, message);
         return -1;
     }
 
-    void COMMON_JNI::addPathDroid(const char *fileName)
+    void SPECIFIC_AUX_CONTEXT_DEVICE::addPathDroid(const char *fileName)
     {
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "addPath", "(Ljava/lang/String;)V");
         if (mid == nullptr)
@@ -141,13 +142,14 @@ namespace util
         jenv->DeleteLocalRef(jstr);
     }
 
-    int COMMON_JNI::existFileOnAssets(const char *fileName)
+    int SPECIFIC_AUX_CONTEXT_DEVICE::existFileOnAssets(const char *fileName)
     {
         if (fileName == nullptr)
             return -1;
-        if (strcmp(fileName, getDecompressModelFileName()) == 0) // nao iremos perguntar ao android se existe este arquivo pois nos criamos la
+        if (strcmp(fileName, util::getDecompressModelFileName()) == 0) // nao iremos perguntar ao android se existe este arquivo pois nos criamos la
             return 0;
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "existFileOnAssets", "(Ljava/lang/String;)Z");
         if (mid == nullptr)
@@ -162,9 +164,10 @@ namespace util
         return -1;
     }
 
-    const char * COMMON_JNI::copyFileFromAsset(const char *fileName, const char *mode)
+    const char * SPECIFIC_AUX_CONTEXT_DEVICE::copyFileFromAsset(const char *fileName, const char *mode)
     {
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "copyFileFromAsset",
                                                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
@@ -202,14 +205,15 @@ namespace util
         return fileName;
     }
 
-    uint8_t * COMMON_JNI::getImageDataFromDroid(const char *fileName, int *width, int *height)
+    uint8_t * SPECIFIC_AUX_CONTEXT_DEVICE::getImageDataFromDroid(const char *fileName, int *width, int *height)
     {
         if(fileName == nullptr)
         {
             ERROR_LOG( "fileName on getBytesImage is null!");
             return nullptr;
         }
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "getBytesImage", "(Ljava/lang/String;)[B");
         if (mid == nullptr)
@@ -278,12 +282,12 @@ namespace util
         return (uint8_t *)buffer;
     }
 
-    FILE * COMMON_JNI::fopenAsset(const char *fileName, const char *mode)
+    FILE * SPECIFIC_AUX_CONTEXT_DEVICE::fopenAsset(const char *fileName, const char *mode)
     {
-        util::COMMON_JNI *cJni = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid =
-            jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "openFD", "(Ljava/lang/String;)Ljava/io/FileDescriptor;");
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        JNIEnv *         jenv                  = cJni->jenv;
+        jmethodID mid = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "openFD", "(Ljava/lang/String;)Ljava/io/FileDescriptor;");
         if (mid == nullptr)
             return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "method openFD not found!");
         jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(fileName));//fixed issue using local std::string
@@ -320,8 +324,7 @@ namespace util
             return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed fdopen method!");
         fseek(fp, offset, SEEK_CUR);
         auto *data        = new uint8_t[len];
-        COMMON_JNI *    comunJni    = COMMON_JNI::getInstance();
-        const char *   currentPath = comunJni->absPath.c_str();
+        const char *   currentPath = cJni->absPath.c_str();
         if (!currentPath || strlen(currentPath) == 0)
         {
             fclose(fp);
@@ -359,7 +362,7 @@ namespace util
         return fopen(newFileTemp.c_str(), "rb");
     }
  
-    const char* COMMON_JNI::get_safe_string_utf(const char* string_input)//fixed issue Android keep memory to string
+    const char* SPECIFIC_AUX_CONTEXT_DEVICE::get_safe_string_utf(const char* string_input)//fixed issue Android keep memory to string
     {
         if(index_string_utf > 9)
             index_string_utf = 0;
@@ -370,12 +373,33 @@ namespace util
         return buffer_new_stringUTF[index_string_utf++].c_str();
     }
 
-    util::COMMON_JNI *util::COMMON_JNI::instanceComunJni = nullptr;
+    void SPECIFIC_AUX_CONTEXT_DEVICE::callQuitInJava()
+    {
+        jfieldID fidRun = this->jenv->GetStaticFieldID(this->jclassInstanceActivityEngine, "run", "Z");
+        if (nullptr == fidRun)
+        {
+            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", this->jclassInstanceActivityEngine);
+            return;
+        }
+        this->jenv->SetStaticBooleanField(this->jclassInstanceActivityEngine, fidRun, false);
+    }
+
+    
+    void SPECIFIC_AUX_CONTEXT_DEVICE::streamStopped(const int indexJNI)
+    {
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        AUDIO_MANAGER_INTERFACE* audioManager = device->getAudioManagerInterface();
+        if(audioManager)
+            audioManager->streamStopped(indexJNI);
+    }
 };
 
 int access_file(const char *fileName, int)
 {
-    util::COMMON_JNI *comunJni = util::COMMON_JNI::getInstance();
+    mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
     std::string fileName_buffer(fileName ? fileName : "");
-    return comunJni->existFileOnAssets(fileName_buffer.c_str());
+    return cJni->existFileOnAssets(fileName_buffer.c_str());
 }
+
+#endif

@@ -33,7 +33,7 @@
 #include <dynamic-var.h>
 
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    // no inlucdes here
 #elif defined _WIN32
     #include <plusWindows/defaultThemePlusWindows.h>
 #elif defined(__linux__) || defined(__APPLE__)
@@ -56,45 +56,18 @@ namespace mbm
         }
     }
 
-
-#ifdef ANDROID
-    void DEVICE::callQuitInJava()
-    {
-        util::COMMON_JNI *cJni  = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv   = cJni->jenv;
-        jfieldID         fidRun = jenv->GetStaticFieldID(cJni->jclassInstanceActivityEngine, "run", "Z");
-        if (nullptr == fidRun)
-        {
-            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", cJni->jclassInstanceActivityEngine);
-            return;
-        }
-        jenv->SetStaticBooleanField(cJni->jclassInstanceActivityEngine, fidRun, false);
-    }
-#endif
-
     void DEVICE::quit()
     {
         TEXTURE_MANAGER::release();
         MESH_MANAGER::release();
-#ifdef ANDROID
-        util::COMMON_JNI::release();
-#endif
-		releaseAudioManager();
+        releaseAudioManager();
 		if (instanceDevice)
         {
+            instanceDevice->specificContextDevice->release();
             delete instanceDevice;
         }
         instanceDevice = nullptr;
     }
-
-#ifdef ANDROID
-    
-    void DEVICE::streamStopped(const int indexJNI)
-    {
-		if(this->audioInterface)
-			this->audioInterface->streamStopped(indexJNI);
-    }
-#endif
     
     void DEVICE::setDephtTest(const bool enable)
     {
@@ -149,6 +122,16 @@ namespace mbm
             backBufferHeight = height;
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+    }
+
+    const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+    {
+        #if defined ANDROID
+        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->specificContextDevice;
+        return cJni->copyFileFromAsset(assetName, mode);
+        #else
+        return assetName;
+        #endif
     }
 
 }

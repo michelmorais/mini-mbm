@@ -46,7 +46,7 @@ namespace mbm
         this->device->scene = currentScene;
     }
 
-    int CORE_MANAGER::loop()
+    int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
     {
         static bool variablesInitialized = false;
         if (!device)
@@ -102,7 +102,7 @@ namespace mbm
                             // Call onStop and forceRestore to ensure all resources are reloaded
                             this->onStop();
                             // trigger full restore
-                            this->forceRestore();
+                            this->forceRestore(doSwapBuffers);
                         }
                         // Update viewport
                         // Update projection and camera
@@ -255,15 +255,28 @@ namespace mbm
             }
             this->update();
             this->render();
-            this->swapBuffers();
+            if(doSwapBuffers)// some backend engines need to control when swap buffers is done
+            {
+                this->swapBuffers();
+            }
+            if(singleLoop)
+            {
+                // exit after single loop
+                break;
+            }
         }
-        for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+        if(singleLoop == false)
         {
-            PLUGIN* plugin = this->lsPlugins[i];
-            plugin->onDestroy();
+            // Cleanup plugins on exit only if not single loop
+            for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
+            {
+                PLUGIN* plugin = this->lsPlugins[i];
+                plugin->onDestroy();
+            }
+
+            if (this->device->audioInterface)
+                this->device->audioInterface->stopAll();
         }
-        if (this->device->audioInterface)
-            this->device->audioInterface->stopAll();
         return 0;
     }
     
@@ -758,7 +771,7 @@ namespace mbm
     #endif
 
 
-    bool CORE_MANAGER::onLostDevice(int width, int height, const int px, const int py)
+    bool CORE_MANAGER::onLostDevice(const bool doSwapBuffers, int width, int height, const int px, const int py)
     {
         if (stepRestore == STEP_RES_INIT_GL)
         {
@@ -802,7 +815,10 @@ namespace mbm
                 stepRestore = STEP_RES_OBJ;
                 this->which_for = WFOR_INITIAL;
                 this->endRender();
-                this->swapBuffers();
+                if(doSwapBuffers)
+                {
+                    this->swapBuffers();
+                }
             }
             return false;
         }
@@ -862,7 +878,10 @@ namespace mbm
                         }
                     }
                     this->endRender();
-                    this->swapBuffers();
+                    if(doSwapBuffers)
+                    {
+                        this->swapBuffers();
+                    }
                     if (this->indexOnRestore >= this->device->lsObjectRender2DW.size())
                     {
                         this->indexOnRestore = 0;
@@ -899,7 +918,10 @@ namespace mbm
                         }
                     }
                     this->endRender();
-                    this->swapBuffers();
+                    if(doSwapBuffers)
+                    {
+                        this->swapBuffers();
+                    }
                     if (this->indexOnRestore >= this->device->lsObjectRender2DS.size())
                     {
                         this->indexOnRestore = 0;
@@ -936,7 +958,10 @@ namespace mbm
                         }
                     }
                     this->endRender();
-                    this->swapBuffers();
+                    if(doSwapBuffers)
+                    {
+                        this->swapBuffers();
+                    }
                     if (this->indexOnRestore >= this->device->lsObjectRender3D.size())
                     {
                         this->indexOnRestore = 0;
@@ -965,6 +990,12 @@ namespace mbm
             return true;
         }
         return false;
+    }
+
+     void CORE_MANAGER::forceRestore(const bool doSwapBuffers)
+    {
+        this->onStop();
+        while (!this->onLostDevice(doSwapBuffers, static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
     }
 
 }
