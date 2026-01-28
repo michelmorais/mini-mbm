@@ -3171,7 +3171,7 @@ namespace mbm
             return ptr->graphWin;
         return nullptr;
     }
-    void WINDOW::setCallEventsManager(EVENTS *ptrCallEventsManager)
+    void WINDOW::setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager)
     {
         callEventsManager = ptrCallEventsManager;
     }

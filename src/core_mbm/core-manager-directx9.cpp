@@ -60,27 +60,6 @@ namespace mbm
         return d3dParams;
     }
 
-constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
-    {}
-        
-    constexpr EVENT_KEY::EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
-        : x(_x),
-            y(_y),
-            key(_key),
-            player(0),
-            rx(0.0f),
-            ry(0.0f),
-            eventType(_eventName)
-    {}
-    constexpr EVENT_KEY::EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                        const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
-                                                                                            ly(_ly),
-                                                                                            key(_key),
-                                                                                            player(_player),
-                                                                                            rx(_rx),
-                                                                                            ry(_ry),
-                                                                                            eventType(_eventName)
-    {}
 
     INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
     {}

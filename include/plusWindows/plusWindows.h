@@ -427,32 +427,32 @@ class BMP
     //--------------------------------------------------------------------------------------------
 };
 
-class EVENTS
+class EVENTS_WIN32
 {
-  public:
+public:
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
+    API_IMPL virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
+    API_IMPL virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchMove(HWND w, float x, float y) PURE;
+    API_IMPL virtual void onTouchMove(HWND w, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchZoom(HWND w, float zoom) PURE;
+    API_IMPL virtual void onTouchZoom(HWND w, float zoom) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onKeyDown(HWND w, int key) PURE;
+    API_IMPL virtual void onKeyDown(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onKeyUp(HWND w, int key) PURE;
+    API_IMPL virtual void onKeyUp(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
+    API_IMPL virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
     //--------------------------------------------------------------------------------------------
 
-      API_IMPL virtual void onResizeWindow(HWND w, int width, int height) PURE;
+    API_IMPL virtual void onResizeWindow(HWND w, int width, int height) PURE;
 };
 
 struct TIMER;
@@ -937,7 +937,7 @@ class WINDOW
     API_IMPL static bool isEnableRender(HWND hwndIgnore);
     API_IMPL static void disableRender(HWND hwndIgnore);
     API_IMPL DRAW *getGrafics(const int idComponent) const;
-    API_IMPL void setCallEventsManager(EVENTS *ptrCallEventsManager);
+    API_IMPL void setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager);
     API_IMPL uint32_t setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index);
     API_IMPL void *getObjectContext(const uint32_t index);
     API_IMPL void setCursor(WINPLUS_TYPE_CURSOR TYPE);
@@ -1185,7 +1185,7 @@ class WINDOW
     int  dialogunitTabStopInPixel;
     char nameAplication[MAX_PATH];
     std::map<int, void *> lsObjectsContext;
-    EVENTS *                          callEventsManager;
+    EVENTS_WIN32*                     callEventsManager;
     HWND                              hwnd;
     HWND                              hwndLastTrackBar;
     HWND                              hwndLastHover;

@@ -99,7 +99,7 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
         IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
-		void realease() noexcept;
+        void realease() noexcept;
     private:
         IDirect3DVertexDeclaration9* vertex_declaration_pos;
         IDirect3DVertexDeclaration9* vertex_declaration_pos_norm;
