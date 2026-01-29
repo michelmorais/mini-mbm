@@ -17,41 +17,55 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef MISMATCH_PLATFORM_H
-#define MISMATCH_PLATFORM_H
+#if defined ANDROID
 
-    #if defined _WIN32 
-        #include <string.h>
-        #include <Windows.h>
-        #ifndef M_PI
-            #define M_PI 3.14159265358979323846f
-        #endif
+extern "C" 
+{
+    #include <lua.h>
+    #include <lauxlib.h>
+    #include <lualib.h>
+}
 
-        #ifndef M_PI_2
-            #define M_PI_2 (M_PI/2.0f)
-        #endif
+#include <lua-wrap/manager-lua.h>
+#include <core_mbm/device.h>
+#include <core_mbm/util-interface.h>
+#include <version/version.h>
+#include <core_mbm/scene.h>
+#if defined USE_OPENGL_ES
+#include <core_mbm/specific-opengl_es.h>
+#else
+    #error "This file is only for OpenGL ES"
+#endif
 
-        #ifndef strcasecmp
-            #define strcasecmp strcmpi
-        #endif
 
-        #pragma warning(disable : 4996) // access strcmpi
 
-        #ifndef NOMINMAX
-            #define NOMINMAX
-        #endif
+namespace mbm
+{
+    LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        LUA_MANAGER::pLuaManager = this;
+        log_util::setScriptPrintLine(onScriptPrintLine);
+        util::setOnAddPathScript(onAddPathScript);
+        this->nameAplication = "Mini-mbm " MBM_VERSION " ";
+        this->nameAplication += device->getBackendEngineName();
+        this->nameAplication += "\n Compiled: " __DATE__;
+        this->widthWindow        = 800;
+        this->heightWindow       = 600;
+        this->positionXWindow    = 1;
+        this->positionYWindow    = 1;
+        this->maximizedWindow    = false;
+        this->fileNameInitialLua = "main.lua";
+#if defined _DEBUG
+        this->noSplash = true;
+#else
+        this->noSplash       = false;
+#endif
+        this->noBorder		=	false;
+        device->specificContextDevice->jenv = env;
+        this->hasValueTextureLogo = false;
+        INFO_LOG("%s", this->nameAplication.c_str());
+    }
+};
 
-        #define access_file access
-
-    #elif defined ANDROID
-        int access_file(const char *fileName, int);
-    #elif defined(__linux__) // __APPLE__ bellow untested
-        #include <unistd.h>
-        #define access_file access
-    #elif defined(__APPLE__)
-        #include <unistd.h>
-        #define access_file access
-    #else
-        #error "unknown platform"
-    #endif
 #endif

@@ -31,6 +31,7 @@ extern "C"
 #include <lua-wrap/audio-lua.h>
 #include <lua-wrap/framework-lua.h>
 #include <core_mbm/device.h>
+#include <platform/mismatch-platform.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/renderizable-clone.h>
@@ -42,9 +43,6 @@ extern "C"
 #include <cstdlib>
 #include <cctype>
 
-#if defined ANDROID
-    //
-#endif
 
 #ifdef _WIN32
     #pragma warning(push)
@@ -1135,35 +1133,8 @@ namespace mbm
             return true;
         }
         
-
-    #ifdef ANDROID
-        
-        LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
-        {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            LUA_MANAGER::pLuaManager = this;
-            log_util::setScriptPrintLine(onScriptPrintLine);
-            util::setOnAddPathScript(onAddPathScript);
-            this->nameAplication = "Mini-mbm " MBM_VERSION " ";
-            this->nameAplication += device->getBackendEngineName();
-            this->nameAplication += "\n Compiled: " __DATE__;
-            this->widthWindow        = 800;
-            this->heightWindow       = 600;
-            this->positionXWindow    = 1;
-            this->positionYWindow    = 1;
-            this->maximizedWindow    = false;
-            this->fileNameInitialLua = "main.lua";
-    #if defined _DEBUG
-            this->noSplash = true;
-    #else
-            this->noSplash       = false;
-    #endif
-            this->noBorder		=	false;
-            device->jni->jenv = env;
-            this->hasValueTextureLogo = false;
-            INFO_LOG("%s", this->nameAplication.c_str());
-        }
-    #elif defined _WIN32 || defined __linux__ || defined __APPLE__
+    
+    #if !defined ANDROID && (defined _WIN32 || defined __linux__ || defined __APPLE__)
         
         LUA_MANAGER::LUA_MANAGER()
         {
@@ -1290,7 +1261,7 @@ namespace mbm
             if(device->verbose)
                 INFO_LOG("%s", this->nameAplication.c_str());
         }
-    #endif
+    #endif // Not ANDROID
         
         LUA_MANAGER::~LUA_MANAGER()
         {
@@ -2058,21 +2029,6 @@ namespace mbm
             }
         }
     }
-
-    #if !defined ANDROID
-    int onDoCommands(lua_State *lua)
-    {
-        const int   top  = lua_gettop(lua);
-        const char *what = luaL_checkstring(lua, 1);
-        const char *parameter = top > 1 ? luaL_checkstring(lua, 2) : "";
-        auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
-        char result[1024] = "";
-        if(luaManager->onDoNativeCommand)
-            luaManager->onDoNativeCommand(what,parameter,result,sizeof(result));
-        lua_pushstring(lua,result);
-        return 1;
-    }
-    #endif
 };
     #ifdef _WIN32
         #pragma warning(pop)

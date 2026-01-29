@@ -20,6 +20,7 @@
 #ifdef ANDROID
 
 #include <unistd.h>
+#include <platform/mismatch-platform.h>
 #include <core_mbm/util-interface.h>
 #include <specific-opengl_es.h>
 #include <device.h>
