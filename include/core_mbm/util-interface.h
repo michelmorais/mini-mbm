@@ -115,9 +115,9 @@ namespace log_util
 #endif
 
 #ifndef ERROR_LOG
-    #define ERROR_LOG(...) log_util::log_tag(TYPE_LOG::TYPE_LOG_ERROR, "ERROR", __VA_ARGS__)
-    #define INFO_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_INFO,  "INFO",  __VA_ARGS__)
-    #define WARN_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_WARN,  "WARN",  __VA_ARGS__)
+    #define ERROR_LOG(...) log_util::log_tag(TYPE_LOG::TYPE_LOG_ERROR, "min-mbm ERROR", __VA_ARGS__)
+    #define INFO_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_INFO,  "min-mbm INFO",  __VA_ARGS__)
+    #define WARN_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_WARN,  "min-mbm WARN",  __VA_ARGS__)
 
 	#ifdef _DEBUG
 	#    define PRINT_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_ERROR, __VA_ARGS__ );

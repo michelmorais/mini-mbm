@@ -33,7 +33,6 @@ file(GLOB SOURCES "*.cpp")
 
 add_executable(testLib ${SOURCES})
 
-
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 
   target_link_libraries(testLib ${X11_LIBRARIES})

@@ -616,6 +616,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         
         set(_G_DEBUG " -g")
         set(OPTIMIZED "-O0")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
         add_definitions(-D_DEBUG)
 
         if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")

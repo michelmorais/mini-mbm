@@ -106,6 +106,11 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        cJni->jenv            = env;
+        cJni->absPath         = _absPath ? _absPath : "";
+        cJni->apkPath         = _apkPath ? _apkPath : "";
+        cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
         const char* nameAplication = _apkPath ? _apkPath : "mini-mbm Android application";
         constexpr int px = 0;
         constexpr int py = 0;
@@ -113,11 +118,6 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         constexpr bool enable_resize = false;
         game->initGraphics(nameAplication, static_cast<int>(width),static_cast<int>(height), px, py, border, enable_resize);
         game->setExpectedSizeOfWindow(static_cast<int>(expectedWidth),static_cast<int>(expectedHeight),"y");
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-        cJni->jenv            = env;
-        cJni->absPath         = _absPath ? _absPath : "";
-        cJni->apkPath         = _apkPath ? _apkPath : "";
-        cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
     }
     else
     {
@@ -157,6 +157,8 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             cJni->jenv        = env;
             cJni->absPath     = _absPath ? _absPath : "";
             cJni->apkPath     = _apkPath ? _apkPath : "";
+            cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+
             constexpr bool border = false;
             game->initializeSceneLua(width, height,static_cast<int>(expectedWidth),static_cast<int>(expectedHeight), border);
             game->run();
@@ -408,9 +410,9 @@ static JNINativeMethod methodTableJNI[] = {
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
 {
-    JNIEnv *   env                = nullptr;
+    JNIEnv *   env                  = nullptr;
     char       JAVA_class_side[255] = "";
-    const jint result             = -1;
+    const jint result               = -1;
     compiled_with_ABI();
 	log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     if (vm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK)
@@ -466,8 +468,5 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
         return JNI_FALSE;
     }
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-    cJni->jenv        = env;
-    cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;
 }
