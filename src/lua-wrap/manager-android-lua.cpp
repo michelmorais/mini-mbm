@@ -31,13 +31,12 @@ extern "C"
 #include <core_mbm/util-interface.h>
 #include <version/version.h>
 #include <core_mbm/scene.h>
+
 #if defined USE_OPENGL_ES
-#include <core_mbm/specific-opengl_es.h>
+    #include <core_mbm/specific-opengl_es.h>
 #else
     #error "This file is only for OpenGL ES"
 #endif
-
-
 
 namespace mbm
 {

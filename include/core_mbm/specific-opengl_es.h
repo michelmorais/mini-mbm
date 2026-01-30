@@ -82,29 +82,8 @@ namespace log_util
 #endif
 
 #ifdef _DEBUG
-static GLint checkUniformLocation(const GLint location, const char * name)
-{
-    if (location == -1)
-    {
-        ERROR_LOG("Uniform location invalid [%s] in shader program.\n"
-            "The variable name does not correspond to an active uniform in the program or \n"
-            "The name starts with the reserved prefix \"gl_\"\n"
-            "or The uniform is part of a structure, an array of structures, "
-            "a vector/matrix subcomponent, an atomic counter, or a named uniform block.", name);
-    }
-	return location;
-}
-
-static GLint checkAttribLocation(const GLint location, const char* name)
-{
-    if (location == -1)
-    {
-        ERROR_LOG("Attribute location invalid [%s] in shader program.\n"
-            "The attribute variable is not active in the program (i.e., not used in the shader) or \n"
-            "The name starts with the reserved prefix \"gl_\"\n", name);
-    }
-    return location;
-}
+GLint checkUniformLocation(const GLint location, const char * name);
+GLint checkAttribLocation(const GLint location, const char* name);
 #endif
 
 #ifdef _DEBUG
@@ -659,6 +638,8 @@ namespace mbm
             {
                 XDestroyWindow(this->display_x11, this->window_x11);
                 XCloseDisplay(this->display_x11);
+                this->display_x11 = nullptr;
+                this->window_x11 = 0;
             }
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;

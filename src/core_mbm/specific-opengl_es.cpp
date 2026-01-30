@@ -17,19 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 #if defined (USE_OPENGL_ES)
-#include <specific-opengl_es.h>
 
-#if defined ANDROID
-    #include <android/asset_manager.h>
-    #include <android/log.h>
-    #include <jni.h>
-    #include <unistd.h>
-    #include <dirent.h>
-    #include <sys/stat.h>
-    #include <sys/types.h>
-    #include <errno.h>
-    #include <util-interface.h>
-#endif
+#include <specific-opengl_es.h>
+#include <util-interface.h>
 
 namespace mbm
 {
@@ -62,5 +52,29 @@ namespace mbm
         release();
     }
 
+}
+
+GLint checkUniformLocation(const GLint location, const char * name)
+{
+    if (location == -1)
+    {
+        ERROR_LOG("Uniform location invalid [%s] in shader program.\n"
+            "The variable name does not correspond to an active uniform in the program or \n"
+            "The name starts with the reserved prefix \"gl_\"\n"
+            "or The uniform is part of a structure, an array of structures, "
+            "a vector/matrix subcomponent, an atomic counter, or a named uniform block.", name);
+    }
+	return location;
+}
+
+GLint checkAttribLocation(const GLint location, const char* name)
+{
+    if (location == -1)
+    {
+        ERROR_LOG("Attribute location invalid [%s] in shader program.\n"
+            "The attribute variable is not active in the program (i.e., not used in the shader) or \n"
+            "The name starts with the reserved prefix \"gl_\"\n", name);
+    }
+    return location;
 }
 #endif
