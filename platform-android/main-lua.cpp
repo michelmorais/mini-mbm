@@ -17,6 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined ANDROID
+
 #include <jni.h>
 #include <stdlib.h>
 
@@ -25,10 +27,6 @@
 #include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 
-
-#ifndef ANDROID
-    #error "Target this main is ANDRIOD"
-#endif
 
 #ifndef PACKAGE_NAME_CLASS
     #define PACKAGE_NAME_CLASS "com/mini/mbm" // how must be (if changed the whole class path at java must be replaced)
@@ -470,3 +468,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
     return JNI_VERSION_1_6;
 }
+#else
+    #error "Target this main is ANDRIOD"
+#endif

@@ -16,6 +16,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined ANDROID
 
 #include <jni.h>
 #include <stdlib.h>
@@ -26,10 +27,6 @@
 
 
 #include "scene-1.h" // your scene C++
-
-#ifndef ANDROID
-    #error "Target to this main is ANDRIOD"
-#endif
 
 #ifndef PACKAGE_NAME_CLASS
     #define PACKAGE_NAME_CLASS "com/mini/mbm" // how must be (if changed the whole class path at java must be replaced)
@@ -371,3 +368,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
     jniInstance->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;
 }
+#else
+    #error "Target to this main is ANDRIOD"
+#endif
