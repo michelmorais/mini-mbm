@@ -82,6 +82,9 @@
     <Filter Include="Source Files\audio">
       <UniqueIdentifier>{ff0fea83-aad9-4de6-b7c1-331d6beeff22}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\platform">
+      <UniqueIdentifier>{f6640f30-9a6c-48e8-b388-e8f406637295}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h">
@@ -305,6 +308,9 @@
     </ClInclude>
     <ClInclude Include="..\..\include\core_mbm\particle-control.h">
       <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\platform\win32-platform.h">
+      <Filter>Header Files\platform</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -613,6 +619,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp">
       <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\platform\win32-platform.cpp">
+      <Filter>Source Files\platform</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

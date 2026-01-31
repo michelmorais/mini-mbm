@@ -134,21 +134,5 @@ namespace mbm
         return assetName;
         #endif
     }
-
-#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-    void setWin32IconToBeUsed(const int ID_ICON)
-    {
-        DEVICE* device = DEVICE::getInstance();
-        device->specificContextDevice->idIcon = ID_ICON;
-    }
-
-    const char* selectFolderDialog(char* folderPathOut)
-    {
-        HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
-        const char* path = mbm::selectetDirectory(hwnd, folderPathOut);
-        return path;
-    }
-#endif
-
 }
 #endif // USE_OPENGL_ES

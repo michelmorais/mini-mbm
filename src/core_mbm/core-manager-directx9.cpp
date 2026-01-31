@@ -100,16 +100,16 @@ namespace mbm
         int y = height;
         DEVICE* device = DEVICE::getInstance();
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
-        device->window.setNameAplication(nameAplication);
-        if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-            this->idIcon, false))
+        device->specificContextDevice->window.setNameAplication(nameAplication);
+        if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+            this->device->specificContextDevice->idIcon, false))
         {
-            device->window.messageBox("error on init app ... will be closed ");
+            device->specificContextDevice->window.messageBox("error on init app ... will be closed ");
             PRINT_IF_DEBUG("error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        device->window.setMinSizeAllowed(800, 600);
-        HWND mNativeWindow = device->window.getHwnd();
+        device->specificContextDevice->window.setMinSizeAllowed(800, 600);
+        HWND mNativeWindow = device->specificContextDevice->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
@@ -133,8 +133,10 @@ namespace mbm
             x = width;
             y = height;
         }
-        device->window.setCallEventsManager(this);
-        this->initJoystick(&device->window);
+        if (this->device->specificContextDevice->win32_EventByPass)
+            device->specificContextDevice->window.setCallEventsManager(this->device->specificContextDevice->win32_EventByPass);
+        if (this->device->specificContextDevice->win32_joystickByPass)
+            this->device->specificContextDevice->win32_joystickByPass->initJoystick(&device->specificContextDevice->window);
 
         if (D3DXCheckVersion(D3D_SDK_VERSION, D3DX_SDK_VERSION))
         {
@@ -242,7 +244,7 @@ namespace mbm
             }
         }
         
-        device->window.disableRender(mNativeWindow);
+        device->specificContextDevice->window.disableRender(mNativeWindow);
         //TODO: set real version from DirectX
         INFO_LOG("\nDIRECTX Version: %s\n", "9");
         if (device->verbose)
@@ -262,7 +264,7 @@ namespace mbm
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)// need to be implemented in each backend engine
     {
         // Reset D3D device with new dimensions
-        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(static_cast<UINT>(newWidth), static_cast<UINT>(newHeight), this->device->window.getHwnd());
+        D3DPRESENT_PARAMETERS d3dParams = getd3dPARAMETERS(static_cast<UINT>(newWidth), static_cast<UINT>(newHeight), device->specificContextDevice->window.getHwnd());
 
         // Verify window handle is valid
         if (!IsWindow(d3dParams.hDeviceWindow))
@@ -548,98 +550,6 @@ namespace mbm
             return false;
         }
     }
-    
-    void CORE_MANAGER::onTouchDown(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchUp(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchMove(HWND, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, 0, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(HWND, float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos
-                                       // dedos. É enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        EVENT_KEY ev(0, 0, (int)zoom, EVENT_TYPE_ACTIONS::ONTOUCHZOOM);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDown(HWND, int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUp(HWND,int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(HWND, float x, float y, int key)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYDOWNJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYUPJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        constexpr float pProp_128 = 1.0f / 128.f;
-        constexpr float pProp_127 = 1.0f / 127.f;
-        const float        flx       = lx > 0 ? lx * pProp_127 : lx * pProp_128;
-        const float        fly       = ly > 0 ? ly * pProp_127 : ly * pProp_128;
-        const float        frx       = rx > 0 ? rx * pProp_127 : rx * pProp_128;
-        const float        fry       = ry > 0 ? ry * pProp_127 : ry * pProp_128;
-        EVENT_KEY          ev(flx, fly, 0, player, frx, fry, EVENT_TYPE_ACTIONS::ONMOVEJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        INFO_JOYSTICK_INIT_PLAYER ev(player, maxNumberButton, strDeviceName, extraInfo);
-        this->pushEvent(&ev);
-    }
-
-    void CORE_MANAGER::onResizeWindow(HWND, int width, int height)
-    {
-        EVENT_KEY ev(static_cast<float>(width),static_cast<float>(height),0,EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
-        this->pushEvent(&ev);
-    }
-
-    void CORE_MANAGER::forceRestore()
-    {
-        while (!this->onLostDevice(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
-    }
 
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
@@ -655,7 +565,7 @@ namespace mbm
         {
             this->lsPlugins.push_back(plugin);
             // TODO: check this
-            void * handle = this->device->window.getHwnd();
+            void * handle = this->device->specificContextDevice->window.getHwnd();
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
             return this->lsPlugins.size() - 1;
         }
@@ -664,8 +574,8 @@ namespace mbm
 
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        this->device->window.setMinSizeAllowed(min_x,min_y);
-        this->device->window.setMaxSizeAllowed(max_x,max_y);
+        this->device->specificContextDevice->window.setMinSizeAllowed(min_x, min_y);
+        this->device->specificContextDevice->window.setMaxSizeAllowed(max_x,max_y);
     }
 }
 

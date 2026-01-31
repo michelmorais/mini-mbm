@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -226,6 +226,7 @@
     <ClInclude Include="..\..\include\joystick-win32\joystick-win32.h" />
     <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />
     <ClInclude Include="..\..\include\platform\mismatch-platform.h" />
+    <ClInclude Include="..\..\include\platform\win32-platform.h" />
     <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h" />
     <ClInclude Include="..\..\include\plusWindows\plusWindows.h" />
     <ClInclude Include="..\..\include\render\background.h" />
@@ -331,6 +332,7 @@
     <ClCompile Include="..\..\src\core_mbm\shader-fx-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp" />
+    <ClCompile Include="..\..\src\platform\win32-platform.cpp" />
     <ClCompile Include="..\..\src\render\background.cpp" />
     <ClCompile Include="..\..\src\render\font.cpp" />
     <ClCompile Include="..\..\src\render\gif-view.cpp" />

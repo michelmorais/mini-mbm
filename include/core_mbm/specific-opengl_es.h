@@ -27,6 +27,7 @@
     #include <joystick-win32/joystick-win32.h>
     #include <plusWindows/plusWindows.h>
     #include <core-manager.h>
+    #include <platform/win32-platform.h>
 #endif
 
 #if defined ANDROID
@@ -656,38 +657,6 @@ namespace mbm
     };
 
 #elif (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-
-    class WIN_EVENT_BY_PASS : public EVENTS_WIN32
-    {
-    public:
-        WIN_EVENT_BY_PASS() = delete;
-        explicit WIN_EVENT_BY_PASS(EVENTS* the_parent) :parent(the_parent) {};
-		~WIN_EVENT_BY_PASS() = default;
-
-        void onTouchDown(HWND w, int key, float x, float y) override;
-        void onTouchUp(HWND w, int key, float x, float y)  override;
-        void onTouchMove(HWND w, float x, float y)  override;
-        void onTouchZoom(HWND w, float zoom)  override;
-        void onKeyDown(HWND w, int key)  override;
-        void onKeyUp(HWND w, int key)  override;
-        void onDoubleClick(HWND w, float x, float y, int key)  override;
-        void onResizeWindow(HWND w, int width, int height)  override;
-        EVENTS* parent;
-    };
-
-    class WIN_JOYSTICK_BY_PASS : public JOYSTICK
-    {
-    public:
-		WIN_JOYSTICK_BY_PASS() = delete;
-		explicit WIN_JOYSTICK_BY_PASS(JOYSTICK_BASE* the_parent) :parent(the_parent) {};
-        ~WIN_JOYSTICK_BY_PASS() = default;
-
-        void onKeyDownJoystick(int player, int key) override;
-        void onKeyUpJoystick(int player, int key) override;
-        void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
-        void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
-		JOYSTICK_BASE* parent;
-    };
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {

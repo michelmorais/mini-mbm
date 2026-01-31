@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,67 +16,50 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-#if defined (USE_OPENGL_ES)
 
-#include <specific-opengl_es.h>
-#include <util-interface.h>
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+#ifndef WIN32_PLATFORM_H
+#define WIN32_PLATFORM_H
+
+#include <joystick-win32/joystick-win32.h>
+#include <plusWindows/plusWindows.h>
+#include <core-manager.h>
 
 namespace mbm
 {
-    RENDER2TARGET_GLES::RENDER2TARGET_GLES():
-        idFrameBuffer(0),
-        idDepthRenderbuffer(0),
-        idTextureDynamic(0)
+
+    class WIN_EVENT_BY_PASS : public mbm::EVENTS_WIN32
     {
-    }
+    public:
+        WIN_EVENT_BY_PASS() = delete;
+        explicit WIN_EVENT_BY_PASS(mbm::EVENTS* the_parent) :parent(the_parent) {};
+        ~WIN_EVENT_BY_PASS() = default;
 
-    void RENDER2TARGET_GLES::release()
+        void onTouchDown(HWND w, int key, float x, float y) override;
+        void onTouchUp(HWND w, int key, float x, float y)  override;
+        void onTouchMove(HWND w, float x, float y)  override;
+        void onTouchZoom(HWND w, float zoom)  override;
+        void onKeyDown(HWND w, int key)  override;
+        void onKeyUp(HWND w, int key)  override;
+        void onDoubleClick(HWND w, float x, float y, int key)  override;
+        void onResizeWindow(HWND w, int width, int height)  override;
+        mbm::EVENTS* parent;
+    };
+
+    class WIN_JOYSTICK_BY_PASS : public mbm::JOYSTICK
     {
-        if (this->idDepthRenderbuffer)
-        {
-            GLDeleteRenderbuffers(1, &this->idDepthRenderbuffer);
-        }
-        this->idDepthRenderbuffer = 0;
+    public:
+        WIN_JOYSTICK_BY_PASS() = delete;
+        explicit WIN_JOYSTICK_BY_PASS(mbm::JOYSTICK_BASE* the_parent) :parent(the_parent) {};
+        ~WIN_JOYSTICK_BY_PASS() = default;
 
-        if (this->idFrameBuffer)
-        {
-            GLDeleteFramebuffers(1, &this->idFrameBuffer);
-        }
-        this->idFrameBuffer = 0;
-        this->idTextureDynamic = 0;
-
-    }
-
-    RENDER2TARGET_GLES::~RENDER2TARGET_GLES()
-    {
-        release();
-    }
+        void onKeyDownJoystick(int player, int key) override;
+        void onKeyUpJoystick(int player, int key) override;
+        void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
+        void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
+        mbm::JOYSTICK_BASE* parent;
+    };
 
 }
-
-GLint checkUniformLocation(const GLint location, const char * name)
-{
-    if (location == -1)
-    {
-        ERROR_LOG("Uniform location invalid [%s] in shader program.\n"
-            "The variable name does not correspond to an active uniform in the program or \n"
-            "The name starts with the reserved prefix \"gl_\"\n"
-            "or The uniform is part of a structure, an array of structures, "
-            "a vector/matrix subcomponent, an atomic counter, or a named uniform block.", name);
-    }
-	return location;
-}
-
-GLint checkAttribLocation(const GLint location, const char* name)
-{
-    if (location == -1)
-    {
-        ERROR_LOG("Attribute location invalid [%s] in shader program.\n"
-            "The attribute variable is not active in the program (i.e., not used in the shader) or \n"
-            "The name starts with the reserved prefix \"gl_\"\n", name);
-    }
-    return location;
-}
-
-
+#endif
 #endif

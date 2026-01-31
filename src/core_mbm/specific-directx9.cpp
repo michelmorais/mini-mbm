@@ -25,6 +25,9 @@
 namespace mbm
 {
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept :
+        idIcon(0),
+		win32_EventByPass(nullptr),
+		win32_joystickByPass(nullptr),
         pD3D(nullptr),
         pd3dDevice(nullptr),
         vertex_declaration_pos(nullptr),
@@ -65,6 +68,24 @@ namespace mbm
             pD3D->Release();
             pD3D = nullptr;
         }
+        if (this->win32_EventByPass)
+            delete this->win32_EventByPass;
+        this->win32_EventByPass = nullptr;
+        if (this->win32_joystickByPass)
+            delete this->win32_joystickByPass;
+		this->win32_joystickByPass = nullptr;
+    }
+
+    void SPECIFIC_AUX_CONTEXT_DEVICE::initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)
+    {
+        if (this->win32_EventByPass)
+            delete this->win32_EventByPass;
+        this->win32_EventByPass = nullptr;
+        if (this->win32_joystickByPass)
+            delete this->win32_joystickByPass;
+        this->win32_joystickByPass = nullptr;
+        this->win32_EventByPass = new WIN_EVENT_BY_PASS(core_manager_ptr ? reinterpret_cast<EVENTS*>(core_manager_ptr) : nullptr);
+        this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
     }
 
     IDirect3DVertexDeclaration9* SPECIFIC_AUX_CONTEXT_DEVICE::getFVF(const FVF_PROVIDE_BY_ENGINE FVF)

@@ -22,7 +22,8 @@
 #define DIRECTX9_SPECIFIC_H
 #if defined (USE_DIRECTX9)
 
-
+#include <platform/win32-platform.h>
+#include <core-manager.h>
 
 //#include <dsetup.h>
 //#include <comdef.h>
@@ -93,6 +94,11 @@ namespace mbm
 
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
+        WINDOW window;
+        DWORD idIcon;
+        WIN_EVENT_BY_PASS* win32_EventByPass;
+        WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
+
         IDirect3D9* pD3D;
         IDirect3DDevice9* pd3dDevice;
         SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
@@ -101,6 +107,7 @@ namespace mbm
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
         IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
         void realease() noexcept;
+        void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr);
     private:
         IDirect3DVertexDeclaration9* vertex_declaration_pos;
         IDirect3DVertexDeclaration9* vertex_declaration_pos_norm;

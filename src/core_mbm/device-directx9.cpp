@@ -131,5 +131,10 @@ namespace mbm
         
     }
 
+    const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+    {
+        return assetName;
+    }
+
 }
 #endif // USE_DIRECTX9
