@@ -29,9 +29,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#if defined _WIN32
-	#pragma warning(push)
-	#pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(push)
+    #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif
 
 namespace mbm
@@ -315,12 +315,12 @@ struct API_IMPL COLOR
         a                    = prop * UCa;
     }
 
-	static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
-	{
-		snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
-		return out_put_string;
-	}
-	
+    static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
+    {
+        snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
+        return out_put_string;
+    }
+    
 
     static COLOR getColorFromHexString(const char *stringAsColor) noexcept
     {
@@ -740,8 +740,8 @@ API_IMPL float calcAzimuth(const float ax, const float ay);
 
 }
 
-#if defined _WIN32
-	#pragma warning(pop) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(pop) // nonstandard extension used : nameless struct/union
 #endif
 
 #endif

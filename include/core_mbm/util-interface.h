@@ -54,7 +54,7 @@ enum COLOR_TERMINAL
 
 namespace util
 {
-    #if defined   _WIN32
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
         API_IMPL char *toChar(const WCHAR *wstr, char *outText);
         API_IMPL void getDisplayMetrics(int * width, int * height);

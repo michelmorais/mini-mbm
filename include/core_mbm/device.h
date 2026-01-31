@@ -32,8 +32,6 @@
     // Android specific includes
 #elif defined __linux__  || defined(__APPLE__) && !defined ANDROID
     #include <X11/Xlib.h>
-#elif defined _WIN32
-    #include <plusWindows/plusWindows.h>
 #endif
 
 namespace mbm
@@ -72,9 +70,6 @@ namespace mbm
         uint32_t      totalObjects3D;
         uint32_t      totalObjects2D;
         SHADER_CFG_LOADER cfg;                       // CFG files
-    #ifdef _WIN32
-        WINDOW window;
-    #endif
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         VEC3                dimFarFrustum3d, dimNearFrustum3d;
         CORE_MANAGER *      ptrManager;
@@ -154,7 +149,8 @@ namespace mbm
         void setProjectionMode(const bool is3D, const float width, const float height);
     };
     
-#if defined _WIN32
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+    API_IMPL void setWin32IconToBeUsed(const int ID_ICON);
     API_IMPL void setTheme(int value, bool enableBorder);
     API_IMPL void hideConsoleWindow();
     API_IMPL void showConsoleWindow();

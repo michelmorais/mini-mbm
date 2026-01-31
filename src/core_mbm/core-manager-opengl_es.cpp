@@ -32,11 +32,6 @@
 #include <miniz-wrap/miniz-wrap.h>
 #include <cr-static-local.h>
 #include <mesh-manager.h>
-
-#if defined(_WIN32)
-    #include <GLES2/gl2ext.h>
-#endif
-
 #include <plugin-callback.h>
 
 
@@ -63,20 +58,20 @@ void printGLString(const char *name, GLenum s)
     INFO_LOG("\nGL %s = %s\n", name, v);
 }
 
-    void printGLStringNewLine(const char *name, GLenum s, const char delimit) 
+void printGLStringNewLine(const char *name, GLenum s, const char delimit) 
+{
+    const auto *v = reinterpret_cast<const char *>(glGetString(s));
+    INFO_LOG("\n%s", name);
+    if (v) 
     {
-        const auto *v = reinterpret_cast<const char *>(glGetString(s));
-        INFO_LOG("\n%s", name);
-        if (v) 
+        std::vector<std::string> ret;
+        util::split(ret, v, delimit);
+        for (auto & i : ret) 
         {
-            std::vector<std::string> ret;
-            util::split(ret, v, delimit);
-            for (auto & i : ret) 
-            {
-                INFO_LOG("\n%s", i.c_str());
-            }
+            INFO_LOG("\n%s", i.c_str());
         }
     }
+}
 
 #if !defined (ANDROID)
     void printEGLStringNewLine(EGLDisplay eglDisplay,const char delimit)
@@ -107,8 +102,8 @@ void printGLString(const char *name, GLenum s)
         this->changeScene      = true;
         this->__sceneWasInit   = false;
         this->keyCapsLockState = false;
-    #if defined(_WIN32)
-        idIcon = 0;
+    #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+        this->device->specificContextDevice->initializeWi32Callbacks(this);
     #endif
     }
     
@@ -120,7 +115,7 @@ void printGLString(const char *name, GLenum s)
     void CORE_MANAGER::swapBuffers()
     {
         #if !defined (ANDROID)
-		eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
+        eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
         #endif
     }
 
@@ -129,7 +124,7 @@ void printGLString(const char *name, GLenum s)
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
         this->device->specificContextDevice->release();
-	}
+    }
     
 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
@@ -137,18 +132,20 @@ void printGLString(const char *name, GLenum s)
         int x = width;
         int y = height;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
-#ifdef _WIN32
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         DEVICE* device = DEVICE::getInstance();
-        device->window.setNameAplication(nameAplication);
-        if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-                                       this->idIcon,false))
+        device->specificContextDevice->window.setNameAplication(nameAplication);
+        if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+            this->device->specificContextDevice->idIcon,false))
         {
-            device->window.messageBox("error on init app ... will be closed ");
+            device->specificContextDevice->window.messageBox("error on init app ... will be closed ");
             PRINT_IF_DEBUG( "error on init app ... will be closed %s", "error on create window");
             return false;
         }
-        device->window.setMinSizeAllowed(800,600);
-        HWND mNativeWindow = device->window.getHwnd();
+        device->specificContextDevice->window.setMinSizeAllowed(800,600);
+        device->specificContextDevice->window.askOnExit = false;
+        device->specificContextDevice->window.exitOnEsc = false;
+        HWND mNativeWindow = device->specificContextDevice->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
         {
@@ -172,10 +169,11 @@ void printGLString(const char *name, GLenum s)
             x = width;
             y = height;
         }
-        device->window.setCallEventsManager(this);
-        this->initJoystick(&device->window);
-
-        HDC hdc = GetDC(device->window.getHwnd());
+        if(this->device->specificContextDevice->win32_EventByPass)
+            device->specificContextDevice->window.setCallEventsManager(this->device->specificContextDevice->win32_EventByPass);
+        if(this->device->specificContextDevice->win32_joystickByPass)
+            this->device->specificContextDevice->win32_joystickByPass->initJoystick(&device->specificContextDevice->window);
+        HDC hdc = GetDC(device->specificContextDevice->window.getHwnd());
         // Create EGL display connection
         this->device->specificContextDevice->eglDisplay = eglGetDisplay(hdc);
         // Initialize EGL for this display, returns EGL version
@@ -415,7 +413,7 @@ void printGLString(const char *name, GLenum s)
         }
 
         EGLint surfaceAttributes[] = { EGL_NONE };
-        this->device->specificContextDevice->eglSurface = eglCreateWindowSurface(this->device->specificContextDevice->eglDisplay, windowConfig, device->window.getHwnd(), surfaceAttributes);
+        this->device->specificContextDevice->eglSurface = eglCreateWindowSurface(this->device->specificContextDevice->eglDisplay, windowConfig, device->specificContextDevice->window.getHwnd(), surfaceAttributes);
         //this->device->specificContextDevice->eglSurface = eglCreateWindowSurface(this->device->specificContextDevice->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
         if(this->device->specificContextDevice->eglSurface == nullptr)
         {
@@ -439,7 +437,7 @@ void printGLString(const char *name, GLenum s)
             return false;
         }
 
-        device->window.disableRender(mNativeWindow);
+        device->specificContextDevice->window.disableRender(mNativeWindow);
         if (device->verbose)
         {
             printGLString("\nversion:\n", GL_VERSION);
@@ -849,7 +847,7 @@ void printGLString(const char *name, GLenum s)
             this->lsPlugins.push_back(plugin);
             void * handle = nullptr;
             #if defined _WIN32
-                handle = this->device->window.getHwnd();
+                handle = device->specificContextDevice->window.getHwnd();
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 handle = this->device->specificContextDevice->display_x11;
             #elif defined(ANDROID)
@@ -866,8 +864,8 @@ void printGLString(const char *name, GLenum s)
     #if defined _WIN32
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        this->device->window.setMinSizeAllowed(min_x,min_y);
-        this->device->window.setMaxSizeAllowed(max_x,max_y);
+        device->specificContextDevice->window.setMinSizeAllowed(min_x,min_y);
+        device->specificContextDevice->window.setMaxSizeAllowed(max_x,max_y);
     }
     #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)

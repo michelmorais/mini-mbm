@@ -40,9 +40,6 @@ extern "C"
 #include <static-resource/hourglass-resource.h>
 #include <render/texture-view.h>
 #include <cstdlib>
-#include <cstdlib>
-#include <cctype>
-
 
 #ifdef _WIN32
     #pragma warning(push)

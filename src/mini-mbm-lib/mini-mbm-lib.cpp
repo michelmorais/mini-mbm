@@ -25,7 +25,6 @@
 #include <version/version.h>
 #include <platform/usage-help.h>
 #include <defaultThemePlusWindows.h>
-#include <file-util.h>
 
 
 class ARGS
@@ -242,16 +241,6 @@ namespace mbm
         external_ID_ICON = ID_ICON;
     }
 
-    HWND get_hwnd()
-    {
-         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-         if(device)
-         {
-             return device->window.getHwnd();
-         }
-         return nullptr;
-    }
-
     inline int  start_main_loop(const std::vector<std::string> & args, const int ID_ICON)
     {
         if(args.size() <= 1 ||  (args.size() > 1 && args[1].find("help") != std::string::npos))
@@ -265,12 +254,19 @@ namespace mbm
             log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     
         luaCore.onDoNativeCommand = externalDoNativeCommand;
-        luaCore.idIcon = ID_ICON;
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+        setWin32IconToBeUsed(ID_ICON);
+#endif
         DisableProcessWindowsGhosting();
-        if (luaCore.initializeSceneLua(luaCore.noBorder == false))
+        int expectedWidth = luaCore.widthWindow;
+        int expectedHeight = luaCore.heightWindow;
+        std::string stretch("y");
+        luaCore.getExpectedSizeOfWindow(expectedWidth, expectedHeight, stretch);
+        if (luaCore.initializeSceneLua(luaCore.widthWindow, luaCore.heightWindow, expectedWidth, expectedHeight,luaCore.noBorder == false))
         {
-            luaCore.device->window.askOnExit = false;
-            luaCore.device->window.exitOnEsc = false;
+            // TODO: review if these options are still necessary
+            //luaCore.device->specificContextDevice->window.askOnExit = false;
+            //luaCore.device->window.exitOnEsc = false;
     
     #ifndef _DEBUG 
             bool hideConsole = true;
@@ -286,7 +282,7 @@ namespace mbm
                 mbm::hideConsoleWindow();
     #endif
             const int ret = luaCore.run();
-			const int code_quit = luaCore.device->getAppReturnCode();
+            const int code_quit = luaCore.device->getAppReturnCode();
             return code_quit ? code_quit : ret;
         }
         else
@@ -390,15 +386,15 @@ namespace mbm
         APP_RUN* app_run = static_cast<APP_RUN*>(w->getObjectContext(6));
         int * idAppSelection = static_cast<int*>(w->getObjectContext(8));
         std::string* custom_script = static_cast<std::string*>(w->getObjectContext(9));
-		int* size_app_run = static_cast<int*>(w->getObjectContext(10));
+        int* size_app_run = static_cast<int*>(w->getObjectContext(10));
         char file_selected[1024] = {};
         char* the_file = mbm::openFileBox("*.lua", "Script", true, false, w->getHwnd(), custom_script->c_str(), file_selected);
         if (the_file)
         {
             *custom_script = the_file;
             app_run[*size_app_run - 1].script_path = custom_script->c_str();
-			w->removeText(*idAppSelection, *size_app_run - 1);
-			w->addText(*idAppSelection, the_file);
+            w->removeText(*idAppSelection, *size_app_run - 1);
+            w->addText(*idAppSelection, the_file);
             w->setSelectedIndex(*idAppSelection, *size_app_run - 1);
         }
     }
@@ -613,7 +609,7 @@ namespace mbm
 
         std::string script_app;
         static std::string custom_script;
-		custom_script.clear(); 
+        custom_script.clear(); 
         int idAppSelection = -1;
         int idCustomScript = -1;
 
@@ -621,12 +617,12 @@ namespace mbm
         {
             const char* temp_app_label = "Application:";
             const char* temp_app_custom = "Custom Script...";
-			int adjusted_custom = 90;
+            int adjusted_custom = 90;
             if (isPTbr)
             {
                 temp_app_label = "Aplicativo:";
                 temp_app_custom = "Aplicativo Personalizado...";
-				adjusted_custom = 150;
+                adjusted_custom = 150;
             }
             w.addLabel(temp_app_label, 10, 180, 380, 25);
             idAppSelection = w.addCombobox(10, 210, 380, 100, onSelectApplication);
@@ -636,8 +632,8 @@ namespace mbm
                 {
                     custom_script = reg_user_script.getString(key_user_script.c_str(), "User specified script");
                     w.addText(idAppSelection, custom_script.c_str());
-					app_run[i].script_path = custom_script.c_str();
-				}
+                    app_run[i].script_path = custom_script.c_str();
+                }
                 else if (isPTbr)
                 {
                     w.addText(idAppSelection, app_run[i].name_pt_br ? app_run[i].name_pt_br : "Sem nome");
@@ -702,7 +698,7 @@ namespace mbm
         reg_index_monitor.closeKey();
         reg_index_resolution.closeKey();
         reg_full_screen.closeKey();
-		reg_user_script.closeKey();
+        reg_user_script.closeKey();
         return true;
     }
 

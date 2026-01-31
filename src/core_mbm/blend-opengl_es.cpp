@@ -17,10 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <blend.h>
 
 #if defined(USE_OPENGL_ES)
-
+#include <blend.h>
 #include <specific-opengl_es.h>
 
 namespace mbm

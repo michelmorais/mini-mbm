@@ -28,9 +28,7 @@
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
 
-#if defined _WIN32
-    #include <joystick-win32/joystick.h>
-#elif defined ANDROID
+#if defined ANDROID
     #include <jni.h>
 #elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
@@ -144,18 +142,19 @@ namespace mbm
         virtual void onKeyUpJoystick(int, int) = 0; // parameter: int player, int key
         virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
         virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
+        virtual void onResizeWindow(int width, int height) = 0;
     };
 
     class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
     {
       public:
         DEVICE *device;
-		bool    changeScene;
+        bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
         API_IMPL void setScene(SCENE *currentScene);
-		API_IMPL virtual bool existScene(const int idScene) = 0;
+        API_IMPL virtual bool existScene(const int idScene) = 0;
         API_IMPL void onStop();
         API_IMPL unsigned int addPlugin(PLUGIN * plugin);
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
@@ -183,7 +182,7 @@ namespace mbm
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
         API_IMPL void render();
-		API_IMPL void ReleaseGraphics();//this function release the graphics device and all resources
+        API_IMPL void ReleaseGraphics();//this function release the graphics device and all resources
     
       private:
         void handleEventFromWindow();
@@ -197,7 +196,7 @@ namespace mbm
         bool beginRender(); // prepare to render
         void endRender(); // end render
         void swapBuffers(); // Swap buffers
-		bool resetDeviceWithNewDimensions(int newWidth, int newHeight);// need to be implemented in each backend engine
+        bool resetDeviceWithNewDimensions(int newWidth, int newHeight);// need to be implemented in each backend engine
         void enableRender(const int idScene);
         void disableRender(const int idScene);
         void pushEvent(EVENT_KEY *event);
@@ -206,26 +205,23 @@ namespace mbm
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
 
       public:
-        API_IMPL void onTouchDown(int key, float x, float y);
-        API_IMPL void onTouchUp(int key, float x, float y);
-        API_IMPL void onTouchMove(int key, float x, float y);
-        API_IMPL void onTouchZoom(float zoom);
-        API_IMPL void onKeyDown(int key);
-        API_IMPL void onKeyUp(int key);
-        API_IMPL void onDoubleClick(float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(int width, int height);
+        API_IMPL void onTouchDown(int key, float x, float y) override;
+        API_IMPL void onTouchUp(int key, float x, float y) override;
+        API_IMPL void onTouchMove(int key, float x, float y) override;
+        API_IMPL void onTouchZoom(float zoom) override;
+        API_IMPL void onKeyDown(int key) override;
+        API_IMPL void onKeyUp(int key) override;
+        API_IMPL void onDoubleClick(float x, float y, int key) override;
+        API_IMPL void onKeyDownJoystick(int player, int key) override;
+        API_IMPL void onKeyUpJoystick(int player, int key) override;
+        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
+        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
+        API_IMPL void onResizeWindow(int width, int height) override;
 
       public:
         bool __sceneWasInit;
         API_IMPL void forceRestore(const bool doSwapBuffers);
         bool keyCapsLockState;
-    #if defined _WIN32
-        DWORD idIcon;
-    #endif
       private:
         std::map<int, bool>                     __keyPressed;
         std::list<EVENT_KEY>                    lsEvents;

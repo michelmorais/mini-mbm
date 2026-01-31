@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #ifndef DEFAULT_THEME_WINPLUS_H
 #define DEFAULT_THEME_WINPLUS_H
 
@@ -335,4 +336,5 @@ class THEME_WINPLUS_CUSTOM_RENDER : public mbm::DRAW
     API_IMPL void static setTheme(int which, const bool enableBorder = true);
 };
 
+#endif
 #endif

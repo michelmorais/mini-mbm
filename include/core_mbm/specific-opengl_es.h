@@ -23,12 +23,18 @@
 #include "core-exports.h"
 #include <stdint.h>
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #include <joystick-win32/joystick-win32.h>
+    #include <plusWindows/plusWindows.h>
+    #include <core-manager.h>
+#endif
+
 #if defined ANDROID
     #include <EGL/egl.h>
     #include <GLES2/gl2.h>
     #include <jni.h>
     #include <string>
-#elif defined __MINGW32__ | defined __CYGWIN__
+#elif defined __MINGW32__ || defined __CYGWIN__
     #include <gles/EGL/egl.h>
     #include <gles/GLES2/gl2.h>
 
@@ -647,6 +653,102 @@ namespace mbm
         }
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
+    };
+
+#elif (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+
+    class WIN_EVENT_BY_PASS : public EVENTS_WIN32
+    {
+    public:
+        WIN_EVENT_BY_PASS() = delete;
+        explicit WIN_EVENT_BY_PASS(EVENTS* the_parent) :parent(the_parent) {};
+		~WIN_EVENT_BY_PASS() = default;
+
+        void onTouchDown(HWND w, int key, float x, float y) override;
+        void onTouchUp(HWND w, int key, float x, float y)  override;
+        void onTouchMove(HWND w, float x, float y)  override;
+        void onTouchZoom(HWND w, float zoom)  override;
+        void onKeyDown(HWND w, int key)  override;
+        void onKeyUp(HWND w, int key)  override;
+        void onDoubleClick(HWND w, float x, float y, int key)  override;
+        void onResizeWindow(HWND w, int width, int height)  override;
+        EVENTS* parent;
+    };
+
+    class WIN_JOYSTICK_BY_PASS : public JOYSTICK
+    {
+    public:
+		WIN_JOYSTICK_BY_PASS() = delete;
+		explicit WIN_JOYSTICK_BY_PASS(JOYSTICK_BASE* the_parent) :parent(the_parent) {};
+        ~WIN_JOYSTICK_BY_PASS() = default;
+
+        void onKeyDownJoystick(int player, int key) override;
+        void onKeyUpJoystick(int player, int key) override;
+        void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
+        void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
+		JOYSTICK_BASE* parent;
+    };
+
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
+    {
+        WINDOW window;
+        DWORD idIcon;
+        EGLDisplay eglDisplay;
+        EGLSurface eglSurface;
+        EGLContext eglContext;
+
+		WIN_EVENT_BY_PASS* win32_EventByPass;
+        WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
+        
+        
+        SPECIFIC_AUX_CONTEXT_DEVICE()
+        {
+            this->idIcon = 0;
+			this->win32_joystickByPass = nullptr;
+            this->win32_EventByPass = nullptr;
+            this->eglDisplay = EGL_NO_DISPLAY;
+            this->eglSurface = EGL_NO_SURFACE;
+            this->eglContext = EGL_NO_CONTEXT;
+        }
+
+        ~SPECIFIC_AUX_CONTEXT_DEVICE()
+        {
+            release();
+        }
+
+        void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)
+        {
+            if (this->win32_EventByPass)
+                delete this->win32_EventByPass;
+            this->win32_EventByPass = nullptr;
+            if (this->win32_joystickByPass)
+                delete this->win32_joystickByPass;
+            this->win32_joystickByPass = nullptr;
+            this->win32_EventByPass = new WIN_EVENT_BY_PASS(core_manager_ptr ? reinterpret_cast<EVENTS*>(core_manager_ptr) : nullptr);
+            this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
+        }
+
+        void release()
+        {
+            if (this->eglDisplay != EGL_NO_DISPLAY)
+                eglTerminate(this->eglDisplay);
+            if (this->eglSurface != EGL_NO_SURFACE)
+                eglDestroySurface(this->eglDisplay, this->eglSurface);
+            if (this->eglContext != EGL_NO_CONTEXT)
+                eglDestroyContext(this->eglDisplay, this->eglContext);
+            this->eglDisplay = EGL_NO_DISPLAY;
+            this->eglSurface = EGL_NO_SURFACE;
+            this->eglContext = EGL_NO_CONTEXT;
+            if (this->win32_EventByPass)
+                delete this->win32_EventByPass;
+            this->win32_EventByPass = nullptr;
+            if (this->win32_joystickByPass)
+				delete this->win32_joystickByPass;
+			this->win32_joystickByPass = nullptr;
+            //window.release(); // The window release is done in the WINDOW destructor
+        }
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
     };
 
 #endif

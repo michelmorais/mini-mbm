@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,27 +17,29 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef ORDER_RENDER_CLASS_H
-#define ORDER_RENDER_CLASS_H
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+#include <device.h>
+#include <plusWindows/defaultThemePlusWindows.h>
+
 
 namespace mbm
 {
-
-    class ORDER_RENDER
+    void setTheme(int value, bool enableBorder)
     {
-      public:
-        ORDER_RENDER()noexcept;
-        void reInit()noexcept;
-        float getNextZOrderControl3d()noexcept;
-        float getNextZOrderControl2d(const bool is2dS, const bool isFont)noexcept;
-        float getNextZOrderControl2dBackground()noexcept;
-      private:
-        float nextZOrderControl3d;
-        float nextZOrderControl2d;
-        float nextZOrderControl2dBackground;
-        float Z2dsFont, Z2ds, Z2dw;
-    };
-
+        THEME_WINPLUS_CUSTOM_RENDER::setTheme(value, enableBorder);
+    }
+    void hideConsoleWindow()
+    {
+        HWND hConsole = GetConsoleWindow();
+        if (hConsole)
+            ShowWindow(hConsole, SW_HIDE);
+    }
+    void showConsoleWindow()
+    {
+        HWND hConsole = GetConsoleWindow();
+        if (hConsole)
+            ShowWindow(hConsole, SW_SHOW | SW_NORMAL);
+    }
 }
 
 #endif

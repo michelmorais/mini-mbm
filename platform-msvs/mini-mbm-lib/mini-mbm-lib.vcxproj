@@ -167,6 +167,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-linux-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\manager-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />

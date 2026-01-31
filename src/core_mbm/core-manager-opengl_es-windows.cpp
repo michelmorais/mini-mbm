@@ -18,7 +18,13 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#if defined(_WIN32) || defined(__MINGW32__)
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+	#if defined (USE_OPENGL_ES)
+		#include <specific-opengl_es.h>
+	#elif defined (USE_DIRECTX9)
+		#include <specific-directx9.h>
+	#endif
+
 
 #include <core-manager.h>
 #include <device.h>
@@ -28,16 +34,16 @@ namespace mbm
 {
     void CORE_MANAGER::handleEventFromWindow()
     {
-        this->device->window.doEvents();
+        this->device->specificContextDevice->window.doEvents();
         bool first_menu = true;
-        while (mbm::WINDOW::isAnyMenuVisible() && device->window.run)
+        while (mbm::WINDOW::isAnyMenuVisible() && this->device->specificContextDevice->window.run)
         {
             if (first_menu)
             {
                 Sleep(50);
                 mbm::WINDOW::refreshMenu();
             }
-            this->device->window.doEvents();
+            this->device->specificContextDevice->window.doEvents();
             if (first_menu)
             {
                 Sleep(50);
@@ -45,7 +51,7 @@ namespace mbm
             }
             first_menu = false;
         }
-        if (this->device->window.run)
+        if (this->device->specificContextDevice->window.run)
         {
             INFO_JOYSTICK_INIT_PLAYER info;
             while (this->popEvent(&info))

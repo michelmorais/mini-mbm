@@ -24,9 +24,9 @@
 #include "primitives.h"
 #include <string>
 
-#if defined _WIN32
-	#pragma warning(push)
-	#pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(push)
+    #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif 
 
 namespace util 
@@ -66,49 +66,49 @@ namespace mbm
         }
         
         inline bool collision(const VEC3 &position, const VEC3 &other, const CUBE &cube) noexcept
-	    {	
-		    if((other.x + cube.absCenter.x + cube.halfDim.x) < //Max x
-			    (position.x + absCenter.x - halfDim.x))//Min x
-			    return false; 
-		    if((other.x + cube.absCenter.x - cube.halfDim.x) > //Min x
-			    (position.x + absCenter.x + halfDim.x))//Max x
-			    return false; 
+        {	
+            if((other.x + cube.absCenter.x + cube.halfDim.x) < //Max x
+                (position.x + absCenter.x - halfDim.x))//Min x
+                return false; 
+            if((other.x + cube.absCenter.x - cube.halfDim.x) > //Min x
+                (position.x + absCenter.x + halfDim.x))//Max x
+                return false; 
 
-		    if((other.y + cube.absCenter.y + cube.halfDim.y) < //Max y
-			    (position.y + absCenter.y - halfDim.y))//Min y
-			    return false; 
-		    if((other.y + cube.absCenter.y - cube.halfDim.y) > //Min y
-			    (position.y + absCenter.y + halfDim.y))//Max y
-			    return false; 
+            if((other.y + cube.absCenter.y + cube.halfDim.y) < //Max y
+                (position.y + absCenter.y - halfDim.y))//Min y
+                return false; 
+            if((other.y + cube.absCenter.y - cube.halfDim.y) > //Min y
+                (position.y + absCenter.y + halfDim.y))//Max y
+                return false; 
 
-		    if((other.z + cube.absCenter.z + cube.halfDim.z) < //Max z
-			    (position.z + absCenter.z - halfDim.z))//Min z
-			    return false; 
-		    if((other.z + cube.absCenter.z - cube.halfDim.z) > //Min z
-			    (position.z + absCenter.z + halfDim.z))//Max z
-			    return false; 
-		
-		    return true;
-	    }
+            if((other.z + cube.absCenter.z + cube.halfDim.z) < //Max z
+                (position.z + absCenter.z - halfDim.z))//Min z
+                return false; 
+            if((other.z + cube.absCenter.z - cube.halfDim.z) > //Min z
+                (position.z + absCenter.z + halfDim.z))//Max z
+                return false; 
+        
+            return true;
+        }
 
-	    inline bool collision2d(const VEC3 &position, const VEC3 &other, const CUBE &cube) noexcept
-	    {	
-		    if((other.x + cube.absCenter.x + cube.halfDim.x) < //Max x
-			    (position.x + absCenter.x - halfDim.x))//Min x
-			    return false; 
-		    if((other.x + cube.absCenter.x - cube.halfDim.x) > //Min x
-			    (position.x + absCenter.x + halfDim.x))//Max x
-			    return false; 
+        inline bool collision2d(const VEC3 &position, const VEC3 &other, const CUBE &cube) noexcept
+        {	
+            if((other.x + cube.absCenter.x + cube.halfDim.x) < //Max x
+                (position.x + absCenter.x - halfDim.x))//Min x
+                return false; 
+            if((other.x + cube.absCenter.x - cube.halfDim.x) > //Min x
+                (position.x + absCenter.x + halfDim.x))//Max x
+                return false; 
 
-		    if((other.y + cube.absCenter.y + cube.halfDim.y) < //Max y
-			    (position.y + absCenter.y - halfDim.y))//Min y
-			    return false; 
-		    if((other.y + cube.absCenter.y - cube.halfDim.y) > //Min y
-			    (position.y + absCenter.y + halfDim.y))//Max y
-			    return false; 
+            if((other.y + cube.absCenter.y + cube.halfDim.y) < //Max y
+                (position.y + absCenter.y - halfDim.y))//Min y
+                return false; 
+            if((other.y + cube.absCenter.y - cube.halfDim.y) > //Min y
+                (position.y + absCenter.y + halfDim.y))//Max y
+                return false; 
 
-		    return true;
-	    }
+            return true;
+        }
 
         inline bool collision2d(const VEC2 &position, const VEC3 &other, const CUBE &cube) noexcept
         {
@@ -215,8 +215,8 @@ namespace mbm
     };
 }
 
-#if defined _WIN32
-	#pragma warning (pop)//nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning (pop)//nonstandard extension used : nameless struct/union
 #endif 
 
 #endif

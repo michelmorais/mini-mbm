@@ -23,6 +23,14 @@
 #include <core-manager.h>
 #include <util-interface.h>
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+	#if defined (USE_OPENGL_ES)
+		#include <specific-opengl_es.h>
+	#elif defined (USE_DIRECTX9)
+		#include <specific-directx9.h>
+	#endif
+#endif
+
 namespace mbm
 {
 #if defined(AUDIO_ENGINE_AUDIERE)
@@ -53,7 +61,7 @@ namespace mbm
 		}
 		else
 		{
-			HWND hwnd = mbm::DEVICE::getInstance()->window.getHwnd();
+			HWND hwnd = mbm::DEVICE::getInstance()->specificContextDevice->window.getHwnd();
 			if FAILED(m_directSound->SetCooperativeLevel(hwnd, DSSCL_PRIORITY))
 			{
 				ERROR_LOG("Failed calling m_directSound->SetCooperativeLevel");

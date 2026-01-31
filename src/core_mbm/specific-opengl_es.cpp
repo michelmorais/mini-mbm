@@ -77,4 +77,74 @@ GLint checkAttribLocation(const GLint location, const char* name)
     }
     return location;
 }
+
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+
+namespace mbm
+{
+    void WIN_EVENT_BY_PASS::onTouchDown(HWND, int key, float x, float y)
+    {
+        if(parent)
+			parent->onTouchDown(key, x, y);
+    }
+    void WIN_EVENT_BY_PASS::onTouchUp(HWND, int key, float x, float y)
+    {
+        if(parent)
+			parent->onTouchUp(key, x, y);
+    }
+    void WIN_EVENT_BY_PASS::onTouchMove(HWND, float x, float y)
+    {
+		if (parent)
+			parent->onTouchMove(0, x, y);
+    }
+    void WIN_EVENT_BY_PASS::onTouchZoom(HWND, float zoom)
+    {
+		if (parent)
+			parent->onTouchZoom(zoom);
+    }
+    void WIN_EVENT_BY_PASS::onKeyDown(HWND, int key)
+    {
+		if (parent)
+			parent->onKeyDown(key);
+    }
+    void WIN_EVENT_BY_PASS::onKeyUp(HWND, int key)
+    {
+		if (parent)
+			parent->onKeyUp(key);
+    }
+    void WIN_EVENT_BY_PASS::onDoubleClick(HWND, float x, float y, int key)
+    {
+		if (parent)
+			parent->onDoubleClick(x, y, key);
+    }
+    void WIN_EVENT_BY_PASS::onResizeWindow(HWND, int width, int height)
+    {
+        if(parent)
+			parent->onResizeWindow(width, height);
+    }
+
+    
+     void WIN_JOYSTICK_BY_PASS::onKeyDownJoystick(int player, int key) 
+    {
+        if(parent)
+			parent->onKeyDownJoystick(player, key);
+    }
+    void WIN_JOYSTICK_BY_PASS::onKeyUpJoystick(int player, int key) 
+    {
+        if(parent) 
+			parent->onKeyUpJoystick(player, key);
+    }
+    void WIN_JOYSTICK_BY_PASS::onMoveJoystick(int player, float lx, float ly, float rx, float ry) 
+    {
+        if(parent) 
+			parent->onMoveJoystick(player, lx, ly, rx, ry);
+    }
+    void WIN_JOYSTICK_BY_PASS::onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) 
+    {
+        if(parent)
+			parent->onInfoDeviceJoystick(player, maxNumberButton, strDeviceName, extraInfo);
+    }
+};
+
+#endif
 #endif

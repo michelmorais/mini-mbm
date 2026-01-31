@@ -150,6 +150,21 @@
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-linux-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\manager-android-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">

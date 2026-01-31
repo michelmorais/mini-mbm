@@ -237,11 +237,8 @@
     <ClInclude Include="..\..\include\render\sprite.h">
       <Filter>Header Files\render</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\joystick-win32\joystick.h">
+    <ClInclude Include="..\..\include\joystick-win32\joystick-win32.h">
       <Filter>Header Files\joystick-win32</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\include\platform\common-jni.h">
-      <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\render\gif-view.h">
       <Filter>Header Files\render</Filter>
@@ -371,7 +368,7 @@
     <ClCompile Include="..\..\src\render\sprite.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp">
+    <ClCompile Include="..\..\include\joystick-win32\joystick-win32.cpp">
       <Filter>Source Files\joystick-win32</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\gif-view.cpp">
@@ -407,7 +404,7 @@
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\device_common.cpp">
+    <ClCompile Include="..\..\src\core_mbm\device-common.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp">
@@ -606,6 +603,15 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\particle-control.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\specific-android.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\device-win32.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>

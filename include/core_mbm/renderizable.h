@@ -122,10 +122,7 @@ namespace mbm
     class RENDERIZABLE_TO_TARGET : public RENDERIZABLE
     {
       public:
-        //uint32_t idFrameBuffer;
-        //uint32_t idDepthRenderbuffer;
-        //int          idTextureDynamic;
-        void*    specificConfig;
+		void* specificConfig; // specific configuration for each graphic API (backend)
         uint32_t widthTexture;
         uint32_t heightTexture;
         COLOR        colorClearBackGround;

@@ -23,7 +23,7 @@
 
 #include <specific-opengl_es.h>
 
-#if defined _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     // needed GL_MIN / GL_MAX definitions
 	#include <../third-party/gles/GLES3/gl3.h>
 #endif

@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include "plusWindows.h"
 
 const char*  WINPLUS_DIRSEPARATOR = "\\";
@@ -421,7 +422,7 @@ const char* getHresultErr(HRESULT hr, const char* where, char* outMessage)
         LONG nError = RegOpenKeyExW(hRootKey, strKey, 0, acess, &hKey);
         if (nError == ERROR_FILE_NOT_FOUND)
         {
-			char strKeyout[255];
+            char strKeyout[255];
             fprintf(stderr,"Creating registry key:%s\n", mbm::toChar(strKey, strKeyout));
             nError = RegCreateKeyExW(hRootKey, strKey, 0, nullptr, REG_OPTION_NON_VOLATILE, acess, nullptr, &hKey, nullptr);
         }
@@ -480,7 +481,7 @@ const char* getHresultErr(HRESULT hr, const char* where, char* outMessage)
         else
         {
             std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
-		}
+        }
     }
 
     DWORD REGEDIT::getVal(LPCTSTR lpValue, DWORD valueNotFound)
@@ -808,7 +809,7 @@ namespace mbm
                     ++zeroByte;
             }
         }
-		unsigned char *img   = new unsigned char[(width * height * 3) + 4];
+        unsigned char *img   = new unsigned char[(width * height * 3) + 4];
         int i = getc(fp);
         while (i != EOF)
         {
@@ -3430,7 +3431,7 @@ namespace mbm
             {
                 int *pFlag = static_cast<int *>(dialogBox->extraParams);
                 {
-					#define hasBit_On(v, bit) ((v & bit) == bit)
+                    #define hasBit_On(v, bit) ((v & bit) == bit)
                     int   flag  = *pFlag;
                     HICON hIcon = nullptr;
                     if (hasBit_On(flag, MB_ICONINFORMATION) || hasBit_On(flag, MB_ICONASTERISK))
@@ -4498,22 +4499,22 @@ namespace mbm
         tnidw.uVersion         = tnid.uVersion;
         WCHAR  textOut[1024]   = L"";
         WCHAR *szTmp           = toWchar(tnid.szInfo, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfo, szTmp);
-		else
-			memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
+        if(szTmp)
+            wcscpy(tnidw.szInfo, szTmp);
+        else
+            memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
 
         szTmp = toWchar(tnid.szInfoTitle, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfoTitle, szTmp);
-		else
-			memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
+        if(szTmp)
+            wcscpy(tnidw.szInfoTitle, szTmp);
+        else
+            memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
 
         szTmp = toWchar(tnid.szTip, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szTip, szTmp);
-		else
-			memset(tnidw.szTip,0,sizeof(tnidw.szTip));
+        if(szTmp)
+            wcscpy(tnidw.szTip, szTmp);
+        else
+            memset(tnidw.szTip,0,sizeof(tnidw.szTip));
 
         BOOL bSuccess  = Shell_NotifyIconW(NIM_MODIFY, &tnidw);
         tnid.szInfo[0] = 0;
@@ -5283,8 +5284,8 @@ namespace mbm
                 {
                     COM_BETWEEN_WINP *ptrPrevious = ptr;
                     ptr                           = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5360,8 +5361,8 @@ namespace mbm
                 case WM_NCHITTEST:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5418,8 +5419,8 @@ namespace mbm
                 case WM_NCPAINT:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC || ptr->ptrWindow == nullptr ||
                         ptr->ptrWindow->run == false || ptr->ptrWindow->isVisible == false)
                     {
@@ -5457,7 +5458,7 @@ namespace mbm
                     DeleteDC(hdcMem);
                     ReleaseDC(windowHandle, hdc);
                     RedrawWindow(windowHandle, &ncBorder.rcWind, ncBorder.hrgnAll, RDW_UPDATENOW);
-					ptr->graphWin->infoActualComponent = nullptr;
+                    ptr->graphWin->infoActualComponent = nullptr;
                     /*for(unsigned int i=0; i< COM_BETWEEN_WINP::lsComBetweenWinp.size(); ++i)
                     {
                         COM_BETWEEN_WINP* ptrWinChild = COM_BETWEEN_WINP::lsComBetweenWinp[i];
@@ -7697,7 +7698,7 @@ namespace mbm
             DeleteObject(hbmMem);
             DeleteDC(hdcMem);
             EndPaint(ptr->hwnd, &ps);
-			ptr->graphWin->infoActualComponent = nullptr;
+            ptr->graphWin->infoActualComponent = nullptr;
         }
         return 1;
     }
@@ -8753,7 +8754,7 @@ namespace mbm
                                     menu->showSubMenu();
                                 }
                             }
-							break;
+                            break;
                             case WINPLUS_TYPE_SUB_MENU:
                             {
                                 if (ptr->onEventWinPlus)
@@ -9064,7 +9065,7 @@ namespace mbm
         bi.lParam         = 0;
         //this does not make any sense however I realize that when folder dialog is supposed to appear, it does not until press ALT in the keyboard...
         keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
-		keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+        keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
         //end bizarre behavior
         pidl              = SHBrowseForFolderA(&bi);
         if (pidl)
@@ -10399,3 +10400,4 @@ namespace mbm
 }
 
 };
+#endif

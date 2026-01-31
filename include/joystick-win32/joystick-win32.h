@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #ifndef JOYSTICK_H
 #define JOYSTICK_H
 
@@ -97,4 +98,5 @@ private:
 };
 
 };
+#endif
 #endif

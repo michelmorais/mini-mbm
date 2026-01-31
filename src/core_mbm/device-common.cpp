@@ -26,9 +26,9 @@
 #include <dynamic-var.h>
 #include <core-manager.h>
 
-#if defined _WIN32
-    #include <plusWindows/defaultThemePlusWindows.h>
-#endif
+//#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+//    #include <plusWindows/defaultThemePlusWindows.h>
+//#endif
 
 namespace mbm
 {
@@ -732,32 +732,6 @@ namespace mbm
         //force refresh window by sending resize event
         this->ptrManager->onResizeWindow(static_cast<int>(this->backBufferWidth), static_cast<int>(this->backBufferHeight));
     }
-
-    #if defined _WIN32
-    void setTheme(int value, bool enableBorder)
-    {
-        THEME_WINPLUS_CUSTOM_RENDER::setTheme(value, enableBorder);
-    }
-    void hideConsoleWindow()
-    {
-        HWND hConsole = GetConsoleWindow();
-        if (hConsole)
-            ShowWindow(hConsole, SW_HIDE);
-    }
-    void showConsoleWindow()
-    {
-        HWND hConsole = GetConsoleWindow();
-        if (hConsole)
-            ShowWindow(hConsole, SW_SHOW | SW_NORMAL);
-    }
-    const char* selectFolderDialog(char * folderPathOut)
-    {
-        HWND hwnd = mbm::DEVICE::getInstance()->window.getHwnd();
-        const char *      path         = mbm::selectetDirectory(hwnd,folderPathOut);
-        return path;
-    }
-
-    #endif
 }
 
 mbm::DEVICE *          mbm::DEVICE::instanceDevice                   = nullptr;

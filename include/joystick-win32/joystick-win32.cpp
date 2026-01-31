@@ -17,7 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <joystick-win32/joystick.h>
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+#include <joystick-win32/joystick-win32.h>
 
 #ifndef SAFE_FREE
     #define SAFE_FREE(p)    { if(p) { HeapFree(hHeap, 0, p); (p) = nullptr; } }
@@ -541,3 +542,5 @@ namespace mbm
     
     int JOYSTICK::_indexJoystickInstance = 0;
 }
+
+#endif

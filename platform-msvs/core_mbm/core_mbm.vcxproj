@@ -92,7 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_DIRECT_SOUND_8;DEBUG_RESTORE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>
       </FunctionLevelLinking>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -223,9 +223,8 @@
     <ClInclude Include="..\..\include\core_mbm\vigenere.h" />
     <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h" />
     <ClInclude Include="..\..\include\core_mbm\dummy-engine.h" />
-    <ClInclude Include="..\..\include\joystick-win32\joystick.h" />
+    <ClInclude Include="..\..\include\joystick-win32\joystick-win32.h" />
     <ClInclude Include="..\..\include\miniz-wrap\miniz-wrap.h" />
-    <ClInclude Include="..\..\include\platform\common-jni.h" />
     <ClInclude Include="..\..\include\platform\mismatch-platform.h" />
     <ClInclude Include="..\..\include\plusWindows\defaultThemePlusWindows.h" />
     <ClInclude Include="..\..\include\plusWindows\plusWindows.h" />
@@ -258,7 +257,7 @@
     <ClInclude Include="..\..\third-party\wave\WAVE.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
+    <ClCompile Include="..\..\include\joystick-win32\joystick-win32.cpp" />
     <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
     <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
@@ -269,6 +268,8 @@
     <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-windows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-x11.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
@@ -280,7 +281,7 @@
     <ClCompile Include="..\..\src\core_mbm\core-manager-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\device_common.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\device-common.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
     <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
@@ -307,6 +308,7 @@
     <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\specific-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\specific-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />

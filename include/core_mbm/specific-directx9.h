@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #ifndef DIRECTX9_SPECIFIC_H
 #define DIRECTX9_SPECIFIC_H
 #if defined (USE_DIRECTX9)
@@ -160,5 +161,6 @@ namespace mbm
         const uint8_t* dataImage) noexcept;
 }
 
+#endif
 #endif
 #endif

@@ -23,7 +23,7 @@
 #include "primitives.h"
 #include <vector>
 
-#if defined _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #pragma warning(push)
 #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif
@@ -122,7 +122,7 @@ struct FLUID_GROUP
     VEC3* particle_positions;
     VEC3* vertex_particle;
     VEC2* uv;
-	bool           segmented;//when true: we have uv calculation based on the aabb of the group of particles, when false: uv is set to (0,0)(1,0)(0,1)(1,1) for each particle (so the size is constant)
+    bool           segmented;//when true: we have uv calculation based on the aabb of the group of particles, when false: uv is set to (0,0)(1,0)(0,1)(1,1) for each particle (so the size is constant)
     COLOR*         color;
 
     API_IMPL FLUID_GROUP(const bool b_segmented, const float _radiusScale, const COLOR *theColor) noexcept;
@@ -137,7 +137,7 @@ struct FLUID_GROUP
 
 }
 
-#if defined _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #pragma warning(pop) // nonstandard extension used : nameless struct/union
 #endif
 

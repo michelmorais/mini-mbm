@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #ifndef PLUS_WINDOWS_H
 #define PLUS_WINDOWS_H
 
@@ -1346,5 +1347,6 @@ API_IMPL COM_BETWEEN_WINP* getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEve
             #define new DBG_NEW_OLD
         #endif
     #endif
+#endif
 #endif
 #endif

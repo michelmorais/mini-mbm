@@ -20,9 +20,13 @@
 #ifndef MISMATCH_PLATFORM_H
 #define MISMATCH_PLATFORM_H
 
-    #if defined _WIN32 
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         #include <string.h>
         #include <Windows.h>
+        #include <io.h>            // <-- needed for _access
+        #ifndef access
+            #define access _access // map POSIX name to MSVC
+        #endif
         #ifndef M_PI
             #define M_PI 3.14159265358979323846f
         #endif

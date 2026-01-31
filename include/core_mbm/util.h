@@ -20,9 +20,6 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
 #include <string>
 #include <vector>
 
@@ -32,7 +29,7 @@ namespace util
 {
 
     API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
-    #if defined   _WIN32
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
     API_IMPL char *toChar(const WCHAR *wstr, char *outText);
     #endif
