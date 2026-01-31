@@ -50,7 +50,7 @@ namespace mbm
       private:
         bool isOnFrustum() override;
         bool render() override;
-        bool onRestoreDevice() override;// In this function, make sure that the object is loaded, later the engine will fill in the animation state
+        bool onRestoreDevice() override;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
         void fillvertexQuadTexture(VEC3 *_position, VEC2 *uv, const float width, const float height);
         void updateRestoreTexture(const float w, const float h);
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;

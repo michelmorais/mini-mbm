@@ -227,9 +227,7 @@ namespace mbm
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
-    #if defined _WIN32
         std::mutex mutexEvents;
-    #endif
         std::string  nameAplication;
         EVENT_KEY    lastEvent;
         WHICH_FOR    which_for;

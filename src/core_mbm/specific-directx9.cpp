@@ -39,10 +39,17 @@ namespace mbm
 
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-		this->realease();
+		this->release();
+        // do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
+        if (this->win32_EventByPass)
+            delete this->win32_EventByPass;
+        this->win32_EventByPass = nullptr;
+        if (this->win32_joystickByPass)
+            delete this->win32_joystickByPass;
+        this->win32_joystickByPass = nullptr;
     };
 
-    void SPECIFIC_AUX_CONTEXT_DEVICE::realease() noexcept
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release() noexcept
     {
         if (vertex_declaration_pos)
             vertex_declaration_pos->Release();
@@ -68,12 +75,6 @@ namespace mbm
             pD3D->Release();
             pD3D = nullptr;
         }
-        if (this->win32_EventByPass)
-            delete this->win32_EventByPass;
-        this->win32_EventByPass = nullptr;
-        if (this->win32_joystickByPass)
-            delete this->win32_joystickByPass;
-		this->win32_joystickByPass = nullptr;
     }
 
     void SPECIFIC_AUX_CONTEXT_DEVICE::initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)

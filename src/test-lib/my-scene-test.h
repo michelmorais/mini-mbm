@@ -31,6 +31,7 @@
 #include <render/particle.h>
 #include <render/render-2-texture.h>
 #include <render/steered_particle.h>
+#include <render/background.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -38,6 +39,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::TEXTURE_VIEW * texBox;
     mbm::GIF_VIEW* gif;
     mbm::SPRITE* sprite;
+	mbm::BACKGROUND* background;
     mbm::MESH* mesh;
     mbm::SHAPE_MESH* shape;
     mbm::LINE_MESH* line;

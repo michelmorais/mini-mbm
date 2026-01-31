@@ -940,6 +940,7 @@ class WINDOW
     API_IMPL DRAW *getGrafics(const int idComponent) const;
     API_IMPL void setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager);
     API_IMPL uint32_t setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index);
+    API_IMPL uint32_t addObjectContext(void* YOUR_PTR_OBJECT);
     API_IMPL void *getObjectContext(const uint32_t index);
     API_IMPL void setCursor(WINPLUS_TYPE_CURSOR TYPE);
     API_IMPL WINPLUS_TYPE_CURSOR getCursor();

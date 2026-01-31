@@ -3172,23 +3172,29 @@ namespace mbm
             return ptr->graphWin;
         return nullptr;
     }
+
     void WINDOW::setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager)
     {
         callEventsManager = ptrCallEventsManager;
     }
-    unsigned int WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const unsigned int index)
+
+    uint32_t WINDOW::addObjectContext(void* YOUR_PTR_OBJECT)
     {
-        if (index != 0xffffffff)
-        {
-            assert(this->lsObjectsContext[index] == nullptr || this->lsObjectsContext[index] == YOUR_PTR_OBJECT);
-            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
-            return index;
-        }
-        const unsigned int newIndex      = this->lsObjectsContext.size();
+        const uint32_t newIndex = this->lsObjectsContext.size();
         this->lsObjectsContext[newIndex] = (YOUR_PTR_OBJECT);
         return newIndex;
     }
-    void * WINDOW::getObjectContext(const unsigned int index)
+
+    uint32_t WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index)
+    {
+        if (index != 0xffffffff)
+        {
+            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
+            return index;
+        }
+        return addObjectContext(YOUR_PTR_OBJECT);
+    }
+    void * WINDOW::getObjectContext(const uint32_t index)
     {
         if (index != 0xffffffff)
             return lsObjectsContext[index];
@@ -6804,16 +6810,19 @@ namespace mbm
     }
     bool WINDOW::setOnParserRawInput(OnParseRawInput function)
     {
-        RAWINPUTDEVICE rid[1];
-        rid[0].usUsagePage = 1;
-        rid[0].usUsage     = 4; // Joystick
-        rid[0].dwFlags     = RIDEV_EXINPUTSINK;
-        rid[0].hwndTarget  = this->getHwnd();
+        if (function)
+        {
+            RAWINPUTDEVICE rid[1];
+            rid[0].usUsagePage = 1;
+            rid[0].usUsage = 4; // Joystick
+            rid[0].dwFlags = RIDEV_EXINPUTSINK;
+            rid[0].hwndTarget = this->getHwnd();
 
-        const int index      = 0;
-        const int numDevices = 1;
-        if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
-            return false;
+            const int index = 0;
+            const int numDevices = 1;
+            if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
+                return false;
+        }
         this->onParseRawInput = function;
         return true;
     }

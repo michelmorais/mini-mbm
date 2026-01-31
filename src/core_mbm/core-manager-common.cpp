@@ -90,12 +90,21 @@ namespace mbm
             {
                 switch (event.eventType)
                 {
-                    case UNKNOWN: {
+                    case UNKNOWN: 
+                    {
+						ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::loop() - Unknown event type %d.", event.eventType);
                     }
                     break;
                     case ONRESIZEWINDOW:
                     {
-                        this->device->backBufferWidth = event.x;
+                        if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
+							static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
+                        {
+                            WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
+                            break;
+                        }
+                        WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
+                        this->device->backBufferWidth  = event.x;
                         this->device->backBufferHeight = event.y;
                         if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
                         {
@@ -775,7 +784,7 @@ namespace mbm
         if (stepRestore == STEP_RES_INIT_GL)
         {
 #if defined _DEBUG
-            ERROR_LOG("onLostDevice step %d", stepRestore);
+            WARN_LOG("onLostDevice step %d", stepRestore);
 #endif
             this->ReleaseGraphics();
 
@@ -1082,6 +1091,152 @@ namespace mbm
      {
          EVENT_KEY ev(static_cast<float>(width), static_cast<float>(height), 0, EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
          this->pushEvent(&ev);
+     }
+
+     void CORE_MANAGER::pushEvent(EVENT_KEY* event)
+     {
+         if (event && this->device->scene && this->__sceneWasInit)
+         {
+             mutexEvents.lock();
+             if (event->eventType == this->lastEvent.eventType)
+             {
+                 switch (event->eventType)
+                 {
+                     case UNKNOWN: 
+                     {
+                         mutexEvents.unlock();
+                         return;
+                     }
+                     break;
+                     case ONRESIZEWINDOW:
+                     {
+                         EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                         if (event_onresize)
+                         {
+							 *event_onresize = *event;
+                         }
+                         mutexEvents.unlock();
+                         return;
+                     }
+                     break;
+                     case ONTOUCHDOWN:
+                     case ONTOUCHUP:
+                     case ONTOUCHMOVE:
+                     case ONDOUBLECLICK:
+                     {
+                         if (event->key == this->lastEvent.key)
+                         {
+                             EVENT_KEY* event_touch = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                             if (event_touch)
+                             {
+                                 *event_touch = *event;
+                             }
+                             mutexEvents.unlock();
+                             return;
+                         }
+                     }
+                     break;
+                     case ONKEYDOWN:
+                     case ONKEYUP:
+                     {
+                         if (event->key == this->lastEvent.key)
+                         {
+                             mutexEvents.unlock();
+                             return;
+                         }
+                     }
+                     break;
+                     case ONTOUCHZOOM: 
+                     {
+                         if (event->key == this->lastEvent.key)
+                         {
+                             EVENT_KEY* event_zoom = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                             if (event_zoom)
+                             {
+                                 *event_zoom = *event;
+                             }
+                             mutexEvents.unlock();
+                             return;
+                         }
+                     }
+                     break;
+                     default: 
+                     {
+                     }
+                     break;
+                 }
+             }
+             this->lastEvent = *event;
+
+             switch (event->eventType)
+             {
+                 case ONKEYDOWN:
+                 {
+                     if (this->__keyPressed[event->key] == false)
+                         this->lsEvents.push_back(*event);
+                     this->__keyPressed[event->key] = true;
+                 }
+                 break;
+                 case ONKEYUP:
+                 {
+                     if (this->__keyPressed[event->key])
+                         this->lsEvents.push_back(*event);
+                     this->__keyPressed[event->key] = false;
+                 }
+                 break;
+                 default: 
+                 {
+                     this->lsEvents.push_back(*event);
+                 }
+                 break;
+             }
+             mutexEvents.unlock();
+         }
+     }
+
+     bool CORE_MANAGER::popEvent(EVENT_KEY* event)
+     {
+         mutexEvents.lock();
+         if (this->lsEvents.size() > 0 && event)
+         {
+             *event = this->lsEvents.front();
+             this->lsEvents.pop_front();
+             mutexEvents.unlock();
+             return true;
+         }
+         else
+         {
+             mutexEvents.unlock();
+             return false;
+         }
+     }
+
+     void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER* info)
+     {
+         mutexEvents.lock();
+         if (this->device->scene && this->__sceneWasInit)
+         {
+             this->lsInfoJoystick.push_back(*info);
+         }
+         mutexEvents.unlock();
+     }
+
+     bool CORE_MANAGER::popEvent(INFO_JOYSTICK_INIT_PLAYER* info)
+     {
+         mutexEvents.lock();
+         if (this->lsInfoJoystick.size() > 0 && info)
+         {
+
+             *info = this->lsInfoJoystick.front();
+             this->lsInfoJoystick.pop_front();
+             mutexEvents.unlock();
+             return true;
+         }
+         else
+         {
+             mutexEvents.unlock();
+             return false;
+         }
      }
 
 }

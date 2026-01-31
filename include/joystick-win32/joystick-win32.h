@@ -58,6 +58,7 @@ public:
     virtual void onMoveJoystick(int player, float lx, float ly, float rx, float ry)PURE;
     virtual void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo)PURE;
     bool initJoystick(mbm::WINDOW* win);
+	void releaseJoystick(mbm::WINDOW* win);
 
 private:
     void parseRawInput(PRAWINPUT pRawInput);
@@ -94,7 +95,7 @@ private:
     };
     std::vector<INFO_JOYSTICK*> lsInfoJoystick;
     bool _b_enableContinousMove;
-    static int _indexJoystickInstance;
+    static uint32_t _indexJoystickInstance;
 };
 
 };

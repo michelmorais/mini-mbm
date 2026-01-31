@@ -1183,7 +1183,7 @@ namespace mbm
     
     void ANIMATION_BACKUP::backup(ANIMATION_MANAGER* animationManager)
     {
-        if (animationManager)
+        if (animationManager && animationManager->lsAnimation.size())
         {
             this->lsAnimationState.clear();
             for (std::vector<ANIMATION*>::size_type i = 0; i < animationManager->lsAnimation.size(); ++i)
@@ -1207,12 +1207,14 @@ namespace mbm
                 this->lsAnimationState.push_back(state);
             }
             this->indexCurrentAnimation = animationManager->indexCurrentAnimation;
+			//after backup, release all animations because onRestore we will recreate them
+			animationManager->releaseAnimation();
         }
     }
 
     void ANIMATION_BACKUP::restore(ANIMATION_MANAGER* animationManager)
     {
-        if (animationManager)
+        if (animationManager && this->lsAnimationState.size())
         {
             mbm::TEXTURE_MANAGER* texManager = mbm::TEXTURE_MANAGER::getInstance();
             for (std::vector<ANIMATION_STATE>::size_type i = 0; i < this->lsAnimationState.size(); ++i)
@@ -1240,7 +1242,14 @@ namespace mbm
                     anim->fx.blendOperation            = state.fx_blendOperation;
                 }
             }
-            animationManager->indexCurrentAnimation = this->indexCurrentAnimation;
+            if (this->indexCurrentAnimation < animationManager->lsAnimation.size())
+            {
+                animationManager->indexCurrentAnimation = this->indexCurrentAnimation;
+            }
+            else
+            {
+                animationManager->indexCurrentAnimation = 0;
+            }
         }
         this->lsAnimationState.clear();
     }

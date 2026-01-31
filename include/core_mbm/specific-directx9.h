@@ -106,7 +106,7 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
         ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
         IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
-        void realease() noexcept;
+        void release() noexcept;
         void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr);
     private:
         IDirect3DVertexDeclaration9* vertex_declaration_pos;

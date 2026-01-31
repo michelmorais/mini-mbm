@@ -683,6 +683,13 @@ namespace mbm
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
         {
             release();
+			// do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
+            if (this->win32_EventByPass)
+                delete this->win32_EventByPass;
+            this->win32_EventByPass = nullptr;
+            if (this->win32_joystickByPass)
+                delete this->win32_joystickByPass;
+            this->win32_joystickByPass = nullptr;
         }
 
         void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr)
@@ -708,12 +715,7 @@ namespace mbm
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
-            if (this->win32_EventByPass)
-                delete this->win32_EventByPass;
-            this->win32_EventByPass = nullptr;
-            if (this->win32_joystickByPass)
-				delete this->win32_joystickByPass;
-			this->win32_joystickByPass = nullptr;
+            
             //window.release(); // The window release is done in the WINDOW destructor
         }
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;

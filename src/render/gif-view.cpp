@@ -178,7 +178,6 @@ namespace mbm
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
-        this->bufferGL.release();
         this->fillvertexQuadTexture(_position, uv, width <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
 		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
@@ -339,8 +338,9 @@ namespace mbm
         if (this->load(result[0].c_str(), width, height))
         {
 #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));
+            PRINT_INFO_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));
 #endif
+            // later the engine will fill in the animation state with onRestoreAnimationsState
             return true;
         }
 #if defined DEBUG_RESTORE

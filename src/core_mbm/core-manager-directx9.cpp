@@ -80,6 +80,9 @@ namespace mbm
         this->changeScene      = true;
         this->__sceneWasInit   = false;
         this->keyCapsLockState = false;
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+        this->device->specificContextDevice->initializeWi32Callbacks(this);
+#endif
     }
     
     CORE_MANAGER::~CORE_MANAGER()
@@ -91,7 +94,9 @@ namespace mbm
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->realease();
+        this->device->specificContextDevice->window.setCallEventsManager(nullptr);
+        this->device->specificContextDevice->win32_joystickByPass->releaseJoystick(&this->device->specificContextDevice->window);
+        this->device->specificContextDevice->release();
     }
     
     bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
@@ -401,156 +406,6 @@ namespace mbm
         return true;
     }
     
-    void CORE_MANAGER::pushEvent(EVENT_KEY *event)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-        {
-#if defined _WIN32
-            mutexEvents.lock();
-#endif
-            if (event->eventType == this->lastEvent.eventType)
-            {
-                switch (event->eventType)
-                {
-                    case UNKNOWN: return;
-                    case ONRESIZEWINDOW:
-                    case ONTOUCHDOWN:
-                    case ONTOUCHUP:
-                    case ONTOUCHMOVE:
-                    {
-                        if (event->key == this->lastEvent.key &&  //-V550
-                            event->x == this->lastEvent.x &&
-                            event->y == this->lastEvent.y) //-V550
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONDOUBLECLICK:
-                    {
-                        if (event->key == this->lastEvent.key &&  //-V550
-                            event->x == this->lastEvent.x &&
-                            event->y == this->lastEvent.y) //-V550
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONKEYDOWN:
-                    case ONKEYUP:
-                    {
-                        if (event->key == this->lastEvent.key)
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONTOUCHZOOM: {
-                    }
-                    break;
-                    default: {
-                    }
-                    break;
-                }
-            }
-            this->lastEvent = *event;
-
-            switch (event->eventType)
-            {
-                case ONKEYDOWN:
-                {
-                    if (this->__keyPressed[event->key] == false)
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = true;
-                }
-                break;
-                case ONKEYUP:
-                {
-                    if (this->__keyPressed[event->key])
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = false;
-                }
-                break;
-                default: { this->lsEvents.push_back(*event);
-                }
-                break;
-            }
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-        }
-    }
-    
-    bool CORE_MANAGER::popEvent(EVENT_KEY *event)
-    {
-#if defined _WIN32
-        mutexEvents.lock();
-#endif
-        if (this->lsEvents.size() > 0 && event)
-        {
-            *event = this->lsEvents.front();
-            this->lsEvents.pop_front();
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return true;
-        }
-        else
-        {
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return false;
-        }
-    }
-    
-    void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER *info)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-        {
-#if defined _WIN32
-            mutexEvents.lock();
-#endif
-            this->lsInfoJoystick.push_back(*info);
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-        }
-    }
-    
-    bool CORE_MANAGER::popEvent(INFO_JOYSTICK_INIT_PLAYER *info)
-    {
-#if defined _WIN32
-        mutexEvents.lock();
-#endif
-        if (this->lsInfoJoystick.size() > 0 && info)
-        {
-
-            *info = this->lsInfoJoystick.front();
-            this->lsInfoJoystick.pop_front();
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return true;
-        }
-        else
-        {
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return false;
-        }
-    }
-
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
@@ -566,7 +421,7 @@ namespace mbm
             this->lsPlugins.push_back(plugin);
             // TODO: check this
             void * handle = this->device->specificContextDevice->window.getHwnd();
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
+            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle);
             return this->lsPlugins.size() - 1;
         }
         return 0xffffffff;

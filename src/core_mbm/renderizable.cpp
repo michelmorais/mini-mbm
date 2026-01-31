@@ -29,23 +29,24 @@
 namespace mbm
 
 {
-RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
-                           const bool _is2ds) noexcept : idScene(idSceneMe),
-                                                         typeClass(newTypeClass),
-                                                         is3D(_is3d),
-                                                         is2dS(_is2ds),
-                                                         position(0, 0, 0),
-                                                         scale(1, 1, 1),
-                                                         angle(0, 0, 0),
-                                                         bounding_AABB(0, 0, 0)
-{
-    this->enableRender      = true;
-    this->alwaysRenderize   = false;
-    this->isRender2Texture  = false;
-    this->__distFromView    = 0;
-    this->userData          = nullptr;
-    this->isObjectOnFrustum = true;
+    RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, const bool _is3d,
+                               const bool _is2ds) noexcept : idScene(idSceneMe),
+                                                             typeClass(newTypeClass),
+                                                             is3D(_is3d),
+                                                             is2dS(_is2ds),
+                                                             position(0, 0, 0),
+                                                             scale(1, 1, 1),
+                                                             angle(0, 0, 0),
+                                                             bounding_AABB(0, 0, 0)
+    {
+        this->enableRender      = true;
+        this->alwaysRenderize   = false;
+        this->isRender2Texture  = false;
+        this->__distFromView    = 0;
+        this->userData          = nullptr;
+        this->isObjectOnFrustum = true;
     }
+
     RENDERIZABLE::~RENDERIZABLE() noexcept
     {
         std::map<std::string, DYNAMIC_VAR *>::const_iterator it;
@@ -141,7 +142,7 @@ RENDERIZABLE::RENDERIZABLE(const int idSceneMe, const TYPE_CLASS newTypeClass, c
         d *= 0.5f;
         // dir is unit direction vector of ray
         const VEC3 dirfrac(dir.x != 0.0f ? 1.0f / dir.x : 0.0f, dir.y != 0.0f ? 1.0f / dir.y : 0.0f,
-                           dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
+                            dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
         float t1 = ((this->position.x + w) - p1.x) * dirfrac.x;
         float t2 = ((this->position.x - w) - p1.x) * dirfrac.x;
         float t3 = ((this->position.y + h) - p1.y) * dirfrac.y;

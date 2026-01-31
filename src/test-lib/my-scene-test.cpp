@@ -36,6 +36,7 @@ MY_SCENE::MY_SCENE()
     render2Texture  = nullptr;
     toTrack         = nullptr;
     steeredParticle = nullptr;
+    background      = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -58,6 +59,8 @@ MY_SCENE::~MY_SCENE()
         delete render2Texture;
     if (steeredParticle)
         delete steeredParticle;
+    if(background)
+		delete background;
 }
 
 void MY_SCENE::startLoading()
@@ -78,6 +81,9 @@ void MY_SCENE::init()
     device->colorClearBackGround.b = 0.5f;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
+	this->background = new mbm::BACKGROUND(this, false);
+	bool majorScale = true;
+    this->background->load("ground.png", true, majorScale);
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");

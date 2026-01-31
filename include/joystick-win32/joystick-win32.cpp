@@ -49,14 +49,40 @@ namespace mbm
         }
         this->lsInfoJoystick.clear();
     }
+
+    void JOYSTICK::releaseJoystick(mbm::WINDOW* win)
+    {
+        if (this->_indexJoystickInstance != 0xffffffff)
+        {
+            if (win)
+            {
+                win->setOnParserRawInput(nullptr);
+                win->setObjectContext(nullptr, this->_indexJoystickInstance);
+            }
+            for (unsigned int i = 0; i < this->lsInfoJoystick.size(); ++i)
+            {
+                INFO_JOYSTICK* pJoystick = this->lsInfoJoystick[i];
+                delete pJoystick;
+            }
+            this->lsInfoJoystick.clear();
+		}
+    }
     
     bool JOYSTICK::initJoystick(mbm::WINDOW* win)
     {
         if (win)
         {
-            JOYSTICK::_indexJoystickInstance = win->setObjectContext((void*)this,0xffffffff);
-            if (win->setOnParserRawInput(onParseRawInput))
-                return this->updateDevices();
+            if (JOYSTICK::_indexJoystickInstance == 0xffffffff)
+            {
+                JOYSTICK::_indexJoystickInstance = win->addObjectContext(this);
+                if (win->setOnParserRawInput(onParseRawInput))
+                    return this->updateDevices();
+            }
+            else
+            {
+                JOYSTICK::_indexJoystickInstance = win->setObjectContext(this, JOYSTICK::_indexJoystickInstance);
+				return true;
+            }
         }
         return false;
     }
@@ -540,7 +566,7 @@ namespace mbm
         memset(&bStateKey, KEY_NONE, sizeof(bStateKey));
     }
     
-    int JOYSTICK::_indexJoystickInstance = 0;
+    uint32_t JOYSTICK::_indexJoystickInstance = 0xffffffff;
 }
 
 #endif

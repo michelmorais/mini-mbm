@@ -48,6 +48,7 @@ namespace mbm
 
     TEXTURE::TEXTURE() noexcept
     {
+        ptrTexture      = nullptr;
         idTexture       = 0;
         fileName[0]     = 0;
         width           = 0;
