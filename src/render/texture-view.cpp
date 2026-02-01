@@ -126,7 +126,7 @@ namespace mbm
         VEC3            _position[4];
         VEC3            normal[4];
         VEC2            uv[4];
-		unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
+        unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
@@ -224,13 +224,13 @@ namespace mbm
         this->texture = nullptr;
     }
 
-	std::string TEXTURE_VIEW::getFileNameTexture()const
-	{
-		std::string ret;
-		if(this->texture)
-			ret = this->texture->getFileNameTexture();
-		return ret;
-	}
+    std::string TEXTURE_VIEW::getFileNameTexture()const
+    {
+        std::string ret;
+        if(this->texture)
+            ret = this->texture->getFileNameTexture();
+        return ret;
+    }
     
     bool TEXTURE_VIEW::isOnFrustum()
     {
@@ -288,7 +288,7 @@ namespace mbm
     
     bool TEXTURE_VIEW::onRestoreDevice()
     {
-        this->texture = nullptr;
+        this->texture = nullptr; // we can not release texture after device lost
         std::vector<std::string> result;
         util::split(result, this->fileName.c_str(), '|');
         if (result.size() <= 1)
@@ -304,19 +304,19 @@ namespace mbm
                 return false;
             }
             const char *fileNameTexture = result[1].c_str();
-            const auto width       = static_cast<float>(atof(result[2].c_str()));
-            const auto height      = static_cast<float>(atof(result[3].c_str()));
-            const bool  alpha_color = result[4].compare("1") == 0;
+            const auto width            = static_cast<float>(atof(result[2].c_str()));
+            const auto height           = static_cast<float>(atof(result[3].c_str()));
+            const bool  alpha_color     = result[4].compare("1") == 0;
             const bool ret = this->load(fileNameTexture,width,height,alpha_color);
 #if defined DEBUG_RESTORE
             if(ret)
-			{
+            {
                 PRINT_INFO_IF_DEBUG( "texture [%s] successfully restored", log_util::basename(fileNameTexture));
-			}
+            }
             else
-			{
+            {
                 PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename( this->fileName.c_str()));
-			}
+            }
 #endif
             return ret;
         }
@@ -388,18 +388,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  TEXTURE_VIEW::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  TEXTURE_VIEW::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  TEXTURE_VIEW::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  TEXTURE_VIEW::getAnimationManager()
+    {
+        return this;
+    }
     
     bool TEXTURE_VIEW::isLoaded() const
     {

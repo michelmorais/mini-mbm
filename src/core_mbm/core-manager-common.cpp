@@ -786,17 +786,31 @@ namespace mbm
 #if defined _DEBUG
             WARN_LOG("onLostDevice step %d", stepRestore);
 #endif
+            // Save 2D scaling state
+            const VEC2 expectedScreenBefore = this->device->camera.expectedScreen;
+            char stretchBefore[sizeof(this->device->camera.stretch)] = {};
+            std::strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
+
             this->ReleaseGraphics();
 
             if (initGraphics(this->nameAplication.c_str(), width, height, px, py, false, false))
             {
+                // Reapply previous 2D scaling
+                this->device->camera.expectedScreen = expectedScreenBefore;
+                this->device->scaleToScreen(expectedScreenBefore.x, expectedScreenBefore.y, stretchBefore);
+
 #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d function initGraphics sucess!", stepRestore);
+                WARN_LOG("After restore - scale2d.x: %f, scale2d.y: %f, expectedScreen.x: %f, expectedScreen.y: %f",
+                    this->device->camera.scale2d.x,
+                    this->device->camera.scale2d.y,
+                    this->device->camera.expectedScreen.x,
+                    this->device->camera.expectedScreen.y);
 #endif
 
                 this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
                 this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
                 this->adjustScaleScreen2d();
+
                 stepRestore = STEP_RES_DRAW_HOURGLASS;
                 return false;
             }
@@ -1113,15 +1127,27 @@ namespace mbm
                          EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
                          if (event_onresize)
                          {
+							 //update resize event only
 							 *event_onresize = *event;
                          }
                          mutexEvents.unlock();
                          return;
                      }
                      break;
+                     case ONTOUCHMOVE:
+                     {
+                         if (event->key == this->lastEvent.key &&
+							 (static_cast<int>(event->x) == static_cast<int>(this->lastEvent.x) &&
+							  static_cast<int>(event->y) == static_cast<int>(this->lastEvent.y)))
+                         {
+							 //ignore move event with same position only
+                             mutexEvents.unlock();
+                             return;
+                         }
+                     }
+                     break;
                      case ONTOUCHDOWN:
                      case ONTOUCHUP:
-                     case ONTOUCHMOVE:
                      case ONDOUBLECLICK:
                      {
                          if (event->key == this->lastEvent.key)

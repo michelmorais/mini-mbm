@@ -459,11 +459,14 @@ namespace mbm
         _position[3].x = x;
         _position[3].y = y;
         _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
+        if (normal)
         {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
+            for (int i = 0; i < 4; ++i)
+            {
+                normal[i].x = 0;
+                normal[i].y = 0;
+                normal[i].z = 1;
+            }
         }
         // OpenGL ES : Origin at bottom - left, Y - axis points up(standard math convention)
         //	DirectX9 : Origin at top - left, Y - axis points down(screen convention)

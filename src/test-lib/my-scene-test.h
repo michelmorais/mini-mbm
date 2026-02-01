@@ -32,6 +32,8 @@
 #include <render/render-2-texture.h>
 #include <render/steered_particle.h>
 #include <render/background.h>
+#include <render/font.h>
+#include <render/hmd.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -47,6 +49,8 @@ class MY_SCENE : public mbm::SCENE
     mbm::RENDER_2_TEXTURE* render2Texture;
     mbm::RENDERIZABLE* toTrack;
 	mbm::STEERED_PARTICLE* steeredParticle;
+    mbm::FONT_DRAW* fontDraw;
+	mbm::HMD* hmd;
     bool randomizeParticleEachLoop;
 
 	void randomSteeredParticlePositions();

@@ -37,6 +37,8 @@ MY_SCENE::MY_SCENE()
     toTrack         = nullptr;
     steeredParticle = nullptr;
     background      = nullptr;
+    fontDraw        = nullptr;
+    hmd             = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -61,6 +63,10 @@ MY_SCENE::~MY_SCENE()
         delete steeredParticle;
     if(background)
 		delete background;
+    if (fontDraw)
+        delete fontDraw;
+    if(hmd)
+		delete hmd;
 }
 
 void MY_SCENE::startLoading()
@@ -81,15 +87,23 @@ void MY_SCENE::init()
     device->colorClearBackGround.b = 0.5f;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
-	this->background = new mbm::BACKGROUND(this, false);
-	bool majorScale = true;
-    this->background->load("ground.png", true, majorScale);
+	//this->background = new mbm::BACKGROUND(this, false);
+	//bool majorScale = true;
+    //this->background->load("ground.png", true, majorScale);
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    //this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
-    //this->texBox->load("wooden-box.jpg", 200, 200);
+    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    this->texBox->load("wooden-box.jpg", 200, 200);
+
+	this->fontDraw = new mbm::FONT_DRAW(this);
+    if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
+    {
+		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
+        this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
+    }
     
+	
     
     //this->texBox->position.z = 0.11;
     //this->texBox->alwaysRenderize = true;
@@ -112,7 +126,14 @@ void MY_SCENE::init()
     //}
 
     gif = new mbm::GIF_VIEW(this,false,false);
-    gif->load("Lion-King.gif");
+    gif->load("Lion-King.gif",600,400);
+    
+    //TODO: Needs to be investgated
+    //hmd = new mbm::HMD(this);
+    //if (hmd->load())
+    //{
+    //    hmd->addObject2Render(this->gif);
+    //}
     
     
     //sprite = new mbm::SPRITE(this, false, true);

@@ -138,7 +138,7 @@ namespace mbm
         device->addRenderizable(this);
     }
 
-	unsigned char TEXT_DRAW::withoutBOM2Map(unsigned char index, const unsigned char mapBoom) noexcept
+    unsigned char TEXT_DRAW::withoutBOM2Map(unsigned char index, const unsigned char mapBoom) noexcept
     {
         switch (mapBoom)
         {
@@ -437,9 +437,9 @@ namespace mbm
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
             if (doRender)
                 anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
-			const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
-			if(infoFont == nullptr)
-				return false;
+            const INFO_BOUND_FONT * infoFont = this->mesh->getInfoFont();
+            if(infoFont == nullptr)
+                return false;
             const std::string  textDraw(this->text);
             const auto s = static_cast<unsigned int>(textDraw.size());
             static VEC3     posTemp2d(0, 0, 0);
@@ -798,22 +798,10 @@ namespace mbm
     
     bool TEXT_DRAW::onRestoreDevice()
     {
-        const unsigned int oldIndexCurrentAnimation = this->indexCurrentAnimation;
-        const bool         ret                      = this->onRestoreFont(this->parentFONT_DRAW, this);
-        if(ret)
-        {
-            this->indexCurrentAnimation                 = oldIndexCurrentAnimation;
-            this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
-        }
-        return ret;
+		this->mesh = nullptr; // it is ok to release the mesh here, because onRestoreFont will recreate it or get it from cache if exists more than once
+		this->parentFONT_DRAW->onStop();// also release all texts meshes
+        return this->onRestoreFont(this->parentFONT_DRAW, this);
     }
-    
-    //void TEXT_DRAW::onStop()
-    //{
-    //    this->releaseAnimation();
-    //    this->mesh = nullptr;
-    //    this->parentFONT_DRAW->onStop();
-    //}
     
     const mbm::INFO_PHYSICS * TEXT_DRAW::getInfoPhysics() const
     {
@@ -827,13 +815,13 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  TEXT_DRAW::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  TEXT_DRAW::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
     bool TEXT_DRAW::setTexture(
         const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
@@ -881,10 +869,10 @@ namespace mbm
         return false;
     }
 
-	ANIMATION_MANAGER*  TEXT_DRAW::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  TEXT_DRAW::getAnimationManager()
+    {
+        return this;
+    }
     
     bool TEXT_DRAW::isLoaded() const
     {
@@ -994,7 +982,7 @@ namespace mbm
         if (this->mesh)
         {
             const util::TYPE_MESH type = this->mesh->getTypeMesh();
-			const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
+            const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
             if (type != util::TYPE_MESH_FONT || infoFont == nullptr)
             {
                 this->mesh->release();
@@ -1039,7 +1027,7 @@ namespace mbm
         if (text == nullptr || this->mesh == nullptr)
             return;
         text->mesh            = this->mesh;
-		const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
+        const INFO_BOUND_FONT * infoFont = mesh->getInfoFont();
         text->spaceXCharacter = infoFont->spaceXCharacter;
         text->spaceYCharacter = infoFont->spaceYCharacter;
         // adicionamos as animações
@@ -1082,13 +1070,13 @@ namespace mbm
                 const bool ret = this->loadFont(fileNameMbmOrTtf, heightLetter, spaceWidth, spaceHeight,false);
                 #if defined DEBUG_RESTORE
                 if(ret)
-				{
-                    PRINT_IF_DEBUG("Font [%s] successfully restored", log_util::basename(fileNameMbmOrTtf));
-				}
+                {
+                    PRINT_INFO_IF_DEBUG("Font [%s] successfully restored", log_util::basename(fileNameMbmOrTtf));
+                }
                 else
-				{
+                {
                     PRINT_IF_DEBUG("Failed to restore [%s]", log_util::basename(fileNameMbmOrTtf));
-				}
+                }
                 #endif
                 return ret;
             }
@@ -1150,17 +1138,17 @@ namespace mbm
 
     void FONT_DRAW::setLetterYDiff(const char* letter,const float diffY)
     {
-		INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
+        INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
         if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
-			infoFont->letterDiffY[index] = diffY;
+            infoFont->letterDiffY[index] = diffY;
         }
     }
 
     float FONT_DRAW::getLetterYDiff(const char * letter)const
     {
-		const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
+        const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
         if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
@@ -1171,8 +1159,8 @@ namespace mbm
 
     void FONT_DRAW::setLetterXDiff(const char* letter,const float diffX)
     {
-		INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
-		if(infoFont)
+        INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
+        if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
             infoFont->letterDiffX[index] = diffX;
@@ -1181,8 +1169,8 @@ namespace mbm
 
     float FONT_DRAW::getLetterXDiff(const char * letter)const
     {
-		const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
-		if(infoFont)
+        const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
+        if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
             return infoFont->letterDiffX[index];
@@ -1192,8 +1180,8 @@ namespace mbm
 
     void  FONT_DRAW::setLetterSize(const char* letter,const unsigned int size_x,const unsigned int size_y)
     {
-		INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
-		if(infoFont)
+        INFO_BOUND_FONT * infoFont = (mesh ? const_cast<INFO_BOUND_FONT *>(mesh->getInfoFont()) : nullptr);
+        if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
             LETTER* l = & infoFont->letter[index];
@@ -1206,8 +1194,8 @@ namespace mbm
     }
     bool FONT_DRAW::getLetterSize(const char* letter,unsigned int & out_size_x,unsigned int & out_size_y)const
     {
-		const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
-		if(infoFont)
+        const INFO_BOUND_FONT * infoFont = (mesh ? mesh->getInfoFont() : nullptr);
+        if(infoFont)
         {
             const unsigned char index = getIndexFromLetter(letter);
             const LETTER* l = & infoFont->letter[index];
