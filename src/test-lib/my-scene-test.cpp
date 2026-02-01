@@ -183,56 +183,56 @@ void MY_SCENE::init()
     this->toTrack = texBox;
     
 
-    //mbm::INFO_PHYSICS infoPhysiscs;
-	//infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
-    //steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
-	//mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
-    //if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", &colorParticle, &infoPhysiscs))
-    //{
-    //    steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
-    //    steeredParticle->setRadiusScale(2);
-    //    
-    //    mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
-    //    group->aSizeParticle = 20.0f;
-	//	
-    //    randomSteeredParticlePositions();
-    //
-    //    INFO_LOG("Particle z position %f", steeredParticle->position.z);
-    //
-    //    INFO_LOG("Steered Particle loaded successfully");
-    //    INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
-    //    INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
-    //    if (group)
-    //    {
-    //        INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
-    //    }
-    //
-    //    if (steeredParticle->getTexture())
-    //    {
-    //        INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
-    //    }
-    //    else
-    //    {
-    //        INFO_LOG("ERROR: Texture not loaded!");
-    //    }
-    //
-    //    INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
-    //}
-    //else
-    //{
-    //    INFO_LOG("ERROR: Failed to load steered particle");
-    //}
-	//
+    mbm::INFO_PHYSICS infoPhysiscs;
+	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
+    steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
+	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
+    if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", &colorParticle, &infoPhysiscs))
+    {
+        steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
+        steeredParticle->setRadiusScale(2);
+        
+        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+        group->aSizeParticle = 20.0f;
+		
+        randomSteeredParticlePositions();
+    
+        INFO_LOG("Particle z position %f", steeredParticle->position.z);
+    
+        INFO_LOG("Steered Particle loaded successfully");
+        INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
+        INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
+        if (group)
+        {
+            INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
+        }
+    
+        if (steeredParticle->getTexture())
+        {
+            INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
+        }
+        else
+        {
+            INFO_LOG("ERROR: Texture not loaded!");
+        }
+    
+        INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
+    }
+    else
+    {
+        INFO_LOG("ERROR: Failed to load steered particle");
+    }
+	
 
     
     //AARRGGBB
-    const char * fileNameTextureOrMesh = "#FFFF0000";
-    particle = new mbm::PARTICLE(this, false, false);
-    if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
-    {
-        particle->addParticle(1000,true);
-        particle->addStage();
-    }
+    //const char * fileNameTextureOrMesh = "#FFFF0000";
+    //particle = new mbm::PARTICLE(this, false, false);
+    //if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
+    //{
+    //    particle->addParticle(1000,true);
+    //    particle->addStage();
+    //}
     
 }
 

@@ -351,27 +351,19 @@ namespace mbm
         this->texture = nullptr;
         if (this->lsParticleGroup.size() == 0)
             return this->releaseOnFail();
-        std::vector<FLUID_GROUP*> lsParticleGroupBackup(this->lsParticleGroup);
-        this->lsParticleGroup.clear();
+		std::vector<FLUID_GROUP*> lsParticleGroupBackup = std::move(this->lsParticleGroup);
         const char * fileNameTexture = this->fileName.c_str();
-        ANIMATION *       anim   = this->getAnimation();
-        COLOR * p_color = nullptr;
-        if(anim && anim->fx.fxPS && anim->fx.fxPS->ptrCurrentShader)
-        {
-            VAR_SHADER *varColor = anim->fx.fxPS->ptrCurrentShader->getVarByName("color");
-            if(varColor)
-            {
-                p_color = lsParticleGroupBackup.size() > 0 ? lsParticleGroupBackup[0]->color : nullptr;
-            }
-        }
-        const bool  ret              = this->load(fileNameTexture,p_color,&this->infoPhysics);
+		mbm::INFO_PHYSICS otherInfoPhysics;
+		otherInfoPhysics.clone(&this->infoPhysics);
+		COLOR* p_color = lsParticleGroupBackup.size() > 0 ? lsParticleGroupBackup[0]->color : nullptr;
+        const bool  ret              = this->load(fileNameTexture,p_color,&otherInfoPhysics);
         this->lsParticleGroup        = std::move(lsParticleGroupBackup);
         if (ret == false)
         {
             return this->releaseOnFail();
         }
         #if defined DEBUG_RESTORE
-        PRINT_IF_DEBUG("Particle [%s] successfully restored",log_util::basename(fileNameTexture ));
+        PRINT_INFO_IF_DEBUG("Particle [%s] successfully restored",log_util::basename(fileNameTexture ));
         #endif
         return true;
     }

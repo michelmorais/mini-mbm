@@ -78,26 +78,26 @@ namespace mbm
     void PARTICLE_CONTROL::moveFrom(PARTICLE_CONTROL& other)
     {
         this->release();
-        this->lenArrayParticlesData = other.lenArrayParticlesData;
-        this->totalAlive            = other.totalAlive;
-        this->indexStage            = other.indexStage;
-        this->currentTimeArise      = other.currentTimeArise;
-        this->wTexture              = other.wTexture;
-        this->hTexture              = other.hTexture;
-        this->minv.x                = other.minv.x;
-        this->minv.y                = other.minv.y;
-        this->maxv.x                = other.maxv.x;
-        this->maxv.y                = other.maxv.y;
-		this->buffer                = other.buffer;
-		this->particles             = other.particles;
+        this->lenArrayParticlesData         = other.lenArrayParticlesData;
+        this->totalAlive                    = other.totalAlive;
+        this->indexStage                    = other.indexStage;
+        this->currentTimeArise              = other.currentTimeArise;
+        this->wTexture                      = other.wTexture;
+        this->hTexture                      = other.hTexture;
+        this->minv.x                        = other.minv.x;
+        this->minv.y                        = other.minv.y;
+        this->maxv.x                        = other.maxv.x;
+        this->maxv.y                        = other.maxv.y;
+        this->buffer                        = other.buffer;
+        this->particles                     = other.particles;
         this->onEndAnimationParticleControl = other.onEndAnimationParticleControl;
-		other.buffer                = nullptr;
-		other.particles             = nullptr;
+        other.buffer                        = nullptr;
+        other.particles                     = nullptr;
 
         this->lsParticleStage.resize(other.lsParticleStage.size());
         for (unsigned int i = 0; i < this->lsParticleStage.size(); ++i)
         {
-			lsParticleStage[i] = other.lsParticleStage[i];
+            lsParticleStage[i] = other.lsParticleStage[i];
         }
         other.lsParticleStage.clear();
     }
@@ -561,6 +561,23 @@ namespace mbm
         if (color)
             delete color;
         color = nullptr;
+    }
+
+    void FLUID_GROUP::moveFrom(FLUID_GROUP& other)//backup copy move
+    {
+        this->size_particle_array    = other.size_particle_array;
+        this->totalParticleToRender  = other.totalParticleToRender;
+        this->aSizeParticle          = other.aSizeParticle;
+        this->radiusScale            = other.radiusScale;
+        this->particle_positions     = other.particle_positions;
+        this->vertex_particle        = other.vertex_particle;
+        this->uv                     = other.uv;
+        this->segmented              = other.segmented;
+        this->color                  = other.color;
+        other.particle_positions     = nullptr;
+        other.vertex_particle        = nullptr;
+        other.uv                     = nullptr;
+        other.color                  = nullptr;
     }
 
     void FLUID_GROUP::resizeParticleData(const uint32_t new_size)

@@ -120,9 +120,9 @@ struct FLUID_GROUP
     uint32_t       totalParticleToRender;
     float          aSizeParticle;//
     float          radiusScale;// The actual size of particle is: aSizeParticle * radiusScale (let 1.0f to not influence
-    VEC3* particle_positions;
-    VEC3* vertex_particle;
-    VEC2* uv;
+    VEC3*          particle_positions;
+    VEC3*          vertex_particle;
+    VEC2*          uv;
     bool           segmented;//when true: we have uv calculation based on the aabb of the group of particles, when false: uv is set to (0,0)(1,0)(0,1)(1,1) for each particle (so the size is constant)
     COLOR*         color;
 
@@ -134,6 +134,7 @@ struct FLUID_GROUP
     API_IMPL void resizeParticleData(const uint32_t new_size);
     API_IMPL void setVertex(const VEC3* const position, VEC3 pVertex[4]) noexcept;
     API_IMPL void setUv(VEC2 pUv[4], const VEC2& pos, const VEC2& halParticleSizeInUv) noexcept;
+    API_IMPL void moveFrom(FLUID_GROUP& other);//backup copy move
 };
 
 }
