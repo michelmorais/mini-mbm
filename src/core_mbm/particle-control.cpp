@@ -75,6 +75,33 @@ namespace mbm
         lsParticleStage.clear();
     }
 
+    void PARTICLE_CONTROL::moveFrom(PARTICLE_CONTROL& other)
+    {
+        this->release();
+        this->lenArrayParticlesData = other.lenArrayParticlesData;
+        this->totalAlive            = other.totalAlive;
+        this->indexStage            = other.indexStage;
+        this->currentTimeArise      = other.currentTimeArise;
+        this->wTexture              = other.wTexture;
+        this->hTexture              = other.hTexture;
+        this->minv.x                = other.minv.x;
+        this->minv.y                = other.minv.y;
+        this->maxv.x                = other.maxv.x;
+        this->maxv.y                = other.maxv.y;
+		this->buffer                = other.buffer;
+		this->particles             = other.particles;
+        this->onEndAnimationParticleControl = other.onEndAnimationParticleControl;
+		other.buffer                = nullptr;
+		other.particles             = nullptr;
+
+        this->lsParticleStage.resize(other.lsParticleStage.size());
+        for (unsigned int i = 0; i < this->lsParticleStage.size(); ++i)
+        {
+			lsParticleStage[i] = other.lsParticleStage[i];
+        }
+        other.lsParticleStage.clear();
+    }
+
     void PARTICLE_CONTROL::initializeBuffer(const uint32_t totalParticleToLoad, const float width, const float height)
     {
         this->lenArrayParticlesData = totalParticleToLoad;
@@ -514,7 +541,7 @@ namespace mbm
         vertex_particle(nullptr),
         uv(nullptr),
         segmented(b_segmented),
-		color(theColor ? new COLOR(*theColor) : nullptr)
+        color(theColor ? new COLOR(*theColor) : nullptr)
     {
     }
 

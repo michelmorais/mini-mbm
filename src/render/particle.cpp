@@ -129,7 +129,7 @@ namespace mbm
                 this->control.onResuscitate(this->control.getStageParticle(0), control.getTotalParticle());
             }
             char strTemp[255];
-            snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, totalParticleToLoad, operatorShader, newCodeLine ? newCodeLine : "nullptr");
+            snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, totalParticleToLoad, operatorShader, newCodeLine ? newCodeLine : "");
             this->fileName = strTemp;
             this->enableRender = true;
             this->alwaysRenderize = true;
@@ -140,11 +140,6 @@ namespace mbm
         }
         return false;
     }
-
-    //void PARTICLE::onStop()
-    //{
-    //    bufferGl.release();
-    //}
 
     bool PARTICLE::loadParticleShader(const char* operatorShader, const char* newCodeLine)
     {
@@ -438,54 +433,34 @@ namespace mbm
         std::vector<std::string> result;
         this->texture = nullptr;
         util::split(result, this->fileName.c_str(), '@');
-        if (result.size() < 4)
+        if (result.size() < 3)
             return this->releaseOnFail();
-        if (this->control.getTotalParticle() == 0)
-            return this->releaseOnFail();
-        //const unsigned int tTotal = this->control.getTotalAlive();
-        const auto s = static_cast<const unsigned int>(std::atoi(result[1].c_str()));
-        if (s != this->control.getTotalParticle())
-            return this->releaseOnFail();
-        const char *newCodeLine = result[3].compare("nullptr") == 0 ? nullptr : result[3].c_str();
-        bool enableAlphaFromColor = false;
-        ANIMATION *       anim   = this->getAnimation();
-        VAR_SHADER *varEnableAlphaFromColor = nullptr;
-        if(anim && anim->fx.fxPS && anim->fx.fxPS->ptrCurrentShader)
-        {
-            varEnableAlphaFromColor = anim->fx.fxPS->ptrCurrentShader->getVarByName("enableAlphaFromColor");
-            if (varEnableAlphaFromColor)
-            {
-                enableAlphaFromColor = varEnableAlphaFromColor->current[0] >= 0.5;
-            }
-        }
-        const bool  ret         = this->load(result[0].c_str(), result[2].c_str(), newCodeLine, 0, true);
-        if (ret == false)
-        {
-            return this->releaseOnFail();
-        }
 
-        anim = this->getAnimation();
-        varEnableAlphaFromColor = (anim && anim->fx.fxPS && anim->fx.fxPS->ptrCurrentShader) ? anim->fx.fxPS->ptrCurrentShader->getVarByName("enableAlphaFromColor") : nullptr;
-        if (varEnableAlphaFromColor)
+        PARTICLE_CONTROL backupControl;
+        backupControl.moveFrom(this->control);//backup copy move
+        const char * newCodeLineBackup =  nullptr;
+        if (result.size() > 3)
         {
-            if (enableAlphaFromColor)
-            {
-                const float data[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-                memcpy(static_cast<void*>(varEnableAlphaFromColor->current), data, sizeof(data));
-                varEnableAlphaFromColor->set(data, data, 1.0f);
-            }
-            else
-            {
-                const float data[4] = {0, 0, 0, 0};
-                memcpy(static_cast<void*>(varEnableAlphaFromColor->current), data, sizeof(data));
-                varEnableAlphaFromColor->set(data, data, 1.0f);
-            }
+            newCodeLineBackup = result[3].size() == 0 ? nullptr : result[3].c_str();
         }
+        const uint32_t _sizeOfParticle = std::max(static_cast<uint32_t>(std::stoul(result[1])), this->control.getTotalParticle());
+        if(this->load(result[0].c_str(),
+                      result[2].c_str(),
+                      newCodeLineBackup,
+                      _sizeOfParticle,
+            false) == false)
+        {
+#if defined DEBUG_RESTORE
+            PRINT_IF_DEBUG("Particle [%s] failed to restore", log_util::basename(result[0].c_str()));
+#endif
+            return this->releaseOnFail();
+        }
+        this->control.moveFrom(backupControl);//restore backup copy move
         
         #if defined DEBUG_RESTORE
-        PRINT_IF_DEBUG("Particle [%s] successfully restored",log_util::basename( result[0].c_str()));
+        PRINT_INFO_IF_DEBUG("Particle [%s] successfully restored",log_util::basename( result[0].c_str()));
         #endif
-        return ret;
+        return true;
     }
 
     bool PARTICLE::setTexture(const MESH_MBM *, const char *fileNametexture, const uint32_t stage, const bool hasAlpha)

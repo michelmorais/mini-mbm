@@ -135,15 +135,12 @@ namespace mbm
     
     bool MESH::onRestoreDevice()
     {
-        const unsigned int oldIndexCurrentAnimation = this->indexCurrentAnimation;
-        this->releaseAnimation();
+		this->mesh = nullptr;
         const bool ret = this->load(this->fileName.c_str());
         if (ret)
         {
-            this->indexCurrentAnimation = oldIndexCurrentAnimation;
-            this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
             #if defined DEBUG_RESTORE
-                PRINT_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
             #endif
         }
         #if defined DEBUG_RESTORE
@@ -190,18 +187,18 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  MESH::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  MESH::getAnimationManager()
+    {
+        return this;
+    }
     
     bool MESH::isLoaded() const
     {

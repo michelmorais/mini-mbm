@@ -94,6 +94,7 @@ struct PARTICLE_CONTROL
     void updateAnimationParticle(void* owner, ANIMATION* anim, const float delta);
     inline const ATT_PARTICLE* getAttParticle() const noexcept { return particles;}
     inline const VERTEX_UV* getVertexBuffer() const noexcept { return buffer; }
+    void moveFrom(PARTICLE_CONTROL& other);//backup copy move
 protected:
     void restartParticle(const util::STAGE_PARTICLE* sPart, ATT_PARTICLE* particle, VERTEX_UV pPartBuffer[4], const VEC2* dist);
     bool _addParticle(const unsigned int numParticles);

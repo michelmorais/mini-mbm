@@ -125,8 +125,9 @@ void MY_SCENE::init()
     //    this->texBox->getTexture() ? INFO_LOG("Retry succeeded") : INFO_LOG("Retry failed");
     //}
 
-    gif = new mbm::GIF_VIEW(this,false,false);
-    gif->load("Lion-King.gif",600,400);
+	////TODO: check why gif is resizing wrong when load with width and height on lost device
+    //gif = new mbm::GIF_VIEW(this,false,false);
+    //gif->load("Lion-King.gif",600,400);
     
     //TODO: Needs to be investgated
     //hmd = new mbm::HMD(this);
@@ -136,7 +137,7 @@ void MY_SCENE::init()
     //}
     
     
-    //sprite = new mbm::SPRITE(this, false, true);
+    //sprite = new mbm::SPRITE(this, false, false);
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
     //sprite->alwaysRenderize = true;
     
@@ -146,11 +147,12 @@ void MY_SCENE::init()
     //**************
 
     //mesh = new mbm::MESH(this, true, false);
-    ////mesh->load("crateShattered.mbm"); VB noi texture?
+    //mesh->load("crateShattered.mbm"); VB noi texture?
     //mesh->load("crateWreck1.mbm");
     //mesh->scale.x = 3;
     //mesh->scale.y = 3;
     //mesh->scale.z = 3;
+    //mesh->position.y = 100;
     //
 
     //render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
@@ -160,10 +162,14 @@ void MY_SCENE::init()
     //shape->position.x = 300;
 
     //line = new mbm::LINE_MESH(this, false, false);
-    //std::vector<mbm::VEC3> lines;
-    //lines.push_back(mbm::VEC3(0, 0, 0));
-    //lines.push_back(mbm::VEC3(100, 100, 0));
-    //line->add(std::move(lines));
+	//for (int i = 0; i < 2; i++)
+    //{
+    //    std::vector<mbm::VEC3> lines;
+    //    lines.push_back(mbm::VEC3(0 + i * 10, 0, 0));
+    //    lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
+    //    line->add(std::move(lines));
+    //}
+    
     
     //if (render2Texture->load(512, 512, 512, 512, "my-render", true))
     //{
@@ -220,13 +226,13 @@ void MY_SCENE::init()
 
     
     //AARRGGBB
-    //const char * fileNameTextureOrMesh = "#FFFF0000";
-    //particle = new mbm::PARTICLE(this, false, false);
-    //if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
-    //{
-    //    particle->addParticle(1000,true);
-    //}
-    //particle->alwaysRenderize = true;
+    const char * fileNameTextureOrMesh = "#FFFF0000";
+    particle = new mbm::PARTICLE(this, false, false);
+    if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
+    {
+        particle->addParticle(1000,true);
+        particle->addStage();
+    }
     
 }
 

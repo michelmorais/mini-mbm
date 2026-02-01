@@ -20,19 +20,14 @@
 #if defined (USE_DIRECTX9)
 
 #include <specific-directx9.h>
-
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
-
 #include <core-manager.h>
 #include <device.h>
-#include <scene.h>
 #include <renderizable.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <audio-interface.h>
 #include <miniz-wrap/miniz-wrap.h>
-#include <cstring>
 #include <plugin-callback.h>
 
 
@@ -258,7 +253,7 @@ namespace mbm
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
         }
 
-        #pragma message(REMINDER_TODO "  set viewport and other initial states for ANY")
+        // device->setProjectionMode set viewport and other initial states for ANY
         if (x > 0)
             device->backBufferWidth = static_cast<float>(x);
         if (y > 0)
