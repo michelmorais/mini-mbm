@@ -20,51 +20,18 @@
 
 #if defined (USE_DUMMY_BACK_END_ENGINE)
 
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
+#include <specific-dummy.h> // replace with your specific backend engine header
 
 #include <device.h>
-#include <scene.h>
 #include <texture-manager.h>
 #include <audio-interface.h>
-#include <shapes.h>
-#include <physics.h>
-#include <renderizable.h>
 #include <mesh-manager.h>
-#include <util-interface.h>
-#include <dynamic-var.h>
-
-#if defined ANDROID
-    //
-#elif defined _WIN32
-    #include <plusWindows/defaultThemePlusWindows.h>
-#elif defined(__linux__) || defined(__APPLE__)
-    #include <X11/Xutil.h>
-#endif
-
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
 namespace mbm
 {
-	// TODO: move to your platform specific file . e.g. directx9-specific.h/cpp, opengl_es-specific.h/cpp, vulkan-specific.h/cpp, metal-specific.h/cpp ...
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-    #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-            
-    #endif
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {   
-            #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-                
-            #endif
-        };
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-
-        };
-    };
+    
     
     void DEVICE::initializeSpecificContext()
     {
@@ -80,83 +47,49 @@ namespace mbm
         }
     }
 
-
-#ifdef ANDROID
-    void DEVICE::callQuitInJava()
-    {
-        util::COMMON_JNI *cJni  = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv   = cJni->jenv;
-        jfieldID         fidRun = jenv->GetStaticFieldID(cJni->jclassInstanceActivityEngine, "run", "Z");
-        if (nullptr == fidRun)
-        {
-            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", cJni->jclassInstanceActivityEngine);
-            return;
-        }
-        jenv->SetStaticBooleanField(cJni->jclassInstanceActivityEngine, fidRun, false);
-    }
-#endif
-
     void DEVICE::quit()
     {
         TEXTURE_MANAGER::release();
         MESH_MANAGER::release();
-#ifdef ANDROID
-        util::COMMON_JNI::release();
-#endif
 		releaseAudioManager();
 		if (instanceDevice)
         {
             delete instanceDevice;
         }
         instanceDevice = nullptr;
+        #pragma message(REMINDER_TODO);
     }
 
-#ifdef ANDROID
-    
-    void DEVICE::streamStopped(const int indexJNI)
-    {
-		if(this->audioInterface)
-			this->audioInterface->streamStopped(indexJNI);
-    }
-#endif
-    
     void DEVICE::setDephtTest(const bool enable)
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message (REMINDER_TODO "  implement depth test enable/disable");
-        #endif
+        #pragma message(REMINDER_TODO);
     }
 
     void DEVICE::clearDepth()
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement clear depth buffer");
-        #endif
+        #pragma message(REMINDER_TODO);
     }
     void DEVICE::clearDepthColored()
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
-        #endif
+        #pragma message(REMINDER_TODO);
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
     {
-        return "Dummy engine";
+        return "Dummy 1";
     }
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        return "Dummy engine version 1.0";
+        return "1";
     }
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
         if (width > 0 && height > 0)
         {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  set projection mode");
-            #endif
+            //TOD: check this
+            #pragma message(REMINDER_TODO);
         }
         if (width > 0)
             backBufferWidth = width;
@@ -164,7 +97,39 @@ namespace mbm
             backBufferHeight = height;
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+        if (is3D)
+        {
+            
+        }
+        else
+        {
+            
+        }
+        
     }
+
+    const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+    {
+        #pragma message(REMINDER_TODO);
+        return assetName;
+    }
+
+    void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            #pragma message(REMINDER_TODO);
+        }
+    }
+
+    void DEVICE::enableFilteringAfterPixelPerfect() noexcept
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            #pragma message(REMINDER_TODO);
+		}
+    }
+
 
 }
 #endif // USE_DUMMY_BACK_END_ENGINE

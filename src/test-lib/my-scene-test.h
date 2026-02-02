@@ -34,7 +34,7 @@
 #include <render/background.h>
 #include <render/font.h>
 #include <render/HMD.h>
-#include <mesh-manager.h> // mesh debug
+#include <core_mbm/mesh-manager.h> // mesh debug
 #include <render/tile.h>
 
 class MY_SCENE : public mbm::SCENE

@@ -22,6 +22,9 @@
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
+#include <specific-dummy.h> // replace with your specific backend engine header
+
+#include <scene.h>
 #include <render-2-texture.h>
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
@@ -30,14 +33,40 @@
 namespace mbm
 {
 
+    RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
+        RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
+    {
+        #pragma message(REMINDER_TODO);
+        this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
+        this->colorClearBackGround.a = 1.0f;
+        this->widthTexture = 0;
+        this->heightTexture = 0;
+    }
+
+    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
+    {
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        #pragma message(REMINDER_TODO);
+    }
+
+    RENDER2TARGET_DUMMY::~RENDER2TARGET_DUMMY()
+    {
+        release();
+    }
+
+    void RENDER2TARGET_DUMMY::release() noexcept
+    {
+        if(pRenderSurface)
+            pRenderSurface = nullptr;
+        #pragma message(REMINDER_TODO);
+    }
+
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)
     {
         if(newFileOutNamePNG == nullptr)
             return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
         if(!this->isLoaded())
             return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        if(this->idTextureDynamic == 0)
-            return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(this->texture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(strcasecmp(newFileOutNamePNG,this->fileName.c_str()) == 0)
@@ -46,39 +75,22 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
         if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))
             return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
+
         const int channel = this->texture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
-        auto  image = new unsigned char[sizeImage];
+        #pragma message(REMINDER_TODO);
+        std::vector<uint8_t> imageData(sizeImage);
 
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  bind texture render to texture");
-        
-        #pragma message(REMINDER_TODO "  read pixels from frame buffer");
-        #endif
-        unsigned int error = 0; //TODO: set error from read pixels
-        if(error)
-        {
-            delete [] image;
-            //const char *errorAsString = log_util::getDescriptionError(error);
-            //return log_util::fail(__LINE__,__FILE__,"Failed to read pixel [%s]",errorAsString);
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement getDescriptionError");
-            #endif
-            return false;
-        }
-
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  unbind texture render to texture");
-        #endif
-        this->flip_vertically(image,_width,_height,channel);
+        // Encode and save PNG
         std::vector<unsigned char> png;
-        unsigned int errorPNG = lodepng::encode(png,image, static_cast<unsigned int>(_width), static_cast<unsigned int>(_height),channel == 4 ? LCT_RGBA : LCT_RGB);
-        delete [] image;
+        // Not need to flip the image vertically, fixed inverting v in RENDER_2_TEXTURE::fillvertexQuad (when defined Directx)
+        // this->flip_vertically(imageData.data(), _width, _height, channel);
+        unsigned int errorPNG = lodepng::encode(png, imageData.data(), static_cast<unsigned int>(_width), static_cast<unsigned int>(_height), channel == 4 ? LCT_RGBA : LCT_RGB);
         if (errorPNG)
-            return log_util::fail(__LINE__,__FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
+            return log_util::fail(__LINE__, __FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
         errorPNG = lodepng::save_file(png, newFileOutNamePNG);
         if (errorPNG)
-            return log_util::fail(__LINE__,__FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
+            return log_util::fail(__LINE__, __FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
         return true;
     }
     

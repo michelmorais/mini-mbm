@@ -79,7 +79,7 @@ namespace mbm
         //the render target surface (sf->pRenderSurface) is created with:
         //Pool : D3DPOOL_DEFAULT(GPU memory only)
         //Usage : D3DUSAGE_RENDERTARGET(used as render target)
-        //DirectX9 rule : Surfaces in D3DPOOL_DEFAULT with D3DUSAGE_RENDERTARGET cannot be locked — 
+        //DirectX9 rule : Surfaces in D3DPOOL_DEFAULT with D3DUSAGE_RENDERTARGET cannot be locked ï¿½ 
         // they are GPU - exclusive.You need to use GetRenderTargetData() to copy from GPU to system memory first.
         const int channel = this->texture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
@@ -139,10 +139,10 @@ namespace mbm
         // Copy pixels from locked staging surface to imageData
         // Swap R and B channels: D3DFMT_A8R8G8B8 is BGRA, PNG expects RGBA
         uint8_t* srcPixels = static_cast<uint8_t*>(lockStaging.pBits);
-        // srcRow = y + row — offset by Y position to start at the crop region
-        // srcCol = x + col — offset by X position to start at the crop region
-        // dstIdx = row * _width * ... — destination still starts at (0,0) because output image has dimensions _width x _height
-        // srcIdx = srcRow * lockStaging.Pitch + srcCol * bytesPerPixel — use full texture pitch from staging surface
+        // srcRow = y + row ï¿½ offset by Y position to start at the crop region
+        // srcCol = x + col ï¿½ offset by X position to start at the crop region
+        // dstIdx = row * _width * ... ï¿½ destination still starts at (0,0) because output image has dimensions _width x _height
+        // srcIdx = srcRow * lockStaging.Pitch + srcCol * bytesPerPixel ï¿½ use full texture pitch from staging surface
         for (int row = 0; row < _height; ++row)
         {
             for (int col = 0; col < _width; ++col)

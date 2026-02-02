@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,43 +16,30 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-
-#include <blend.h>
-
 #if defined (USE_DUMMY_BACK_END_ENGINE)
 
-
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#include <specific-dummy.h> // replace with your specific backend engine header
+
 
 namespace mbm
 {
-    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
+    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-        
-        switch (blendState)
-        {
-            case BLEND_DISABLE:
-            {
-                #pragma message(REMINDER_TODO)
-                return;
-            }
-            default:{}
-        }
-        switch (blendState)
-        {
-            case BLEND_ZERO:         ;break;
-            case BLEND_ONE:          ;break;
-            case BLEND_SRCCOLOR:     ;break;
-            case BLEND_INVSRCCOLOR:  ;break;
-            case BLEND_SRCALPHA:     ;break;
-            case BLEND_INVSRCALPHA:  ;break;
-            case BLEND_DESTALPHA:    ;break;
-            case BLEND_INVDESTALPHA: ;break;
-            case BLEND_DESTCOLOR:    ;break;
-            case BLEND_INVDESTCOLOR: ;break;
-            default:{}
-        }
+        #pragma message(REMINDER_TODO);
+    };
+
+    SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
+    {
+		this->release();
+        #pragma message(REMINDER_TODO);
+    };
+
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release() noexcept
+    {
+        #pragma message(REMINDER_TODO);
     }
+
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif

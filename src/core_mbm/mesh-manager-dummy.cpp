@@ -33,20 +33,16 @@
 
 namespace mbm
 {
-    namespace mbm
+    bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM* meshMemory,
+        const int currentFrame,
+        const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
+        const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
+        util::HEADER_FRAME* headerFrame,
+        util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
     {
-        bool MESH_MBM_DEBUG::fillInSubsetDebug(const MESH_MBM* meshMemory,
-            const int currentFrame,
-            const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
-            const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
-            util::HEADER_FRAME* headerFrame,
-            util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
-        {
-            #pragma message(REMINDER_TODO "  implement fillInSubsetDebug");
-            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Not implemented in Dummy, as workaround, use OPENGL_ES or load mesh from file!");
-        }
-    } //namespace mbm
-
+        #pragma message(REMINDER_TODO "  implement fillInSubsetDebug");
+        return log_util::onFailed(nullptr, __FILE__, __LINE__, "Not implemented in Dummy, as workaround, use OPENGL_ES or load mesh from file!");
+    }
 } //namespace mbm
 
 #endif // USE_EDITOR_FEATURES

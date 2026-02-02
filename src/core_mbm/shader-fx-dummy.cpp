@@ -22,48 +22,22 @@
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
+#include <specific-dummy.h> // replace with your specific backend engine header
+
 #include <shader-fx.h>
+#include <device.h>
 
 namespace mbm
 {
+
     void FX::setBlendDefaultOp()
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  set default blend operation");
-        #endif
+        #pragma message(REMINDER_TODO);
     }
 
     void FX::setBlendOp()
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  set blend operation");
-        #endif
-        switch (blendOperation)
-        {
-            case 1: // D3DBLENDOP_ADD              = 1,
-            {
-                
-            }
-            break;
-            case 2: // D3DBLENDOP_SUBTRACT         = 2,
-            {
-                
-            }
-            break;
-            case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
-            {
-                
-            }
-            break;
-            case 4: // D3DBLENDOP_MIN              = 4,
-            {
-            }
-            break;
-            case 5: // D3DBLENDOP_MAX              = 5,
-            {
-            }
-            break;
-        }
+        #pragma message(REMINDER_TODO);
     }
 }
 

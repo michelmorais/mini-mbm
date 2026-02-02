@@ -27,24 +27,20 @@
 #include <uber-image.h>
 #include <image-resource.h>
 #include <util-interface.h>
+#include <device.h>
 
 namespace mbm
 {
     void TEXTURE::release()
     {
-        if (idTexture)
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement delete texture");
-            #endif
-        }
-        idTexture       = 0;
+        #pragma message(REMINDER_TODO);
+        ptrTexture      = nullptr;
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
     }
 
-        bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
+    bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
                              const uint32_t w, const uint32_t h, const uint16_t depth,
                              const uint16_t channel, const bool hasAlpha)
     {
@@ -52,111 +48,62 @@ namespace mbm
             return false;
 
         mbm::UBER_IMG        uberImg;
+        // this uncompress if (compressed)
         const uint8_t *img = uberImg.getImage8bitsPerPixel(data, w, h, depth, channel);
-        if (!img)
+        if (img == nullptr)
         {
-            PRINT_IF_DEBUG("failed to load texture ");
+            PRINT_IF_DEBUG("failed to get texture from DATA");
             return false;
         }
         this->width  = w;
         this->height = h;
-        // Upload texture to GPU
-        if (idTexture == 0)
-        {
-            return false;
-        }
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement generate texture");
-        #endif
-        uint8_t *rgba_toDelete = nullptr;
-        if (channel == 4)
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
-            #endif
-        }
-        else if (hasAlpha)
-        {
-            auto     rgba      = new uint8_t[width * height * 4];
-            const uint32_t sizeImage = width * height * 3;
-            rgba_toDelete                = rgba;
-            for (uint32_t i = 0, j = 0; i < sizeImage; i += 3, j += 4)
-            {
-                const uint8_t r = img[i];
-                const uint8_t g = img[i + 1];
-                const uint8_t b = img[i + 2];
-                rgba[j]               = r;
-                rgba[j + 1]           = g;
-                rgba[j + 2]           = b;
-                rgba[j + 3]           = 255; // 255 - opcao totalmente opaco
-            }
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement upload texture with RGBA data");
-            #endif
-        }
-        else
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement upload texture with RGB data");
-            #endif
-        }
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
-            #endif
-
-        }
-        else
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
-            #endif
-        }
-        if (rgba_toDelete)
-            delete[] rgba_toDelete;
         this->useAlphaChannel = hasAlpha ? true : false;
+        #pragma message(REMINDER_TODO);
         return true;
     }
     
     bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE *image)
     {
-        if (!image)
+        if (image == nullptr)
             return false;
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement pixel store alignment");
-        #endif
-        
-        if (idTexture == 0)
-            return false;
-        //TODO: implement bind texture
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
-            #endif
+        const int  channel    = 4;
+        const bool alpha      = true;
 
-        }
-        else
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
-            #endif
-        }
+        #pragma message(REMINDER_TODO);
         return true;
     }
 
-    
+    TEXTURE* TEXTURE_MANAGER::loadNativeEngine(const char* fileName, const bool forceAlpha) // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
+    {
+        if (fileName == nullptr)
+            return nullptr;
+        std::string fileNameBase = util::getBaseName(fileName);
+        TEXTURE* tex = lsTextures[fileNameBase];
+        if (tex)
+            return tex;
+        fileName = getFilePathTexture(fileName, nullptr);
+        if (fileName == nullptr)
+            return nullptr;
+        tex = new TEXTURE();
+        
+        tex->useAlphaChannel = forceAlpha;
+        tex->fileName = fileName;
+        lsTextures[fileNameBase] = (tex);
+        #pragma message(REMINDER_TODO);
+        return tex;
+    }
 
-    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
+    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, 
+                                                        const char *nickName,
+                                                        const bool enableAlpha)
     {
         std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width         = static_cast<int>(renderToTarget->widthTexture);
-        const auto height        = static_cast<int>(renderToTarget->heightTexture);
+        const auto width            = static_cast<int>(renderToTarget->widthTexture);
+        const auto height           = static_cast<int>(renderToTarget->heightTexture);
+        
         if (fileNameBase.size() == 0)
             return nullptr;
         if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
@@ -169,62 +116,7 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement generate framebuffer, renderbuffer and");
-        #endif
-
-        // texture
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement generate texture");
-        #endif
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for tile map mode");
-            #endif
-
-        }
-        else
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement set texture parameters for normal mode");
-            #endif
-        }
-
-        if (enableAlpha)
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement upload texture with RGBA format");
-            #endif
-        }
-        else
-        {
-            #ifdef SHOW_PRAGMA_MESSAGE
-            #pragma message(REMINDER_TODO "  implement upload texture with RGB format");
-            #endif
-        }
-        // depth buffer
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement bind renderbuffer and set storage");
-        #endif
-        // frame buffer
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement bind framebuffer");
-        #endif
-        // attachments
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement attach texture and renderbuffer to framebuffer");
-        #endif
-        //
-        
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        texture->idTexture                  = idTexture2d;
+        #pragma message(REMINDER_TODO);
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;

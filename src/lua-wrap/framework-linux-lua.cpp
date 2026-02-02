@@ -26,6 +26,13 @@
 
 #if defined USE_OPENGL_ES
     #include <core_mbm/specific-opengl_es.h>
+#elif defined USE_DUMMY_BACK_END_ENGINE
+    #include <core_mbm/specific-dummy.h> // replace with your specific backend engine header
+    #if defined __linux__  || defined(__APPLE__)
+        #include <X11/Xlib.h>
+        #include <X11/Xutil.h>
+        #include <X11/XKBlib.h>
+    #endif
 #else
     #error "This file is only for OpenGL ES"
 #endif

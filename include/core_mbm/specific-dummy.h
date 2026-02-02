@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,42 +17,45 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <blend.h>
-
 #if defined (USE_DUMMY_BACK_END_ENGINE)
+#ifndef DUMMY_SPECIFIC_H
+#define DUMMY_SPECIFIC_H
 
-
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#include <primitives.h>
 
 namespace mbm
 {
-    void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
+    struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
+        SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
+        SPECIFIC_AUX_CONTEXT_DEVICE& operator=(const SPECIFIC_AUX_CONTEXT_DEVICE&) = delete;
+        ~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept;
+        void release() noexcept;
         
-        switch (blendState)
-        {
-            case BLEND_DISABLE:
-            {
-                #pragma message(REMINDER_TODO)
-                return;
-            }
-            default:{}
-        }
-        switch (blendState)
-        {
-            case BLEND_ZERO:         ;break;
-            case BLEND_ONE:          ;break;
-            case BLEND_SRCCOLOR:     ;break;
-            case BLEND_INVSRCCOLOR:  ;break;
-            case BLEND_SRCALPHA:     ;break;
-            case BLEND_INVSRCALPHA:  ;break;
-            case BLEND_DESTALPHA:    ;break;
-            case BLEND_INVDESTALPHA: ;break;
-            case BLEND_DESTCOLOR:    ;break;
-            case BLEND_INVDESTCOLOR: ;break;
-            default:{}
-        }
-    }
+    private:
+        void * yourBackendSpecificData = nullptr;
+    };
+
+    struct BUFFER_SPECIFIC
+    {
+        BUFFER_SPECIFIC() noexcept;
+        ~BUFFER_SPECIFIC();
+        void release();
+    };
+
+    struct RENDER2TARGET_DUMMY
+    {
+        void * pRenderSurface = nullptr;
+        void release() noexcept;
+        RENDER2TARGET_DUMMY() noexcept = default;
+        ~RENDER2TARGET_DUMMY();
+        // Prevent copying (COM objects should not be copied)
+        RENDER2TARGET_DUMMY(const RENDER2TARGET_DUMMY&) = delete;
+        RENDER2TARGET_DUMMY& operator=(const RENDER2TARGET_DUMMY&) = delete;
+    };
+    
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif
+#endif
