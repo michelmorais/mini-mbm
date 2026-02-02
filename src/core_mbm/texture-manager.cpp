@@ -820,6 +820,10 @@ namespace mbm
         }
         return fileNameTexture;
     }
+    
+#else
+    #error "platform not suported"
+#endif
 
     void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
     {
@@ -833,23 +837,6 @@ namespace mbm
             }
         }
     }
-#else
-    #error "platform not suported"
-#endif
-#if defined (ANDROID) && defined USE_EDITOR_FEATURES
-    void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
-    {
-        for (auto& texture : lsTextures)
-        {
-            bool existTexture = false;
-            std::string fullPathTexture = util::getFullPath(texture.first.c_str(), &existTexture);
-            if (existTexture)
-            {
-                result.push_back(fullPathTexture);
-            }
-        }
-    }
-#endif
 
     TEXTURE_MANAGER::TEXTURE_MANAGER()
     {

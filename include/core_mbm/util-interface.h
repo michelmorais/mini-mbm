@@ -131,9 +131,15 @@ namespace log_util
 	#    define PRINT_INFO_IF_DEBUG(...) while(false)
 	#endif
 
+    #ifdef _DEBUG
+	#    define PRINT_WARN_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_WARN, __VA_ARGS__ );
+	#else
+	#    define PRINT_WARN_IF_DEBUG(...) while(false)
+	#endif
+
 	#define ERROR_AT(line_num,file_name,...)  log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
+	#define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_INFO, __VA_ARGS__ );
+	#define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_WARN, __VA_ARGS__ );
 #endif
 
 API_IMPL const char* getLodePNGVersion();

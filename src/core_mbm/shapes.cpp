@@ -196,10 +196,8 @@ namespace mbm
         spaceXCharacter = 0;
         spaceYCharacter = 0;
         heightLetter    = 0;
-        #if defined USE_EDITOR_FEATURES
         memset(letterDiffY,0,sizeof(letterDiffY));
         memset(letterDiffX,0,sizeof(letterDiffX));
-        #endif
     }
     void INFO_BOUND_FONT::release()
     {

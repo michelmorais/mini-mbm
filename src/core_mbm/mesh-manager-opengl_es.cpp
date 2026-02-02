@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(USE_OPENGL_ES)
-#if defined USE_EDITOR_FEATURES
 
 #include <mesh-manager.h>
 #include <texture-manager.h>
@@ -222,5 +221,4 @@ namespace mbm
         }
 } //namespace mbm
 
-#endif // USE_EDITOR_FEATURES
 #endif //USE_OPENGL_ES

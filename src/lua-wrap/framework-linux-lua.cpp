@@ -75,12 +75,12 @@ namespace mbm
 
     void showConsoleWindowLua()
     {
-        PRINT_IF_DEBUG("showConsoleWindow without effect");
+        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect");
     }
 
     void hideConsoleWindowLua()
     {
-        PRINT_IF_DEBUG("showConsoleWindow without effect");
+        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect");
     }
 
     int onGetDisplayMetrics(lua_State *lua)
@@ -113,7 +113,7 @@ namespace mbm
 
     int onShowConsoleMbm(lua_State *lua)
     {
-        PRINT_IF_DEBUG("showConsoleWindow without effect [linux]");
+        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect [linux]");
         return 0;
     }
 

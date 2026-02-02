@@ -51,8 +51,6 @@ namespace mbm
         API_IMPL void release();
     };
 
-#if defined USE_EDITOR_FEATURES
-
     class MESH_MBM_DEBUG
     {
       public:
@@ -122,7 +120,7 @@ namespace mbm
         bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
     };
 
-#endif
+
     class MESH_MBM
     {
         friend class MESH_MANAGER;

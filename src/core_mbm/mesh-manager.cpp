@@ -81,7 +81,7 @@ namespace mbm
         totalSubset = 0;
     }
 
-#if defined USE_EDITOR_FEATURES
+
 
     MESH_MBM_DEBUG::MESH_MBM_DEBUG() noexcept
     {
@@ -3476,7 +3476,7 @@ namespace mbm
         }
     }
 
-#endif
+
 
     BUFFER_MESH * MESH_MBM::getBuffer(const uint32_t index) const
     {

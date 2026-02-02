@@ -197,7 +197,6 @@ namespace mbm
         ~LETTER()noexcept;
     };
 
-    // TODO: remove USE_EDITOR_FEATURES from headers
     struct INFO_BOUND_FONT
     {
         std::string      fontName;
@@ -205,10 +204,8 @@ namespace mbm
         int16_t          spaceYCharacter;
         uint16_t heightLetter;
         LETTER             letter[255];
-        #if defined USE_EDITOR_FEATURES
         float letterDiffY[255];
         float letterDiffX[255];
-        #endif
         API_IMPL INFO_BOUND_FONT()noexcept;
         API_IMPL void release();
         API_IMPL ~INFO_BOUND_FONT()noexcept;
