@@ -130,7 +130,7 @@ namespace mbm
         util::MATERIAL_GLES             material;
         INFO_PHYSICS                    infoPhysics;
         util::INFO_ANIMATION            infoAnimation;
-        util::INFO_DRAW_MODE		    info_mode;
+        util::INFO_DRAW_MODE		        info_mode;
         
         API_IMPL BUFFER_MESH *getBuffer(const uint32_t index) const;
         API_IMPL TEXTURE *getTexture(const uint32_t indexFrame, const uint32_t indexSubset);
