@@ -5468,6 +5468,278 @@ namespace mbm
             default                           : return "unknown";
         }
     }
+
+    bool MESH_MBM_DEBUG::loadDebugFromMemory(const MESH_MBM* meshMemory)
+    {
+        if (meshMemory == nullptr || meshMemory->isLoaded() == false)
+            return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh empty or not loaded...");
+//        auto* extensionString = (char*)glGetString(GL_EXTENSIONS);
+//        if (strstr(extensionString, "GL_OES_mapbuffer") == nullptr)
+//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [GL_OES_mapbuffer] not supported!");
+//#if defined ANDROID //ANDROID //TODO fix issue not found EGL lib on ANDOID 
+//        PRINT_IF_DEBUG("loadDebugFromMemory is not working on ANDOID");
+//        PRINT_IF_DEBUG("TODO: fix issue not found EGL lib on ANDOID");
+//        PFNGLMAPBUFFEROESPROC_TODO* glMapBufferOES = nullptr;
+//        PFNGLUNMAPBUFFEROESPROC_TODO* glUnmapBufferOES = nullptr;
+//#else //ANDROID //TODO fix issue not found EGL lib on ANDOID 
+//        auto glMapBufferOES = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("glMapBufferOES");
+//        auto glUnmapBufferOES = (PFNGLUNMAPBUFFEROESPROC)eglGetProcAddress("glUnmapBufferOES");
+//#endif
+//        if (glMapBufferOES == nullptr)
+//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glMapBufferOES] not supported!");
+//        if (glUnmapBufferOES == nullptr)
+//            return log_util::onFailed(nullptr, __FILE__, __LINE__, "extension [glUnmapBufferOES] not supported!");
+        this->release();
+        fileName = meshMemory->getFilenameMesh();
+        // step 1: Verificação do header
+        // -------------------------------------------------------------------------------
+        switch (meshMemory->getTypeMesh())
+        {
+            case util::TYPE_MESH_3D:       strncpy(headerMain.typeApp, "Mesh 3d mbm",  sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_SHAPE:    strncpy(headerMain.typeApp, "Shape mbm",    sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_USER:     strncpy(headerMain.typeApp, "User mbm",     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_SPRITE:   strncpy(headerMain.typeApp, "Sprite mbm",   sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_TILE_MAP: strncpy(headerMain.typeApp, "Tile mbm",     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_FONT:     strncpy(headerMain.typeApp, "Font mbm",     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_PARTICLE: strncpy(headerMain.typeApp, "Particle mbm", sizeof(headerMain.typeApp) - 1); break;
+            default:
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh invalid type");
+                break;
+        }
+        strncpy(headerMain.name, "mbm", sizeof(headerMain.name) - 1);
+        headerMain.version = CURRENT_VERSION_MBM_HEADER;
+        headerMain.magic = 0x010203ff;
+        typeMe = meshMemory->getTypeMesh();
+        // step 2: --------------------------------------------------------------------------------------------------
+        for (auto pCube : meshMemory->infoPhysics.lsCube)
+        {
+            auto cube = new CUBE(pCube->halfDim, pCube->absCenter);
+            this->infoPhysics.lsCube.push_back(cube);
+        }
+        for (auto pBase : meshMemory->infoPhysics.lsSphere)
+        {
+            auto base = new SPHERE();
+            base->absCenter[0] = pBase->absCenter[0];
+            base->absCenter[1] = pBase->absCenter[1];
+            base->absCenter[2] = pBase->absCenter[2];
+            base->ray = pBase->ray;
+            this->infoPhysics.lsSphere.push_back(base);
+        }
+        for (auto pComplex : meshMemory->infoPhysics.lsCubeComplex)
+        {
+            auto complex = new CUBE_COMPLEX();
+            for (int k = 0; k < 8; k++)
+                complex->p[k] = pComplex->p[k];
+            this->infoPhysics.lsCubeComplex.push_back(complex);
+        }
+        for (auto pTriangle : meshMemory->infoPhysics.lsTriangle)
+        {
+            auto triangle = new TRIANGLE();
+            triangle->point[0] = pTriangle->point[0];
+            triangle->point[1] = pTriangle->point[1];
+            triangle->point[2] = pTriangle->point[2];
+            this->infoPhysics.lsTriangle.push_back(triangle);
+        }
+        if (meshMemory->getInfoFont() != nullptr)
+        {
+            const INFO_BOUND_FONT* pMemoryInfoFont = meshMemory->getInfoFont();
+            headerMain.backBufferHeight = pMemoryInfoFont->heightLetter;
+            this->extraInfo = new INFO_BOUND_FONT();
+            auto* infoFont = static_cast<INFO_BOUND_FONT*>(this->extraInfo);
+            util::DETAIL_HEADER_FONT headerFont;
+            infoFont->fontName = pMemoryInfoFont->fontName;
+            infoFont->heightLetter = pMemoryInfoFont->heightLetter;
+            infoFont->spaceXCharacter = pMemoryInfoFont->spaceXCharacter;
+            infoFont->spaceYCharacter = pMemoryInfoFont->spaceYCharacter;
+            for (std::vector<util::DETAIL_LETTER*>::size_type j = 0; j < 255; ++j)
+            {
+                const util::DETAIL_LETTER* pDetailFont = pMemoryInfoFont->letter[j].detail;
+                if (pMemoryInfoFont->letter[j].detail)
+                {
+                    auto detailFont = new util::DETAIL_LETTER();
+                    detailFont->heightLetter = pDetailFont->heightLetter;
+                    detailFont->indexFrame = pDetailFont->indexFrame;
+                    detailFont->letter = pDetailFont->letter;
+                    detailFont->widthLetter = pDetailFont->widthLetter;
+                    infoFont->letter[j].detail = detailFont;
+                }
+            }
+        }
+        if (meshMemory->getInfoParticle() != nullptr)
+        {
+            const std::vector<util::STAGE_PARTICLE*>* thatParticleInfo = meshMemory->getInfoParticle();
+            auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
+            this->extraInfo = lsParticleInfo;
+            for (auto thatStage : *thatParticleInfo)
+            {
+                auto* stage = new util::STAGE_PARTICLE(thatStage);
+                lsParticleInfo->push_back(stage);
+            }
+        }
+        if (meshMemory->getInfoTile() != nullptr)
+        {
+            const util::BTILE_INFO* thatInfoTile = meshMemory->getInfoTile();
+            this->extraInfo = thatInfoTile->clone();
+        }
+        headerMesh.totalAnimation = meshMemory->infoAnimation.lsHeaderAnim.size();
+        for (int i = 0; i < headerMesh.totalAnimation; ++i)
+        {
+            const util::INFO_ANIMATION::INFO_HEADER_ANIM* pInfoAnim = meshMemory->infoAnimation.lsHeaderAnim[i];
+            auto  infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
+            infoHead->headerAnim = new util::HEADER_ANIMATION();
+            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
+            util::HEADER_ANIMATION* headerAnim = infoHead->headerAnim;
+            headerAnim->hasShaderEffect = pInfoAnim->headerAnim->hasShaderEffect;
+            headerAnim->blendState = pInfoAnim->headerAnim->blendState;
+            headerAnim->initialFrame = pInfoAnim->headerAnim->initialFrame;
+            headerAnim->finalFrame = pInfoAnim->headerAnim->finalFrame;
+            headerAnim->timeBetweenFrame = pInfoAnim->headerAnim->timeBetweenFrame;
+            headerAnim->typeAnimation = pInfoAnim->headerAnim->typeAnimation;
+            strncpy(headerAnim->nameAnimation, pInfoAnim->headerAnim->nameAnimation, sizeof(headerAnim->nameAnimation));
+            headerAnim->hasShaderEffect = (uint16_t)(infoHead->effetcShader ? 1 : 0);
+            infoHead->headerAnim->blendState = (uint16_t)headerAnim->blendState;
+            //for(auto pInfoStepShader : pInfoAnim->lsStepEffetcShader)
+            if (infoHead->effetcShader)
+            {
+                auto pInfoStepShader = pInfoAnim->effetcShader;
+                //each step may has two shaders (PS and VS)
+                auto infoStepShader = new util::INFO_FX();
+                infoHead->effetcShader = infoStepShader;
+                infoStepShader->blendOperation = pInfoStepShader->blendOperation;
+
+                if (pInfoStepShader->dataPS)
+                {
+                    infoStepShader->dataPS = new util::INFO_SHADER_DATA(
+                        pInfoStepShader->dataPS->lenVars * 4,
+                        strlen(pInfoStepShader->dataPS->fileNameShader) + 1,
+                        pInfoStepShader->dataPS->fileNameTextureStage2 ? strlen(pInfoStepShader->dataPS->fileNameTextureStage2) + 1 : 0);
+                    strcpy(infoStepShader->dataPS->fileNameShader, pInfoStepShader->dataPS->fileNameShader);
+                    if (infoStepShader->dataPS->fileNameTextureStage2)
+                        strcpy(infoStepShader->dataPS->fileNameTextureStage2, pInfoStepShader->dataPS->fileNameTextureStage2);
+                    infoStepShader->dataPS->timeAnimation = pInfoStepShader->dataPS->timeAnimation;
+                    infoStepShader->dataPS->typeAnimation = pInfoStepShader->dataPS->typeAnimation;
+                    for (int k = 0; k < infoStepShader->dataPS->lenVars; ++k)
+                    {
+                        const int index = k * 4;
+                        memcpy(&infoStepShader->dataPS->max[index], &pInfoStepShader->dataPS->max[index], sizeof(float) * 4);
+                        memcpy(&infoStepShader->dataPS->min[index], &pInfoStepShader->dataPS->min[index], sizeof(float) * 4);
+                        infoStepShader->dataPS->typeVars[k] = pInfoStepShader->dataPS->typeVars[k];
+                    }
+                }
+                if (pInfoStepShader->dataVS)
+                {
+                    infoStepShader->dataVS = new util::INFO_SHADER_DATA(
+                        pInfoStepShader->dataVS->lenVars * 4,
+                        strlen(pInfoStepShader->dataVS->fileNameShader) + 1,
+                        pInfoStepShader->dataVS->fileNameTextureStage2 ? strlen(pInfoStepShader->dataVS->fileNameTextureStage2) + 1 : 0);
+                    strcpy(infoStepShader->dataVS->fileNameShader, pInfoStepShader->dataVS->fileNameShader);
+                    if (infoStepShader->dataVS->fileNameTextureStage2)
+                        strcpy(infoStepShader->dataVS->fileNameTextureStage2, pInfoStepShader->dataVS->fileNameTextureStage2);
+                    infoStepShader->dataVS->timeAnimation = pInfoStepShader->dataVS->timeAnimation;
+                    infoStepShader->dataVS->typeAnimation = pInfoStepShader->dataVS->typeAnimation;
+                    for (int k = 0; k < infoStepShader->dataVS->lenVars; ++k)
+                    {
+                        const int index = k * 4;
+                        memcpy(&infoStepShader->dataVS->max[index], &pInfoStepShader->dataVS->max[index], sizeof(float) * 4);
+                        memcpy(&infoStepShader->dataVS->min[index], &pInfoStepShader->dataVS->min[index], sizeof(float) * 4);
+                        infoStepShader->dataVS->typeVars[k] = pInfoStepShader->dataVS->typeVars[k];
+                    }
+                }
+            }
+        }
+
+        headerMesh.totalFrames = meshMemory->getTotalFrame();
+        //std::map<int, float> lsLetterChangedValuesByLetterX;
+        std::map<int, float> lsLetterChangedValuesByCurFrameX;
+        //std::map<int, float> lsLetterChangedValuesByLetterY;
+        std::map<int, float> lsLetterChangedValuesByCurFrameY;
+        if (meshMemory->getInfoFont() != nullptr)//TODO
+        {
+            const INFO_BOUND_FONT* pMemoryInfoFont = meshMemory->getInfoFont();
+            const auto sL = static_cast<int>(sizeof(mbm::INFO_BOUND_FONT::letterDiffY) / sizeof(float));
+
+            for (int i = 0; i < sL; ++i)
+            {
+                lsLetterChangedValuesByCurFrameX[i] = pMemoryInfoFont->letterDiffX[i];
+                lsLetterChangedValuesByCurFrameY[i] = pMemoryInfoFont->letterDiffY[i];
+                //if (pMemoryInfoFont->letterDiffY[i] != 0.0f)
+                //{
+                //    lsLetterChangedValuesByLetterY[i] = pMemoryInfoFont->letterDiffY[i];
+                //}
+                //if (pMemoryInfoFont->letterDiffX[i] != 0.0f)
+                //{
+                //    lsLetterChangedValuesByLetterX[i] = pMemoryInfoFont->letterDiffX[i];
+                //    lsLetterChangedValuesByCurFrameX[pDetailFont->indexFrame] = pMemoryInfoFont->letterDiffX[i];
+                //}
+            }
+            //for (auto& j : pMemoryInfoFont->letter)
+            //{
+            //    const util::DETAIL_LETTER* pDetailFont = j.detail;
+            //    if (pDetailFont)
+            //    {
+            //        const float x = lsLetterChangedValuesByLetterX[pDetailFont->letter];
+            //        if (x != 0.0f)
+            //        {
+            //            lsLetterChangedValuesByCurFrameX[pDetailFont->indexFrame] = x;
+            //        }
+            //        const float y = lsLetterChangedValuesByLetterY[pDetailFont->letter];
+            //        if (y != 0.0f)
+            //        {
+            //            lsLetterChangedValuesByCurFrameY[pDetailFont->indexFrame] = y;
+            //        }
+            //    }
+            //}
+        }
+        for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
+        {
+            auto pBuffer = new util::BUFFER_MESH_DEBUG();
+            this->buffer.push_back(pBuffer);
+            // 5 Sequencia lógica dos frames --------------------------------------------------------------------------
+            // Cada header Frame
+            // --------------------------------------------------------------------------------------------------
+            util::HEADER_FRAME* headerFrame = &pBuffer->headerFrame;
+            const BUFFER_MESH* pBufferMesh = meshMemory->getBuffer(currentFrame);
+            const BUFFER_GL* pGl = pBufferMesh->pBufferGL;
+            if (pGl->isIndexBuffer())
+            {
+                strncpy(headerFrame->typeBuffer, "IB", sizeof(headerFrame->typeBuffer) - 1);
+                for (uint32_t i = 0; i < pBufferMesh->pBufferGL->totalSubset; ++i)
+                {
+                    headerFrame->sizeIndexBuffer += pBufferMesh->pBufferGL->indexCountIB[i];
+                }
+            }
+            else
+            {
+                strncpy(headerFrame->typeBuffer, "VB", sizeof(headerFrame->typeBuffer) - 1);
+                for (uint32_t i = 0; i < pBufferMesh->pBufferGL->totalSubset; ++i)
+                {
+                    headerFrame->sizeVertexBuffer += pBufferMesh->pBufferGL->vertexCountVB[i];
+                }
+            }
+            headerFrame->stride = 3;
+            // 6 Todos os headers subset deste frame
+            // -------------------------------------------------------------------------------
+            headerFrame->totalSubset = pBufferMesh->pBufferGL->totalSubset;
+            if (fillInSubsetDebug(meshMemory,
+                                  currentFrame,
+                                  lsLetterChangedValuesByCurFrameX,
+                                  lsLetterChangedValuesByCurFrameY,
+                                  headerFrame,
+                                  pBuffer) == false)
+            {
+                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to fill subset in specific backend engine for mesh %s", meshMemory->getFilenameMesh());
+            }
+            // moved to MESH_MBM_DEBUG::fillInSubsetDebug
+            // 
+        }
+        positionOffset = VEC3(headerMesh.posX, headerMesh.posY, headerMesh.posZ);
+        angleDefault = VEC3(headerMesh.angleX, headerMesh.angleY, headerMesh.angleZ);
+        this->sizeCoordTexFrame_0 = 0;
+        if (this->coordTexFrame_0)
+            delete[] this->coordTexFrame_0;
+        this->coordTexFrame_0 = nullptr;
+        return true;
+    }
 }
 
 mbm::MESH_MANAGER *    mbm::MESH_MANAGER::instanceMeshManager        = nullptr;

@@ -105,6 +105,11 @@ void MY_SCENE::init()
 		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
         this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
     }
+
+    //if (meshDebug.loadDebugFromMemory(this->fontDraw->getMesh()))
+    //{
+    //    meshDebug.getInfo()
+    //}
     
 	tile = new mbm::TILE(this, false, false);
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");

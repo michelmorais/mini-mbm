@@ -21,21 +21,11 @@
 #if defined (USE_DIRECTX9)
 
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 #include <specific-directx9.h>
-
 #include <device.h>
-#include <scene.h>
 #include <texture-manager.h>
 #include <audio-interface.h>
-#include <shapes.h>
-#include <physics.h>
-#include <renderizable.h>
 #include <mesh-manager.h>
-#include <util-interface.h>
-#include <dynamic-var.h>
-
-#include <plusWindows/defaultThemePlusWindows.h>
 
 namespace mbm
 {
@@ -91,12 +81,12 @@ namespace mbm
 
     const char* DEVICE::getBackendEngineName() const noexcept
     {
-        return "Dummy engine";
+        return "Directx 9";
     }
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        return "Dummy engine version 1.0";
+        return "9";
     }
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)

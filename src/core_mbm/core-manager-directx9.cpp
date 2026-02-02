@@ -29,10 +29,46 @@
 #include <audio-interface.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
+#include <scene.h>
 
 
 namespace mbm
 {
+    void CORE_MANAGER::handleEventFromWindow()
+    {
+        this->device->specificContextDevice->window.doEvents();
+        bool first_menu = true;
+        while (mbm::WINDOW::isAnyMenuVisible() && this->device->specificContextDevice->window.run)
+        {
+            if (first_menu)
+            {
+                Sleep(50);
+                mbm::WINDOW::refreshMenu();
+            }
+            this->device->specificContextDevice->window.doEvents();
+            if (first_menu)
+            {
+                Sleep(50);
+                mbm::WINDOW::refreshMenu();
+            }
+            first_menu = false;
+        }
+        if (this->device->specificContextDevice->window.run)
+        {
+            INFO_JOYSTICK_INIT_PLAYER info;
+            while (this->popEvent(&info))
+            {
+                if (this->device->scene && this->__sceneWasInit)
+                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
+                        info.extraInfo.c_str());
+            }
+        }
+        else
+        {
+            this->device->run = false;
+        }
+    }
+
     static D3DPRESENT_PARAMETERS getd3dPARAMETERS(const UINT x,const UINT y, HWND hwnd)
     {
         D3DPRESENT_PARAMETERS				d3dParams;

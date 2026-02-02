@@ -20,7 +20,6 @@
 
 #if defined (USE_DIRECTX9)
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 #include <specific-directx9.h>
 #include <texture-manager.h>
 #include <renderizable.h>

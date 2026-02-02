@@ -17,16 +17,15 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-	#if defined (USE_OPENGL_ES)
-		#include <specific-opengl_es.h>
-	#elif defined (USE_DIRECTX9)
-		#include <specific-directx9.h>
-	#endif
+#if defined (USE_OPENGL_ES)
 
-
+#include <specific-opengl_es.h>
 #include <core-manager.h>
+#include <texture-manager.h>
+#include <mesh-manager.h>
+#include <miniz-wrap/miniz-wrap.h>
+#include <audio-interface.h>
 #include <device.h>
 #include <scene.h>
 
@@ -64,7 +63,7 @@ namespace mbm
         else
         {
             this->device->run = false;
-		}
+        }
     }
 
     void CORE_MANAGER::ReleaseGraphics()
@@ -81,7 +80,6 @@ namespace mbm
         int x = width;
         int y = height;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
-#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         DEVICE* device = DEVICE::getInstance();
         device->specificContextDevice->window.setNameAplication(nameAplication);
         if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
@@ -155,7 +153,7 @@ namespace mbm
             EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
             EGL_NONE};
 
-        /*if ( EGL_FALSE == eglGetConfigs(this->device->specificContextDevice->eglDisplay, NULL, 0, &numConfigs) )
+        if ( EGL_FALSE == eglGetConfigs(this->device->specificContextDevice->eglDisplay, NULL, 0, &numConfigs) )
         {
             ERROR_LOG("Could not get number of all configs");
             return false;
@@ -292,11 +290,10 @@ namespace mbm
                 m._blue_size  == 8 &&
                 m._alpha_size == 8 &&
                 (m._conformant  == EGL_OPENGL_ES3_BIT || m._conformant  == (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT) &&  // compatible with OpenGL ES 3.x., EGL_OPENGL_ES2_BIT -> compatible with OpenGL ES 2.x., EGL_OPENGL_ES_BIT -> compatible with OpenGL ES 1.x.
-                m._max_swap_interval <= 4 )
-                //m._egl_robust == EGL_TRUE )
+                m._max_swap_interval <= 4)
                 )
             {
-                EGLint new_the_attribs[]= {EGL_RED_SIZE, m._red_size,
+            EGLint new_the_attribs[]= {EGL_RED_SIZE, m._red_size,
             EGL_GREEN_SIZE, m._green_size,
             EGL_BLUE_SIZE, m._blue_size,
             EGL_ALPHA_SIZE, m._alpha_size,
@@ -319,7 +316,6 @@ namespace mbm
             EGL_LUMINANCE_SIZE, m._luminance_size,
             EGL_RENDERABLE_TYPE, m._renderable_type,
             EGL_CONFORMANT, m._conformant,
-            //EGL_CONTEXT_OPENGL_ROBUST_ACCESS, m._egl_robust,
             EGL_NONE
             };
                 memcpy(the_attribs,new_the_attribs,sizeof(new_the_attribs));
@@ -328,12 +324,9 @@ namespace mbm
 
         }
         //auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform"); it works
-        auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform");
+        //auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform");
         EGLBoolean result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, the_attribs, &windowConfig, 1, &numConfigs);
-        */
-        EGLBoolean result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
         
-        //EGLBoolean result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
         switch (result )
         {
             case EGL_TRUE:break;
@@ -398,63 +391,6 @@ namespace mbm
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
         }
-#elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-
-        char * dpyName = nullptr;
-        EGLint egl_major = 0;
-        EGLint egl_minor = 0;
-        this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
-        if (!this->device->specificContextDevice->display_x11)
-        {
-            printf("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
-            return false;
-        }
-    #ifdef __APPLE__
-        this->device->specificContextDevice->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-        #pragma message("Check if this is correct for MacOS")
-    #else
-        this->device->specificContextDevice->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->device->specificContextDevice->display_x11);
-    #endif
-        if (!this->device->specificContextDevice->eglDisplay)
-        {
-            printf("Error: eglGetDisplay() failed\n");
-            return false;
-        }
-
-        if (!eglInitialize(this->device->specificContextDevice->eglDisplay, &egl_major, &egl_minor))
-        {
-            printf("Error: eglInitialize() failed\n");
-            return false;
-        }
-        Screen *screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
-        if ((height + 60) >= screen->height)
-        {
-            height -= 60;
-            y = height;
-        }
-        const int cx = screen ? (screen->width - width) / 2 : 0;
-        const int cy = screen ? (screen->height - height) / 2 : 0;
-        this->device->specificContextDevice->make_x_window(nameAplication, cx, cy, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
-
-        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
-        if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))
-        {
-            printf("Error: eglMakeCurrent() failed\n");
-            return false;
-        }
-
-        if (device->verbose)
-    {
-        printGLString("\nversion:\n", GL_VERSION);
-        printGLString("vendor:\n", GL_VENDOR);
-        printGLString("renderer:\n", GL_RENDERER);
-        //printGLStringNewLine("Extensions:\n", GL_EXTENSIONS, ' ');
-        //printEGLStringNewLine(this->device->specificContextDevice->display,' ');
-        MINIZ::showVersion();
-        INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
-    }
-
-#endif
         GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
         GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         GLDepthRangef(0.0f, 1.0f);
@@ -498,4 +434,6 @@ namespace mbm
         return true;
     }
 }
+
 #endif // USE_OPENGL_ES
+#endif // _WIN32

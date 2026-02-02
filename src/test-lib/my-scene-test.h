@@ -34,6 +34,7 @@
 #include <render/background.h>
 #include <render/font.h>
 #include <render/HMD.h>
+#include <mesh-manager.h> // mesh debug
 #include <render/tile.h>
 
 class MY_SCENE : public mbm::SCENE
@@ -51,6 +52,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::RENDERIZABLE* toTrack;
 	mbm::STEERED_PARTICLE* steeredParticle;
     mbm::FONT_DRAW* fontDraw;
+	mbm::MESH_MBM_DEBUG meshDebug;
 	mbm::HMD* hmd;
 	mbm::TILE* tile;
     bool randomizeParticleEachLoop;

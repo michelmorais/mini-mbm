@@ -194,6 +194,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
                 SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
                 JNIEnv *     jenv                 = cJni->jenv;
                 handle                            = jenv;
+            #else
+                #error "Platform not supported"
             #endif
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
             return this->lsPlugins.size() - 1;

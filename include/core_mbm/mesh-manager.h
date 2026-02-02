@@ -25,6 +25,7 @@
 #include "header-mesh.h"
 #include "physics.h"
 #include <unordered_map>
+#include <map>
 
 namespace util 
 {
@@ -105,6 +106,12 @@ namespace mbm
         void *       extraInfo;
       private:
         void fillAtLeastOneBound();
+		bool fillInSubsetDebug(const MESH_MBM* meshMemory, 
+                               const int currentFrame,
+                               const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
+                               const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
+                               util::HEADER_FRAME* headerFrame,
+                               util::BUFFER_MESH_DEBUG* pBuffer);//need to be implemented by specific backend engine 
         std::vector<std::string> getKnowPathsToExtraHeader();
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,

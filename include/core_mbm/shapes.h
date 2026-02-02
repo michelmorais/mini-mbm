@@ -197,7 +197,7 @@ namespace mbm
         ~LETTER()noexcept;
     };
 
-
+    // TODO: remove USE_EDITOR_FEATURES from headers
     struct INFO_BOUND_FONT
     {
         std::string      fontName;
