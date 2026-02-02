@@ -23,16 +23,15 @@
 #if defined(__linux__) || defined(__APPLE__)
 
 #include <core-manager.h>
+#include <texture-manager.h>
+#include <mesh-manager.h>
 #include <device.h>
 #include <specific-opengl_es.h>
 #include <cassert>
-
-#if defined( __linux__) || defined(__APPLE__)
-    #include <thread>
-    #include <X11/Xlib.h>
-    #include <X11/Xutil.h>
-    #include <X11/XKBlib.h>
-#endif
+#include <thread>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 
 #ifdef __APPLE__
 //#include <X11/extensions/Xcomposite.h>
@@ -148,9 +147,7 @@ namespace mbm
             *height = screen->height;
         }
     }
-
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-    
+   
     void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name, int x, int y, uint32_t width,unsigned  int height, bool border)
     {
         static const EGLint attribs[] = {
@@ -312,7 +309,14 @@ namespace mbm
 
         XFree(visInfo);
     }
-#endif
+
+    void CORE_MANAGER::ReleaseGraphics()
+    {
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->release();
+    }
+
 }
 
 #endif // USE_OPENGL_ES

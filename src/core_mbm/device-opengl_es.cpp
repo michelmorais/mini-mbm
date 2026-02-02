@@ -163,7 +163,7 @@ namespace mbm
         constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
         for (int i = 0; i < 2; i++)
         {
-            GLActiveTexture(GL_TEXTURE0);
+            GLActiveTexture(index[i]);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

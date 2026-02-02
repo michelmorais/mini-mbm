@@ -66,5 +66,14 @@ namespace mbm
             this->device->run = false;
 		}
     }
+
+    void CORE_MANAGER::ReleaseGraphics()
+    {
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->window.setCallEventsManager(nullptr);
+        this->device->specificContextDevice->win32_joystickByPass->releaseJoystick(&this->device->specificContextDevice->window);
+        this->device->specificContextDevice->release();
+    }
 }
 #endif // USE_OPENGL_ES

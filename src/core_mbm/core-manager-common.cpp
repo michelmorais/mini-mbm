@@ -789,7 +789,7 @@ namespace mbm
             // Save 2D scaling state
             const VEC2 expectedScreenBefore = this->device->camera.expectedScreen;
             char stretchBefore[sizeof(this->device->camera.stretch)] = {};
-            std::strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
+            strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
 
             this->ReleaseGraphics();
 

@@ -89,7 +89,7 @@ namespace mbm
             this->text = "Hello Font!";
     }
     
-    TEXT_DRAW::TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText, VEC3 &position,
+    TEXT_DRAW::TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC3 &position,
               OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW)
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
@@ -113,7 +113,7 @@ namespace mbm
             this->text = "Hello Font!";
     }
     
-    TEXT_DRAW::TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText, VEC2 &position,
+    TEXT_DRAW::TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC2 &position,
               OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW)
         : RENDERIZABLE(idScene, TYPE_CLASS_TEXT, _is3d && _is2dScreen == false, _is2dScreen)
     {
@@ -899,7 +899,7 @@ namespace mbm
         this->lsText.clear();
     }
     
-    TEXT_DRAW * FONT_DRAW::addText(const char *newText, VEC2 &position, const bool _is2dFont ,
+    TEXT_DRAW * FONT_DRAW::addText(const char *newText,const VEC2 &position, const bool _is2dFont ,
                               const bool isScreen2d )
     {
         VEC3    pos(position.x, position.y, 1);
@@ -930,7 +930,7 @@ namespace mbm
         return text;
     }
     
-    TEXT_DRAW * FONT_DRAW::addText(const char *newText, VEC3 &position, const bool _is2dFont ,
+    TEXT_DRAW * FONT_DRAW::addText(const char *newText,const VEC3 &position, const bool _is2dFont ,
                               const bool isScreen2d )
     {
         auto text = new TEXT_DRAW(this->idScene, _is2dFont == false, isScreen2d, newText, position,

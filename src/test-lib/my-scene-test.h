@@ -33,7 +33,7 @@
 #include <render/steered_particle.h>
 #include <render/background.h>
 #include <render/font.h>
-#include <render/hmd.h>
+#include <render/HMD.h>
 #include <render/tile.h>
 
 class MY_SCENE : public mbm::SCENE

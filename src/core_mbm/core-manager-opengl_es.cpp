@@ -119,16 +119,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         #endif
     }
 
-    void CORE_MANAGER::ReleaseGraphics()
-    {
-        TEXTURE_MANAGER::getInstance()->release();
-        MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->window.setCallEventsManager(nullptr);
-        this->device->specificContextDevice->win32_joystickByPass->releaseJoystick(&this->device->specificContextDevice->window);
-        this->device->specificContextDevice->release();
-    }
     
-
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
         int x = width;
@@ -536,7 +527,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
         for (int i = 0; i < 2; i++)
         {
-            GLActiveTexture(GL_TEXTURE0);
+            GLActiveTexture(index[i]);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
