@@ -54,11 +54,11 @@ namespace mbm
     class MESH_MBM_DEBUG
     {
       public:
-        util::HEADER						   headerMain;
-        util::HEADER_MESH					   headerMesh;
+        util::HEADER						               headerMain;
+        util::HEADER_MESH					             headerMesh;
         INFO_PHYSICS                           infoPhysics;
         util::INFO_ANIMATION                   infoAnimation;
-        util::INFO_DRAW_MODE			       info_mode;
+        util::INFO_DRAW_MODE			             info_mode;
         VEC2                                   zoomEditorSprite;
         util::TYPE_MESH                        typeMe;
         int                                    sizeCoordTexFrame_0;
@@ -104,7 +104,7 @@ namespace mbm
         void *       extraInfo;
       private:
         void fillAtLeastOneBound();
-		bool fillInSubsetDebug(const MESH_MBM* meshMemory, 
+        bool fillInSubsetDebug(const MESH_MBM* meshMemory, 
                                const int currentFrame,
                                const std::map<int, float>& lsLetterChangedValuesByCurFrameX,
                                const std::map<int, float>& lsLetterChangedValuesByCurFrameY,
