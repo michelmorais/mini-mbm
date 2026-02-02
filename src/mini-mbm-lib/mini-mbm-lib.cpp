@@ -23,7 +23,7 @@
 #include <lua-wrap/manager-lua.h>
 #include <device.h>
 #include <version/version.h>
-#include <platform/usage-help.h>
+#include <core_mbm/usage-help.h>
 #include <defaultThemePlusWindows.h>
 
 
@@ -245,7 +245,7 @@ namespace mbm
     {
         if(args.size() <= 1 ||  (args.size() > 1 && args[1].find("help") != std::string::npos))
         {
-            help(util::getBaseName(args[0].c_str()));
+            usage::help(util::getBaseName(args[0].c_str()));
         }
         if(_my_theme_selected == false)
             mbm::setTheme(22, true);

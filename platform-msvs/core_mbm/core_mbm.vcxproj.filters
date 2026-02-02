@@ -312,6 +312,15 @@
     <ClInclude Include="..\..\include\platform\win32-platform.h">
       <Filter>Header Files\platform</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\joystick-base.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-dummy.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\usage-help.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -622,6 +631,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\platform\win32-platform.cpp">
       <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-resource-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\specific-dummy.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\usage-help.cpp">
+      <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

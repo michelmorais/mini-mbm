@@ -563,5 +563,26 @@
     <ClInclude Include="..\..\third-party\plusaes\plusaes.hpp">
       <Filter>Header Files\plusaes</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\dummy-engine.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\joystick-base.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\particle-control.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-dummy.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

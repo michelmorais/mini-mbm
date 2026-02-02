@@ -29,6 +29,62 @@ namespace mbm
 
         /* Alpha It -----------------------------------------------------------------------------------------------------*/
 
+        "edge gradient magnitude.ps",
+
+        "sampler2D sample0 : register(s0);\n"
+        "float2 imageSize;\n"
+        "float tolerance;\n"
+        "\n"
+        "struct PS_INPUT\n"
+        "{\n"
+        "    float2 vTexCoord : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "float4 xlat_main(in float2 uv) \n"
+        "{\n"
+        "    float2 offsetTexture;\n"
+        "    float2 pixel_Right;\n"
+        "    float2 pixel_Left;\n"
+        "    float2 pixel_Top;\n"
+        "    float2 pixel_Bottom;\n"
+        "    float2 gradient;\n"
+        "    float a;\n"
+        "\n"
+        "    offsetTexture = (1.00000 / imageSize);\n"
+        "    pixel_Right = (uv.xy + float2(offsetTexture.x, 0.000000));\n"
+        "    pixel_Left = (uv.xy + float2((-offsetTexture.x), 0.000000));\n"
+        "    pixel_Top = (uv.xy + float2(0.000000, offsetTexture.y));\n"
+        "    pixel_Bottom = (uv.xy + float2(0.000000, (-offsetTexture.y)));\n"
+        "    gradient = float2(length((tex2D(sample0, pixel_Right).xyz - tex2D(sample0, pixel_Left).xyz)), length((tex2D(sample0, pixel_Top).xyz - tex2D(sample0, pixel_Bottom).xyz)));\n"
+        "    a = length(gradient);\n"
+        "    return float4(a, a, a, 1.00000);\n"
+        "}\n"
+        "\n"
+        "float4 main(PS_INPUT input) : COLOR0\n"
+        "{\n"
+        "   float a = tex2D(sample0, input.vTexCoord).a;\n"
+        "   if (a == 0.0)\n"
+        "   {\n"
+        "       clip(-1);\n"
+        "       return float4(0, 0, 0, 0);\n"
+        "   }\n"
+        "    else\n"
+        "    {\n"
+        "        float4 color = xlat_main(input.vTexCoord);\n"
+        "        if(color.r <= tolerance && color.g <= tolerance && color.b <= tolerance)\n"
+        "        {\n"
+        "           clip(-1);\n"
+        "           return float4(0, 0, 0, 0);\n"
+        "        }\n"
+        "        else\n"
+        "           return xlat_main(input.vTexCoord);\n"
+        "    }\n"
+        "}\n",
+
+        "[edge-gradient-magnitude.ps] = edge gradient magnitude.ps\n"
+        "[edge-gradient-magnitude.ps][vector2][imageSize] = min 0 0 max 1024 1024 default 256 256 \n"
+        "[edge-gradient-magnitude.ps][float][tolerance] = min 0.0 max 1.0 default 0.0 \n",
+
         //AlphaIt *********************
         "alpharit.ps",
 
@@ -92,6 +148,47 @@ namespace mbm
         "[ps-color-it.ps] = color it.ps\n"
         "[ps-color-it.ps][float][enable]        = min 0.0   max 1.0   default 1.0 \n"
         "[ps-color-it.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
+
+
+        // luminance *********************
+
+        "luminance.ps",
+
+        "sampler2D sample0 : register(s0);\n"
+        "float4 color;\n"
+        "\n"
+        "struct PS_INPUT\n"
+        "{\n"
+        "    float2 vTexCoord : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "float4 xlat_main(in float2 uv) \n"
+        "{\n"
+        "    float4 texColor;\n"
+        "    float luminance;\n"
+        "    float4 xlat_var_output;\n"
+        "    float4 white = float4(1.00000, 1.00000, 1.00000, 1.00000);\n"
+        "\n"
+        "    texColor = tex2D(sample0, uv);\n"
+        "    luminance = dot(texColor, float4(0.212600, 0.715200, 0.0722000, 0.000000));\n"
+        "    xlat_var_output = float4(0.000000, 0.000000, 0.000000, 0.000000);\n"
+        "    if ((luminance < 0.500000)){\n"
+        "        xlat_var_output = ((2.00000 * texColor) * color);\n"
+        "    }\n"
+        "    else{\n"
+        "        xlat_var_output = (white - ((2.00000 * (white - texColor)) * (white - color)));\n"
+        "    }\n"
+        "    xlat_var_output.w = (texColor.w * color.w);\n"
+        "    return xlat_var_output;\n"
+        "}\n"
+        "\n"
+        "float4 main(PS_INPUT input) : COLOR0\n"
+        "{\n"
+        "    return xlat_main(input.vTexCoord);\n"
+        "}\n",
+
+        "[luminance.ps] = luminance.ps\n"
+        "[luminance.ps][rgba][color] = min 0 0 0 0 max 1.0 1.0 1.0 1.0 default 0.5 0.5 0.5 0.5 \n",
 
         //blend *********************
         "blend.ps",

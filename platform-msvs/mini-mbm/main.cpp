@@ -22,8 +22,6 @@
 #endif
 
 #pragma comment(lib, "mini-mbm.lib")
-#pragma comment(lib, "libEGL.dll.lib")
-#pragma comment(lib, "libGLESv2.dll.lib")
 #pragma comment(lib, "lua5.4.lib")
 
 #include "resource.h"

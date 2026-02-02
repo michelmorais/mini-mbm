@@ -751,6 +751,15 @@ namespace mbm
                 const bool is_opengles = strcasecmp(device->getBackendEngineName(),"OpenGL ES") == 0;
                 lua_pushboolean(lua,is_opengles ? 1 : 0);
             }
+            else if (strcasecmp(what, "USE_DIRECTX9") == 0)
+            {
+                const bool is_Directx9 = strcasecmp(device->getBackendEngineName(), "Directx9") == 0;
+                lua_pushboolean(lua, is_Directx9 ? 1 : 0);
+            }
+            else if (strcasecmp(what, "backend_engine") == 0 || strcasecmp(what, "engine") == 0)
+            {
+                lua_pushstring(lua, device->getBackendEngineName());
+            }
 			else
             {
                 lua_pushnil(lua);

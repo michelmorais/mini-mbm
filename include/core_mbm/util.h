@@ -20,6 +20,7 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include <core-exports.h>
 #include <string>
 #include <vector>
 
@@ -52,6 +53,11 @@ namespace util
 	API_IMPL void base_64_decode(const std::string & str_encoded, std::string & result);
     API_IMPL void getAABB(const float halfDimInOut[2], const float angleRadian, float *widthOut, float *heightOut) noexcept;
     API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
+
+    API_IMPL bool isBackendEngineOpenGlEs() noexcept;
+    API_IMPL bool isBackendEngineDirectx9() noexcept;
+    API_IMPL bool isBackendEngineVulkan() noexcept;
+    API_IMPL bool isBackendEngineMetal() noexcept;
 }
 
 #endif

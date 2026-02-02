@@ -81,7 +81,7 @@ namespace mbm
 
     const char* DEVICE::getBackendEngineName() const noexcept
     {
-        return "Directx 9";
+        return "Directx9";
     }
 
     const char* DEVICE::getBackendEngineVersion() const noexcept

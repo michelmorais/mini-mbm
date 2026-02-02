@@ -316,4 +316,40 @@ namespace util
         }
     }
     #endif
+
+    bool isBackendEngineOpenGlEs() noexcept
+    {
+#if defined (USE_OPENGL_ES)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineDirectx9() noexcept
+    {
+#if defined (USE_DIRECTX9)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineVulkan() noexcept
+    {
+#if defined (USE_VULKAN)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineMetal() noexcept
+    {
+#if defined (USE_METAL)
+        return true;
+#else
+        return false;
+#endif
+    }
 }
