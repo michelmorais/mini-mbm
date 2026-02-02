@@ -159,6 +159,8 @@ namespace mbm
         {
             data = pixels_from_3_depth_to_4.get(width, height, data);
         }
+        //Mipmap levels (mipMap) — affects rendering quality but not the sampling method
+        //Sampler states — controls how texels are interpolated during rendering (controled by DEVICE::disableFilteringForPixelPerfect)
         UINT mipMap = no_filter ? 1U : 0U; // 0 -> full mip chain
         DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
         if (width <= 128 && height <= 128)

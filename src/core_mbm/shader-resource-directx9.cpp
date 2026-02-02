@@ -55,6 +55,24 @@ namespace mbm
         "[ps-alpharit.ps][vector2][prop] = min 0.000000 0.000000 max 100.000000 100.000000 default 1.000000 1.33333\n"
         "[ps-alpharit.ps][float][alpha] = min 0.000000 max 1.000000 default 1.000000",
 
+        // tint **********************
+        "tint.ps",
+
+        "sampler2D sample0 : register(s0);\n"
+        "float3 color;\n"
+        "struct PS_INPUT\n"
+        "{\n"
+        "   float2 vTexCoord : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "float4 main(PS_INPUT input) : COLOR0\n"
+        "{\n"
+        "   float4 tex = tex2D(sample0, input.vTexCoord.xy);\n"
+        "   return float4(max(tex.r, color.r), max(tex.g, color.g), max(tex.b, color.b), tex.a);\n"
+        "}\n",
+
+        "[ps-tint.ps] = color it.ps\n"
+        "[ps-tint.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
 
         // color it **********************
         "color it.ps",

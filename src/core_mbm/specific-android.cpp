@@ -36,7 +36,11 @@ namespace mbm
     jclassDoCommandsJniEngine(nullptr),
     jclassKeyCodeJniEngine(nullptr),
     jclassInstanceActivityEngine(nullptr),
-    jclassAudioManagerJniEngine(nullptr)
+    jclassAudioManagerJniEngine(nullptr),
+    filter_GL_TEXTURE_WRAP_S(GL_CLAMP_TO_EDGE),
+    filter_GL_TEXTURE_WRAP_T(GL_CLAMP_TO_EDGE),
+    filter_GL_TEXTURE_MIN_FILTER(GL_NEAREST),
+    filter_GL_TEXTURE_MAG_FILTER(GL_LINEAR),
     {
         memset(this->packageName, 0, sizeof(this->packageName));
         memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));

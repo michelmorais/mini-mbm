@@ -242,7 +242,12 @@ namespace mbm
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MIPFILTER %d", Anisotropy);
             }
+            this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MINFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MINFILTER[stage]);
+            this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MAGFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[stage]);
+            this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MIPFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[stage]);
         }
+
+        
         
         device->specificContextDevice->window.disableRender(mNativeWindow);
         //TODO: set real version from DirectX

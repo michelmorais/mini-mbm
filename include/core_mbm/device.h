@@ -132,6 +132,8 @@ namespace mbm
         API_IMPL AUDIO_MANAGER_INTERFACE* getAudioManagerInterface() const noexcept;
 	    API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
         API_IMPL const char* copyFileFromAsset(const char* assetName, const char* mode);// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+		API_IMPL void disableFilteringForPixelPerfect() noexcept;//backend specific way to disable texture filtering for pixel perfect rendering
+        API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
 
       private:
         int	                                  returnCodeApp;

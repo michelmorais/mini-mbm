@@ -227,6 +227,9 @@ namespace mbm
 
     bool TILE::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
+        
         const auto * ptr_TileInfo = this->getTileInfo();
         if(backgroundTextureMap)
         {
@@ -250,19 +253,25 @@ namespace mbm
 
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
-                if(anim->fx.shader.render(&this->backGroundMap) == false)
+                if (anim->fx.shader.render(&this->backGroundMap) == false)
+                {
+					device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
         for (size_t i = 0; i < ptr_TileInfo->map.layerCount; i++)
         {
             if(lsVisible[i])
             {
-                if(renderLayer(i) == false)
+                if (renderLayer(i) == false)
+                {
+                    device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
-        
+        device->enableFilteringAfterPixelPerfect();
         return true;
     }
 
@@ -522,12 +531,11 @@ namespace mbm
     
     bool TILE::onRestoreDevice()
     {
-        this->releaseAnimation();
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
             #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             for( auto & tileObj : lsTileObjs)
             {
@@ -544,12 +552,6 @@ namespace mbm
         }
         
     }
-    
-    //void TILE::onStop()
-    //{
-    //    this->releaseAnimation();
-    //    this->mesh = nullptr;
-    //}
     
     const mbm::INFO_PHYSICS * TILE::getInfoPhysics() const
     {

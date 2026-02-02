@@ -136,5 +136,32 @@ namespace mbm
         return assetName;
     }
 
+    void DEVICE::disableFilteringForPixelPerfect()//backend specific way to disable texture filtering for pixel perfect rendering
+    {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
+		for (int i = 0; i < 2; ++i)
+        {
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MINFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MINFILTER[i]);
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MAGFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[i]);
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MIPFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[i]);
+            // Point filtering (nearest neighbor - no interpolation)
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+        }
+    }
+
+    void DEVICE::enableFilteringAfterPixelPerfect()
+    {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
+        for (int i = 0; i < 2; ++i)
+        {
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, this->specificContextDevice->DWORD_D3DSAMP_MINFILTER[i]);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, this->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[i]);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, this->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[i]);
+		}
+    }
+
+
 }
 #endif // USE_DIRECTX9

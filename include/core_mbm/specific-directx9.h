@@ -108,6 +108,9 @@ namespace mbm
         IDirect3DVertexDeclaration9* getFVF(const FVF_PROVIDE_BY_ENGINE FVF);
         void release() noexcept;
         void initializeWi32Callbacks(CORE_MANAGER* core_manager_ptr);
+        DWORD DWORD_D3DSAMP_MINFILTER[2];
+        DWORD DWORD_D3DSAMP_MAGFILTER[2];
+        DWORD DWORD_D3DSAMP_MIPFILTER[2];
     private:
         IDirect3DVertexDeclaration9* vertex_declaration_pos;
         IDirect3DVertexDeclaration9* vertex_declaration_pos_norm;

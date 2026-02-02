@@ -34,6 +34,7 @@
 #include <render/background.h>
 #include <render/font.h>
 #include <render/hmd.h>
+#include <render/tile.h>
 
 class MY_SCENE : public mbm::SCENE
 {
@@ -51,6 +52,7 @@ class MY_SCENE : public mbm::SCENE
 	mbm::STEERED_PARTICLE* steeredParticle;
     mbm::FONT_DRAW* fontDraw;
 	mbm::HMD* hmd;
+	mbm::TILE* tile;
     bool randomizeParticleEachLoop;
 
 	void randomSteeredParticlePositions();

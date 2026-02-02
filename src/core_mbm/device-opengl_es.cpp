@@ -134,5 +134,41 @@ namespace mbm
         return assetName;
         #endif
     }
+
+    void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
+    {
+		// Store current texture filtering
+		// In OPENGL this does not seem to be affecting the texture. what is affecting is to set those GLTexParameteri while loading the texture.
+        // TODO: maybe investigate??
+        constexpr GLint index[2] = { GL_TEXTURE1 , GL_TEXTURE0 };
+        GLActiveTexture(GL_TEXTURE0);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &this->specificContextDevice->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &this->specificContextDevice->filter_GL_TEXTURE_MAG_FILTER);
+
+        for (int i = 0; i < 2; i++)
+        {
+            GLActiveTexture(index[i]);
+            // 'filter' now holds the current minification filter value   
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+        
+    }
+    void DEVICE::enableFilteringAfterPixelPerfect() noexcept//backend specific way to restore texture filtering
+    {
+        constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
+        for (int i = 0; i < 2; i++)
+        {
+            GLActiveTexture(GL_TEXTURE0);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
+    }
 }
 #endif // USE_OPENGL_ES

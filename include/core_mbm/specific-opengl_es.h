@@ -574,6 +574,12 @@ namespace mbm
         jclass      jclassKeyCodeJniEngine;
         jclass      jclassInstanceActivityEngine;
         jclass      jclassAudioManagerJniEngine;
+
+        GLint filter_GL_TEXTURE_WRAP_S;
+        GLint filter_GL_TEXTURE_WRAP_T;
+        GLint filter_GL_TEXTURE_MIN_FILTER;
+        GLint filter_GL_TEXTURE_MAG_FILTER;
+
         SPECIFIC_AUX_CONTEXT_DEVICE();
         ~SPECIFIC_AUX_CONTEXT_DEVICE();
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
@@ -614,8 +620,13 @@ namespace mbm
         EGLDisplay eglDisplay;
         EGLSurface eglSurface;
         EGLContext eglContext;
-            Window     window_x11;
-            Display *  display_x11;
+        Window     window_x11;
+        Display *  display_x11;
+
+        GLint filter_GL_TEXTURE_WRAP_S;
+        GLint filter_GL_TEXTURE_WRAP_T;
+        GLint filter_GL_TEXTURE_MIN_FILTER;
+        GLint filter_GL_TEXTURE_MAG_FILTER;
     
     void make_x_window(const char *name, int x, int y,uint32_t width,uint32_t height, bool border);
             
@@ -626,6 +637,11 @@ namespace mbm
             this->eglContext = EGL_NO_CONTEXT;
             this->window_x11 = 0;
             this->display_x11 = nullptr;
+
+            filter_GL_TEXTURE_WRAP_S = GL_CLAMP_TO_EDGE;
+            filter_GL_TEXTURE_WRAP_T = GL_CLAMP_TO_EDGE;
+            filter_GL_TEXTURE_MIN_FILTER = GL_NEAREST;
+            filter_GL_TEXTURE_MAG_FILTER = GL_LINEAR;
         }
 
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
@@ -666,24 +682,33 @@ namespace mbm
         EGLSurface eglSurface;
         EGLContext eglContext;
 
-		WIN_EVENT_BY_PASS* win32_EventByPass;
+        WIN_EVENT_BY_PASS* win32_EventByPass;
         WIN_JOYSTICK_BY_PASS* win32_joystickByPass;
         
+        GLint filter_GL_TEXTURE_WRAP_S;
+        GLint filter_GL_TEXTURE_WRAP_T;
+        GLint filter_GL_TEXTURE_MIN_FILTER;
+        GLint filter_GL_TEXTURE_MAG_FILTER;
         
         SPECIFIC_AUX_CONTEXT_DEVICE()
         {
             this->idIcon = 0;
-			this->win32_joystickByPass = nullptr;
+            this->win32_joystickByPass = nullptr;
             this->win32_EventByPass = nullptr;
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
+
+            filter_GL_TEXTURE_WRAP_S     =  GL_CLAMP_TO_EDGE;
+            filter_GL_TEXTURE_WRAP_T     =  GL_CLAMP_TO_EDGE;
+            filter_GL_TEXTURE_MIN_FILTER =  GL_NEAREST;
+            filter_GL_TEXTURE_MAG_FILTER =  GL_LINEAR;
         }
 
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
         {
             release();
-			// do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
+            // do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
             if (this->win32_EventByPass)
                 delete this->win32_EventByPass;
             this->win32_EventByPass = nullptr;

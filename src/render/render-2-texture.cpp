@@ -410,27 +410,26 @@ namespace mbm
     bool RENDER_2_TEXTURE::onRestoreDevice()
     {
         std::vector<std::string> result;
+        this->texture = nullptr;
+        this->bufferGL.release();
         util::split(result, this->fileName.c_str(), '|');
-        if (result.size() <= 1)
+        if (result.size() != 7)
             return false;
         if (result[0].compare("rende2texture") == 0)
         {
-            if (result.size() != 7)
-                return false;
             const char *fileNameTexture = result[1].c_str();
             if (result[1].size() == 0)
                 return false;
-            const auto width    = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
-            const auto height   = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
-            bool               hasAlpha = result[6].compare("true") == 0 ? true : false;
-            this->texture               = nullptr;
-            CUBE *      cube            = this->infoPhysics.lsCube[0];
-            const float widthFrame      = cube->halfDim.x * 2.0f;
-            const float heightFrame     = cube->halfDim.y * 2.0f;
+            const auto width  = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
+            const auto height = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
+            bool     hasAlpha = result[6].compare("true") == 0 ? true : false;
+            float widthFrame  = 0;
+            float heightFrame = 0;
+            this->infoPhysics.getBounds(&widthFrame, &heightFrame);
             if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
 #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
+            PRINT_INFO_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
 #endif
             return true;
         }

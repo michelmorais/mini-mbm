@@ -189,72 +189,72 @@ namespace mbm
         return false;
     }
 
-	bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
-	{
-		if(colorAsString == nullptr)
-		{
-			PRINT_IF_DEBUG("Color string expected is null");
-			return false;
-		}
-		if(colorAsString[0] != '#')
-		{
-			PRINT_IF_DEBUG("Color string expected is '#'");
-			return false;
-		}
-		this->fileName = colorAsString;
-		COLOR color;
-		colorAsString++;
-		int len = strlen(colorAsString);
-		if (len == 8)
-		{
-			char alpha[3] = {0,0,0};
-			alpha[0] = *colorAsString;
-			colorAsString++;
-			alpha[1] = *colorAsString;
-			colorAsString++;
-			const int n = strtol(colorAsString,nullptr, 16);
-			color = COLOR(n);
-			color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
-		}
-		else if (len == 6)
-		{
-			const int n = strtol(colorAsString, nullptr, 16);
-			color = COLOR(n);
-			color.a = 1.0f;
-		}
-		if(hasColorAlpha)
-		{
-			uint8_t pixel[4 * 4 * 4];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			uint8_t a = 255;
-			color.get(&r,&g,&b,&a);
-			for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-				pixel[i+3] = a;
-			}
-			return this->loadFromData(pixel,4,4,8,4,true);
-		}
-		else
-		{
-			uint8_t pixel[4 * 4 * 3];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			color.get(&r,&g,&b);
-			for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-			}
-			return this->loadFromData(pixel,4,4,8,3,false);
-		}
-	}
+    bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
+    {
+        if(colorAsString == nullptr)
+        {
+            PRINT_IF_DEBUG("Color string expected is null");
+            return false;
+        }
+        if(colorAsString[0] != '#')
+        {
+            PRINT_IF_DEBUG("Color string expected is '#'");
+            return false;
+        }
+        this->fileName = colorAsString;
+        COLOR color;
+        colorAsString++;
+        int len = strlen(colorAsString);
+        if (len == 8)
+        {
+            char alpha[3] = {0,0,0};
+            alpha[0] = *colorAsString;
+            colorAsString++;
+            alpha[1] = *colorAsString;
+            colorAsString++;
+            const int n = strtol(colorAsString,nullptr, 16);
+            color = COLOR(n);
+            color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
+        }
+        else if (len == 6)
+        {
+            const int n = strtol(colorAsString, nullptr, 16);
+            color = COLOR(n);
+            color.a = 1.0f;
+        }
+        if(hasColorAlpha)
+        {
+            uint8_t pixel[4 * 4 * 4];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            uint8_t a = 255;
+            color.get(&r,&g,&b,&a);
+            for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+                pixel[i+3] = a;
+            }
+            return this->loadFromData(pixel,4,4,8,4,true);
+        }
+        else
+        {
+            uint8_t pixel[4 * 4 * 3];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            color.get(&r,&g,&b);
+            for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+            }
+            return this->loadFromData(pixel,4,4,8,3,false);
+        }
+    }
     
     bool TEXTURE::load(const char *fileNameTexture, const bool hasColorAlpha)
     {
@@ -262,8 +262,8 @@ namespace mbm
             return false;
         this->release();
         this->useAlphaChannel = true;
-		if(fileNameTexture[0] == '#' )
-			return loadSolidColor(fileNameTexture,hasColorAlpha);
+        if(fileNameTexture[0] == '#' )
+            return loadSolidColor(fileNameTexture,hasColorAlpha);
         std::vector<std::string> result;
         util::split(result, fileNameTexture, '.');
         if (result.size() == 0)
@@ -726,8 +726,8 @@ namespace mbm
     
     const char * TEXTURE_MANAGER::getFilePathTexture(const char *fileName,const char* fullFileName)
     {
-		if(fileName && fileName[0] == '#')
-			return fileName;
+        if(fileName && fileName[0] == '#')
+            return fileName;
 #if defined (ANDROID)
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
