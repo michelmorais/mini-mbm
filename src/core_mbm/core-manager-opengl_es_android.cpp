@@ -22,6 +22,10 @@
 #if defined(ANDROID)
 
 #include <core-manager.h>
+#include <mesh-manager.h>
+#include <texture-manager.h>
+#include <device.h>
+#include <specific-opengl_es.h>
 
 
 namespace mbm
@@ -29,6 +33,13 @@ namespace mbm
     void CORE_MANAGER::handleEventFromWindow()
     {
         // do nothing, events are handled from JNI
+    }
+
+    void CORE_MANAGER::ReleaseGraphics()
+    {
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->release();
     }
 }
 
