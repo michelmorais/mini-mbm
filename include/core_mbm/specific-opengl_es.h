@@ -561,7 +561,13 @@ namespace log_util
 
 namespace mbm
 {
+
+#if !defined (ANDROID)
+void printEGLStringNewLine(EGLDisplay eglDisplay,const char delimit);
+#endif
     
+void printGLString(const char *name, GLenum s);
+void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
     struct SPECIFIC_AUX_CONTEXT_DEVICE
@@ -795,4 +801,6 @@ namespace mbm
     
 }
 #endif
+
+
 #endif

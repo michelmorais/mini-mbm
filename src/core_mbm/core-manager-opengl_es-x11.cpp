@@ -27,6 +27,8 @@
 #include <mesh-manager.h>
 #include <device.h>
 #include <specific-opengl_es.h>
+#include <miniz-wrap/miniz-wrap.h>
+#include <audio-interface.h>
 #include <cassert>
 #include <thread>
 #include <X11/Xlib.h>
@@ -41,6 +43,109 @@
 
 namespace mbm
 {
+    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    {
+        int x = width;
+        int y = height;
+        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        char * dpyName = nullptr;
+        EGLint egl_major = 0;
+        EGLint egl_minor = 0;
+        this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
+        if (!this->device->specificContextDevice->display_x11)
+        {
+            printf("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
+            return false;
+        }
+    #ifdef __APPLE__
+        this->device->specificContextDevice->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        #pragma message("Check if this is correct for MacOS")
+    #else
+        this->device->specificContextDevice->eglDisplay = eglGetDisplay((EGLNativeDisplayType) this->device->specificContextDevice->display_x11);
+    #endif
+        if (!this->device->specificContextDevice->eglDisplay)
+        {
+            printf("Error: eglGetDisplay() failed\n");
+            return false;
+        }
+
+        if (!eglInitialize(this->device->specificContextDevice->eglDisplay, &egl_major, &egl_minor))
+        {
+            printf("Error: eglInitialize() failed\n");
+            return false;
+        }
+        Screen *screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
+        if ((height + 60) >= screen->height)
+        {
+            height -= 60;
+            y = height;
+        }
+        const int cx = screen ? (screen->width - width) / 2 : 0;
+        const int cy = screen ? (screen->height - height) / 2 : 0;
+        this->device->specificContextDevice->make_x_window(nameAplication, cx, cy, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
+
+        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
+        if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))
+        {
+            printf("Error: eglMakeCurrent() failed\n");
+            return false;
+        }
+
+        if (device->verbose)
+        {
+            printGLString("\nversion:\n", GL_VERSION);
+            printGLString("vendor:\n", GL_VENDOR);
+            printGLString("renderer:\n", GL_RENDERER);
+            //printGLStringNewLine("Extensions:\n", GL_EXTENSIONS, ' ');
+            //printEGLStringNewLine(this->device->specificContextDevice->display,' ');
+            MINIZ::showVersion();
+            INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
+        }
+
+
+        GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
+        GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        GLDepthRangef(0.0f, 1.0f);
+        GLEnable(GL_CULL_FACE);
+        GLCullFace(GL_BACK);//initial value, any mesh can decide it
+        GLFrontFace(GL_CW); //initial value, any mesh can decide it
+        GLEnable(GL_DEPTH_TEST);
+        // GLDepthFunc(GL_GREATER);
+        // GLDepthFunc(GL_LESS);
+        GLDepthFunc(GL_LEQUAL);
+        GLClearDepthf(1.0f);
+        GLEnable(GL_BLEND);
+        if (x > 0)
+            device->backBufferWidth = static_cast<float>(x);
+        if (y > 0)
+            device->backBufferHeight = static_cast<float>(y);
+
+        TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
+        GLint maxTextureSize = 0;
+        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
+        //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
+        const GLint MaxTextureWidth = maxTextureSize;
+        const GLint MaxTextureHeight = MaxTextureWidth;
+        texture_manager->setTextureCapabilities(static_cast<const int32_t>(maxTextureSize), static_cast<const int32_t>(MaxTextureWidth), static_cast<const int32_t>(MaxTextureHeight));
+
+        constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
+        for (int i = 0; i < 2; i++)
+        {
+            GLActiveTexture(index[i]);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
+
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, &device->specificContextDevice->filter_GL_TEXTURE_WRAP_S);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, &device->specificContextDevice->filter_GL_TEXTURE_WRAP_T);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &device->specificContextDevice->filter_GL_TEXTURE_MIN_FILTER);
+        glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &device->specificContextDevice->filter_GL_TEXTURE_MAG_FILTER);
+
+        return true;
+    }
+
     void CORE_MANAGER::initializeWindowx11()
     {
         XSelectInput(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
