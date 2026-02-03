@@ -19,8 +19,24 @@
 
 
 #include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_stdlib.h" 
+
+#if defined USE_OPENGL_ES
+
+    #ifndef IMGUI_IMPL_OPENGL_ES2
+        #define IMGUI_IMPL_OPENGL_ES2
+    #endif //!IMGUI_IMPL_OPENGL_ES2
+    #ifndef IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+        #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+    #endif // !IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+    #include "imgui_impl_opengl3.h"
+    #include "imgui_stdlib.h"
+#elif defined USE_DIRECTX9
+    #include "imgui_impl_dx9.h"
+#else
+    #error "you need to define a rendering backend for imgui"
+#endif
+
+
 
 #if defined _WIN32
     #include "imgui_impl_win32.h"
@@ -822,25 +838,25 @@ static const std::map<std::string,ImGuiCol_> ImGuiCol_map = {
 void lua_log_error(lua_State *lua,const char * message)
 {
     lua_Debug ar;
-	memset(&ar, 0, sizeof(lua_Debug));
-	if (lua_getstack(lua, 1, &ar))
-	{
-		if (lua_getinfo(lua, "nSl", &ar))
-		{
+    memset(&ar, 0, sizeof(lua_Debug));
+    if (lua_getstack(lua, 1, &ar))
+    {
+        if (lua_getinfo(lua, "nSl", &ar))
+        {
             static bool show_stack = false;
             if(show_stack == false)
                 mbm::printStack(lua,ar.short_src,ar.currentline);
             show_stack = true;
-			luaL_error(lua,"File[%s] line [%d] \n    %s",ar.short_src,ar.currentline,message);
-		}
-		else
-		{
-			luaL_error(lua,"File[unknown] line [?] \n    %s",message);
-		}
-	}
-	else
-	{
-		luaL_error(lua,"File[unknown] line [?] \n    %s",message);
+            luaL_error(lua,"File[%s] line [%d] \n    %s",ar.short_src,ar.currentline,message);
+        }
+        else
+        {
+            luaL_error(lua,"File[unknown] line [?] \n    %s",message);
+        }
+    }
+    else
+    {
+        luaL_error(lua,"File[unknown] line [?] \n    %s",message);
     }
 }
 
@@ -990,7 +1006,7 @@ public:
     }
     const int       KEY_SPACE,KEY_0,KEY_1,KEY_9,KEY_A,KEY_Z;
     float           delta,sx,sy;
-	bool            beginRenderWasCalled;
+    bool            beginRenderWasCalled;
     
     ImVec2 MousePos,MousePosPrev;
 
@@ -1023,7 +1039,8 @@ public:
             //#endif
 #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_Init("#version 100");
-			
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_Init(_context);
 #else
             #error "Not implemented for ImGui Init"
 #endif
@@ -1646,6 +1663,8 @@ public:
 
 #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_NewFrame();
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_NewFrame();
 #else
             #error "Not implemented for ImGui NewFrame"
 #endif
@@ -1685,6 +1704,8 @@ public:
             ImDrawData* draw_data = ImGui::GetDrawData();
 #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_RenderDrawData(draw_data);
 #else
             #error "Not implemented for ImGui RenderDrawData"
 #endif
@@ -1694,6 +1715,8 @@ public:
     {
 #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
         ImGui_ImplOpenGL3_Shutdown();
+#elif defined USE_DIRECTX9
+        ImGui_ImplDX9_Shutdown();
 #else
         #error "Not implemented for ImGui Shutdown"
 #endif

@@ -513,25 +513,19 @@ namespace mbm
         {
             if (strlen(nameVar) >= 255)
             {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("max size 255!");
-#endif
+                ERROR_LOG("max size 255!");
                 return false;
             }
             if (isThereVarIntoLsVars(nameVar))
             {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("Variable [%s] already exist.", nameVar);
-#endif
+                ERROR_LOG("Variable [%s] already exist.", nameVar);
                 return false;
             }
             auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
             
             if (var->ptrHandleVar == nullptr)
             {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("Not initialized ptrHandleVar: '%s' into shader HLSL! \"", nameVar);
-#endif
+                ERROR_LOG("Not initialized ptrHandleVar: '%s' into shader HLSL! \"", nameVar);
                 delete var;
                 return true;
             }
@@ -548,9 +542,7 @@ namespace mbm
             
             if (*pHandleVar == nullptr)
             {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("Not found variable: '%s' into shader HLSL! \"", nameVar);
-#endif
+                ERROR_LOG("Not found variable: '%s' into shader HLSL! \"", nameVar);
                 delete var;
                 return true;
             }
