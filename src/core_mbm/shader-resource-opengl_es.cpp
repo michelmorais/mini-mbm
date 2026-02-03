@@ -77,6 +77,42 @@ namespace mbm
 
     // gaussian *********************
 
+    "pie.ps",
+
+    "precision mediump float;\n"
+    "uniform sampler2D sample0;\n"
+    "varying vec2 vTexCoord;\n"
+    "uniform float percent;\n"
+    "uniform float angle;\n"
+    "uniform float clockwise;\n"
+    "\n"
+    "void main( )\n"
+    "{\n"
+    "    float x = vTexCoord.x - 0.5;\n"
+    "    float y = vTexCoord.y - 0.5;\n"
+    "    x = x * cos(angle) - y * sin(angle);\n"
+    "    y = x * sin(angle) + y * cos(angle);\n"
+    "    \n"
+    "    float a = atan(y,x);\n"
+    "    \n"
+    "    if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))\n"
+    "    {\n"
+    "        gl_FragColor = texture2D(sample0, vTexCoord);\n"
+    "    }\n"
+    "    else\n"
+    "    {\n"
+    "        discard;\n"
+    "    }\n"
+    "}\n",
+
+    "[ps-pie.ps] = pie.ps\n"
+    "[ps-pie.ps][float][percent] = min -3.1415 max 3.1415 default 0.0 \n"
+    "[ps-pie.ps][float][angle] = min -3.1415 max 3.1415 default 0.0 \n"
+    "[ps-pie.ps][float][clockwise] = min 0.0 max 1.0 default 1.0 \n",
+    
+    // pie *********************
+    
+
     "explosion gaussian.ps",
 
     "precision mediump float;\n"

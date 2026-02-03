@@ -96,25 +96,25 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    this->texBox            = new mbm::TEXTURE_VIEW(this, false, true);
+    this->texBox            = new mbm::TEXTURE_VIEW(this, false, false);
     this->texBox->load("wooden-box.jpg", 200, 200);
 
-	this->fontDraw = new mbm::FONT_DRAW(this);
-    if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
-    {
-		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
-        this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
-    }
+	//this->fontDraw = new mbm::FONT_DRAW(this);
+    //if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
+    //{
+	//	this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
+    //    this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
+    //}
 
     //if (meshDebug.loadDebugFromMemory(this->fontDraw->getMesh()))
     //{
     //    meshDebug.getInfo()
     //}
     
-	tile = new mbm::TILE(this, false, false);
-    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");
-    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
-    tile->load("tile-stage-1.tile");
+	//tile = new mbm::TILE(this, false, false);
+    //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");
+    //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
+    //tile->load("tile-stage-1.tile");
     
     //this->texBox->position.z = 0.11;
     //this->texBox->alwaysRenderize = true;
@@ -148,9 +148,14 @@ void MY_SCENE::init()
     //}
     
     
-    //sprite = new mbm::SPRITE(this, false, false);
+    sprite = new mbm::SPRITE(this, false, false);
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
-    //sprite->alwaysRenderize = true;
+    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
+    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
+
+    sprite->load("pie.spt");
+    sprite->alwaysRenderize = true;
+    sprite->position.z = 1;
     
     
     //**************
@@ -286,10 +291,43 @@ void MY_SCENE::logic()
     {
         randomSteeredParticlePositions();
     }
+    if (sprite)
+    {
+        //auto fx = sprite->getFx();
+        //if (fx)
+        //{
+        //    float              data[4] = { 0,0,0,0 };
+        //    fx->getVarPShader("percent", data);
+        //    INFO_LOG("data : %g", data[0]);
+        //    //data[0] += 0.01f;
+        //    //if (data[0] > 1.0f)
+        //    //    data[0] = 0.0f;
+        //    //fx->setVarPShader("percent", data);
+		//}
+    }
 }
 
-void MY_SCENE::onTouchDown(int, float, float)
+void MY_SCENE::onTouchDown(int key, float, float)
 {
+	INFO_LOG("Touch down key: %d", key);
+    if (sprite)
+    {
+        if (key == 0)
+        {
+            auto fx = sprite->getFx();
+            if (fx)
+            {
+                float              data[4] = { 0,0,0,0 };
+                fx->setVarPShader("percent", data);
+
+            }
+        }
+        else
+        {
+            sprite->restartAnimation();
+        }
+    }
+    
 }
 
 void MY_SCENE::onTouchUp(int, float, float)

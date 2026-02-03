@@ -1128,12 +1128,12 @@ namespace mbm
 
     void ANIMATION_MANAGER::backupAnimations() noexcept
     {
-		animationBackup.backup(this);
+        animationBackup.backup(this);
     }
 
     void ANIMATION_MANAGER::restoreBackupAnimations() noexcept
     {
-		animationBackup.restore(this);
+        animationBackup.restore(this);
     }
 
     bool ANIMATION_MANAGER::setTexture(
@@ -1207,8 +1207,8 @@ namespace mbm
                 this->lsAnimationState.push_back(state);
             }
             this->indexCurrentAnimation = animationManager->indexCurrentAnimation;
-			//after backup, release all animations because onRestore we will recreate them
-			animationManager->releaseAnimation();
+            //after backup, release all animations because onRestore we will recreate them
+            animationManager->releaseAnimation();
         }
     }
 

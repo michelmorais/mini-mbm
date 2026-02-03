@@ -721,8 +721,8 @@ namespace mbm
                                         "struct VS_INPUT"
                                         "{"
                                         "    float4 position : POSITION;"
+                                        "    float3 normal : NORMAL;"
                                         "    float2 texCoord : TEXCOORD0;"
-                                        // "    float3 normal : NORMAL;" Per-vertex normal information we will pass in. (not used, removed since cause confusion
                                         "};"
                                         ""
                                         "struct VS_OUTPUT"
@@ -969,16 +969,40 @@ namespace mbm
                 return false;
             }
 
+            // SET RENDER STATES EARLY - before rendering anything
+            //pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+            //pd3dDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+            //pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+            //pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);  // Disable depth for sprites
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                // DEBUG: Log texture info
+                //PRINT_IF_DEBUG("Subset %u: texture0=%p, indexStart=%d, indexCount=%d",
+                //    i, texture0,
+                //    pBufferId->indexStartIB[i],
+                //    pBufferId->indexCountIB[i]);
+
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    //PRINT_IF_DEBUG("  Texture pointer: %p", pp3DTexture9);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
+
+                    // ADD THIS - Set sampler states!
+                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+
+                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+
+                    
                 }
                 else
                 {
+                    //PRINT_IF_DEBUG("  WARNING: texture0 is NULL!");
                     pd3dDevice->SetTexture(0, nullptr);
                 }
 

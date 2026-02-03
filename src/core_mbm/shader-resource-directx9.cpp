@@ -150,6 +150,45 @@ namespace mbm
         "[ps-color-it.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
 
 
+        "pie.ps",
+
+        "sampler2D sample0 : register(s0);\n"
+        "float percent;\n"
+        "float angle;\n"
+        "float clockwise;\n"
+        "\n"
+        "struct PS_INPUT\n"
+        "{\n"
+        "    float2 vTexCoord : TEXCOORD0;\n"
+        "};\n"
+        "\n"
+        "float4 main(PS_INPUT input) : COLOR0\n"
+        "{\n"
+        "    float x = input.vTexCoord.x - 0.5;\n"
+        "    float y = input.vTexCoord.y - 0.5;\n"
+        "    x = x * cos(angle) - y * sin(angle);\n"
+        "    y = x * sin(angle) + y * cos(angle);\n"
+        "    \n"
+        "    float a = atan2(y, x);\n"
+        "    \n"
+        "    if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))\n"
+        "    {\n"
+        "        return tex2D(sample0, input.vTexCoord);\n"
+        "    }\n"
+        "    else\n"
+        "    {\n"
+        "        clip(-1);\n"
+        "        return float4(0, 0, 0, 0);\n"
+        "    }\n"
+        "}\n",
+
+        "[ps-pie.ps] = pie.ps\n"
+        "[ps-pie.ps][float][percent] = min -3.1415 max 3.1415 default 0.0 \n"
+        "[ps-pie.ps][float][angle] = min -3.1415 max 3.1415 default 0.0 \n"
+        "[ps-pie.ps][float][clockwise] = min 0.0 max 1.0 default 1.0 \n",
+
+        // pie *********************
+            
         // luminance *********************
 
         "luminance.ps",

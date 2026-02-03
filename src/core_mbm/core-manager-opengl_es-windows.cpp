@@ -21,6 +21,7 @@
 #if defined (USE_OPENGL_ES)
 
 #include <specific-opengl_es.h>
+#include <util-interface.h>
 #include <core-manager.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>
@@ -86,7 +87,7 @@ namespace mbm
             this->device->specificContextDevice->idIcon,false))
         {
             device->specificContextDevice->window.messageBox("error on init app ... will be closed ");
-            PRINT_IF_DEBUG( "error on init app ... will be closed %s", "error on create window");
+            PRINT_IF_DEBUG("error on init app ... will be closed %s", "error on create window");
             return false;
         }
         device->specificContextDevice->window.setMinSizeAllowed(800,600);
@@ -131,8 +132,10 @@ namespace mbm
             ERROR_LOG(" EGL could not be initialized");
             return false;
         }
-        if(device->verbose)
-            INFO_LOG("EGL version %d.%d",eglVersionMajor,eglVersionMinor);
+        if (device->verbose)
+        {
+            INFO_LOG("EGL version %d.%d", eglVersionMajor, eglVersionMinor);
+        }
         if(eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE)
         {
             ERROR_LOG(" EGL could not be initialized");
