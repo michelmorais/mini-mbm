@@ -23,7 +23,7 @@
 
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/device.h>
-#include <platform/usage-help.h>
+#include <core_mbm/usage-help.h>
 #include <util-interface.h>
 
 int main(const int argc,const char **argv)
@@ -34,7 +34,7 @@ int main(const int argc,const char **argv)
 		(strcmp(argv[1], "help")   == 0) || 
 		(strcmp(argv[1], "-help")  == 0))))
     {
-        help(util::getBaseName(argv[0]));
+        usage::help(util::getBaseName(argv[0]));
     }
     mbm::LUA_MANAGER luaCore(argc, argv);
     log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
