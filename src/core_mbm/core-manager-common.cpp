@@ -95,6 +95,11 @@ namespace mbm
 						ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::loop() - Unknown event type %d.", event.eventType);
                     }
                     break;
+                    case ONMOVEWINDOW:
+                    {
+                        this->moveWindow(static_cast<int>(event.x), static_cast<int>(event.y));
+                    }
+                    break;
                     case ONRESIZEWINDOW:
                     {
                         if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
@@ -108,8 +113,6 @@ namespace mbm
                         this->device->backBufferHeight = event.y;
                         if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
                         {
-                            // Call onStop and forceRestore to ensure all resources are reloaded
-                            this->onStop();
                             // trigger full restore
                             this->forceRestore(doSwapBuffers);
                         }
@@ -791,7 +794,8 @@ namespace mbm
             char stretchBefore[sizeof(this->device->camera.stretch)] = {};
             strncpy(stretchBefore, this->device->camera.stretch, sizeof(stretchBefore) - 1);
 
-            this->ReleaseGraphics();
+            constexpr bool wasLostDevice = true;
+            this->ReleaseGraphics(wasLostDevice);
 
             if (initGraphics(this->nameAplication.c_str(), width, height, px, py, false, false))
             {
@@ -1016,8 +1020,9 @@ namespace mbm
 
      void CORE_MANAGER::forceRestore(const bool doSwapBuffers)
     {
+        // Call onStop and forceRestore to ensure all resources are reloaded
         this->onStop();
-        while (!this->onLostDevice(doSwapBuffers, static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
+        while (!this->onLostDevice(doSwapBuffers, static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),this->device->windowPositionX, this->device->windowPositionY));
     }
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)
@@ -1107,6 +1112,12 @@ namespace mbm
          this->pushEvent(&ev);
      }
 
+     void CORE_MANAGER::onWindowMove(int x, int y)
+     {
+         EVENT_KEY ev(static_cast<float>(x), static_cast<float>(y), 0, EVENT_TYPE_ACTIONS::ONMOVEWINDOW);
+         this->pushEvent(&ev);
+     }
+     
      void CORE_MANAGER::pushEvent(EVENT_KEY* event)
      {
          if (event && this->device->scene && this->__sceneWasInit)
@@ -1116,80 +1127,92 @@ namespace mbm
              {
                  switch (event->eventType)
                  {
-                     case UNKNOWN: 
-                     {
-                         mutexEvents.unlock();
-                         return;
-                     }
-                     break;
-                     case ONRESIZEWINDOW:
-                     {
-                         EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
-                         if (event_onresize)
-                         {
-							 //update resize event only
-							 *event_onresize = *event;
-                         }
-                         mutexEvents.unlock();
-                         return;
-                     }
-                     break;
-                     case ONTOUCHMOVE:
-                     {
-                         if (event->key == this->lastEvent.key &&
-							 (static_cast<int>(event->x) == static_cast<int>(this->lastEvent.x) &&
-							  static_cast<int>(event->y) == static_cast<int>(this->lastEvent.y)))
-                         {
-							 //ignore move event with same position only
-                             mutexEvents.unlock();
-                             return;
-                         }
-                     }
-                     break;
-                     case ONTOUCHDOWN:
-                     case ONTOUCHUP:
-                     case ONDOUBLECLICK:
-                     {
-                         if (event->key == this->lastEvent.key)
-                         {
-                             EVENT_KEY* event_touch = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
-                             if (event_touch)
-                             {
-                                 *event_touch = *event;
-                             }
-                             mutexEvents.unlock();
-                             return;
-                         }
-                     }
-                     break;
-                     case ONKEYDOWN:
-                     case ONKEYUP:
-                     {
-                         if (event->key == this->lastEvent.key)
-                         {
-                             mutexEvents.unlock();
-                             return;
-                         }
-                     }
-                     break;
-                     case ONTOUCHZOOM: 
-                     {
-                         if (event->key == this->lastEvent.key)
-                         {
-                             EVENT_KEY* event_zoom = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
-                             if (event_zoom)
-                             {
-                                 *event_zoom = *event;
-                             }
-                             mutexEvents.unlock();
-                             return;
-                         }
-                     }
-                     break;
-                     default: 
-                     {
-                     }
-                     break;
+                    case UNKNOWN: 
+                    {
+                        mutexEvents.unlock();
+                        return;
+                    }
+                    break;
+                    case ONRESIZEWINDOW:
+                    {
+                        EVENT_KEY* event_onresize = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        if (event_onresize)
+                        {
+                            //update resize event only
+                            *event_onresize = *event;
+                        }
+                        mutexEvents.unlock();
+                        return;
+                    }
+                    break;
+                    case ONMOVEWINDOW:
+                    {
+                        EVENT_KEY* event_onmove = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                        if (event_onmove)
+                        {
+                            //update move event only
+                            *event_onmove = *event;
+                        }
+                        mutexEvents.unlock();
+                        return;
+                    }
+                    break;
+                    case ONTOUCHMOVE:
+                    {
+                        if (event->key == this->lastEvent.key &&
+                            (static_cast<int>(event->x) == static_cast<int>(this->lastEvent.x) &&
+                            static_cast<int>(event->y) == static_cast<int>(this->lastEvent.y)))
+                        {
+                            //ignore move event with same position only
+                            mutexEvents.unlock();
+                            return;
+                        }
+                    }
+                    break;
+                    case ONTOUCHDOWN:
+                    case ONTOUCHUP:
+                    case ONDOUBLECLICK:
+                    {
+                        if (event->key == this->lastEvent.key)
+                        {
+                            EVENT_KEY* event_touch = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            if (event_touch)
+                            {
+                                *event_touch = *event;
+                            }
+                            mutexEvents.unlock();
+                            return;
+                        }
+                    }
+                    break;
+                    case ONKEYDOWN:
+                    case ONKEYUP:
+                    {
+                        if (event->key == this->lastEvent.key)
+                        {
+                            mutexEvents.unlock();
+                            return;
+                        }
+                    }
+                    break;
+                    case ONTOUCHZOOM: 
+                    {
+                        if (event->key == this->lastEvent.key)
+                        {
+                            EVENT_KEY* event_zoom = this->lsEvents.size() > 0 ? &this->lsEvents.back() : nullptr;
+                            if (event_zoom)
+                            {
+                                *event_zoom = *event;
+                            }
+                            mutexEvents.unlock();
+                            return;
+                        }
+                    }
+                    break;
+                    default: 
+                    {
+                    }
+                    break;
                  }
              }
              this->lastEvent = *event;

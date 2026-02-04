@@ -652,10 +652,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
         {
-            release();
+            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
+            release(wasDeviceLost);
         }
 
-        void release()
+        void release(bool wasDeviceLost)
         {
             if(this->eglDisplay != EGL_NO_DISPLAY)
                 eglTerminate(this->eglDisplay);
@@ -663,12 +664,15 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
                 eglDestroySurface(this->eglDisplay, this->eglSurface);
             if(this->eglContext != EGL_NO_CONTEXT)
                 eglDestroyContext(this->eglDisplay, this->eglContext);
-            if (this->display_x11 != nullptr && this->window_x11 != 0)
+            if(wasDeviceLost == false) // we keep the window and display if we are lost device, because we will reuse them
             {
-                XDestroyWindow(this->display_x11, this->window_x11);
-                XCloseDisplay(this->display_x11);
-                this->display_x11 = nullptr;
-                this->window_x11 = 0;
+                if (this->display_x11 != nullptr && this->window_x11 != 0)
+                {
+                    XDestroyWindow(this->display_x11, this->window_x11);
+                    XCloseDisplay(this->display_x11);
+                    this->display_x11 = nullptr;
+                    this->window_x11 = 0;
+                }
             }
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
@@ -713,7 +717,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
         ~SPECIFIC_AUX_CONTEXT_DEVICE()
         {
-            release();
+            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
+            release(wasDeviceLost);
             // do not need to release  the win32 events and joystick here, because the core manager is still the same (in case of lost device)
             if (this->win32_EventByPass)
                 delete this->win32_EventByPass;
@@ -735,7 +740,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
             this->win32_joystickByPass = new WIN_JOYSTICK_BY_PASS(core_manager_ptr ? reinterpret_cast<JOYSTICK_BASE*>(core_manager_ptr) : nullptr);
         }
 
-        void release()
+        void release(bool wasDeviceLost)
         {
             if (this->eglDisplay != EGL_NO_DISPLAY)
                 eglTerminate(this->eglDisplay);

@@ -58,7 +58,8 @@ namespace mbm
         ONDOUBLECLICK,
         ONSTREAMSTOPED,
         ONCALLBACKCOMMANDS,
-        ONRESIZEWINDOW
+        ONRESIZEWINDOW,
+        ONMOVEWINDOW // custom event for window move (not from engine, but from OS windowing system)
     };
 
     enum WHICH_FOR : char
@@ -89,13 +90,19 @@ namespace mbm
             float y;
             float ly;
         };
-        int                key;
-        int                player;
+        union {
+            int key;
+            int width;
+        };
+        union {
+            int player;
+            int height;
+        };
         float              rx, ry;
         EVENT_TYPE_ACTIONS eventType;
         constexpr EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
         {}
-            
+
         constexpr EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
             : x(_x),
                 y(_y),
@@ -105,6 +112,17 @@ namespace mbm
                 ry(0.0f),
                 eventType(_eventName)
         {}
+
+        constexpr EVENT_KEY(const float _x, const float _y, const int _width, const int _height, const EVENT_TYPE_ACTIONS _eventName) noexcept
+            : x(_x),
+                y(_y),
+                width(_width),
+                height(_height),
+                rx(0.0f),
+                ry(0.0f),
+                eventType(_eventName)
+        {}
+
         constexpr EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
                             const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
                                                                                                 ly(_ly),
@@ -143,6 +161,7 @@ namespace mbm
         virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
         virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
         virtual void onResizeWindow(int width, int height) = 0;
+        virtual void onWindowMove(int x, int y) = 0;
     };
 
     class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
@@ -166,7 +185,7 @@ namespace mbm
         API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #if (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        void initializeWindowx11();
+        bool initializeWindowx11();
     #endif
 
     API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
@@ -182,7 +201,7 @@ namespace mbm
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
         API_IMPL void render();
-        API_IMPL void ReleaseGraphics();//this function release the graphics device and all resources
+        API_IMPL void ReleaseGraphics(bool wasDeviceLost);//this function release the graphics device and all resources
     
       private:
         void handleEventFromWindow();
@@ -203,6 +222,7 @@ namespace mbm
         bool popEvent(EVENT_KEY *event);
         void pushEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
+        void moveWindow(int x, int y);//specific function to handle window move event depending on OS windowing system
 
       public:
         API_IMPL void onTouchDown(int key, float x, float y) override;
@@ -217,6 +237,7 @@ namespace mbm
         API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
         API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
         API_IMPL void onResizeWindow(int width, int height) override;
+        API_IMPL void onWindowMove(int width, int height) override;
 
       public:
         bool __sceneWasInit;

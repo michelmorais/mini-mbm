@@ -137,6 +137,8 @@ namespace mbm
 
       private:
         int	                                  returnCodeApp;
+        int                                   windowPositionX;
+        int                                   windowPositionY;
         static DEVICE *                       instanceDevice;
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;

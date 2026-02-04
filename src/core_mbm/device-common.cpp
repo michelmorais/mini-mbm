@@ -66,6 +66,8 @@ namespace mbm
         __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
 		returnCodeApp              = 0;
+        windowPositionX            = 0;
+        windowPositionY            = 0;
 		audioInterface			   = nullptr;
     }
 

@@ -48,13 +48,12 @@ namespace mbm
         int x = width;
         int y = height;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
-        char * dpyName = nullptr;
+        //char * dpyName = nullptr;
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
-        this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
-        if (!this->device->specificContextDevice->display_x11)
+        if(initializeWindowx11() == false)
         {
-            printf("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
+            INFO_LOG("Failed to initialize X11 window");
             return false;
         }
     #ifdef __APPLE__
@@ -80,11 +79,8 @@ namespace mbm
             height -= 60;
             y = height;
         }
-        const int cx = screen ? (screen->width - width) / 2 : 0;
-        const int cy = screen ? (screen->height - height) / 2 : 0;
-        this->device->specificContextDevice->make_x_window(nameAplication, cx, cy, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
+        this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
 
-        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
         if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))
         {
             printf("Error: eglMakeCurrent() failed\n");
@@ -146,29 +142,25 @@ namespace mbm
         return true;
     }
 
-    void CORE_MANAGER::initializeWindowx11()
+    bool CORE_MANAGER::initializeWindowx11()
     {
-        XSelectInput(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
-            ResizeRedirectMask | (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) /*| ExposureMask | StructureNotifyMask*/);
-        XkbSetDetectableAutoRepeat(this->device->specificContextDevice->display_x11, true, nullptr);
-        XMapWindow(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11);
-        XFlush(this->device->specificContextDevice->display_x11);
-
-        XSizeHints xsize;
-        xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
-        xsize.min_width = static_cast<int>(device->backBufferWidth);
-        xsize.min_height = static_cast<int>(device->backBufferHeight);
-        xsize.max_width = static_cast<int>(device->backBufferWidth);
-        xsize.max_height = static_cast<int>(device->backBufferHeight);
-        xsize.base_width = static_cast<int>(device->backBufferWidth);
-        xsize.base_height = static_cast<int>(device->backBufferHeight);
-        xsize.width = static_cast<int>(device->backBufferWidth);
-        xsize.height = static_cast<int>(device->backBufferHeight);
-        xsize.width_inc = 0;
-        xsize.height_inc = 0;
-        xsize.x = 0;
-        xsize.y = 0;
-        XSetWMNormalHints(this->device->specificContextDevice->display_x11, this->device->specificContextDevice->window_x11, &xsize);
+        if(this->device->specificContextDevice->display_x11 == nullptr)
+        {
+            char * dpyName = nullptr;
+            this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
+            if(this->device->specificContextDevice->display_x11 == nullptr)
+            {
+                ERROR_LOG("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
+                return false;
+            }
+            XFlush(this->device->specificContextDevice->display_x11);
+        }
+        else
+        {
+            //already opened display, probably lost device case
+            INFO_LOG("display_x11 already opened, probably lost device case");
+        }
+        return true;
     }
 
     void CORE_MANAGER::handleEventFromWindow()
@@ -179,66 +171,104 @@ namespace mbm
             XNextEvent(this->device->specificContextDevice->display_x11, &xevent);
             switch (xevent.type)
             {
-            case KeyPress:
-            {
-                auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
-                if (key >= 'a' && key <= 'z')
-                    key = toupper(key);
-                if (key == XK_Caps_Lock)
-                    this->keyCapsLockState = ((xevent.xbutton.state & 2) == 0);// == 0 is on
-                this->onKeyDown(key);
-            }
-            break;
-            case KeyRelease:
-            {
-                auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
-                if (key >= 'a' && key <= 'z')
-                    key = toupper(key);
-                this->onKeyUp(key);
-            }
-            break;
-            case ButtonPress:
-            {
-                switch (xevent.xbutton.button)
+                case KeyPress:
                 {
-                case Button1: this->onTouchDown(0, xevent.xbutton.x, xevent.xbutton.y); break;
-                case Button2: this->onTouchDown(2, xevent.xbutton.x, xevent.xbutton.y); break;
-                case Button3: this->onTouchDown(1, xevent.xbutton.x, xevent.xbutton.y); break;
-                case 4: // zomm in
-                    this->onTouchZoom(1.0f);
-                    break;
-                case 5: // zomm out
-                    this->onTouchZoom(-1.0f);
-                    break;
+                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    if (key >= 'a' && key <= 'z')
+                        key = toupper(key);
+                    if (key == XK_Caps_Lock)
+                        this->keyCapsLockState = ((xevent.xbutton.state & 2) == 0);// == 0 is on
+                    this->onKeyDown(key);
                 }
-            }
-            break;
-            case ButtonRelease:
-            {
-                switch (xevent.xbutton.button)
+                break;
+                case KeyRelease:
                 {
-                case Button1: this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); break;
-                case Button2: this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); break;
-                case Button3: this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); break;
+                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    if (key >= 'a' && key <= 'z')
+                        key = toupper(key);
+                    this->onKeyUp(key);
                 }
-            }
-            break;
-            case MotionNotify:
-            {
-                this->onTouchMove(0, xevent.xmotion.x, xevent.xmotion.y);
-            }
-            break;
-            case ResizeRequest:
-            {
-                XResizeRequestEvent xResize = xevent.xresizerequest;
-                this->onResizeWindow(xResize.width, xResize.height);
-            }
-            break;
-            default: 
-            {
-                //printf("Event: %d\n", xevent.type);
-            }
-                   break;
+                break;
+                case ButtonPress:
+                {
+                    switch (xevent.xbutton.button)
+                    {
+                    case Button1:
+                    { 
+                        this->onTouchDown(0, xevent.xbutton.x, xevent.xbutton.y); 
+                    }break;
+                    case Button2:
+                    { 
+                        this->onTouchDown(2, xevent.xbutton.x, xevent.xbutton.y); 
+                    }break;
+                    case Button3:
+                    { 
+                        this->onTouchDown(1, xevent.xbutton.x, xevent.xbutton.y); 
+                    }break;
+                    case 4: // zomm in
+                        this->onTouchZoom(1.0f);
+                        break;
+                    case 5: // zomm out
+                        this->onTouchZoom(-1.0f);
+                        break;
+                    }
+                }
+                break;
+                case ButtonRelease:
+                {
+                    switch (xevent.xbutton.button)
+                    {
+                    case Button1: this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); break;
+                    case Button2: this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); break;
+                    case Button3: this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); break;
+                    }
+                }
+                break;
+                case MotionNotify:
+                {
+                    this->onTouchMove(0, xevent.xmotion.x, xevent.xmotion.y);
+                }
+                break;
+                case ResizeRequest:
+                {
+                    XResizeRequestEvent xResize = xevent.xresizerequest;
+                    this->onResizeWindow(xResize.width, xResize.height);
+                }
+                break;
+                case ConfigureNotify:
+                {
+                    // Handle window move/resize/restack events
+                    XConfigureEvent xconfig = xevent.xconfigure;
+                    
+                    // Store window position for coordinate transformations
+                    if(device->windowPositionX != xconfig.x ||
+                       device->windowPositionY != xconfig.y)
+                    {
+                        device->windowPositionX = xconfig.x;
+                        device->windowPositionY = xconfig.y;
+
+                        this->onWindowMove(xconfig.x, xconfig.y);
+                    }
+                    
+                    // Update viewport if size changed
+                    if (xconfig.width != static_cast<int>(device->backBufferWidth) ||
+                        xconfig.height != static_cast<int>(device->backBufferHeight))
+                    {
+                        this->onResizeWindow(xconfig.width, xconfig.height);
+                    }
+                }
+                break;
+                case Expose:
+                {
+                    // Window needs redrawing (e.g., after being obscured)
+                    // The rendering loop will handle this automatically
+                }
+                break;
+                default: 
+                {
+                    //printf("Event: %d\n", xevent.type);
+                }
+                break;
             }
         }
     }
@@ -252,8 +282,43 @@ namespace mbm
             *height = screen->height;
         }
     }
+
+    void CORE_MANAGER::moveWindow(int x, int y)
+    {
+        if(this->device->specificContextDevice->display_x11 != nullptr && 
+           this->device->specificContextDevice->window_x11 != 0)
+        {
+            XMoveWindow(this->device->specificContextDevice->display_x11, 
+                       this->device->specificContextDevice->window_x11, 
+                       x, y);
+            XFlush(this->device->specificContextDevice->display_x11);
+        }
+    }
+
+    //void CORE_MANAGER::getWindowPosition(int *x, int *y)
+    //{
+    //    if(this->device->specificContextDevice->display_x11 != nullptr && 
+    //       this->device->specificContextDevice->window_x11 != 0)
+    //    {
+    //        Window root, child;
+    //        int root_x, root_y, win_x, win_y;
+    //        unsigned int mask;
+    //        
+    //        XQueryPointer(this->device->specificContextDevice->display_x11,
+    //                     this->device->specificContextDevice->window_x11,
+    //                     &root, &child, &root_x, &root_y, &win_x, &win_y, &mask);
+    //        
+    //        XWindowAttributes attrs;
+    //        XGetWindowAttributes(this->device->specificContextDevice->display_x11,
+    //                           this->device->specificContextDevice->window_x11,
+    //                           &attrs);
+    //        
+    //        *x = attrs.x;
+    //        *y = attrs.y;
+    //    }
+    //}
    
-    void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name, int x, int y, uint32_t width,unsigned  int height, bool border)
+    void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name, int px, int py, uint32_t width,unsigned  int height, bool border)
     {
         static const EGLint attribs[] = {
             // 32 bit color
@@ -334,20 +399,42 @@ namespace mbm
             mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
         }
 
-        window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, x < 0 ? 0 : x, y < 0 ? 0 : y, width, height, 0, visInfo->depth, InputOutput,
+        window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, px, py, width, height, 0, visInfo->depth, InputOutput,
                             visInfo->visual, mask, &attr));
 
         /* set hints and properties */
         {
             XSizeHints sizehints;
-            sizehints.x      = x;
-            sizehints.y      = y;
+            sizehints.x      = px;
+            sizehints.y      = py;
             sizehints.width  = static_cast<EGLint>(width);
             sizehints.height = static_cast<EGLint>(height);
             sizehints.flags  = USSize | USPosition;
             XSetNormalHints(display_x11, window_x11, &sizehints);
             XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
         }
+
+        XSelectInput(this->display_x11, this->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
+        ResizeRedirectMask | (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) | ExposureMask | StructureNotifyMask);
+        XkbSetDetectableAutoRepeat(this->display_x11, true, nullptr);
+        XMapWindow(this->display_x11, this->window_x11);
+        XFlush(this->display_x11);
+
+        XSizeHints xsize;
+        xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
+        xsize.min_width = static_cast<int>(100);
+        xsize.min_height = static_cast<int>(100);
+        xsize.max_width = static_cast<int>(width);
+        xsize.max_height = static_cast<int>(height);
+        xsize.base_width = static_cast<int>(width);
+        xsize.base_height = static_cast<int>(height);
+        xsize.width = static_cast<int>(width);
+        xsize.height = static_cast<int>(height);
+        xsize.width_inc = 0;
+        xsize.height_inc = 0;
+        xsize.x = px;
+        xsize.y = py;
+        XSetWMNormalHints(this->display_x11, this->window_x11, &xsize);
 
 #if defined USE_FULL_GL /* XXX fix this when eglBindAPI() works */
         eglBindAPI(EGL_OPENGL_API);
@@ -415,11 +502,11 @@ namespace mbm
         XFree(visInfo);
     }
 
-    void CORE_MANAGER::ReleaseGraphics()
+    void CORE_MANAGER::ReleaseGraphics(bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release();
+        this->device->specificContextDevice->release(wasDeviceLost);
     }
 
 }

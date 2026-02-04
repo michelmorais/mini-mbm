@@ -64,7 +64,8 @@ namespace mbm
         releaseAudioManager();
         if (instanceDevice)
         {
-            instanceDevice->specificContextDevice->release();
+            constexpr bool wasDeviceLost = false; // we are not in lost device, because we are in the destructor, so we can release all resources   
+            instanceDevice->specificContextDevice->release(wasDeviceLost);
             delete instanceDevice;
         }
         instanceDevice = nullptr;
