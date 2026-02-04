@@ -81,6 +81,35 @@ namespace mbm
         }
         this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
 
+        // Initialize window position
+        device->windowPositionX = px;
+        device->windowPositionY = py;
+        
+        // Wait for MapNotify event to ensure window is fully mapped
+        XEvent event;
+        XIfEvent(this->device->specificContextDevice->display_x11, &event,
+                [](Display*, XEvent* ev, XPointer) -> Bool {
+                    return ev->type == MapNotify;
+                }, nullptr);
+        
+        // Sync with X server to ensure all events are processed
+        XSync(this->device->specificContextDevice->display_x11, False);
+        
+        // Get actual window geometry after mapping
+        XWindowAttributes window_attrs;
+        XGetWindowAttributes(this->device->specificContextDevice->display_x11, 
+                           this->device->specificContextDevice->window_x11, 
+                           &window_attrs);
+        
+        // Update dimensions with actual window size
+        x = window_attrs.width;
+        y = window_attrs.height;
+        device->backBufferWidth = static_cast<float>(window_attrs.width);
+        device->backBufferHeight = static_cast<float>(window_attrs.height);
+        
+        // Now process all pending events including ConfigureNotify
+        this->handleEventFromWindow();
+
         if (!eglMakeCurrent(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglSurface, this->device->specificContextDevice->eglContext))
         {
             printf("Error: eglMakeCurrent() failed\n");
@@ -240,15 +269,17 @@ namespace mbm
                     // Handle window move/resize/restack events
                     XConfigureEvent xconfig = xevent.xconfigure;
                     
-                    // Store window position for coordinate transformations
-                    if(device->windowPositionX != xconfig.x ||
-                       device->windowPositionY != xconfig.y)
-                    {
-                        device->windowPositionX = xconfig.x;
-                        device->windowPositionY = xconfig.y;
-
-                        this->onWindowMove(xconfig.x, xconfig.y);
-                    }
+                    // Get absolute window position (ConfigureNotify gives parent-relative coords)
+                    Window child_return;
+                    int abs_x, abs_y;
+                    XTranslateCoordinates(this->device->specificContextDevice->display_x11,
+                                         this->device->specificContextDevice->window_x11,
+                                         DefaultRootWindow(this->device->specificContextDevice->display_x11),
+                                         0, 0, &abs_x, &abs_y, &child_return);
+                    
+                    // Store absolute window position for coordinate transformations
+                    device->windowPositionX = abs_x;
+                    device->windowPositionY = abs_y;
                     
                     // Update viewport if size changed
                     if (xconfig.width != static_cast<int>(device->backBufferWidth) ||
