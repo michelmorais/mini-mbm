@@ -31,6 +31,7 @@
 #include <audio-interface.h>
 #include <cassert>
 #include <thread>
+#include <unistd.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
@@ -257,9 +258,9 @@ namespace mbm
                 {
                     switch (xevent.xbutton.button)
                     {
-                    case Button1: this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); break;
-                    case Button2: this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); break;
-                    case Button3: this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); break;
+                    case Button1: { this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y); } break;
+                    case Button2: { this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y); } break;
+                    case Button3: { this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y); } break;
                     }
                 }
                 break;
@@ -281,13 +282,19 @@ namespace mbm
                     
                     // Get absolute window position (ConfigureNotify gives parent-relative coords)
                     Window child_return;
-                    int abs_x, abs_y;
+                    int abs_x = 0;
+                    int abs_y = 0;
                     XTranslateCoordinates(this->device->specificContextDevice->display_x11,
                                          this->device->specificContextDevice->window_x11,
                                          DefaultRootWindow(this->device->specificContextDevice->display_x11),
                                          0, 0, &abs_x, &abs_y, &child_return);
                     
                     // Store absolute window position for coordinate transformations
+                    bool needMoveEvent = false;
+                    if(abs_x != device->windowPositionX || abs_y != device->windowPositionY)
+                    {
+                        needMoveEvent = true;
+                    }
                     device->windowPositionX = abs_x;
                     device->windowPositionY = abs_y;
                     
@@ -296,13 +303,36 @@ namespace mbm
                         xconfig.height != static_cast<int>(device->backBufferHeight))
                     {
                         this->onResizeWindow(xconfig.width, xconfig.height);
+                        if(needMoveEvent)
+                        {
+                            this->onMoveWindow(abs_x, abs_y);
+                        }
                     }
                 }
                 break;
                 case Expose:
                 {
-                    // Window needs redrawing (e.g., after being obscured)
-                    // The rendering loop will handle this automatically
+                    // Handle expose events (window redraw requests)
+                    //commented out code below
+                    //XExposeEvent xexpose = xevent.xexpose;
+
+                    // Get absolute window position (ConfigureNotify gives parent-relative coords)
+                    //Window child_return;
+                    //int abs_x = 0;
+                    //int abs_y = 0;
+                    //XTranslateCoordinates(this->device->specificContextDevice->display_x11,
+                    //                     this->device->specificContextDevice->window_x11,
+                    //                     DefaultRootWindow(this->device->specificContextDevice->display_x11),
+                    //                     0, 0, &abs_x, &abs_y, &child_return);
+//
+                    //device->windowPositionX = abs_x;
+                    //device->windowPositionY = abs_y;
+                    //if((device->backBufferWidth != static_cast<float>(xexpose.width) ||
+                    //   device->backBufferHeight != static_cast<float>(xexpose.height)) &&
+                    //   xexpose.width > 0 && xexpose.height > 0)
+                    //{
+                    //    this->onResizeWindow(xexpose.width, xexpose.height);
+                    //}
                 }
                 break;
                 default: 

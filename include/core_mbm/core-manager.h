@@ -161,7 +161,7 @@ namespace mbm
         virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
         virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
         virtual void onResizeWindow(int width, int height) = 0;
-        virtual void onWindowMove(int x, int y) = 0;
+        virtual void onMoveWindow(int x, int y) = 0;
     };
 
     class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
@@ -237,7 +237,7 @@ namespace mbm
         API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
         API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
         API_IMPL void onResizeWindow(int width, int height) override;
-        API_IMPL void onWindowMove(int width, int height) override;
+        API_IMPL void onMoveWindow(int width, int height) override;
 
       public:
         bool __sceneWasInit;

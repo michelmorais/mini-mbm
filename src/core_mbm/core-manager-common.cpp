@@ -1112,7 +1112,7 @@ namespace mbm
          this->pushEvent(&ev);
      }
 
-     void CORE_MANAGER::onWindowMove(int x, int y)
+     void CORE_MANAGER::onMoveWindow(int x, int y)
      {
          EVENT_KEY ev(static_cast<float>(x), static_cast<float>(y), 0, EVENT_TYPE_ACTIONS::ONMOVEWINDOW);
          this->pushEvent(&ev);
