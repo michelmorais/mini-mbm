@@ -1219,25 +1219,30 @@ namespace mbm
 
              switch (event->eventType)
              {
-                 case ONKEYDOWN:
-                 {
-                     if (this->__keyPressed[event->key] == false)
-                         this->lsEvents.push_back(*event);
-                     this->__keyPressed[event->key] = true;
-                 }
-                 break;
-                 case ONKEYUP:
-                 {
-                     if (this->__keyPressed[event->key])
-                         this->lsEvents.push_back(*event);
-                     this->__keyPressed[event->key] = false;
-                 }
-                 break;
-                 default: 
-                 {
-                     this->lsEvents.push_back(*event);
-                 }
-                 break;
+                case ONKEYDOWN:
+                {
+                    if (this->__keyPressed[event->key] == false)
+                        this->lsEvents.push_back(*event);
+                    this->__keyPressed[event->key] = true;
+                }
+                break;
+                case ONKEYUP:
+                {
+                    if (this->__keyPressed[event->key])
+                        this->lsEvents.push_back(*event);
+                    this->__keyPressed[event->key] = false;
+                }
+                break;
+                case ONRESIZEWINDOW:
+                {
+                    this->lsEvents.push_back(*event);
+                }
+                break;
+                default: 
+                {
+                    this->lsEvents.push_back(*event);
+                }
+                break;
              }
              mutexEvents.unlock();
          }

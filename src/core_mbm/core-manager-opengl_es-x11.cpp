@@ -81,18 +81,26 @@ namespace mbm
             height -= 60;
             y = height;
         }
+        
+        // Check if we're reusing an existing window (lost device recovery)
+        const bool reusingWindow = (this->device->specificContextDevice->window_x11 != 0);
+        
         this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
 
         // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
         
-        // Wait for MapNotify event to ensure window is fully mapped
-        XEvent event;
-        XIfEvent(this->device->specificContextDevice->display_x11, &event,
-                [](Display*, XEvent* ev, XPointer) -> Bool {
-                    return ev->type == MapNotify;
-                }, nullptr);
+        // Wait for MapNotify event only for newly created windows
+        // Existing windows are already mapped, so waiting would block forever
+        if (!reusingWindow)
+        {
+            XEvent event;
+            XIfEvent(this->device->specificContextDevice->display_x11, &event,
+                    [](Display*, XEvent* ev, XPointer) -> Bool {
+                        return ev->type == MapNotify;
+                    }, nullptr);
+        }
         
         // Sync with X server to ensure all events are processed
         XSync(this->device->specificContextDevice->display_x11, False);
@@ -420,64 +428,70 @@ namespace mbm
             exit(1);
         }
 
-        /* window attributes */
-        attr.background_pixel = 0;
-        attr.border_pixel     = 0;
-        attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
-        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
-        mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
-        if(border == false)
-        {
-            attr.override_redirect= 1;
-            mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
-        }
+        // Only create a new X11 window if one doesn't already exist (e.g., on lost device recovery)
+        const bool reuseExistingWindow = (window_x11 != 0);
         
-
-        window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, px, py, width, height, 0, visInfo->depth, InputOutput,
-                            visInfo->visual, mask, &attr));
-
-        /* set hints and properties */
+        if (!reuseExistingWindow)
         {
-            XSizeHints sizehints;
-            sizehints.x      = px;
-            sizehints.y      = py;
-            sizehints.width  = static_cast<EGLint>(width);
-            sizehints.height = static_cast<EGLint>(height);
-            sizehints.flags  = USSize | USPosition;
-            XSetNormalHints(display_x11, window_x11, &sizehints);
-            XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
+            /* window attributes */
+            attr.background_pixel = 0;
+            attr.border_pixel     = 0;
+            attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
+            attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+            mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
+            if(border == false)
+            {
+                attr.override_redirect= 1;
+                mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
+            }
+            
+
+            window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, px, py, width, height, 0, visInfo->depth, InputOutput,
+                                visInfo->visual, mask, &attr));
+
+            /* set hints and properties */
+            {
+                XSizeHints sizehints;
+                sizehints.x      = px;
+                sizehints.y      = py;
+                sizehints.width  = static_cast<EGLint>(width);
+                sizehints.height = static_cast<EGLint>(height);
+                sizehints.flags  = USSize | USPosition;
+                XSetNormalHints(display_x11, window_x11, &sizehints);
+                XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
+            }
+
+            XSelectInput(this->display_x11, this->window_x11,
+            (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) | ExposureMask | StructureNotifyMask);
+            XkbSetDetectableAutoRepeat(this->display_x11, true, nullptr);
+            XMapWindow(this->display_x11, this->window_x11);
+            XFlush(this->display_x11);
+
+
+            XSizeHints xsize;
+            xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
+            xsize.min_width   = static_cast<int>(100);
+            xsize.min_height  = static_cast<int>(100);
+            xsize.max_width   = static_cast<int>(width);
+            xsize.max_height  = static_cast<int>(height);
+            xsize.base_width  = static_cast<int>(width);
+            xsize.base_height = static_cast<int>(height);
+            xsize.width       = static_cast<int>(width);
+            xsize.height      = static_cast<int>(height);
+            xsize.width_inc   = 0;
+            xsize.height_inc  = 0;
+            xsize.x           = px;
+            xsize.y           = py;
+
+            if(enable_resize == false)
+            {
+                xsize.min_width  = static_cast<int>(width);
+                xsize.min_height = static_cast<int>(height);
+                xsize.max_width  = static_cast<int>(width);
+                xsize.max_height = static_cast<int>(height);
+            }
+            XSetWMNormalHints(this->display_x11, this->window_x11, &xsize);
         }
-
-        XSelectInput(this->display_x11, this->window_x11,
-        (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) | ExposureMask | StructureNotifyMask);
-        XkbSetDetectableAutoRepeat(this->display_x11, true, nullptr);
-        XMapWindow(this->display_x11, this->window_x11);
-        XFlush(this->display_x11);
-
-
-        XSizeHints xsize;
-        xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
-        xsize.min_width   = static_cast<int>(100);
-        xsize.min_height  = static_cast<int>(100);
-        xsize.max_width   = static_cast<int>(width);
-        xsize.max_height  = static_cast<int>(height);
-        xsize.base_width  = static_cast<int>(width);
-        xsize.base_height = static_cast<int>(height);
-        xsize.width       = static_cast<int>(width);
-        xsize.height      = static_cast<int>(height);
-        xsize.width_inc   = 0;
-        xsize.height_inc  = 0;
-        xsize.x           = px;
-        xsize.y           = py;
-
-        if(enable_resize == false)
-        {
-            xsize.min_width  = static_cast<int>(width);
-            xsize.min_height = static_cast<int>(height);
-            xsize.max_width  = static_cast<int>(width);
-            xsize.max_height = static_cast<int>(height);
-        }
-        XSetWMNormalHints(this->display_x11, this->window_x11, &xsize);
 
 #if defined USE_FULL_GL /* XXX fix this when eglBindAPI() works */
         eglBindAPI(EGL_OPENGL_API);
@@ -531,13 +545,20 @@ namespace mbm
             exit(1);
         }
 
-        /* sanity checks */
+        /* sanity checks - only check dimensions for newly created windows */
         {
             EGLint val;
-            eglQuerySurface(eglDisplay, this->eglSurface, EGL_WIDTH, &val);
-            assert(val == static_cast<EGLint>(width));
-            eglQuerySurface(eglDisplay, this->eglSurface, EGL_HEIGHT, &val);
-            assert(val == static_cast<EGLint>(height));
+            if (!reuseExistingWindow)
+            {
+                eglQuerySurface(eglDisplay, this->eglSurface, EGL_WIDTH, &val);
+                const EGLint wEgl = val;
+                eglQuerySurface(eglDisplay, this->eglSurface, EGL_HEIGHT, &val);
+                const EGLint hEgl = val;
+                if(wEgl != static_cast<EGLint>(width) || hEgl != static_cast<EGLint>(height))
+                {
+                    INFO_LOG("Warning: EGL surface size (%d x %d) differs from requested window size (%u x %u)", wEgl, hEgl, width, height);
+                }
+            }
             assert(eglGetConfigAttrib(eglDisplay, config, EGL_SURFACE_TYPE, &val));
             assert(val & EGL_WINDOW_BIT);
         }
