@@ -626,6 +626,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         EGLDisplay eglDisplay;
         EGLSurface eglSurface;
         EGLContext eglContext;
+        EGLConfig  eglConfig;  // Store config for surface recreation
         Window     window_x11;
         Display *  display_x11;
 
@@ -635,12 +636,14 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         GLint filter_GL_TEXTURE_MAG_FILTER;
     
     void make_x_window(const char *name,const int px, const int py,const uint32_t width,const uint32_t height, const bool border, const bool enable_resize);
+    bool recreateEGLSurface();  // Recreate EGL surface on resize
             
         SPECIFIC_AUX_CONTEXT_DEVICE()
         {
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
+            this->eglConfig = nullptr;
             this->window_x11 = 0;
             this->display_x11 = nullptr;
 
@@ -677,6 +680,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
             this->eglDisplay = EGL_NO_DISPLAY;
             this->eglSurface = EGL_NO_SURFACE;
             this->eglContext = EGL_NO_CONTEXT;
+            this->eglConfig = nullptr;
         }
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;

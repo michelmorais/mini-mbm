@@ -114,7 +114,37 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)
     {
-        return false;
+        #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+        // On X11/EGL, the EGL surface doesn't automatically resize with the window
+        // We need to recreate the surface to match the new window dimensions
+        if (!this->device->specificContextDevice->recreateEGLSurface())
+        {
+            return false;  // Trigger full restore if surface recreation fails
+        }
+        
+        // Query the actual EGL surface dimensions after recreation
+        EGLint surfaceWidth = 0;
+        EGLint surfaceHeight = 0;
+        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
+                        this->device->specificContextDevice->eglSurface, 
+                        EGL_WIDTH, &surfaceWidth);
+        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
+                        this->device->specificContextDevice->eglSurface, 
+                        EGL_HEIGHT, &surfaceHeight);
+        
+        // Use actual surface dimensions
+        if (surfaceWidth > 0 && surfaceHeight > 0)
+        {
+            newWidth = surfaceWidth;
+            newHeight = surfaceHeight;
+            this->device->backBufferWidth = static_cast<float>(newWidth);
+            this->device->backBufferHeight = static_cast<float>(newHeight);
+        }
+        #endif
+        
+        // Update the viewport to the new dimensions
+        GLViewport(0, 0, newWidth, newHeight);
+        return true;
     }
 
     bool CORE_MANAGER::beginRender()

@@ -567,6 +567,10 @@ namespace mbm
             assert(val == 3);
         }
         #endif
+        
+        // Store config for later surface recreation on resize
+        this->eglConfig = config;
+        
         const EGLint *attrib_list = nullptr;
         this->eglSurface = eglCreateWindowSurface(eglDisplay, config, reinterpret_cast<EGLNativeWindowType>(window_x11), attrib_list);
         if (!this->eglSurface)
@@ -594,6 +598,42 @@ namespace mbm
         }
 
         XFree(visInfo);
+    }
+
+    bool SPECIFIC_AUX_CONTEXT_DEVICE::recreateEGLSurface()
+    {
+        if (this->eglDisplay == EGL_NO_DISPLAY || this->window_x11 == 0 || this->eglConfig == nullptr)
+        {
+            return false;
+        }
+        
+        // Destroy old surface
+        if (this->eglSurface != EGL_NO_SURFACE)
+        {
+            eglMakeCurrent(this->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            eglDestroySurface(this->eglDisplay, this->eglSurface);
+            this->eglSurface = EGL_NO_SURFACE;
+        }
+        
+        // Create new surface with current window dimensions
+        const EGLint *attrib_list = nullptr;
+        this->eglSurface = eglCreateWindowSurface(this->eglDisplay, this->eglConfig, 
+                                                   reinterpret_cast<EGLNativeWindowType>(this->window_x11), 
+                                                   attrib_list);
+        if (!this->eglSurface)
+        {
+            printf("Error: recreateEGLSurface - eglCreateWindowSurface failed\n");
+            return false;
+        }
+        
+        // Re-bind the context to the new surface
+        if (!eglMakeCurrent(this->eglDisplay, this->eglSurface, this->eglSurface, this->eglContext))
+        {
+            printf("Error: recreateEGLSurface - eglMakeCurrent failed\n");
+            return false;
+        }
+        
+        return true;
     }
 
     void CORE_MANAGER::ReleaseGraphics(bool wasDeviceLost)
