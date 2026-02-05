@@ -48,10 +48,11 @@ namespace mbm
     
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE()
     {
-        release();
+        constexpr bool wasDeviceLost = false;
+        release(wasDeviceLost);
     }   
     
-    void SPECIFIC_AUX_CONTEXT_DEVICE::release()
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost)
     {
         this->jenv                          = nullptr;
         this->jclassFileJniEngine           = nullptr;

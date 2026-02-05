@@ -591,7 +591,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
         
-        void release();
+        void release(const bool wasDeviceLost);
         const char *getStrToDelete(const char *str);
         void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
         void callQuitInJava();

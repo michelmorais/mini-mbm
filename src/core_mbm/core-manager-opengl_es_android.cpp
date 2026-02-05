@@ -35,11 +35,16 @@ namespace mbm
         // do nothing, events are handled from JNI
     }
 
-    void CORE_MANAGER::ReleaseGraphics()
+    void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->specificContextDevice->release();
+        this->device->specificContextDevice->release(wasDeviceLost);
+    }
+
+    void CORE_MANAGER::moveWindow(int , int )
+    {
+        // On Android, window movement is not applicable
     }
 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)

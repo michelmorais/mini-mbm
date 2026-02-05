@@ -105,10 +105,14 @@ namespace mbm
                         if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
 							static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
                         {
+                            #if defined _DEBUG || defined DEBUG
                             WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
+                            #endif
                             break;
                         }
+                        #if defined _DEBUG || defined DEBUG
                         WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
+                        #endif
                         this->device->backBufferWidth  = event.x;
                         this->device->backBufferHeight = event.y;
                         if (resetDeviceWithNewDimensions(static_cast<int>(event.x), static_cast<int>(event.y)) == false)
