@@ -634,7 +634,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         GLint filter_GL_TEXTURE_MIN_FILTER;
         GLint filter_GL_TEXTURE_MAG_FILTER;
     
-    void make_x_window(const char *name, int x, int y,uint32_t width,uint32_t height, bool border);
+    void make_x_window(const char *name,const int px, const int py,const uint32_t width,const uint32_t height, const bool border, const bool enable_resize);
             
         SPECIFIC_AUX_CONTEXT_DEVICE()
         {

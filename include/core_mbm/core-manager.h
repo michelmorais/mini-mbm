@@ -243,6 +243,8 @@ namespace mbm
         bool __sceneWasInit;
         API_IMPL void forceRestore(const bool doSwapBuffers);
         bool keyCapsLockState;
+        bool windowBorder;
+        bool enableResizeWindow;
       private:
         std::map<int, bool>                     __keyPressed;
         std::list<EVENT_KEY>                    lsEvents;

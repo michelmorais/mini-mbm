@@ -48,6 +48,8 @@ namespace mbm
         int x = width;
         int y = height;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        this->windowBorder = border;
+        this->enableResizeWindow = enable_resize;
         //char * dpyName = nullptr;
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
@@ -79,7 +81,7 @@ namespace mbm
             height -= 60;
             y = height;
         }
-        this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), border);
+        this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
 
         // Initialize window position
         device->windowPositionX = px;
@@ -349,7 +351,7 @@ namespace mbm
     //    }
     //}
    
-    void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name, int px, int py, uint32_t width,unsigned  int height, bool border)
+    void SPECIFIC_AUX_CONTEXT_DEVICE::make_x_window(const char *name,const int px, const int py,const uint32_t width,const uint32_t height, const bool border, const bool enable_resize)
     {
         static const EGLint attribs[] = {
             // 32 bit color
@@ -422,13 +424,14 @@ namespace mbm
         attr.background_pixel = 0;
         attr.border_pixel     = 0;
         attr.colormap         = XCreateColormap(display_x11, root, visInfo->visual, AllocNone);
-        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ResizeRedirectMask;
+        attr.event_mask       = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
         mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask;
         if(border == false)
         {
             attr.override_redirect= 1;
             mask                  = CWBackPixel | CWBorderPixel | CWColormap | CWEventMask | CWOverrideRedirect;
         }
+        
 
         window_x11 = static_cast<Window>(XCreateWindow(display_x11, root, px, py, width, height, 0, visInfo->depth, InputOutput,
                             visInfo->visual, mask, &attr));
@@ -445,26 +448,35 @@ namespace mbm
             XSetStandardProperties(display_x11, window_x11, name, name, None, nullptr, 0, &sizehints);
         }
 
-        XSelectInput(this->display_x11, this->window_x11,//ResizeRedirectMask ->resize (does not work properly on Linux)
-        ResizeRedirectMask | (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) | ExposureMask | StructureNotifyMask);
+        XSelectInput(this->display_x11, this->window_x11,
+        (KeyPressMask | KeyReleaseMask) | (ButtonPressMask | ButtonReleaseMask) | (PointerMotionMask) | ExposureMask | StructureNotifyMask);
         XkbSetDetectableAutoRepeat(this->display_x11, true, nullptr);
         XMapWindow(this->display_x11, this->window_x11);
         XFlush(this->display_x11);
 
+
         XSizeHints xsize;
         xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
-        xsize.min_width = static_cast<int>(100);
-        xsize.min_height = static_cast<int>(100);
-        xsize.max_width = static_cast<int>(width);
-        xsize.max_height = static_cast<int>(height);
-        xsize.base_width = static_cast<int>(width);
+        xsize.min_width   = static_cast<int>(100);
+        xsize.min_height  = static_cast<int>(100);
+        xsize.max_width   = static_cast<int>(width);
+        xsize.max_height  = static_cast<int>(height);
+        xsize.base_width  = static_cast<int>(width);
         xsize.base_height = static_cast<int>(height);
-        xsize.width = static_cast<int>(width);
-        xsize.height = static_cast<int>(height);
-        xsize.width_inc = 0;
-        xsize.height_inc = 0;
-        xsize.x = px;
-        xsize.y = py;
+        xsize.width       = static_cast<int>(width);
+        xsize.height      = static_cast<int>(height);
+        xsize.width_inc   = 0;
+        xsize.height_inc  = 0;
+        xsize.x           = px;
+        xsize.y           = py;
+
+        if(enable_resize == false)
+        {
+            xsize.min_width  = static_cast<int>(width);
+            xsize.min_height = static_cast<int>(height);
+            xsize.max_width  = static_cast<int>(width);
+            xsize.max_height = static_cast<int>(height);
+        }
         XSetWMNormalHints(this->display_x11, this->window_x11, &xsize);
 
 #if defined USE_FULL_GL /* XXX fix this when eglBindAPI() works */
