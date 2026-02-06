@@ -52,6 +52,9 @@ namespace mbm
         //For ANDROID it is initialized from JAVA side
         int x = width;
         int y = height;
+        // Initialize window position
+        device->windowPositionX = px;
+        device->windowPositionY = py;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
         GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
         GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);

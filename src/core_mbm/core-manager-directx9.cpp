@@ -120,8 +120,13 @@ namespace mbm
     {
         DEVICE::quit();
     }
+
+    void CORE_MANAGER::moveWindow(int x, int y)
+    {
+		// nothing to do here for directx9
+	}
     
-    void CORE_MANAGER::ReleaseGraphics()
+    void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
@@ -135,6 +140,9 @@ namespace mbm
         int x = width;
         int y = height;
         DEVICE* device = DEVICE::getInstance();
+        // Initialize window position
+        device->windowPositionX = px;
+        device->windowPositionY = py;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
         device->specificContextDevice->window.setNameAplication(nameAplication);
         if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,

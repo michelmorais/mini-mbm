@@ -202,6 +202,7 @@ namespace mbm
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
         API_IMPL void render();
         API_IMPL void ReleaseGraphics(const bool wasDeviceLost);//this function release the graphics device and all resources
+        API_IMPL void forceRestore(const bool doSwapBuffers);
     
       private:
         void handleEventFromWindow();
@@ -241,7 +242,6 @@ namespace mbm
 
       public:
         bool __sceneWasInit;
-        API_IMPL void forceRestore(const bool doSwapBuffers);
         bool keyCapsLockState;
         bool windowBorder;
         bool enableResizeWindow;

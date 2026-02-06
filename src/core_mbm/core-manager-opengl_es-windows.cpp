@@ -67,13 +67,18 @@ namespace mbm
         }
     }
 
-    void CORE_MANAGER::ReleaseGraphics()
+    void CORE_MANAGER::moveWindow(int x, int y)
+    {
+		// nothing to do here for OpenGL ES on windows, because the window move is handled by the windowing system and not by the engine, so, we do not need to do anything here
+    }
+
+    void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
         this->device->specificContextDevice->window.setCallEventsManager(nullptr);
         this->device->specificContextDevice->win32_joystickByPass->releaseJoystick(&this->device->specificContextDevice->window);
-        this->device->specificContextDevice->release();
+        this->device->specificContextDevice->release(wasDeviceLost);
     }
 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
@@ -82,6 +87,9 @@ namespace mbm
         int y = height;
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
         DEVICE* device = DEVICE::getInstance();
+        // Initialize window position
+        device->windowPositionX = px;
+        device->windowPositionY = py;
         device->specificContextDevice->window.setNameAplication(nameAplication);
         if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
             this->device->specificContextDevice->idIcon,false))
