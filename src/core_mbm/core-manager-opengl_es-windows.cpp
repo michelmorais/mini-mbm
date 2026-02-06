@@ -69,7 +69,7 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-		// nothing to do here for OpenGL ES on windows, because the window move is handled by the windowing system and not by the engine, so, we do not need to do anything here
+        // nothing to do here for OpenGL ES on windows, because the window move is handled by the windowing system and not by the engine, so, we do not need to do anything here
     }
 
     void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)

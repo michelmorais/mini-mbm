@@ -123,8 +123,8 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-		// nothing to do here for directx9
-	}
+        // nothing to do here for directx9
+    }
     
     void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {

@@ -262,7 +262,7 @@ namespace mbm
         int expectedHeight = luaCore.heightWindow;
         std::string stretch("y");
         luaCore.getExpectedSizeOfWindow(expectedWidth, expectedHeight, stretch);
-        if (luaCore.initializeSceneLua(luaCore.widthWindow, luaCore.heightWindow, expectedWidth, expectedHeight,luaCore.noBorder == false))
+        if (luaCore.initializeSceneLua(luaCore.widthWindow, luaCore.heightWindow, expectedWidth, expectedHeight,luaCore.windowBorder))
         {
             // TODO: review if these options are still necessary
             //luaCore.device->specificContextDevice->window.askOnExit = false;

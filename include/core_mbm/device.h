@@ -41,7 +41,7 @@ namespace mbm
     class CORE_MANAGER;
     class SCENE;
     class AUDIO_INTERFACE;
-	class AUDIO_MANAGER_INTERFACE;
+    class AUDIO_MANAGER_INTERFACE;
     class PHYSICS;
     class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
@@ -54,7 +54,7 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-		bool   verbose;
+        bool   verbose;
         bool   run;
         bool   bOnErrorStopScript;
         float  backBufferWidth;
@@ -76,14 +76,14 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE* specificContextDevice = nullptr;
         SCENE *             scene;
         bool                clearBackGround;
-		
+        
         mbm::ORDER_RENDER   orderRender;
         int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
         API_IMPL void initializeSpecificContext();
         API_IMPL void destroySpecificContext();
-		API_IMPL void setAppReturnCode(const int returnCode) noexcept;
-		API_IMPL int getAppReturnCode() const noexcept;
+        API_IMPL void setAppReturnCode(const int returnCode) noexcept;
+        API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
@@ -130,15 +130,16 @@ namespace mbm
         API_IMPL void clearDepthColored();
         API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
         API_IMPL AUDIO_MANAGER_INTERFACE* getAudioManagerInterface() const noexcept;
-	    API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
+        API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
         API_IMPL const char* copyFileFromAsset(const char* assetName, const char* mode);// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
-		API_IMPL void disableFilteringForPixelPerfect() noexcept;//backend specific way to disable texture filtering for pixel perfect rendering
+        API_IMPL void disableFilteringForPixelPerfect() noexcept;//backend specific way to disable texture filtering for pixel perfect rendering
         API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
 
-      private:
-        int	                                  returnCodeApp;
         int                                   windowPositionX;
         int                                   windowPositionY;
+
+    private:
+        int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;

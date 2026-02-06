@@ -312,7 +312,7 @@ namespace mbm
                     const char *newPath = util::getFullPath(device->copyFileFromAsset(this->scriptLua.c_str(), "rt"),nullptr);
                 #if _DEBUG
                     lua_print_line(lua,TYPE_LOG_INFO,"new path [%s]", newPath ? newPath : "NULL");
-			    #endif
+                #endif
                     if (newPath)
                     {
                         if(this->doLauncher(newPath))
@@ -1149,8 +1149,6 @@ namespace mbm
             util::getDisplayMetrics(&_w,&_h);
             this->widthWindow  = _w;
             this->heightWindow = _h;
-            this->positionXWindow = 0xffffff;//0xffffff means centralize
-            this->positionYWindow = 0xffffff;//0xffffff means centralize 
     #else
             this->widthWindow    = 800;
             this->heightWindow   = 600;
@@ -1164,7 +1162,7 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->noBorder		= false;
+            this->windowBorder   = true;
             this->hasValueTextureLogo = false;
             INFO_LOG("%s", this->nameAplication.c_str());
         }
@@ -1184,13 +1182,9 @@ namespace mbm
             util::getDisplayMetrics(&_w,&_h);
             this->widthWindow = _w;
             this->heightWindow = _h;
-            this->positionXWindow = 0xffffff;//0xffffff means centralize
-            this->positionYWindow = 0xffffff;//0xffffff means centralize 
     #else
             this->widthWindow    = 800;
             this->heightWindow   = 600;
-            this->positionXWindow = 0;
-            this->positionYWindow = 0;
     #endif
             
             this->maximizedWindow = false;
@@ -1199,7 +1193,7 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->noBorder = false;
+            this->windowBorder = true;
             if(args.size() > 0)
             {
                 auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,args[0].c_str());
@@ -1227,13 +1221,9 @@ namespace mbm
             util::getDisplayMetrics(&_w,&_h);
             this->widthWindow = _w;
             this->heightWindow = _h;
-            this->positionXWindow = 0xffffff;//0xffffff means centralize
-            this->positionYWindow = 0xffffff;//0xffffff means centralize 
     #else
             this->widthWindow    = 800;
             this->heightWindow   = 600;
-            this->positionXWindow = 0;
-            this->positionYWindow = 0;
     #endif
             
             this->maximizedWindow = false;
@@ -1242,7 +1232,7 @@ namespace mbm
     #else
             this->noSplash       = false;
     #endif
-            this->noBorder = false;
+            this->windowBorder = true;
             std::vector<std::string> lsArg;
             
             auto  dExeName = new DYNAMIC_VAR(DYNAMIC_CSTRING,argv[0]);
@@ -1340,7 +1330,7 @@ namespace mbm
             getExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch);
             setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
 
-            if (this->initGraphics(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, this->positionXWindow,this->positionYWindow, border,this->enableResizeWindow))
+            if (this->initGraphics(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, device->windowPositionX, device->windowPositionY, border,this->enableResizeWindow))
             {
                 if (this->fileNameInitialLua.size())
                 {
@@ -1437,7 +1427,7 @@ namespace mbm
                 else if (strcasecmp(arg, "--noborder") == 0 || strcasecmp(arg, "-noborder") == 0)
                 {
                     nextArg = NO_BORDER;
-                    noBorder = true;
+                    windowBorder = false;
                 }
                 else if(nextArg == EXECUTE_STRING)
                 {
@@ -1523,7 +1513,7 @@ namespace mbm
                                     break;
                                     case NO_BORDER:
                                     {
-                                        noBorder = true;
+                                        windowBorder = false;
                                         nextArg = NONE;
                                     }
                                     break;
@@ -1588,13 +1578,13 @@ namespace mbm
                                     break;
                                     case POSITION_X_SCREEN:
                                     {
-                                        this->positionXWindow = (unsigned int)std::atoi(arg);
+                                        this->device->windowPositionX = std::atoi(arg);
                                         nextArg               = POSITION_X_SCREEN;
                                     }
                                     break;
                                     case POSITION_Y_SCREEN:
                                     {
-                                        this->positionYWindow = (unsigned int)std::atoi(arg);
+                                        this->device->windowPositionY = std::atoi(arg);
                                         nextArg               = POSITION_Y_SCREEN;
                                     }
                                     break;
@@ -1633,7 +1623,7 @@ namespace mbm
                         break;
                         case NO_BORDER:
                         {
-                            noBorder = true;
+                            windowBorder = false;
                             nextArg = NONE;
                         }
                         break;
@@ -1697,9 +1687,9 @@ namespace mbm
                             }
                         }
                         break;
-                        case POSITION_X_SCREEN: { this->positionXWindow = (unsigned int)std::atoi(arg);}
+                        case POSITION_X_SCREEN: { this->device->windowPositionX = std::atoi(arg);}
                         break;
-                        case POSITION_Y_SCREEN: { this->positionYWindow = (unsigned int)std::atoi(arg);}
+                        case POSITION_Y_SCREEN: { this->device->windowPositionY = std::atoi(arg);}
                         break;
                         case MAXIMIZED_WINDOW: { this->maximizedWindow = std::atoi(arg) ? true : false;}
                         break;

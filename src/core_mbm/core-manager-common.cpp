@@ -92,7 +92,7 @@ namespace mbm
                 {
                     case UNKNOWN: 
                     {
-						ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::loop() - Unknown event type %d.", event.eventType);
+                        ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::loop() - Unknown event type %d.", event.eventType);
                     }
                     break;
                     case ONMOVEWINDOW:
@@ -103,7 +103,7 @@ namespace mbm
                     case ONRESIZEWINDOW:
                     {
                         if( static_cast<int>(event.x) == static_cast<int>(this->device->backBufferWidth) &&
-							static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
+                            static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
                         {
                             #if defined _DEBUG || defined DEBUG
                             WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
@@ -591,8 +591,8 @@ namespace mbm
     
     void CORE_MANAGER::updateAudio()
     {
-		if(this->device->audioInterface)
-			this->device->audioInterface->update(this,this->device->scene->getIdScene());
+        if(this->device->audioInterface)
+            this->device->audioInterface->update(this,this->device->scene->getIdScene());
     }
     
     void CORE_MANAGER::updatePhysis()
@@ -661,12 +661,12 @@ namespace mbm
                 {
                     if (this->device->scene->goToNextScene)
                         this->device->scene       = this->device->scene->nextScene;
-					if(this->device->scene)
-						this->device->scene->endScene = false;
+                    if(this->device->scene)
+                        this->device->scene->endScene = false;
                     changeScene                   = true;
                     this->device->clearBackGround = true;
-					if(this->device->scene)
-						this->device->scene->startLoading();
+                    if(this->device->scene)
+                        this->device->scene->startLoading();
                 }
                 this->__sceneWasInit = false;
             }
@@ -684,8 +684,8 @@ namespace mbm
                     this->__sceneWasInit          = true;
                     changeScene                   = false;
                     this->device->clearBackGround = true;
-					if(this->device->scene)
-						this->device->scene->endLoading();
+                    if(this->device->scene)
+                        this->device->scene->endLoading();
                 }
                 else
                 {
@@ -1026,7 +1026,11 @@ namespace mbm
     {
         // Call onStop and forceRestore to ensure all resources are reloaded
         this->onStop();
-        while (!this->onLostDevice(doSwapBuffers, static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),this->device->windowPositionX, this->device->windowPositionY));
+        while (!this->onLostDevice(doSwapBuffers, 
+            static_cast<int>(this->device->backBufferWidth),
+            static_cast<int>(this->device->backBufferHeight),
+            this->device->windowPositionX, 
+            this->device->windowPositionY));
     }
 
      void CORE_MANAGER::onTouchDown(int key, float x, float y)
