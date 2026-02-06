@@ -553,37 +553,51 @@ namespace mbm
                     {
                         this->device->camera.scaleScreen2d.x = percx;
                         this->device->camera.scaleScreen2d.y = percx;
+                        this->device->camera.scale2d.x = percx;
+                        this->device->camera.scale2d.y = percx;
                     }
                     else if (strcmp(this->device->camera.stretch, "y") == 0)
                     {
                         this->device->camera.scaleScreen2d.x = percy;
                         this->device->camera.scaleScreen2d.y = percy;
+                        this->device->camera.scale2d.x = percy;
+                        this->device->camera.scale2d.y = percy;
                     }
                     else if (strcmp(this->device->camera.stretch, "xy") == 0)
                     {
                         this->device->camera.scaleScreen2d.x = percx;
                         this->device->camera.scaleScreen2d.y = percy;
+                        this->device->camera.scale2d.x = percx;
+                        this->device->camera.scale2d.y = percy;
                     }
                     else if (percx < percy)
                     {
                         this->device->camera.scaleScreen2d.x = percx;
                         this->device->camera.scaleScreen2d.y = percx;
+                        this->device->camera.scale2d.x = percx;
+                        this->device->camera.scale2d.y = percx;
                     }
                     else
                     {
                         this->device->camera.scaleScreen2d.x = percy;
                         this->device->camera.scaleScreen2d.y = percy;
+                        this->device->camera.scale2d.x = percy;
+                        this->device->camera.scale2d.y = percy;
                     }
                 }
                 else if (percx < percy)
                 {
                     this->device->camera.scaleScreen2d.x = percx;
                     this->device->camera.scaleScreen2d.y = percx;
+                    this->device->camera.scale2d.x = percx;
+                    this->device->camera.scale2d.y = percx;
                 }
                 else
                 {
                     this->device->camera.scaleScreen2d.x = percy;
                     this->device->camera.scaleScreen2d.y = percy;
+                    this->device->camera.scale2d.x = percy;
+                    this->device->camera.scale2d.y = percy;
                 }
             }
         }

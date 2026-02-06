@@ -1152,8 +1152,6 @@ namespace mbm
     #else
             this->widthWindow    = 800;
             this->heightWindow   = 600;
-            this->positionXWindow = 0;
-            this->positionYWindow = 0;
     #endif
             
             this->maximizedWindow = false;

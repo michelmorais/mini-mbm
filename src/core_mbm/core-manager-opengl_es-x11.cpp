@@ -54,6 +54,9 @@ namespace mbm
         //char * dpyName = nullptr;
         EGLint egl_major = 0;
         EGLint egl_minor = 0;
+          // Initialize window position
+        device->windowPositionX = px;
+        device->windowPositionY = py;
         if(initializeWindowx11() == false)
         {
             INFO_LOG("Failed to initialize X11 window");
@@ -88,9 +91,7 @@ namespace mbm
         
         this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
 
-        // Initialize window position
-        device->windowPositionX = px;
-        device->windowPositionY = py;
+      
         
         // Wait for MapNotify event only for newly created windows
         // Existing windows are already mapped, so waiting would block forever
@@ -525,7 +526,15 @@ namespace mbm
 
 
             XSizeHints xsize;
-            xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
+            
+            if(enable_resize)
+            {
+                xsize.flags = PMinSize | USPosition; // only what we wish (for now not PMaxSize)
+            }
+            else
+            {
+                xsize.flags = PMaxSize | PMinSize | USPosition; // only what we wish (for now not PMaxSize)
+            }
             xsize.min_width   = static_cast<int>(100);
             xsize.min_height  = static_cast<int>(100);
             xsize.max_width   = static_cast<int>(width);
