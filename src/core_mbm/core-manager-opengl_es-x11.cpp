@@ -314,25 +314,51 @@ namespace mbm
                 {
                     // Handle expose events (window redraw requests)
                     //commented out code below
-                    //XExposeEvent xexpose = xevent.xexpose;
+                    /*XExposeEvent xexpose = xevent.xexpose;
 
                     // Get absolute window position (ConfigureNotify gives parent-relative coords)
-                    //Window child_return;
-                    //int abs_x = 0;
-                    //int abs_y = 0;
-                    //XTranslateCoordinates(this->device->specificContextDevice->display_x11,
-                    //                     this->device->specificContextDevice->window_x11,
-                    //                     DefaultRootWindow(this->device->specificContextDevice->display_x11),
-                    //                     0, 0, &abs_x, &abs_y, &child_return);
+                    Window child_return;
+                    int abs_x = 0;
+                    int abs_y = 0;
+                    XTranslateCoordinates(this->device->specificContextDevice->display_x11,
+                                         this->device->specificContextDevice->window_x11,
+                                         DefaultRootWindow(this->device->specificContextDevice->display_x11),
+                                         0, 0, &abs_x, &abs_y, &child_return);
 //
-                    //device->windowPositionX = abs_x;
-                    //device->windowPositionY = abs_y;
-                    //if((device->backBufferWidth != static_cast<float>(xexpose.width) ||
-                    //   device->backBufferHeight != static_cast<float>(xexpose.height)) &&
-                    //   xexpose.width > 0 && xexpose.height > 0)
-                    //{
-                    //    this->onResizeWindow(xexpose.width, xexpose.height);
-                    //}
+                    device->windowPositionX = abs_x;
+                    device->windowPositionY = abs_y;
+                    if((device->backBufferWidth != static_cast<float>(xexpose.width) ||
+                       device->backBufferHeight != static_cast<float>(xexpose.height)) &&
+                       xexpose.width > 0 && xexpose.height > 0)
+                    {
+                        //this->onResizeWindow(xexpose.width, xexpose.height);
+
+                        // On X11/EGL, the EGL surface doesn't automatically resize with the window
+                        // We need to recreate the surface to match the new window dimensions
+                        if (!this->device->specificContextDevice->recreateEGLSurface())
+                        {
+                            break;  // Trigger full restore if surface recreation fails
+                        }
+                        
+                        // Query the actual EGL surface dimensions after recreation
+                        EGLint surfaceWidth = 0;
+                        EGLint surfaceHeight = 0;
+                        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
+                                        this->device->specificContextDevice->eglSurface, 
+                                        EGL_WIDTH, &surfaceWidth);
+                        eglQuerySurface(this->device->specificContextDevice->eglDisplay, 
+                                        this->device->specificContextDevice->eglSurface, 
+                                        EGL_HEIGHT, &surfaceHeight);
+                        
+                        // Use actual surface dimensions
+                        if (surfaceWidth > 0 && surfaceHeight > 0 && (device->backBufferWidth != static_cast<float>(surfaceWidth) ||
+                            device->backBufferHeight != static_cast<float>(surfaceHeight)))
+                        {
+                            //this->device->backBufferWidth = static_cast<float>(surfaceWidth);
+                            //this->device->backBufferHeight = static_cast<float>(surfaceHeight);
+                            this->onResizeWindow(surfaceWidth, surfaceHeight);
+                        }
+                    }*/
                 }
                 break;
                 default: 
