@@ -51,8 +51,6 @@ namespace mbm
         this->nameAplication += "\n Compiled: " __DATE__;
         this->widthWindow        = 800;
         this->heightWindow       = 600;
-        this->positionXWindow    = 1;
-        this->positionYWindow    = 1;
         this->maximizedWindow    = false;
         this->fileNameInitialLua = "main.lua";
 #if defined _DEBUG
@@ -60,7 +58,6 @@ namespace mbm
 #else
         this->noSplash       = false;
 #endif
-        this->noBorder		=	false;
         device->specificContextDevice->jenv = env;
         this->hasValueTextureLogo = false;
         INFO_LOG("%s", this->nameAplication.c_str());
