@@ -274,6 +274,10 @@ bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint he
     constexpr int  py = 0;
     if (game)
     {
+        //maybe need this in future
+        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        //cJni->jenv            = env;
+        //cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
         return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
     }
     return true;

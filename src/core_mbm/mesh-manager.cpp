@@ -3701,7 +3701,7 @@ namespace mbm
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
         if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "Not found or failure to open file [%s]", fileNamePath);
+            return log_util::onFailed(fp,__FILE__, __LINE__, "Not found or failure to open file [%s]", fileNamePath ? fileNamePath : "null");
         fclose(fp);
         fp = nullptr;
         {

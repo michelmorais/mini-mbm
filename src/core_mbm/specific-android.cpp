@@ -54,16 +54,20 @@ namespace mbm
     
     void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost)
     {
-        this->jenv                          = nullptr;
-        this->jclassFileJniEngine           = nullptr;
-        this->jclassDoCommandsJniEngine     = nullptr;
-        this->jclassKeyCodeJniEngine        = nullptr;
-        this->jclassInstanceActivityEngine  = nullptr;
-        this->jclassAudioManagerJniEngine   = nullptr;
-        this->index_string_utf              = 0;
-    
-        memset(this->packageName, 0, sizeof(this->packageName));
-        memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
+	//if not lost , we want to quit, so we clean up all
+        if(wasDeviceLost == false)
+        {
+            this->jenv                          = nullptr;
+            this->jclassFileJniEngine           = nullptr;
+            this->jclassDoCommandsJniEngine     = nullptr;
+            this->jclassKeyCodeJniEngine        = nullptr;
+            this->jclassInstanceActivityEngine  = nullptr;
+            this->jclassAudioManagerJniEngine   = nullptr;
+            this->index_string_utf              = 0;
+        
+            memset(this->packageName, 0, sizeof(this->packageName));
+            memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
+        }
     }
 
     const char * SPECIFIC_AUX_CONTEXT_DEVICE::getStrToDelete(const char *str)
