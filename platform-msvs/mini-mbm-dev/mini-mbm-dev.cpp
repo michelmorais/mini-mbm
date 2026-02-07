@@ -39,6 +39,12 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
                 strncpy_s(result, max_size_result, temporary_folder_path.c_str(), temporary_folder_path.size() - 1);
             }
         }
+#if defined _DEBUG // testing proposal, you can call it from lua script, e.g. mbm.doCommands('restoreDeviceTest')
+        else if (strcmp(command, "restoreDeviceTest") == 0)
+        {
+            mbm::restoreDeviceTest();
+        }
+#endif
     }
 }
 

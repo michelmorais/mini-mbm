@@ -26,11 +26,45 @@
 
 #include "resource.h"
 #include <mini-mbm-lib.h>
+#include <ctime>
+
+void onDoNativeCommand(const char* command, const char* param, char* result, const int max_size_result)
+{
+	if (strcmp(command, "get_current_time") == 0)
+	{
+		time_t now = time(nullptr);
+		tm* localTime = localtime(&now);
+		if (param)
+		{
+			strftime(result, max_size_result, param, localTime);
+		}
+		else
+		{
+			strftime(result, max_size_result, "%A, %B %d, %Y %H:%M:%S", localTime);
+		}
+	}
+	else if (strcmp(command, "get_random_number") == 0)
+	{
+		const int random_number = rand() % 100; // Example: random number between 0 and 99
+		snprintf(result, max_size_result, "%d", random_number);
+	}
+#if defined _DEBUG // testing proposal, you can call it from lua script, e.g. mbm.doCommands('restoreDeviceTest')
+	else if (strcmp(command, "restoreDeviceTest") == 0)
+	{
+		mbm::restoreDeviceTest();
+	}
+#endif
+	else
+	{
+		snprintf(result, max_size_result, "Unknown command: %s", command);
+	}
+}
 
 int main(const int argc,const char **argv)
 {
 	mbm::set_expected_window_size(1024,768);
 	mbm::set_window_size(1024,768);
     mbm::set_icon(IDI_ICON2);
+	mbm::set_callback_do_commands(onDoNativeCommand);
 	return mbm::forward_args_and_do_loop(argc,argv,IDI_ICON1);
 }

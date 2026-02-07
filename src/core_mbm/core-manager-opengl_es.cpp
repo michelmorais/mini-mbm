@@ -22,16 +22,10 @@
 #include <core-manager.h>
 
 #include <device.h>
-#include <scene.h>
 #include <renderizable.h>
-#include <texture-manager.h>
 #include <specific-opengl_es.h>
 #include <util-interface.h>
-#include <audio-interface.h>
-#include <version/version.h>
-#include <miniz-wrap/miniz-wrap.h>
 #include <cr-static-local.h>
-#include <mesh-manager.h>
 #include <plugin-callback.h>
 
 
@@ -144,7 +138,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         
         // Update the viewport to the new dimensions
         GLViewport(0, 0, newWidth, newHeight);
+#if defined _DEBUG || defined DEBUG
+        return false;
+#else
         return true;
+#endif
     }
 
     bool CORE_MANAGER::beginRender()

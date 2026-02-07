@@ -116,6 +116,10 @@ extern "C"
         
         #endif
 
+#if defined _DEBUG
+		LIB_IMP_API void restoreDeviceTest();//for testing the restore device, you can call it from lua script, e.g. mbm.restoreDeviceTest()
+#endif
+
 
         //when all args are set, call loop
         LIB_IMP_API int  loop();

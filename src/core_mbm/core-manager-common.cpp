@@ -298,6 +298,7 @@ namespace mbm
     
     void CORE_MANAGER::onStop()
     {
+        this->device->pauseGame();
         for (auto ptr : this->device->lsObjectRender2DS)
         {
             ptr->onStop();
@@ -312,7 +313,7 @@ namespace mbm
         }
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
-        this->device->pauseGame();
+        
     }
 
     void CORE_MANAGER::update()
@@ -1028,7 +1029,6 @@ namespace mbm
             stepRestore = STEP_RES_INIT_GL;
             device->clearBackGround = true;
             this->device->resumeGame();
-            this->device->resumeTimer();
             if (device->scene)
                 device->scene->onRestore(100);
             return true;

@@ -82,7 +82,7 @@ namespace mbm
             this->loadSceneOnFirtLoop   = false;
             this->__onErrorStop__       = false;
             this->userData              = &this->dataScene;
-            this->time_resize_window    = 0.0f;
+            //this->time_resize_window    = 0.0f;
             this->splashRenderizable  = mbm::clone(this,previousSplash);
         }
         
@@ -489,7 +489,7 @@ namespace mbm
                     this->dataScene.lsLuaCallBackOnTouchSynchronous.begin());
             }
 
-            if(this->time_resize_window > 0.0)//Window was resized. Lets wait a bit to resize it.
+            /*if (this->time_resize_window > 0.0)//Window was resized. Lets wait a bit to resize it.
             {
                 const float fps           = device->real_fps > 20.0f ? device->real_fps : 60.0f;
                 const float real_delta    = (1.0f / fps);
@@ -504,7 +504,7 @@ namespace mbm
                     device->scene->endScene      = true;
                     this->time_resize_window           = 0.0f;
                 }
-            }
+            }*/
         }
         
         void SCENE_SCRIPT::onCallBackCommands(const char *functionNameCallBack,
@@ -1010,10 +1010,10 @@ namespace mbm
                 }
                 lua_settop(lua,0);
             }
-            else
-            {
-                this->time_resize_window = 1.0f;//restart the scene after 1 second
-            }
+            //else
+            //{
+            //    this->time_resize_window = 1.0f;//restart the scene after 1 second
+            //}
             lua_settop(lua,0);
         }
         

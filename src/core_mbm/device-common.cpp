@@ -50,7 +50,7 @@ namespace mbm
         ptrManager                 = nullptr;
         scene                      = nullptr;
         run                        = true;
-		verbose					   = true;
+        verbose					   = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
         colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
@@ -65,15 +65,15 @@ namespace mbm
         __percXcam2dScale          = 1.0f;
         __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
-		returnCodeApp              = 0;
+        returnCodeApp              = 0;
         windowPositionX            = 0;
         windowPositionY            = 0;
-		audioInterface			   = nullptr;
+        audioInterface			   = nullptr;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
     {
-		returnCodeApp = returnCode;
+        returnCodeApp = returnCode;
     }
 
     int DEVICE::getAppReturnCode() const noexcept
@@ -165,14 +165,14 @@ namespace mbm
     {
         this->pauseTimer();
         if(this->audioInterface)
-			this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
+            this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::resumeGame()
     {
         this->resumeTimer();
-		if (this->audioInterface)
-			this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
+        if (this->audioInterface)
+            this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::addPhysics(PHYSICS *physics)
@@ -320,13 +320,13 @@ namespace mbm
     {
         if (object == nullptr)
             return;
-		if(object->typeClass == TYPE_CLASS_TILE_OBJ)
-		{
-			for (auto ph : this->lsPhysics)
-			{
-				ph->removeObject(object);
-			}
-		}
+        if(object->typeClass == TYPE_CLASS_TILE_OBJ)
+        {
+            for (auto ph : this->lsPhysics)
+            {
+                ph->removeObject(object);
+            }
+        }
         else if (object->is3D)
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
@@ -717,9 +717,9 @@ namespace mbm
     }
     
     void DEVICE::setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface)
-	{
-		this->audioInterface = _audioInterface;
-	}
+    {
+        this->audioInterface = _audioInterface;
+    }
 
     AUDIO_MANAGER_INTERFACE* DEVICE::getAudioManagerInterface() const noexcept
     {
@@ -747,7 +747,10 @@ namespace mbm
     void DEVICE::refreshDevice()
     {
         //force refresh window by sending resize event
-        this->ptrManager->onResizeWindow(static_cast<int>(this->backBufferWidth), static_cast<int>(this->backBufferHeight));
+        const int newWidth     = static_cast<int>(this->backBufferWidth) ;
+        const int newHeight    = static_cast<int>(this->backBufferHeight);
+        this->backBufferWidth  = static_cast<float>(newWidth + 1);
+        this->ptrManager->onResizeWindow(newWidth, newHeight);
     }
 }
 

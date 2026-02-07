@@ -103,9 +103,72 @@ namespace mbm
     class ANIMATION_BACKUP
     {
     public:
+        ANIMATION_BACKUP() noexcept = default;
+        ~ANIMATION_BACKUP() noexcept;
+        // Prevent copying
+        // Move semantics
+        ANIMATION_BACKUP(ANIMATION_BACKUP&& other) = delete;
+        ANIMATION_BACKUP& operator=(ANIMATION_BACKUP&& other) = delete;
+
+        // Prevent copying
+        ANIMATION_BACKUP(const ANIMATION_BACKUP&) = delete;
+        ANIMATION_BACKUP& operator=(const ANIMATION_BACKUP&) = delete;
+
         API_IMPL void backup(ANIMATION_MANAGER* animationManager);
         API_IMPL void restore(ANIMATION_MANAGER* animationManager);
     private:
+
+        struct VAR_SHADER_BACKUP
+        {
+            const std::string     name;
+            const TYPE_VAR_SHADER typeVar;
+            const bool            isPS;
+            const int             sizeVar;
+            float                 current[4];
+            float                 min[4];
+            float                 max[4];
+            float                 step[4];
+            bool                  control[4];
+            bool                  granThen[4];
+
+            explicit VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept;
+            ~VAR_SHADER_BACKUP() = default;
+            // Prevent copying
+            // Move semantics
+            VAR_SHADER_BACKUP(VAR_SHADER_BACKUP&& other) = delete;
+            VAR_SHADER_BACKUP& operator=(VAR_SHADER_BACKUP&& other) = delete;
+
+            // Prevent copying
+            VAR_SHADER_BACKUP(const VAR_SHADER_BACKUP&) = delete;
+            VAR_SHADER_BACKUP& operator=(const VAR_SHADER_BACKUP&) = delete;
+        };
+
+        struct FX_BACKUP
+        {
+            const STATUS_FX			statusFxPs;
+            const STATUS_FX			statusFxVs;
+            const TYPE_ANIMATION    typeAnimPs;
+            const TYPE_ANIMATION    typeAnimVs;
+            const float             timeAnimationPs;
+            const float             timeAnimationVs;
+
+            std::vector<VAR_SHADER_BACKUP*> varsPS;
+            std::vector<VAR_SHADER_BACKUP*> varsVS;
+
+            void restoreFX(mbm::ANIMATION& anim) const noexcept;
+            
+            FX_BACKUP(const ANIMATION& anim) noexcept;
+            ~FX_BACKUP() noexcept;
+            // Prevent copying
+            // Move semantics
+            FX_BACKUP(FX_BACKUP&& other) = delete;
+            FX_BACKUP& operator=(FX_BACKUP&& other) = delete;
+            
+            // Prevent copying
+            FX_BACKUP(const FX_BACKUP&) = delete;
+            FX_BACKUP& operator=(const FX_BACKUP&) = delete;
+        };
+
         struct ANIMATION_STATE
         {
             char           nameAnimation[32];
@@ -123,7 +186,10 @@ namespace mbm
             bool           fx_textureOverrideStage2Alpha; // fx
             int            fx_blendOperation; // fx
         };
+
+        void clearBackup() noexcept;
         std::vector<ANIMATION_STATE> lsAnimationState;
+        std::vector<FX_BACKUP*>      lsFxBackup;
         uint32_t                     indexCurrentAnimation;
     };
 
@@ -148,14 +214,14 @@ namespace mbm
         API_IMPL bool isEndedAnimation() const noexcept;
         API_IMPL void releaseAnimation();
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
-		API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
+        API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
         API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
     
         uint32_t                    indexCurrentAnimation;
         OnEndAnimation              onEndAnimation;
         OnEndEffect                 onEndFx;
         std::vector<ANIMATION *>    lsAnimation;
-        ANIMATION_BACKUP   animationBackup;// to be used on restore device
+        ANIMATION_BACKUP            animationBackup;// to be used on restore device
     };
 
     

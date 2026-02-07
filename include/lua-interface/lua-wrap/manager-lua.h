@@ -93,7 +93,7 @@ namespace mbm
         lua_State *         lua;
         USER_DATA_SCENE_LUA dataScene;
         RENDERIZABLE*		splashRenderizable;
-        float               time_resize_window;
+        //float               time_resize_window;
     };
 
     class LUA_MANAGER : public CORE_MANAGER

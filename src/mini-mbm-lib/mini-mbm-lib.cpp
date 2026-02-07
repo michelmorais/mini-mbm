@@ -419,6 +419,14 @@ namespace mbm
         *p_is_full_screen = dataEvent.getAsBool();
     }
 
+#if defined _DEBUG
+    void restoreDeviceTest()
+    {
+        log_util::print_colored(COLOR_TERMINAL_YELLOW, "restoreDeviceTest called");
+        mbm::DEVICE::getInstance()->refreshDevice();
+	}
+#endif
+
     bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
         mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app, reg_user_script;
