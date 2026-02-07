@@ -124,6 +124,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                         ${SCENE_CPP}
                         ${LIB_MINIMBM_LUA_SRC})
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm Xrandr)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 

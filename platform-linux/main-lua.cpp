@@ -149,7 +149,7 @@ int main(const int argc,const char **argv)
 	mbm::disable_splash();
     mbm::push_arg("--showconsole","true");
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
-    //if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
+    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
     {
         if (index_app_selected > -1 && index_app_selected < size_app)
         {
