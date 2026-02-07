@@ -28,6 +28,108 @@ enum ARGS_WINDWON
     DISABLE_SELECT_MONITOR,
 };
 
+struct STORE_DATA_ARG
+{
+    std::string fileNameInitialLua;
+    std::string nameAplication;
+    std::vector<unsigned int> width_list;
+    std::vector<unsigned int> height_list;
+    std::vector<unsigned int> expected_width_list;
+    std::vector<unsigned int> expected_height_list;
+};
+
+const char* PARSE_laucher_ARGS::getFileNameInitialLua() const { return this->data_arg->fileNameInitialLua.c_str(); }
+const char* PARSE_laucher_ARGS::getNameApplication() const { return this->data_arg->nameAplication.c_str(); }
+bool PARSE_laucher_ARGS::getWidthHeight(unsigned int& width, unsigned int& height) const
+{
+    if (this->data_arg->width_list.size() > 0 && this->data_arg->height_list.size() > 0)
+    {
+        width  = this->data_arg->width_list[this->data_arg->width_list.size() - 1];
+        height = this->data_arg->height_list[this->data_arg->height_list.size() - 1];
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool PARSE_laucher_ARGS::getExpectedWidthHeight(unsigned int& width, unsigned int& height) const
+{
+    if (this->data_arg->expected_width_list.size() > 0 && this->data_arg->expected_height_list.size() > 0)
+    {
+        width  = this->data_arg->expected_width_list[this->data_arg->expected_width_list.size() - 1];
+        height = this->data_arg->expected_height_list[this->data_arg->expected_height_list.size() - 1];
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+#if defined WIN32
+PARSE_laucher_ARGS::PARSE_laucher_ARGS(int argc, wchar_t** argv)
+{
+    noSplash = false;
+    noBorder = false;
+    enableResizeWindow = false;
+    maximizedWindow = false;
+    enableBorder = true;
+    allowFullScreen = true;
+    full_screen_checked = true;
+    disable_select_monitor = false;
+    window_theme = 24;
+    positionXWindow = 0;
+    positionYWindow = 0;
+	this->data_arg = new STORE_DATA_ARG();
+    // Convert wchar_t** to char** (UTF-8)
+    std::vector<std::string> utf8Args;
+    std::vector<const char*> argvUtf8;
+    for (int i = 0; i < argc; ++i)
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
+        std::string utf8Arg(size_needed, 0);
+        WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, &utf8Arg[0], size_needed, NULL, NULL);
+        utf8Args.push_back(utf8Arg);
+        argvUtf8.push_back(utf8Args.back().c_str());
+    }
+	parserArgs(argvUtf8.data(), argc);
+}
+#endif
+
+PARSE_laucher_ARGS::PARSE_laucher_ARGS()
+{
+    noSplash = false;
+    noBorder = false;
+    enableResizeWindow = false;
+    maximizedWindow = false;
+    enableBorder = true;
+    allowFullScreen = true;
+    full_screen_checked = true;
+    disable_select_monitor = false;
+    window_theme = 24;
+    positionXWindow = 0;
+    positionYWindow = 0;
+	this->data_arg = new STORE_DATA_ARG();
+#if defined _WIN32
+	int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    // Convert wchar_t** to char** (UTF-8)
+    std::vector<std::string> utf8Args;
+    std::vector<const char*> argvUtf8;
+    for (int i = 0; i < argc; ++i)
+    {
+        int size_needed = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
+        std::string utf8Arg(size_needed, 0);
+        WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, &utf8Arg[0], size_needed, NULL, NULL);
+        utf8Args.push_back(utf8Arg);
+        argvUtf8.push_back(utf8Args.back().c_str());
+    }
+    parserArgs(argvUtf8.data(), argc);
+#endif
+}
+
 PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
 {
     noSplash = false;
@@ -41,10 +143,10 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
 	window_theme = 24;
 	positionXWindow = 0;
 	positionYWindow = 0;
-
+    this->data_arg = new STORE_DATA_ARG();
     
     #if defined _WIN32
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(),&pNumArgs);
+    //LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(),&pNumArgs);
     #elif defined __linux__  || defined(__APPLE__)
     /*FILE *f = fopen("/proc/self/cmdline", "r");
     char **argv = NULL;
@@ -76,6 +178,14 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
     }
 
 }
+PARSE_laucher_ARGS::~PARSE_laucher_ARGS()
+{
+    if(this->data_arg)
+    {
+        delete this->data_arg;
+        this->data_arg = nullptr;
+    }
+}
 
 void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
 {
@@ -93,12 +203,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
             
     for (unsigned int i = 0; i < static_cast<unsigned int>(pNumArgs); ++i)
     {
-        #if defined _WIN32
-        char buffer[1024] = "";
-        const char* arg = util::toChar(argv[i],buffer);
-        #elif defined __linux__  || defined(__APPLE__)
         const char* arg = argv[i];
-        #endif
         if (strcasecmp(arg, "-w") == 0 || strcasecmp(arg, "-width") == 0 || strcasecmp(arg, "--width") == 0)
             nextArg = WIDTH_SCREEN;
         else if (strcasecmp(arg, "-ew") == 0 || strcasecmp(arg, "-expectedwidth") == 0 || strcasecmp(arg, "--expectedwidth") == 0)
@@ -171,9 +276,9 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                 util::split(result, arg, '.');
                 if (result.size() >= 2 && result[result.size() - 1].compare("lua") == 0)
                 {
-                    if (this->fileNameInitialLua.compare("main.lua") == 0 || this->fileNameInitialLua.size() == 0)
+                    if (this->data_arg->fileNameInitialLua.compare("main.lua") == 0 || this->data_arg->fileNameInitialLua.size() == 0)
                     {
-                        this->fileNameInitialLua = the_arg;
+                        this->data_arg->fileNameInitialLua = the_arg;
                     }
                     is_lua_file = true;
                     nextArg = NONE;
@@ -217,7 +322,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                         {
                             auto newW = (unsigned int)std::atoi(arg);
                             if (newW > 0)
-                                this->width_list.push_back(newW);
+                                this->data_arg->width_list.push_back(newW);
                             nextArg               = WIDTH_SCREEN;
                         }
                         break;
@@ -225,7 +330,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                         {
                             auto newH = (unsigned int)std::atoi(arg);
                             if (newH > 0)
-                                this->height_list.push_back(newH);
+                                this->data_arg->height_list.push_back(newH);
                             nextArg                = HEIGHT_SCREEN;
                         }
                         break;
@@ -234,7 +339,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                             int newW = std::atoi(arg);
                             if (newW > 0)
                             {
-                                expected_width_list.push_back(newW);
+                                this->data_arg->expected_width_list.push_back(newW);
                             }
                             nextArg               = EXPECTED_WIDTH_SCREEN;
                         }
@@ -244,7 +349,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                             int newH = std::atoi(arg);
                             if (newH > 0)
                             {
-                                expected_height_list.push_back(newH);
+                                this->data_arg->expected_height_list.push_back(newH);
                             }
                             nextArg                = EXPECTED_HEIGHT_SCREEN;
                         }
@@ -269,13 +374,13 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                         break;
                         case INITIAL_SCENE_LUA:
                         {
-                            this->fileNameInitialLua = the_arg;
+                            this->data_arg->fileNameInitialLua = the_arg;
                             nextArg                  = INITIAL_SCENE_LUA;
                         }
                         break;
                         case NAME_APP: 
                         {   
-                            this->nameAplication = the_arg;
+                            this->data_arg->nameAplication = the_arg;
                         }
                         break;
                         case ADD_PATH: { util::addPath(arg);}
@@ -312,14 +417,14 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                 {
                     auto newW = (unsigned int)std::atoi(arg);
                     if (newW > 0)
-                        width_list.push_back(newW);
+                        this->data_arg->width_list.push_back(newW);
                 }
                 break;
                 case HEIGHT_SCREEN:
                 {
                     auto newH = (unsigned int)std::atoi(arg);
                     if (newH > 0)
-                        height_list.push_back(newH);
+                        this->data_arg->height_list.push_back(newH);
                 }
                 break;
                 case EXPECTED_WIDTH_SCREEN:
@@ -327,7 +432,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                     auto newW = (unsigned int)std::atoi(arg);
                     if (newW > 0)
                     {
-                        expected_width_list.push_back(newW);
+                        this->data_arg->expected_width_list.push_back(newW);
                     }
                 }
                 break;
@@ -336,7 +441,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                     auto newH = (unsigned int)std::atoi(arg);
                     if (newH > 0)
                     {
-                        expected_height_list.push_back(newH);
+                        this->data_arg->expected_height_list.push_back(newH);
                     }
                 }
                 break;
@@ -346,11 +451,11 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                 break;
                 case MAXIMIZED_WINDOW: { this->maximizedWindow = std::atoi(arg) ? true : false;}
                 break;
-                case INITIAL_SCENE_LUA: { this->fileNameInitialLua = the_arg;}
+                case INITIAL_SCENE_LUA: { this->data_arg->fileNameInitialLua = the_arg;}
                 break;
                 case NAME_APP: 
                 { 
-                    this->nameAplication = the_arg;
+                    this->data_arg->nameAplication = the_arg;
                 }
                 break;
                 case ADD_PATH: { util::addPath(arg);}

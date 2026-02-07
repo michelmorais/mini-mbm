@@ -321,6 +321,9 @@
     <ClInclude Include="..\..\include\core_mbm\usage-help.h">
       <Filter>Header Files\core_mbm</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\parse-launcher-args.hpp">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp">
@@ -642,6 +645,9 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\usage-help.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\parse-launcher-args.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
   </ItemGroup>
