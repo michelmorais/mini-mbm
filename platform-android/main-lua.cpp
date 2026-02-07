@@ -307,7 +307,7 @@ void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
         cJni->jenv = env;
     }
     if (game)
-        game->onStop();
+        game->onStopCoreManager();
     if (getEnvStat == JNI_EDETACHED)
     {
         /*

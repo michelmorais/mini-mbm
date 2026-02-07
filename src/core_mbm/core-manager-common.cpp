@@ -296,7 +296,7 @@ namespace mbm
         return 0;
     }
     
-    void CORE_MANAGER::onStop()
+    void CORE_MANAGER::onStopCoreManager()
     {
         // Stop the game and all resources, this is called when the device is lost, so we need to release all resources and stop the game, but we do not release the graphics device, so we can restore it later
         wasGamePausedBeforeOnStop = this->device->isGamePaused();
@@ -1042,7 +1042,7 @@ namespace mbm
      void CORE_MANAGER::forceRestore(const bool doSwapBuffers)
     {
         // Call onStop and forceRestore to ensure all resources are reloaded
-        this->onStop();
+        this->onStopCoreManager();
         while (!this->onLostDevice(doSwapBuffers, 
             static_cast<int>(this->device->backBufferWidth),
             static_cast<int>(this->device->backBufferHeight),

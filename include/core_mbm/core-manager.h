@@ -174,7 +174,7 @@ namespace mbm
     
         API_IMPL void setScene(SCENE *currentScene);
         API_IMPL virtual bool existScene(const int idScene) = 0;
-        API_IMPL void onStop();
+        API_IMPL void onStopCoreManager();
         API_IMPL unsigned int addPlugin(PLUGIN * plugin);
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
         API_IMPL void setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept; // This is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
