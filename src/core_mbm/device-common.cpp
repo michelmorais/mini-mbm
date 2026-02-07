@@ -68,6 +68,7 @@ namespace mbm
         returnCodeApp              = 0;
         windowPositionX            = 0;
         windowPositionY            = 0;
+        _isGamePaused              = false;
         audioInterface			   = nullptr;
     }
 
@@ -160,9 +161,15 @@ namespace mbm
             }
         }
     }
+
+    bool DEVICE::isGamePaused() const noexcept
+    {
+        return _isGamePaused;
+    }
     
     void DEVICE::pauseGame()
     {
+        _isGamePaused = true;
         this->pauseTimer();
         if(this->audioInterface)
             this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
@@ -170,6 +177,7 @@ namespace mbm
     
     void DEVICE::resumeGame()
     {
+        _isGamePaused = false;
         this->resumeTimer();
         if (this->audioInterface)
             this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);

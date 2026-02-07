@@ -298,6 +298,8 @@ namespace mbm
     
     void CORE_MANAGER::onStop()
     {
+        // Stop the game and all resources, this is called when the device is lost, so we need to release all resources and stop the game, but we do not release the graphics device, so we can restore it later
+        wasGamePausedBeforeOnStop = this->device->isGamePaused();
         this->device->pauseGame();
         for (auto ptr : this->device->lsObjectRender2DS)
         {
@@ -1028,7 +1030,8 @@ namespace mbm
 #endif
             stepRestore = STEP_RES_INIT_GL;
             device->clearBackGround = true;
-            this->device->resumeGame();
+            if(wasGamePausedBeforeOnStop == false)
+                this->device->resumeGame();
             if (device->scene)
                 device->scene->onRestore(100);
             return true;

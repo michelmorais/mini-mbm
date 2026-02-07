@@ -65,6 +65,7 @@ namespace mbm
         this->changeScene      = true;
         this->__sceneWasInit   = false;
         this->keyCapsLockState = false;
+        this->wasGamePausedBeforeOnStop = false;
         #pragma message(REMINDER_TODO);
     }
     

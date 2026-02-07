@@ -134,6 +134,7 @@ namespace mbm
         API_IMPL const char* copyFileFromAsset(const char* assetName, const char* mode);// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
         API_IMPL void disableFilteringForPixelPerfect() noexcept;//backend specific way to disable texture filtering for pixel perfect rendering
         API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
+        API_IMPL bool isGamePaused() const noexcept;
 
         int                                   windowPositionX;
         int                                   windowPositionY;
@@ -149,6 +150,7 @@ namespace mbm
         std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
         float                                 __percXcam2dScale;
         float                                 __percYcam2dScale;
+        bool                                 _isGamePaused;
         DEVICE();
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);

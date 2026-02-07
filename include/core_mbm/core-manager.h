@@ -246,6 +246,7 @@ namespace mbm
         bool windowBorder;
         bool enableResizeWindow;
       private:
+        bool                                    wasGamePausedBeforeOnStop;
         std::map<int, bool>                     __keyPressed;
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
