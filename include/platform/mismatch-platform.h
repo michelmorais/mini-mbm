@@ -51,6 +51,7 @@
         int access_file(const char *fileName, int);
     #elif defined(__linux__) // __APPLE__ bellow untested
         #include <unistd.h>
+        #include <strings.h>
         #define access_file access
     #elif defined(__APPLE__)
         #include <unistd.h>

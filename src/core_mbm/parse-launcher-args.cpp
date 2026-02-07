@@ -1,11 +1,11 @@
 
-#include "parse_laucher_args.hpp"
+#include <parse-launcher-args.hpp>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/util-interface.h>
 
 #include <string>
 
-enum ARGS_WINDWONS
+enum ARGS_WINDWON
 {
     NONE,
     WIDTH_SCREEN,
@@ -28,9 +28,8 @@ enum ARGS_WINDWONS
     DISABLE_SELECT_MONITOR,
 };
 
-PARSE_laucher_ARGS::PARSE_laucher_ARGS()
+PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
 {
-    int pNumArgs = 0;
     noSplash = false;
     noBorder = false;
     enableResizeWindow = false;
@@ -42,24 +41,64 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS()
 	window_theme = 24;
 	positionXWindow = 0;
 	positionYWindow = 0;
-	
-    LPWSTR* szArglist = CommandLineToArgvW(GetCommandLineW(),&pNumArgs);
-    if(szArglist != nullptr)
+
+    
+    #if defined _WIN32
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(),&pNumArgs);
+    #elif defined __linux__  || defined(__APPLE__)
+    /*FILE *f = fopen("/proc/self/cmdline", "r");
+    char **argv = NULL;
+    if (f) {
+        char buffer[4096];
+        size_t len = fread(buffer, 1, sizeof(buffer) - 1, f);
+        fclose(f);
+        buffer[len] = '\0';
+
+        
+        int argc = 0;
+        char *p = buffer;
+        while (*p) {
+            argv = realloc(argv, (argc + 1) * sizeof(char *));
+            argv[argc++] = p;
+            p += strlen(p) + 1;
+        }
+        argv = realloc(argv, (argc + 1) * sizeof(char *));
+        argv[argc] = NULL;
+
+        // Now argv contains the parsed arguments
+    }*/
+
+
+    #endif
+    if(argv != nullptr)
     {
-        parserArgs(szArglist, pNumArgs);
+        parserArgs(argv, pNumArgs);
     }
 
 }
 
-void PARSE_laucher_ARGS::parserArgs(const LPWSTR* szArglist, const int pNumArgs)
+void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
 {
-    ARGS_WINDWONS nextArg = NONE;
-    ARGS_WINDWONS lastArg = NONE;
+    #if defined _DEBUG || defined DEBUG || defined _DEBUG_
+    // Debug: print all arguments
+    for (int dbg_i = 0; dbg_i < pNumArgs; ++dbg_i)
+    {
+        printf("DEBUG argv[%d] = %s\n", dbg_i, argv[dbg_i]);
+    }
+    fflush(stdout);
+    #endif
+    
+    ARGS_WINDWON nextArg = NONE;
+    ARGS_WINDWON lastArg = NONE;
             
     for (unsigned int i = 0; i < static_cast<unsigned int>(pNumArgs); ++i)
     {
+        #if defined _WIN32
         char buffer[1024] = "";
-        const char* arg = util::toChar(szArglist[i],buffer);
+        const char* arg = util::toChar(argv[i],buffer);
+        #elif defined __linux__  || defined(__APPLE__)
+        const char* arg = argv[i];
+        #endif
         if (strcasecmp(arg, "-w") == 0 || strcasecmp(arg, "-width") == 0 || strcasecmp(arg, "--width") == 0)
             nextArg = WIDTH_SCREEN;
         else if (strcasecmp(arg, "-ew") == 0 || strcasecmp(arg, "-expectedwidth") == 0 || strcasecmp(arg, "--expectedwidth") == 0)
@@ -111,7 +150,7 @@ void PARSE_laucher_ARGS::parserArgs(const LPWSTR* szArglist, const int pNumArgs)
             nextArg = ENABLE_RESIZE_WINDOW;
 		else if (strcasecmp(arg, "--noborder") == 0 || strcasecmp(arg, "-noborder") == 0)
 		{
-			nextArg = NO_BORDER;
+			nextArg = NONE;  // No value expected, don't consume next arg
 			noBorder = true;
 		}
         else if(i == 0)//first arg must be the executable name (just ignore)
@@ -131,6 +170,14 @@ void PARSE_laucher_ARGS::parserArgs(const LPWSTR* szArglist, const int pNumArgs)
                     {
                         case NONE:
                         {
+                            // Check if this is a .lua file passed as argument
+                            std::vector<std::string> result;
+                            util::split(result, arg, '.');
+                            if (result.size() >= 2 && result[result.size() - 1].compare("lua") == 0 &&
+                                (this->fileNameInitialLua.compare("main.lua") == 0 || this->fileNameInitialLua.size() == 0))
+                            {
+                                this->fileNameInitialLua = the_arg;
+                            }
                             nextArg = NONE;
                         }
                         break;

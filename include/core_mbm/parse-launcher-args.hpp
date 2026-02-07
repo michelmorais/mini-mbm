@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Windows.h>
+#include <core_mbm/core-exports.h>
 #include <vector>
 #include <string>
 
-class PARSE_laucher_ARGS
+class API_IMPL PARSE_laucher_ARGS
 {
 public:
-	PARSE_laucher_ARGS();
+	explicit PARSE_laucher_ARGS(const char** argv, const int pNumArgs);
 	bool noSplash;
 	bool noBorder;
 	bool enableResizeWindow;
@@ -27,5 +27,5 @@ public:
 	std::vector<unsigned int> expected_height_list;
 
 private:
-	void parserArgs(const LPWSTR* szArglist, const int pNumArgs);
+	void parserArgs(const char** argv, const int pNumArgs);
 };

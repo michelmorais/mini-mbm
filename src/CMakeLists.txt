@@ -14,6 +14,7 @@ set(CORE_OPENGLES_INCLUDES      ${INCLUDE}/core_mbm)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(LUA_WRAP                    ${INCLUDE}/lua-interface)
 set(TINYFILEDIALOGS_DIR         ${THIRD_PARTY}/tinyfiledialogs)
+set(LIB_MINIMBM_LUA_SRC         ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib.cpp)
 
 
 if (USE_LUA)
@@ -21,6 +22,7 @@ if (USE_LUA)
     message(STATUS "Using LUA script...")
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
+        set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
@@ -68,7 +70,8 @@ include_directories(${OPENGLES2_INCLUDE_DIR}
                     ${THIRD_PARTY}
                     ${LUA_WRAP}
                     ${LUA_INCLUDE}
-                    ${PLUGINS})
+                    ${PLUGINS}
+                    ${LIB_MINIMBM_LUA_HEADER})
 
  
 if (USE_LUA)
@@ -118,7 +121,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                         ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                         ${BULLET3D_WRAP_SOURCES}
                         ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP})
+                        ${SCENE_CPP}
+                        ${LIB_MINIMBM_LUA_SRC})
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
@@ -128,7 +132,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                         ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                         ${BULLET3D_WRAP_SOURCES}
                         ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP})
+                        ${SCENE_CPP}
+                        ${LIB_MINIMBM_LUA_SRC})
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     

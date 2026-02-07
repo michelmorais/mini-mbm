@@ -4,7 +4,7 @@
 #include "framework.h"
 #include "mini-mbm-launcher.h"
 #include <string>
-#include "parse_laucher_args.hpp"
+#include "PARSE_laucher_ARGS.hpp"
 #include "resource.h"
 
 #pragma comment(lib, "core_mbm.lib")
@@ -56,14 +56,14 @@ int main(const int argc,const char **argv)
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
             {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
-            {"Particle Editor"       ,"Editor de Partículas",     "particle_editor.lua"},
-            {"Physics Editor"        ,"Editor de Física",         "physic_editor.lua"},
+            {"Particle Editor"       ,"Editor de PartÃ­culas",     "particle_editor.lua"},
+            {"Physics Editor"        ,"Editor de FÃ­sica",         "physic_editor.lua"},
             {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
             {"Shader Editor"         ,"Editor de Shader",         "shader_editor.lua"},
             {"Sprite Maker"          ,"Editor de Sprite",         "sprite_maker.lua"},
             {"Texture Packer"        ,"Empacotador de texturas",  "texture_packer.lua"},
             {"Tile-Map Editor"       ,"Editor de mapa de blocos", "tilemap_editor.lua"},
-            {"User specified"        ,"Script do usuário",        "user_specified.lua"},
+            {"User specified"        ,"Script do usuÃ¡rio",        "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
 	size_app = size_app - 1; // remove the last one, it is a user specified script
@@ -74,7 +74,7 @@ int main(const int argc,const char **argv)
     // parse arguments in next block
     {
         PARSE_laucher_ARGS parser;
-
+        
         if (parser.width_list.size() > 0 && parser.height_list.size() > 0)
         {
             mbm::set_window_size(

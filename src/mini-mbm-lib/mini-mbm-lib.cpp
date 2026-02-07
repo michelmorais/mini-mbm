@@ -24,7 +24,9 @@
 #include <device.h>
 #include <version/version.h>
 #include <core_mbm/usage-help.h>
+#if defined (WIN32)
 #include <defaultThemePlusWindows.h>
+#endif
 
 
 class ARGS
@@ -66,9 +68,11 @@ private:
 HWND external_hwnd = 0;
 DWORD  external_ID_ICON = 0;
 bool _my_theme_selected = false;
+#else
+constexpr int  external_ID_ICON = 0;
+#endif
 std::string my_app_name("Mini-Mbm");
 std::vector<std::string> my_args;
-#endif
 
 OnDoNativeCommand externalDoNativeCommand = nullptr;
 
@@ -215,6 +219,7 @@ namespace mbm
         externalDoNativeCommand = onDoNativeCommand;
     }
 
+    #if defined (WIN32)
     void set_hwnd(HWND hwnd)
     {
         log_util::print_colored(COLOR_TERMINAL_RED,"set_hwnd not implemented yet :/");
@@ -240,6 +245,7 @@ namespace mbm
     {
         external_ID_ICON = ID_ICON;
     }
+    #endif
 
     inline int  start_main_loop(const std::vector<std::string> & args, const int ID_ICON)
     {
@@ -247,8 +253,10 @@ namespace mbm
         {
             usage::help(util::getBaseName(args[0].c_str()));
         }
+        #if defined (WIN32)
         if(_my_theme_selected == false)
             mbm::setTheme(22, true);
+        #endif
         mbm::LUA_MANAGER luaCore(args);
         if(luaCore.device && luaCore.device->verbose)
             log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
@@ -256,8 +264,8 @@ namespace mbm
         luaCore.onDoNativeCommand = externalDoNativeCommand;
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         setWin32IconToBeUsed(ID_ICON);
-#endif
         DisableProcessWindowsGhosting();
+#endif
         int expectedWidth = luaCore.widthWindow;
         int expectedHeight = luaCore.heightWindow;
         std::string stretch("y");
@@ -316,7 +324,7 @@ namespace mbm
 #endif
     #else
         my_args.insert(my_args.begin(),"mini_mbm");
-        push_arg("--name",progam_name);
+        push_arg("--name",my_app_name.c_str());
     #endif
         return start_main_loop(my_args,external_ID_ICON);
     }
@@ -361,7 +369,7 @@ namespace mbm
             source_in_out[0]=0;
         }
     }
-
+#if defined (WIN32)
     static void onSelectRelosution(mbm::WINDOW *w, mbm::DATA_EVENT &dataEvent)
     {
         SCREEN_RESOLUTION * resolutions  = static_cast<SCREEN_RESOLUTION * >(w->getObjectContext(4));
@@ -418,7 +426,7 @@ namespace mbm
         bool * p_is_full_screen       = static_cast<bool * >(w->getObjectContext(5));
         *p_is_full_screen = dataEvent.getAsBool();
     }
-
+#endif
 #if defined _DEBUG
     void restoreDeviceTest()
     {
@@ -427,6 +435,7 @@ namespace mbm
 	}
 #endif
 
+#if defined (WIN32)
     bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
         mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app, reg_user_script;
@@ -494,9 +503,9 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "Op��es de Tela";
+            temp_app_name        = "Opções de Tela";
             temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma Resolu��o:";
+            temp_resol_name      = "Selecione uma Resolução:";
             temp_full_screen_lbl = "Tela cheia";
             temp_play_lbl        = "INICIAR";
         }
@@ -524,7 +533,7 @@ namespace mbm
             {
                 if (isPTbr)
                 {
-                    sprintf(str, "%d: %ld x %ld, frequ�ncia:%lu, posi��o:%ld x %ld", (int)i + 1, temp.width, temp.height,
+                    sprintf(str, "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld", (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 else
@@ -714,4 +723,5 @@ namespace mbm
     {
         return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked);
     }
+#endif
 }

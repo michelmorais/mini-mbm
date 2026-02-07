@@ -31,7 +31,7 @@ struct lua_State;
 
 #ifndef _DO_NATIVE_COMMANDS_FROM_LUA
 #define _DO_NATIVE_COMMANDS_FROM_LUA
-typedef void (*OnDoNativeCommand)(const char *command, const char *param,const char * result,const int size_result);
+typedef void (*OnDoNativeCommand)(const char *command, const char *param, char * result,const int size_result);
 #endif
 
 namespace mbm
