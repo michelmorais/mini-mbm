@@ -51,7 +51,7 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
 int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
-    bool full_screen_checked = true;
+    bool full_screen_checked = false;
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},

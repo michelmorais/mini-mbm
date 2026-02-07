@@ -66,7 +66,7 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
 int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
-    bool full_screen_checked = true;
+    bool full_screen_checked = false;
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
@@ -90,35 +90,39 @@ int main(const int argc,const char **argv)
     {
         PARSE_laucher_ARGS parser(argv, argc);
 
-        if (parser.width_list.size() > 0 && parser.height_list.size() > 0)
+        unsigned int width = 0, height = 0;
+        if (parser.getWidthHeight(width, height))
         {
             mbm::set_window_size(
-                parser.width_list[parser.width_list.size() - 1],
-                parser.height_list[parser.height_list.size() - 1]);
+                width,
+                height);
         }
         else
         {
             mbm::set_window_size(1920, 1080);
         }
 
-        if (parser.expected_width_list.size() > 0 && parser.expected_height_list.size() > 0)
-        {
+        unsigned int expected_width = 0, expected_height = 0;
+        if(parser.getExpectedWidthHeight(expected_width, expected_height))
+                    {
             mbm::set_expected_window_size(
-                parser.expected_width_list[parser.expected_width_list.size() - 1],
-                parser.expected_height_list[parser.expected_height_list.size() - 1]);
-        }
+                expected_width,
+                expected_height);
+		}
         else
         {
             mbm::set_expected_window_size(1920, 1080);
         }
+
         mbm::set_verbose(false);
         if (parser.noSplash)
         {
             mbm::disable_splash();
         }
-        if (parser.nameAplication.size() > 0)
+        const char* nameApp = parser.getNameApplication();
+		if (nameApp && strlen(nameApp) > 0)
         {
-            title_app = parser.nameAplication.c_str();
+            title_app = nameApp;
             mbm::set_app_name(title_app.c_str());
         }
         else
@@ -128,13 +132,14 @@ int main(const int argc,const char **argv)
         //https://onlineconvertfree.com/convert/png/
         mbm::set_window_resizable(parser.enableResizeWindow);
 
-        if (parser.fileNameInitialLua.size() > 0)
+        const char* fileNameInitialLua = parser.getFileNameInitialLua();
+        if (fileNameInitialLua && strlen(fileNameInitialLua) > 0)
         {
-            mbm::set_scene(parser.fileNameInitialLua.c_str());
-			size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
+            mbm::set_scene(fileNameInitialLua);
+            size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
             index_app_selected = size_app - 1;
-			user_script_name = parser.fileNameInitialLua;
-			default_applications[index_app_selected].script_path = user_script_name.c_str();
+            user_script_name = fileNameInitialLua;
+            default_applications[index_app_selected].script_path = user_script_name.c_str();
         }
 
         mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);
