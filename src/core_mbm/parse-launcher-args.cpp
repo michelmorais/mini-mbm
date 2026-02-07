@@ -162,6 +162,27 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
             std::string the_arg(arg);
             if (the_arg.find('=') != std::string::npos)
                 nextArg = NONE;
+            
+            // Check if this is a .lua file FIRST, before processing other cases
+            // This allows .lua files to be passed anywhere in the argument list
+            bool is_lua_file = false;
+            {
+                std::vector<std::string> result;
+                util::split(result, arg, '.');
+                if (result.size() >= 2 && result[result.size() - 1].compare("lua") == 0)
+                {
+                    if (this->fileNameInitialLua.compare("main.lua") == 0 || this->fileNameInitialLua.size() == 0)
+                    {
+                        this->fileNameInitialLua = the_arg;
+                    }
+                    is_lua_file = true;
+                    nextArg = NONE;
+                    lastArg = NONE;
+                }
+            }
+            
+            if (!is_lua_file)
+            {
             switch (nextArg)
             {
                 case NONE:
@@ -170,14 +191,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                     {
                         case NONE:
                         {
-                            // Check if this is a .lua file passed as argument
-                            std::vector<std::string> result;
-                            util::split(result, arg, '.');
-                            if (result.size() >= 2 && result[result.size() - 1].compare("lua") == 0 &&
-                                (this->fileNameInitialLua.compare("main.lua") == 0 || this->fileNameInitialLua.size() == 0))
-                            {
-                                this->fileNameInitialLua = the_arg;
-                            }
+                            nextArg = NONE;
                             nextArg = NONE;
                         }
                         break;
@@ -349,16 +363,11 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                 default:
                 {
                     nextArg = NONE;
-                    std::vector<std::string> result;
-                    util::split(result, arg, '.');
-                    if (result.size() >= 2 && result[result.size() - 1].compare("lua") == 0 &&
-                        (this->fileNameInitialLua.compare("main.lua") == 0 || this->fileNameInitialLua.size() == 0))
-                    {
-                        this->fileNameInitialLua = the_arg;
-                    }
+                    WARN_LOG("\nArgument: %s %s", arg, " ignored\r\n");
                 }
                 break;
             }
+            } // end if (!is_lua_file)
             if (nextArg != NONE)
                 lastArg = nextArg;
             nextArg     = NONE;
