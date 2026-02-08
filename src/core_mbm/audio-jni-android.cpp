@@ -19,6 +19,7 @@
 
 #if defined(AUDIO_ENGINE_JNI)
 #if defined(ANDROID)
+#if defined (USE_OPENGL_ES)
 
 #include <audio.h>
 #include <device.h>
@@ -366,5 +367,6 @@ namespace mbm
 	}
 }
 
+#endif
 #endif
 #endif

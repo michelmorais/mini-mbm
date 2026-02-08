@@ -26,21 +26,27 @@ namespace mbm
 {
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     };
 
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
 		constexpr bool wasDeviceLost = false; // You can change this value based on your engine's context loss handling
 		this->release(wasDeviceLost);
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     };
 
     void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost) noexcept
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
+}
+
+int access_file(const char *fileName, int)
+{
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    return 0;
 }
 
 #endif

@@ -32,12 +32,12 @@ namespace mbm
 
     void FX::setBlendDefaultOp()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void FX::setBlendOp()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 }
 

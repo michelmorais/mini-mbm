@@ -17,7 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE) 
+// ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+#elif defined ANDROID
 
 #include <jni.h>
 #include <stdlib.h>

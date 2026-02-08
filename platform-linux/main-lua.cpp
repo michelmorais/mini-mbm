@@ -153,6 +153,12 @@ int main(const int argc,const char **argv)
 	mbm::set_verbose(true);
 	mbm::disable_splash();
     mbm::push_arg("--showconsole","true");
+    #if defined(__linux__) || defined(__APPLE__) 
+        #if defined _DEBUG
+            mbm::add_path("/home/michel/mini-mbm/editor/");
+            mbm::add_path("/home/michel/mini-mbm/editor/shaders");
+        #endif
+    #endif
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
     if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
     {

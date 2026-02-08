@@ -36,7 +36,7 @@ namespace mbm
     RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
         RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
         this->colorClearBackGround.a = 1.0f;
         this->widthTexture = 0;
@@ -46,7 +46,7 @@ namespace mbm
     RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
     {
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     RENDER2TARGET_DUMMY::~RENDER2TARGET_DUMMY()
@@ -58,7 +58,7 @@ namespace mbm
     {
         if(pRenderSurface)
             pRenderSurface = nullptr;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)
@@ -78,7 +78,7 @@ namespace mbm
 
         const int channel = this->texture->useAlphaChannel ? 4 : 3;
         const int sizeImage = _width * _height * channel;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         std::vector<uint8_t> imageData(sizeImage);
 
         // Encode and save PNG

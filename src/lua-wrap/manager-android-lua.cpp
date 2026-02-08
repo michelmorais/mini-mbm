@@ -34,12 +34,21 @@ extern "C"
 
 #if defined USE_OPENGL_ES
     #include <core_mbm/specific-opengl_es.h>
+#elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
+    #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
 #else
     #error "This file is only for OpenGL ES"
 #endif
 
 namespace mbm
 {
+    #if defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
+    {
+    }
+    #else
+
     LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -62,6 +71,7 @@ namespace mbm
         this->hasValueTextureLogo = false;
         INFO_LOG("%s", this->nameAplication.c_str());
     }
+    #endif
 };
 
 #endif

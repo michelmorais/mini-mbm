@@ -1048,7 +1048,7 @@ public:
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_Init(_context);
 #elif defined USE_DUMMY_BACK_END_ENGINE
-            #pragma message(REMINDER_TODO)
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui Init"
 #endif
@@ -1677,7 +1677,7 @@ public:
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_NewFrame();
 #elif defined USE_DUMMY_BACK_END_ENGINE
-            #pragma message(REMINDER_TODO)
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui NewFrame"
 #endif
@@ -1724,7 +1724,7 @@ public:
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_RenderDrawData(draw_data);
 #elif defined USE_DUMMY_BACK_END_ENGINE
-            #pragma message(REMINDER_TODO)
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui RenderDrawData"
 #endif
@@ -1742,7 +1742,7 @@ public:
 #elif defined USE_DIRECTX9
         ImGui_ImplDX9_Shutdown();
 #elif defined USE_DUMMY_BACK_END_ENGINE
-            #pragma message(REMINDER_TODO)
+            REMINDER_TODO
 #else
         #error "Not implemented for ImGui Shutdown"
 #endif

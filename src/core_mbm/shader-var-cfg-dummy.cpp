@@ -51,13 +51,13 @@ namespace mbm
         }
 
         ptrHandleVar = nullptr; // to be implemented in the specific back-end engine
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     VAR_SHADER::~VAR_SHADER()
     {
         //delete static_cast<YOUR_TYPE*>(ptrHandleVar);
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
 }

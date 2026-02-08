@@ -77,7 +77,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(int argc, wchar_t** argv)
     maximizedWindow = false;
     enableBorder = true;
     allowFullScreen = true;
-    full_screen_checked = true;
+    full_screen_checked = false;
     disable_select_monitor = false;
     window_theme = 24;
     positionXWindow = 0;
@@ -106,7 +106,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS()
     maximizedWindow = false;
     enableBorder = true;
     allowFullScreen = true;
-    full_screen_checked = true;
+    full_screen_checked = false;
     disable_select_monitor = false;
     window_theme = 24;
     positionXWindow = 0;
@@ -138,7 +138,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
 	maximizedWindow = false;
 	enableBorder = true;
     allowFullScreen = true;
-    full_screen_checked = true;
+    full_screen_checked = false;
     disable_select_monitor = false;
 	window_theme = 24;
 	positionXWindow = 0;

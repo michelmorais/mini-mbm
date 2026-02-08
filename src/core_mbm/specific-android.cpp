@@ -22,12 +22,26 @@
 #include <unistd.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/util-interface.h>
-#include <specific-opengl_es.h>
+            
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+#elif defined          ANDROID
+    #include <specific-opengl_es.h>
+#endif
 #include <device.h>
 #include <audio-interface.h>
 
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 namespace mbm
 {
+    
+}
+
+#else
+namespace mbm
+{
+    
     SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE():
     jenv(nullptr),
     absPath(""),
@@ -412,4 +426,5 @@ int access_file(const char *fileName, int)
     return cJni->existFileOnAssets(fileName_buffer.c_str());
 }
 
+#endif
 #endif

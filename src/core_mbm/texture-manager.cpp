@@ -29,7 +29,12 @@
 #if defined ANDROID
     #include <device.h>
     #if defined     USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
+        #if defined (USE_DUMMY_BACK_END_ENGINE)
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+        #else
+            #include <core_mbm/specific-opengl_es.h>
+        #endif
     #endif
 #endif
 
@@ -367,7 +372,13 @@ namespace mbm
         return this->height;
     }
     
-#if defined ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha)
+    {
+        return false;
+    }
+#elif defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();

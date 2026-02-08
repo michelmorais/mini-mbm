@@ -57,21 +57,21 @@ namespace mbm
             delete instanceDevice;
         }
         instanceDevice = nullptr;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void DEVICE::setDephtTest(const bool enable)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void DEVICE::clearDepth()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
     void DEVICE::clearDepthColored()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
@@ -89,7 +89,7 @@ namespace mbm
         if (width > 0 && height > 0)
         {
             //TOD: check this
-            #pragma message(REMINDER_TODO);
+            REMINDER_TODO
         }
         if (width > 0)
             backBufferWidth = width;
@@ -110,7 +110,7 @@ namespace mbm
 
     const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return assetName;
     }
 
@@ -118,7 +118,7 @@ namespace mbm
     {
         for (int i = 0; i < 2; ++i)
         {
-            #pragma message(REMINDER_TODO);
+            REMINDER_TODO
         }
     }
 
@@ -126,7 +126,7 @@ namespace mbm
     {
         for (int i = 0; i < 2; ++i)
         {
-            #pragma message(REMINDER_TODO);
+            REMINDER_TODO
 		}
     }
 

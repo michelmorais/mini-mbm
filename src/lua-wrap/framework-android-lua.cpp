@@ -16,7 +16,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
-
+#ifndef USE_DUMMY_BACK_END_ENGINE
 #if defined ANDROID
 #include <lua-wrap/framework-lua.h>
 #include <core_mbm/log-util.h>
@@ -680,4 +680,5 @@ namespace mbm
         return 0;
     }
 };
+#endif
 #endif

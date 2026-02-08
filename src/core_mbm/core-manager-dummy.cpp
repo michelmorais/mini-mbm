@@ -38,7 +38,7 @@ namespace mbm
 {
     void CORE_MANAGER::handleEventFromWindow()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     CORE_MANAGER::CORE_MANAGER()
@@ -54,12 +54,12 @@ namespace mbm
         this->__sceneWasInit   = false;
         this->keyCapsLockState = false;
         this->wasGamePausedBeforeOnStop = false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
     
     CORE_MANAGER::~CORE_MANAGER()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         DEVICE::quit();
     }
     
@@ -68,7 +68,7 @@ namespace mbm
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
         this->device->specificContextDevice->release(wasDeviceLost);
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
     
     bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
@@ -77,7 +77,7 @@ namespace mbm
         int y = height;
         DEVICE* device = DEVICE::getInstance();
         this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         
         //TODO: set version from your backend engine
         INFO_LOG("\nDUMMY Version: %s\n", "1");
@@ -102,30 +102,30 @@ namespace mbm
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)// need to be implemented in each backend engine
     {
         // Reset D3D device with new dimensions
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
     bool CORE_MANAGER::beginRender()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
     void CORE_MANAGER::endRender()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void CORE_MANAGER::swapBuffers()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     bool CORE_MANAGER::renderToTargets()
     {
         bool oneRender                 = false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         for (auto renderTarget : this->device->lsObjectRenderToTarget)
         {
             if (!renderTarget->isObjectOnFrustum)
@@ -160,7 +160,7 @@ namespace mbm
         if(plugin != nullptr)
         {
             this->lsPlugins.push_back(plugin);
-            #pragma message(REMINDER_TODO);
+            REMINDER_TODO
             void * handle = nullptr;
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle);
             return this->lsPlugins.size() - 1;
@@ -170,12 +170,12 @@ namespace mbm
 
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         {
             *width  = 1024;
             *height = 1024;
@@ -184,7 +184,7 @@ namespace mbm
 
     void CORE_MANAGER::moveWindow(int x, int y)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 }
 

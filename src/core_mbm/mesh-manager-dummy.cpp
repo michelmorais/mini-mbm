@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(USE_DUMMY_BACK_END_ENGINE)
-#if defined USE_EDITOR_FEATURES
+
 
 #include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
@@ -40,10 +40,10 @@ namespace mbm
         util::HEADER_FRAME* headerFrame,
         util::BUFFER_MESH_DEBUG* pBuffer)//need to be implemented by specific backend engine 
     {
-        #pragma message(REMINDER_TODO "  implement fillInSubsetDebug");
+        REMINDER_TODO
         return log_util::onFailed(nullptr, __FILE__, __LINE__, "Not implemented in Dummy, as workaround, use OPENGL_ES or load mesh from file!");
     }
 } //namespace mbm
 
-#endif // USE_EDITOR_FEATURES
-#endif //USE_OPENGL_ES
+#endif // USE_DUMMY_BACK_END_ENGINE
+

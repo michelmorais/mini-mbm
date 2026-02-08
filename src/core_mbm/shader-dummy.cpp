@@ -38,7 +38,7 @@ namespace mbm
 {
     BUFFER_SPECIFIC::BUFFER_SPECIFIC() noexcept 
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     BUFFER_SPECIFIC::~BUFFER_SPECIFIC()
@@ -48,12 +48,12 @@ namespace mbm
 
     void BUFFER_SPECIFIC::release()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     BUFFER_GL::BUFFER_GL()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         //we initialize this at the moment (just once)
         bs = new BUFFER_SPECIFIC();
     }
@@ -68,12 +68,12 @@ namespace mbm
         bs = nullptr;
         texture1 = nullptr;
         texture0.clear();
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void BUFFER_GL::release()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         //we do not delete bs
         bs->release();
         totalSubset   = 0;
@@ -92,7 +92,7 @@ namespace mbm
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)
             return false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
@@ -104,7 +104,7 @@ namespace mbm
         release();
         if (!vertex || !sizeOfArrayVertex || !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
@@ -119,7 +119,7 @@ namespace mbm
         release();
         if ( !arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
             return false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
@@ -140,7 +140,7 @@ namespace mbm
                                   const int* vertexStartSubset,
                                   const int* vertexCountSubset)// update when dynamic
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
@@ -165,7 +165,7 @@ namespace mbm
                 return false;
             }
             auto var       = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
-            #pragma message(REMINDER_TODO);
+            REMINDER_TODO
             lsVar.push_back(var);
             return true;
         }
@@ -174,28 +174,28 @@ namespace mbm
 
     void BASE_SHADER::update(void * ptrShaderSpecific)
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     SHADER::SHADER()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     SHADER::~SHADER()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
     }
 
     void SHADER::onRestore()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     void SHADER::releaseShader()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
     }
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
@@ -243,32 +243,32 @@ namespace mbm
         const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
 
     bool SHADER::render(const BUFFER_GL *pBufferId) const
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
     bool SHADER::renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return false;
     }
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
     bool SHADER::renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 }

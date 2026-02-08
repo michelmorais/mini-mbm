@@ -51,6 +51,10 @@
 #endif
 
 #include <random>
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+#endif
 
 std::vector<std::string> lsPath;
 std::string              pathRet;
@@ -265,7 +269,12 @@ namespace util
     {
         if(folder_base_name == nullptr) // will create a tmp folder
         {
-            #if defined          ANDROID
+            #if defined (USE_DUMMY_BACK_END_ENGINE)
+                REMINDER_TODO
+                // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+                const char * dir_name = nullptr;
+                return false;
+            #elif defined          ANDROID
                 mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
                 mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni  = device->specificContextDevice;
                 const char *     currentPath            = cJni->absPath.c_str();
@@ -374,7 +383,11 @@ namespace util
             else if (fHasSeparator(folder_base_name) == false)//is not full path
             {
                 char dir_name[255]            = "";
-                #if defined          ANDROID
+                #if defined (USE_DUMMY_BACK_END_ENGINE)
+                    REMINDER_TODO
+                    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+                    return false;
+                #elif defined          ANDROID
                 mbm::DEVICE *device                     = mbm::DEVICE::getInstance();
                 mbm::SPECIFIC_AUX_CONTEXT_DEVICE*  cJni = device->specificContextDevice;
                 const char *     currentPath  = cJni->absPath.c_str();
@@ -435,7 +448,11 @@ namespace util
 
     FILE *fopenApp(const char *fileName, const char *mode)
     {
-#if defined ANDROID
+        #if defined (USE_DUMMY_BACK_END_ENGINE)
+            REMINDER_TODO
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            return fopen(fileName, mode);
+        #elif defined          ANDROID
         if (mode && strchr(mode, 'w'))
         {
             mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
@@ -537,7 +554,21 @@ namespace util
         return ret.c_str();
     }
 
-#ifdef ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            REMINDER_TODO
+            const char * getFullPath(const char *fileName, bool *existPath )
+            {
+                if (fileName == nullptr)
+                    return nullptr;
+                if (fileName[0] == 0)
+                    return fileName;
+                if (existPath)
+                    *existPath = false;
+                return fileName;
+            }
+#elif defined ANDROID
+
     const char * getFullPath(const char *fileName, bool *existPath )
     {
         if (fileName == nullptr)
@@ -711,7 +742,10 @@ namespace util
             const char *path = getPathFromName(newPathSource);
 			if(onAddPathScript)
 				onAddPathScript(path);
-    #ifdef ANDROID // add anyway bacause we are going to search in the files of Android
+    #if defined (USE_DUMMY_BACK_END_ENGINE)
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            REMINDER_TODO                
+    #elif defined ANDROID // add anyway bacause we are going to search in the files of Android
             mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
             mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
             cJni->addPathDroid(path);

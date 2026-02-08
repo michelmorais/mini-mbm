@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,118 +17,134 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+#include <lua-wrap/framework-lua.h>
+#include <core_mbm/log-util.h>
+#include <core_mbm/device.h>
+#include <core_mbm/util-interface.h>
+#include <core_mbm/scene.h>
+#include <plugin-helper/plugin-helper.h>
+#include <plugin-helper/user-data-lua.h>
 
-#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
-// ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    #ifndef INCLUDE_AUDIO_NONE_CPP
-        #define INCLUDE_AUDIO_NONE_CPP
-        #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
-    #endif
-#endif
+#include <core_mbm/specific-dummy.h> // for specific context of dummy engine
 
-#if defined(AUDIO_ENGINE_NONE) || defined (INCLUDE_AUDIO_NONE_CPP)
-
-#include <audio.h>
-#include <device.h>
-#include <core-manager.h>
-#include <util-interface.h>
-
-namespace mbm
+extern "C" 
 {
-	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
-    onEndStreamCallBack(nullptr)
+    #include <lauxlib.h>
+    #include <lualib.h>
+}
+
+namespace mbm 
+{
+    int onDoCommands(lua_State *lua)
     {
-        #pragma message(REMINDER_TODO "Audio engine NONE is used, all functions are disabled")
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
+        return 1;
     }
 
-    AUDIO::~AUDIO()
-    = default;
+    void showConsoleWindowLua()
+    {
+        PRINT_IF_DEBUG("showConsoleWindow without effect [Android]");
+    }
 
-    bool AUDIO::setVolume(const float) 
+    void hideConsoleWindowLua()
     {
-		return false;
+        PRINT_IF_DEBUG("hideConsoleWindow without effect [Android]");
     }
-    bool AUDIO::pause() 
-	{
-		return false;
-	}
-    bool AUDIO::resume() 
-	{
-		return false;
-	}
-    bool AUDIO::play(const bool )
+
+    int onGetDisplayMetrics(lua_State *lua)
     {
-        return false;
+        return 2;
     }
-    bool AUDIO::load(const char *,const bool , const bool )
-    {
-        return false;
-    }
-    bool AUDIO::stop()
-    {
-		return false;
-    }
-    bool AUDIO::setPan(const float)
-    {
-		return false;
-    }
-    bool AUDIO::setPitch(const float)
-    {
-		return false;
-    }
-    bool AUDIO::setPosition(const int)
-    {
-		return false;
-    }
-    bool AUDIO::isPlaying()
-    {
-        return false;
-    }
-    bool AUDIO::isPaused()
-    {
-        return false;
-    }
-    float AUDIO::getVolume()
-    {
-        return 0.0f;
-    }
-    float AUDIO::getPan()
-    {
-        return 0.0f;
-    }
-    float AUDIO::getPitch()
-    {
-        return 0.0f;
-    }
-    bool AUDIO::reset()
-    {
-        return false;
-    }
-    int AUDIO::getLength()
+
+    int onQuitEngine(lua_State * lua)
     {
         return 0;
     }
-    
-	bool AUDIO::isLoaded()
-	{
-		return false;
-	}
 
-    const char* AUDIO::getFileName() const noexcept
+
+    int onShowConsoleMbm(lua_State *lua)
     {
-        return this->fileName.c_str();
+        return 0;
     }
 
-    void AUDIO::setOnEndstream(OnEndStreamCallBack ptrOnEndStreamCallBack)
+    int onGetPathSourceMbm(lua_State *lua)
     {
-        this->onEndStreamCallBack = ptrOnEndStreamCallBack;
+        return 1;
     }
 
-    const char* AUDIO_ENGINE_version()
-	{
-		return "Audio engine NULL";
-	}
-}
+    int onIncludeFile(lua_State *lua)
+    {
+        
+        return 1;
+        
+    }
 
+    int getKeyCode(const char *key)
+    {
+        return 0;
+    }
+
+    const char *getKeyName(const int key)
+    {
+        return NULL;
+    }
+
+    int onGetIdiom(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onGetUserName(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onSaveFile(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int openMultiSingleFile(lua_State *lua, int allowMultipleSelects)
+    {
+        return 1;
+    }
+
+
+    bool onShowMessageBoxAndroid(const char *const title, const char *const message, const char *dialogType)
+    {
+        return false;
+    }
+
+    int onShowMessageBox(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onOpenFolder(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onInputDialogBox(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onInputPasswordBox(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onColorFromDialogBox(lua_State *lua)
+    {
+        return 1;
+    }
+
+    int onPanic(lua_State *lua)
+    {
+        return 0;
+    }
+};
+#endif
 #endif

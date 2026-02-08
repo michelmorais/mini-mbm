@@ -33,7 +33,7 @@ namespace mbm
 {
     void TEXTURE::release()
     {
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         ptrTexture      = nullptr;
         width           = 0;
         height          = 0;
@@ -58,7 +58,7 @@ namespace mbm
         this->width  = w;
         this->height = h;
         this->useAlphaChannel = hasAlpha ? true : false;
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
     
@@ -72,7 +72,7 @@ namespace mbm
         const int  channel    = 4;
         const bool alpha      = true;
 
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return true;
     }
 
@@ -92,7 +92,7 @@ namespace mbm
         tex->useAlphaChannel = forceAlpha;
         tex->fileName = fileName;
         lsTextures[fileNameBase] = (tex);
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         return tex;
     }
 
@@ -116,7 +116,7 @@ namespace mbm
             return texture;
         texture = new TEXTURE();
 
-        #pragma message(REMINDER_TODO);
+        REMINDER_TODO
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;

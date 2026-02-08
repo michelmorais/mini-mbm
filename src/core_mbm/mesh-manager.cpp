@@ -985,7 +985,7 @@ namespace mbm
             std::string which_mode;
             if(is_any_mode_valid(this->info_mode,which_mode) == false)
             {
-                return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode %s detected:[%s]",which_mode.c_str(),fileOut);
+                return log_util::onFailed(file,__FILE__, __LINE__, "Invalid mode [%s] for [%s]",which_mode.c_str(),fileOut);
             }
         }
 
@@ -5302,7 +5302,7 @@ namespace mbm
             std::string which_mode;
             if(info_mode && is_any_mode_valid(*info_mode,which_mode) == false)
             {
-                PRINT_IF_DEBUG( "Invalid mode %s detected:[%s]", which_mode.c_str(),nickName);
+                ERROR_LOG( "Invalid mode %s detected:[%s]", which_mode.c_str(),nickName);
                 delete mesh;
                 return nullptr;
             }
@@ -5312,7 +5312,7 @@ namespace mbm
                 reinterpret_cast<VEC3 *>(pPosition), reinterpret_cast<VEC3 *>(pNormal), reinterpret_cast<VEC2 *>(pTexture), sizeVertexBuffer / 3, mesh->buffer[0].totalSubset,
                 &mesh->buffer[0].subset[0].vertexStart, &mesh->buffer[0].subset[0].vertexCount,info_mode, isDynamic))
         {
-            PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", nickName);
+            ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }
@@ -5350,7 +5350,7 @@ namespace mbm
         std::string which_mode;
         if(info_draw_mode && is_any_mode_valid(*info_draw_mode,which_mode) == false)
         {
-            PRINT_IF_DEBUG( "Invalid mode %s detected:[%s]", which_mode.c_str(),nickName);
+            ERROR_LOG( "Invalid mode [%s] detected for [%s]", which_mode.c_str(),nickName);
             delete mesh;
             return nullptr;
         }
@@ -5360,7 +5360,7 @@ namespace mbm
                                                    &mesh->buffer[0].subset[0].indexStart,
                                                    &mesh->buffer[0].subset[0].indexCount,info_draw_mode))
         {
-            PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", nickName);
+            ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }
@@ -5399,7 +5399,7 @@ namespace mbm
         std::string which_mode;
         if(info_draw_mode && is_any_mode_valid(*info_draw_mode,which_mode) == false)
         {
-            PRINT_IF_DEBUG( "Invalid mode %s detected:[%s]", which_mode.c_str(),nickName);
+            ERROR_LOG( "Invalid mode [%s] detected for [%s]", which_mode.c_str(),nickName);
             delete mesh;
             return nullptr;
         }
@@ -5409,7 +5409,7 @@ namespace mbm
                                                           &mesh->buffer[0].subset[0].indexCount, 
                                                           hasNormal, hasUv, info_draw_mode))
         {
-            PRINT_IF_DEBUG( "error on load buffer bufferTriangleList [%s]", nickName);
+            ERROR_LOG( "error on load buffer bufferTriangleList [%s]", nickName);
             delete mesh;
             return nullptr;
         }

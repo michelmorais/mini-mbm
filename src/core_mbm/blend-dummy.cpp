@@ -33,7 +33,7 @@ namespace mbm
         {
             case BLEND_DISABLE:
             {
-                #pragma message(REMINDER_TODO)
+                REMINDER_TODO
                 return;
             }
             default:{}
