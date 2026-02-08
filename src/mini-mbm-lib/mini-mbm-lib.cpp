@@ -300,10 +300,10 @@ namespace mbm
         }
         else
         {
-            PRINT_IF_DEBUG("Failed to load Mini Mbm %s Opengles", MBM_VERSION);
-            fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
-            fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
-            fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");
+            ERROR_LOG("Failed to load Mini Mbm %s engine backend [%s]", MBM_VERSION, luaCore.device->getBackendEngineName());
+            //fprintf(stderr, "\nMini-Mbm-OpenGLES is necessary to have the following DLLs:");
+            //fprintf(stderr, "\nlibEGL.dll, libGLESv2.dll and d3dcompiler_47.dll");
+            //fprintf(stderr, "\nfound in mini-mbm/third-party/gles/bin");
             std::getchar();
             return -1;
         }

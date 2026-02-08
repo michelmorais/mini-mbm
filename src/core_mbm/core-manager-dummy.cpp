@@ -31,24 +31,12 @@
 #include <audio-interface.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <plugin-callback.h>
-#include <scene.h>
+#include <specific-dummy.h> // for specific context of dummy engine
 
 
 namespace mbm
 {
     void CORE_MANAGER::handleEventFromWindow()
-    {
-        #pragma message(REMINDER_TODO);
-    }
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
-    {
-        #pragma message(REMINDER_TODO);
-    }
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                const char *_extraInfo)
-        : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
     {
         #pragma message(REMINDER_TODO);
     }
@@ -75,10 +63,11 @@ namespace mbm
         DEVICE::quit();
     }
     
-    void CORE_MANAGER::ReleaseGraphics()
+    void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->release(wasDeviceLost);
         #pragma message(REMINDER_TODO);
     }
     
@@ -191,6 +180,11 @@ namespace mbm
             *width  = 1024;
             *height = 1024;
         }
+    }
+
+    void CORE_MANAGER::moveWindow(int x, int y)
+    {
+        #pragma message(REMINDER_TODO);
     }
 }
 

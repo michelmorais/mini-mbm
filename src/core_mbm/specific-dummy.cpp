@@ -31,11 +31,12 @@ namespace mbm
 
     SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-		this->release();
+		constexpr bool wasDeviceLost = false; // You can change this value based on your engine's context loss handling
+		this->release(wasDeviceLost);
         #pragma message(REMINDER_TODO);
     };
 
-    void SPECIFIC_AUX_CONTEXT_DEVICE::release() noexcept
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost) noexcept
     {
         #pragma message(REMINDER_TODO);
     }

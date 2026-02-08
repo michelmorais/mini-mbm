@@ -31,13 +31,6 @@
 
 namespace mbm
 {
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
-    {}
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                const char *_extraInfo)
-        : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
-    {}
     
 void printGLString(const char *name, GLenum s)
 {

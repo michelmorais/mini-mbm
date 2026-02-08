@@ -141,9 +141,39 @@ namespace mbm
         int         maxNumberButton;
         std::string deviceName;
         std::string extraInfo;
-        INFO_JOYSTICK_INIT_PLAYER();
-        INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                  const char *_extraInfo);
+
+        INFO_JOYSTICK_INIT_PLAYER() noexcept : player(0), maxNumberButton(0)
+        {
+        }
+
+        INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char* _deviceName,
+            const char* _extraInfo) noexcept
+            : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
+        {
+        }
+
+        INFO_JOYSTICK_INIT_PLAYER(int _player, int _maxNumberButton,
+            std::string _deviceName, std::string _extraInfo) noexcept
+            : player(_player), maxNumberButton(_maxNumberButton),
+            deviceName(std::move(_deviceName)), extraInfo(std::move(_extraInfo))
+        {
+        }
+
+        // Copy constructor
+        INFO_JOYSTICK_INIT_PLAYER(const INFO_JOYSTICK_INIT_PLAYER&) = default;
+
+        // Copy assignment
+        INFO_JOYSTICK_INIT_PLAYER& operator=(const INFO_JOYSTICK_INIT_PLAYER&) = default;
+
+        // Move constructor
+        INFO_JOYSTICK_INIT_PLAYER(INFO_JOYSTICK_INIT_PLAYER&&) noexcept = default;
+
+        // Move assignment
+        INFO_JOYSTICK_INIT_PLAYER& operator=(INFO_JOYSTICK_INIT_PLAYER&&) noexcept = default;
+
+        // Destructor
+        ~INFO_JOYSTICK_INIT_PLAYER() = default;
+
     };
 
     class API_IMPL EVENTS
@@ -188,12 +218,10 @@ namespace mbm
         bool initializeWindowx11();
     #endif
 
-    API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
+        API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
     
 
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);
-    #endif
     
       private:
         API_IMPL void update();
