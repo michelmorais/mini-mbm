@@ -44,12 +44,12 @@ namespace mbm
     
     bool HMD::load()
     {
-        static int         num         = 0;
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        const auto widthFrame  = static_cast<const unsigned int>(device->getScaleBackBufferWidth() * 0.5f);
-        const auto heightFrame = static_cast<const unsigned int>(device->getScaleBackBufferHeight());
-        const auto _widthTexture  = static_cast<const unsigned int>(device->getBackBufferWidth() * 0.5f);
-        const auto _heightTexture = static_cast<const unsigned int>(device->getBackBufferHeight());
+        static int         num     = 0;
+        mbm::DEVICE* device        = mbm::DEVICE::getInstance();
+        const auto widthFrame      = static_cast<const unsigned int>(device->getScaleBackBufferWidth() * 0.5f);
+        const auto heightFrame     = static_cast<const unsigned int>(device->getScaleBackBufferHeight());
+        const auto _widthTexture   = static_cast<const unsigned int>(device->getBackBufferWidth() * 0.5f);
+        const auto _heightTexture  = static_cast<const unsigned int>(device->getBackBufferHeight());
         char               nickName[255]  = "";
         const bool         hasAlpha       = false;
         sprintf(nickName, "texture_dynamic_%d", ++num);
@@ -94,24 +94,22 @@ namespace mbm
                 int                indexStart = 0;
                 int                indexCount = 6;
                 VEC3            _position[4];
-                VEC3            normal[4];
+                VEC3*            normal = nullptr;
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 2, 1, 2, 3, 1};
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.idTexture0[0] = this->texture->idTexture;
-                    this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
                     return false;
                 }
 
-                if (!this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                if (this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.idTexture0[0] = this->texture->idTexture;
-                    this->bufferGLRight.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGLRight.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
@@ -194,7 +192,7 @@ namespace mbm
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    bufferSide->idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                    bufferSide->setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(bufferSide))
                     return false;
                 return true;

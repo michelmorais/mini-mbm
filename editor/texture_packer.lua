@@ -308,7 +308,7 @@ function adjustTextureSize()
         tRender.alpha  = tTextureOptions.bAlpha
 
         tRender:release()
-        local result, texture_name, id = tRender:create(tTextureOptions.fWidth,tTextureOptions.fHeight,tTextureOptions.bAlpha,getNextNickName())
+        local result, texture_name = tRender:create(tTextureOptions.fWidth,tTextureOptions.fHeight,tTextureOptions.bAlpha,getNextNickName())
         if result then
             tRender:enableFrame(false)
             tShapeHoverImage:destroy()
@@ -325,7 +325,7 @@ function adjustTextureSize()
             local tIndex      = {1,2,3, 3,2,4 }
             local tNormal     = nil
             
-            tShape:createIndexed(tVertex,tIndex,tUv,tNormal,bAlpha,getNextNickName())
+            tShape:createIndexed(tVertex,tIndex,tUv,tNormal,getNextNickName())
             tShape:setTexture(texture_name)
             tShape:setScale(scale,scale)
 

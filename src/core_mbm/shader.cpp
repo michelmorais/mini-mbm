@@ -20,24 +20,140 @@
 #include <shader.h>
 #include <util-interface.h>
 #include <shader-var-cfg.h>
-#include <cstdlib>
 #include <header-mesh.h>
+#include <texture-manager.h>
+#include <draw-compatibility.h>
 
 namespace mbm
 {
-
-    BUFFER_GL::~BUFFER_GL()
-    {
-        this->release();
-    }
 
     bool BUFFER_GL::isLoadedBuffer() const
     {
         return this->totalSubset != 0;
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept
-    = default;
+    void BUFFER_GL::initializeVertexBufferControl(const uint32_t totalSubsets,
+                                                  const uint32_t _sizeOfArrayVertex,
+                                                  const int* vertexStartSubset,
+                                                  const int* vertexCountSubset,
+                                                  const util::INFO_DRAW_MODE* info_draw_mode)
+    {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB  = nullptr;
+        this->indexCountIB  = nullptr;
+        this->sizeOfArrayVertex = _sizeOfArrayVertex;
+
+        if (totalSubsets > 0)
+        {
+            this->vertexStartVB = new int32_t[totalSubsets];
+            this->vertexCountVB = new int32_t[totalSubsets];
+            for (uint32_t i = 0; i < totalSubsets; ++i)
+            {
+                this->vertexStartVB[i] = vertexStartSubset[i];
+                this->vertexCountVB[i] = vertexCountSubset[i];
+            }
+        }
+        if (info_draw_mode)
+        {
+            this->mode_draw = info_draw_mode->mode_draw;
+            this->mode_cull_face = info_draw_mode->mode_cull_face;
+            this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+        }
+        else
+        {
+            this->mode_draw = util::MODE_DRAW_TRIANGLES;
+            this->mode_cull_face = util::CULL_BACK;
+            this->mode_front_face_direction = util::CW;
+        }
+        this->initializedIndexBuffer = false;
+        this->totalSubset = totalSubsets;
+    }
+
+    void BUFFER_GL::initializeIndexBufferControl(const uint32_t totalSubsets,
+                                                 const uint32_t _sizeOfArrayVertex,
+                                                 const int* indexStartSubset,
+                                                 const int* indexCountSubset,
+                                                 const util::INFO_DRAW_MODE* info_draw_mode)
+    {
+        if (this->vertexStartVB)
+            delete[] this->vertexStartVB;
+        if (this->vertexCountVB)
+            delete[] this->vertexCountVB;
+        if (this->indexStartIB)
+            delete[] this->indexStartIB;
+        if (this->indexCountIB)
+            delete[] this->indexCountIB;
+
+        this->vertexStartVB = nullptr;
+        this->vertexCountVB = nullptr;
+        this->indexStartIB = nullptr;
+        this->indexCountIB = nullptr;
+        this->sizeOfArrayVertex = _sizeOfArrayVertex;
+
+        if (totalSubsets > 0)
+        {
+            this->indexStartIB  = new int32_t[totalSubsets];
+            this->indexCountIB = new int32_t[totalSubsets];
+            for (uint32_t i = 0; i < totalSubsets; ++i)
+            {
+                this->indexStartIB[i]  = indexStartSubset[i];
+                this->indexCountIB[i]  = indexCountSubset[i];
+            }
+        }
+        if (info_draw_mode)
+        {
+            this->mode_draw = info_draw_mode->mode_draw;
+            this->mode_cull_face = info_draw_mode->mode_cull_face;
+            this->mode_front_face_direction = info_draw_mode->mode_front_face_direction;
+        }
+        else
+        {
+            this->mode_draw = util::MODE_DRAW_TRIANGLES;
+            this->mode_cull_face = util::CULL_BACK;
+            this->mode_front_face_direction = util::CW;
+        }
+        initializedIndexBuffer = true;
+        totalSubset = totalSubsets;
+    }
+
+    TEXTURE* BUFFER_GL::getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const
+    {
+        if(index_stage == 0)
+        {
+            auto it = this->texture0.find(index_subset);
+            if(it != this->texture0.end())
+                return it->second;
+        }
+        else
+        {
+            return this->texture1;
+        }
+        return nullptr;
+    }
+
+    void BUFFER_GL::setTextureByStage(TEXTURE* texture,const uint32_t index_stage, const uint32_t index_subset)
+    {
+        if(index_stage == 0)
+        {
+            texture0[index_subset] = texture;
+        }
+        else
+        {
+            texture1 = texture;
+        }
+    }
+
+    BASE_SHADER::BASE_SHADER() noexcept = default;
 
     BASE_SHADER::~BASE_SHADER()
     {
@@ -123,54 +239,41 @@ namespace mbm
         return false;
     }
 
-    SHADER::SHADER() noexcept : programObject(0),
-                                  mvpMatrixHandle(-1),
-                                  mvMatrixHandle(-1),
-                                  positionHandle(-1),
-                                  texCoordHandle(-1),
-                                  samplerHandle0(-1),
-                                  samplerHandle1(-1),
-                                  normalHandle(-1),
-                                  pShader(nullptr),
-                                  vShader(nullptr)
-    {
-    }
-
-    void SHADER::onRestore() // Libera o pShader da memória e pode ser carregado novamente
-    {
-        this->mvpMatrixHandle = -1;
-        this->mvMatrixHandle  = -1;
-        this->positionHandle  = -1;
-        this->texCoordHandle  = -1;
-        this->samplerHandle0  = -1;
-        this->samplerHandle1  = -1;
-        this->normalHandle    = -1;
-        this->programObject   = 0;
-        this->pShader         = nullptr;
-        this->vShader         = nullptr;
-    }
-
-    bool SHADER::isLoad()
-    {
-        return this->programObject != 0;
-    }
-
     void SHADER::update()
     {
         if (this->pShader)
-            this->pShader->update(this->programObject);
-#if defined _DEBUG
-        else if (this->programObject == 0)
-            PRINT_IF_DEBUG("missed shader!");
-#endif
+            this->pShader->update(this->ptrShaderSpecific);
+//#if defined _DEBUG
+//        else
+//            PRINT_IF_DEBUG("Default PS shader, Nothing to do!");
+//#endif
         if (this->vShader)
-            this->vShader->update(this->programObject);
-#if defined _DEBUG
-        else if (this->programObject == 0)
-            PRINT_IF_DEBUG("missed shader!");
-#endif
+            this->vShader->update(this->ptrShaderSpecific);
+//#if defined _DEBUG
+//        else
+//            PRINT_IF_DEBUG("Default VS shader, Nothing to do!");
+//#endif
     }
 
     mbm::MATRIX mbm::SHADER::modelView; // Matrix do modelo (ModelView)
     mbm::MATRIX mbm::SHADER::mvpMatrix; // ModelView x projection (perspectiva) (automaticamente setada)
+    
+	// Effect on Directx where it is possible not use shader code for PS or VS
+    static bool useDeafultPSwhenNoPsShader = true;
+    static bool useDeafultVSwhenNoVsShader = true;
+
+    void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept
+    {
+        useDeafultPSwhenNoPsShader = _useDeafultPSwhenNoPsShader;
+        useDeafultVSwhenNoVsShader = _useDeafultVSwhenNoVSShader;
+    }
+
+    bool useDefaultPSWhenNoShader() noexcept
+    {
+        return useDeafultPSwhenNoPsShader;
+    }
+    bool useDefaultVSWhenNoShader() noexcept
+    {
+        return useDeafultVSwhenNoVsShader;
+    }
 }

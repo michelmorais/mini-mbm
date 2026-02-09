@@ -146,6 +146,11 @@ namespace mbm
         }
         else
         {
+            // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
+            // The position of camera influence in what is cutoff, so if we put z near -200 and far 200 and the position z 100, then we have visible from -100 to 100 in z axis
+			// this affect mbm::ORDER_RENDER -> TODO: :update getNextZOrderControl2d  and getNextZOrderControl2dBackground functions
+            constexpr float zNear2d = -200;
+            constexpr float zFar2d  = 200;
 			VEC2 perfectPosition(this->position2d);
 			if (perfectPixel)
 			{
@@ -156,7 +161,7 @@ namespace mbm
             static const VEC3 angleDefault(0, 0, 0);
             MatrixIdentity(&this->matrixView2d);
             MatrixTranslationRotationScale(&this->matrixView2d, &posCam, &angleDefault, &this->scale2d);
-            MatrixOrthoLH(&matrixOrtho, width, height, zNear, zFar);
+            MatrixOrthoLH(&matrixOrtho, width, height, zNear2d, zFar2d);
             MatrixMultiply(&this->matrixPerspective2d, &matrixView2d, &matrixOrtho);
         }
     }

@@ -181,20 +181,20 @@ namespace mbm
         this->unrefTableLua(lua, &this->ref_CallBackStream);
     }
 
-	USER_DATA_SHAPE_LUA::USER_DATA_SHAPE_LUA():USER_DATA_RENDER_LUA()
-	{
-		ref_CallBackEditVertexBuffer = LUA_NOREF;
-	}
+    USER_DATA_SHAPE_LUA::USER_DATA_SHAPE_LUA():USER_DATA_RENDER_LUA()
+    {
+        ref_CallBackEditVertexBuffer = LUA_NOREF;
+    }
 
-	USER_DATA_SHAPE_LUA::~USER_DATA_SHAPE_LUA() = default;
+    USER_DATA_SHAPE_LUA::~USER_DATA_SHAPE_LUA() = default;
 
-	void USER_DATA_SHAPE_LUA::unrefAllTableLua(lua_State *lua) // destroy all
+    void USER_DATA_SHAPE_LUA::unrefAllTableLua(lua_State *lua) // destroy all
     {
         this->unrefTableLua(lua, &this->ref_MeAsTable);
         this->unrefTableLua(lua, &this->ref_CallBackAnimation);
         this->unrefTableLua(lua, &this->ref_CallBackEffectShader);
         this->unrefTableLua(lua, &this->ref_CallBackTouchDown);
-		this->unrefTableLua(lua, &this->ref_CallBackEditVertexBuffer);
+        this->unrefTableLua(lua, &this->ref_CallBackEditVertexBuffer);
     }
 
 };

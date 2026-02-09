@@ -4,7 +4,7 @@
 #include "framework.h"
 #include "mini-mbm-launcher.h"
 #include <string>
-#include "parse_laucher_args.hpp"
+#include <core_mbm/parse-launcher-args.hpp>
 #include "resource.h"
 
 #pragma comment(lib, "core_mbm.lib")
@@ -39,25 +39,31 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
                 strncpy_s(result, max_size_result, temporary_folder_path.c_str(), temporary_folder_path.size() - 1);
             }
         }
+#if defined _DEBUG // testing proposal, you can call it from lua script, e.g. mbm.doCommands('restoreDeviceTest')
+        else if (strcmp(command, "restoreDeviceTest") == 0)
+        {
+            mbm::restoreDeviceTest();
+        }
+#endif
     }
 }
 
 int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
-    bool full_screen_checked = true;
+    bool full_screen_checked = false;
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
             {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
-            {"Particle Editor"       ,"Editor de Partículas",     "particle_editor.lua"},
-            {"Physics Editor"        ,"Editor de Física",         "physic_editor.lua"},
+            {"Particle Editor"       ,"Editor de PartÃ­culas",     "particle_editor.lua"},
+            {"Physics Editor"        ,"Editor de FÃ­sica",         "physic_editor.lua"},
             {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
             {"Shader Editor"         ,"Editor de Shader",         "shader_editor.lua"},
             {"Sprite Maker"          ,"Editor de Sprite",         "sprite_maker.lua"},
             {"Texture Packer"        ,"Empacotador de texturas",  "texture_packer.lua"},
             {"Tile-Map Editor"       ,"Editor de mapa de blocos", "tilemap_editor.lua"},
-            {"User specified"        ,"Script do usuário",        "user_specified.lua"},
+            {"User specified"        ,"Script do usuÃ¡rio",        "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
 	size_app = size_app - 1; // remove the last one, it is a user specified script
@@ -67,56 +73,63 @@ int main(const int argc,const char **argv)
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
     {
-        PARSE_laucher_ARGS parser;
+        PARSE_laucher_ARGS parser(argv, argc);
 
-        if (parser.width_list.size() > 0 && parser.height_list.size() > 0)
+		unsigned int width = 0, height = 0;
+        if (parser.getWidthHeight(width, height))
         {
             mbm::set_window_size(
-                parser.width_list[parser.width_list.size() - 1],
-                parser.height_list[parser.height_list.size() - 1]);
+                width,
+                height);
         }
         else
         {
             mbm::set_window_size(1920, 1080);
         }
-
-        if (parser.expected_width_list.size() > 0 && parser.expected_height_list.size() > 0)
+        
+        unsigned int expected_width = 0, expected_height = 0;
+        if (parser.getExpectedWidthHeight(expected_width, expected_height))
         {
             mbm::set_expected_window_size(
-                parser.expected_width_list[parser.expected_width_list.size() - 1],
-                parser.expected_height_list[parser.expected_height_list.size() - 1]);
+                expected_width,
+                expected_height);
         }
         else
         {
             mbm::set_expected_window_size(1920, 1080);
         }
+
         mbm::set_verbose(false);
         if (parser.noSplash)
         {
             mbm::disable_splash();
         }
-        if (parser.nameAplication.size() > 0)
+
+        const char* nameApp = parser.getNameApplication();
+        if (nameApp && strlen(nameApp) > 0)
         {
-            title_app = parser.nameAplication.c_str();
+            title_app = nameApp;
             mbm::set_app_name(title_app.c_str());
         }
         else
         {
-            mbm::set_app_name(title_app.c_str());
+			mbm::set_app_name(title_app.c_str());
         }
+
         //https://onlineconvertfree.com/convert/png/
         mbm::set_icon(IDI_ICON1);
         mbm::set_window_resizable(parser.enableResizeWindow);
 
         mbm::set_window_theme(parser.window_theme, parser.enableBorder);//11 15 19 20 21 20, 24 is the default
 
-        if (parser.fileNameInitialLua.size() > 0)
+        const char* fileNameInitialLua = parser.getFileNameInitialLua();
+        if (fileNameInitialLua && strlen(fileNameInitialLua) > 0)
         {
-            mbm::set_scene(parser.fileNameInitialLua.c_str());
-			size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
+            mbm::set_scene(fileNameInitialLua);
+            size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
             index_app_selected = size_app - 1;
-			user_script_name = parser.fileNameInitialLua;
-			default_applications[index_app_selected].script_path = user_script_name.c_str();
+            user_script_name = fileNameInitialLua;
+            default_applications[index_app_selected].script_path = user_script_name.c_str();
         }
 
         mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);

@@ -24,113 +24,26 @@
 
 #include <core-manager.h>
 #include <device.h>
-#include <scene.h>
 #include <renderizable.h>
 #include <texture-manager.h>
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <audio-interface.h>
-#include <version/version.h>
 #include <miniz-wrap/miniz-wrap.h>
-#include <cassert>
-#include <algorithm>
-#include <cstring>
-#include <log-util.h>
-#include <cr-static-local.h>
-
-#if defined(ANDROID)
-#include <platform/common-jni.h>
-#elif defined( __linux__) || defined(__APPLE__)
-    #include <thread>
-    #include <X11/Xlib.h>
-    #include <X11/Xutil.h>
-    #include <X11/XKBlib.h>
-#elif defined(_WIN32)
-
-#endif
-
-#ifdef __APPLE__
-//#include <X11/extensions/Xcomposite.h>
-//#include <X11/Xmu/WinUtil.h>
-#endif
-
 #include <plugin-callback.h>
-#include <dynamic-var.h>
+#include <specific-dummy.h> // for specific context of dummy engine
 
 
 namespace mbm
 {
-    struct AUX_SPECIFIC_CONTEXT
+    void CORE_MANAGER::handleEventFromWindow()
     {
-        AUX_SPECIFIC_CONTEXT()
-        {
-        }
-        ~AUX_SPECIFIC_CONTEXT()
-        {
-        }
-        AUX_SPECIFIC_CONTEXT(const AUX_SPECIFIC_CONTEXT &) = delete;
-        AUX_SPECIFIC_CONTEXT &operator=(const AUX_SPECIFIC_CONTEXT &) = delete;
-    };
-    
-
-    enum WHICH_FOR : char
-    {
-        WFOR_INITIAL,
-        WFOR_2DS,
-        WFOR_2DW,
-        WFOR_3D,
-        WFOR_DONE
-    };
-
-    enum STEP_RETORE : char
-    {
-        STEP_RES_INIT_GL,
-        STEP_RES_DRAW_HOURGLASS,
-        STEP_RES_OBJ,
-        STEP_RES_END,
-    };
-
-constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
-    {}
-        
-    constexpr EVENT_KEY::EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
-        : x(_x),
-            y(_y),
-            key(_key),
-            player(0),
-            rx(0.0f),
-            ry(0.0f),
-            eventType(_eventName)
-    {}
-    constexpr EVENT_KEY::EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                        const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
-                                                                                            ly(_ly),
-                                                                                            key(_key),
-                                                                                            player(_player),
-                                                                                            rx(_rx),
-                                                                                            ry(_ry),
-                                                                                            eventType(_eventName)
-    {}
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER() : player(0), maxNumberButton(0)
-    {}
-
-    INFO_JOYSTICK_INIT_PLAYER::INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                const char *_extraInfo)
-        : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
-    {}
-
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-
-    EVENTS::EVENTS() noexcept = default;
-    EVENTS::~EVENTS() = default;
-
-    #endif
+        REMINDER_TODO
+    }
 
     CORE_MANAGER::CORE_MANAGER()
     {
         this->device           = DEVICE::getInstance();
-		this->specificContext  = new mbm::AUX_SPECIFIC_CONTEXT();
         this->indexOnRestore   = 0;
         this->totalForByLoop   = 0;
         this->percentRestoreInfo = 0.0f;
@@ -140,411 +53,45 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         this->changeScene      = true;
         this->__sceneWasInit   = false;
         this->keyCapsLockState = false;
+        this->wasGamePausedBeforeOnStop = false;
+        REMINDER_TODO
     }
     
     CORE_MANAGER::~CORE_MANAGER()
     {
+        REMINDER_TODO
         DEVICE::quit();
-        delete this->specificContext;
-        this->specificContext = nullptr;
     }
     
-    
-#if defined ANDROID
-    bool CORE_MANAGER::onLostDevice(JNIEnv *jenv, jobject , int width, int height)
-#else
-    bool CORE_MANAGER::onLostDevice(int width, int height,const int px,const int py)
-#endif
+    void CORE_MANAGER::ReleaseGraphics(const bool wasDeviceLost)
     {
-#ifdef ANDROID
-        device->jni->jenv = jenv;
-#endif
-        if (stepRestore == STEP_RES_INIT_GL)
-        {
-#if defined _DEBUG
-            ERROR_LOG("onLostDevice step %d",stepRestore);
-#endif
-#ifndef ANDROID
-            #pragma message(REMINDER_TODO "implement for other platforms")
-    #define __nameAplication "Mini-mbm " MBM_VERSION " DUMMY"
-#endif
-#if defined(_WIN32)
-            if (initGraphics(__nameAplication, width, height,px,py, false,false))
-#elif defined(ANDROID)
-            if (initGraphics(width, height))
-#elif defined(__linux__) || defined(__APPLE__)
-            (void)px;
-            (void)py;
-            if (width && height)
-#else
-            #error "undefined platform"
-#endif
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics sucess!",stepRestore);
-                #endif
-                
-                this->device->__percXcam2dScale = 1.0f / this->device->camera.scale2d.x;
-                this->device->__percYcam2dScale = 1.0f / this->device->camera.scale2d.y;
-                this->adjustScaleScreen2d();
-                stepRestore = STEP_RES_DRAW_HOURGLASS;
-                return false;
-            }
-            else
-            {
-                #if defined _DEBUG
-                    WARN_LOG("onLostDevice step %d function initGraphics failed!",stepRestore);
-                #endif
-                return false;
-            }
-        }
-        else if (stepRestore == STEP_RES_DRAW_HOURGLASS)
-        {
-            #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d draw Hourglass.",stepRestore);
-            #endif
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
-            device->clearDepthColored();
-            if (device->scene)
-                device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
-            stepRestore = STEP_RES_OBJ;
-            this->which_for =  WFOR_INITIAL;
-            #if defined(_WIN32)
-            #pragma message(REMINDER_TODO "swap buffers for WIN32")
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            #pragma message(REMINDER_TODO "swap buffers for LINUX/APPLE")
-            #endif
-            return false;
-        }
-        else if (stepRestore == STEP_RES_OBJ)
-        {
-            device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
-            device->clearDepthColored();
-            switch(this->which_for)
-            {
-                case WFOR_INITIAL:
-                {
-                    #if defined _DEBUG
-                        WARN_LOG("onLostDevice step %d restoring objs.",stepRestore);
-                    #endif
-                    const auto t = static_cast<float>(this->device->lsObjectRender2DW.size() + this->device->lsObjectRender2DS.size() + this->device->lsObjectRender3D.size());
-                    if(t > 0.0f)
-                    {
-                        this->totalForByLoop = static_cast<uint32_t>(std::ceil(t / 60.0f));//1 seconds should be loaded all objects
-                        this->stepRestoreInfo = 98.0f /  t * static_cast<float>(this->totalForByLoop);
-                    }
-                    else
-                    {
-                        this->stepRestoreInfo = 0.001f;
-                        this->totalForByLoop = 1;
-                    }
-                    this->percentRestoreInfo = 0.0f;
-                    this->which_for = WFOR_2DW;
-                    this->indexOnRestore = 0;
-                    return false;
-                }
-                break;
-                case WFOR_2DW:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                    i < this->device->lsObjectRender2DW.size(); 
-                    ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender2DW[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32)
-                                #pragma message(REMINDER_TODO "swap buffers for WIN32")
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                #pragma message(REMINDER_TODO "swap buffers for LINUX/APPLE")
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_2DS;
-                    return false;
-                }
-                break;
-                case WFOR_2DS:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                        i < this->device->lsObjectRender2DS.size(); ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender2DS[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32) 
-                                #pragma message(REMINDER_TODO "  swap buffers for WIN32")
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_3D;
-                    return false;
-                }
-                break;
-                case WFOR_3D:
-                {
-                    for (uint32_t i = this->indexOnRestore, j = 0; 
-                    i < this->device->lsObjectRender3D.size(); ++i)
-                    {
-                        RENDERIZABLE *ptr             = this->device->lsObjectRender3D[i];
-                        const bool    alwaysRenderize = ptr->alwaysRenderize;
-                        const bool    enableRender    = ptr->enableRender;
-                        ptr->alwaysRenderize          = false;
-                        ptr->enableRender             = false;
-                        if (ptr->onRestoreDevice())
-                        {
-                            ptr->alwaysRenderize = alwaysRenderize;
-                            ptr->enableRender    = enableRender;
-                        }
-                        if(++j >= this->totalForByLoop)
-                        {
-                            this->indexOnRestore = (i + 1);
-                            this->percentRestoreInfo += this->stepRestoreInfo;
-                            if (device->scene)
-                                device->scene->onRestore(static_cast<int>(std::ceil(this->percentRestoreInfo > 98.9f ? 98.9f : this->percentRestoreInfo)));
-                            #if defined(_WIN32) 
-                                #pragma message(REMINDER_TODO "  swap buffers for WIN32")
-                            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-                                #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
-                            #endif
-                            return false;
-                        }
-                    }
-                    this->indexOnRestore = 0;
-                    this->which_for = WFOR_DONE;
-                }
-                break;
-                default:{};
-            }
-            stepRestore = STEP_RES_END;
-            #if defined(_WIN32) 
-            #pragma message(REMINDER_TODO "  swap buffers for WIN32")
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-            #pragma message(REMINDER_TODO "  swap buffers for LINUX/APPLE")
-            #endif
-            return false;
-        }
-        else if (stepRestore == STEP_RES_END)
-        {
-            #if defined _DEBUG
-                WARN_LOG("onLostDevice step %d resumeGame",stepRestore);
-            #endif
-            stepRestore             = STEP_RES_INIT_GL;
-            device->clearBackGround = true;
-            this->device->resumeGame();
-            this->device->resumeTimer();
-            if (device->scene)
-                device->scene->onRestore(100);
-            return true;
-        }
-        return false;
+        TEXTURE_MANAGER::getInstance()->release();
+        MESH_MANAGER::getInstance()->release();
+        this->device->specificContextDevice->release(wasDeviceLost);
+        REMINDER_TODO
     }
-
-
-#if defined(_WIN32) 
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
-#elif defined (ANDROID)
-    bool CORE_MANAGER::initGraphics(const int width, const int height)
-#elif defined (__linux__) || defined(__APPLE__)
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const bool border)
-#else
-    #error "undefined initGraphics"
-    bool CORE_MANAGER::initGraphics()
-#endif
+    
+    bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
     {
         int x = width;
         int y = height;
-#ifdef _WIN32
-		DEVICE* device = DEVICE::getInstance();
-        device->window.setNameAplication(nameAplication);
-        if (!device->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
-                                       this->idIcon,false))
-        {
-            device->window.messageBox("error on init app ... will be closed ");
-            PRINT_IF_DEBUG( "error on init app ... will be closed %s", "error on create window");
-            return false;
-        }
-        device->window.setMinSizeAllowed(800,600);
-        HWND mNativeWindow = device->window.getHwnd();
-        RECT rect;
-        if (!GetClientRect(mNativeWindow, &rect))
-        {
-            MessageBoxW(mNativeWindow, L"error on get the window size!", L"DEVICE", MB_OK | MB_ICONERROR);
-            rect.right  = width;
-            rect.bottom = height;
-            rect.left   = 0;
-            rect.top    = 0;
-        }
-        if ((rect.right - rect.left) != width || (rect.bottom - rect.top) != height)
-        {
-            x = rect.right - rect.left;
-            y = rect.bottom - rect.top;
-            printf("BackBuffer adjusted because the width and height are different from window\n"
-                   "expected X: %d Y: %d \n"
-                   "real     X: %d Y: %d \n",
-                   width, height, x, y);
-        }
-        else
-        {
-            x = width;
-            y = height;
-        }
-        device->window.setCallEventsManager(this);
-        this->initJoystick(&device->window);
-
-        HDC hdc = GetDC(device->window.getHwnd());
-        // Create EGL display connection
-        this->specificContext->eglDisplay = eglGetDisplay(hdc);
-        // Initialize EGL for this display, returns EGL version
-        EGLint eglVersionMajor = 0;
-        EGLint eglVersionMinor = 0;
-        if(eglInitialize(this->specificContext->eglDisplay, &eglVersionMajor, &eglVersionMinor) == EGL_FALSE)
-        {
-            ERROR_LOG(" EGL could not be initialized");
-            return false;
-        }
-        if(device->verbose)
-            INFO_LOG("EGL version %d.%d",eglVersionMajor,eglVersionMinor);
-        if(eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE)
-        {
-            ERROR_LOG(" EGL could not be initialized");
-            return false;
-        }
-        EGLint numConfigs = 0;
-        EGLConfig windowConfig = nullptr;
+        DEVICE* device = DEVICE::getInstance();
+        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        REMINDER_TODO
         
-        static const EGLint attribs[] = {
-            // 32 bit color
-            EGL_RED_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_BLUE_SIZE, 8,
-            // at least 24 bit depth
-            EGL_DEPTH_SIZE, 24,
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            // want opengl-es 3.x conformant CONTEXT
-            EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
-            EGL_NONE};
-
-        EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
-        
-        //EGLBoolean result = eglChooseConfig(this->specificContext->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
-        switch (result )
-        {
-            case EGL_TRUE:break;
-            case EGL_FALSE:
-                ERROR_LOG(" eglChooseConfig returned false");
-            break;
-            case EGL_BAD_DISPLAY :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_DISPLAY");
-            break;
-            case EGL_BAD_ATTRIBUTE :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_ATTRIBUTE");
-            break;
-            case EGL_NOT_INITIALIZED :
-                ERROR_LOG(" eglChooseConfig returned EGL_NOT_INITIALIZED");
-            break;
-            case EGL_BAD_PARAMETER :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_PARAMETER");
-            break;
-            default:
-                ERROR_LOG(" eglChooseConfig returned %d",result);
-            break;
-        }
-        if(result != EGL_TRUE)
-        {
-            return false;
-        }
-
-        EGLint surfaceAttributes[] = { EGL_NONE };
-        this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), surfaceAttributes);
-        //this->specificContext->eglSurface = eglCreateWindowSurface(this->specificContext->eglDisplay, windowConfig, device->window.getHwnd(), the_attribs);
-        if(this->specificContext->eglSurface == nullptr)
-        {
-            ERROR_LOG(" Could not create EGL Window surface");
-            return false;
-        }
-
-        //EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE };
-	    //this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, contextAttributes);
-        EGLint es3ContextAttribs[] = {EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 0, EGL_NONE, EGL_NONE};
-        this->specificContext->eglContext = eglCreateContext(this->specificContext->eglDisplay, windowConfig, NULL, es3ContextAttribs);
-        if(this->specificContext->eglContext == nullptr)
-        {
-            ERROR_LOG(" Could not create EGL context");
-            return false;
-        }
-        result = eglMakeCurrent(this->specificContext->eglDisplay, this->specificContext->eglSurface, this->specificContext->eglSurface, this->specificContext->eglContext);
-        if(result != EGL_TRUE)
-        {
-            ERROR_LOG(" Could not make EGL context current");
-            return false;
-        }
-
-        device->window.disableRender(mNativeWindow);
-		if (device->verbose)
-		{
-			printGLString("\nversion:\n", GL_VERSION);
-			printGLString("vendor:\n", GL_VENDOR);
-			printGLString("renderer:\n", GL_RENDERER);
-            //printGLStringNewLine("GL Extensions:\n", GL_EXTENSIONS, ' ');
-            //printEGLStringNewLine(this->specificContext->eglDisplay, ' ');
-            
-			MINIZ::showVersion();
-            INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
-		}
-#elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-
-        #pragma message(REMINDER_TODO "  implement for Linux with X11")
-    #ifdef __APPLE__
-        #pragma message(REMINDER_TODO "  implement for MacOS")
-    #else
-        #pragma message(REMINDER_TODO "  implement for Linux with X11")
-    #endif
-        //Open X11 display
-
+        //TODO: set version from your backend engine
+        INFO_LOG("\nDUMMY Version: %s\n", "1");
         if (device->verbose)
         {
-            #pragma message(REMINDER_TODO "  implement VENDOR strings for ANY")
             MINIZ::showVersion();
             INFO_LOG("\nAudio engine: %s\n", AUDIO_ENGINE_version());
         }
 
-#endif
-        #pragma message(REMINDER_TODO "  set viewport and other initial states for ANY")
+        // Set texture capabilities (for NOT DUMMY engine must be real)
+        TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
+        texture_manager->setTextureCapabilities(1024*1024, 1024*1024, 1024*1024);
+
+        // device->setProjectionMode set viewport and other initial states for ANY
         if (x > 0)
             device->backBufferWidth = static_cast<float>(x);
         if (y > 0)
@@ -552,515 +99,42 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         return true;
     }
 
-#ifdef ANDROID
-    int CORE_MANAGER::loop(JNIEnv *, jobject)
+    bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)// need to be implemented in each backend engine
     {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized                  = true;
-            device->camera.expectedScreen.x = device->backBufferWidth;
-            device->camera.expectedScreen.y = device->backBufferHeight;
-        }
-        this->update();
-        this->render();
-        return 0;
+        // Reset D3D device with new dimensions
+        REMINDER_TODO
+        return true;
     }
 
-#elif (defined(_WIN32) || defined (__MINGW32__))
-
-    int CORE_MANAGER::loop()
+    bool CORE_MANAGER::beginRender()
     {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!this->device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized                  = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
-        }
-        MSG messageMain;
-        memset(&messageMain, 0, sizeof(messageMain));
-        while (messageMain.message != WM_QUIT && device->run && this->device->window.run)
-        {
-            this->device->window.doEvents();
-            bool first_menu = true;
-            while (mbm::WINDOW::isAnyMenuVisible() && device->window.run)
-            {
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                this->device->window.doEvents();
-                if (first_menu)
-                {
-                    Sleep(50);
-                    mbm::WINDOW::refreshMenu();
-                }
-                first_menu = false;
-            }
-            if (!this->device->window.run)
-                break;
-
-            INFO_JOYSTICK_INIT_PLAYER info;
-            while (this->popEvent(&info))
-            {
-                if (this->device->scene && this->__sceneWasInit)
-                    this->device->scene->onInfoDeviceJoystick(info.player, info.maxNumberButton, info.deviceName.c_str(),
-                                                              info.extraInfo.c_str());
-            }
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onBeginRender();
-            }
-            EVENT_KEY event;
-            while (this->popEvent(&event))
-            {
-                switch (event.eventType)
-                {
-                    case UNKNOWN: {
-                    }
-                    break;
-                    case ONRESIZEWINDOW:
-                    {
-                        const GLsizei width  = static_cast<int>(event.x);
-                        const GLsizei height = static_cast<int>(event.y);
-                        if(width > 0 && height > 0 && (width != static_cast<GLsizei>(this->device->backBufferWidth) || height != static_cast<GLsizei>(this->device->backBufferHeight)))
-                        {
-                            glViewport(0, 0, width, height);
-                            if(glIsEnabled (GL_SCISSOR_TEST))
-                            {
-                                glScissor(0, 0, width, height);
-                            }
-                            this->device->backBufferWidth  = event.x;
-                            this->device->backBufferHeight = event.y;
-                            if(this->device->scene)
-                                this->device->scene->onResizeWindow();
-                            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                            {
-                                PLUGIN * plugin = this->lsPlugins[i];
-                                plugin->onResizeWindow(static_cast<int>(event.x),static_cast<int>(event.y));
-                            }
-                        }
-                    }
-                    break;
-                    case ONTOUCHDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchDown(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchDown(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchUp(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchUp(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHMOVE:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchMove(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchMove(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHZOOM:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchZoom((float)event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchZoom((float)event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDown(event.key);
-                        if(event.key == VK_CAPITAL)
-                        {
-                            if ((GetKeyState(VK_CAPITAL) & 0x0001)!=0)
-                                this->keyCapsLockState = true;
-                            else
-                                this->keyCapsLockState = false;
-                        }
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDown(event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUp(event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUp(event.key);
-                        }
-                    }
-                    break;
-                    case ONDOUBLECLICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onDoubleClick(event.x, event.y, event.key);
-                        }
-                    }
-                    break;
-                    case ONSTREAMSTOPED: {
-                    }
-                    break;
-                    case ONCALLBACKCOMMANDS: {
-                    }
-                    break;
-                    case ONKEYDOWNJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDownJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDownJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUPJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUpJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUpJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONMOVEJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        }
-                    }
-                    break;
-                }
-                if (!this->device->run)
-                {
-                    break;
-                }
-            }
-            
-            this->update();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onLoop(this->device->delta);
-            }
-            this->render();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onEndRender();
-            }
-            eglSwapBuffers(this->specificContext->eglDisplay,this->specificContext->eglSurface);
-        }
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-        {
-            PLUGIN * plugin = this->lsPlugins[i];
-            plugin->onDestroy();
-        }
-        if(this->device->audioInterface)
-            this->device->audioInterface->stopAll();
-        eglDestroyContext(this->specificContext->eglDisplay,this->specificContext->eglContext);
-        eglDestroySurface(this->specificContext->eglDisplay, this->specificContext->eglSurface);
-        return 0;
+        REMINDER_TODO
+        return true;
     }
 
-#elif defined(__linux__) || defined(__APPLE__)
-
-    int CORE_MANAGER::loop()
+    void CORE_MANAGER::endRender()
     {
-        static bool variablesInitialized = false;
-        if (!device)
-            return -1;
-        if (!variablesInitialized)
-        {
-            // Cfg shader from memory----
-            if (!this->device->cfg.parserCFGFromResource())
-            {
-                PRINT_IF_DEBUG( "\nerror on Parse CFG from memory.");
-                return -1;
-            }
-            this->device->cfg.sortShader();
-            device->setProjectionMode(true, device->backBufferWidth, device->backBufferHeight);
-            this->device->updateFps();
-            initEnableRenders();
-            this->_updateDimFrustum();
-            variablesInitialized                  = true;
-            this->device->camera.expectedScreen.x = this->device->backBufferWidth;
-            this->device->camera.expectedScreen.y = this->device->backBufferHeight;
-        }
-        #pragma message(REMINDER_TODO "  implement initialization of window for ANY")
-
-        while (this->device->run)
-        {
-            #pragma message(REMINDER_TODO "  implement event polling for ANY")
-            bool dummy_loop= true;
-            while(dummy_loop)
-            {
-                //TODO: implement 
-                //this->onKeyDown(key);
-                //this->onKeyUp(key);
-                //this->onTouchZoom(1.0f);
-                //this->onTouchZoom(-1.0f);
-                //this->onTouchDown(0, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchDown(2, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchDown(1, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchUp(0, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchUp(2, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchUp(1, xevent.xbutton.x, xevent.xbutton.y);
-                //this->onTouchMove(0, xevent.xmotion.x, xevent.xmotion.y);
-                //this->onResizeWindow(xResize.width,xResize.height);
-                dummy_loop = false;
-            }
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onBeginRender();
-            }
-            EVENT_KEY event;
-            while (this->popEvent(&event))
-            {
-                switch (event.eventType)
-                {
-                    case UNKNOWN: {
-                    }
-                    break;
-                    case ONRESIZEWINDOW:
-                    {
-                        #pragma message(REMINDER_TODO "  implement resize for ANY")
-                    }
-                    break;
-                    case ONTOUCHDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchDown(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchDown(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchUp(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchUp(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHMOVE:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchMove(event.key, event.x, event.y);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchMove(event.key, event.x, event.y);
-                        }
-                    }
-                    break;
-                    case ONTOUCHZOOM:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onTouchZoom(static_cast<float>(event.key));
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onTouchZoom(static_cast<float>(event.key));
-                        }
-                    }
-                    break;
-                    case ONKEYDOWN:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDown(event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDown(event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUP:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUp(event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUp(event.key);
-                        }
-                    }
-                    break;
-                    case ONDOUBLECLICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onDoubleClick(event.x, event.y, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onDoubleClick(event.x, event.y, event.key);
-                        }
-                    }
-                    break;
-                    case ONSTREAMSTOPED: {
-                    }
-                    break;
-                    case ONCALLBACKCOMMANDS: {
-                    }
-                    break;
-                    case ONKEYDOWNJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyDownJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyDownJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONKEYUPJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onKeyUpJoystick(event.player, event.key);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onKeyUpJoystick(event.player, event.key);
-                        }
-                    }
-                    break;
-                    case ONMOVEJOYSTICK:
-                    {
-                        if (this->device->scene && this->__sceneWasInit)
-                            this->device->scene->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-                        {
-                            PLUGIN * plugin = this->lsPlugins[i];
-                            plugin->onMoveJoystick(event.player, event.lx, event.ly, event.rx, event.ry);
-                        }
-                    }
-                    break;
-                }
-                if (!this->device->run)
-                {
-                    break;
-                }
-            }
-            this->update();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onLoop(this->device->delta);
-            }
-            this->render();
-            for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-            {
-                PLUGIN * plugin = this->lsPlugins[i];
-                plugin->onEndRender();
-            }
-            #pragma message(REMINDER_TODO "  implement Swap buffers")
-        }
-        for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
-        {
-            PLUGIN * plugin = this->lsPlugins[i];
-            plugin->onDestroy();
-        }
-        if(this->device->audioInterface)
-            this->device->audioInterface->stopAll();
-        return 0;
+        REMINDER_TODO
     }
-#else
-    #error "platform not suported"
-#endif
 
-//Linux thread
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-
-    void CORE_MANAGER::getScreenSize(int *width,int *height)
+    void CORE_MANAGER::swapBuffers()
     {
-        #pragma message(REMINDER_TODO "  implement for ANY")
+        REMINDER_TODO
     }
-#endif
+
     bool CORE_MANAGER::renderToTargets()
     {
-        bool oneRender = false;
+        bool oneRender                 = false;
+        REMINDER_TODO
         for (auto renderTarget : this->device->lsObjectRenderToTarget)
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
-            #pragma message(REMINDER_TODO "  set viewport to render target")
+            
             
             if (!renderTarget->render2Texture())
             {
-                #pragma message(REMINDER_TODO "  Set viewport to back buffer")
+                ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
                 this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 return false;
             }
@@ -1068,429 +142,11 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         }
         if (oneRender)
         {
-            #pragma message(REMINDER_TODO "  Set viewport to back buffer")
             this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
         }
         return true;
     }
     
-    void CORE_MANAGER::pushEvent(EVENT_KEY *event)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-        {
-#if defined _WIN32
-            mutexEvents.lock();
-#endif
-            if (event->eventType == this->lastEvent.eventType)
-            {
-                switch (event->eventType)
-                {
-                    case UNKNOWN: return;
-                    case ONRESIZEWINDOW:
-                    case ONTOUCHDOWN:
-                    case ONTOUCHUP:
-                    case ONTOUCHMOVE:
-                    {
-                        if (event->key == this->lastEvent.key &&  //-V550
-							event->x == this->lastEvent.x &&
-                            event->y == this->lastEvent.y) //-V550
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONDOUBLECLICK:
-                    {
-                        if (event->key == this->lastEvent.key &&  //-V550
-							event->x == this->lastEvent.x &&
-                            event->y == this->lastEvent.y) //-V550
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONKEYDOWN:
-                    case ONKEYUP:
-                    {
-                        if (event->key == this->lastEvent.key)
-                        {
-#if defined _WIN32
-                            mutexEvents.unlock();
-#endif
-                            return;
-                        }
-                    }
-                    break;
-                    case ONTOUCHZOOM: {
-                    }
-                    break;
-                    default: {
-                    }
-                    break;
-                }
-            }
-            this->lastEvent = *event;
-
-            switch (event->eventType)
-            {
-                case ONKEYDOWN:
-                {
-                    if (this->__keyPressed[event->key] == false)
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = true;
-                }
-                break;
-                case ONKEYUP:
-                {
-                    if (this->__keyPressed[event->key])
-                        this->lsEvents.push_back(*event);
-                    this->__keyPressed[event->key] = false;
-                }
-                break;
-                default: { this->lsEvents.push_back(*event);
-                }
-                break;
-            }
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-        }
-    }
-    
-    bool CORE_MANAGER::popEvent(EVENT_KEY *event)
-    {
-#if defined _WIN32
-        mutexEvents.lock();
-#endif
-        if (this->lsEvents.size() > 0 && event)
-        {
-            *event = this->lsEvents.front();
-            this->lsEvents.pop_front();
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return true;
-        }
-        else
-        {
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return false;
-        }
-    }
-    
-    void CORE_MANAGER::pushEvent(INFO_JOYSTICK_INIT_PLAYER *info)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-        {
-#if defined _WIN32
-            mutexEvents.lock();
-#endif
-            this->lsInfoJoystick.push_back(*info);
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-        }
-    }
-    
-    bool CORE_MANAGER::popEvent(INFO_JOYSTICK_INIT_PLAYER *info)
-    {
-#if defined _WIN32
-        mutexEvents.lock();
-#endif
-        if (this->lsInfoJoystick.size() > 0 && info)
-        {
-
-            *info = this->lsInfoJoystick.front();
-            this->lsInfoJoystick.pop_front();
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return true;
-        }
-        else
-        {
-#if defined _WIN32
-            mutexEvents.unlock();
-#endif
-            return false;
-        }
-    }
-#if defined(ANDROID)
-    
-    void CORE_MANAGER::onTouchDown(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchDown(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchUp(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchUp(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchMove(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchMove(key, x, y);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos dedos. É
-                                 // enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onTouchZoom(zoom);
-    }
-    
-    void CORE_MANAGER::onKeyDown(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyDown(key);
-    }
-    
-    void CORE_MANAGER::onKeyUp(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyUp(key);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(float x, float y, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onDoubleClick(x, y, key);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyDownJoystick(player, key);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onKeyUpJoystick(player, key);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onMoveJoystick(player, lx, ly, rx, ry);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onInfoDeviceJoystick(player, maxNumberButton, strDeviceName, extraInfo);
-    }
-
-    void CORE_MANAGER::onResizeWindow(int, int)
-    {
-        if (this->device->scene && this->__sceneWasInit)
-            this->device->scene->onResizeWindow();
-    }
-#elif defined __linux__ || defined __APPLE__
-
-    void CORE_MANAGER::onTouchDown(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchUp(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchMove(int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos dedos. É
-                                 // enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        EVENT_KEY ev(0, 0, (int)zoom, EVENT_TYPE_ACTIONS::ONTOUCHZOOM);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDown(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUp(int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(float x, float y, int key)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYDOWNJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYUPJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        static const float pProp_128 = 1.0f / 128.f;
-        static const float pProp_127 = 1.0f / 127.f;
-        const float        flx       = lx > 0 ? lx * pProp_127 : lx * pProp_128;
-        const float        fly       = ly > 0 ? ly * pProp_127 : ly * pProp_128;
-        const float        frx       = rx > 0 ? rx * pProp_127 : rx * pProp_128;
-        const float        fry       = ry > 0 ? ry * pProp_127 : ry * pProp_128;
-        EVENT_KEY          ev(flx, fly, 0, player, frx, fry, EVENT_TYPE_ACTIONS::ONMOVEJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        INFO_JOYSTICK_INIT_PLAYER ev(player, maxNumberButton, strDeviceName, extraInfo);
-        this->pushEvent(&ev);
-    }
-
-    void CORE_MANAGER::onResizeWindow(int width, int height)
-    {
-        EVENT_KEY ev(static_cast<float>(width),static_cast<float>(height),0,EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
-        this->pushEvent(&ev);
-    }
-#elif _WIN32
-    
-    void CORE_MANAGER::onTouchDown(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchUp(HWND, int key, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONTOUCHUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchMove(HWND, float x, float y)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, 0, EVENT_TYPE_ACTIONS::ONTOUCHMOVE);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onTouchZoom(HWND, float zoom) // Evento chamado ao solicitar zoom. Zoom estes normalmente com movimentos dos
-                                       // dedos. É enviados valores entre -1 e +1. No caso de mouse é o scrool do mesmo.
-    {
-        EVENT_KEY ev(0, 0, (int)zoom, EVENT_TYPE_ACTIONS::ONTOUCHZOOM);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDown(HWND, int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYDOWN);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUp(HWND,int key) // Evento chamado ao pressionar uma tecla na janela ativa. key é um VK padrão da api do Windows.
-    {
-        EVENT_KEY ev(0, 0, key, EVENT_TYPE_ACTIONS::ONKEYUP);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onDoubleClick(HWND, float x, float y, int key)
-    {
-        x /= this->device->camera.scale2d.x;
-        y /= this->device->camera.scale2d.y;
-        EVENT_KEY ev(x, y, key, EVENT_TYPE_ACTIONS::ONDOUBLECLICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyDownJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYDOWNJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onKeyUpJoystick(int player, int key)
-    {
-        EVENT_KEY ev(0.0f, 0.0f, key, player, 0.0f, 0.0f, EVENT_TYPE_ACTIONS::ONKEYUPJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onMoveJoystick(int player, float lx, float ly, float rx, float ry)
-    {
-        constexpr float pProp_128 = 1.0f / 128.f;
-        constexpr float pProp_127 = 1.0f / 127.f;
-        const float        flx       = lx > 0 ? lx * pProp_127 : lx * pProp_128;
-        const float        fly       = ly > 0 ? ly * pProp_127 : ly * pProp_128;
-        const float        frx       = rx > 0 ? rx * pProp_127 : rx * pProp_128;
-        const float        fry       = ry > 0 ? ry * pProp_127 : ry * pProp_128;
-        EVENT_KEY          ev(flx, fly, 0, player, frx, fry, EVENT_TYPE_ACTIONS::ONMOVEJOYSTICK);
-        this->pushEvent(&ev);
-    }
-    
-    void CORE_MANAGER::onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo)
-    {
-        INFO_JOYSTICK_INIT_PLAYER ev(player, maxNumberButton, strDeviceName, extraInfo);
-        this->pushEvent(&ev);
-    }
-
-    void CORE_MANAGER::onResizeWindow(HWND, int width, int height)
-    {
-        EVENT_KEY ev(static_cast<float>(width),static_cast<float>(height),0,EVENT_TYPE_ACTIONS::ONRESIZEWINDOW);
-        this->pushEvent(&ev);
-    }
-    #endif
-
-    void CORE_MANAGER::forceRestore()
-    {
-        this->onStop();
-        #if defined ANDROID
-        while (!this->onLostDevice(this->device->jni->jenv,nullptr,static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight)));
-        #else
-        while (!this->onLostDevice(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),0,0));
-        #endif
-    }
-
     unsigned int CORE_MANAGER::addPlugin(PLUGIN * plugin)
     {
         for(unsigned int i=0; i < this->lsPlugins.size(); ++i)
@@ -1504,76 +160,32 @@ constexpr EVENT_KEY::EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0)
         if(plugin != nullptr)
         {
             this->lsPlugins.push_back(plugin);
+            REMINDER_TODO
             void * handle = nullptr;
-            #if defined _WIN32
-                handle = this->device->window.getHwnd();
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-                handle = nullptr; // TODO: X11 Display or Window
-                #pragma message(REMINDER_TODO "  X11 Display or Window")
-            #elif defined(ANDROID)
-                handle = this->device->jni->jenv;
-            #endif
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
+            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle);
             return this->lsPlugins.size() - 1;
         }
         return 0xffffffff;
     }
 
-    #if defined _WIN32
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
     {
-        this->device->window.setMinSizeAllowed(min_x,min_y);
-        this->device->window.setMaxSizeAllowed(max_x,max_y);
+        REMINDER_TODO
     }
-    #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-    void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
-    {
-        XSizeHints xsize;
-        long min_flag = PMinSize;
-        long max_flag = PMaxSize;
-        if(min_x == 0 && min_y == 0)
-            min_flag = 0;
-        if(max_x == 0 && max_y == 0)
-            max_flag = 0;
 
-        xsize.flags         = max_flag|min_flag|USPosition;
-        xsize.max_width     = static_cast<int>(max_x);
-        xsize.max_height    = static_cast<int>(max_y);
-        xsize.min_width     = static_cast<int>(min_x);
-        xsize.min_height    = static_cast<int>(min_y);
-        if(static_cast<int32_t>(this->device->backBufferWidth) <= max_x && static_cast<int32_t>(this->device->backBufferWidth) >= min_x)
-        {
-            xsize.base_width    = static_cast<int>(this->device->backBufferWidth);
-            xsize.width         = static_cast<int>(this->device->backBufferWidth);
-        }
-        else
-        {
-            xsize.base_width    = min_x;
-            xsize.width         = static_cast<int>(min_x);
-        }
-
-        if(static_cast<int32_t>(this->device->backBufferHeight) <= max_y && static_cast<int32_t>(this->device->backBufferHeight) >= min_y)
-        {
-            xsize.base_height   = static_cast<int>(this->device->backBufferHeight);
-            xsize.height        = static_cast<int>(this->device->backBufferHeight);
-        }
-        else
-        {
-            xsize.base_height   = min_y;
-            xsize.height        = static_cast<int>(min_y);
-        }
-        xsize.width_inc     = 0;
-        xsize.height_inc    = 0;
-        xsize.x             = 0;
-        xsize.y             = 0;
-        #pragma message(REMINDER_TODO "  Apply to window");
-    }
-    #elif defined(ANDROID)
-    void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y)
+    void CORE_MANAGER::getScreenSize(int *width,int *height)
     {
-        INFO_LOG("setMinMaxSizeWindow (%d,%d,%d,%d) has not effect on ANDROID platform.",min_x,min_y,max_x,max_y);
+        REMINDER_TODO
+        {
+            *width  = 1024;
+            *height = 1024;
+        }
     }
-    #endif
+
+    void CORE_MANAGER::moveWindow(int x, int y)
+    {
+        REMINDER_TODO
+    }
 }
 
 namespace log_util

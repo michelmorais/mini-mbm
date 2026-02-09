@@ -46,7 +46,6 @@ class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
     bool                     isOnFrustum() override;
     bool                     render() override;
     bool                     onRestoreDevice() override;
-    void                     onStop() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;

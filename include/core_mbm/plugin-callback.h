@@ -42,9 +42,9 @@ class PLUGIN
     virtual void onKeyUpJoystick     (int player, int key) = 0;
     virtual void onMoveJoystick      (int player, float lx, float ly, float rx, float ry) = 0;
     virtual void onInfoDeviceJoystick(int player, int maxNumberButton, const char * strDeviceName, const char * extraInfo) = 0;
-    virtual void onBeginRender       () = 0 ;
+	virtual void onPrepare           () = 0;// called once before render loop in the very beggining of engine (after PollEvents of main core loop)
     virtual void onLoop              (float delta) = 0;
-    virtual void onEndRender         () = 0 ;
+    virtual void onRender            () = 0 ;
     virtual void onDestroy           () = 0 ;
 };
 

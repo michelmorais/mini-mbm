@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2025      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,23 +17,45 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <renderizable.h>
 
-
-#if defined (USE_DUMMY_BACK_END_ENGINE)
-
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#if defined (USE_DIRECTX9)
+#include <shader-var-cfg.h>
+#include <cstring>
+#include <specific-directx9.h>
 
 namespace mbm
-
 {
-    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
+
+    VAR_SHADER::VAR_SHADER(const std::string Name, const TYPE_VAR_SHADER TypeVar, const bool isPS) noexcept :
+        name(Name),
+        typeVar(TypeVar),
+        isPS(isPS)
     {
-        #ifdef SHOW_PRAGMA_MESSAGE
-        #pragma message(REMINDER_TODO "  implement destroy frame buffer");
-        #endif
-        this->idFrameBuffer = 0;
+        memset(current, 0, sizeof(current));
+        memset(this->min, 0, sizeof(min));
+        memset(this->max, 0, sizeof(max));
+        memset(this->step, 0, sizeof(step));
+        memset(this->control, 1, sizeof(control));
+        memset(this->granThen, 0, sizeof(granThen));
+        switch (typeVar)
+        {
+            case VAR_FLOAT: this->sizeVar      = 1; break;
+            case VAR_VECTOR: this->sizeVar     = 3; break;
+            case VAR_VECTOR2: this->sizeVar    = 2; break;
+            case VAR_COLOR_RGB: this->sizeVar  = 3; break;
+            case VAR_COLOR_RGBA: this->sizeVar = 4; break;
+            default: { this->sizeVar = 0;}
+            break;
+        }
+
+        ptrHandleVar = new D3DXHANDLE(nullptr);
     }
+
+    VAR_SHADER::~VAR_SHADER()
+    {
+        delete static_cast<D3DXHANDLE*>(ptrHandleVar);
+    }
+
 }
 
-#endif // USE_DUMMY_BACK_END_ENGINE
+#endif

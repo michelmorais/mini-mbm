@@ -137,7 +137,7 @@ namespace mbm
             anim->fx.setBlendOp();
             if (anim->fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,anim->fx.textureOverrideStage2->idTexture))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,anim->fx.textureOverrideStage2))
                     return false;
             }
             else
@@ -152,12 +152,11 @@ namespace mbm
     
     bool SPRITE::onRestoreDevice()
     {
-        this->releaseAnimation();
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
             #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             return true;
         }
@@ -168,12 +167,6 @@ namespace mbm
             #endif
             return false;
         }
-    }
-    
-    void SPRITE::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
     }
     
     const mbm::INFO_PHYSICS * SPRITE::getInfoPhysics() const
@@ -188,18 +181,18 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  SPRITE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  SPRITE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  SPRITE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  SPRITE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool SPRITE::isLoaded() const
     {

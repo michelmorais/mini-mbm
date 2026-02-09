@@ -26,7 +26,7 @@
 #include "primitives.h"
 #include "core-exports.h"
 
-#if defined _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(disable : 4201) //nonstandard extension used : nameless struct/union
 #endif 
 
@@ -131,7 +131,7 @@ namespace util
     struct API_IMPL EXTRA_HEADER //added since version 6
     {
         char type;           // 0 None, 1 = Paths
-		int sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
+        int sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
         EXTRA_HEADER() noexcept;
     };
 
@@ -524,7 +524,7 @@ namespace util
 
 }
 
-#if defined _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #pragma warning(default : 4201) //nonstandard extension used : nameless struct/union
 #endif 
 

@@ -29,9 +29,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#if defined _WIN32
-	#pragma warning(push)
-	#pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(push)
+    #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif
 
 namespace mbm
@@ -228,6 +228,59 @@ struct API_IMPL VEC3
     }
 };
 
+struct API_IMPL VERTEX_NORMAL_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+            float	uv[2];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_NORMAL
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	uv[2];
+        };
+    };
+};
+
 struct API_IMPL COLOR
 {
   public:
@@ -262,12 +315,12 @@ struct API_IMPL COLOR
         a                    = prop * UCa;
     }
 
-	static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
-	{
-		snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
-		return out_put_string;
-	}
-	
+    static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
+    {
+        snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
+        return out_put_string;
+    }
+    
 
     static COLOR getColorFromHexString(const char *stringAsColor) noexcept
     {
@@ -687,8 +740,8 @@ API_IMPL float calcAzimuth(const float ax, const float ay);
 
 }
 
-#if defined _WIN32
-	#pragma warning(pop) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(pop) // nonstandard extension used : nameless struct/union
 #endif
 
 #endif

@@ -17,17 +17,18 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined (USE_DUMMY_BACK_END_ENGINE) 
+// ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+#elif defined ANDROID
+
 #include <jni.h>
 #include <stdlib.h>
 
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/device.h>
+#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
-#include <platform/common-jni.h>
 
-#ifndef ANDROID
-    #error "Target this main is ANDRIOD"
-#endif
 
 #ifndef PACKAGE_NAME_CLASS
     #define PACKAGE_NAME_CLASS "com/mini/mbm" // how must be (if changed the whole class path at java must be replaced)
@@ -105,10 +106,18 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     if (game != nullptr)
     {
         INFO_LOG("lib mini-mbm resized\n width: %d height: %d", width, height);
-        game->initGraphics(static_cast<int>(width),static_cast<int>(height));
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        cJni->jenv            = env;
+        cJni->absPath         = _absPath ? _absPath : "";
+        cJni->apkPath         = _apkPath ? _apkPath : "";
+        cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        const char* nameAplication = _apkPath ? _apkPath : "mini-mbm Android application";
+        constexpr int px = 0;
+        constexpr int py = 0;
+        constexpr bool border = false;
+        constexpr bool enable_resize = false;
+        game->initGraphics(nameAplication, static_cast<int>(width),static_cast<int>(height), px, py, border, enable_resize);
         game->setExpectedSizeOfWindow(static_cast<int>(expectedWidth),static_cast<int>(expectedHeight),"y");
-        game->device->jni->absPath         = _absPath ? _absPath : "";
-        game->device->jni->apkPath         = _apkPath ? _apkPath : "";
     }
     else
     {
@@ -144,9 +153,14 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             game->device->ptrManager       = game;
             game->device->backBufferWidth  = static_cast<float>(width);
             game->device->backBufferHeight = static_cast<float>(height);
-            game->device->jni->absPath     = _absPath ? _absPath : "";
-            game->device->jni->apkPath     = _apkPath ? _apkPath : "";
-            game->initializeSceneLua(width, height,static_cast<int>(expectedWidth),static_cast<int>(expectedHeight));
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+            cJni->jenv        = env;
+            cJni->absPath     = _absPath ? _absPath : "";
+            cJni->apkPath     = _apkPath ? _apkPath : "";
+            cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+
+            constexpr bool border = false;
+            game->initializeSceneLua(width, height,static_cast<int>(expectedWidth),static_cast<int>(expectedHeight), border);
             game->run();
         }
     }
@@ -244,7 +258,8 @@ void MiniMbmEngine_streamStopped(JNIEnv *env, jobject obj, int indexJNI)
 {
     if (game && game->device->scene)
     {
-        game->device->streamStopped(indexJNI);
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        cJni->streamStopped(indexJNI);
     }
 }
 
@@ -256,15 +271,24 @@ void MiniMbmEngine_streamStopped(JNIEnv *env, jobject obj, int indexJNI)
 
 bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint height)
 {
+    constexpr bool doSwapBuffers = false;
+    constexpr int  px  = 0;
+    constexpr int  py = 0;
     if (game)
-        return game->onLostDevice(env, obj, static_cast<int>(width), static_cast<int>(height));
+    {
+        //maybe need this in future
+        //mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        //cJni->jenv            = env;
+        //cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+        return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
+    }
     return true;
 }
 
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
     INFO_LOG("OnStop Called.");
-	util::COMMON_JNI *cJni      = util::COMMON_JNI::getInstance();
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
     JavaVM *         jvm        = nullptr;
     JNIEnv *         oldJenv    = cJni->jenv;
     int              getEnvStat = JNI_OK;
@@ -285,7 +309,7 @@ void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
         cJni->jenv = env;
     }
     if (game)
-        game->onStop();
+        game->onStopCoreManager();
     if (getEnvStat == JNI_EDETACHED)
     {
         /*
@@ -390,9 +414,9 @@ static JNINativeMethod methodTableJNI[] = {
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
 {
-    JNIEnv *   env                = nullptr;
+    JNIEnv *   env                  = nullptr;
     char       JAVA_class_side[255] = "";
-    const jint result             = -1;
+    const jint result               = -1;
     compiled_with_ABI();
 	log_util::print_colored(COLOR_TERMINAL_YELLOW,"For documentation please check at:\n%s\n","https://mbm-documentation.readthedocs.io/en/latest/");
     if (vm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK)
@@ -448,8 +472,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
         return JNI_FALSE;
     }
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
-    util::COMMON_JNI *jniInstance = util::COMMON_JNI::getInstance();
-    jniInstance->jenv            = env;
-    jniInstance->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;
 }
+#else
+    #error "Target this main is ANDRIOD"
+#endif

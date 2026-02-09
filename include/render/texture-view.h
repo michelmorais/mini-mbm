@@ -49,14 +49,13 @@ namespace mbm
             const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
             const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL void setTextureToNull();
-		std::string getFileNameTexture()const;
+        API_IMPL std::string getFileNameTexture()const;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
 		
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() override;
         void fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
                                           const float height);

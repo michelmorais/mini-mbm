@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include "plusWindows.h"
 
 const char*  WINPLUS_DIRSEPARATOR = "\\";
@@ -266,12 +267,12 @@ namespace mbm
     }
 }
 
-    const char *getLastErrWindows(const char *where, char *outMessage)
+const char *getLastErrWindows(const char *where, char *outMessage)
 {
     DWORD lerr = GetLastError();
     if (lerr)
     {
-        char *message;
+        char *message = nullptr;
         FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, lerr, 0, (char *)&message, 0,
                        nullptr);
         if (where)
@@ -288,6 +289,51 @@ namespace mbm
         return outMessage;
     }
     return "Nenhum erro encontrado!";
+}
+
+DWORD Win32FromHResult(HRESULT hr)
+{
+    if ((hr & 0xFFFF0000) == MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32, 0))
+    {
+        return HRESULT_CODE(hr);
+    }
+    if (FACILITY_WINDOWS == HRESULT_FACILITY(hr))
+    {
+        hr = HRESULT_CODE(hr);
+    }
+
+    if (hr == S_OK)
+    {
+        return ERROR_SUCCESS;
+    }
+
+    // Not a Win32 HRESULT so return a generic error code.
+    return ERROR_CAN_NOT_COMPLETE;
+}
+
+const char* getHresultErr(HRESULT hr, const char* where, char* outMessage)
+{
+    char message[4096];
+    if (::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+        nullptr,
+        Win32FromHResult(hr),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
+        message,
+        _countof(message),
+        nullptr))
+    {
+        if (where)
+        {
+            if (outMessage)
+                sprintf(outMessage, "Where:%s \nError:%s", where, message);
+        }
+        else
+        {
+            if (outMessage)
+                sprintf(outMessage, "\n%s", message);
+        }
+    }
+    return outMessage;
 }
 
     bool startUpWindows64(const char *name)
@@ -376,7 +422,7 @@ namespace mbm
         LONG nError = RegOpenKeyExW(hRootKey, strKey, 0, acess, &hKey);
         if (nError == ERROR_FILE_NOT_FOUND)
         {
-			char strKeyout[255];
+            char strKeyout[255];
             fprintf(stderr,"Creating registry key:%s\n", mbm::toChar(strKey, strKeyout));
             nError = RegCreateKeyExW(hRootKey, strKey, 0, nullptr, REG_OPTION_NON_VOLATILE, acess, nullptr, &hKey, nullptr);
         }
@@ -435,7 +481,7 @@ namespace mbm
         else
         {
             std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
-		}
+        }
     }
 
     DWORD REGEDIT::getVal(LPCTSTR lpValue, DWORD valueNotFound)
@@ -763,7 +809,7 @@ namespace mbm
                     ++zeroByte;
             }
         }
-		unsigned char *img   = new unsigned char[(width * height * 3) + 4];
+        unsigned char *img   = new unsigned char[(width * height * 3) + 4];
         int i = getc(fp);
         while (i != EOF)
         {
@@ -3126,23 +3172,29 @@ namespace mbm
             return ptr->graphWin;
         return nullptr;
     }
-    void WINDOW::setCallEventsManager(EVENTS *ptrCallEventsManager)
+
+    void WINDOW::setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager)
     {
         callEventsManager = ptrCallEventsManager;
     }
-    unsigned int WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const unsigned int index)
+
+    uint32_t WINDOW::addObjectContext(void* YOUR_PTR_OBJECT)
     {
-        if (index != 0xffffffff)
-        {
-            assert(this->lsObjectsContext[index] == nullptr || this->lsObjectsContext[index] == YOUR_PTR_OBJECT);
-            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
-            return index;
-        }
-        const unsigned int newIndex      = this->lsObjectsContext.size();
+        const uint32_t newIndex = this->lsObjectsContext.size();
         this->lsObjectsContext[newIndex] = (YOUR_PTR_OBJECT);
         return newIndex;
     }
-    void * WINDOW::getObjectContext(const unsigned int index)
+
+    uint32_t WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index)
+    {
+        if (index != 0xffffffff)
+        {
+            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
+            return index;
+        }
+        return addObjectContext(YOUR_PTR_OBJECT);
+    }
+    void * WINDOW::getObjectContext(const uint32_t index)
     {
         if (index != 0xffffffff)
             return lsObjectsContext[index];
@@ -3385,7 +3437,7 @@ namespace mbm
             {
                 int *pFlag = static_cast<int *>(dialogBox->extraParams);
                 {
-					#define hasBit_On(v, bit) ((v & bit) == bit)
+                    #define hasBit_On(v, bit) ((v & bit) == bit)
                     int   flag  = *pFlag;
                     HICON hIcon = nullptr;
                     if (hasBit_On(flag, MB_ICONINFORMATION) || hasBit_On(flag, MB_ICONASTERISK))
@@ -4453,22 +4505,22 @@ namespace mbm
         tnidw.uVersion         = tnid.uVersion;
         WCHAR  textOut[1024]   = L"";
         WCHAR *szTmp           = toWchar(tnid.szInfo, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfo, szTmp);
-		else
-			memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
+        if(szTmp)
+            wcscpy(tnidw.szInfo, szTmp);
+        else
+            memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
 
         szTmp = toWchar(tnid.szInfoTitle, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfoTitle, szTmp);
-		else
-			memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
+        if(szTmp)
+            wcscpy(tnidw.szInfoTitle, szTmp);
+        else
+            memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
 
         szTmp = toWchar(tnid.szTip, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szTip, szTmp);
-		else
-			memset(tnidw.szTip,0,sizeof(tnidw.szTip));
+        if(szTmp)
+            wcscpy(tnidw.szTip, szTmp);
+        else
+            memset(tnidw.szTip,0,sizeof(tnidw.szTip));
 
         BOOL bSuccess  = Shell_NotifyIconW(NIM_MODIFY, &tnidw);
         tnid.szInfo[0] = 0;
@@ -5238,8 +5290,8 @@ namespace mbm
                 {
                     COM_BETWEEN_WINP *ptrPrevious = ptr;
                     ptr                           = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5315,8 +5367,8 @@ namespace mbm
                 case WM_NCHITTEST:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5373,8 +5425,8 @@ namespace mbm
                 case WM_NCPAINT:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC || ptr->ptrWindow == nullptr ||
                         ptr->ptrWindow->run == false || ptr->ptrWindow->isVisible == false)
                     {
@@ -5412,7 +5464,7 @@ namespace mbm
                     DeleteDC(hdcMem);
                     ReleaseDC(windowHandle, hdc);
                     RedrawWindow(windowHandle, &ncBorder.rcWind, ncBorder.hrgnAll, RDW_UPDATENOW);
-					ptr->graphWin->infoActualComponent = nullptr;
+                    ptr->graphWin->infoActualComponent = nullptr;
                     /*for(unsigned int i=0; i< COM_BETWEEN_WINP::lsComBetweenWinp.size(); ++i)
                     {
                         COM_BETWEEN_WINP* ptrWinChild = COM_BETWEEN_WINP::lsComBetweenWinp[i];
@@ -6758,16 +6810,19 @@ namespace mbm
     }
     bool WINDOW::setOnParserRawInput(OnParseRawInput function)
     {
-        RAWINPUTDEVICE rid[1];
-        rid[0].usUsagePage = 1;
-        rid[0].usUsage     = 4; // Joystick
-        rid[0].dwFlags     = RIDEV_EXINPUTSINK;
-        rid[0].hwndTarget  = this->getHwnd();
+        if (function)
+        {
+            RAWINPUTDEVICE rid[1];
+            rid[0].usUsagePage = 1;
+            rid[0].usUsage = 4; // Joystick
+            rid[0].dwFlags = RIDEV_EXINPUTSINK;
+            rid[0].hwndTarget = this->getHwnd();
 
-        const int index      = 0;
-        const int numDevices = 1;
-        if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
-            return false;
+            const int index = 0;
+            const int numDevices = 1;
+            if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
+                return false;
+        }
         this->onParseRawInput = function;
         return true;
     }
@@ -7652,7 +7707,7 @@ namespace mbm
             DeleteObject(hbmMem);
             DeleteDC(hdcMem);
             EndPaint(ptr->hwnd, &ps);
-			ptr->graphWin->infoActualComponent = nullptr;
+            ptr->graphWin->infoActualComponent = nullptr;
         }
         return 1;
     }
@@ -7729,6 +7784,7 @@ namespace mbm
                     {
                         ptrWin->run = false;
                         closeAllWindows();
+                        // TODO: check this
                         if (windowHandle && *(int *)windowHandle)
                             DestroyWindow(windowHandle);
                         return true;
@@ -8707,7 +8763,7 @@ namespace mbm
                                     menu->showSubMenu();
                                 }
                             }
-							break;
+                            break;
                             case WINPLUS_TYPE_SUB_MENU:
                             {
                                 if (ptr->onEventWinPlus)
@@ -9018,7 +9074,7 @@ namespace mbm
         bi.lParam         = 0;
         //this does not make any sense however I realize that when folder dialog is supposed to appear, it does not until press ALT in the keyboard...
         keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
-		keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+        keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
         //end bizarre behavior
         pidl              = SHBrowseForFolderA(&bi);
         if (pidl)
@@ -10353,3 +10409,4 @@ namespace mbm
 }
 
 };
+#endif

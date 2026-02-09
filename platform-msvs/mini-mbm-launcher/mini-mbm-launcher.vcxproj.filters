@@ -27,18 +27,12 @@
     <ClInclude Include="mini-mbm-launcher.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="parse_laucher_args.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="mini-mbm-launcher.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="parse_laucher_args.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

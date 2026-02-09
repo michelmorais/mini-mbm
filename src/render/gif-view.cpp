@@ -22,7 +22,6 @@
 #include <image-resource.h>
 #include <util-interface.h>
 #include <string>
-#include <platform/common-jni.h>
 #include <core_mbm/scene.h>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
@@ -56,18 +55,18 @@ namespace mbm
         this->interval.clear();
     }
 
-	FX*  GIF_VIEW::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  GIF_VIEW::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  GIF_VIEW::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  GIF_VIEW::getAnimationManager()
+    {
+        return this;
+    }
     
     bool GIF_VIEW::createAnimationAndShader2Texture()
     {
@@ -85,7 +84,6 @@ namespace mbm
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        this->bufferGL.release();
         if (!createAnimationAndShader2Texture())
             return false;
         
@@ -123,14 +121,13 @@ namespace mbm
             anim->type                  = TYPE_ANIMATION_GROWING_LOOP;
             anim->intervalChangeFrame   = infoGif.interval[0];
         }
-        this->bufferGL.idTexture0[0] = this->textures[0]->idTexture;
-        this->bufferGL.useAlpha[0]   = 1;
+        this->bufferGL.setTextureByStage(this->textures[0], 0, 0);
         
         this->fileName = fileNameTexture;
         this->fileName += '|';
-        this->fileName += std::to_string(w);
+        this->fileName += std::to_string(w <= 0.0f ? infoGif.widthTexture : w);
         this->fileName += '|';
-        this->fileName += std::to_string(h);
+        this->fileName += std::to_string(h <= 0.0f ? infoGif.heightTexture : h);
 
         this->updateAABB();
         return true;
@@ -143,18 +140,18 @@ namespace mbm
         VEC3            _position[4];
         VEC3            normal[4];
         VEC2            uv[4];
-        unsigned short int index[6]      = {0, 2, 1, 2, 3, 1};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
-        this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
+        this->fillvertexQuadTexture(_position, normal, uv,
+                                    diameter <= 0.0f ? 100.0f : diameter,
                                     diameter <= 0.0f ? 100.0f : diameter);
-		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = 1;
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
@@ -180,17 +177,16 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
-        this->bufferGL.release();
-        this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
+        this->fillvertexQuadTexture(_position, normal, uv,
+                                    width  <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
-		const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount, nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = 1;
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0 );
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0 );
         }
         else
             return false;
@@ -239,7 +235,7 @@ namespace mbm
                     if(anim->indexCurrentFrame < static_cast<int>(this->textures.size()))
                         this->textures[anim->indexCurrentFrame] = newTex;
                 }
-                this->bufferGL.idTexture0[0] = newTex->idTexture;
+                this->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
             }
         }
@@ -311,15 +307,12 @@ namespace mbm
                     animation->intervalChangeFrame  = interval[0];
 
                 TEXTURE* curTex = this->textures[animation->indexCurrentFrame];
-                if(curTex)
-                    this->bufferGL.idTexture0[0] = curTex->idTexture;
-                else
-                    this->bufferGL.idTexture0[0] = 0;
+                this->bufferGL.setTextureByStage(curTex, 0, 0);
             }
             animation->fx.setBlendOp();
             animation->fx.shader.update();
             if (animation->fx.textureOverrideStage2)
-                this->bufferGL.idTexture1 = animation->fx.textureOverrideStage2->idTexture;
+                this->bufferGL.setTextureByStage(animation->fx.textureOverrideStage2, 1, 0);
                 
             if (!animation->fx.shader.render(&this->bufferGL))
                 return false;
@@ -328,73 +321,38 @@ namespace mbm
         return false;
     }
     
-    void GIF_VIEW::onStop()
-    {
-        this->release();
-    }
-    
     bool GIF_VIEW::onRestoreDevice()
     {
         std::vector<std::string> result;
         util::split(result, this->fileName.c_str(), '|');
         if (result.size() != 3)
-            return false;
-        ANIMATION* anim = this->getAnimation();
-        const TYPE_ANIMATION myType = anim ? anim->type : TYPE_ANIMATION_GROWING_LOOP;
-        const int indexCurrentFrame = anim ?  anim->indexCurrentFrame : 0;
-        const auto width       = static_cast<float>(atof(result[1].c_str()));
-        const auto height      = static_cast<float>(atof(result[2].c_str()));
-        this->bufferGL.release();
-        if (!createAnimationAndShader2Texture())
-            return false;
-        const char* fileNameTexture = result[0].c_str();
-        TEXTURE_MANAGER* manTex = TEXTURE_MANAGER::getInstance();
-        INFO_GIF infoGif;
-        if (manTex->loadGIF(fileNameTexture, infoGif) == false)
         {
-            #if defined _DEBUG
-                PRINT_IF_DEBUG("Failed to load [%s]", log_util::basename(fileNameTexture));
-            #endif
-            return false;
-        }
-        for(unsigned int i=0; i< infoGif.totalFrames; ++i)
-        {
-            TEXTURE* texture = manTex->load(infoGif.fileNames[i].c_str(),true);
-            if(texture)
-            {
-                this->textures.push_back(texture);
-                this->interval.push_back(infoGif.interval[i]);
-            }
-            else
-            {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("Failed to load [%s]", log_util::basename(infoGif.fileNames[i].c_str()));
-#endif
-                this->textures.clear();
-                return false;
-            }
-        }
-        const bool idFrame = this->setFrame(width <= 0.0f ? infoGif.widthTexture : width, height <= 0.0f ? infoGif.heightTexture : height);
-        if (idFrame == false)
-            return false;
-        if(anim)
-        {
-            anim->indexCurrentFrame     = indexCurrentFrame;
-            anim->indexInitialFrame     = 0;
-            anim->indexFinalFrame       = infoGif.totalFrames -1;
-            anim->type                  = myType;
-            anim->intervalChangeFrame   = infoGif.interval[0];
-        }
-        this->bufferGL.idTexture0[0] = this->textures[0]->idTexture;
-        this->bufferGL.useAlpha[0]   = 1;
 #if defined DEBUG_RESTORE
-        PRINT_IF_DEBUG("Gif [%s] successfully restored",log_util::basename(fileNameTexture));
+            PRINT_IF_DEBUG("Restore information missing");
 #endif
-        return true;
+            return false;
+        }
+        const float width  = static_cast<float>(atof(result[1].c_str()));
+        const float height = static_cast<float>(atof(result[2].c_str()));
+
+        this->release();
+
+        if (this->load(result[0].c_str(), width, height))
+        {
+#if defined DEBUG_RESTORE
+            PRINT_INFO_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));
+#endif
+            // later the engine will fill in the animation state with onRestoreAnimationsState
+            return true;
+        }
+#if defined DEBUG_RESTORE
+        PRINT_IF_DEBUG("Failed to restore Gif [%s]", log_util::basename(result[0].c_str()));
+#endif
+        return false;
+
     }
     
-    void GIF_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
-                                      const float height)
+    void GIF_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
     {
         const float x  = width * 0.5f;
         const float y  = height * 0.5f;
@@ -413,23 +371,27 @@ namespace mbm
         _position[3].x = x;
         _position[3].y = y;
         _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
+        
+        if (normal)
         {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
+            for (int i = 0; i < 4; ++i)
+            {
+                normal[i].x = 0.0f;
+                normal[i].y = 0.0f;
+                normal[i].z = 1.0f;
+            }
         }
-
-        //----------------------------------------
-        uv[0].x = 0;
-        uv[0].y = 1;
-        uv[1].x = 0;
-        uv[1].y = 0;
-        uv[2].x = 1;
-        uv[2].y = 1;
-        uv[3].x = 1;
-        uv[3].y = 0;
-    }
+         
+         //----------------------------------------
+         uv[0].x = 0;
+         uv[0].y = 1;
+         uv[1].x = 0;
+         uv[1].y = 0;
+         uv[2].x = 1;
+         uv[2].y = 1;
+         uv[3].x = 1;
+         uv[3].y = 0;
+     }
     
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)
     {

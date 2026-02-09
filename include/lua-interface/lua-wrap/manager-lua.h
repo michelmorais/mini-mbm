@@ -31,7 +31,7 @@ struct lua_State;
 
 #ifndef _DO_NATIVE_COMMANDS_FROM_LUA
 #define _DO_NATIVE_COMMANDS_FROM_LUA
-typedef void (*OnDoNativeCommand)(const char *command, const char *param,const char * result,const int size_result);
+typedef void (*OnDoNativeCommand)(const char *command, const char *param, char * result,const int size_result);
 #endif
 
 namespace mbm
@@ -42,14 +42,14 @@ namespace mbm
     class SCENE_SCRIPT : public SCENE
     {
       public:
-		std::string        scriptLua; 
+        std::string        scriptLua; 
         std::string        fileNameScriptLuaFinal;
         static bool        logo_was_init;
         bool               wasError;
         bool               __onErrorStop__;
         TEXTURE_VIEW        *textureLogo;
         TEXTURE_VIEW        *textureRestore;
-		bool               loadSceneOnFirtLoop;
+        bool               loadSceneOnFirtLoop;
         const bool         noSplash;
         std::string        strNameSceneLoadOnFirtLoop;
         
@@ -76,24 +76,24 @@ namespace mbm
         void onMoveJoystick(int player, float lx, float ly, float rx,float ry) override;
         void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo) override;
         void startLoading() override;
-		void endLoading() override;
+        void endLoading() override;
         void onResizeWindow() override;
         const char *getSceneName() noexcept override;
-		void setRenderizableLoading(RENDERIZABLE * renderizable);
-		lua_State* getLuaState() const;
+        void setRenderizableLoading(RENDERIZABLE * renderizable);
+        lua_State* getLuaState() const;
       private:
-		static void loadMainScene(void *pLua_manager, const char *nameMainScene);
-		static int onNewScene(lua_State *lua);
-		void removePreviousSceneOnUnload();
+        static void loadMainScene(void *pLua_manager, const char *nameMainScene);
+        static int onNewScene(lua_State *lua);
+        void removePreviousSceneOnUnload();
         bool doFileAsString(const char *newScriptPath);
         bool createSceneLua();
         void removeNullFromList(std::vector<RENDERIZABLE *> &myList);
-		bool doLauncher(const std::string& sceneName);
-		static int OnGetSplash(lua_State* lua);
+        bool doLauncher(const std::string& sceneName);
+        static int OnGetSplash(lua_State* lua);
         lua_State *         lua;
         USER_DATA_SCENE_LUA dataScene;
-		RENDERIZABLE*		splashRenderizable;
-        float               time_resize_window;
+        RENDERIZABLE*		splashRenderizable;
+        //float               time_resize_window;
     };
 
     class LUA_MANAGER : public CORE_MANAGER
@@ -105,14 +105,10 @@ namespace mbm
         std::vector<SCENE_SCRIPT *> lsScene;
         uint32_t                    widthWindow;
         uint32_t                    heightWindow;
-        uint32_t                    positionXWindow;
-        uint32_t                    positionYWindow;
         bool                        maximizedWindow;
         bool                        noSplash;
-		bool						noBorder;
-        bool						enableResizeWindow;
 
-		bool existScene(const int idScene)override;
+        bool existScene(const int idScene)override;
     #ifdef ANDROID
         LUA_MANAGER(JNIEnv *env, jobject obj);
         
@@ -124,22 +120,18 @@ namespace mbm
     #endif
         virtual ~LUA_MANAGER();
         void setExpectedSizeOfWindow(int expectedWidth,int expectedHeight,const char * stretch);
-		void getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight,std::string & stretch);
+        void getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight,std::string & stretch);
         bool execute_string(lua_State *lua);
-    #if defined ANDROID
-        bool initializeSceneLua(int w, int h,int expectedWidth,int expectedHeight);
-    #else
-        bool initializeSceneLua(const bool border);
-    #endif
+        bool initializeSceneLua(int w, int h,int _expectedWidth,int _expectedHeight, const bool border);
         int run();
       private:
-		bool hasValueTextureLogo;
+        bool hasValueTextureLogo;
         void parserArgs(const std::vector<std::string> &argv);
     public:
         static LUA_MANAGER* pLuaManager;
-		static std::vector<std::string> globals_lua;//global that should not be erased on mbm.clearGlobals since it is information for the class
-		static void onScriptPrintLine();
-		static void onAddPathScript(const char * path);
+        static std::vector<std::string> globals_lua;//global that should not be erased on mbm.clearGlobals since it is information for the class
+        static void onScriptPrintLine();
+        static void onAddPathScript(const char * path);
     };
 
 };

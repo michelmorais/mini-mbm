@@ -295,11 +295,11 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         mesh = mehManager->getIfExists(nickName);
-		if(mesh == nullptr)
-		{
-			/*
-			T for triangle
-			p for points (index buffer)
+        if(mesh == nullptr)
+        {
+            /*
+            T for triangle
+            p for points (index buffer)
                         1p
                 8p       |         2p
                  \   8T  |  1T   /
@@ -314,81 +314,81 @@ namespace mbm
                 6p       |        4p
                         5p
 
-			*/
-			//numTriangles = 8;
-			const unsigned int numVertex     = numTriangles + 1;
-			const unsigned int numIndex      = numTriangles * 3;
-			const   float degree    = util::degreeToRadian(360) / numTriangles;
-			std::vector<float> vertex(numVertex * 3);
-			std::vector<float> normal(numVertex * 3);
-			std::vector<float> uv(numVertex * 2);
-			std::vector<unsigned short int> lsIndex(numIndex);
+            */
+            //numTriangles = 8;
+            const unsigned int numVertex     = numTriangles + 1;
+            const unsigned int numIndex      = numTriangles * 3;
+            const   float degree    = util::degreeToRadian(360) / numTriangles;
+            std::vector<float> vertex(numVertex * 3);
+            std::vector<float> normal(numVertex * 3);
+            std::vector<float> uv(numVertex * 2);
+            std::vector<unsigned short int> lsIndex(numIndex);
 
-			float *pVertex = vertex.data();
-			float *pNormal = normal.data();
-			float *pUv     = uv.data();
-			unsigned short int *pIndex = lsIndex.data();
+            float *pVertex = vertex.data();
+            float *pNormal = normal.data();
+            float *pUv     = uv.data();
+            unsigned short int *pIndex = lsIndex.data();
 
-			if(height <= 0.0f )
-				height = width;
-			const float ray_width  = width * 0.5f;
-			const float ray_height = height * 0.5f;
+            if(height <= 0.0f )
+                height = width;
+            const float ray_width  = width * 0.5f;
+            const float ray_height = height * 0.5f;
 
-			pVertex[0] = 0.0f;
-			pVertex[1] = 0.0f;
-			pVertex[2] = 0.0f;
+            pVertex[0] = 0.0f;
+            pVertex[1] = 0.0f;
+            pVertex[2] = 0.0f;
 
-			pNormal[0] = 0.0f;
-			pNormal[1] = 0.0f;
-			pNormal[2] = 1.0f;
+            pNormal[0] = 0.0f;
+            pNormal[1] = 0.0f;
+            pNormal[2] = 1.0f;
 
-			for (int i = 0, index = 3; i < numTriangles; ++i, index +=3) 
-			{
-				pVertex[index]   = std::sin(degree * i) * ray_width;
-				pVertex[index+1] = std::cos(degree * i) * ray_height;
-				pVertex[index+2] = 0.0f;
+            for (int i = 0, index = 3; i < numTriangles; ++i, index +=3) 
+            {
+                pVertex[index]   = std::sin(degree * i) * ray_width;
+                pVertex[index+1] = std::cos(degree * i) * ray_height;
+                pVertex[index+2] = 0.0f;
 
-				pNormal[index]     = 0.0f;
-				pNormal[index + 1] = 0.0f;
-				pNormal[index + 2] = 1.0f;
-			}
+                pNormal[index]     = 0.0f;
+                pNormal[index + 1] = 0.0f;
+                pNormal[index + 2] = 1.0f;
+            }
 
-			for (int i = 0, index = 0, index_uv = 0; i <= numTriangles; ++i, index +=3, index_uv += 2) 
-			{
-				pUv[index_uv]   = (pVertex[index]   + ray_width)  / width;
-				pUv[index_uv+1] = 1.0f - ((pVertex[index+1] + ray_height) / height);
-			}
+            for (int i = 0, index = 0, index_uv = 0; i <= numTriangles; ++i, index +=3, index_uv += 2) 
+            {
+                pUv[index_uv]   = (pVertex[index]   + ray_width)  / width;
+                pUv[index_uv+1] = 1.0f - ((pVertex[index+1] + ray_height) / height);
+            }
 
-			pIndex[0] =0;
-			pIndex[1] = numTriangles;//8
-			pIndex[2] = 1;//1
+            pIndex[0] =0;
+            pIndex[1] = numTriangles;//8
+            pIndex[2] = 1;//1
             
-			//create the index
-			for (int i = 1, index = 3; i < numTriangles; ++i, index += 3)
-			{
-				pIndex[index]   = 0;//0
-				pIndex[index+1] = i;//1
-				pIndex[index+2] = i+1;//2
-			}
-			if(dynamicBuffer)
-			{
-				dynamicVertex = std::move(vertex);
-				dynamicNormal = std::move(normal);
-				dynamicUV     = std::move(uv);
+            //create the index
+            for (int i = 1, index = 3; i < numTriangles; ++i, index += 3)
+            {
+                pIndex[index]   = 0;//0
+                pIndex[index+1] = i;//1
+                pIndex[index+2] = i+1;//2
+            }
+            if(dynamicBuffer)
+            {
+                dynamicVertex = std::move(vertex);
+                dynamicNormal = std::move(normal);
+                dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
                 util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
-				mesh = mehManager->loadDynamicIndex(nickName,vertex.size(), pIndex, lsIndex.size(),nullptr,dynamic_shape_info);
-			}
-			else
-			{
-				mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, vertex.size(), pIndex,lsIndex.size(),nullptr);
-			}
-		}
+                mesh = mehManager->loadDynamicIndex(nickName,vertex.size(), pIndex, lsIndex.size(),nullptr,dynamic_shape_info);
+            }
+            else
+            {
+                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, vertex.size(), pIndex,lsIndex.size(),nullptr);
+            }
+        }
         if (mesh)
         {
             mesh->infoPhysics.release();
-			mbm::SPHERE* sphere = new mbm::SPHERE();
-			sphere->ray = width > height ? width * 0.5f : height * 0.5f;
+            mbm::SPHERE* sphere = new mbm::SPHERE();
+            sphere->ray = width > height ? width * 0.5f : height * 0.5f;
             mesh->infoPhysics.lsSphere.push_back(sphere);
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
@@ -397,13 +397,13 @@ namespace mbm
                 return false;
             this->fileName = nickName;
             this->updateAABB();
-			setColor(1.0f,0.0f,1.0f,0.7f);//magent
+            setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
-		return mesh != nullptr;
+        return mesh != nullptr;
     }
 
-	bool SHAPE_MESH::loadRectangle(const char *nickName,float width, float height,bool dynamicBuffer, int numTriangles)
-	{
+    bool SHAPE_MESH::loadRectangle(const char *nickName,float width, float height,bool dynamicBuffer, int numTriangles)
+    {
         if (this->mesh)
             return true;
         if (nickName == nullptr || (width <= 0.0 && height <=0.0) || numTriangles < 2)
@@ -411,12 +411,12 @@ namespace mbm
         if(numTriangles % 2 == 1)
             numTriangles = numTriangles + 1;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
-		mesh = mehManager->getIfExists(nickName);
-		if(mesh == nullptr)
-		{
-			/*
-			T for triangle
-			p for points (index buffer)
+        mesh = mehManager->getIfExists(nickName);
+        if(mesh == nullptr)
+        {
+            /*
+            T for triangle
+            p for points (index buffer)
 
             1p              3p              5P              7P              9P
             +---------------+---------------+---------------+---------------+
@@ -432,142 +432,142 @@ namespace mbm
             0p              2p               4P              6P             8P
 
             index = {0,1,2, 2,1,3, 2,3,4, 4,3,5, 4,5,6, 6,5,7}
-			*/
+            */
             const  int total_vertex = numTriangles + 2;
             std::vector<float> vertex(3 * total_vertex);
             std::vector<float> normal(3 * total_vertex);
             std::vector<float> uv    (2 * total_vertex);
 
             float * pVertex = vertex.data();
-			float * pNormal = normal.data();
-			float * pUv = uv.data();
-			
-			float step = 0.0f;
+            float * pNormal = normal.data();
+            float * pUv = uv.data();
+            
+            float step = 0.0f;
             if( numTriangles % 2 == 0)
             {
-				const float step_div = width / (numTriangles / 2.0f);
+                const float step_div = width / (numTriangles / 2.0f);
                 for (int i = 0; i < total_vertex; i+=2, step += step_div)
                 {
                     const int index = i * 3;
-					const int index_uv = i * 2;
+                    const int index_uv = i * 2;
                     pVertex[index    ] = step;
                     pVertex[index + 1] = 0.0f;
                     pVertex[index + 2] = 0.0f;
 
-					pVertex[index + 3] = step;
+                    pVertex[index + 3] = step;
                     pVertex[index + 4] = height;
                     pVertex[index + 5] = 0.0f;
 
-					pNormal[index    ] = 0.0f;
-					pNormal[index + 1] = 0.0f;
-					pNormal[index + 2] = 1.0f;
-					pNormal[index + 3] = 0.0f;
-					pNormal[index + 4] = 0.0f;
-					pNormal[index + 5] = 1.0f;
+                    pNormal[index    ] = 0.0f;
+                    pNormal[index + 1] = 0.0f;
+                    pNormal[index + 2] = 1.0f;
+                    pNormal[index + 3] = 0.0f;
+                    pNormal[index + 4] = 0.0f;
+                    pNormal[index + 5] = 1.0f;
 
-					const float w_u = step > 0.0f ? step / width : 0.0f;
-					pUv[index_uv ]    = w_u;// 0
-					pUv[index_uv + 1] = 1.0f;// 1
-					pUv[index_uv + 2] = w_u;// 0
-					pUv[index_uv + 3] = 0.0f;// 0
+                    const float w_u = step > 0.0f ? step / width : 0.0f;
+                    pUv[index_uv ]    = w_u;// 0
+                    pUv[index_uv + 1] = 1.0f;// 1
+                    pUv[index_uv + 2] = w_u;// 0
+                    pUv[index_uv + 3] = 0.0f;// 0
 
                 }
 
-				pVertex[vertex.size() - 3] = width;
-				pVertex[vertex.size() - 6] = width;
+                pVertex[vertex.size() - 3] = width;
+                pVertex[vertex.size() - 6] = width;
             }
-			else
-			{
-				const float step_div = width / ((numTriangles + 1) / 2.0f);
+            else
+            {
+                const float step_div = width / ((numTriangles + 1) / 2.0f);
                 for (int i = 0; i < (total_vertex - 2); i+=2, step += step_div)
                 {
                     const int index = i * 3;
-					const int index_uv = i * 2;
+                    const int index_uv = i * 2;
                     pVertex[index    ] = step;
                     pVertex[index + 1] = 0.0f;
                     pVertex[index + 2] = 0.0f;
 
-					pVertex[index + 3] = step;
+                    pVertex[index + 3] = step;
                     pVertex[index + 4] = height;
                     pVertex[index + 5] = 0.0f;
 
-					pNormal[index    ] = 0.0f;
-					pNormal[index + 1] = 0.0f;
-					pNormal[index + 2] = 1.0f;
-					pNormal[index + 3] = 0.0f;
-					pNormal[index + 4] = 0.0f;
-					pNormal[index + 5] = 1.0f;
+                    pNormal[index    ] = 0.0f;
+                    pNormal[index + 1] = 0.0f;
+                    pNormal[index + 2] = 1.0f;
+                    pNormal[index + 3] = 0.0f;
+                    pNormal[index + 4] = 0.0f;
+                    pNormal[index + 5] = 1.0f;
 
-					const float w_u = step > 0.0f ? step / width : 0.0f;
-					pUv[index_uv ]    = w_u;// 0
-					pUv[index_uv + 1] = 1.0f;// 1
+                    const float w_u = step > 0.0f ? step / width : 0.0f;
+                    pUv[index_uv ]    = w_u;// 0
+                    pUv[index_uv + 1] = 1.0f;// 1
 
-					pUv[index_uv + 2] = w_u;// 0
-					pUv[index_uv + 3] = 0.0f;// 0
+                    pUv[index_uv + 2] = w_u;// 0
+                    pUv[index_uv + 3] = 0.0f;// 0
 
                 }
 
-				pVertex[vertex.size() - 1] = 0.0f;
-				pVertex[vertex.size() - 2] = 0.0f;
-				pVertex[vertex.size() - 3] = width;
+                pVertex[vertex.size() - 1] = 0.0f;
+                pVertex[vertex.size() - 2] = 0.0f;
+                pVertex[vertex.size() - 3] = width;
 
-				pUv[uv.size() - 1] = 1.0f;
-				pUv[uv.size() - 2] = 1.0f;
+                pUv[uv.size() - 1] = 1.0f;
+                pUv[uv.size() - 2] = 1.0f;
 
             }
 
-			//put it in the center
-			const float half_width  = width * 0.5f;
-			const float half_height = height * 0.5f;
-			for (int i = 0; i < total_vertex; i+=2)
-			{
-				const int index = i * 3;
-				pVertex[index    ] -= half_width;
+            //put it in the center
+            const float half_width  = width * 0.5f;
+            const float half_height = height * 0.5f;
+            for (int i = 0; i < total_vertex; i+=2)
+            {
+                const int index = i * 3;
+                pVertex[index    ] -= half_width;
                 pVertex[index + 1] -= half_height;
-				pVertex[index + 3] -= half_width;
+                pVertex[index + 3] -= half_width;
                 pVertex[index + 4] -= half_height;
-			}
+            }
             
-			const unsigned int size_index = numTriangles * 3;
-			std::vector<unsigned short int> lsIndex(size_index); //{0,1,2, 2,1,3, 2,3,4, 4,3,5, 4,5,6, 6,5,7}
-			unsigned short int* pIndex = lsIndex.data();
-			bool even = true;
-			unsigned short int value_indexed = 0;
-			for(unsigned int i=0; i < size_index; i+=3, value_indexed +=1)
-			{
-				if(even)
-				{
-					pIndex[i    ] = value_indexed;
-					pIndex[i + 1] = value_indexed + 1;
-					pIndex[i + 2] = value_indexed + 2;
-				}
-				else //odd
-				{
-					pIndex[i    ] = value_indexed + 1;
-					pIndex[i + 1] = value_indexed;
-					pIndex[i + 2] = value_indexed + 2;
-				}
-				even = !even;
-			}
-			if(dynamicBuffer)
-			{
-				dynamicVertex = std::move(vertex);
-				dynamicNormal = std::move(normal);
-				dynamicUV     = std::move(uv);
+            const unsigned int size_index = numTriangles * 3;
+            std::vector<unsigned short int> lsIndex(size_index); //{0,1,2, 2,1,3, 2,3,4, 4,3,5, 4,5,6, 6,5,7}
+            unsigned short int* pIndex = lsIndex.data();
+            bool even = true;
+            unsigned short int value_indexed = 0;
+            for(unsigned int i=0; i < size_index; i+=3, value_indexed +=1)
+            {
+                if(even)
+                {
+                    pIndex[i    ] = value_indexed;
+                    pIndex[i + 1] = value_indexed + 1;
+                    pIndex[i + 2] = value_indexed + 2;
+                }
+                else //odd
+                {
+                    pIndex[i    ] = value_indexed + 1;
+                    pIndex[i + 1] = value_indexed;
+                    pIndex[i + 2] = value_indexed + 2;
+                }
+                even = !even;
+            }
+            if(dynamicBuffer)
+            {
+                dynamicVertex = std::move(vertex);
+                dynamicNormal = std::move(normal);
+                dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
                 util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
-				mesh = mehManager->loadDynamicIndex(nickName,3 * total_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
+                mesh = mehManager->loadDynamicIndex(nickName,3 * total_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
 
-			}
-			else
-			{
-				mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, 3 * total_vertex, pIndex, size_index,nullptr);
-			}
-		}
+            }
+            else
+            {
+                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, 3 * total_vertex, pIndex, size_index,nullptr);
+            }
+        }
         if (mesh)
         {
             mesh->infoPhysics.release();
-			mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
+            mbm::CUBE* cube = new mbm::CUBE(width,height,0.0f);
             mesh->infoPhysics.lsCube.push_back(cube);
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
@@ -576,9 +576,9 @@ namespace mbm
                 return false;
             this->fileName = nickName;
             this->updateAABB();
-			setColor(1.0f,0.0f,1.0f,0.7f);//magent
+            setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
-		return mesh != nullptr;
+        return mesh != nullptr;
     }
 
     bool SHAPE_MESH::loadTriangle(const char *nickName,float points[6], bool dynamicBuffer)
@@ -589,85 +589,85 @@ namespace mbm
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         mesh = mehManager->getIfExists(nickName);
-		if(mesh == nullptr)
-		{
-			constexpr int numTriangles = 1;
-			constexpr int numVertex   = 2 + numTriangles;
-			constexpr int size_vertex = numVertex * 3;
-			constexpr int size_index  = 3 + ((numTriangles -1) * 3);
-			constexpr int size_uv = numVertex * 2;
+        if(mesh == nullptr)
+        {
+            constexpr int numTriangles = 1;
+            constexpr int numVertex   = 2 + numTriangles;
+            constexpr int size_vertex = numVertex * 3;
+            constexpr int size_index  = 3 + ((numTriangles -1) * 3);
+            constexpr int size_uv = numVertex * 2;
 
-			std::vector<float> vertex(size_vertex);
-			std::vector<float> normal(size_vertex);
-			std::vector<float> uv(size_uv);
-			std::vector<unsigned short int> lsIndex(size_index);
+            std::vector<float> vertex(size_vertex);
+            std::vector<float> normal(size_vertex);
+            std::vector<float> uv(size_uv);
+            std::vector<unsigned short int> lsIndex(size_index);
 
 
-			float * pVertex = vertex.data();
-			float * pNormal = normal.data();
-			float * pUv = uv.data();
-			unsigned short int* pIndex = lsIndex.data();
+            float * pVertex = vertex.data();
+            float * pNormal = normal.data();
+            float * pUv = uv.data();
+            unsigned short int* pIndex = lsIndex.data();
 
-			pVertex[0] = points[0];
-			pVertex[1] = points[1];
-			pVertex[2] = 0;
+            pVertex[0] = points[0];
+            pVertex[1] = points[1];
+            pVertex[2] = 0;
 
-			pVertex[3] = points[2];
-			pVertex[4] = points[3];
-			pVertex[5] = 0;
+            pVertex[3] = points[2];
+            pVertex[4] = points[3];
+            pVertex[5] = 0;
 
-			pVertex[size_vertex - 3] = points[4];
-			pVertex[size_vertex - 2] = points[5];
-			pVertex[size_vertex - 1] = 0;
+            pVertex[size_vertex - 3] = points[4];
+            pVertex[size_vertex - 2] = points[5];
+            pVertex[size_vertex - 1] = 0;
 
-			pIndex[0] = 0;
-			pIndex[1] = 1;
-			pIndex[2] = 2;
-			
+            pIndex[0] = 0;
+            pIndex[1] = 1;
+            pIndex[2] = 2;
+            
 
-			for(int index_uv = 0; index_uv < size_uv; index_uv+=2)
-			{
-				pUv[index_uv    ] = 1;
-				pUv[index_uv + 1] = 0;
-			}
-			
-			for (int i = 0; i < size_vertex; i+=3)
-			{
-				pNormal[i    ] = 0.0f;
-				pNormal[i + 1] = 0.0f;
-				pNormal[i + 2] = 1.0f;
-			}
+            for(int index_uv = 0; index_uv < size_uv; index_uv+=2)
+            {
+                pUv[index_uv    ] = 1;
+                pUv[index_uv + 1] = 0;
+            }
+            
+            for (int i = 0; i < size_vertex; i+=3)
+            {
+                pNormal[i    ] = 0.0f;
+                pNormal[i + 1] = 0.0f;
+                pNormal[i + 2] = 1.0f;
+            }
 
-			if(dynamicBuffer)
-			{
-				dynamicVertex = std::move(vertex);
-				dynamicNormal = std::move(normal);
-				dynamicUV     = std::move(uv);
+            if(dynamicBuffer)
+            {
+                dynamicVertex = std::move(vertex);
+                dynamicNormal = std::move(normal);
+                dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
                 util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
-				mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
-			}
-			else
-			{
-				mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
-			}
-		}
+                mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
+            }
+            else
+            {
+                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
+            }
+        }
         if (mesh)
         {
             mesh->infoPhysics.release();
-			mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
+            mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             triangle->point[0].x = points[0];
-			triangle->point[0].y = points[1];
-			triangle->point[0].z = 0;
+            triangle->point[0].y = points[1];
+            triangle->point[0].z = 0;
 
-			triangle->point[1].x = points[2];
-			triangle->point[1].y = points[3];
-			triangle->point[1].z = 0;
+            triangle->point[1].x = points[2];
+            triangle->point[1].y = points[3];
+            triangle->point[1].z = 0;
 
-			triangle->point[2].x = points[4];
-			triangle->point[2].y = points[5];
-			triangle->point[2].z = 0;
+            triangle->point[2].x = points[4];
+            triangle->point[2].y = points[5];
+            triangle->point[2].z = 0;
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
@@ -677,24 +677,24 @@ namespace mbm
                 return false;
             this->fileName = nickName;
             this->updateAABB();
-			setColor(1.0f,0.0f,1.0f,0.7f);//magent
+            setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
-		return mesh != nullptr;
+        return mesh != nullptr;
     }
 
-	bool SHAPE_MESH::loadTriangle(const char *nickName,float width, float height,bool dynamicBuffer, const int numTriangles)
-	{
+    bool SHAPE_MESH::loadTriangle(const char *nickName,float width, float height,bool dynamicBuffer, const int numTriangles)
+    {
         if (this->mesh)
             return true;
         if (nickName == nullptr || (width <= 0.0 && height <=0.0) || numTriangles < 1 )
             return false;
         MESH_MANAGER *mehManager       = MESH_MANAGER::getInstance();
         mesh = mehManager->getIfExists(nickName);
-		if(mesh == nullptr)
-		{
-			/*
-			T for triangle
-			p for points (index buffer)
+        if(mesh == nullptr)
+        {
+            /*
+            T for triangle
+            p for points (index buffer)
 
 
                     1p
@@ -709,134 +709,134 @@ namespace mbm
             /                \
            /+----------------+\
             0p              2p
-			*/
-			const int numVertex   = 2 + numTriangles;
-			const int size_vertex = numVertex * 3;
-			const int size_index  = 3 + ((numTriangles -1) * 3);
-			const int size_uv = numVertex * 2;
+            */
+            const int numVertex   = 2 + numTriangles;
+            const int size_vertex = numVertex * 3;
+            const int size_index  = 3 + ((numTriangles -1) * 3);
+            const int size_uv = numVertex * 2;
 
-			std::vector<float> vertex(size_vertex);
-			std::vector<float> normal(size_vertex);
-			std::vector<float> uv(size_uv);
-			std::vector<unsigned short int> lsIndex(size_index);
+            std::vector<float> vertex(size_vertex);
+            std::vector<float> normal(size_vertex);
+            std::vector<float> uv(size_uv);
+            std::vector<unsigned short int> lsIndex(size_index);
 
 
-			if(width <= 0.0f )
-				width = 1;
-			if(height <= 0.0f )
-				height = width;
-			const float x  = width * 0.5f;
-			const float y  = height * 0.5f;
+            if(width <= 0.0f )
+                width = 1;
+            if(height <= 0.0f )
+                height = width;
+            const float x  = width * 0.5f;
+            const float y  = height * 0.5f;
 
-			float * pVertex = vertex.data();
-			float * pNormal = normal.data();
-			float * pUv = uv.data();
-			unsigned short int* pIndex = lsIndex.data();
+            float * pVertex = vertex.data();
+            float * pNormal = normal.data();
+            float * pUv = uv.data();
+            unsigned short int* pIndex = lsIndex.data();
 
-			pVertex[0] = -x;
-			pVertex[1] = -y;
-			pVertex[2] = 0;
+            pVertex[0] = -x;
+            pVertex[1] = -y;
+            pVertex[2] = 0;
 
-			pVertex[3] = 0;
-			pVertex[4] = y;
-			pVertex[5] = 0;
+            pVertex[3] = 0;
+            pVertex[4] = y;
+            pVertex[5] = 0;
 
-			pVertex[size_vertex - 3] = x;
-			pVertex[size_vertex - 2] = -y;
-			pVertex[size_vertex - 1] = 0;
+            pVertex[size_vertex - 3] = x;
+            pVertex[size_vertex - 2] = -y;
+            pVertex[size_vertex - 1] = 0;
 
-			pIndex[0] = 0;
-			pIndex[1] = 1;
-			pIndex[2] = 2;
-			
+            pIndex[0] = 0;
+            pIndex[1] = 1;
+            pIndex[2] = 2;
+            
 
-			if(numTriangles > 1)
-			{
-				VEC2 p0(0,y);
-				VEC2 direction(x,-y);
+            if(numTriangles > 1)
+            {
+                VEC2 p0(0,y);
+                VEC2 direction(x,-y);
 
-				direction -= p0;
-				const float dist = direction.length() / (numTriangles);
-				vec2Normalize(&direction,&direction);
-				
-				for(int i=1; i <numTriangles; i++)
-				{
-					const int index_vertex = 6 + ((i-1) * 3);
-					
-					p0.x += (direction.x * dist);
-					p0.y += (direction.y * dist);
+                direction -= p0;
+                const float dist = direction.length() / (numTriangles);
+                vec2Normalize(&direction,&direction);
+                
+                for(int i=1; i <numTriangles; i++)
+                {
+                    const int index_vertex = 6 + ((i-1) * 3);
+                    
+                    p0.x += (direction.x * dist);
+                    p0.y += (direction.y * dist);
 
-					pVertex[index_vertex    ] = p0.x;
-					pVertex[index_vertex + 1] = p0.y;
-				}
+                    pVertex[index_vertex    ] = p0.x;
+                    pVertex[index_vertex + 1] = p0.y;
+                }
 
-				pIndex [2] = 3;
+                pIndex [2] = 3;
 
-				for(int index = 3,based_index = 3; index < size_index; index += 3, based_index++)
-				{
-					pIndex [index    ] = 0;
-					pIndex [index + 1] = based_index;
-					pIndex [index + 2] = based_index + 1;
-				}
-				pIndex [size_index - 1] = 2;
-			}
+                for(int index = 3,based_index = 3; index < size_index; index += 3, based_index++)
+                {
+                    pIndex [index    ] = 0;
+                    pIndex [index + 1] = based_index;
+                    pIndex [index + 2] = based_index + 1;
+                }
+                pIndex [size_index - 1] = 2;
+            }
 
-			const float half_width  = width / 2.0f;
-			const float half_height = height / 2.0f;
+            const float half_width  = width / 2.0f;
+            const float half_height = height / 2.0f;
 
-			for(int index_uv = 0, index_vertex = 0; index_uv < size_uv; index_uv+=2, index_vertex+=3)
-			{
-				const float px = pVertex[index_vertex    ] + half_width;
-				const float py = pVertex[index_vertex + 1] + half_height;
-				pUv[index_uv    ] = px / width;
-				pUv[index_uv + 1] = 1.0f - (py / height);
-			}
-			
-			for (int i = 0; i < size_vertex; i+=3)
-			{
-				pNormal[i    ] = 0.0f;
-				pNormal[i + 1] = 0.0f;
-				pNormal[i + 2] = 1.0f;
-			}
+            for(int index_uv = 0, index_vertex = 0; index_uv < size_uv; index_uv+=2, index_vertex+=3)
+            {
+                const float px = pVertex[index_vertex    ] + half_width;
+                const float py = pVertex[index_vertex + 1] + half_height;
+                pUv[index_uv    ] = px / width;
+                pUv[index_uv + 1] = 1.0f - (py / height);
+            }
+            
+            for (int i = 0; i < size_vertex; i+=3)
+            {
+                pNormal[i    ] = 0.0f;
+                pNormal[i + 1] = 0.0f;
+                pNormal[i + 2] = 1.0f;
+            }
 
-			if(dynamicBuffer)
-			{
-				dynamicVertex = std::move(vertex);
-				dynamicNormal = std::move(normal);
-				dynamicUV     = std::move(uv);
+            if(dynamicBuffer)
+            {
+                dynamicVertex = std::move(vertex);
+                dynamicNormal = std::move(normal);
+                dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
                 util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
-				mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
-			}
-			else
-			{
-				mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
-			}
-		}
+                mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
+            }
+            else
+            {
+                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
+            }
+        }
         if (mesh)
         {
             mesh->infoPhysics.release();
-			mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
+            mbm::TRIANGLE* triangle = new mbm::TRIANGLE();
 
             if(width <= 0.0f )
-				width = 1;
-			if(height <= 0.0f )
-				height = width;
+                width = 1;
+            if(height <= 0.0f )
+                height = width;
 
             const float x  = width * 0.5f;
-			const float y  = height * 0.5f;
+            const float y  = height * 0.5f;
 
-			triangle->point[0].x = -x;
-			triangle->point[0].y = -y;
-			triangle->point[0].z = 0;
+            triangle->point[0].x = -x;
+            triangle->point[0].y = -y;
+            triangle->point[0].z = 0;
 
-			triangle->point[1].x = 0;
-			triangle->point[1].y = y;
-			triangle->point[1].z = 0;
+            triangle->point[1].x = 0;
+            triangle->point[1].y = y;
+            triangle->point[1].z = 0;
 
-			triangle->point[2].x = x;
-			triangle->point[2].y = -y;
-			triangle->point[2].z = 0;
+            triangle->point[2].x = x;
+            triangle->point[2].y = -y;
+            triangle->point[2].z = 0;
             
             mesh->infoPhysics.lsTriangle.push_back(triangle);
             auto anim = new ANIMATION();
@@ -846,9 +846,9 @@ namespace mbm
                 return false;
             this->fileName = nickName;
             this->updateAABB();
-			setColor(1.0f,0.0f,1.0f,0.7f);//magent
+            setColor(1.0f,0.0f,1.0f,0.7f);//magent
         }
-		return mesh != nullptr;
+        return mesh != nullptr;
     }
     
     bool SHAPE_MESH::load(const char *nickName, mbm::AUTO_VERTEX *autoVertex,const util::INFO_DRAW_MODE * info_draw_mode)
@@ -984,7 +984,7 @@ namespace mbm
             this->position += mesh->positionOffset;
             this->angle = mesh->angleDefault;
             this->mesh->infoPhysics.release();
-			auto cube   = new mbm::CUBE();
+            auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
             cube->halfDim.z   = (vMax.z - vMin.z) * 0.5f;
@@ -1173,7 +1173,7 @@ namespace mbm
             this->position += mesh->positionOffset;
             this->angle = mesh->angleDefault;
             this->mesh->infoPhysics.release();
-			auto cube   = new mbm::CUBE();
+            auto cube   = new mbm::CUBE();
             cube->halfDim.x   = (vMax.x - vMin.x) * 0.5f;
             cube->halfDim.y   = (vMax.y - vMin.y) * 0.5f;
             cube->halfDim.z   = (vMax.z - vMin.z) * 0.5f;
@@ -1226,13 +1226,13 @@ namespace mbm
         return false;
     }
 
-	bool SHAPE_MESH::setColor(const float r,const float g, const float b, const float a)
-	{
-		char color_hex[32] = {};
-		const mbm::COLOR c(r,g,b,a);
-		mbm::COLOR::getStringHexColorFromColor(c,color_hex,sizeof(color_hex));
-		return this->setTexture(mesh, color_hex, 0, true);
-	}
+    bool SHAPE_MESH::setColor(const float r,const float g, const float b, const float a)
+    {
+        char color_hex[32] = {};
+        const mbm::COLOR c(r,g,b,a);
+        mbm::COLOR::getStringHexColorFromColor(c,color_hex,sizeof(color_hex));
+        return this->setTexture(mesh, color_hex, 0, true);
+    }
     
     const char * SHAPE_MESH::getFileName() const
     {
@@ -1350,7 +1350,7 @@ namespace mbm
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
                                                 reinterpret_cast<VEC3 *>(this->dynamicNormal.data()),
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
-                                                animation->fx.textureOverrideStage2->idTexture))
+                                                animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else
@@ -1368,7 +1368,7 @@ namespace mbm
                 animation->fx.setBlendOp();
                 if (animation->fx.textureOverrideStage2)
                 {
-                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2->idTexture))
+                    if (!mesh->render(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,animation->fx.textureOverrideStage2))
                         return false;
                 }
                 else
@@ -1382,11 +1382,11 @@ namespace mbm
         return false;
     }
 
-	void SHAPE_MESH::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void SHAPE_MESH::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     bool SHAPE_MESH::onRestoreDevice() noexcept
     {
@@ -1405,22 +1405,22 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  SHAPE_MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  SHAPE_MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  SHAPE_MESH::getAnimationManager() noexcept
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  SHAPE_MESH::getAnimationManager() noexcept
+    {
+        return this;
+    }
     
     bool SHAPE_MESH::isLoaded() const noexcept
     {
         return this->mesh != nullptr;
     }
-	
+    
 }

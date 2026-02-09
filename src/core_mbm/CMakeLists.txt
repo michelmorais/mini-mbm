@@ -85,7 +85,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/src/cmake-module
 
 if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 	#remove common-jni ANDROID stuff file
-    list(REMOVE_ITEM SOURCES "${CORE_OPENGLES_PLATFORM}/common-jni.cpp")
     if(USE_EDITOR_FEATURES)
         file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
     endif()    

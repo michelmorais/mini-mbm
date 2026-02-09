@@ -87,10 +87,9 @@ namespace mbm
             return false;
         if (!createAnimationAndShader2Texture())
             return false;
-        this->bufferGL.idTexture0[0] = this->texture->idTexture;
-        this->bufferGL.useAlpha[0]   = 1;
+        this->bufferGL.setTextureByStage(this->texture, 0, 0);
         char strTemp[255];
-        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->bufferGL.useAlpha[0]);
+        snprintf(strTemp,sizeof(strTemp), "texture|%s|%u|%u|%d", image->nickName, image->width, image->height,this->texture->useAlphaChannel ? 1 : 0);
         this->fileName = strTemp;
         this->updateAABB();
         return true;
@@ -107,15 +106,14 @@ namespace mbm
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
         if (this->texture == nullptr)
             return false;
-        const bool idFrame =
-            this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
+        const bool idFrame = this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
         if (idFrame == false)
             return false;
-        this->bufferGL.idTexture0[0] = this->texture ? this->texture->idTexture : 0;
-        this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+        this->bufferGL.setTextureByStage(this->texture, 0, 0);
+        const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
-        sprintf(strTemp, "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, alpha ? 1 : 0);
+        sprintf(strTemp, "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
         this->fileName = strTemp;
         this->updateAABB();
         return true;
@@ -128,18 +126,17 @@ namespace mbm
         VEC3            _position[4];
         VEC3            normal[4];
         VEC2            uv[4];
-		unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
         this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
                                     diameter <= 0.0f ? 100.0f : diameter);
         const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0);
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0);
         }
         else
             return false;
@@ -165,16 +162,15 @@ namespace mbm
         VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const unsigned int indexTexture0 = this->bufferGL.idTexture0 ? this->bufferGL.idTexture0[0] : 0;
-        const unsigned int indexTexture1 = this->bufferGL.idTexture1 ? this->bufferGL.idTexture1 : 0;
+        TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
+        TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
                                     height <= 0.0f ? 100.0f : height);
         const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
-            this->bufferGL.idTexture0[0] = indexTexture0;
-            this->bufferGL.idTexture1    = indexTexture1;
-            this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+            this->bufferGL.setTextureByStage(idTexture0, 0, 0);
+            this->bufferGL.setTextureByStage(idTexture1, 1, 0);
         }
         else
             return false;
@@ -212,7 +208,7 @@ namespace mbm
             if (newTex)
             {
                 this->texture                = newTex;
-                this->bufferGL.idTexture0[0] = newTex->idTexture;
+                this->bufferGL.setTextureByStage(newTex, 0, 0);
                 return true;
             }
         }
@@ -228,13 +224,13 @@ namespace mbm
         this->texture = nullptr;
     }
 
-	std::string TEXTURE_VIEW::getFileNameTexture()const
-	{
-		std::string ret;
-		if(this->texture)
-			ret = this->texture->getFileNameTexture();
-		return ret;
-	}
+    std::string TEXTURE_VIEW::getFileNameTexture()const
+    {
+        std::string ret;
+        if(this->texture)
+            ret = this->texture->getFileNameTexture();
+        return ret;
+    }
     
     bool TEXTURE_VIEW::isOnFrustum()
     {
@@ -282,7 +278,7 @@ namespace mbm
             anim->fx.setBlendOp();
             anim->fx.shader.update();
             if (anim->fx.textureOverrideStage2)
-                this->bufferGL.idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
             if (!anim->fx.shader.render(&this->bufferGL))
                 return false;
             return true;
@@ -290,14 +286,9 @@ namespace mbm
         return false;
     }
     
-    void TEXTURE_VIEW::onStop()
-    {
-        this->release();
-    }
-    
     bool TEXTURE_VIEW::onRestoreDevice()
     {
-        this->texture = nullptr;
+        this->texture = nullptr; // we can not release texture after device lost
         std::vector<std::string> result;
         util::split(result, this->fileName.c_str(), '|');
         if (result.size() <= 1)
@@ -313,19 +304,19 @@ namespace mbm
                 return false;
             }
             const char *fileNameTexture = result[1].c_str();
-            const auto width       = static_cast<float>(atof(result[2].c_str()));
-            const auto height      = static_cast<float>(atof(result[3].c_str()));
-            const bool  alpha_color = result[4].compare("1") == 0;
+            const auto width            = static_cast<float>(atof(result[2].c_str()));
+            const auto height           = static_cast<float>(atof(result[3].c_str()));
+            const bool  alpha_color     = result[4].compare("1") == 0;
             const bool ret = this->load(fileNameTexture,width,height,alpha_color);
 #if defined DEBUG_RESTORE
             if(ret)
-			{
+            {
                 PRINT_INFO_IF_DEBUG( "texture [%s] successfully restored", log_util::basename(fileNameTexture));
-			}
+            }
             else
-			{
+            {
                 PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename( this->fileName.c_str()));
-			}
+            }
 #endif
             return ret;
         }
@@ -397,18 +388,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  TEXTURE_VIEW::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  TEXTURE_VIEW::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  TEXTURE_VIEW::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  TEXTURE_VIEW::getAnimationManager()
+    {
+        return this;
+    }
     
     bool TEXTURE_VIEW::isLoaded() const
     {

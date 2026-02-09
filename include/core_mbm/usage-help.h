@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2025 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                            |
+| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -16,46 +16,15 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#ifndef USAGE_HELP_LUA_H
+#define USAGE_HELP_LUA_H
 
+#include <string>
+#include "core-exports.h"
 
-#include <draw-compatibility.h>
-
-
-namespace util
+namespace usage
 {
-    bool isBackendEngineOpenGlEs() noexcept
-    {
-        #if defined (USE_OPENGL_ES)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineDirectx() noexcept
-    {
-        #if defined (USE_DIRECTX9)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineVulkan() noexcept
-    {
-        #if defined (USE_VULKAN)
-            return true;
-        #else
-            return false;
-        #endif
-    }
-
-    bool isBackendEngineMetal() noexcept
-    {
-        #if defined (USE_METAL)
-            return true;
-        #else
-            return false;
-        #endif
-    }
+    API_IMPL void help(const std::string& executableName);
 }
+
+#endif

@@ -24,12 +24,11 @@
 #include <physics.h>
 #include <util-interface.h>
 #include <dynamic-var.h>
+#include <core-manager.h>
 
-#if defined ANDROID
-    #include <platform/common-jni.h>
-#elif defined _WIN32
-    #include <plusWindows/defaultThemePlusWindows.h>
-#endif
+//#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+//    #include <plusWindows/defaultThemePlusWindows.h>
+//#endif
 
 namespace mbm
 {
@@ -46,18 +45,15 @@ namespace mbm
 
     DEVICE::DEVICE()
     {
-    #ifdef ANDROID
-        jni = util::COMMON_JNI::getInstance();
-    #endif
         bOnErrorStopScript         = false;
         clearBackGround            = true;
         ptrManager                 = nullptr;
         scene                      = nullptr;
         run                        = true;
-		verbose					   = true;
+        verbose					   = true;
         backBufferWidth            = 0;
         backBufferHeight           = 0;
-        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 0.0f);
+        colorClearBackGround       = COLOR(0.0f, 0.0f, 0.0f, 1.0f);
         totalObjectsOnFrustum3D    = 0;
         totalObjectsOnFrustum2D    = 0;
         totalObjectsIsRendering3D  = 0;
@@ -69,13 +65,16 @@ namespace mbm
         __percXcam2dScale          = 1.0f;
         __percYcam2dScale          = 1.0f;
         __swapBackBufferStep	   = 3;
-		returnCodeApp              = 0;
-		audioInterface			   = nullptr;
+        returnCodeApp              = 0;
+        windowPositionX            = 0;
+        windowPositionY            = 0;
+        _isGamePaused              = false;
+        audioInterface			   = nullptr;
     }
 
     void DEVICE::setAppReturnCode(const int returnCode) noexcept
     {
-		returnCodeApp = returnCode;
+        returnCodeApp = returnCode;
     }
 
     int DEVICE::getAppReturnCode() const noexcept
@@ -162,19 +161,26 @@ namespace mbm
             }
         }
     }
+
+    bool DEVICE::isGamePaused() const noexcept
+    {
+        return _isGamePaused;
+    }
     
     void DEVICE::pauseGame()
     {
+        _isGamePaused = true;
         this->pauseTimer();
         if(this->audioInterface)
-			this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
+            this->audioInterface->pauseAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::resumeGame()
     {
+        _isGamePaused = false;
         this->resumeTimer();
-		if (this->audioInterface)
-			this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
+        if (this->audioInterface)
+            this->audioInterface->resumeAll(this->scene ? this->scene->getIdScene() : 0);
     }
     
     void DEVICE::addPhysics(PHYSICS *physics)
@@ -322,13 +328,13 @@ namespace mbm
     {
         if (object == nullptr)
             return;
-		if(object->typeClass == TYPE_CLASS_TILE_OBJ)
-		{
-			for (auto ph : this->lsPhysics)
-			{
-				ph->removeObject(object);
-			}
-		}
+        if(object->typeClass == TYPE_CLASS_TILE_OBJ)
+        {
+            for (auto ph : this->lsPhysics)
+            {
+                ph->removeObject(object);
+            }
+        }
         else if (object->is3D)
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
@@ -441,11 +447,19 @@ namespace mbm
     
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
+        //original
         const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
         out.x = (x * this->camera.scaleScreen2d.x) - middle.x + this->camera.position2d.x;
         out.y = -((y * this->camera.scaleScreen2d.y) - middle.y) + this->camera.position2d.y;
         out.x *= this->__percXcam2dScale;
         out.y *= this->__percYcam2dScale;
+
+        // x, y are already in expected screen coordinates (divided by scale2d by caller)
+        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
+        //out.x = x - middle.x + this->camera.position2d.x;
+        //out.y = -(y - middle.y) + this->camera.position2d.y;
+        //out.x *= this->__percXcam2dScale;
+        //out.y *= this->__percYcam2dScale;
     }
     
     void DEVICE::transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC3 &out) const noexcept
@@ -458,12 +472,19 @@ namespace mbm
     
     void DEVICE::transformeWorld2dToScreen2d_scaled(const float x, const float y, VEC2 &out) const noexcept
     {
+        //original
         const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
         const VEC2 middle(this->backBufferWidth * 0.5f, this->backBufferHeight * 0.5f);
         out.x = newIn.x + middle.x - this->camera.position2d.x;
         out.y = this->backBufferHeight - ((newIn.y + middle.y) - this->camera.position2d.y);
         out.x /= this->camera.scaleScreen2d.x;
-        out.y /= this->camera.scaleScreen2d.y; // TODO
+        out.y /= this->camera.scaleScreen2d.y; 
+
+        //const VEC2 newIn(x / this->__percXcam2dScale, y / this->__percYcam2dScale);
+        //const VEC2 middle(this->camera.expectedScreen.x * 0.5f, this->camera.expectedScreen.y * 0.5f);
+        //// Output in expected screen coordinates (caller should multiply by scale2d if actual pixels needed)
+        //out.x = newIn.x + middle.x - this->camera.position2d.x;
+        //out.y = this->camera.expectedScreen.y - ((newIn.y + middle.y) - this->camera.position2d.y);
     }
     
     bool DEVICE::isPointWorld2dOnScreen2D(const float x, const float y) const noexcept
@@ -704,9 +725,14 @@ namespace mbm
     }
     
     void DEVICE::setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface)
-	{
-		this->audioInterface = _audioInterface;
-	}
+    {
+        this->audioInterface = _audioInterface;
+    }
+
+    AUDIO_MANAGER_INTERFACE* DEVICE::getAudioManagerInterface() const noexcept
+    {
+        return this->audioInterface;
+    }
 
     void * DEVICE::get_lua_state()//if we are using lua we should be able to retrieve the current state
     {
@@ -726,31 +752,14 @@ namespace mbm
         this->destroySpecificContext();
     }
 
-    #if defined _WIN32
-    void setTheme(int value, bool enableBorder)
+    void DEVICE::refreshDevice()
     {
-        THEME_WINPLUS_CUSTOM_RENDER::setTheme(value, enableBorder);
+        //force refresh window by sending resize event
+        const int newWidth     = static_cast<int>(this->backBufferWidth) ;
+        const int newHeight    = static_cast<int>(this->backBufferHeight);
+        this->backBufferWidth  = static_cast<float>(newWidth + 1);
+        this->ptrManager->onResizeWindow(newWidth, newHeight);
     }
-    void hideConsoleWindow()
-    {
-        HWND hConsole = GetConsoleWindow();
-        if (hConsole)
-            ShowWindow(hConsole, SW_HIDE);
-    }
-    void showConsoleWindow()
-    {
-        HWND hConsole = GetConsoleWindow();
-        if (hConsole)
-            ShowWindow(hConsole, SW_SHOW | SW_NORMAL);
-    }
-    const char* selectFolderDialog(char * folderPathOut)
-    {
-        HWND hwnd = mbm::DEVICE::getInstance()->window.getHwnd();
-        const char *      path         = mbm::selectetDirectory(hwnd,folderPathOut);
-        return path;
-    }
-
-    #endif
 }
 
 mbm::DEVICE *          mbm::DEVICE::instanceDevice                   = nullptr;

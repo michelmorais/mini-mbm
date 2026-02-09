@@ -82,20 +82,17 @@ namespace mbm
         const unsigned int h        = top > 2 ? luaL_checkinteger(lua, 3) : (unsigned int)device->getScaleBackBufferHeight();
         const bool         hasAlpha = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : true;
         const char *       fileName = top > 4 ? luaL_checkstring(lua, 5) : getRandomNameTexture();
-        int texture_id              = 0;
-        if (render2texture->load(w, h, w, h, fileName, hasAlpha,&texture_id))
+        if (render2texture->load(w, h, w, h, fileName, hasAlpha))
         {
             lua_pushboolean(lua, 1);
             lua_pushstring(lua, fileName);
-            lua_pushinteger(lua,texture_id);
         }
         else
         {
             lua_pushboolean(lua, 0);
             lua_pushnil(lua);
-            lua_pushinteger(lua,0);
         }
-        return 3;
+        return 2;
     }
 
     int onAddRender2Texture(lua_State *lua)

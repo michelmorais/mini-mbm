@@ -20,11 +20,11 @@
 #include <order-render.h>
 
 namespace mbm
-
+	// take a look into CAMERA::updateCam for 2d zNear and zFar usage
 {
     ORDER_RENDER::ORDER_RENDER() noexcept : nextZOrderControl3d(0.0f),
                                         nextZOrderControl2d(0.0f),
-                                        nextZOrderControl2dBackground(200.0f),
+                                        nextZOrderControl2dBackground(100.0f),
                                         Z2dsFont(-9.0f),
                                         Z2ds(0.1f),
                                         Z2dw(0.0f)
@@ -34,7 +34,7 @@ namespace mbm
     {
         this->nextZOrderControl3d           = 0.0f;
         this->nextZOrderControl2d           = 0.0f;
-        this->nextZOrderControl2dBackground = 200.0f;
+        this->nextZOrderControl2dBackground = 100.0f;
         this->Z2dsFont                      = -9.0f;
         this->Z2ds                          = 0.1f;
         this->Z2dw                          = 0.0f;

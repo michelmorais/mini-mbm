@@ -22,21 +22,26 @@
 
 #include "core-exports.h"
 #include "primitives.h"
-#include <string.h>
+#include "particle-control.h"
 #include <vector>
 #include <string>
+#include <unordered_map>
+
 
 namespace util
 {
-	struct INFO_DRAW_MODE;
+    struct INFO_DRAW_MODE;
 };
 
 namespace mbm
 {
+    class TEXTURE;
     struct VAR_SHADER;
+    struct BUFFER_SPECIFIC;
+    struct PARTICLE_CONTROL;
     enum TYPE_VAR_SHADER : char;
 
-	enum TYPE_ANIMATION : char
+    enum TYPE_ANIMATION : char
     { 
       TYPE_ANIMATION_PAUSED          = 0, // Pausa A Animação
       TYPE_ANIMATION_GROWING         = 1, // Incrementa Na Ordem Crescente Parando No Limite Maximo
@@ -45,45 +50,93 @@ namespace mbm
       TYPE_ANIMATION_DECREASING_LOOP = 4, // Decrementa Na Ordem Decrescente e Faz LoopQuando Ultrapassar O Limite Mínimo
       TYPE_ANIMATION_RECURSIVE       = 5, // icrementa Na Ordem Crescente e Decrescente; Para No Limite Mínimo
       TYPE_ANIMATION_RECURSIVE_LOOP  = 6 // Incrementa Na Ordem Crescente e Decrescente. Faz loop Entre O Limite Mínimo E O Limite Maximo.
-
     };
 
-	enum STATUS_FX
+    enum STATUS_FX
     {
         FX_GROWING, FX_DECREASING, FX_END, FX_END_CALLBACK
     };
 
-    class BUFFER_GL
+    
+    class BUFFER_GL // Buffer graphic layer (must be implemented by specific backend, e.g.: Opengl_es, Directx, Vulkan)
     {
       public:
-        API_IMPL BUFFER_GL() noexcept;
+        API_IMPL BUFFER_GL();
         API_IMPL virtual ~BUFFER_GL();
         API_IMPL bool isLoadedBuffer() const;
         API_IMPL void release();
         
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const unsigned int totalSubsets,const int *vertexStartSubset,const int *vertexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type vertex buffer
-        API_IMPL bool loadBuffer(const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv,const unsigned int sizeOfArrayVertex,const uint16_t *arrayIndices,const unsigned int totalSubsets,const int *indexStartSubset,const int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer
-        API_IMPL bool loadBufferDynamic(uint16_t *arrayIndices, unsigned int totalSubsets, int *indexStartSubset,int *indexCountSubset,const util::INFO_DRAW_MODE * info_draw_mode);
-        // Index buffer
-        unsigned int  vboVertNorTexIB[3]; //(Index buffer: Vertex, Normal, texture) (vertex buffer: Normal, texture, unused)
-        unsigned int *vboIndexSubsetIB;   // vbo index buffer IB
-        int *         indexStartIB;       // index start subset IB
-        int *         indexCountIB;       // index count subset IB
-        // Vertex buffer
-        unsigned int *vboVertexSubsetVB;  // Vertex buffer do subset VB
-        unsigned int *vboNormalSubsetVB;  // Normal buffer do subset VB
-        unsigned int *vboTextureSubsetVB; // Textura buffer do subset VB
-        int *         vertexStartVB;      // inicio do vertex buffer no subset VB
-        int *         vertexCountVB;      // Total de vertex no subset VB
-        // Control
-        unsigned int   totalSubset;   // Total de subset deste buffer
-        unsigned int * idTexture0;    // Existe 1 idtextura para cada subset. (stagio 0)
-        uint8_t *useAlpha;      // Usa alpha para a textura
-        unsigned int   idTexture1;    // id textura stagio 1 passado no momento de renderizar o shader
-        bool           isIndexBuffer; // Flag informando se este buffer eh index buffer ou vertex buffer.
-        unsigned int   mode_draw;     //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
-        unsigned int   mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
-        unsigned int   mode_front_face_direction; //GL_CW, GL_CCW
+        API_IMPL bool loadBuffer(const VEC3 *vertex,
+                                 const VEC3 *normal,
+                                 const VEC2 *uv,
+                                 const uint32_t sizeOfArrayVertex,
+                                 const uint32_t totalSubsets,
+                                 const int *vertexStartSubset,
+                                 const int *vertexCountSubset,
+                                 const util::INFO_DRAW_MODE * info_draw_mode,
+                                 const bool isDynamic);// type vertex buffer, must be implemented by specific backend engine
+
+        API_IMPL bool loadBuffer(const VEC3 *vertex,
+                                 const VEC3 *normal,
+                                 const VEC2 *uv,
+                                 const uint32_t sizeOfArrayVertex,
+                                 const uint16_t *arrayIndices,
+                                 const unsigned int totalSubsets,
+                                 const int *indexStartSubset,
+                                 const int *indexCountSubset,
+                                 const util::INFO_DRAW_MODE * info_draw_mode);// type index buffer, must be implemented by specific backend engine
+
+        API_IMPL bool loadBufferDynamic(const uint16_t *arrayIndices, 
+                                        const unsigned int totalSubsets, 
+                                        const int *indexStartSubset,
+                                        const int *indexCountSubset,
+                                        const bool hasNormal,
+                                        const bool hasUv,
+                                        const util::INFO_DRAW_MODE * info_draw_mode);// Dynamic Index buffer, must be implemented by specific backend engine
+
+        API_IMPL bool updateDynamic(const VEC3* vertex,
+                                    const VEC3* normal,
+                                    const VEC2* uv,
+                                    const int* vertexStartSubset,
+                                    const int* vertexCountSubset);// update vertex buffer when dynamic
+
+        API_IMPL bool loadParticleBuffer();// type index buffer only, must be implemented by specific backend engine
+
+        API_IMPL TEXTURE* getTextureByStage(const uint32_t index_stage,const uint32_t index_subset) const;// common implemenmtation
+        API_IMPL void setTextureByStage(TEXTURE* texture,const uint32_t index_stage,const uint32_t index_subset);// common implemenmtation
+
+        int32_t* indexStartIB;      // index start subset IB
+        int32_t* indexCountIB;      // index count subset IB
+        int32_t* vertexStartVB;     // Start vertex buffer per each subset VB
+        int32_t* vertexCountVB;     // Total vertex buffer per each subset VB
+        uint32_t sizeOfArrayVertex; // Size of Vertx array
+
+        uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
+        uint32_t mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
+        uint32_t mode_front_face_direction; //GL_CW, GL_CCW
+
+        inline bool isIndexBuffer() const noexcept { return initializedIndexBuffer; }
+        uint32_t totalSubset;   // Total of subset of this buffer
+
+        BUFFER_SPECIFIC* bs; //Array of structure specific to be implemented by specific backend engine (needed by backend)
+      private:
+        bool     initializedIndexBuffer;
+        
+        void initializeVertexBufferControl(const uint32_t totalSubsets,
+                                           const uint32_t _sizeOfArrayVertex,
+                                           const int* vertexStartSubset,
+                                           const int* vertexCountSubset,
+                                           const util::INFO_DRAW_MODE* info_draw_mode);
+
+        void initializeIndexBufferControl(const uint32_t totalSubsets,
+                                          const uint32_t _sizeOfArrayVertex,
+                                          const int* indexStartSubset,
+                                          const int* indexCountSubset,
+                                          const util::INFO_DRAW_MODE* info_draw_mode);
+
+
+        std::unordered_map<uint32_t,TEXTURE*> texture0; // Existe 1 textura para cada subset. (stagio 0)
+        TEXTURE* texture1;// id textura stagio 1 passado no momento de renderizar o shader
     };
 
     class BASE_SHADER
@@ -96,14 +149,14 @@ namespace mbm
         API_IMPL const char *getCode();
         API_IMPL VAR_SHADER *getVarByName(const char *nameVar);
         API_IMPL VAR_SHADER *getVar(const unsigned int indexVar);
-        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,const unsigned int programObject);
+        API_IMPL bool addVar(const char *nameVar, const TYPE_VAR_SHADER typeVar, const float *defaultValue,void* ptrShaderSpecific, const bool isPS);
         API_IMPL unsigned int getTotalVar() const noexcept;
         API_IMPL void releaseVars();
         API_IMPL bool loadShader(const char *fileNameShaderVS_PS, const char *code);
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
-        void update(const unsigned int programObject);
+        void update(void* ptrShaderSpecific);
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;
@@ -114,26 +167,19 @@ namespace mbm
       public:
         static MATRIX modelView;
         static MATRIX mvpMatrix; // ModelView x projection
-        unsigned int programObject;   // Controle de uma entidade opengles 2.0 que linka um vertex shader e pixel shader a um objeto
-        int mvpMatrixHandle; // Handle para matrix x projection
-        int mvMatrixHandle;  // Handle para a matrix do modelo
-        int positionHandle;
-        int texCoordHandle;
-        int samplerHandle0;
-        int samplerHandle1;
-        int normalHandle;
-        SHADER() noexcept;
+        void* ptrShaderSpecific;  // Our shader specific by the backend engine
+        SHADER();
         virtual ~SHADER();
         void releaseShader();
         void onRestore();
         bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader);
-        bool isLoad();
+        bool isLoad() const noexcept;
         bool render(const BUFFER_GL *pBufferId) const;
+        bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
+        bool renderParticle(const BUFFER_GL* pBufferId, const FLUID_GROUP* pGroup) const;
         bool renderDynamic(const BUFFER_GL *pBufferId,const VEC3 *vertex,const VEC3 *normal,const VEC2 *uv) const;
         void update();
       private:
-        unsigned int compileCodeShader(const unsigned int type, const char *shaderSrc);
-        unsigned int loadShaderProgram(const char *vertShaderSrc, const char *fragShaderSrc);
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
     };

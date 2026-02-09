@@ -26,10 +26,9 @@
 #include <list>
 #include <mutex>
 #include "core-exports.h"
+#include <core_mbm/joystick-base.h>
 
-#if defined _WIN32
-    #include <joystick-win32/joystick.h>
-#elif defined ANDROID
+#if defined ANDROID
     #include <jni.h>
 #elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
     #include <X11/Xlib.h>
@@ -42,7 +41,6 @@ namespace mbm
     class DEVICE;
     class SCENE;
     class RENDERIZABLE;
-    struct AUX_SPECIFIC_CONTEXT;
 
     
     enum EVENT_TYPE_ACTIONS
@@ -60,12 +58,26 @@ namespace mbm
         ONDOUBLECLICK,
         ONSTREAMSTOPED,
         ONCALLBACKCOMMANDS,
-        ONRESIZEWINDOW
+        ONRESIZEWINDOW,
+        ONMOVEWINDOW // custom event for window move (not from engine, but from OS windowing system)
     };
 
-    enum WHICH_FOR : char;
+    enum WHICH_FOR : char
+    {
+        WFOR_INITIAL,
+        WFOR_2DS,
+        WFOR_2DW,
+        WFOR_3D,
+        WFOR_DONE
+    };
 
-    enum STEP_RETORE : char;
+    enum STEP_RETORE : char
+    {
+        STEP_RES_INIT_GL,
+        STEP_RES_DRAW_HOURGLASS,
+        STEP_RES_OBJ,
+        STEP_RES_END,
+    };
 
     struct API_IMPL EVENT_KEY
     {
@@ -78,14 +90,48 @@ namespace mbm
             float y;
             float ly;
         };
-        int                key;
-        int                player;
+        union {
+            int key;
+            int width;
+        };
+        union {
+            int player;
+            int height;
+        };
         float              rx, ry;
         EVENT_TYPE_ACTIONS eventType;
-        constexpr EVENT_KEY() noexcept;
-        constexpr EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept;
+        constexpr EVENT_KEY() noexcept : x(0), y(0), key(0), player(0), rx(0), ry(0), eventType(UNKNOWN)
+        {}
+
+        constexpr EVENT_KEY(const float _x, const float _y, const int _key, const EVENT_TYPE_ACTIONS _eventName) noexcept
+            : x(_x),
+                y(_y),
+                key(_key),
+                player(0),
+                rx(0.0f),
+                ry(0.0f),
+                eventType(_eventName)
+        {}
+
+        constexpr EVENT_KEY(const float _x, const float _y, const int _width, const int _height, const EVENT_TYPE_ACTIONS _eventName) noexcept
+            : x(_x),
+                y(_y),
+                width(_width),
+                height(_height),
+                rx(0.0f),
+                ry(0.0f),
+                eventType(_eventName)
+        {}
+
         constexpr EVENT_KEY(const float _lx, const float _ly, const int _key, const int _player, const float _rx,
-                            const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept; 
+                            const float _ry, const EVENT_TYPE_ACTIONS _eventName) noexcept : lx(_lx),
+                                                                                                ly(_ly),
+                                                                                                key(_key),
+                                                                                                player(_player),
+                                                                                                rx(_rx),
+                                                                                                ry(_ry),
+                                                                                                eventType(_eventName)
+        {}
         
     };
 
@@ -95,19 +141,44 @@ namespace mbm
         int         maxNumberButton;
         std::string deviceName;
         std::string extraInfo;
-        INFO_JOYSTICK_INIT_PLAYER();
-        INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char *_deviceName,
-                                  const char *_extraInfo);
+
+        INFO_JOYSTICK_INIT_PLAYER() noexcept : player(0), maxNumberButton(0)
+        {
+        }
+
+        INFO_JOYSTICK_INIT_PLAYER(const int _player, const int _maxNumberButton, const char* _deviceName,
+            const char* _extraInfo) noexcept
+            : player(_player), maxNumberButton(_maxNumberButton), deviceName(_deviceName), extraInfo(_extraInfo)
+        {
+        }
+
+        INFO_JOYSTICK_INIT_PLAYER(int _player, int _maxNumberButton,
+            std::string _deviceName, std::string _extraInfo) noexcept
+            : player(_player), maxNumberButton(_maxNumberButton),
+            deviceName(std::move(_deviceName)), extraInfo(std::move(_extraInfo))
+        {
+        }
+
+        // Copy constructor
+        INFO_JOYSTICK_INIT_PLAYER(const INFO_JOYSTICK_INIT_PLAYER&) = default;
+
+        // Copy assignment
+        INFO_JOYSTICK_INIT_PLAYER& operator=(const INFO_JOYSTICK_INIT_PLAYER&) = default;
+
+        // Move constructor
+        INFO_JOYSTICK_INIT_PLAYER(INFO_JOYSTICK_INIT_PLAYER&&) noexcept = default;
+
+        // Move assignment
+        INFO_JOYSTICK_INIT_PLAYER& operator=(INFO_JOYSTICK_INIT_PLAYER&&) noexcept = default;
+
+        // Destructor
+        ~INFO_JOYSTICK_INIT_PLAYER() = default;
+
     };
-
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-
 
     class API_IMPL EVENTS
     {
       public:
-        EVENTS() noexcept;
-        virtual ~EVENTS();
         virtual void onTouchDown(int key, float x, float y) = 0;
         virtual void onTouchUp(int key, float x, float y) = 0;
         virtual void onTouchMove(int key, float x, float y) = 0;
@@ -119,57 +190,38 @@ namespace mbm
         virtual void onKeyUpJoystick(int, int) = 0; // parameter: int player, int key
         virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
         virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
+        virtual void onResizeWindow(int width, int height) = 0;
+        virtual void onMoveWindow(int x, int y) = 0;
     };
-    #endif
 
-    #if defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
-    class CORE_MANAGER : public EVENTS
-    #else
-    class CORE_MANAGER : public EVENTS, public JOYSTICK
-    #endif
+    class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
     {
       public:
         DEVICE *device;
-		bool    changeScene;
+        bool    changeScene;
         API_IMPL CORE_MANAGER();
         API_IMPL virtual ~CORE_MANAGER();
     
         API_IMPL void setScene(SCENE *currentScene);
-		API_IMPL virtual bool existScene(const int idScene) = 0;
-        API_IMPL void onStop();
+        API_IMPL virtual bool existScene(const int idScene) = 0;
+        API_IMPL void onStopCoreManager();
         API_IMPL unsigned int addPlugin(PLUGIN * plugin);
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
+        API_IMPL void setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept; // This is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
+
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
-    #if defined ANDROID
-        API_IMPL bool onLostDevice(JNIEnv *jenv, jobject jobj, int width, int height);
-    #else
-        API_IMPL bool onLostDevice(int width, int height,const int px,const int py);
-    #endif
-    #if defined(_WIN32)
+        API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
-    #elif defined (ANDROID)
-        API_IMPL bool initGraphics(const int width = 800, const int height = 600);
-    #elif (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const bool border = true);
-    #else
-        #error "undefined platform"
-        API_IMPL bool initGraphics();
+    #if (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+        bool initializeWindowx11();
     #endif
 
-#ifdef ANDROID
-        API_IMPL int loop(JNIEnv *, jobject);
-#elif (defined(_WIN32) || defined(__MINGW32__) || defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-        API_IMPL int loop();
-#else
-#error "platform not suported!"
-#endif
+        API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
     
 
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
         API_IMPL void getScreenSize(int *width,int *height);
-    #endif
     
       private:
         API_IMPL void update();
@@ -177,8 +229,11 @@ namespace mbm
         API_IMPL static void prepareRender2d(std::vector<RENDERIZABLE *> &lsAllObjects2d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum2d);
         API_IMPL static void prepareRender3d(std::vector<RENDERIZABLE *> &lsAllObjects3d,std::vector<RENDERIZABLE *> &lsRenderOnFrustum3d);
         API_IMPL void render();
+        API_IMPL void ReleaseGraphics(const bool wasDeviceLost);//this function release the graphics device and all resources
+        API_IMPL void forceRestore(const bool doSwapBuffers);
     
       private:
+        void handleEventFromWindow();
         void _updateDimFrustum();
         void adjustScaleScreen2d();
         void updateAudio();
@@ -186,79 +241,53 @@ namespace mbm
         void initEnableRenders();
         void logic();
         void reinitTimers();
+        bool beginRender(); // prepare to render
+        void endRender(); // end render
+        void swapBuffers(); // Swap buffers
+        bool resetDeviceWithNewDimensions(int newWidth, int newHeight);// need to be implemented in each backend engine
         void enableRender(const int idScene);
         void disableRender(const int idScene);
         void pushEvent(EVENT_KEY *event);
         bool popEvent(EVENT_KEY *event);
         void pushEvent(INFO_JOYSTICK_INIT_PLAYER *info);
         bool popEvent(INFO_JOYSTICK_INIT_PLAYER *info);
-    #if defined(ANDROID)
+        void moveWindow(int x, int y);//specific function to handle window move event depending on OS windowing system
+
       public:
-        API_IMPL void onTouchDown(int key, float x, float y);
-        API_IMPL void onTouchUp(int key, float x, float y);
-        API_IMPL void onTouchMove(int key, float x, float y);
-        API_IMPL void onTouchZoom(float zoom);
-        API_IMPL void onKeyDown(int key);
-        API_IMPL void onKeyUp(int key);
-        API_IMPL void onDoubleClick(float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(int width, int height);
-    
-    #elif defined __linux__ || defined(__APPLE__)
-      public:
-        API_IMPL void onTouchDown(int key, float x, float y);
-        API_IMPL void onTouchUp(int key, float x, float y);
-        API_IMPL void onTouchMove(int key, float x, float y);
-        API_IMPL void onTouchZoom(float zoom);
-        API_IMPL void onKeyDown(int key);
-        API_IMPL void onKeyUp(int key);
-        API_IMPL void onDoubleClick(float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(int width, int height);
-    #elif defined _WIN32
-        API_IMPL void onTouchDown(HWND, int key, float x, float y);
-        API_IMPL void onTouchUp(HWND, int key, float x, float y);
-        API_IMPL void onTouchMove(HWND, float x, float y);
-        API_IMPL void onTouchZoom(HWND, float zoom);
-        API_IMPL void onKeyDown(HWND, int key);
-        API_IMPL void onKeyUp(HWND,int key);
-        API_IMPL void onDoubleClick(HWND, float x, float y, int key);
-        API_IMPL void onKeyDownJoystick(int player, int key);
-        API_IMPL void onKeyUpJoystick(int player, int key);
-        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char *strDeviceName, const char *extraInfo);
-        API_IMPL void onResizeWindow(HWND w, int width, int height);
-        
-    #endif
+        API_IMPL void onTouchDown(int key, float x, float y) override;
+        API_IMPL void onTouchUp(int key, float x, float y) override;
+        API_IMPL void onTouchMove(int key, float x, float y) override;
+        API_IMPL void onTouchZoom(float zoom) override;
+        API_IMPL void onKeyDown(int key) override;
+        API_IMPL void onKeyUp(int key) override;
+        API_IMPL void onDoubleClick(float x, float y, int key) override;
+        API_IMPL void onKeyDownJoystick(int player, int key) override;
+        API_IMPL void onKeyUpJoystick(int player, int key) override;
+        API_IMPL void onMoveJoystick(int player, float lx, float ly, float rx, float ry) override;
+        API_IMPL void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo) override;
+        API_IMPL void onResizeWindow(int width, int height) override;
+        API_IMPL void onMoveWindow(int width, int height) override;
+
       public:
         bool __sceneWasInit;
-        API_IMPL void forceRestore();
         bool keyCapsLockState;
-    #if defined _WIN32
-        DWORD idIcon;
-    #endif
+        bool windowBorder;
+        bool enableResizeWindow;
       private:
+        bool                                    wasGamePausedBeforeOnStop;
         std::map<int, bool>                     __keyPressed;
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
-        AUX_SPECIFIC_CONTEXT*                   specificContext;
-    #if defined _WIN32
         std::mutex mutexEvents;
-    #endif
-        EVENT_KEY lastEvent;
-        WHICH_FOR which_for;
+        std::string  nameAplication;
+        EVENT_KEY    lastEvent;
+        WHICH_FOR    which_for;
         STEP_RETORE  stepRestore;
-        uint32_t indexOnRestore;
-        uint32_t totalForByLoop;
-        float stepRestoreInfo;
-        float percentRestoreInfo;
+        uint32_t     indexOnRestore;
+        uint32_t     totalForByLoop;
+        float        stepRestoreInfo;
+        float        percentRestoreInfo;
     };
 
     

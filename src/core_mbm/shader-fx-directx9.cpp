@@ -20,43 +20,46 @@
 
 #if defined (USE_DIRECTX9)
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
-
 #include <shader-fx.h>
+#include <device.h>
+#include <specific-directx9.h>
 
 namespace mbm
 {
     void FX::setBlendDefaultOp()
     {
-        #pragma message(REMINDER_TODO "  set default blend operation");
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
     }
 
     void FX::setBlendOp()
     {
-        #pragma message(REMINDER_TODO "  set blend operation");
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
         switch (blendOperation)
         {
             case 1: // D3DBLENDOP_ADD              = 1,
             {
-                
+                pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
             }
             break;
             case 2: // D3DBLENDOP_SUBTRACT         = 2,
             {
-                
+                pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_SUBTRACT);
             }
             break;
             case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
             {
-                
+                pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
             }
             break;
             case 4: // D3DBLENDOP_MIN              = 4,
             {
+                pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_MIN);
             }
             break;
             case 5: // D3DBLENDOP_MAX              = 5,
             {
+                pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_MAX);
             }
             break;
         }

@@ -19,8 +19,26 @@
 
 
 #include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_stdlib.h" 
+
+#if defined USE_OPENGL_ES
+
+    #ifndef IMGUI_IMPL_OPENGL_ES2
+        #define IMGUI_IMPL_OPENGL_ES2
+    #endif //!IMGUI_IMPL_OPENGL_ES2
+    #ifndef IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+        #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+    #endif // !IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+    #include "imgui_impl_opengl3.h"
+    #include "imgui_stdlib.h"
+#elif defined USE_DIRECTX9
+    #include "imgui_impl_dx9.h"
+#elif defined USE_DUMMY_BACK_END_ENGINE
+    #include <core_mbm/dummy-engine.h> // for compiler_message, you can remove it after implement the functions
+#else
+    #error "you need to define a rendering backend for imgui"
+#endif
+
+
 
 #if defined _WIN32
     #include "imgui_impl_win32.h"
@@ -822,25 +840,25 @@ static const std::map<std::string,ImGuiCol_> ImGuiCol_map = {
 void lua_log_error(lua_State *lua,const char * message)
 {
     lua_Debug ar;
-	memset(&ar, 0, sizeof(lua_Debug));
-	if (lua_getstack(lua, 1, &ar))
-	{
-		if (lua_getinfo(lua, "nSl", &ar))
-		{
+    memset(&ar, 0, sizeof(lua_Debug));
+    if (lua_getstack(lua, 1, &ar))
+    {
+        if (lua_getinfo(lua, "nSl", &ar))
+        {
             static bool show_stack = false;
             if(show_stack == false)
                 mbm::printStack(lua,ar.short_src,ar.currentline);
             show_stack = true;
-			luaL_error(lua,"File[%s] line [%d] \n    %s",ar.short_src,ar.currentline,message);
-		}
-		else
-		{
-			luaL_error(lua,"File[unknown] line [?] \n    %s",message);
-		}
-	}
-	else
-	{
-		luaL_error(lua,"File[unknown] line [?] \n    %s",message);
+            luaL_error(lua,"File[%s] line [%d] \n    %s",ar.short_src,ar.currentline,message);
+        }
+        else
+        {
+            luaL_error(lua,"File[unknown] line [?] \n    %s",message);
+        }
+    }
+    else
+    {
+        luaL_error(lua,"File[unknown] line [?] \n    %s",message);
     }
 }
 
@@ -985,9 +1003,12 @@ public:
         MousePos.y     = 0;
         MousePosPrev.x = 0;
         MousePosPrev.y = 0;
+        beginRenderWasCalled = false;
+
     }
     const int       KEY_SPACE,KEY_0,KEY_1,KEY_9,KEY_A,KEY_Z;
     float           delta,sx,sy;
+    bool            beginRenderWasCalled;
     
     ImVec2 MousePos,MousePosPrev;
 
@@ -1018,9 +1039,16 @@ public:
             //#else
             //    glShaderSource(g_VertHandle, 2, vertex_shader_with_version, nullptr);
             //#endif
-#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
+#if defined(USE_OPENGL_ES)
+    #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_Init("#version 100");
-			
+    #else
+        #error "Not implemented for opengl if not using ImGui_ImplOpenGL_ES2 or ImGui_ImplOpenGL_ES3"
+    #endif
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_Init(_context);
+#elif defined USE_DUMMY_BACK_END_ENGINE
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui Init"
 #endif
@@ -1099,7 +1127,6 @@ public:
             imGuIo.KeyMap[ImGuiKey_Z]           = 'Z';
         #endif
             key_mouse::KeyCapital               = isCapsLockOn();
-            onBeginRender();//first render
         }
         else
         {
@@ -1628,9 +1655,9 @@ public:
     void onInfoDeviceJoystick(int, int, const char *,const char *)
     {
     }
-    void onBeginRender()
+    void onPrepare()
     {
-        if(imGuiContext)
+        if(imGuiContext && beginRenderWasCalled == false)
         {
             ImGuiIO& imGuIo         = ImGui::GetIO();
             imGuIo.MouseWheel       += key_mouse::mouse_wheel;
@@ -1641,9 +1668,16 @@ public:
 
             memcpy(imGuIo.KeysDown,key_mouse::KeysDown,sizeof(key_mouse::KeysDown));
             memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));
-
-#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
+#if defined(USE_OPENGL_ES)
+    #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_NewFrame();
+    #else
+        #error "Not implemented for opengl if not using ImGui_ImplOpenGL_ES2 or ImGui_ImplOpenGL_ES3"
+    #endif
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_NewFrame();
+#elif defined USE_DUMMY_BACK_END_ENGINE
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui NewFrame"
 #endif
@@ -1663,6 +1697,7 @@ public:
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             sx = device->camera.scale2d.x;
             sy = device->camera.scale2d.y;
+            beginRenderWasCalled = true;
         }
     }
 
@@ -1671,16 +1706,25 @@ public:
         delta = d;
     }
 
-    void onEndRender()
+    void onRender()
     {
-        if(imGuiContext)
+        if(imGuiContext && beginRenderWasCalled)
         {
+            beginRenderWasCalled = false;
             updateCursorMouse();
             ImGui::EndFrame();
             ImGui::Render();
             ImDrawData* draw_data = ImGui::GetDrawData();
-#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
+#if defined(USE_OPENGL_ES)
+    #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_RenderDrawData(draw_data);
+    #else
+        #error "Not implemented for opengl if not using ImGui_ImplOpenGL_ES2 or ImGui_ImplOpenGL_ES3"
+    #endif
+#elif defined USE_DIRECTX9
+            ImGui_ImplDX9_RenderDrawData(draw_data);
+#elif defined USE_DUMMY_BACK_END_ENGINE
+            REMINDER_TODO
 #else
             #error "Not implemented for ImGui RenderDrawData"
 #endif
@@ -1688,8 +1732,17 @@ public:
     }
     void onDestroy()
     {
-#if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
-        ImGui_ImplOpenGL3_Shutdown();
+
+#if defined(USE_OPENGL_ES)
+    #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
+            ImGui_ImplOpenGL3_Shutdown();
+    #else
+        #error "Not implemented for opengl if not using ImGui_ImplOpenGL_ES2 or ImGui_ImplOpenGL_ES3"
+    #endif
+#elif defined USE_DIRECTX9
+        ImGui_ImplDX9_Shutdown();
+#elif defined USE_DUMMY_BACK_END_ENGINE
+            REMINDER_TODO
 #else
         #error "Not implemented for ImGui Shutdown"
 #endif
@@ -4664,6 +4717,7 @@ int onArrowButtonImGuiLua(lua_State *lua)
 
 int onImageImGuiLua(lua_State *lua)
 {
+    // TODO: make this work in Directx, test in spritre maker 
     int index_input                     = 1;
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
@@ -5207,7 +5261,7 @@ int onInputTextImGuiLua(lua_State *lua)
     const char * p_label                        = luaL_checkstring(lua,index_input++);
     std::string text                            = luaL_checkstring(lua,index_input++);
     ImGuiInputTextFlags flags                   = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    bool ret_bool                               = ImGui::InputText(p_label,&text,flags);
+    bool ret_bool                               = ImGui::InputText(p_label,const_cast<char*>(text.c_str()),text.size(),flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushstring(lua,text.c_str());
     return 2;
@@ -5222,7 +5276,7 @@ int onInputTextMultilineImGuiLua(lua_State *lua)
     std::string text                            = luaL_checkstring(lua,index_input++);
     const ImVec2 size                           = top >= index_input ? lua_pop_ImVec2(lua,index_input++) : ImVec2(0,0);
     ImGuiInputTextFlags flags                   = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    bool ret_bool                               = ImGui::InputTextMultiline(p_label,&text,size,flags);
+    bool ret_bool                               = ImGui::InputTextMultiline(p_label,const_cast<char*>(text.c_str()),text.size(),size,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushstring(lua,text.c_str());
     return 2;
@@ -5236,7 +5290,7 @@ int onInputTextWithHintImGuiLua(lua_State *lua)
     std::string text                            = luaL_checkstring(lua,index_input++);
     const char* hint                            = luaL_checkstring(lua,index_input++);
     ImGuiInputTextFlags flags                   = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    bool ret_bool                               = ImGui::InputTextWithHint(p_label,hint,&text,flags);
+    bool ret_bool                               = ImGui::InputTextWithHint(p_label,hint,const_cast<char*>(text.c_str()),flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushstring(lua,text.c_str());
     return 2;

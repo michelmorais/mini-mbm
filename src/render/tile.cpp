@@ -195,9 +195,8 @@ namespace mbm
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
             }
-            this->backGroundMap.idTexture0[0] = backgroundTextureMap ? backgroundTextureMap->idTexture : 0;
-            this->backGroundMap.idTexture1    = 0;
-            this->backGroundMap.useAlpha[0]   = backgroundTextureMap && backgroundTextureMap->useAlphaChannel ? 1 : 0;
+            this->backGroundMap.setTextureByStage(backgroundTextureMap, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
         }
         return true;
     }
@@ -228,6 +227,9 @@ namespace mbm
 
     bool TILE::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
+        
         const auto * ptr_TileInfo = this->getTileInfo();
         if(backgroundTextureMap)
         {
@@ -251,19 +253,25 @@ namespace mbm
 
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
-                if(anim->fx.shader.render(&this->backGroundMap) == false)
+                if (anim->fx.shader.render(&this->backGroundMap) == false)
+                {
+					device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
         for (size_t i = 0; i < ptr_TileInfo->map.layerCount; i++)
         {
             if(lsVisible[i])
             {
-                if(renderLayer(i) == false)
+                if (renderLayer(i) == false)
+                {
+                    device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
-        
+        device->enableFilteringAfterPixelPerfect();
         return true;
     }
 
@@ -293,7 +301,7 @@ namespace mbm
         this->blend.set(anim->blendState);
         anim->fx.setBlendOp();
 
-        const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
+        TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(this->position);
         const MATRIX *matrixPerspective = nullptr;
         if (this->is3D)
@@ -500,7 +508,7 @@ namespace mbm
     inline bool TILE::renderBrick( const util::BTILE_INFO * ptr_TileInfo, 
                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                             const mbm::SHADER * shader,
-                            const unsigned int idTextureOverrideStage2,
+                            TEXTURE* idTextureOverrideStage2,
                             const uint32_t i, 
                             const uint32_t j,
                             const float offset_x,
@@ -523,12 +531,11 @@ namespace mbm
     
     bool TILE::onRestoreDevice()
     {
-        this->releaseAnimation();
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
             #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             for( auto & tileObj : lsTileObjs)
             {
@@ -544,12 +551,6 @@ namespace mbm
             return false;
         }
         
-    }
-    
-    void TILE::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
     }
     
     const mbm::INFO_PHYSICS * TILE::getInfoPhysics() const
@@ -1035,7 +1036,6 @@ namespace mbm
             this->blend.set(anim->blendState);
             anim->fx.setBlendOp();
             auto * device = DEVICE::getInstance();
-            const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
             
             if (this->is3D)
             {
@@ -1056,7 +1056,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &anim->fx.shader,idTextureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
         }
         return false;
     }
@@ -1066,8 +1066,8 @@ namespace mbm
         return true; //The parent will take care
     }
 
-    void TILE_OBJ::onStop()
-    {
-        //do nothing
-    }
+    //void TILE_OBJ::onStop()
+    //{
+    //    //do nothing
+    //}
 }

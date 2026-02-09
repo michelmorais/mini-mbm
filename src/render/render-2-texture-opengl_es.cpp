@@ -21,13 +21,30 @@
 
 #if defined(USE_OPENGL_ES)
 
-#include <gles-debug.h>
+#include <specific-opengl_es.h>
 #include <lodepng/lodepng.h>
 #include <texture-manager.h>
 #include <util-interface.h>
+#include <scene.h>
 
 namespace mbm
 {
+
+    RENDERIZABLE_TO_TARGET::RENDERIZABLE_TO_TARGET(const SCENE* scene, const TYPE_CLASS newTypeClass, const bool _is3d, const bool _is2ds) noexcept :
+        RENDERIZABLE(scene->getIdScene(), newTypeClass, _is3d, _is2ds)
+    {
+        this->specificConfig = new RENDER2TARGET_GLES();
+        this->colorClearBackGround = COLOR(255, 255, 255); // alpha em 0 significa transparente
+        this->colorClearBackGround.a = 1.0f;
+        this->widthTexture = 0;
+        this->heightTexture = 0;
+    }
+
+    RENDERIZABLE_TO_TARGET::~RENDERIZABLE_TO_TARGET()
+    {
+        // Deleting a void* pointer directly in C++ is undefined behavior and should be avoided. 
+        delete static_cast<RENDER2TARGET_GLES*>(this->specificConfig);
+    }
 
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)
     {
@@ -35,7 +52,8 @@ namespace mbm
             return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
         if(!this->isLoaded())
             return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        if(this->idTextureDynamic == 0)
+        const RENDER2TARGET_GLES* sf = static_cast<const RENDER2TARGET_GLES*>(this->specificConfig);
+        if(sf->idTextureDynamic == 0)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
         if(this->texture == nullptr)
             return log_util::fail(__LINE__,__FILE__,"texture is not created!");
@@ -49,7 +67,7 @@ namespace mbm
         const int sizeImage = _width * _height * channel;
         auto  image = new unsigned char[sizeImage];
 
-        GLBindFramebuffer(GL_FRAMEBUFFER, this->idFrameBuffer);
+        GLBindFramebuffer(GL_FRAMEBUFFER, sf->idFrameBuffer);
         
         glReadPixels(x,y,_width,_height,channel == 4 ? GL_RGBA : GL_RGB,GL_UNSIGNED_BYTE,image);
         const GLenum error = glGetError();

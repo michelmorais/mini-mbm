@@ -167,6 +167,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-linux-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\manager-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
@@ -201,21 +206,24 @@
     <ClInclude Include="..\..\include\core_mbm\blend.h" />
     <ClInclude Include="..\..\include\core_mbm\camera.h" />
     <ClInclude Include="..\..\include\core_mbm\class-identifier.h" />
-    <ClInclude Include="..\..\include\core_mbm\common-device.h" />
     <ClInclude Include="..\..\include\core_mbm\core-exports.h" />
     <ClInclude Include="..\..\include\core_mbm\core-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h" />
+    <ClInclude Include="..\..\include\core_mbm\dummy-engine.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\file-util.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
-    <ClInclude Include="..\..\include\core_mbm\gles-debug.h" />
+    <ClInclude Include="..\..\include\core_mbm\joystick-base.h" />
+    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />
     <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\order-render.h" />
+    <ClInclude Include="..\..\include\core_mbm\particle-control.h" />
     <ClInclude Include="..\..\include\core_mbm\physics.h" />
     <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
     <ClInclude Include="..\..\include\core_mbm\primitives.h" />
@@ -228,6 +236,9 @@
     <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h" />
     <ClInclude Include="..\..\include\core_mbm\shader.h" />
     <ClInclude Include="..\..\include\core_mbm\shapes.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-dummy.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
     <ClInclude Include="..\..\include\core_mbm\uber-image.h" />

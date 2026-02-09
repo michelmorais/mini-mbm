@@ -27,7 +27,15 @@
 #include <stb/stb-interface.h>
 
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    #include <device.h>
+    #if defined     USE_OPENGL_ES
+        #if defined (USE_DUMMY_BACK_END_ENGINE)
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+        #else
+            #include <core_mbm/specific-opengl_es.h>
+        #endif
+    #endif
 #endif
 
 #include <platform/mismatch-platform.h>
@@ -45,6 +53,7 @@ namespace mbm
 
     TEXTURE::TEXTURE() noexcept
     {
+        ptrTexture      = nullptr;
         idTexture       = 0;
         fileName[0]     = 0;
         width           = 0;
@@ -185,80 +194,81 @@ namespace mbm
         return false;
     }
 
-	bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
-	{
-		if(colorAsString == nullptr)
-		{
-			PRINT_IF_DEBUG("Color string expected is null");
-			return false;
-		}
-		if(colorAsString[0] != '#')
-		{
-			PRINT_IF_DEBUG("Color string expected is '#'");
-			return false;
-		}
-		this->fileName = colorAsString;
-		COLOR color;
-		colorAsString++;
-		int len = strlen(colorAsString);
-		if (len == 8)
-		{
-			char alpha[3] = {0,0,0};
-			alpha[0] = *colorAsString;
-			colorAsString++;
-			alpha[1] = *colorAsString;
-			colorAsString++;
-			const int n = strtol(colorAsString,nullptr, 16);
-			color = COLOR(n);
-			color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
-		}
-		else if (len == 6)
-		{
-			const int n = strtol(colorAsString, nullptr, 16);
-			color = COLOR(n);
-			color.a = 1.0f;
-		}
-		if(hasColorAlpha)
-		{
-			uint8_t pixel[4 * 4 * 4];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			uint8_t a = 255;
-			color.get(&r,&g,&b,&a);
-			for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-				pixel[i+3] = a;
-			}
-			return this->loadFromData(pixel,4,4,8,4,true);
-		}
-		else
-		{
-			uint8_t pixel[4 * 4 * 3];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			color.get(&r,&g,&b);
-			for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-			}
-			return this->loadFromData(pixel,4,4,8,3,false);
-		}
-	}
+    bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
+    {
+        if(colorAsString == nullptr)
+        {
+            PRINT_IF_DEBUG("Color string expected is null");
+            return false;
+        }
+        if(colorAsString[0] != '#')
+        {
+            PRINT_IF_DEBUG("Color string expected is '#'");
+            return false;
+        }
+        this->fileName = colorAsString;
+        COLOR color;
+        colorAsString++;
+        int len = strlen(colorAsString);
+        if (len == 8)
+        {
+            char alpha[3] = {0,0,0};
+            alpha[0] = *colorAsString;
+            colorAsString++;
+            alpha[1] = *colorAsString;
+            colorAsString++;
+            const int n = strtol(colorAsString,nullptr, 16);
+            color = COLOR(n);
+            color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
+        }
+        else if (len == 6)
+        {
+            const int n = strtol(colorAsString, nullptr, 16);
+            color = COLOR(n);
+            color.a = 1.0f;
+        }
+        if(hasColorAlpha)
+        {
+            uint8_t pixel[4 * 4 * 4];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            uint8_t a = 255;
+            color.get(&r,&g,&b,&a);
+            for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+                pixel[i+3] = a;
+            }
+            return this->loadFromData(pixel,4,4,8,4,true);
+        }
+        else
+        {
+            uint8_t pixel[4 * 4 * 3];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            color.get(&r,&g,&b);
+            for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+            }
+            return this->loadFromData(pixel,4,4,8,3,false);
+        }
+    }
     
     bool TEXTURE::load(const char *fileNameTexture, const bool hasColorAlpha)
     {
         if (!fileNameTexture)
             return false;
+        this->release();
         this->useAlphaChannel = true;
-		if(fileNameTexture[0] == '#' )
-			return loadSolidColor(fileNameTexture,hasColorAlpha);
+        if(fileNameTexture[0] == '#' )
+            return loadSolidColor(fileNameTexture,hasColorAlpha);
         std::vector<std::string> result;
         util::split(result, fileNameTexture, '.');
         if (result.size() == 0)
@@ -313,19 +323,18 @@ namespace mbm
             int       x    = 0;
             int       y    = 0;
             int       comp = 0;
+            bool    result = false;
             const int n    = hasColorAlpha == true ? 4 : 3;
             stbi_uc * data = stbi_load(fileNameTexture, &x, &y, &comp, n);
             if (data && x && y && comp)
             {
                 this->width  = static_cast<uint32_t>(x);
                 this->height = static_cast<uint32_t>(y);
-                bool ret;
                 if (hasColorAlpha)
-                    ret = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
+                    result = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
                 else
-                    ret = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
+                    result = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
                 free(data);
-                return ret;
             }
             else
             {
@@ -343,8 +352,8 @@ namespace mbm
                 }
 #endif
                 PRINT_IF_DEBUG("failed to load texture %s .", fileNameTexture);
-                return false;
             }
+            return result;
         }
     }
 
@@ -363,13 +372,20 @@ namespace mbm
         return this->height;
     }
     
-#if defined ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha)
+    {
+        return false;
+    }
+#elif defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
     {
-        util::COMMON_JNI *jni   = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         int              wint   = 0;
         int              hint   = 0;
-        uint8_t *  pixels = jni->getImageDataFromDroid(_fileName, &wint, &hint);
+        uint8_t *  pixels = cJni->getImageDataFromDroid(_fileName, &wint, &hint);
         if (pixels)
         {
             if (wint < 0 && hint < 0)
@@ -397,185 +413,6 @@ namespace mbm
     }
 #endif
     
-    TEXTURE_SHARED * TEXTURE_SHARED::getInstance()
-    {
-        if (instanceTextureShared == nullptr)
-            instanceTextureShared = new TEXTURE_SHARED();
-        return instanceTextureShared;
-    }
-    
-    void TEXTURE_SHARED::release()
-    {
-        if (instanceTextureShared != nullptr)
-            delete instanceTextureShared;
-        instanceTextureShared = nullptr;
-    }
-
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const IMAGE_RESOURCE *imageResource)
-    {
-        if (!imageResource)
-            return nullptr;
-        if (static_cast<int>(imageResource->width) > this->maxTextureSize || static_cast<int>(imageResource->height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.",imageResource->width > imageResource->height ? imageResource->width : imageResource->height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(imageResource->nickName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromResourceData(imageResource))
-        {
-            pTexture->fileName = imageResource->nickName;
-            return pTexture;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s",imageResource->nickName);
-            return std::shared_ptr<TEXTURE>();
-        }
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, channel == 4))
-        {
-            pTexture->fileName = fileName;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", nickName);
-        }
-        if (channel == 4)
-            pTexture->useAlphaChannel = true;
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel,
-                         const bool hasAlpha)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s", nickName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const char *fileName, const bool hasAlpha)
-    {
-        if (!fileName)
-            return nullptr;
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->load(fileName, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                     std::vector<VEC2> *lsWidthLetterOut, const float heightLetter)
-    {
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileNameTTF);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,false))
-        {
-            pTexture->fileName = fileNameTTF;
-            pTexture->useAlphaChannel = true;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileNameTTF);
-        }
-        return pTexture;
-    }
-    
-    bool TEXTURE_SHARED::existTexture(const char *fileNametexture)
-    {
-        if (fileNametexture == nullptr)
-            return false;
-        std::shared_ptr<TEXTURE> tex = cache[fileNametexture].lock();
-        if (tex && tex->isLoaded())
-            return true;
-        return false;
-    }
-    
-    void TEXTURE_SHARED::setPath(const char *PathSource)
-    {
-        strncpy(pathSource, PathSource,sizeof(pathSource)-1);
-    }
-    
-    bool TEXTURE_SHARED::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
-                              const uint32_t width, const uint32_t height, char *strMessageError)
-    {
-        unsigned  int error = 0;
-        std::vector<uint8_t> png;
-        error = lodepng::encode(png, image, width, height, channel == 3 ? LCT_RGB : LCT_RGBA);
-        if (error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        error = lodepng::save_file(png, fileName);
-        if(error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        return true;
-    }
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadFromCache(const std::string &fileName)
-    {
-        std::shared_ptr<TEXTURE> objPtr = cache[fileName].lock();
-        if(!objPtr)
-        {
-            std::shared_ptr<TEXTURE> tex(new TEXTURE());
-            cache[fileName] = tex;
-            return tex;
-        }
-        return objPtr;
-    }
-
-    TEXTURE_SHARED* TEXTURE_SHARED::instanceTextureShared = nullptr; 
-
     TEXTURE_MANAGER * TEXTURE_MANAGER::getInstance()
     {
         if (instanceTextureManager == nullptr)
@@ -704,7 +541,17 @@ namespace mbm
         {
             delete texture;
             texture = nullptr;
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            texture = this->loadNativeEngine(fileName, hasAlpha);// fallback try to load native load method (e.g using Directx, LoadTxtureFromFile)
+            if (texture)
+            {
+                texture->fileName = std::move(fileNameBase);
+                texture->useAlphaChannel = hasAlpha ? true : false;
+                lsTextures[texture->fileName] = texture;
+            }
+            else
+            {
+                PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            }
         }
         return texture;
     }
@@ -890,8 +737,8 @@ namespace mbm
     
     const char * TEXTURE_MANAGER::getFilePathTexture(const char *fileName,const char* fullFileName)
     {
-		if(fileName && fileName[0] == '#')
-			return fileName;
+        if(fileName && fileName[0] == '#')
+            return fileName;
 #if defined (ANDROID)
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
@@ -984,6 +831,10 @@ namespace mbm
         }
         return fileNameTexture;
     }
+    
+#else
+    #error "platform not suported"
+#endif
 
     void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
     {
@@ -997,23 +848,23 @@ namespace mbm
             }
         }
     }
-#else
-    #error "platform not suported"
-#endif
-#if defined (ANDROID) && defined USE_EDITOR_FEATURES
-    void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
+
+    TEXTURE_MANAGER::TEXTURE_MANAGER()
     {
-        for (auto& texture : lsTextures)
-        {
-            bool existTexture = false;
-            std::string fullPathTexture = util::getFullPath(texture.first.c_str(), &existTexture);
-            if (existTexture)
-            {
-                result.push_back(fullPathTexture);
-            }
-        }
+        memset(pathSource, 0, sizeof(pathSource));
+        this->maxTextureSize = 0;
+        this->maxTextureWidth = 0;
+        this->maxTextureHeight = 0;
+        //Remember to implement setTextureCapabilities by engine backend
     }
-#endif
+
+    void TEXTURE_MANAGER::setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound)
+    {
+        this->maxTextureSize = maxTextureSizeFound;
+        this->maxTextureWidth = maxTextureWidthFound;
+        this->maxTextureHeight = maxTextureHeightFound;
+    }
+
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
 }
 

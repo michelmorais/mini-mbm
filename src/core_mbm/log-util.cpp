@@ -65,7 +65,7 @@ void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut)
     if (fileNameIn)
     {
         std::string source(fileNameIn);
-#ifdef _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         const std::string from("/");
         const std::string to("\\");
 #else
@@ -115,12 +115,12 @@ bool fail(const int lineNum, const char *fileName, const char *format, ...)
     va_start(va_args, format);
     char *_buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-#ifdef _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     HWND hConsole = GetConsoleWindow();
     ShowWindow(hConsole, SW_SHOWNOACTIVATE);
 #endif
     callScriptPrintLine();
-	ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, _buffer);
+    ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, _buffer);
     delete[] _buffer;
     return false;
 }
@@ -134,7 +134,7 @@ bool onFailed(FILE *fp, const char *fileName, const int numLine, const char *for
     va_start(va_args, format);
     char *_buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-	callScriptPrintLine();
+    callScriptPrintLine();
     log_util::log_tag_file_and_line(numLine, fileName,TYPE_LOG_ERROR, _buffer);
     delete[] _buffer;
     if (fp)
@@ -181,11 +181,11 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
         {
             case TYPE_LOG_ERROR:
             {
-				typedef std::map<std::string, bool> mapError;
+                typedef std::map<std::string, bool> mapError;
                 CR_DEFINE_STATIC_LOCAL(mapError, errorList);
                 if (errorList[_buffer] == false)
-					fprintf(stdout, "\033[1;31mERR\033[0m %s\n", _buffer);
-				errorList[_buffer] = true;
+                    fprintf(stdout, "\033[1;31mERR\033[0m %s\n", _buffer);
+                errorList[_buffer] = true;
             }
             break;
             case TYPE_LOG_INFO:
@@ -199,63 +199,63 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
             }
             break;
         }
-    #elif defined _WIN32
-		HWND hConsole = GetConsoleWindow();
-		HANDLE hConsoleSTD = GetStdHandle(STD_OUTPUT_HANDLE);
+    #elif (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+        HWND hConsole = GetConsoleWindow();
+        HANDLE hConsoleSTD = GetStdHandle(STD_OUTPUT_HANDLE);
         ShowWindow(hConsole, SW_SHOWNOACTIVATE);
         switch(type_log)
         {
             case TYPE_LOG_ERROR:
             {
-				typedef std::map<std::string, bool> mapError;
+                typedef std::map<std::string, bool> mapError;
                 CR_DEFINE_STATIC_LOCAL(mapError, errorList);
                 if (errorList[_buffer] == false)
-				{
-					SetConsoleTextAttribute(hConsoleSTD, 12);
-					fprintf(stdout, "ERR");
-					SetConsoleTextAttribute(hConsoleSTD, 15);
-					fprintf(stdout, " %s\n", _buffer);
-				}
-				errorList[_buffer] = true;
+                {
+                    SetConsoleTextAttribute(hConsoleSTD, 12);
+                    fprintf(stdout, "ERR");
+                    SetConsoleTextAttribute(hConsoleSTD, 15);
+                    fprintf(stdout, " %s\n", _buffer);
+                }
+                errorList[_buffer] = true;
             }
             break;
             case TYPE_LOG_INFO:
             {
-				SetConsoleTextAttribute(hConsoleSTD, 10);
-				fprintf(stdout, "INFO");
-				SetConsoleTextAttribute(hConsoleSTD, 15);
+                SetConsoleTextAttribute(hConsoleSTD, 10);
+                fprintf(stdout, "INFO");
+                SetConsoleTextAttribute(hConsoleSTD, 15);
                 fprintf(stdout, " %s\n", _buffer);
             }
             break;
             case TYPE_LOG_WARN:
             {
-				SetConsoleTextAttribute(hConsoleSTD, 14);
-				fprintf(stdout, "WARN");
-				SetConsoleTextAttribute(hConsoleSTD, 15);
+                SetConsoleTextAttribute(hConsoleSTD, 14);
+                fprintf(stdout, "WARN");
+                SetConsoleTextAttribute(hConsoleSTD, 15);
                 fprintf(stdout, " %s\n", _buffer);
             }
             break;
         }
-	#else
-		#error "Platform not defined for LOG"
+    #else
+        #error "Platform not defined for LOG"
     #endif
     delete[] _buffer;
 }
 
 void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...)
 {
-	va_list va_args;
+    va_list va_args;
     va_start(va_args, format);
     const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
     va_end(va_args);
     va_start(va_args, format);
     char * buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-	switch(type_log)
+    switch(type_log)
     {
         case TYPE_LOG_ERROR:
         {
-			ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, buffer);
+            ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, buffer);
         }
         break;
         case TYPE_LOG_INFO:
@@ -269,9 +269,9 @@ void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_
         }
         break;
     }
-	
-	delete[] buffer;
-	return nullptr;
+    
+    delete[] buffer;
+    return nullptr;
 }
 
 void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format, ...)
@@ -292,7 +292,7 @@ void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format
         else
             INFO_LOG("%s",buffer);
     #else
-        #if defined _WIN32
+        #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 
             if(color_print_terminal == COLOR_TERMINAL_WHITE)
             {

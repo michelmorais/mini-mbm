@@ -17,13 +17,21 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(AUDIO_ENGINE_NONE)
+
+#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
+// ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    #ifndef INCLUDE_AUDIO_NONE_CPP
+        #define INCLUDE_AUDIO_NONE_CPP
+        #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+    #endif
+#endif
+
+#if defined(AUDIO_ENGINE_NONE) || defined (INCLUDE_AUDIO_NONE_CPP)
 
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
-
 
 namespace mbm
 {

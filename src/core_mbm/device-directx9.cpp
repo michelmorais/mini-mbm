@@ -20,48 +20,16 @@
 
 #if defined (USE_DIRECTX9)
 
-#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
 
+#include <specific-directx9.h>
 #include <device.h>
-#include <scene.h>
 #include <texture-manager.h>
 #include <audio-interface.h>
-#include <shapes.h>
-#include <physics.h>
-#include <renderizable.h>
 #include <mesh-manager.h>
-#include <util-interface.h>
-#include <dynamic-var.h>
-
-#if defined ANDROID
-    #include <platform/common-jni.h>
-#elif defined _WIN32
-    #include <plusWindows/defaultThemePlusWindows.h>
-#elif defined(__linux__) || defined(__APPLE__)
-    #include <X11/Xutil.h>
-#endif
 
 namespace mbm
 {
-    struct SPECIFIC_AUX_CONTEXT_DEVICE
-    {
-    #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-            
-    #endif
-        SPECIFIC_AUX_CONTEXT_DEVICE()
-        {   
-            #if (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
-                
-            #endif
-        };
-        SPECIFIC_AUX_CONTEXT_DEVICE(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-        SPECIFIC_AUX_CONTEXT_DEVICE &operator=(const SPECIFIC_AUX_CONTEXT_DEVICE &) = delete;
-
-        ~SPECIFIC_AUX_CONTEXT_DEVICE()
-        {
-
-        };
-    };
+    
     
     void DEVICE::initializeSpecificContext()
     {
@@ -77,29 +45,10 @@ namespace mbm
         }
     }
 
-
-#ifdef ANDROID
-    void DEVICE::callQuitInJava()
-    {
-        util::COMMON_JNI *cJni  = util::COMMON_JNI::getInstance();
-        JNIEnv *         jenv   = cJni->jenv;
-        jfieldID         fidRun = jenv->GetStaticFieldID(cJni->jclassInstanceActivityEngine, "run", "Z");
-        if (nullptr == fidRun)
-        {
-            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", cJni->jclassInstanceActivityEngine);
-            return;
-        }
-        jenv->SetStaticBooleanField(cJni->jclassInstanceActivityEngine, fidRun, false);
-    }
-#endif
-
     void DEVICE::quit()
     {
         TEXTURE_MANAGER::release();
         MESH_MANAGER::release();
-#ifdef ANDROID
-        util::COMMON_JNI::release();
-#endif
 		releaseAudioManager();
 		if (instanceDevice)
         {
@@ -108,44 +57,46 @@ namespace mbm
         instanceDevice = nullptr;
     }
 
-#ifdef ANDROID
-    
-    void DEVICE::streamStopped(const int indexJNI)
-    {
-		if(this->audioInterface)
-			this->audioInterface->streamStopped(indexJNI);
-    }
-#endif
-    
     void DEVICE::setDephtTest(const bool enable)
     {
-        #pragma message(REMINDER_TODO "  implement depth test enable/disable");
+        if (enable)
+        {
+            specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+        }
+        else
+        {
+            specificContextDevice->pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+        }
     }
 
     void DEVICE::clearDepth()
     {
-        #pragma message(REMINDER_TODO "  implement clear depth buffer");
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
     }
     void DEVICE::clearDepthColored()
     {
-        #pragma message(REMINDER_TODO "  implement clear depth buffer with color");
+        D3DCOLOR color = D3DCOLOR_COLORVALUE(this->colorClearBackGround.r, this->colorClearBackGround.g, this->colorClearBackGround.b,0xff);
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, color, 1.0f, 0);
     }
 
     const char* DEVICE::getBackendEngineName() const noexcept
     {
-        return "Dummy engine";
+        return "Directx9";
     }
 
     const char* DEVICE::getBackendEngineVersion() const noexcept
     {
-        return "Dummy engine version 1.0";
+        return "9";
     }
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
         if (width > 0 && height > 0)
         {
-            #pragma message(REMINDER_TODO "  set projection mode");
+            //TOD: check this
+            const D3DVIEWPORT9 view_port = D3DVIEWPORT9{ 0, 0, static_cast<DWORD>(width), static_cast<DWORD>(height), 0.0f, 1.0f };
+			pd3dDevice->SetViewport(&view_port);
         }
         if (width > 0)
             backBufferWidth = width;
@@ -153,7 +104,54 @@ namespace mbm
             backBufferHeight = height;
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
+        if (is3D)
+        {
+            const D3DMATRIX* matrixView = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView);
+            const D3DMATRIX* matrixProj = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixProj);
+            pd3dDevice->SetTransform(D3DTS_VIEW, matrixView);
+            pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixProj);
+        }
+        else
+        {
+            const D3DMATRIX* matrixView2d = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixView2d);
+            const D3DMATRIX* matrixOrtho  = reinterpret_cast<const D3DMATRIX*>(&this->camera.matrixOrtho);
+            pd3dDevice->SetTransform(D3DTS_VIEW, matrixView2d);
+            pd3dDevice->SetTransform(D3DTS_PROJECTION, matrixOrtho);
+        }
+        
     }
+
+    const char* DEVICE::copyFileFromAsset(const char* assetName, const char* mode)// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+    {
+        return assetName;
+    }
+
+    void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
+    {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
+		for (int i = 0; i < 2; ++i)
+        {
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MINFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MINFILTER[i]);
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MAGFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[i]);
+            pd3dDevice->GetSamplerState(i, D3DSAMP_MIPFILTER, &this->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[i]);
+            // Point filtering (nearest neighbor - no interpolation)
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+        }
+    }
+
+    void DEVICE::enableFilteringAfterPixelPerfect() noexcept
+    {
+        IDirect3DDevice9* pd3dDevice = this->specificContextDevice->pd3dDevice;
+        for (int i = 0; i < 2; ++i)
+        {
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, this->specificContextDevice->DWORD_D3DSAMP_MINFILTER[i]);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, this->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[i]);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, this->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[i]);
+		}
+    }
+
 
 }
 #endif // USE_DIRECTX9

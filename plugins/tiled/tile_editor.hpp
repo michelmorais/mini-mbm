@@ -197,14 +197,13 @@ namespace mbm
         std::map<uint16_t,bool>     selectedBrick;
         std::map<uint16_t,VEC2>     positionSelectedBrick;
         uint16_t                    iLastIndexBrickOver;
-        uint32_t                    id_texture_normal_brick, 
-                                    id_texture_highlight_brick,
-                                    id_texture_selected_brick;
+        TEXTURE*                    id_texture_normal_brick;
+        TEXTURE*                    id_texture_highlight_brick;
+        TEXTURE*                    id_texture_selected_brick;
         
         bool isOnFrustum()     override;
         bool render()          override;
         bool onRestoreDevice() override;
-        void onStop()          override;
 
         bool renderMap(SHADER *shader);
         bool renderTileSet();

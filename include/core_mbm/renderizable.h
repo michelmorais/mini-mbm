@@ -108,8 +108,9 @@ namespace mbm
       protected:
         API_IMPL virtual bool isOnFrustum()     = 0;
         API_IMPL virtual bool render()          = 0;
-        API_IMPL virtual bool onRestoreDevice() = 0;
-        API_IMPL virtual void onStop()          = 0;
+        API_IMPL virtual bool onRestoreDevice() = 0;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
+        API_IMPL virtual void onStop() final;
+        API_IMPL virtual void onRestoreAnimationsState() final;
       public:
         API_IMPL virtual void updateAABB();
 
@@ -121,9 +122,7 @@ namespace mbm
     class RENDERIZABLE_TO_TARGET : public RENDERIZABLE
     {
       public:
-        uint32_t idFrameBuffer;
-        uint32_t idDepthRenderbuffer;
-        int          idTextureDynamic;
+        void* specificConfig; // specific configuration for each graphic API (backend)
         uint32_t widthTexture;
         uint32_t heightTexture;
         COLOR        colorClearBackGround;

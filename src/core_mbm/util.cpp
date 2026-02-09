@@ -25,8 +25,8 @@
 #include <cstring>
 #include <functional>
 
-#if defined _WIN32
-#include <plusWindows/plusWindows.h>
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #include <plusWindows/plusWindows.h>
 #endif
 
 namespace util
@@ -50,9 +50,9 @@ namespace util
     const char* getDirSeparator()
     {
         #ifdef _WIN32
-	        static const char _DIRSEPARATOR[2] = "\\";
+            static const char _DIRSEPARATOR[2] = "\\";
         #else
-	        static const char _DIRSEPARATOR[2] = "/";
+            static const char _DIRSEPARATOR[2] = "/";
         #endif
         return _DIRSEPARATOR;
     }
@@ -60,9 +60,9 @@ namespace util
     const char  getCharDirSeparator()
     {
         #ifdef _WIN32
-	        const char _DIRSEPARATOR = '\\';
+            const char _DIRSEPARATOR = '\\';
         #else
-	        const char _DIRSEPARATOR = '/';
+            const char _DIRSEPARATOR = '/';
         #endif
         return _DIRSEPARATOR;
     }
@@ -188,65 +188,6 @@ namespace util
         return *static_cast<const uint32_t *>(p);
     }
 
-    //const mbm::COLOR COLOR_WHITE(mbm::COLOR(255, 255, 255));
-    //const mbm::COLOR COLOR_BLACK(mbm::COLOR(0, 0, 0));
-    //const mbm::COLOR COLOR_RED(mbm::COLOR(255, 0, 0));
-    //const mbm::COLOR COLOR_GREEN(mbm::COLOR(0, 255, 0));
-    //const mbm::COLOR COLOR_BLUE(mbm::COLOR(0, 0, 255));
-    //const mbm::COLOR COLOR_YELLOW(mbm::COLOR(255, 255, 0));
-    //const mbm::COLOR COLOR_OCEAN(mbm::COLOR(0, 255, 255));
-    //const mbm::COLOR COLOR_MAGENT(mbm::COLOR(255, 0, 255));
-    //const mbm::COLOR COLOR_ORANGE(mbm::COLOR(255, 128, 0));
-    //const mbm::COLOR COLOR_EVENING(mbm::COLOR(255, 128, 30));
-    //const mbm::COLOR COLOR_PURPLE(mbm::COLOR(128, 0, 255));
-    //const mbm::COLOR COLOR_PURPLE_BLACK(mbm::COLOR(70, 0, 100));
-    //const mbm::COLOR COLOR_ROSE(mbm::COLOR(255, 128, 128));
-    //const mbm::COLOR COLOR_MOSS(mbm::COLOR(128, 128, 0));
-    //const mbm::COLOR COLOR_GREEN_CLEAR(mbm::COLOR(128, 255, 128));
-    //const mbm::COLOR COLOR_BLUE_MARINE(mbm::COLOR(50, 50, 128));
-    //const mbm::COLOR COLOR_BLUE_POOL(mbm::COLOR(20, 167, 222));
-    //const mbm::COLOR COLOR_MUSTARD(mbm::COLOR(234, 158, 19));
-    //const mbm::COLOR COLOR_GRAY(mbm::COLOR(121, 121, 121));
-    //const mbm::COLOR COR_VERDE_MEIO_TOM(mbm::COLOR(0, 128, 128));
-    //const mbm::COLOR COLOR_RED_DARK(mbm::COLOR(114, 31, 31));
-    //const mbm::COLOR COLOR_GRAY_CLEAR(mbm::COLOR(180, 180, 180));
-    //const mbm::COLOR COLOR_GRAY_DARK(mbm::COLOR(50, 50, 50));
-    //const mbm::COLOR COLOR_RED_OPAQUE(mbm::COLOR(164, 98, 98));
-    //const mbm::COLOR COLOR_RED_WASHOUT(mbm::COLOR(105, 165, 136));
-    //const mbm::COLOR COLOR_YELLOW_CLEAR(mbm::COLOR(255, 255, 128));
-    //const mbm::COLOR COLOR_GREEN_BRIGHT(mbm::COLOR(0, 255, 128));
-    //const mbm::COLOR COLOR_WINE(mbm::COLOR(128, 0, 64));
-    //
-    //const MATERIAL MATERIAL_WHITE (getMaterial(COLOR_WHITE, COLOR_WHITE, COLOR_WHITE, COLOR_BLACK, 1.0f));
-    //const MATERIAL MATERIAL_RED   (getMaterial(COLOR_RED, COLOR_RED, COLOR_RED, COLOR_BLACK, 1.0f));
-    //const MATERIAL MATERIAL_GREEN (getMaterial(COLOR_GREEN, COLOR_GREEN, COLOR_GREEN, COLOR_BLACK, 1.0f));
-    //const MATERIAL MATERIAL_BLUE  (getMaterial(COLOR_BLUE, COLOR_BLUE, COLOR_BLUE, COLOR_BLACK, 1.0f));
-    //const MATERIAL MATERIAL_YELLOW(getMaterial(COLOR_YELLOW, COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK, 1.0f));
-    //const MATERIAL MATERIAL_BLACK (getMaterial(COLOR_BLACK, COLOR_BLACK, COLOR_BLACK, COLOR_BLACK, 1.0f));
-
-    //MATERIAL getMaterial(const mbm::COLOR &ambient, const mbm::COLOR &diffuse, const mbm::COLOR &specular,
-    //                            const mbm::COLOR &emissive, const float &power) noexcept
-    //{
-    //    MATERIAL material;
-    //    material.Ambient  = ambient;
-    //    material.Diffuse  = diffuse;
-    //    material.Specular = specular;
-    //    material.Emissive = emissive;
-    //    material.Power    = power;
-    //    return material;
-    //}
-    //
-    //void initMaterial(MATERIAL &material) noexcept
-    //{
-    //    material.Ambient  = (mbm::COLOR)mbm::COLOR(255, 255, 255);
-    //    material.Diffuse  = (mbm::COLOR)mbm::COLOR(255, 255, 255);
-    //    material.Specular = (mbm::COLOR)mbm::COLOR(255, 255, 255);
-    //    material.Emissive = (mbm::COLOR)mbm::COLOR(0, 0, 0);
-    //    material.Power    = 1.0f;
-    //}
-
-
-
     void getAABB(const float halfDimIn[2], const float angleRadian, float *widthOut, float *heightOut) noexcept
     {
         const float corner_1_x = halfDimIn[0];
@@ -294,70 +235,70 @@ namespace util
         }
     }
 
-	void base_64_decode(const std::string & str_encoded, std::string & result)
-	{
-		static const std::string base64_chars =
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			"abcdefghijklmnopqrstuvwxyz"
-			"0123456789+/";
+    void base_64_decode(const std::string & str_encoded, std::string & result)
+    {
+        static const std::string base64_chars =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789+/";
 
-		std::function<bool(uint8_t)> is_base64 = [](uint8_t c)->bool
-		{
-			return (isalnum(c) || (c == '+') || (c == '/'));
-		};
+        std::function<bool(uint8_t)> is_base64 = [](uint8_t c)->bool
+        {
+            return (isalnum(c) || (c == '+') || (c == '/'));
+        };
 
-		auto in_len = str_encoded.size();
-		int i = 0;
-		int j = 0;
-		int in_ = 0;
-		uint8_t char_array_4[4], char_array_3[3];
-		
-		while (in_len-- && (str_encoded[in_] != '=') && is_base64(str_encoded[in_]))
-		{
-			char_array_4[i++] = str_encoded[in_]; in_++;
-			if (i == 4)
-			{
-				for (i = 0; i < 4; i++)
-				{
-					char_array_4[i] = static_cast<uint8_t>(base64_chars.find(char_array_4[i]));
-				}
-				char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-				char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-				char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+        auto in_len = str_encoded.size();
+        int i = 0;
+        int j = 0;
+        int in_ = 0;
+        uint8_t char_array_4[4], char_array_3[3];
+        
+        while (in_len-- && (str_encoded[in_] != '=') && is_base64(str_encoded[in_]))
+        {
+            char_array_4[i++] = str_encoded[in_]; in_++;
+            if (i == 4)
+            {
+                for (i = 0; i < 4; i++)
+                {
+                    char_array_4[i] = static_cast<uint8_t>(base64_chars.find(char_array_4[i]));
+                }
+                char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+                char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+                char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-				for (i = 0; (i < 3); i++)
-				{
-					result += char_array_3[i];
-				}
-				i = 0;
-			}
-		}
+                for (i = 0; (i < 3); i++)
+                {
+                    result += char_array_3[i];
+                }
+                i = 0;
+            }
+        }
 
-		if (i)
-		{
-			for (j = i; j < 4; j++)
-			{
-				char_array_4[j] = 0;
-			}
+        if (i)
+        {
+            for (j = i; j < 4; j++)
+            {
+                char_array_4[j] = 0;
+            }
 
-			for (j = 0; j < 4; j++)
-			{
-				char_array_4[j] = static_cast<uint8_t>(base64_chars.find(char_array_4[j]));
-			}
+            for (j = 0; j < 4; j++)
+            {
+                char_array_4[j] = static_cast<uint8_t>(base64_chars.find(char_array_4[j]));
+            }
 
-			char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-			char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-			char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-			for (j = 0; (j < i - 1); j++)
-			{
-				result += char_array_3[j];
-			}
-		}
+            for (j = 0; (j < i - 1); j++)
+            {
+                result += char_array_3[j];
+            }
+        }
 
-	}
+    }
 
-    #if defined(_WIN32)
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 
     void getDisplayMetrics(int * width, int * height)
     {
@@ -375,4 +316,40 @@ namespace util
         }
     }
     #endif
+
+    bool isBackendEngineOpenGlEs() noexcept
+    {
+#if defined (USE_OPENGL_ES)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineDirectx9() noexcept
+    {
+#if defined (USE_DIRECTX9)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineVulkan() noexcept
+    {
+#if defined (USE_VULKAN)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    bool isBackendEngineMetal() noexcept
+    {
+#if defined (USE_METAL)
+        return true;
+#else
+        return false;
+#endif
+    }
 }

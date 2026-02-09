@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #ifndef PLUS_WINDOWS_H
 #define PLUS_WINDOWS_H
 
@@ -239,6 +240,7 @@ class STATIC_IMAGE_RESOURCE
 
 API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
 API_IMPL const char *getLastErrWindows(const char *where, char *outMessage);
+API_IMPL const char* getHresultErr(HRESULT hr, const char* where, char* outMessage);
 API_IMPL bool startUpWindows64(const char *name);
 API_IMPL bool startUpWindows(const char *name);
 
@@ -426,32 +428,32 @@ class BMP
     //--------------------------------------------------------------------------------------------
 };
 
-class EVENTS
+class EVENTS_WIN32
 {
-  public:
+public:
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
+    API_IMPL virtual void onTouchDown(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
+    API_IMPL virtual void onTouchUp(HWND w, int key, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchMove(HWND w, float x, float y) PURE;
+    API_IMPL virtual void onTouchMove(HWND w, float x, float y) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onTouchZoom(HWND w, float zoom) PURE;
+    API_IMPL virtual void onTouchZoom(HWND w, float zoom) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onKeyDown(HWND w, int key) PURE;
+    API_IMPL virtual void onKeyDown(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onKeyUp(HWND w, int key) PURE;
+    API_IMPL virtual void onKeyUp(HWND w, int key) PURE;
 
     //--------------------------------------------------------------------------------------------
-      API_IMPL virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
+    API_IMPL virtual void onDoubleClick(HWND w, float x, float y, int key) PURE;
     //--------------------------------------------------------------------------------------------
 
-      API_IMPL virtual void onResizeWindow(HWND w, int width, int height) PURE;
+    API_IMPL virtual void onResizeWindow(HWND w, int width, int height) PURE;
 };
 
 struct TIMER;
@@ -936,8 +938,9 @@ class WINDOW
     API_IMPL static bool isEnableRender(HWND hwndIgnore);
     API_IMPL static void disableRender(HWND hwndIgnore);
     API_IMPL DRAW *getGrafics(const int idComponent) const;
-    API_IMPL void setCallEventsManager(EVENTS *ptrCallEventsManager);
+    API_IMPL void setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager);
     API_IMPL uint32_t setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index);
+    API_IMPL uint32_t addObjectContext(void* YOUR_PTR_OBJECT);
     API_IMPL void *getObjectContext(const uint32_t index);
     API_IMPL void setCursor(WINPLUS_TYPE_CURSOR TYPE);
     API_IMPL WINPLUS_TYPE_CURSOR getCursor();
@@ -1184,7 +1187,7 @@ class WINDOW
     int  dialogunitTabStopInPixel;
     char nameAplication[MAX_PATH];
     std::map<int, void *> lsObjectsContext;
-    EVENTS *                          callEventsManager;
+    EVENTS_WIN32*                     callEventsManager;
     HWND                              hwnd;
     HWND                              hwndLastTrackBar;
     HWND                              hwndLastHover;
@@ -1345,5 +1348,6 @@ API_IMPL COM_BETWEEN_WINP* getNewComBetween(HWND owerHwnd_, OnEventWinPlus onEve
             #define new DBG_NEW_OLD
         #endif
     #endif
+#endif
 #endif
 #endif

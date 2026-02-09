@@ -16,60 +16,37 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined (USE_DUMMY_BACK_END_ENGINE)
 
-#ifndef COMMON_JNI_GLES_H
-#define COMMON_JNI_GLES_H
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#include <specific-dummy.h> // replace with your specific backend engine header
 
-#if defined ANDROID
 
-#include <string>
-#include <stdio.h>
-#include <jni.h>
-#include <string>
-#include <sstream>
-
-namespace util
+namespace mbm
 {
-    class COMMON_JNI
+    SPECIFIC_AUX_CONTEXT_DEVICE::SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
     {
-      public:
-        JNIEnv *    jenv;
-        std::string absPath, apkPath;
-        jclass      jclassFileJniEngine;
-        jclass      jclassDoCommandsJniEngine;
-        jclass      jclassKeyCodeJniEngine;
-        jclass      jclassInstanceActivityEngine;
-        jclass      jclassAudioManagerJniEngine;
-        COMMON_JNI();
-        static COMMON_JNI *getInstance();
-        static void release();
-        const char *getStrToDelete(const char *str);
-        void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
-      private:
-        static COMMON_JNI *instanceComunJni;
-        char              packageName[255];
-        char              packageNameMiniMBMClasses[255];
-        std::string       retPath;
-        std::string       buffer_new_stringUTF[10];
-        int               index_string_utf;
-        jclass getClass(const char *nameClass);
-      public:
-        const char* get_safe_string_utf(const char* string_input);
-        #if _DEBUG
-            FILE *onFailOpenFile(const int lineNumber, const char *fileName, const char *message);
-        #else
-            FILE *onFailOpenFile(const int, const char *, const char *);
-        #endif
-        const int onFailExistFile(const int lineNumber, const char *fileName, const char *message);
-        void addPathDroid(const char *fileName);
-        int existFileOnAssets(const char *fileName);
-        const char *copyFileFromAsset(const char *fileName, const char *mode);
-        uint8_t *getImageDataFromDroid(const char *fileName, int *width, int *height);
-        FILE *fopenAsset(const char *fileName, const char *mode = "rb");
+        REMINDER_TODO
     };
-};
 
-int access_file(const char *fileName, int);
+    SPECIFIC_AUX_CONTEXT_DEVICE::~SPECIFIC_AUX_CONTEXT_DEVICE() noexcept
+    {
+		constexpr bool wasDeviceLost = false; // You can change this value based on your engine's context loss handling
+		this->release(wasDeviceLost);
+        REMINDER_TODO
+    };
 
-#endif
+    void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost) noexcept
+    {
+        REMINDER_TODO
+    }
+
+}
+
+int access_file(const char *fileName, int)
+{
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    return 0;
+}
+
 #endif

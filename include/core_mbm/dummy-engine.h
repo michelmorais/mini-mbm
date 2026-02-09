@@ -20,13 +20,13 @@
 #ifndef DUMMY_ENGINE_H
 #define DUMMY_ENGINE_H
 
-#define Stringize( L )     #L 
-#define MakeString( M, L ) M(L)
-#define $Line MakeString( Stringize, __LINE__ )
-#define REMINDER_TODO __FILE__ "(" $Line ") : TODO: "
-
-#ifndef ANDROID
-    #define SHOW_PRAGMA_MESSAGE
+// Macro to emit TODO reminders during compilation
+// Disabled on Android as Clang handles #pragma message differently
+#ifdef ANDROID
+    #define REMINDER_TODO
+#else
+    #define DO_PRAGMA(x) _Pragma(#x)
+    #define REMINDER_TODO DO_PRAGMA(message("TODO: implement this function"))
 #endif
 
 #endif

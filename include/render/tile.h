@@ -56,7 +56,6 @@ namespace mbm
         virtual bool isOnFrustum() override;
         virtual bool render() override;
         virtual bool onRestoreDevice() override;
-        virtual void onStop()override;
         INFO_PHYSICS infoPhysics;
         TILE *      ptr_tileMap;
         MESH_MBM *  ptr_Mesh;
@@ -94,14 +93,13 @@ namespace mbm
         bool                    render() override;
         bool                    renderLayer(const uint32_t index_layer);
         bool                    onRestoreDevice() override;
-        void                    onStop() override;
         const INFO_PHYSICS *	getInfoPhysics() const override;
         const MESH_MBM *        getMesh() const override;
         bool                    isLoaded() const override;
         inline bool             renderBrick(const util::BTILE_INFO * ptr_TileInfo, 
                                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                                             const mbm::SHADER * shader,
-                                            const unsigned int idTextureOverrideStage2,
+                                            TEXTURE* idTextureOverrideStage2,
                                             const uint32_t i, 
                                             const uint32_t j,
                                             const float offset_x,

@@ -54,7 +54,7 @@ enum COLOR_TERMINAL
 
 namespace util
 {
-    #if defined   _WIN32
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
         API_IMPL char *toChar(const WCHAR *wstr, char *outText);
         API_IMPL void getDisplayMetrics(int * width, int * height);
@@ -115,9 +115,9 @@ namespace log_util
 #endif
 
 #ifndef ERROR_LOG
-    #define ERROR_LOG(...) log_util::log_tag(TYPE_LOG::TYPE_LOG_ERROR, "ERROR", __VA_ARGS__)
-    #define INFO_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_INFO,  "INFO",  __VA_ARGS__)
-    #define WARN_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_WARN,  "WARN",  __VA_ARGS__)
+    #define ERROR_LOG(...) log_util::log_tag(TYPE_LOG::TYPE_LOG_ERROR, "min-mbm ERROR", __VA_ARGS__)
+    #define INFO_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_INFO,  "min-mbm INFO",  __VA_ARGS__)
+    #define WARN_LOG(...)  log_util::log_tag(TYPE_LOG::TYPE_LOG_WARN,  "min-mbm WARN",  __VA_ARGS__)
 
 	#ifdef _DEBUG
 	#    define PRINT_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_ERROR, __VA_ARGS__ );
@@ -131,9 +131,15 @@ namespace log_util
 	#    define PRINT_INFO_IF_DEBUG(...) while(false)
 	#endif
 
+    #ifdef _DEBUG
+	#    define PRINT_WARN_IF_DEBUG(...) log_util::log_tag_file_and_line(__LINE__,__FILE__,TYPE_LOG_WARN, __VA_ARGS__ );
+	#else
+	#    define PRINT_WARN_IF_DEBUG(...) while(false)
+	#endif
+
 	#define ERROR_AT(line_num,file_name,...)  log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
-	#define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_ERROR, __VA_ARGS__ );
+	#define INFO_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_INFO, __VA_ARGS__ );
+	#define WARN_AT(line_num,file_name,...)   log_util::log_tag_file_and_line(line_num,file_name,TYPE_LOG_WARN, __VA_ARGS__ );
 #endif
 
 API_IMPL const char* getLodePNGVersion();

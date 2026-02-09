@@ -231,7 +231,7 @@ TIMER_CALL_BACK::TIMER_CALL_BACK(const int functionNameCallBackRef, const float 
         /* end trick */
 
         lua_rawseti(lua, -2, 1);
-        auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+		auto* userScene = static_cast<USER_DATA_SCENE_LUA*>(device->scene->userData);//USER_DATA_SCENE_LUA initialized in SCENE_SCRIPT::SCENE_SCRIPT (manager-lua.cpp)
         userScene->lsTimerCallBack.push_back(timerCallBack);
         lua_pushvalue(lua, 1);
         if (timerCallBack->ref_MeAsTableTimer != LUA_NOREF)

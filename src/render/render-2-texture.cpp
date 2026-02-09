@@ -38,10 +38,14 @@ namespace mbm
     
     void CAMERA_TARGET::enableMode2D(mbm::DEVICE *device, const float width, const float height)
     {
+        //TODO: may need adjust this in the future
+        // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
+        constexpr float zNear2d = -100;
+        constexpr float zFar2d = 100;
         const VEC3 posCam(-this->position.x, -this->position.y, 100);
         MatrixIdentity(&this->matrixView);
         MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &this->angle, &this->scale);
-        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear, zFar);
+        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear2d, zFar2d);
         MatrixMultiply(&device->camera.matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
     }
     
@@ -106,7 +110,7 @@ namespace mbm
         this->bufferGL.release();
     }
     
-    bool RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha, int * texture_id_out)
+    TEXTURE* RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha)
     {
         #if defined _WIN32
             const char *messageError =
@@ -131,7 +135,7 @@ namespace mbm
             if (nickName == nullptr || _widthTexture == 0 || _heightTexture == 0)
             {
                 PRINT_IF_DEBUG("nickName == nullptr || widthTexture == 0 || heightTexture == 0");
-                return false;
+                return nullptr;
             }
             this->widthTexture  = _widthTexture;
             this->heightTexture = _heightTexture;
@@ -147,17 +151,18 @@ namespace mbm
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.idTexture0[0] = this->texture->idTexture;
-                    if(texture_id_out)
-                        *texture_id_out          = this->texture->idTexture;
-                    this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0 );
                 }
                 else
                 {
-                    return false;
+                    this->texture = nullptr;
+                    return this->texture;
                 }
                 if (!createAnimationAndShader2Render2Texture())
-                    return false;
+                {
+                    this->texture = nullptr;
+                    return this->texture;
+                }
                 char strTemp[255];
                 snprintf(strTemp,sizeof(strTemp) -1, "rende2texture|%s|%u|%u|%u|%u|%s", 
                     nickName, 
@@ -181,7 +186,7 @@ namespace mbm
                 this->updateAABB();
             }
         }
-        return (this->texture != nullptr);
+        return this->texture;
     }
     
     void RENDER_2_TEXTURE::flip_vertically(unsigned char *pixels, const int width, const int height, const int bytes_per_pixel)
@@ -282,11 +287,6 @@ namespace mbm
         return true;
     }
     
-    void RENDER_2_TEXTURE::onStop()
-    {
-        this->release();
-    }
-    
     bool RENDER_2_TEXTURE::render() // Renderiza a textura
     {
         if (this->bufferGL.isLoadedBuffer())
@@ -320,7 +320,7 @@ namespace mbm
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    this->bufferGL.idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                    this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(&this->bufferGL))
                     return false;
                 return true;
@@ -410,27 +410,26 @@ namespace mbm
     bool RENDER_2_TEXTURE::onRestoreDevice()
     {
         std::vector<std::string> result;
+        this->texture = nullptr;
+        this->bufferGL.release();
         util::split(result, this->fileName.c_str(), '|');
-        if (result.size() <= 1)
+        if (result.size() != 7)
             return false;
         if (result[0].compare("rende2texture") == 0)
         {
-            if (result.size() != 7)
-                return false;
             const char *fileNameTexture = result[1].c_str();
             if (result[1].size() == 0)
                 return false;
-            const auto width    = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
-            const auto height   = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
-            bool               hasAlpha = result[6].compare("true") == 0 ? true : false;
-            this->texture               = nullptr;
-            CUBE *      cube            = this->infoPhysics.lsCube[0];
-            const float widthFrame      = cube->halfDim.x * 2.0f;
-            const float heightFrame     = cube->halfDim.y * 2.0f;
-            if (!this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha, nullptr))
+            const auto width  = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
+            const auto height = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
+            bool     hasAlpha = result[6].compare("true") == 0 ? true : false;
+            float widthFrame  = 0;
+            float heightFrame = 0;
+            this->infoPhysics.getBounds(&widthFrame, &heightFrame);
+            if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
 #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
+            PRINT_INFO_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
 #endif
             return true;
         }
@@ -459,12 +458,28 @@ namespace mbm
         _position[3].x = x;
         _position[3].y = y;
         _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
+        if (normal)
         {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
+            for (int i = 0; i < 4; ++i)
+            {
+                normal[i].x = 0;
+                normal[i].y = 0;
+                normal[i].z = 1;
+            }
         }
+        // OpenGL ES : Origin at bottom - left, Y - axis points up(standard math convention)
+        //	DirectX9 : Origin at top - left, Y - axis points down(screen convention)
+        //  So when rendering to texture, DirectX9's render target flips the Y-axis relative to what OpenGL ES produces.
+#if defined(USE_DIRECTX9)
+        uv[0].x = 0;
+        uv[0].y = 1;
+        uv[1].x = 0;
+        uv[1].y = 0;
+        uv[2].x = 1;
+        uv[2].y = 1;
+        uv[3].x = 1;
+        uv[3].y = 0;
+#else
         uv[0].x = 0;
         uv[0].y = 0;
         uv[1].x = 0;
@@ -473,6 +488,7 @@ namespace mbm
         uv[2].y = 0;
         uv[3].x = 1;
         uv[3].y = 1;
+#endif
     }
     
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()
@@ -495,18 +511,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  RENDER_2_TEXTURE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  RENDER_2_TEXTURE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool RENDER_2_TEXTURE::isLoaded() const
     {

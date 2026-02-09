@@ -154,13 +154,11 @@
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="mini-mbm-launcher.h" />
-    <ClInclude Include="parse_laucher_args.hpp" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="mini-mbm-launcher.cpp" />
-    <ClCompile Include="parse_laucher_args.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="mini-mbm-launcher.rc" />

@@ -20,7 +20,6 @@
 
 
 #include "scene-1.h"
-#include <platform/common-jni.h>
 #include <util-interface.h>
 
 MY_SCENE::MY_SCENE()

@@ -120,12 +120,12 @@ namespace mbm
             anim->fx.setBlendOp();
             if (anim->fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,anim->fx.textureOverrideStage2->idTexture))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, anim->fx.textureOverrideStage2))
                     return false;
             }
             else
             {
-                if (!mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,0))
+                if (!mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, nullptr))
                     return false;
             }
             return true;
@@ -135,15 +135,12 @@ namespace mbm
     
     bool MESH::onRestoreDevice()
     {
-        const unsigned int oldIndexCurrentAnimation = this->indexCurrentAnimation;
-        this->releaseAnimation();
+		this->mesh = nullptr;
         const bool ret = this->load(this->fileName.c_str());
         if (ret)
         {
-            this->indexCurrentAnimation = oldIndexCurrentAnimation;
-            this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
             #if defined DEBUG_RESTORE
-                PRINT_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
             #endif
         }
         #if defined DEBUG_RESTORE
@@ -172,11 +169,11 @@ namespace mbm
         return false;
     }
     
-    void MESH::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void MESH::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * MESH::getInfoPhysics() const
     {
@@ -190,18 +187,18 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  MESH::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  MESH::getAnimationManager()
+    {
+        return this;
+    }
     
     bool MESH::isLoaded() const
     {
