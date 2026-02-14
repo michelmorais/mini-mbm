@@ -92,7 +92,7 @@ class IMGUI_LUA;
 #endif
 
 // Helper function to map native keys to ImGuiKey
-static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
+/*static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
 {
     #if defined(_WIN32)
     switch(native_key)
@@ -218,7 +218,7 @@ static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
         case XK_Insert: return ImGuiKey_Insert;
         case XK_Delete: return ImGuiKey_Delete;
         case XK_BackSpace: return ImGuiKey_Backspace;
-        case XK_space: return ImGuiKey_Space;
+        case XK_KP_Space: return ImGuiKey_Space;
         case XK_Return: return ImGuiKey_Enter;
         case XK_Escape: return ImGuiKey_Escape;
         // Add more mappings as needed
@@ -227,7 +227,7 @@ static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
     #else
     return ImGuiKey_None;
     #endif
-}
+}*/
 
 
 static int PLUGIN_IDENTIFIER = 1; //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
@@ -1093,7 +1093,7 @@ public:
             ImGui::StyleColorsDark();
             ImGuiIO& imGuIo = ImGui::GetIO();
             
-            // Load default font with extended Latin characters (includes Portuguese: á, é, í, ó, ú, ã, õ, ç)
+            // Load default font with extended Latin characters (includes Portuguese: ï¿½, ï¿½, ï¿½, ï¿½, ï¿½, ï¿½, ï¿½, ï¿½)
             ImFontConfig font_cfg;
             font_cfg.OversampleH = 2;
             font_cfg.OversampleV = 2;
