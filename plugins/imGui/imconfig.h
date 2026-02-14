@@ -45,6 +45,8 @@
 //#define IMGUI_API __attribute__((visibility("default")))  // GCC/Clang: override visibility when set is hidden
 
 //---- Don't define obsolete functions/enums/behaviors. Consider enabling from time to time after updating to clean your code of obsolete function/names.
+// Defined (current): Obsolete fields/functions are removed from ImGuiIO → struct is 3000 bytes
+// Not defined (commented out): Obsolete fields are included → struct is 3032 bytes
 #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 
 //---- Disable all of Dear ImGui or don't implement standard windows/tools.
