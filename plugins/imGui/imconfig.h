@@ -29,13 +29,13 @@
 // For DLL builds, define IMGUI_EXPORTS when building the DLL, 
 // and IMGUI_IMPORTS when using the DLL from another project
 #if defined(_WIN32)
-    #if defined(IMGUI_EXPORTS) || defined(_USRDLL)  // Building the DLL
-        #define IMGUI_API __declspec(dllexport)
-    #elif defined(IMGUI_IMPORTS)  // Using the DLL
-        #define IMGUI_API __declspec(dllimport)
-    #else
-        #define IMGUI_API  // Static library
-    #endif
+#if defined(IMGUI_EXPORTS) || defined(IMGUI_IMP_BUILD_DLL) || defined(_USRDLL)  // Building the DLL
+    #define IMGUI_API __declspec(dllexport)
+#elif defined(IMGUI_IMPORTS)  // Using the DLL
+    #define IMGUI_API __declspec(dllimport)
+#else
+    #define IMGUI_API  // Static library
+#endif
 #elif defined(__GNUC__) && defined(__linux__) // Linux shared library
     #define IMGUI_API __attribute__((visibility("default")))
 #else

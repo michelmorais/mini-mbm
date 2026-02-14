@@ -71,28 +71,28 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/</IncludePath>
+    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/;../../plugins;../../third-party</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/</IncludePath>
+    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/;../../plugins;../../third-party</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/</IncludePath>
+    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/;../../plugins;../../third-party</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/</IncludePath>
+    <IncludePath>../../src/mini-mbm-lib;../../platform-msvs/mini-mbm-launcher;../../include/;../../plugins;../../third-party</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-    </ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary></ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -108,7 +108,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeaderFile />
@@ -173,3 +173,4 @@ Call  "$(MSBuildProjectDirectory)\..\mini-mbm\create_shortcut_for_dev_kit.bat"</
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
