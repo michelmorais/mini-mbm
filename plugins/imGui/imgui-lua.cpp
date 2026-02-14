@@ -1277,9 +1277,9 @@ public:
 
     void onTouchDown(int key, float x, float y)
     {
-		// On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
-		// On Linux/Android, we must feed input manually for both mouse and touch
-		if(imGuiContext)
+        // On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
+        // On Linux/Android, we must feed input manually for both mouse and touch
+        if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
             x *= sx;
@@ -1343,10 +1343,10 @@ public:
     
     void onKeyDown(int key)
     {
-        // On Windows, ImGui_ImplWin32 handles keyboard input automatically via WndProc however we implement because can't modify the engine's WndProc
-        // On Linux/Android, we must feed input manually for both mouse and touch
+        // NOTE: ImGui_ImplWin32_NewFrame() handles time updates, gamepad polling, and keyboard workarounds
+        // but does NOT handle mouse/keyboard input (requires WndProc hook which we can't modify).
+        // We feed all input manually via these callbacks on all platforms.
 
-#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1359,7 +1359,101 @@ public:
             }
             
             // Handle modifier keys
-            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            #if defined(_WIN32)
+            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
+                io.AddKeyEvent(ImGuiMod_Ctrl, true);
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
+                io.AddKeyEvent(ImGuiMod_Shift, true);
+            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
+                io.AddKeyEvent(ImGuiMod_Alt, true);
+            if (key == VK_LWIN || key == VK_RWIN)
+                io.AddKeyEvent(ImGuiMod_Super, true);
+            
+            // Add character input for text fields (only for printable characters)
+            if (key >= 'A' && key <= 'Z')
+            {
+                // Check if shift is held - if so, use uppercase, otherwise lowercase
+                bool shift_held = io.KeyShift;
+                bool caps_on = isCapsLockOn();
+                bool uppercase = (shift_held && !caps_on) || (!shift_held && caps_on);
+                io.AddInputCharacter(uppercase ? key : (key - 'A' + 'a'));
+            }
+            else if (key >= '0' && key <= '9')
+            {
+                // Handle shift+number for symbols
+                if (io.KeyShift)
+                {
+                    static const char shifted[] = ")!@#$%^&*(";
+                    io.AddInputCharacter(shifted[key - '0']);
+                }
+                else
+                {
+                    io.AddInputCharacter(key);
+                }
+            }
+            // Numpad numbers (NumLock on)
+            else if (key >= VK_NUMPAD0 && key <= VK_NUMPAD9)
+            {
+                io.AddInputCharacter('0' + (key - VK_NUMPAD0));
+            }
+            else if (key == VK_DECIMAL)
+            {
+                io.AddInputCharacter('.');
+            }
+            else if (key == VK_SPACE)
+            {
+                io.AddInputCharacter(' ');
+            }
+            else if (key == VK_RETURN)
+            {
+                io.AddInputCharacter('\n');
+            }
+            // Handle special punctuation keys on Windows
+            else if (key == VK_OEM_1) // ';:'
+            {
+                io.AddInputCharacter(io.KeyShift ? ':' : ';');
+            }
+            else if (key == VK_OEM_PLUS) // '=+'
+            {
+                io.AddInputCharacter(io.KeyShift ? '+' : '=');
+            }
+            else if (key == VK_OEM_COMMA) // ',<'
+            {
+                io.AddInputCharacter(io.KeyShift ? '<' : ',');
+            }
+            else if (key == VK_OEM_MINUS) // '-_'
+            {
+                io.AddInputCharacter(io.KeyShift ? '_' : '-');
+            }
+            else if (key == VK_OEM_PERIOD) // '.>'
+            {
+                io.AddInputCharacter(io.KeyShift ? '>' : '.');
+            }
+            else if (key == VK_OEM_2) // '/?'
+            {
+                io.AddInputCharacter(io.KeyShift ? '?' : '/');
+            }
+            else if (key == VK_OEM_3) // '`~'
+            {
+                io.AddInputCharacter(io.KeyShift ? '~' : '`');
+            }
+            else if (key == VK_OEM_4) // '[{'
+            {
+                io.AddInputCharacter(io.KeyShift ? '{' : '[');
+            }
+            else if (key == VK_OEM_5) // '\|'
+            {
+                io.AddInputCharacter(io.KeyShift ? '|' : '\\');
+            }
+            else if (key == VK_OEM_6) // ']}'
+            {
+                io.AddInputCharacter(io.KeyShift ? '}' : ']');
+            }
+            else if (key == VK_OEM_7) // '\'"'
+            {
+                io.AddInputCharacter(io.KeyShift ? '"' : '\'');
+            }
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             if (key == XK_Control_L || key == XK_Control_R)
                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
             if (key == XK_Shift_L || key == XK_Shift_R)
@@ -1411,7 +1505,6 @@ public:
             }
             #endif
         }
-#endif
     }
 
     void onKeyUp(int key)
@@ -1428,16 +1521,7 @@ public:
             }
             
             // Handle modifier keys
-            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-            if (key == XK_Control_L || key == XK_Control_R)
-                io.AddKeyEvent(ImGuiMod_Ctrl, false);
-            if (key == XK_Shift_L || key == XK_Shift_R)
-                io.AddKeyEvent(ImGuiMod_Shift, false);
-            if (key == XK_Alt_L || key == XK_Alt_R)
-                io.AddKeyEvent(ImGuiMod_Alt, false);
-            if (key == XK_Super_L || key == XK_Super_R)
-                io.AddKeyEvent(ImGuiMod_Super, false);
-            #elif defined(_WIN32)
+            #if defined(_WIN32)
             if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
                 io.AddKeyEvent(ImGuiMod_Ctrl, false);
             if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
@@ -1445,6 +1529,15 @@ public:
             if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
                 io.AddKeyEvent(ImGuiMod_Alt, false);
             if (key == VK_LWIN || key == VK_RWIN)
+                io.AddKeyEvent(ImGuiMod_Super, false);
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            if (key == XK_Control_L || key == XK_Control_R)
+                io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            if (key == XK_Shift_L || key == XK_Shift_R)
+                io.AddKeyEvent(ImGuiMod_Shift, false);
+            if (key == XK_Alt_L || key == XK_Alt_R)
+                io.AddKeyEvent(ImGuiMod_Alt, false);
+            if (key == XK_Super_L || key == XK_Super_R)
                 io.AddKeyEvent(ImGuiMod_Super, false);
             #endif
         }
@@ -1493,7 +1586,9 @@ public:
             // Update delta time
             imGuIo.DeltaTime = delta <= 0.0f ? 1.0f/60.0f : delta;
             
-            // Backend NewFrame calls
+        // Backend NewFrame calls
+        // NOTE: ImGui_ImplWin32_NewFrame() handles time tracking, gamepad polling, and keyboard workarounds
+        // It does NOT handle input events - we do that manually via onKeyDown/onTouch* callbacks
 #if defined(_WIN32)
             ImGui_ImplWin32_NewFrame();
 #endif
