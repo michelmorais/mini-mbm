@@ -172,6 +172,7 @@
     <ClInclude Include="..\..\plugins\imGui\imgui-lua.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_win32.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_internal.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_stdlib.h" />
@@ -187,6 +188,7 @@
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_win32.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_stdlib.cpp" />
+    <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_widgets.cpp" />
     <ClCompile Include="ImGui-dllmain.cpp" />
   </ItemGroup>

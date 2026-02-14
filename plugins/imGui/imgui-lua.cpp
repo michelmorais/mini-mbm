@@ -1,4 +1,4 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+﻿/*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT);                                                                                                     |
 | Copyright (C); 2020      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                      |
 |                                                                                                                        |
@@ -17,7 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+    #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+#endif
 #include "imgui.h"
 
 #if defined USE_OPENGL_ES
@@ -89,24 +91,148 @@ class IMGUI_LUA;
     #include <core_mbm/plugin-callback.h>
 #endif
 
+// Helper function to map native keys to ImGuiKey
+static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
+{
+    #if defined(_WIN32)
+    switch(native_key)
+    {
+        case VK_TAB: return ImGuiKey_Tab;
+        case VK_LEFT: return ImGuiKey_LeftArrow;
+        case VK_RIGHT: return ImGuiKey_RightArrow;
+        case VK_UP: return ImGuiKey_UpArrow;
+        case VK_DOWN: return ImGuiKey_DownArrow;
+        case VK_PRIOR: return ImGuiKey_PageUp;
+        case VK_NEXT: return ImGuiKey_PageDown;
+        case VK_HOME: return ImGuiKey_Home;
+        case VK_END: return ImGuiKey_End;
+        case VK_INSERT: return ImGuiKey_Insert;
+        case VK_DELETE: return ImGuiKey_Delete;
+        case VK_BACK: return ImGuiKey_Backspace;
+        case VK_SPACE: return ImGuiKey_Space;
+        case VK_RETURN: return ImGuiKey_Enter;
+        case VK_ESCAPE: return ImGuiKey_Escape;
+        case VK_OEM_7: return ImGuiKey_Apostrophe;
+        case VK_OEM_COMMA: return ImGuiKey_Comma;
+        case VK_OEM_MINUS: return ImGuiKey_Minus;
+        case VK_OEM_PERIOD: return ImGuiKey_Period;
+        case VK_OEM_2: return ImGuiKey_Slash;
+        case VK_OEM_1: return ImGuiKey_Semicolon;
+        case VK_OEM_PLUS: return ImGuiKey_Equal;
+        case VK_OEM_4: return ImGuiKey_LeftBracket;
+        case VK_OEM_5: return ImGuiKey_Backslash;
+        case VK_OEM_6: return ImGuiKey_RightBracket;
+        case VK_OEM_3: return ImGuiKey_GraveAccent;
+        case VK_CAPITAL: return ImGuiKey_CapsLock;
+        case VK_SCROLL: return ImGuiKey_ScrollLock;
+        case VK_NUMLOCK: return ImGuiKey_NumLock;
+        case VK_SNAPSHOT: return ImGuiKey_PrintScreen;
+        case VK_PAUSE: return ImGuiKey_Pause;
+        case VK_NUMPAD0: return ImGuiKey_Keypad0;
+        case VK_NUMPAD1: return ImGuiKey_Keypad1;
+        case VK_NUMPAD2: return ImGuiKey_Keypad2;
+        case VK_NUMPAD3: return ImGuiKey_Keypad3;
+        case VK_NUMPAD4: return ImGuiKey_Keypad4;
+        case VK_NUMPAD5: return ImGuiKey_Keypad5;
+        case VK_NUMPAD6: return ImGuiKey_Keypad6;
+        case VK_NUMPAD7: return ImGuiKey_Keypad7;
+        case VK_NUMPAD8: return ImGuiKey_Keypad8;
+        case VK_NUMPAD9: return ImGuiKey_Keypad9;
+        case VK_DECIMAL: return ImGuiKey_KeypadDecimal;
+        case VK_DIVIDE: return ImGuiKey_KeypadDivide;
+        case VK_MULTIPLY: return ImGuiKey_KeypadMultiply;
+        case VK_SUBTRACT: return ImGuiKey_KeypadSubtract;
+        case VK_ADD: return ImGuiKey_KeypadAdd;
+        case VK_LSHIFT: return ImGuiKey_LeftShift;
+        case VK_LCONTROL: return ImGuiKey_LeftCtrl;
+        case VK_LMENU: return ImGuiKey_LeftAlt;
+        case VK_LWIN: return ImGuiKey_LeftSuper;
+        case VK_RSHIFT: return ImGuiKey_RightShift;
+        case VK_RCONTROL: return ImGuiKey_RightCtrl;
+        case VK_RMENU: return ImGuiKey_RightAlt;
+        case VK_RWIN: return ImGuiKey_RightSuper;
+        case VK_APPS: return ImGuiKey_Menu;
+        case '0': return ImGuiKey_0;
+        case '1': return ImGuiKey_1;
+        case '2': return ImGuiKey_2;
+        case '3': return ImGuiKey_3;
+        case '4': return ImGuiKey_4;
+        case '5': return ImGuiKey_5;
+        case '6': return ImGuiKey_6;
+        case '7': return ImGuiKey_7;
+        case '8': return ImGuiKey_8;
+        case '9': return ImGuiKey_9;
+        case 'A': return ImGuiKey_A;
+        case 'B': return ImGuiKey_B;
+        case 'C': return ImGuiKey_C;
+        case 'D': return ImGuiKey_D;
+        case 'E': return ImGuiKey_E;
+        case 'F': return ImGuiKey_F;
+        case 'G': return ImGuiKey_G;
+        case 'H': return ImGuiKey_H;
+        case 'I': return ImGuiKey_I;
+        case 'J': return ImGuiKey_J;
+        case 'K': return ImGuiKey_K;
+        case 'L': return ImGuiKey_L;
+        case 'M': return ImGuiKey_M;
+        case 'N': return ImGuiKey_N;
+        case 'O': return ImGuiKey_O;
+        case 'P': return ImGuiKey_P;
+        case 'Q': return ImGuiKey_Q;
+        case 'R': return ImGuiKey_R;
+        case 'S': return ImGuiKey_S;
+        case 'T': return ImGuiKey_T;
+        case 'U': return ImGuiKey_U;
+        case 'V': return ImGuiKey_V;
+        case 'W': return ImGuiKey_W;
+        case 'X': return ImGuiKey_X;
+        case 'Y': return ImGuiKey_Y;
+        case 'Z': return ImGuiKey_Z;
+        case VK_F1: return ImGuiKey_F1;
+        case VK_F2: return ImGuiKey_F2;
+        case VK_F3: return ImGuiKey_F3;
+        case VK_F4: return ImGuiKey_F4;
+        case VK_F5: return ImGuiKey_F5;
+        case VK_F6: return ImGuiKey_F6;
+        case VK_F7: return ImGuiKey_F7;
+        case VK_F8: return ImGuiKey_F8;
+        case VK_F9: return ImGuiKey_F9;
+        case VK_F10: return ImGuiKey_F10;
+        case VK_F11: return ImGuiKey_F11;
+        case VK_F12: return ImGuiKey_F12;
+        default: return ImGuiKey_None;
+    }
+    #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+    // Add Linux/Mac key mapping here as needed
+    switch(native_key)
+    {
+        case XK_Tab: return ImGuiKey_Tab;
+        case XK_Left: return ImGuiKey_LeftArrow;
+        case XK_Right: return ImGuiKey_RightArrow;
+        case XK_Up: return ImGuiKey_UpArrow;
+        case XK_Down: return ImGuiKey_DownArrow;
+        case XK_Page_Up: return ImGuiKey_PageUp;
+        case XK_Page_Down: return ImGuiKey_PageDown;
+        case XK_Home: return ImGuiKey_Home;
+        case XK_End: return ImGuiKey_End;
+        case XK_Insert: return ImGuiKey_Insert;
+        case XK_Delete: return ImGuiKey_Delete;
+        case XK_BackSpace: return ImGuiKey_Backspace;
+        case XK_space: return ImGuiKey_Space;
+        case XK_Return: return ImGuiKey_Enter;
+        case XK_Escape: return ImGuiKey_Escape;
+        // Add more mappings as needed
+        default: return ImGuiKey_None;
+    }
+    #else
+    return ImGuiKey_None;
+    #endif
+}
+
 
 static int PLUGIN_IDENTIFIER = 1; //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
 static bool bDrawListToBackground = false;
 static bool bDrawListToForeground = false;
-
-namespace key_mouse
-{
-    constexpr int   size_mouse_struct_img   = sizeof(ImGuiIO::MouseClicked) / sizeof(ImGuiIO::MouseClicked[0]);
-    constexpr int   size_key_struct_img     = sizeof(ImGuiIO::KeysDown)     / sizeof(ImGuiIO::KeysDown[0]);
-    static float    mouse_wheel = 0;
-    static bool     KeysDown[size_key_struct_img];
-    static bool     KeyCtrl = 0;
-    static bool     KeyShift = 0;
-    static bool     KeyAlt = 0;
-    static bool     KeySuper =0;
-    static bool     KeyCapital = 0;
-    static bool     MouseDown[size_mouse_struct_img];
-};
 
 ImDrawList* GetImDrawListLua()
 {
@@ -182,6 +308,13 @@ static const std::map<std::string,int> enumMouseCursorMap = {
         {"ImGuiMouseCursor_Hand",                             ImGuiMouseCursor_Hand},
         {"ImGuiMouseCursor_NotAllowed",                       ImGuiMouseCursor_NotAllowed}};
 
+static const std::map<std::string,int> enumDirMap = {
+        {"None",                                              ImGuiDir_None},
+        {"Left",                                              ImGuiDir_Left},
+        {"Right",                                             ImGuiDir_Right},
+        {"Up",                                                ImGuiDir_Up},
+        {"Down",                                              ImGuiDir_Down}};
+
 static const std::map<std::string,int> enumKeyMap = {
         {"ImGuiKey_Tab",                                      ImGuiKey_Tab},
         {"ImGuiKey_LeftArrow",                                ImGuiKey_LeftArrow},
@@ -198,7 +331,7 @@ static const std::map<std::string,int> enumKeyMap = {
         {"ImGuiKey_Space",                                    ImGuiKey_Space},
         {"ImGuiKey_Enter",                                    ImGuiKey_Enter},
         {"ImGuiKey_Escape",                                   ImGuiKey_Escape},
-        {"ImGuiKey_KeyPadEnter",                              ImGuiKey_KeyPadEnter},
+        {"ImGuiKey_KeypadEnter",                              ImGuiKey_KeypadEnter},
         {"ImGuiKey_A",                                        ImGuiKey_A},
         {"ImGuiKey_C",                                        ImGuiKey_C},
         {"ImGuiKey_V",                                        ImGuiKey_V},
@@ -208,99 +341,55 @@ static const std::map<std::string,int> enumKeyMap = {
 };
 
 static const std::map<std::string,int> allFlags = {
-        {"ImGuiWindowFlags_None",                             ImGuiWindowFlags_None},
-        {"ImGuiWindowFlags_NoTitleBar",                       ImGuiWindowFlags_NoTitleBar},
-        {"ImGuiWindowFlags_NoResize",                         ImGuiWindowFlags_NoResize},
-        {"ImGuiWindowFlags_NoMove",                           ImGuiWindowFlags_NoMove},
-        {"ImGuiWindowFlags_NoScrollbar",                      ImGuiWindowFlags_NoScrollbar},
-        {"ImGuiWindowFlags_NoScrollWithMouse",                ImGuiWindowFlags_NoScrollWithMouse},
-        {"ImGuiWindowFlags_NoCollapse",                       ImGuiWindowFlags_NoCollapse},
-        {"ImGuiWindowFlags_AlwaysAutoResize",                 ImGuiWindowFlags_AlwaysAutoResize},
-        {"ImGuiWindowFlags_NoBackground",                     ImGuiWindowFlags_NoBackground},
-        {"ImGuiWindowFlags_NoSavedSettings",                  ImGuiWindowFlags_NoSavedSettings},
-        {"ImGuiWindowFlags_NoMouseInputs",                    ImGuiWindowFlags_NoMouseInputs},
-        {"ImGuiWindowFlags_MenuBar",                          ImGuiWindowFlags_MenuBar},
-        {"ImGuiWindowFlags_HorizontalScrollbar",              ImGuiWindowFlags_HorizontalScrollbar},
-        {"ImGuiWindowFlags_NoFocusOnAppearing",               ImGuiWindowFlags_NoFocusOnAppearing},
-        {"ImGuiWindowFlags_NoBringToFrontOnFocus",            ImGuiWindowFlags_NoBringToFrontOnFocus},
-        {"ImGuiWindowFlags_AlwaysVerticalScrollbar",          ImGuiWindowFlags_AlwaysVerticalScrollbar},
-        {"ImGuiWindowFlags_AlwaysHorizontalScrollbar",        ImGuiWindowFlags_AlwaysHorizontalScrollbar},
-        {"ImGuiWindowFlags_AlwaysUseWindowPadding",           ImGuiWindowFlags_AlwaysUseWindowPadding},
-        {"ImGuiWindowFlags_NoNavInputs",                      ImGuiWindowFlags_NoNavInputs},
-        {"ImGuiWindowFlags_NoNavFocus",                       ImGuiWindowFlags_NoNavFocus},
-        {"ImGuiWindowFlags_UnsavedDocument",                  ImGuiWindowFlags_UnsavedDocument},
-        {"ImGuiWindowFlags_NoNav",                            ImGuiWindowFlags_NoNav},
-        {"ImGuiWindowFlags_NoDecoration",                     ImGuiWindowFlags_NoDecoration},
-        {"ImGuiWindowFlags_NoInputs",                         ImGuiWindowFlags_NoInputs},
-        {"ImGuiInputTextFlags_None",                          ImGuiInputTextFlags_None},
-        {"ImGuiInputTextFlags_CharsDecimal",                  ImGuiInputTextFlags_CharsDecimal},
-        {"ImGuiInputTextFlags_CharsHexadecimal",              ImGuiInputTextFlags_CharsHexadecimal},
-        {"ImGuiInputTextFlags_CharsUppercase",                ImGuiInputTextFlags_CharsUppercase},
-        {"ImGuiInputTextFlags_CharsNoBlank",                  ImGuiInputTextFlags_CharsNoBlank},
-        {"ImGuiInputTextFlags_AutoSelectAll",                 ImGuiInputTextFlags_AutoSelectAll},
-        {"ImGuiInputTextFlags_EnterReturnsTrue",              ImGuiInputTextFlags_EnterReturnsTrue},
-        {"ImGuiInputTextFlags_CallbackCompletion",            ImGuiInputTextFlags_CallbackCompletion},
-        {"ImGuiInputTextFlags_CallbackHistory",               ImGuiInputTextFlags_CallbackHistory},
-        {"ImGuiInputTextFlags_CallbackAlways",                ImGuiInputTextFlags_CallbackAlways},
-        {"ImGuiInputTextFlags_CallbackCharFilter",            ImGuiInputTextFlags_CallbackCharFilter},
-        {"ImGuiInputTextFlags_AllowTabInput",                 ImGuiInputTextFlags_AllowTabInput},
-        {"ImGuiInputTextFlags_CtrlEnterForNewLine",           ImGuiInputTextFlags_CtrlEnterForNewLine},
-        {"ImGuiInputTextFlags_NoHorizontalScroll",            ImGuiInputTextFlags_NoHorizontalScroll},
-        {"ImGuiInputTextFlags_AlwaysInsertMode",              ImGuiInputTextFlags_AlwaysInsertMode},
-        {"ImGuiInputTextFlags_ReadOnly",                      ImGuiInputTextFlags_ReadOnly},
-        {"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
-        {"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
-        {"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
-        {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
-        {"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
+{"ImGuiWindowFlags_None",                             ImGuiWindowFlags_None},
+{"ImGuiWindowFlags_NoTitleBar",                       ImGuiWindowFlags_NoTitleBar},
+{"ImGuiWindowFlags_NoResize",                         ImGuiWindowFlags_NoResize},
+{"ImGuiWindowFlags_NoMove",                           ImGuiWindowFlags_NoMove},
+{"ImGuiWindowFlags_NoScrollbar",                      ImGuiWindowFlags_NoScrollbar},
+{"ImGuiWindowFlags_NoScrollWithMouse",                ImGuiWindowFlags_NoScrollWithMouse},
+{"ImGuiWindowFlags_NoCollapse",                       ImGuiWindowFlags_NoCollapse},
+{"ImGuiWindowFlags_AlwaysAutoResize",                 ImGuiWindowFlags_AlwaysAutoResize},
+{"ImGuiWindowFlags_NoBackground",                     ImGuiWindowFlags_NoBackground},
+{"ImGuiWindowFlags_NoSavedSettings",                  ImGuiWindowFlags_NoSavedSettings},
+{"ImGuiWindowFlags_NoMouseInputs",                    ImGuiWindowFlags_NoMouseInputs},
+{"ImGuiWindowFlags_MenuBar",                          ImGuiWindowFlags_MenuBar},
+{"ImGuiWindowFlags_HorizontalScrollbar",              ImGuiWindowFlags_HorizontalScrollbar},
+{"ImGuiWindowFlags_NoFocusOnAppearing",               ImGuiWindowFlags_NoFocusOnAppearing},
+{"ImGuiWindowFlags_NoBringToFrontOnFocus",            ImGuiWindowFlags_NoBringToFrontOnFocus},
+{"ImGuiWindowFlags_AlwaysVerticalScrollbar",          ImGuiWindowFlags_AlwaysVerticalScrollbar},
+{"ImGuiWindowFlags_AlwaysHorizontalScrollbar",        ImGuiWindowFlags_AlwaysHorizontalScrollbar},
+
+{"ImGuiWindowFlags_NoNavInputs",                      ImGuiWindowFlags_NoNavInputs},
+{"ImGuiWindowFlags_NoNavFocus",                       ImGuiWindowFlags_NoNavFocus},
+{"ImGuiWindowFlags_UnsavedDocument",                  ImGuiWindowFlags_UnsavedDocument},
+{"ImGuiWindowFlags_NoNav",                            ImGuiWindowFlags_NoNav},
+{"ImGuiWindowFlags_NoDecoration",                     ImGuiWindowFlags_NoDecoration},
+{"ImGuiWindowFlags_NoInputs",                         ImGuiWindowFlags_NoInputs},
+{"ImGuiInputTextFlags_None",                          ImGuiInputTextFlags_None},
+{"ImGuiInputTextFlags_CharsDecimal",                  ImGuiInputTextFlags_CharsDecimal},
+{"ImGuiInputTextFlags_CharsHexadecimal",              ImGuiInputTextFlags_CharsHexadecimal},
+{"ImGuiInputTextFlags_CharsUppercase",                ImGuiInputTextFlags_CharsUppercase},
+{"ImGuiInputTextFlags_CharsNoBlank",                  ImGuiInputTextFlags_CharsNoBlank},
+{"ImGuiInputTextFlags_AutoSelectAll",                 ImGuiInputTextFlags_AutoSelectAll},
+{"ImGuiInputTextFlags_EnterReturnsTrue",              ImGuiInputTextFlags_EnterReturnsTrue},
+{"ImGuiInputTextFlags_CallbackCompletion",            ImGuiInputTextFlags_CallbackCompletion},
+{"ImGuiInputTextFlags_CallbackHistory",               ImGuiInputTextFlags_CallbackHistory},
+{"ImGuiInputTextFlags_CallbackAlways",                ImGuiInputTextFlags_CallbackAlways},
+{"ImGuiInputTextFlags_CallbackCharFilter",            ImGuiInputTextFlags_CallbackCharFilter},
+{"ImGuiInputTextFlags_AllowTabInput",                 ImGuiInputTextFlags_AllowTabInput},
+{"ImGuiInputTextFlags_CtrlEnterForNewLine",           ImGuiInputTextFlags_CtrlEnterForNewLine},
+{"ImGuiInputTextFlags_NoHorizontalScroll",            ImGuiInputTextFlags_NoHorizontalScroll},
+{"ImGuiInputTextFlags_AlwaysOverwrite",               ImGuiInputTextFlags_AlwaysOverwrite},
+{"ImGuiInputTextFlags_ReadOnly",                      ImGuiInputTextFlags_ReadOnly},
+{"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
+{"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
+{"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
+{"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
+{"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
         {"ImGuiTreeNodeFlags_Selected",                       ImGuiTreeNodeFlags_Selected},
-        {"ImGuiWindowFlags_NoTitleBar",                       ImGuiWindowFlags_NoTitleBar},
-        {"ImGuiWindowFlags_NoResize",                         ImGuiWindowFlags_NoResize},
-        {"ImGuiWindowFlags_NoMove",                           ImGuiWindowFlags_NoMove},
-        {"ImGuiWindowFlags_NoScrollbar",                      ImGuiWindowFlags_NoScrollbar},
-        {"ImGuiWindowFlags_NoScrollWithMouse",                ImGuiWindowFlags_NoScrollWithMouse},
-        {"ImGuiWindowFlags_NoCollapse",                       ImGuiWindowFlags_NoCollapse},
-        {"ImGuiWindowFlags_AlwaysAutoResize",                 ImGuiWindowFlags_AlwaysAutoResize},
-        {"ImGuiWindowFlags_NoBackground",                     ImGuiWindowFlags_NoBackground},
-        {"ImGuiWindowFlags_NoSavedSettings",                  ImGuiWindowFlags_NoSavedSettings},
-        {"ImGuiWindowFlags_NoMouseInputs",                    ImGuiWindowFlags_NoMouseInputs},
-        {"ImGuiWindowFlags_MenuBar",                          ImGuiWindowFlags_MenuBar},
-        {"ImGuiWindowFlags_HorizontalScrollbar",              ImGuiWindowFlags_HorizontalScrollbar},
-        {"ImGuiWindowFlags_NoFocusOnAppearing",               ImGuiWindowFlags_NoFocusOnAppearing},
-        {"ImGuiWindowFlags_NoBringToFrontOnFocus",            ImGuiWindowFlags_NoBringToFrontOnFocus},
-        {"ImGuiWindowFlags_AlwaysVerticalScrollbar",          ImGuiWindowFlags_AlwaysVerticalScrollbar},
-        {"ImGuiWindowFlags_AlwaysHorizontalScrollbar",        ImGuiWindowFlags_AlwaysHorizontalScrollbar},
-        {"ImGuiWindowFlags_AlwaysUseWindowPadding",           ImGuiWindowFlags_AlwaysUseWindowPadding},
-        {"ImGuiWindowFlags_NoNavInputs",                      ImGuiWindowFlags_NoNavInputs},
-        {"ImGuiWindowFlags_NoNavFocus",                       ImGuiWindowFlags_NoNavFocus},
-        {"ImGuiWindowFlags_UnsavedDocument",                  ImGuiWindowFlags_UnsavedDocument},
-        {"ImGuiWindowFlags_NoNav",                            ImGuiWindowFlags_NoNav},
-        {"ImGuiWindowFlags_NoDecoration",                     ImGuiWindowFlags_NoDecoration},
-        {"ImGuiWindowFlags_NoInputs",                         ImGuiWindowFlags_NoInputs},
-        {"ImGuiInputTextFlags_None",                          ImGuiInputTextFlags_None},
-        {"ImGuiInputTextFlags_CharsDecimal",                  ImGuiInputTextFlags_CharsDecimal},
-        {"ImGuiInputTextFlags_CharsHexadecimal",              ImGuiInputTextFlags_CharsHexadecimal},
-        {"ImGuiInputTextFlags_CharsUppercase",                ImGuiInputTextFlags_CharsUppercase},
-        {"ImGuiInputTextFlags_CharsNoBlank",                  ImGuiInputTextFlags_CharsNoBlank},
-        {"ImGuiInputTextFlags_AutoSelectAll",                 ImGuiInputTextFlags_AutoSelectAll},
-        {"ImGuiInputTextFlags_EnterReturnsTrue",              ImGuiInputTextFlags_EnterReturnsTrue},
-        {"ImGuiInputTextFlags_CallbackCompletion",            ImGuiInputTextFlags_CallbackCompletion},
-        {"ImGuiInputTextFlags_CallbackHistory",               ImGuiInputTextFlags_CallbackHistory},
-        {"ImGuiInputTextFlags_CallbackAlways",                ImGuiInputTextFlags_CallbackAlways},
-        {"ImGuiInputTextFlags_CallbackCharFilter",            ImGuiInputTextFlags_CallbackCharFilter},
-        {"ImGuiInputTextFlags_AllowTabInput",                 ImGuiInputTextFlags_AllowTabInput},
-        {"ImGuiInputTextFlags_CtrlEnterForNewLine",           ImGuiInputTextFlags_CtrlEnterForNewLine},
-        {"ImGuiInputTextFlags_NoHorizontalScroll",            ImGuiInputTextFlags_NoHorizontalScroll},
-        {"ImGuiInputTextFlags_AlwaysInsertMode",              ImGuiInputTextFlags_AlwaysInsertMode},
-        {"ImGuiInputTextFlags_ReadOnly",                      ImGuiInputTextFlags_ReadOnly},
-        {"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
-        {"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
-        {"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
-        {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
-        {"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
-        {"ImGuiTreeNodeFlags_Selected",                       ImGuiTreeNodeFlags_Selected},
+        // NOTE: Duplicate WindowFlags entries removed here - they're already defined above
         {"ImGuiTreeNodeFlags_Framed",                         ImGuiTreeNodeFlags_Framed},
-        {"ImGuiTreeNodeFlags_AllowItemOverlap",               ImGuiTreeNodeFlags_AllowItemOverlap},
+        {"ImGuiTreeNodeFlags_AllowOverlap",                   ImGuiTreeNodeFlags_AllowOverlap},
         {"ImGuiTreeNodeFlags_NoTreePushOnOpen",               ImGuiTreeNodeFlags_NoTreePushOnOpen},
         {"ImGuiTreeNodeFlags_NoAutoOpenOnLog",                ImGuiTreeNodeFlags_NoAutoOpenOnLog},
         {"ImGuiTreeNodeFlags_DefaultOpen",                    ImGuiTreeNodeFlags_DefaultOpen},
@@ -311,13 +400,11 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiTreeNodeFlags_FramePadding",                   ImGuiTreeNodeFlags_FramePadding},
         {"ImGuiTreeNodeFlags_SpanAvailWidth",                 ImGuiTreeNodeFlags_SpanAvailWidth},
         {"ImGuiTreeNodeFlags_SpanFullWidth",                  ImGuiTreeNodeFlags_SpanFullWidth},
-        {"ImGuiTreeNodeFlags_NavLeftJumpsBackHere",           ImGuiTreeNodeFlags_NavLeftJumpsBackHere},
         {"ImGuiSelectableFlags_None",                         ImGuiSelectableFlags_None},
-        {"ImGuiSelectableFlags_DontClosePopups",              ImGuiSelectableFlags_DontClosePopups},
         {"ImGuiSelectableFlags_SpanAllColumns",               ImGuiSelectableFlags_SpanAllColumns},
         {"ImGuiSelectableFlags_AllowDoubleClick",             ImGuiSelectableFlags_AllowDoubleClick},
         {"ImGuiSelectableFlags_Disabled",                     ImGuiSelectableFlags_Disabled},
-        {"ImGuiSelectableFlags_AllowItemOverlap",             ImGuiSelectableFlags_AllowItemOverlap},
+        {"ImGuiSelectableFlags_AllowOverlap",                 ImGuiSelectableFlags_AllowOverlap},
         {"ImGuiComboFlags_None",                              ImGuiComboFlags_None},
         {"ImGuiComboFlags_PopupAlignLeft",                    ImGuiComboFlags_PopupAlignLeft},
         {"ImGuiComboFlags_HeightSmall",                       ImGuiComboFlags_HeightSmall},
@@ -334,7 +421,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiTabBarFlags_NoCloseWithMiddleMouseButton",     ImGuiTabBarFlags_NoCloseWithMiddleMouseButton},
         {"ImGuiTabBarFlags_NoTabListScrollingButtons",        ImGuiTabBarFlags_NoTabListScrollingButtons},
         {"ImGuiTabBarFlags_NoTooltip",                        ImGuiTabBarFlags_NoTooltip},
-        {"ImGuiTabBarFlags_FittingPolicyResizeDown",          ImGuiTabBarFlags_FittingPolicyResizeDown},
         {"ImGuiTabBarFlags_FittingPolicyScroll",              ImGuiTabBarFlags_FittingPolicyScroll},
         {"ImGuiTabBarFlags_FittingPolicyMask_",               ImGuiTabBarFlags_FittingPolicyMask_},
         {"ImGuiTabBarFlags_FittingPolicyDefault_",            ImGuiTabBarFlags_FittingPolicyDefault_},
@@ -364,7 +450,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiDragDropFlags_SourceNoHoldToOpenOthers",       ImGuiDragDropFlags_SourceNoHoldToOpenOthers},
         {"ImGuiDragDropFlags_SourceAllowNullID",              ImGuiDragDropFlags_SourceAllowNullID},
         {"ImGuiDragDropFlags_SourceExtern",                   ImGuiDragDropFlags_SourceExtern},
-        {"ImGuiDragDropFlags_SourceAutoExpirePayload",        ImGuiDragDropFlags_SourceAutoExpirePayload},
         {"ImGuiDragDropFlags_AcceptBeforeDelivery",           ImGuiDragDropFlags_AcceptBeforeDelivery},
         {"ImGuiDragDropFlags_AcceptNoDrawDefaultRect",        ImGuiDragDropFlags_AcceptNoDrawDefaultRect},
         {"ImGuiDragDropFlags_AcceptNoPreviewTooltip",         ImGuiDragDropFlags_AcceptNoPreviewTooltip},
@@ -374,27 +459,9 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiDir_Right",                                    ImGuiDir_Right},
         {"ImGuiDir_Up",                                       ImGuiDir_Up},
         {"ImGuiDir_Down",                                     ImGuiDir_Down},
-        {"ImGuiNavInput_Activate",                            ImGuiNavInput_Activate},
-        {"ImGuiNavInput_Cancel",                              ImGuiNavInput_Cancel},
-        {"ImGuiNavInput_Input",                               ImGuiNavInput_Input},
-        {"ImGuiNavInput_Menu",                                ImGuiNavInput_Menu},
-        {"ImGuiNavInput_DpadLeft",                            ImGuiNavInput_DpadLeft},
-        {"ImGuiNavInput_DpadRight",                           ImGuiNavInput_DpadRight},
-        {"ImGuiNavInput_DpadUp",                              ImGuiNavInput_DpadUp},
-        {"ImGuiNavInput_DpadDown",                            ImGuiNavInput_DpadDown},
-        {"ImGuiNavInput_LStickLeft",                          ImGuiNavInput_LStickLeft},
-        {"ImGuiNavInput_LStickRight",                         ImGuiNavInput_LStickRight},
-        {"ImGuiNavInput_LStickUp",                            ImGuiNavInput_LStickUp},
-        {"ImGuiNavInput_LStickDown",                          ImGuiNavInput_LStickDown},
-        {"ImGuiNavInput_FocusPrev",                           ImGuiNavInput_FocusPrev},
-        {"ImGuiNavInput_FocusNext",                           ImGuiNavInput_FocusNext},
-        {"ImGuiNavInput_TweakSlow",                           ImGuiNavInput_TweakSlow},
-        {"ImGuiNavInput_TweakFast",                           ImGuiNavInput_TweakFast},
         {"ImGuiConfigFlags_None",                             ImGuiConfigFlags_None},
         {"ImGuiConfigFlags_NavEnableKeyboard",                ImGuiConfigFlags_NavEnableKeyboard},
         {"ImGuiConfigFlags_NavEnableGamepad",                 ImGuiConfigFlags_NavEnableGamepad},
-        {"ImGuiConfigFlags_NavEnableSetMousePos",             ImGuiConfigFlags_NavEnableSetMousePos},
-        {"ImGuiConfigFlags_NavNoCaptureKeyboard",             ImGuiConfigFlags_NavNoCaptureKeyboard},
         {"ImGuiConfigFlags_NoMouse",                          ImGuiConfigFlags_NoMouse},
         {"ImGuiConfigFlags_NoMouseCursorChange",              ImGuiConfigFlags_NoMouseCursorChange},
         {"ImGuiConfigFlags_IsSRGB",                           ImGuiConfigFlags_IsSRGB},
@@ -439,16 +506,16 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCol_ResizeGripActive",                         ImGuiCol_ResizeGripActive},
         {"ImGuiCol_Tab",                                      ImGuiCol_Tab},
         {"ImGuiCol_TabHovered",                               ImGuiCol_TabHovered},
-        {"ImGuiCol_TabActive",                                ImGuiCol_TabActive},
-        {"ImGuiCol_TabUnfocused",                             ImGuiCol_TabUnfocused},
-        {"ImGuiCol_TabUnfocusedActive",                       ImGuiCol_TabUnfocusedActive},
+        {"ImGuiCol_TabSelected",                                ImGuiCol_TabSelected},
+        {"ImGuiCol_TabDimmed",                             ImGuiCol_TabDimmed},
+        {"ImGuiCol_TabDimmedSelected",                       ImGuiCol_TabDimmedSelected},
         {"ImGuiCol_PlotLines",                                ImGuiCol_PlotLines},
         {"ImGuiCol_PlotLinesHovered",                         ImGuiCol_PlotLinesHovered},
         {"ImGuiCol_PlotHistogram",                            ImGuiCol_PlotHistogram},
         {"ImGuiCol_PlotHistogramHovered",                     ImGuiCol_PlotHistogramHovered},
         {"ImGuiCol_TextSelectedBg",                           ImGuiCol_TextSelectedBg},
         {"ImGuiCol_DragDropTarget",                           ImGuiCol_DragDropTarget},
-        {"ImGuiCol_NavHighlight",                             ImGuiCol_NavHighlight},
+        {"ImGuiCol_NavCursor",                             ImGuiCol_NavCursor},
         {"ImGuiCol_NavWindowingHighlight",                    ImGuiCol_NavWindowingHighlight},
         {"ImGuiCol_NavWindowingDimBg",                        ImGuiCol_NavWindowingDimBg},
         {"ImGuiCol_ModalWindowDimBg",                         ImGuiCol_ModalWindowDimBg},
@@ -486,7 +553,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_NoSidePreview",                 ImGuiColorEditFlags_NoSidePreview},
         {"ImGuiColorEditFlags_NoDragDrop",                    ImGuiColorEditFlags_NoDragDrop},
         {"ImGuiColorEditFlags_AlphaBar",                      ImGuiColorEditFlags_AlphaBar},
-        {"ImGuiColorEditFlags_AlphaPreview",                  ImGuiColorEditFlags_AlphaPreview},
         {"ImGuiColorEditFlags_AlphaPreviewHalf",              ImGuiColorEditFlags_AlphaPreviewHalf},
         {"ImGuiColorEditFlags_HDR",                           ImGuiColorEditFlags_HDR},
         {"ImGuiColorEditFlags_DisplayRGB",                    ImGuiColorEditFlags_DisplayRGB},
@@ -498,7 +564,7 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-        {"ImGuiColorEditFlags__OptionsDefault",               ImGuiColorEditFlags__OptionsDefault},
+
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -517,22 +583,24 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCond_Once",                                    ImGuiCond_Once},
         {"ImGuiCond_FirstUseEver",                            ImGuiCond_FirstUseEver},
         {"ImGuiCond_Appearing",                               ImGuiCond_Appearing},
-        {"ImDrawCornerFlags_None",                            ImDrawCornerFlags_None},
-        {"ImDrawCornerFlags_TopLeft",                         ImDrawCornerFlags_TopLeft},
-        {"ImDrawCornerFlags_TopRight",                        ImDrawCornerFlags_TopRight},
-        {"ImDrawCornerFlags_BotLeft",                         ImDrawCornerFlags_BotLeft},
-        {"ImDrawCornerFlags_BotRight",                        ImDrawCornerFlags_BotRight},
-        {"ImDrawCornerFlags_Top",                             ImDrawCornerFlags_Top},
-        {"ImDrawCornerFlags_Bot",                             ImDrawCornerFlags_Bot},
-        {"ImDrawCornerFlags_Left",                            ImDrawCornerFlags_Left},
-        {"ImDrawCornerFlags_Right",                           ImDrawCornerFlags_Right},
-        {"ImDrawCornerFlags_All",                             ImDrawCornerFlags_All},
+        {"ImDrawFlags_None",                                  ImDrawFlags_None},
+        {"ImDrawFlags_Closed",                                ImDrawFlags_Closed},
+        {"ImDrawFlags_RoundCornersTopLeft",                   ImDrawFlags_RoundCornersTopLeft},
+        {"ImDrawFlags_RoundCornersTopRight",                  ImDrawFlags_RoundCornersTopRight},
+        {"ImDrawFlags_RoundCornersBottomLeft",                ImDrawFlags_RoundCornersBottomLeft},
+        {"ImDrawFlags_RoundCornersBottomRight",               ImDrawFlags_RoundCornersBottomRight},
+        {"ImDrawFlags_RoundCornersTop",                       ImDrawFlags_RoundCornersTop},
+        {"ImDrawFlags_RoundCornersBottom",                    ImDrawFlags_RoundCornersBottom},
+        {"ImDrawFlags_RoundCornersLeft",                      ImDrawFlags_RoundCornersLeft},
+        {"ImDrawFlags_RoundCornersRight",                     ImDrawFlags_RoundCornersRight},
+        {"ImDrawFlags_RoundCornersAll",                       ImDrawFlags_RoundCornersAll},
+        {"ImDrawFlags_RoundCornersNone",                      ImDrawFlags_RoundCornersNone},
         {"ImDrawListFlags_None",                              ImDrawListFlags_None},
         {"ImDrawListFlags_AntiAliasedLines",                  ImDrawListFlags_AntiAliasedLines},
         {"ImDrawListFlags_AntiAliasedFill",                   ImDrawListFlags_AntiAliasedFill},
         {"ImDrawListFlags_AllowVtxOffset",                    ImDrawListFlags_AllowVtxOffset},
         {"ImGuiTreeNodeFlags_Framed",                         ImGuiTreeNodeFlags_Framed},
-        {"ImGuiTreeNodeFlags_AllowItemOverlap",               ImGuiTreeNodeFlags_AllowItemOverlap},
+        {"ImGuiTreeNodeFlags_AllowOverlap",                   ImGuiTreeNodeFlags_AllowOverlap},
         {"ImGuiTreeNodeFlags_NoTreePushOnOpen",               ImGuiTreeNodeFlags_NoTreePushOnOpen},
         {"ImGuiTreeNodeFlags_NoAutoOpenOnLog",                ImGuiTreeNodeFlags_NoAutoOpenOnLog},
         {"ImGuiTreeNodeFlags_DefaultOpen",                    ImGuiTreeNodeFlags_DefaultOpen},
@@ -543,13 +611,11 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiTreeNodeFlags_FramePadding",                   ImGuiTreeNodeFlags_FramePadding},
         {"ImGuiTreeNodeFlags_SpanAvailWidth",                 ImGuiTreeNodeFlags_SpanAvailWidth},
         {"ImGuiTreeNodeFlags_SpanFullWidth",                  ImGuiTreeNodeFlags_SpanFullWidth},
-        {"ImGuiTreeNodeFlags_NavLeftJumpsBackHere",           ImGuiTreeNodeFlags_NavLeftJumpsBackHere},
         {"ImGuiSelectableFlags_None",                         ImGuiSelectableFlags_None},
-        {"ImGuiSelectableFlags_DontClosePopups",              ImGuiSelectableFlags_DontClosePopups},
         {"ImGuiSelectableFlags_SpanAllColumns",               ImGuiSelectableFlags_SpanAllColumns},
         {"ImGuiSelectableFlags_AllowDoubleClick",             ImGuiSelectableFlags_AllowDoubleClick},
         {"ImGuiSelectableFlags_Disabled",                     ImGuiSelectableFlags_Disabled},
-        {"ImGuiSelectableFlags_AllowItemOverlap",             ImGuiSelectableFlags_AllowItemOverlap},
+        {"ImGuiSelectableFlags_AllowOverlap",                 ImGuiSelectableFlags_AllowOverlap},
         {"ImGuiComboFlags_None",                              ImGuiComboFlags_None},
         {"ImGuiComboFlags_PopupAlignLeft",                    ImGuiComboFlags_PopupAlignLeft},
         {"ImGuiComboFlags_HeightSmall",                       ImGuiComboFlags_HeightSmall},
@@ -566,7 +632,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiTabBarFlags_NoCloseWithMiddleMouseButton",     ImGuiTabBarFlags_NoCloseWithMiddleMouseButton},
         {"ImGuiTabBarFlags_NoTabListScrollingButtons",        ImGuiTabBarFlags_NoTabListScrollingButtons},
         {"ImGuiTabBarFlags_NoTooltip",                        ImGuiTabBarFlags_NoTooltip},
-        {"ImGuiTabBarFlags_FittingPolicyResizeDown",          ImGuiTabBarFlags_FittingPolicyResizeDown},
         {"ImGuiTabBarFlags_FittingPolicyScroll",              ImGuiTabBarFlags_FittingPolicyScroll},
         {"ImGuiTabBarFlags_FittingPolicyMask_",               ImGuiTabBarFlags_FittingPolicyMask_},
         {"ImGuiTabBarFlags_FittingPolicyDefault_",            ImGuiTabBarFlags_FittingPolicyDefault_},
@@ -596,7 +661,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiDragDropFlags_SourceNoHoldToOpenOthers",       ImGuiDragDropFlags_SourceNoHoldToOpenOthers},
         {"ImGuiDragDropFlags_SourceAllowNullID",              ImGuiDragDropFlags_SourceAllowNullID},
         {"ImGuiDragDropFlags_SourceExtern",                   ImGuiDragDropFlags_SourceExtern},
-        {"ImGuiDragDropFlags_SourceAutoExpirePayload",        ImGuiDragDropFlags_SourceAutoExpirePayload},
         {"ImGuiDragDropFlags_AcceptBeforeDelivery",           ImGuiDragDropFlags_AcceptBeforeDelivery},
         {"ImGuiDragDropFlags_AcceptNoDrawDefaultRect",        ImGuiDragDropFlags_AcceptNoDrawDefaultRect},
         {"ImGuiDragDropFlags_AcceptNoPreviewTooltip",         ImGuiDragDropFlags_AcceptNoPreviewTooltip},
@@ -621,38 +685,18 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiKey_Space",                                    ImGuiKey_Space},
         {"ImGuiKey_Enter",                                    ImGuiKey_Enter},
         {"ImGuiKey_Escape",                                   ImGuiKey_Escape},
-        {"ImGuiKey_KeyPadEnter",                              ImGuiKey_KeyPadEnter},
+        {"ImGuiKey_KeypadEnter",                              ImGuiKey_KeypadEnter},
         {"ImGuiKey_A",                                        ImGuiKey_A},
         {"ImGuiKey_C",                                        ImGuiKey_C},
         {"ImGuiKey_V",                                        ImGuiKey_V},
         {"ImGuiKey_X",                                        ImGuiKey_X},
         {"ImGuiKey_Y",                                        ImGuiKey_Y},
         {"ImGuiKey_Z",                                        ImGuiKey_Z},
-        {"ImGuiNavInput_Activate",                            ImGuiNavInput_Activate},
-        {"ImGuiNavInput_Cancel",                              ImGuiNavInput_Cancel},
-        {"ImGuiNavInput_Input",                               ImGuiNavInput_Input},
-        {"ImGuiNavInput_Menu",                                ImGuiNavInput_Menu},
-        {"ImGuiNavInput_DpadLeft",                            ImGuiNavInput_DpadLeft},
-        {"ImGuiNavInput_DpadRight",                           ImGuiNavInput_DpadRight},
-        {"ImGuiNavInput_DpadUp",                              ImGuiNavInput_DpadUp},
-        {"ImGuiNavInput_DpadDown",                            ImGuiNavInput_DpadDown},
-        {"ImGuiNavInput_LStickLeft",                          ImGuiNavInput_LStickLeft},
-        {"ImGuiNavInput_LStickRight",                         ImGuiNavInput_LStickRight},
-        {"ImGuiNavInput_LStickUp",                            ImGuiNavInput_LStickUp},
-        {"ImGuiNavInput_LStickDown",                          ImGuiNavInput_LStickDown},
-        {"ImGuiNavInput_FocusPrev",                           ImGuiNavInput_FocusPrev},
-        {"ImGuiNavInput_FocusNext",                           ImGuiNavInput_FocusNext},
-        {"ImGuiNavInput_TweakSlow",                           ImGuiNavInput_TweakSlow},
-        {"ImGuiNavInput_TweakFast",                           ImGuiNavInput_TweakFast},
         {"ImGuiConfigFlags_None",                             ImGuiConfigFlags_None},
         {"ImGuiConfigFlags_NavEnableKeyboard",                ImGuiConfigFlags_NavEnableKeyboard},
         {"ImGuiConfigFlags_NavEnableGamepad",                 ImGuiConfigFlags_NavEnableGamepad},
-        {"ImGuiConfigFlags_NavEnableSetMousePos",             ImGuiConfigFlags_NavEnableSetMousePos},
-        {"ImGuiConfigFlags_NavNoCaptureKeyboard",             ImGuiConfigFlags_NavNoCaptureKeyboard},
         {"ImGuiConfigFlags_NoMouse",                          ImGuiConfigFlags_NoMouse},
         {"ImGuiConfigFlags_NoMouseCursorChange",              ImGuiConfigFlags_NoMouseCursorChange},
-        {"ImGuiConfigFlags_IsSRGB",                           ImGuiConfigFlags_IsSRGB},
-        {"ImGuiConfigFlags_IsTouchScreen",                    ImGuiConfigFlags_IsTouchScreen},
         {"ImGuiBackendFlags_None",                            ImGuiBackendFlags_None},
         {"ImGuiBackendFlags_HasGamepad",                      ImGuiBackendFlags_HasGamepad},
         {"ImGuiBackendFlags_HasMouseCursors",                 ImGuiBackendFlags_HasMouseCursors},
@@ -693,16 +737,16 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCol_ResizeGripActive",                         ImGuiCol_ResizeGripActive},
         {"ImGuiCol_Tab",                                      ImGuiCol_Tab},
         {"ImGuiCol_TabHovered",                               ImGuiCol_TabHovered},
-        {"ImGuiCol_TabActive",                                ImGuiCol_TabActive},
-        {"ImGuiCol_TabUnfocused",                             ImGuiCol_TabUnfocused},
-        {"ImGuiCol_TabUnfocusedActive",                       ImGuiCol_TabUnfocusedActive},
+        {"ImGuiCol_TabSelected",                                ImGuiCol_TabSelected},
+        {"ImGuiCol_TabDimmed",                             ImGuiCol_TabDimmed},
+        {"ImGuiCol_TabDimmedSelected",                       ImGuiCol_TabDimmedSelected},
         {"ImGuiCol_PlotLines",                                ImGuiCol_PlotLines},
         {"ImGuiCol_PlotLinesHovered",                         ImGuiCol_PlotLinesHovered},
         {"ImGuiCol_PlotHistogram",                            ImGuiCol_PlotHistogram},
         {"ImGuiCol_PlotHistogramHovered",                     ImGuiCol_PlotHistogramHovered},
         {"ImGuiCol_TextSelectedBg",                           ImGuiCol_TextSelectedBg},
         {"ImGuiCol_DragDropTarget",                           ImGuiCol_DragDropTarget},
-        {"ImGuiCol_NavHighlight",                             ImGuiCol_NavHighlight},
+        {"ImGuiCol_NavCursor",                             ImGuiCol_NavCursor},
         {"ImGuiCol_NavWindowingHighlight",                    ImGuiCol_NavWindowingHighlight},
         {"ImGuiCol_NavWindowingDimBg",                        ImGuiCol_NavWindowingDimBg},
         {"ImGuiCol_ModalWindowDimBg",                         ImGuiCol_ModalWindowDimBg},
@@ -740,7 +784,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_NoSidePreview",                 ImGuiColorEditFlags_NoSidePreview},
         {"ImGuiColorEditFlags_NoDragDrop",                    ImGuiColorEditFlags_NoDragDrop},
         {"ImGuiColorEditFlags_AlphaBar",                      ImGuiColorEditFlags_AlphaBar},
-        {"ImGuiColorEditFlags_AlphaPreview",                  ImGuiColorEditFlags_AlphaPreview},
         {"ImGuiColorEditFlags_AlphaPreviewHalf",              ImGuiColorEditFlags_AlphaPreviewHalf},
         {"ImGuiColorEditFlags_HDR",                           ImGuiColorEditFlags_HDR},
         {"ImGuiColorEditFlags_DisplayRGB",                    ImGuiColorEditFlags_DisplayRGB},
@@ -752,7 +795,7 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-        {"ImGuiColorEditFlags__OptionsDefault",               ImGuiColorEditFlags__OptionsDefault},
+
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -771,16 +814,18 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCond_Once",                                    ImGuiCond_Once},
         {"ImGuiCond_FirstUseEver",                            ImGuiCond_FirstUseEver},
         {"ImGuiCond_Appearing",                               ImGuiCond_Appearing},
-        {"ImDrawCornerFlags_None",                            ImDrawCornerFlags_None},
-        {"ImDrawCornerFlags_TopLeft",                         ImDrawCornerFlags_TopLeft},
-        {"ImDrawCornerFlags_TopRight",                        ImDrawCornerFlags_TopRight},
-        {"ImDrawCornerFlags_BotLeft",                         ImDrawCornerFlags_BotLeft},
-        {"ImDrawCornerFlags_BotRight",                        ImDrawCornerFlags_BotRight},
-        {"ImDrawCornerFlags_Top",                             ImDrawCornerFlags_Top},
-        {"ImDrawCornerFlags_Bot",                             ImDrawCornerFlags_Bot},
-        {"ImDrawCornerFlags_Left",                            ImDrawCornerFlags_Left},
-        {"ImDrawCornerFlags_Right",                           ImDrawCornerFlags_Right},
-        {"ImDrawCornerFlags_All",                             ImDrawCornerFlags_All},
+        {"ImDrawFlags_None",                                  ImDrawFlags_None},
+        {"ImDrawFlags_Closed",                                ImDrawFlags_Closed},
+        {"ImDrawFlags_RoundCornersTopLeft",                   ImDrawFlags_RoundCornersTopLeft},
+        {"ImDrawFlags_RoundCornersTopRight",                  ImDrawFlags_RoundCornersTopRight},
+        {"ImDrawFlags_RoundCornersBottomLeft",                ImDrawFlags_RoundCornersBottomLeft},
+        {"ImDrawFlags_RoundCornersBottomRight",               ImDrawFlags_RoundCornersBottomRight},
+        {"ImDrawFlags_RoundCornersTop",                       ImDrawFlags_RoundCornersTop},
+        {"ImDrawFlags_RoundCornersBottom",                    ImDrawFlags_RoundCornersBottom},
+        {"ImDrawFlags_RoundCornersLeft",                      ImDrawFlags_RoundCornersLeft},
+        {"ImDrawFlags_RoundCornersRight",                     ImDrawFlags_RoundCornersRight},
+        {"ImDrawFlags_RoundCornersAll",                       ImDrawFlags_RoundCornersAll},
+        {"ImDrawFlags_RoundCornersNone",                      ImDrawFlags_RoundCornersNone},
         {"ImDrawListFlags_None",                              ImDrawListFlags_None},
         {"ImDrawListFlags_AntiAliasedLines",                  ImDrawListFlags_AntiAliasedLines},
         {"ImDrawListFlags_AntiAliasedFill",                   ImDrawListFlags_AntiAliasedFill},
@@ -823,16 +868,16 @@ static const std::map<std::string,ImGuiCol_> ImGuiCol_map = {
                 {"ImGuiCol_ResizeGripActive"           , ImGuiCol_ResizeGripActive},
                 {"ImGuiCol_Tab"                        , ImGuiCol_Tab},
                 {"ImGuiCol_TabHovered"                 , ImGuiCol_TabHovered},
-                {"ImGuiCol_TabActive"                  , ImGuiCol_TabActive},
-                {"ImGuiCol_TabUnfocused"               , ImGuiCol_TabUnfocused},
-                {"ImGuiCol_TabUnfocusedActive"         , ImGuiCol_TabUnfocusedActive},
+                {"ImGuiCol_TabSelected"                , ImGuiCol_TabSelected},
+                {"ImGuiCol_TabDimmed"                  , ImGuiCol_TabDimmed},
+                {"ImGuiCol_TabDimmedSelected"          , ImGuiCol_TabDimmedSelected},
                 {"ImGuiCol_PlotLines"                  , ImGuiCol_PlotLines},
                 {"ImGuiCol_PlotLinesHovered"           , ImGuiCol_PlotLinesHovered},
                 {"ImGuiCol_PlotHistogram"              , ImGuiCol_PlotHistogram},
                 {"ImGuiCol_PlotHistogramHovered"       , ImGuiCol_PlotHistogramHovered},
                 {"ImGuiCol_TextSelectedBg"             , ImGuiCol_TextSelectedBg},
                 {"ImGuiCol_DragDropTarget"             , ImGuiCol_DragDropTarget},
-                {"ImGuiCol_NavHighlight"               , ImGuiCol_NavHighlight},
+                {"ImGuiCol_NavCursor"                  , ImGuiCol_NavCursor},
                 {"ImGuiCol_NavWindowingHighlight"      , ImGuiCol_NavWindowingHighlight},
                 {"ImGuiCol_NavWindowingDimBg"          , ImGuiCol_NavWindowingDimBg},
                 {"ImGuiCol_ModalWindowDimBg"           , ImGuiCol_ModalWindowDimBg}};
@@ -989,7 +1034,7 @@ public:
         delta                   = 0;//updated each loop
         sx                      = 1.0f;
         sy                      = 1.0f;
-        key_mouse::mouse_wheel  = 0.0f;
+        /*key_mouse::mouse_wheel = 0.0f;
         key_mouse::KeyCtrl      = false;
         key_mouse::KeyShift     = false;
         key_mouse::KeyAlt       = false;
@@ -998,7 +1043,7 @@ public:
         context                 = nullptr;
 
         memset(key_mouse::MouseDown,0,sizeof(key_mouse::MouseDown));
-        memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));
+        memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));*/
         MousePos.x     = 0;
         MousePos.y     = 0;
         MousePosPrev.x = 0;
@@ -1077,56 +1122,9 @@ public:
             imGuIo.MouseClickedPos[4].x = 0;
             imGuIo.MouseClickedPos[4].y = 0;
 
-            
-            // Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
-        #if defined _WIN32
-            imGuIo.KeyMap[ImGuiKey_Tab]         = VK_TAB;
-            imGuIo.KeyMap[ImGuiKey_LeftArrow]   = VK_LEFT;
-            imGuIo.KeyMap[ImGuiKey_RightArrow]  = VK_RIGHT;
-            imGuIo.KeyMap[ImGuiKey_UpArrow]     = VK_UP;
-            imGuIo.KeyMap[ImGuiKey_DownArrow]   = VK_DOWN;
-            imGuIo.KeyMap[ImGuiKey_PageUp]      = VK_PRIOR;
-            imGuIo.KeyMap[ImGuiKey_PageDown]    = VK_NEXT;
-            imGuIo.KeyMap[ImGuiKey_Home]        = VK_HOME;
-            imGuIo.KeyMap[ImGuiKey_End]         = VK_END;
-            imGuIo.KeyMap[ImGuiKey_Insert]      = VK_INSERT;
-            imGuIo.KeyMap[ImGuiKey_Delete]      = VK_DELETE;
-            imGuIo.KeyMap[ImGuiKey_Backspace]   = VK_BACK;
-            imGuIo.KeyMap[ImGuiKey_Space]       = VK_SPACE;
-            imGuIo.KeyMap[ImGuiKey_Enter]       = VK_RETURN;
-            imGuIo.KeyMap[ImGuiKey_Escape]      = VK_ESCAPE;
-            imGuIo.KeyMap[ImGuiKey_KeyPadEnter] = 0XD;
-            imGuIo.KeyMap[ImGuiKey_A]           = 0x41;
-            imGuIo.KeyMap[ImGuiKey_C]           = 0x43;
-            imGuIo.KeyMap[ImGuiKey_V]           = 0x56;
-            imGuIo.KeyMap[ImGuiKey_X]           = 0x58;
-            imGuIo.KeyMap[ImGuiKey_Y]           = 0x59;
-            imGuIo.KeyMap[ImGuiKey_Z]           = 0x5A;
-        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-            imGuIo.KeyMap[ImGuiKey_Tab]         = VKL_TAB;//XK_Tab;
-            imGuIo.KeyMap[ImGuiKey_LeftArrow]   = VKL_LEFT;//XK_Left;
-            imGuIo.KeyMap[ImGuiKey_RightArrow]  = VKL_RIGHT;//XK_Right;
-            imGuIo.KeyMap[ImGuiKey_UpArrow]     = VKL_UP;//XK_Up;
-            imGuIo.KeyMap[ImGuiKey_DownArrow]   = VKL_DOWN;//XK_Down;
-            imGuIo.KeyMap[ImGuiKey_PageUp]      = VKL_PRIOR;//XK_Page_Up;
-            imGuIo.KeyMap[ImGuiKey_PageDown]    = VKL_NEXT;//XK_Page_Down;
-            imGuIo.KeyMap[ImGuiKey_Home]        = VKL_HOME;//XK_Home;
-            imGuIo.KeyMap[ImGuiKey_End]         = VKL_END;//XK_End;
-            imGuIo.KeyMap[ImGuiKey_Insert]      = VKL_INSERT;//XK_Insert;
-            imGuIo.KeyMap[ImGuiKey_Delete]      = VKL_DELETE;//XK_Delete;
-            imGuIo.KeyMap[ImGuiKey_Backspace]   = VKL_BACK;//XK_BackSpace;
-            imGuIo.KeyMap[ImGuiKey_Space]       = VKL_SPACE;//' ';
-            imGuIo.KeyMap[ImGuiKey_Enter]       = VKL_RETURN;//XK_Return;
-            imGuIo.KeyMap[ImGuiKey_Escape]      = VKL_ESCAPE;//XK_Escape;
-            imGuIo.KeyMap[ImGuiKey_KeyPadEnter] = VKL_ENTER;//XK_KP_Enter;
-            imGuIo.KeyMap[ImGuiKey_A]           = 'A';
-            imGuIo.KeyMap[ImGuiKey_C]           = 'C';
-            imGuIo.KeyMap[ImGuiKey_V]           = 'V';
-            imGuIo.KeyMap[ImGuiKey_X]           = 'X';
-            imGuIo.KeyMap[ImGuiKey_Y]           = 'Y';
-            imGuIo.KeyMap[ImGuiKey_Z]           = 'Z';
-        #endif
-            key_mouse::KeyCapital               = isCapsLockOn();
+            // Backend flags
+            imGuIo.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
+            imGuIo.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
         }
         else
         {
@@ -1147,479 +1145,166 @@ public:
 
     void onTouchDown(int key, float x, float y)
     {
+        // NOTE: Commented out - ImGui backend (ImGui_ImplWin32_NewFrame/ImGui_ImplDX9_NewFrame) handles input automatically in ImGui 1.92+
+        // Uncomment only if backend is not receiving input events
+        /*
         if(imGuiContext)
         {
+            ImGuiIO& io = ImGui::GetIO();
             x *= sx;
             y *= sy;
             MousePos.x = x;
             MousePos.y = y;
-            if(key >= 0 && key < key_mouse::size_mouse_struct_img)
+            io.AddMousePosEvent(x, y);
+            if(key >= 0 && key < ImGuiMouseButton_COUNT)
             {
-                key_mouse::MouseDown[key]          = true;//Input - Fill before calling NewFrame()
+                io.AddMouseButtonEvent(key, true);
             }
         }
+        */
     }
 
     void onTouchUp(int key, float x, float y)
     {
+        // NOTE: Commented out - ImGui backend handles input automatically
+        /*
         if(imGuiContext)
         {
+            ImGuiIO& io = ImGui::GetIO();
             x *= sx;
             y *= sy;
             MousePos.x = x;
             MousePos.y = y;
-            if(key >= 0 && key < key_mouse::size_mouse_struct_img)
+            io.AddMousePosEvent(x, y);
+            if(key >= 0 && key < ImGuiMouseButton_COUNT)
             {
-                key_mouse::MouseDown[key]     = false;
+                io.AddMouseButtonEvent(key, false);
             }
         }
+        */
     }
 
     void onTouchMove(int key, float x, float y)
     {
+        // NOTE: Commented out - ImGui backend handles input automatically
+        /*
         if(imGuiContext)
         {
+            ImGuiIO& io = ImGui::GetIO();
             x *= sx;
             y *= sy;
             MousePosPrev.x  = MousePos.x;
             MousePosPrev.y  = MousePos.y;
             MousePos.x      = x;
             MousePos.y      = y;
+            io.AddMousePosEvent(x, y);
         }
+        */
     }
 
     void onTouchZoom(float zoom)
     {
-        key_mouse::mouse_wheel        = zoom;
+        // NOTE: Commented out - ImGui backend handles mouse wheel automatically
+        /*
+        if(imGuiContext)
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddMouseWheelEvent(0.0f, zoom);
+        }
+        */
     }
     
     void onKeyDown(int key)
     {
+        // NOTE: Commented out - ImGui backend (ImGui_ImplWin32) handles keyboard input automatically in ImGui 1.92+
+        // The backend's WndProc handler processes WM_KEYDOWN, WM_CHAR, etc. messages
+        // Uncomment only if backend is not receiving keyboard events
+        /*
         if(imGuiContext)
         {
-            ImGuiIO& imGuIo  = ImGui::GetIO();
-            if (key >= 0 && key < key_mouse::size_key_struct_img)
-            {
-                key_mouse::KeysDown[key]   = true;
-            }
-            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-            else
-            {
-                switch(key)
-                {
-                    case XK_Tab:        key_mouse::KeysDown[VKL_TAB]       = true; break;
-                    case XK_Left:       key_mouse::KeysDown[VKL_LEFT]      = true; break;
-                    case XK_Right:      key_mouse::KeysDown[VKL_RIGHT]     = true; break;
-                    case XK_Up:         key_mouse::KeysDown[VKL_UP]        = true; break;
-                    case XK_Down:       key_mouse::KeysDown[VKL_DOWN]      = true; break;
-                    case XK_Page_Up:    key_mouse::KeysDown[VKL_PRIOR]     = true; break;
-                    case XK_Page_Down:  key_mouse::KeysDown[VKL_NEXT]      = true; break;
-                    case XK_Home:       key_mouse::KeysDown[VKL_HOME]      = true; break;
-                    case XK_End:        key_mouse::KeysDown[VKL_END]       = true; break;
-                    case XK_Insert:     key_mouse::KeysDown[VKL_INSERT]    = true; break;
-                    case XK_Delete:     key_mouse::KeysDown[VKL_DELETE]    = true; break;
-                    case XK_BackSpace:  key_mouse::KeysDown[VKL_BACK]      = true; break;
-                    case VKL_SPACE:     key_mouse::KeysDown[VKL_SPACE]     = true; break;
-                    case XK_Return:     key_mouse::KeysDown[VKL_RETURN]    = true; break;
-                    case XK_Escape:     key_mouse::KeysDown[VKL_ESCAPE]    = true; break;
-                    case XK_KP_Enter:   key_mouse::KeysDown[VKL_RETURN]    = true; break;
-                }
-            }
-            #endif
+            ImGuiIO& io = ImGui::GetIO();
             
+            // Map native key to ImGuiKey
+            ImGuiKey imgui_key = MapNativeKeyToImGuiKey(key);
+            if (imgui_key != ImGuiKey_None)
+            {
+                io.AddKeyEvent(imgui_key, true);
+            }
+            
+            // Handle modifier keys
             #if defined(_WIN32)
-            switch(key)
+            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
+                io.AddKeyEvent(ImGuiMod_Ctrl, true);
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
+                io.AddKeyEvent(ImGuiMod_Shift, true);
+            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
+                io.AddKeyEvent(ImGuiMod_Alt, true);
+            if (key == VK_LWIN || key == VK_RWIN)
+                io.AddKeyEvent(ImGuiMod_Super, true);
+            
+            // Handle character input for text fields
+            if (key >= '0' && key <= '9')
             {
-                case VK_CONTROL:
-                case VK_LCONTROL:
-                case VK_RCONTROL:       key_mouse::KeyCtrl    = true;             break;
-                case VK_SHIFT:
-                case VK_LSHIFT:
-                case VK_RSHIFT:         key_mouse::KeyShift   = true;             break;
-                case VK_MENU:
-                case VK_LMENU:
-                case VK_RMENU:          key_mouse::KeyAlt     = true;             break;
-                case VK_APPS:
-                case VK_LWIN:
-                case VK_RWIN:           key_mouse::KeySuper   = true;             break;
-                case VK_CAPITAL:        key_mouse::KeyCapital = isCapsLockOn();   break;                  
-                case VK_MULTIPLY:       imGuIo.AddInputCharacter('*'); break;
-                case VK_ADD:            imGuIo.AddInputCharacter('+'); break;
-                case VK_SUBTRACT:       imGuIo.AddInputCharacter('-'); break;
-                case VK_DIVIDE:         imGuIo.AddInputCharacter('/'); break;
-                case 0xC2:              imGuIo.AddInputCharacter('.'); break;
-                case VK_DECIMAL:        imGuIo.AddInputCharacter('.'); break;
-                case VK_SPACE:          imGuIo.AddInputCharacter(' '); break;
-                case VK_OEM_102:        imGuIo.AddInputCharacter('\\'); break;
-                case VK_OEM_1:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter(':');
-                    else
-                        imGuIo.AddInputCharacter(';');
-                };
-                break;
-                case VK_OEM_COMMA:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('<');
-                    else
-                        imGuIo.AddInputCharacter(',');
-                };
-                break;
-                case VK_OEM_MINUS:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('_');
-                    else
-                        imGuIo.AddInputCharacter('-');
-                };
-                break;
-                case VK_OEM_PERIOD:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('>');
-                    else
-                        imGuIo.AddInputCharacter('.');
-                };
-                break;
-                case VK_OEM_PLUS:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('+');
-                    else
-                        imGuIo.AddInputCharacter('=');
-                };
-                break;
-                case VK_OEM_2:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('?');
-                    else
-                        imGuIo.AddInputCharacter('/');
-                };
-                break;
-                case VK_OEM_3:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('~');
-                    else
-                        imGuIo.AddInputCharacter('`');
-                };
-                break;
-                case VK_OEM_4:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('{');
-                    else
-                        imGuIo.AddInputCharacter('[');
-                };
-                break;
-                case VK_OEM_5:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('|');
-                    else
-                        imGuIo.AddInputCharacter('\\');
-                }
-                break;
-                case VK_OEM_6:
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('}');
-                    else
-                        imGuIo.AddInputCharacter(']');
-                };
-            };
+                io.AddInputCharacter(key);
+            }
+            else if (key >= 'A' && key <= 'Z')
+            {
+                bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+                bool uppercase = (shift && !caps) || (!shift && caps);
+                io.AddInputCharacter(uppercase ? key : (key - 'A' + 'a'));
+            }
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-            switch(key)
-            {
-                case XK_Control_L:
-                case XK_Control_R:      key_mouse::KeyCtrl     = true; break;
-                case XK_Shift_L:
-                case XK_Shift_R:        key_mouse::KeyShift    = true; break;
-                case XK_Alt_L:
-                case XK_Alt_R:          key_mouse::KeyAlt      = true; break;
-                case XK_Super_L:
-                case XK_Super_R:        key_mouse::KeySuper    = true; break;
-                case XK_Caps_Lock:      key_mouse::KeyCapital  = isCapsLockOn();  break;                  
-                case XK_KP_Multiply:    imGuIo.AddInputCharacter('*'); break; // ok
-                case XK_KP_Add:         imGuIo.AddInputCharacter('+'); break; // ok
-                case XK_KP_Subtract:    imGuIo.AddInputCharacter('-'); break; // ok
-                case XK_KP_Divide:      imGuIo.AddInputCharacter('/'); break; // ok
-                case XK_KP_Decimal:     imGuIo.AddInputCharacter('.'); break; // ok
-                case XK_KP_Delete:      imGuIo.AddInputCharacter('.'); break; // ok
-                case VKL_SPACE:         imGuIo.AddInputCharacter(' '); break; // ok
-                case 0x003b: //XK_semicolon
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter(':');
-                    else
-                        imGuIo.AddInputCharacter(';');
-                };
-                break;
-                case 0x002c: //XK_comma
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('<');
-                    else
-                        imGuIo.AddInputCharacter(',');
-                };
-                break;
-                case 0x002d: //XK_minus
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('_');
-                    else
-                        imGuIo.AddInputCharacter('-');
-                };
-                break;
-                case 0x002e: //XK_period
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('>');
-                    else
-                        imGuIo.AddInputCharacter('.');
-                };
-                break;
-                case 0x003d: //XK_equal
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('+');
-                    else
-                        imGuIo.AddInputCharacter('=');
-                };
-                break;
-                case 0x002f: //XK_slash
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('?');
-                    else
-                        imGuIo.AddInputCharacter('/');
-                };
-                break;
-                case 0x0060: //XK_grave
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('~');
-                    else
-                        imGuIo.AddInputCharacter('`');
-                };
-                break;
-                case 0x005b: // XK_bracketleft
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('{');
-                    else
-                        imGuIo.AddInputCharacter('[');
-                };
-                break;
-                case 0x005c: // XK_backslash
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('|');
-                    else
-                        imGuIo.AddInputCharacter('\\');
-                }
-                break;
-                case 0x005d: //XK_bracketright
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('}');
-                    else
-                        imGuIo.AddInputCharacter(']');
-                };
-                break;
-                case 0x0027: //XK_apostrophe
-                {
-                    if(key_mouse::KeyShift)
-                        imGuIo.AddInputCharacter('"');
-                    else
-                        imGuIo.AddInputCharacter('\'');
-                };
-            };
+            if (key == XK_Control_L || key == XK_Control_R)
+                io.AddKeyEvent(ImGuiMod_Ctrl, true);
+            if (key == XK_Shift_L || key == XK_Shift_R)
+                io.AddKeyEvent(ImGuiMod_Shift, true);
+            if (key == XK_Alt_L || key == XK_Alt_R)
+                io.AddKeyEvent(ImGuiMod_Alt, true);
+            if (key == XK_Super_L || key == XK_Super_R)
+                io.AddKeyEvent(ImGuiMod_Super, true);
             #endif
-
-            if (key >= KEY_0 && key <= KEY_9)// !"#$%&'()*+,-./ 0 - 9 Normal input from keyboard numeric
-            {
-                if(key_mouse::KeyShift == true )
-                {
-                    switch(key)
-                    {
-                        case '1': imGuIo.AddInputCharacter('!'); break;
-                        case '2': imGuIo.AddInputCharacter('@'); break;
-                        case '3': imGuIo.AddInputCharacter('#'); break;
-                        case '4': imGuIo.AddInputCharacter('$'); break;
-                        case '5': imGuIo.AddInputCharacter('%'); break;
-                        case '6': imGuIo.AddInputCharacter('^'); break;
-                        case '7': imGuIo.AddInputCharacter('&'); break;
-                        case '8': imGuIo.AddInputCharacter('*'); break;
-                        case '9': imGuIo.AddInputCharacter('('); break;
-                        case '0': imGuIo.AddInputCharacter(')'); break;
-                    }
-                }
-                else
-                {
-                    imGuIo.AddInputCharacter(key);
-                }
-            }
-            else if(key >= KEY_A && key <= KEY_Z) // 'A' - 'Z'
-            {
-                if((key_mouse::KeyShift == true && key_mouse::KeyCapital == false)  || (key_mouse::KeyShift == false && key_mouse::KeyCapital == true))
-                {
-                    imGuIo.AddInputCharacter(key);
-                }
-                else
-                {
-                    const int nKey  = key - KEY_A;
-                    const unsigned int c = static_cast<unsigned int>('a') + nKey;
-                    imGuIo.AddInputCharacter(c);
-                }
-            }
-            else// NUMPAD keys
-            {
-                #if defined ANDROID
-                //Not implemented
-                #elif defined __linux__ // __APPLE__ bellow untested
-                // Linux Debian 8.3.0-6, Linux version 4.19.0-6-amd64
-                switch (key)
-                {
-                    case 0xff9e: imGuIo.AddInputCharacter('0'); key_mouse::KeysDown['0'] = true; break; //
-                    case 0xff9c: imGuIo.AddInputCharacter('1'); key_mouse::KeysDown['1'] = true; break; //
-                    case 0xff99: imGuIo.AddInputCharacter('2'); key_mouse::KeysDown['2'] = true; break; //
-                    case 0xff9b: imGuIo.AddInputCharacter('3'); key_mouse::KeysDown['3'] = true; break; //
-                    case 0xff96: imGuIo.AddInputCharacter('4'); key_mouse::KeysDown['4'] = true; break; //
-                    case 0xff9d: imGuIo.AddInputCharacter('5'); key_mouse::KeysDown['5'] = true; break; //
-                    case 0xff98: imGuIo.AddInputCharacter('6'); key_mouse::KeysDown['6'] = true; break; //
-                    case 0xff95: imGuIo.AddInputCharacter('7'); key_mouse::KeysDown['7'] = true; break; //
-                    case 0xff97: imGuIo.AddInputCharacter('8'); key_mouse::KeysDown['8'] = true; break; //
-                    case 0xff9a: imGuIo.AddInputCharacter('9'); key_mouse::KeysDown['9'] = true; break; //
-                    default: break;
-                }
-                #elif defined __APPLE__ && !defined (ANDROID)
-                // MacOS 10.14.6
-                #pragma message("Not tested MacOS numpad keys")
-                switch (key)
-                {
-                    case 0xff9e: imGuIo.AddInputCharacter('0'); key_mouse::KeysDown['0'] = true; break; //
-                    case 0xff9c: imGuIo.AddInputCharacter('1'); key_mouse::KeysDown['1'] = true; break; //
-                    case 0xff99: imGuIo.AddInputCharacter('2'); key_mouse::KeysDown['2'] = true; break; //
-                    case 0xff9b: imGuIo.AddInputCharacter('3'); key_mouse::KeysDown['3'] = true; break; //
-                    case 0xff96: imGuIo.AddInputCharacter('4'); key_mouse::KeysDown['4'] = true; break; //
-                    case 0xff9d: imGuIo.AddInputCharacter('5'); key_mouse::KeysDown['5'] = true; break; //
-                    case 0xff98: imGuIo.AddInputCharacter('6'); key_mouse::KeysDown['6'] = true; break; //
-                    case 0xff95: imGuIo.AddInputCharacter('7'); key_mouse::KeysDown['7'] = true; break; //
-                    case 0xff97: imGuIo.AddInputCharacter('8'); key_mouse::KeysDown['8'] = true; break; //
-                    case 0xff9a: imGuIo.AddInputCharacter('9'); key_mouse::KeysDown['9'] = true; break; //
-                    default: break;
-                }
-                #elif defined _WIN32
-                switch (key)
-                {
-                    case 0x60: imGuIo.AddInputCharacter('0');  key_mouse::KeysDown['0'] = true; break; // VK_NUMPAD0
-                    case 0x61: imGuIo.AddInputCharacter('1');  key_mouse::KeysDown['1'] = true; break; // VK_NUMPAD1
-                    case 0x62: imGuIo.AddInputCharacter('2');  key_mouse::KeysDown['2'] = true; break; // VK_NUMPAD2
-                    case 0x63: imGuIo.AddInputCharacter('3');  key_mouse::KeysDown['3'] = true; break; // VK_NUMPAD3
-                    case 0x64: imGuIo.AddInputCharacter('4');  key_mouse::KeysDown['4'] = true; break; // VK_NUMPAD4
-                    case 0x65: imGuIo.AddInputCharacter('5');  key_mouse::KeysDown['5'] = true; break; // VK_NUMPAD5
-                    case 0x66: imGuIo.AddInputCharacter('6');  key_mouse::KeysDown['6'] = true; break; // VK_NUMPAD6
-                    case 0x67: imGuIo.AddInputCharacter('7');  key_mouse::KeysDown['7'] = true; break; // VK_NUMPAD7
-                    case 0x68: imGuIo.AddInputCharacter('8');  key_mouse::KeysDown['8'] = true; break; // VK_NUMPAD8
-                    case 0x69: imGuIo.AddInputCharacter('9');  key_mouse::KeysDown['9'] = true; break; // VK_NUMPAD9
-                    default: break;
-                }
-                #endif
-            }
         }
+        */
     }
 
     void onKeyUp(int key)
     {
-        if (key >= 0 && key < key_mouse::size_key_struct_img)
+        // NOTE: Commented out - ImGui backend handles keyboard input automatically
+        /*
+        if(imGuiContext)
         {
-            key_mouse::KeysDown[key]   = false;
-        }
-        #if defined(__linux__) && !defined (ANDROID) // __APPLE__ bellow untested
-        else
-        {
-            switch(key)
+            ImGuiIO& io = ImGui::GetIO();
+            
+            // Map native key to ImGuiKey
+            ImGuiKey imgui_key = MapNativeKeyToImGuiKey(key);
+            if (imgui_key != ImGuiKey_None)
             {
-                case XK_Tab:            key_mouse::KeysDown[VKL_TAB]       = false; break;
-                case XK_Left:           key_mouse::KeysDown[VKL_LEFT]      = false; break;
-                case XK_Right:          key_mouse::KeysDown[VKL_RIGHT]     = false; break;
-                case XK_Up:             key_mouse::KeysDown[VKL_UP]        = false; break;
-                case XK_Down:           key_mouse::KeysDown[VKL_DOWN]      = false; break;
-                case XK_Page_Up:        key_mouse::KeysDown[VKL_PRIOR]     = false; break;
-                case XK_Page_Down:      key_mouse::KeysDown[VKL_NEXT]      = false; break;
-                case XK_Home:           key_mouse::KeysDown[VKL_HOME]      = false; break;
-                case XK_End:            key_mouse::KeysDown[VKL_END]       = false; break;
-                case XK_Insert:         key_mouse::KeysDown[VKL_INSERT]    = false; break;
-                case XK_Delete:         key_mouse::KeysDown[VKL_DELETE]    = false; break;
-                case XK_BackSpace:      key_mouse::KeysDown[VKL_BACK]      = false; break;
-                case VKL_SPACE:         key_mouse::KeysDown[VKL_SPACE]     = false; break;
-                case XK_Return:         key_mouse::KeysDown[VKL_RETURN]    = false; break;
-                case XK_Escape:         key_mouse::KeysDown[VKL_ESCAPE]    = false; break;
-                case XK_KP_Enter:       key_mouse::KeysDown[VKL_RETURN]    = false; break;
-                case XK_Control_L:
-                case XK_Control_R:      key_mouse::KeyCtrl                 = false; break;
-                case XK_Shift_L:
-                case XK_Shift_R:        key_mouse::KeyShift                = false; break;
-                case XK_Alt_L:
-                case XK_Alt_R:          key_mouse::KeyAlt                  = false; break;
-                case XK_Super_L:
-                case XK_Super_R:        key_mouse::KeySuper                = false; break;
+                io.AddKeyEvent(imgui_key, false);
             }
+            
+            // Handle modifier keys
+            #if defined(_WIN32)
+            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
+                io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
+                io.AddKeyEvent(ImGuiMod_Shift, false);
+            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
+                io.AddKeyEvent(ImGuiMod_Alt, false);
+            if (key == VK_LWIN || key == VK_RWIN)
+                io.AddKeyEvent(ImGuiMod_Super, false);
+            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            if (key == XK_Control_L || key == XK_Control_R)
+                io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            if (key == XK_Shift_L || key == XK_Shift_R)
+                io.AddKeyEvent(ImGuiMod_Shift, false);
+            if (key == XK_Alt_L || key == XK_Alt_R)
+                io.AddKeyEvent(ImGuiMod_Alt, false);
+            if (key == XK_Super_L || key == XK_Super_R)
+                io.AddKeyEvent(ImGuiMod_Super, false);
+            #endif
         }
-        #elif defined(__APPLE__) && !defined (ANDROID)
-        #pragma message("Not tested MacOS numpad keys")
-        else
-        {
-            switch(key)
-            {
-                case XK_Tab:            key_mouse::KeysDown[VKL_TAB]       = false; break;
-                case XK_Left:           key_mouse::KeysDown[VKL_LEFT]      = false; break;
-                case XK_Right:          key_mouse::KeysDown[VKL_RIGHT]     = false; break;
-                case XK_Up:             key_mouse::KeysDown[VKL_UP]        = false; break;
-                case XK_Down:           key_mouse::KeysDown[VKL_DOWN]      = false; break;
-                case XK_Page_Up:        key_mouse::KeysDown[VKL_PRIOR]     = false; break;
-                case XK_Page_Down:      key_mouse::KeysDown[VKL_NEXT]      = false; break;
-                case XK_Home:           key_mouse::KeysDown[VKL_HOME]      = false; break;
-                case XK_End:            key_mouse::KeysDown[VKL_END]       = false; break;
-                case XK_Insert:         key_mouse::KeysDown[VKL_INSERT]    = false; break;
-                case XK_Delete:         key_mouse::KeysDown[VKL_DELETE]    = false; break;
-                case XK_BackSpace:      key_mouse::KeysDown[VKL_BACK]      = false; break;
-                case VKL_SPACE:         key_mouse::KeysDown[VKL_SPACE]     = false; break;
-                case XK_Return:         key_mouse::KeysDown[VKL_RETURN]    = false; break;
-                case XK_Escape:         key_mouse::KeysDown[VKL_ESCAPE]    = false; break;
-                case XK_KP_Enter:       key_mouse::KeysDown[VKL_RETURN]    = false; break;
-                case XK_Control_L:
-                case XK_Control_R:      key_mouse::KeyCtrl                 = false; break;
-                case XK_Shift_L:
-                case XK_Shift_R:        key_mouse::KeyShift                = false; break;
-                case XK_Alt_L:
-                case XK_Alt_R:          key_mouse::KeyAlt                  = false; break;
-                case XK_Super_L:
-                case XK_Super_R:        key_mouse::KeySuper                = false; break;
-            }
-        }
-        #elif defined (_WIN32)
-        switch(key)
-        {
-            case VK_CONTROL:
-            case VK_LCONTROL:
-            case VK_RCONTROL:           key_mouse::KeyCtrl    = false;             break;
-            case VK_SHIFT:
-            case VK_LSHIFT:
-            case VK_RSHIFT:             key_mouse::KeyShift   = false;             break;
-            case VK_MENU:
-            case VK_LMENU:
-            case VK_RMENU:              key_mouse::KeyAlt     = false;             break;
-            case VK_APPS:
-            case VK_LWIN:
-            case VK_RWIN:               key_mouse::KeySuper   = false;             break;
-            case VK_CAPITAL:            key_mouse::KeyCapital = isCapsLockOn();    break;
-        }
-        #endif
+        */
     }
 
     const bool isCapsLockOn()
@@ -1638,6 +1323,7 @@ public:
 
     void onDoubleClick(float x, float y, int key)
     {
+        // NOTE: Backend handles double-click detection automatically via io.MouseDoubleClickTime
     }
 
     void onKeyDownJoystick(int, int)
@@ -1659,15 +1345,16 @@ public:
     {
         if(imGuiContext && beginRenderWasCalled == false)
         {
-            ImGuiIO& imGuIo         = ImGui::GetIO();
-            imGuIo.MouseWheel       += key_mouse::mouse_wheel;
-            imGuIo.KeyCtrl          = key_mouse::KeyCtrl;
-            imGuIo.KeyShift         = key_mouse::KeyShift;
-            imGuIo.KeyAlt           = key_mouse::KeyAlt;
-            imGuIo.KeySuper         = key_mouse::KeySuper;
+            ImGuiIO& imGuIo = ImGui::GetIO();
+            
+            // Update delta time
+            imGuIo.DeltaTime = delta <= 0.0f ? 1.0f/60.0f : delta;
+            
+            // Backend NewFrame calls
+#if defined(_WIN32)
+            ImGui_ImplWin32_NewFrame();
+#endif
 
-            memcpy(imGuIo.KeysDown,key_mouse::KeysDown,sizeof(key_mouse::KeysDown));
-            memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));
 #if defined(USE_OPENGL_ES)
     #if defined (IMGUI_IMPL_OPENGL_ES2) || defined (IMGUI_IMPL_OPENGL_ES3)
             ImGui_ImplOpenGL3_NewFrame();
@@ -1681,22 +1368,15 @@ public:
 #else
             #error "Not implemented for ImGui NewFrame"
 #endif
+
+            // Start new ImGui frame
             ImGui::NewFrame();
-
-            key_mouse::mouse_wheel              = 0;
-            imGuIo.DeltaTime                    = delta <= 0.0f ? 1.0f/60.0f : delta;
-            imGuIo.WantCaptureMouse             = true;
-            imGuIo.WantCaptureKeyboard          = true;
-
-            memcpy(imGuIo.MouseDown,key_mouse::MouseDown,sizeof(key_mouse::MouseDown));
-            imGuIo.MousePos.x      = MousePos.x;
-            imGuIo.MousePos.y      = MousePos.y;
-            imGuIo.MousePosPrev.x  = MousePosPrev.x;
-            imGuIo.MousePosPrev.y  = MousePosPrev.y;
             
+            // Update scaling
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             sx = device->camera.scale2d.x;
             sy = device->camera.scale2d.y;
+            
             beginRenderWasCalled = true;
         }
     }
@@ -1900,84 +1580,87 @@ void lua_push_rgba(lua_State * lua, const ImVec4 & color)
 void lua_push_ImFontConfig(lua_State *lua, const ImFontConfig & in)
 {
     lua_newtable(lua);
-    //const void FontData  = in.FontData != nullptr ? (*in.FontData) : 0;//TODO: 4 check here, apparently, "ImFontConfig.FontData" is a pointer
-    //;
-    //lua_setfield(lua, -2, "FontData");
+    lua_pushlstring(lua,in.Name, sizeof(in.Name)-1);
+    lua_setfield(lua, -2, "Name");
     lua_pushinteger(lua,in.FontDataSize);
     lua_setfield(lua, -2, "FontDataSize");
     lua_pushboolean(lua,in.FontDataOwnedByAtlas);
     lua_setfield(lua, -2, "FontDataOwnedByAtlas");
-    lua_pushinteger(lua,in.FontNo);
-    lua_setfield(lua, -2, "FontNo");
-    lua_pushnumber(lua,in.SizePixels);
-    lua_setfield(lua, -2, "SizePixels");
+    lua_pushboolean(lua,in.MergeMode);
+    lua_setfield(lua, -2, "MergeMode");
+    lua_pushboolean(lua,in.PixelSnapH);
+    lua_setfield(lua, -2, "PixelSnapH");
     lua_pushinteger(lua,in.OversampleH);
     lua_setfield(lua, -2, "OversampleH");
     lua_pushinteger(lua,in.OversampleV);
     lua_setfield(lua, -2, "OversampleV");
-    lua_pushboolean(lua,in.PixelSnapH);
-    lua_setfield(lua, -2, "PixelSnapH");
-    lua_push_ImVec2(lua,in.GlyphExtraSpacing);
-    lua_setfield(lua, -2, "GlyphExtraSpacing");
+    lua_pushinteger(lua,in.EllipsisChar);
+    lua_setfield(lua, -2, "EllipsisChar");
+    lua_pushnumber(lua,in.SizePixels);
+    lua_setfield(lua, -2, "SizePixels");
     lua_push_ImVec2(lua,in.GlyphOffset);
     lua_setfield(lua, -2, "GlyphOffset");
-    //lua_pushinteger_pointer(lua, in.GlyphRanges);//TODO: 6 check here, apparently, "ImFontConfig.GlyphRanges" is a pointer and might be nullptr 
-    //lua_setfield(lua, -2, "GlyphRanges");
     lua_pushnumber(lua,in.GlyphMinAdvanceX);
     lua_setfield(lua, -2, "GlyphMinAdvanceX");
     lua_pushnumber(lua,in.GlyphMaxAdvanceX);
     lua_setfield(lua, -2, "GlyphMaxAdvanceX");
-    lua_pushboolean(lua,in.MergeMode);
-    lua_setfield(lua, -2, "MergeMode");
-    lua_pushinteger(lua,in.RasterizerFlags);
-    lua_setfield(lua, -2, "RasterizerFlags");
+    lua_pushnumber(lua,in.GlyphExtraAdvanceX);
+    lua_setfield(lua, -2, "GlyphExtraAdvanceX");
+    lua_pushinteger(lua,in.FontNo);
+    lua_setfield(lua, -2, "FontNo");
+    lua_pushinteger(lua,in.FontLoaderFlags);
+    lua_setfield(lua, -2, "FontLoaderFlags");
     lua_pushnumber(lua,in.RasterizerMultiply);
     lua_setfield(lua, -2, "RasterizerMultiply");
-    lua_pushinteger(lua,in.EllipsisChar);
-    lua_setfield(lua, -2, "EllipsisChar");
-    lua_pushlstring(lua,in.Name ,sizeof(in.Name)-1);
-    lua_setfield(lua, -2, "Name");
-    //lua_push_ImFont_pointer(lua, in.DstFont);
-    //lua_setfield(lua, -2, "DstFont");
+    lua_pushnumber(lua,in.RasterizerDensity);
+    lua_setfield(lua, -2, "RasterizerDensity");
+    lua_pushnumber(lua,in.ExtraSizeScale);
+    lua_setfield(lua, -2, "ExtraSizeScale");
 
 }
 
 void lua_push_ImFontAtlas(lua_State *lua, const ImFontAtlas & in)
 {
     lua_newtable(lua);
-    lua_pushboolean(lua,in.Locked);
-    lua_setfield(lua, -2, "Locked");
     lua_pushinteger(lua,in.Flags);
     lua_setfield(lua, -2, "Flags");
-    //if(in.TexID)
-    //{
-    //    ;
-    //    lua_setfield(lua, -2, "TexID");
-    //}
-    lua_pushinteger(lua,in.TexDesiredWidth);
-    lua_setfield(lua, -2, "TexDesiredWidth");
+    lua_pushinteger(lua,in.TexDesiredFormat);
+    lua_setfield(lua, -2, "TexDesiredFormat");
     lua_pushinteger(lua,in.TexGlyphPadding);
     lua_setfield(lua, -2, "TexGlyphPadding");
-    //lua_pushstring(lua,in.TexPixelsAlpha8);
-    //lua_setfield(lua, -2, "TexPixelsAlpha8");
-    const int TexPixelsRGBA32  = in.TexPixelsRGBA32 != nullptr ? (*in.TexPixelsRGBA32) : 0;//TODO: 4 check here, apparently, "ImFontAtlas.TexPixelsRGBA32" is a pointer
-    lua_pushinteger(lua,TexPixelsRGBA32);
-    lua_setfield(lua, -2, "TexPixelsRGBA32");
-    lua_pushinteger(lua,in.TexWidth);
-    lua_setfield(lua, -2, "TexWidth");
-    lua_pushinteger(lua,in.TexHeight);
-    lua_setfield(lua, -2, "TexHeight");
+    lua_pushinteger(lua,in.TexMinWidth);
+    lua_setfield(lua, -2, "TexMinWidth");
+    lua_pushinteger(lua,in.TexMinHeight);
+    lua_setfield(lua, -2, "TexMinHeight");
+    lua_pushinteger(lua,in.TexMaxWidth);
+    lua_setfield(lua, -2, "TexMaxWidth");
+    lua_pushinteger(lua,in.TexMaxHeight);
+    lua_setfield(lua, -2, "TexMaxHeight");
+    lua_pushboolean(lua,in.Locked);
+    lua_setfield(lua, -2, "Locked");
+    lua_pushboolean(lua,in.RendererHasTextures);
+    lua_setfield(lua, -2, "RendererHasTextures");
+    lua_pushboolean(lua,in.TexIsBuilt);
+    lua_setfield(lua, -2, "TexIsBuilt");
+    lua_pushboolean(lua,in.TexPixelsUseColors);
+    lua_setfield(lua, -2, "TexPixelsUseColors");
     lua_push_ImVec2(lua,in.TexUvScale);
     lua_setfield(lua, -2, "TexUvScale");
     lua_push_ImVec2(lua,in.TexUvWhitePixel);
     lua_setfield(lua, -2, "TexUvWhitePixel");
-    //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
-    //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
-    //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
-    push_int_arrayFromTable(lua,in.CustomRectIds ,sizeof(in.CustomRectIds) / sizeof(int));//TODO: 5 check if the type is right
-    lua_setfield(lua, -2, "CustomRectIds");
-    //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
-    //#error "3 - (make_push_methods) Not found ImFontAtlas, do not know what to do!"
+    lua_pushinteger(lua,in.Fonts.Size);
+    lua_setfield(lua, -2, "FontsCount");
+    lua_pushinteger(lua,in.TexNextUniqueID);
+    lua_setfield(lua, -2, "TexNextUniqueID");
+    lua_pushinteger(lua,in.FontNextUniqueID);
+    lua_setfield(lua, -2, "FontNextUniqueID");
+    if(in.FontLoaderName)
+    {
+        lua_pushstring(lua,in.FontLoaderName);
+        lua_setfield(lua, -2, "FontLoaderName");
+    }
+    lua_pushinteger(lua,in.FontLoaderFlags);
+    lua_setfield(lua, -2, "FontLoaderFlags");
 
 }
 
@@ -1985,6 +1668,12 @@ void lua_push_ImFontAtlas(lua_State *lua, const ImFontAtlas & in)
 void lua_push_ImFontGlyph(lua_State *lua, const ImFontGlyph & in)
 {
     lua_newtable(lua);
+    lua_pushboolean(lua,in.Colored);
+    lua_setfield(lua, -2, "Colored");
+    lua_pushboolean(lua,in.Visible);
+    lua_setfield(lua, -2, "Visible");
+    lua_pushinteger(lua,in.SourceIdx);
+    lua_setfield(lua, -2, "SourceIdx");
     lua_pushinteger(lua,in.Codepoint);
     lua_setfield(lua, -2, "Codepoint");
     lua_pushnumber(lua,in.AdvanceX);
@@ -2005,6 +1694,8 @@ void lua_push_ImFontGlyph(lua_State *lua, const ImFontGlyph & in)
     lua_setfield(lua, -2, "U1");
     lua_pushnumber(lua,in.V1);
     lua_setfield(lua, -2, "V1");
+    lua_pushinteger(lua,in.PackId);
+    lua_setfield(lua, -2, "PackId");
 
 }
 
@@ -2028,43 +1719,14 @@ void lua_push_ImFont(lua_State *lua, const ImFont & in)
 {
     lua_newtable(lua);
     mbm::printStack(lua,__FILE__,__LINE__);
-    //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
-    lua_pushnumber(lua,in.FallbackAdvanceX);
-    mbm::printStack(lua,__FILE__,__LINE__);
-    lua_setfield(lua, -2, "FallbackAdvanceX");
-    mbm::printStack(lua,__FILE__,__LINE__);
-    lua_pushnumber(lua,in.FontSize);
-    mbm::printStack(lua,__FILE__,__LINE__);
-    lua_setfield(lua, -2, "FontSize");
-    mbm::printStack(lua,__FILE__,__LINE__);
-    //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
-    //#error "3 - (make_push_methods) Not found ImFont, do not know what to do!"
-    lua_push_ImFontGlyph_pointer(lua, in.FallbackGlyph);//TODO: 6 check here, apparently, "ImFont.FallbackGlyph" is a pointer and might be nullptr 
-    mbm::printStack(lua,__FILE__,__LINE__);
-    lua_setfield(lua, -2, "FallbackGlyph");
-    mbm::printStack(lua,__FILE__,__LINE__);
-    lua_push_ImVec2(lua,in.DisplayOffset);
-    lua_setfield(lua, -2, "DisplayOffset");
-    lua_push_ImFontAtlas_pointer(lua, in.ContainerAtlas);//TODO: 6 check here, apparently, "ImFont.ContainerAtlas" is a pointer and might be nullptr 
-    lua_setfield(lua, -2, "ContainerAtlas");
-    lua_push_ImFontConfig_pointer(lua, in.ConfigData);//TODO: 6 check here, apparently, "ImFont.ConfigData" is a pointer and might be nullptr 
-    lua_setfield(lua, -2, "ConfigData");
-    lua_pushinteger(lua,in.ConfigDataCount);
-    lua_setfield(lua, -2, "ConfigDataCount");
+    // Most ImFont fields are now internal/private in ImGui 1.92
+    // Only expose public fields
     lua_pushinteger(lua,in.FallbackChar);
     lua_setfield(lua, -2, "FallbackChar");
     lua_pushinteger(lua,in.EllipsisChar);
     lua_setfield(lua, -2, "EllipsisChar");
-    lua_pushnumber(lua,in.Scale);
-    lua_setfield(lua, -2, "Scale");
-    lua_pushnumber(lua,in.Ascent);
-    lua_setfield(lua, -2, "Ascent");
-    lua_pushnumber(lua,in.Descent);
-    lua_setfield(lua, -2, "Descent");
-    lua_pushinteger(lua,in.MetricsTotalSurface);
-    lua_setfield(lua, -2, "MetricsTotalSurface");
-    lua_pushboolean(lua,in.DirtyLookupTables);
-    lua_setfield(lua, -2, "DirtyLookupTables");
+    // lua_pushnumber(lua,in.Scale); // ImFont::Scale is now private in ImGui 1.92
+    // lua_setfield(lua, -2, "Scale");
     mbm::printStack(lua,__FILE__,__LINE__);
 }
 
@@ -2194,9 +1856,7 @@ ImFontConfig lua_pop_ImFontConfig(lua_State *lua,const int index)
     lua_getfield(lua, index, "PixelSnapH");
     ImFontConfig_out.PixelSnapH            = lua_toboolean(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "GlyphExtraSpacing");
-    ImFontConfig_out.GlyphExtraSpacing     = lua_pop_ImVec2(lua,-1);
-    lua_pop(lua, 1);
+    // GlyphExtraSpacing was removed in ImGui 1.92
     lua_getfield(lua, index, "GlyphOffset");
     ImFontConfig_out.GlyphOffset           = lua_pop_ImVec2(lua,-1);
     lua_pop(lua, 1);
@@ -2212,8 +1872,10 @@ ImFontConfig lua_pop_ImFontConfig(lua_State *lua,const int index)
     lua_getfield(lua, index, "MergeMode");
     ImFontConfig_out.MergeMode             = lua_toboolean(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "RasterizerFlags");
-    ImFontConfig_out.RasterizerFlags       = luaL_checkinteger(lua,-1);
+    // RasterizerFlags was removed in ImGui 1.92, use FontLoaderFlags instead
+    lua_getfield(lua, index, "FontLoaderFlags");
+    if (lua_isnumber(lua, -1))
+        ImFontConfig_out.FontLoaderFlags   = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "RasterizerMultiply");
     ImFontConfig_out.RasterizerMultiply    = luaL_checknumber(lua,-1);
@@ -2256,30 +1918,9 @@ ImFont lua_pop_ImFont(lua_State *lua,const int index)
 {
     ImFont ImFont_out;
     lua_check_is_table(lua, index, "ImFont");
-    //#error "1 - (make_pop_methods) Not found ImVector<float>, do not know what to do for variables: IndexAdvanceX, "
-    lua_getfield(lua, index, "FallbackAdvanceX");
-    ImFont_out.FallbackAdvanceX     = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "FontSize");
-    ImFont_out.FontSize             = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    //#error "1 - (make_pop_methods) Not found ImVector<ImWchar>, do not know what to do for variables: IndexLookup, "
-    //#error "1 - (make_pop_methods) Not found ImVector<ImFontGlyph>, do not know what to do for variables: Glyphs, "
-    //lua_getfield(lua, index, "FallbackGlyph");
-    //ImFont_out.FallbackGlyph        = lua_pop_ImFontGlyph(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "DisplayOffset");
-    ImFont_out.DisplayOffset        = lua_pop_ImVec2(lua,-1);
-    lua_pop(lua, 1);
-    //lua_getfield(lua, index, "ContainerAtlas");
-    //ImFont_out.ContainerAtlas       = lua_pop_ImFontAtlas(lua,-1);
-    lua_pop(lua, 1);
-    //lua_getfield(lua, index, "ConfigData");
-    //ImFont_out.ConfigData           = lua_pop_ImFontConfig(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "ConfigDataCount");
-    ImFont_out.ConfigDataCount      = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
+    // Most ImFont fields are now internal/private in ImGui 1.92
+    // These fields cannot be set from Lua anymore
+    // Only Scale, FallbackChar, and EllipsisChar remain public
     lua_getfield(lua, index, "FallbackChar");
     ImFont_out.FallbackChar         = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
@@ -2287,19 +1928,8 @@ ImFont lua_pop_ImFont(lua_State *lua,const int index)
     ImFont_out.EllipsisChar         = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "Scale");
-    ImFont_out.Scale                = luaL_checknumber(lua,-1);
+    // ImFont_out.Scale                = luaL_checknumber(lua,-1); // ImFont::Scale is now private in ImGui 1.92
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "Ascent");
-    ImFont_out.Ascent               = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "Descent");
-    ImFont_out.Descent              = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "MetricsTotalSurface");
-    ImFont_out.MetricsTotalSurface  = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "DirtyLookupTables");
-    ImFont_out.DirtyLookupTables    = lua_toboolean(lua,-1);
     lua_pop(lua, 1);
 
     return ImFont_out;
@@ -2393,39 +2023,33 @@ ImFontAtlas lua_pop_ImFontAtlas(lua_State *lua,const int index)
 {
     ImFontAtlas ImFontAtlas_out;
     lua_check_is_table(lua, index, "ImFontAtlas");
-    lua_getfield(lua, index, "Locked");
-    ImFontAtlas_out.Locked           = lua_toboolean(lua,-1);
-    lua_pop(lua, 1);
+    // Most ImFontAtlas fields are now read-only in ImGui 1.92
+    // Only Flags, TexGlyphPadding, and a few others can be set
     lua_getfield(lua, index, "Flags");
     ImFontAtlas_out.Flags            = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
-    //static void var_ImTextureID_136;//TODO: 3 check here, apparently, "ImFontAtlas.TexID" is a pointer
-    //lua_getfield(lua, index, "TexID");
-    //ImFontAtlas_out.TexID            = ;
-    //lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexDesiredWidth");
-    ImFontAtlas_out.TexDesiredWidth  = luaL_checkinteger(lua,-1);
+    lua_getfield(lua, index, "TexDesiredFormat");
+    if (lua_isnumber(lua, -1))
+        ImFontAtlas_out.TexDesiredFormat = (ImTextureFormat)luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
     lua_getfield(lua, index, "TexGlyphPadding");
     ImFontAtlas_out.TexGlyphPadding  = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
-    //lua_getfield(lua, index, "TexPixelsAlpha8");
-    //ImFontAtlas_out.TexPixelsAlpha8  = luaL_checkinteger(lua,-1);
-    //lua_pop(lua, 1);
-    //lua_getfield(lua, index, "TexPixelsRGBA32");
-    //ImFontAtlas_out.TexPixelsRGBA32  = luaL_checkinteger(lua,-1);
-    //lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexWidth");
-    ImFontAtlas_out.TexWidth         = luaL_checkinteger(lua,-1);
+    lua_getfield(lua, index, "TexMinWidth");
+    if (lua_isnumber(lua, -1))
+        ImFontAtlas_out.TexMinWidth  = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexHeight");
-    ImFontAtlas_out.TexHeight        = luaL_checkinteger(lua,-1);
+    lua_getfield(lua, index, "TexMinHeight");
+    if (lua_isnumber(lua, -1))
+        ImFontAtlas_out.TexMinHeight = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexUvScale");
-    ImFontAtlas_out.TexUvScale       = lua_pop_ImVec2(lua,-1);
+    lua_getfield(lua, index, "TexMaxWidth");
+    if (lua_isnumber(lua, -1))
+        ImFontAtlas_out.TexMaxWidth  = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexUvWhitePixel");
-    ImFontAtlas_out.TexUvWhitePixel  = lua_pop_ImVec2(lua,-1);
+    lua_getfield(lua, index, "TexMaxHeight");
+    if (lua_isnumber(lua, -1))
+        ImFontAtlas_out.TexMaxHeight = luaL_checkinteger(lua,-1);
     lua_pop(lua, 1);
     //#error "1 - (make_pop_methods) Not found ImVector<ImFont>, do not know what to do for variables: Fonts, "
     //#error "1 - (make_pop_methods) Not found ImVector<ImFontAtlasCustomRect>, do not know what to do for variables: CustomRects, "
@@ -2495,7 +2119,7 @@ ImFontConfig * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImF
     in_out_ImFontConfig->OversampleV           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleV),"OversampleV"));
     in_out_ImFontConfig->PixelSnapH            = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->PixelSnapH),"PixelSnapH"));
     lua_getfield(lua, index, "GlyphExtraSpacing");
-    in_out_ImFontConfig->GlyphExtraSpacing     = lua_pop_ImVec2(lua,index);
+    // GlyphExtraSpacing removed in ImGui 1.92
     lua_getfield(lua, index, "GlyphOffset");
     in_out_ImFontConfig->GlyphOffset           = lua_pop_ImVec2(lua,index);
     static ImWchar var_ImWchar_138;//TODO: 11 check here, apparently, "ImFontConfig->GlyphRanges" is a pointer
@@ -2503,7 +2127,7 @@ ImFontConfig * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImF
     in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
     in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
     in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    in_out_ImFontConfig->RasterizerFlags       = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerFlags),"RasterizerFlags"));
+    // RasterizerFlags replaced with FontLoaderFlags in ImGui 1.92
     in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
@@ -2543,30 +2167,30 @@ ImFont * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFont * in_out
     lua_check_is_table(lua, index, "ImFont");
 
      //#error "6 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-    in_out_ImFont->FallbackAdvanceX     = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->FallbackAdvanceX),"FallbackAdvanceX"));
-    in_out_ImFont->FontSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->FontSize),"FontSize"));
+    // FallbackAdvanceX is now internal in ImGui 1.92
+    // FontSize is now internal in ImGui 1.92
 
      //#error "6 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
 
      //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
     static ImFontGlyph var_ImFontGlyph_140;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
-    in_out_ImFont->FallbackGlyph        = lua_pop_ImFont_pointer(lua, index, &var_ImFontGlyph_140);
+    // FallbackGlyph is now internal in ImGui 1.92
     lua_getfield(lua, index, "DisplayOffset");
-    in_out_ImFont->DisplayOffset        = lua_pop_ImVec2(lua,index);
+    // DisplayOffset is now internal in ImGui 1.92
     static ImFontAtlas var_ImFontAtlas_141;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
-    in_out_ImFont->ContainerAtlas       = lua_pop_ImFont_pointer(lua, index, &var_ImFontAtlas_141);
+    // ContainerAtlas is now internal in ImGui 1.92
     static ImFontConfig var_ImFontConfig_142;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
-    in_out_ImFont->ConfigData           = lua_pop_ImFont_pointer(lua, index, &var_ImFontConfig_142);
-    in_out_ImFont->ConfigDataCount      = static_cast<short>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->ConfigDataCount),"ConfigDataCount"));
+    // ConfigData is now internal in ImGui 1.92
+    // ConfigData is now internal in ImGui 1.92
     lua_getfield(lua, index, "FallbackChar");
     in_out_ImFont->FallbackChar         = luaL_checkinteger(lua,index);
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFont->EllipsisChar         = luaL_checkinteger(lua,index);
-    in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale"));
-    in_out_ImFont->Ascent               = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Ascent),"Ascent"));
-    in_out_ImFont->Descent              = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Descent),"Descent"));
-    in_out_ImFont->MetricsTotalSurface  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->MetricsTotalSurface),"MetricsTotalSurface"));
-    in_out_ImFont->DirtyLookupTables    = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->DirtyLookupTables),"DirtyLookupTables"));
+    // in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale")); // ImFont::Scale is now private in ImGui 1.92
+    // Ascent is now internal in ImGui 1.92
+    // Descent is now internal in ImGui 1.92
+    // MetricsTotalSurface is now internal in ImGui 1.92
+    // DirtyLookupTables is now internal in ImGui 1.92
 
     return in_out_ImFont;
 }
@@ -2598,14 +2222,14 @@ ImFontAtlas * lua_pop_ImFontAtlas_pointer(lua_State *lua, const int index, ImFon
     lua_getfield(lua, index, "Flags");
     in_out_ImFontAtlas->Flags            = luaL_checkinteger(lua,index);
     lua_pop(lua, 1);
-    in_out_ImFontAtlas->TexDesiredWidth  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexDesiredWidth),"TexDesiredWidth"));
+    // TexDesiredWidth is now internal in ImGui 1.92
     in_out_ImFontAtlas->TexGlyphPadding  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexGlyphPadding),"TexGlyphPadding"));
     //in_out_ImFontAtlas->TexPixelsAlpha8  = get_string_from_field(lua, index, "TexPixelsAlpha8");
     //static int var_int_145               = 0;//TODO: 9 check here, apparently, "ImFontAtlas->TexPixelsRGBA32" is a pointer
     //in_out_ImFontAtlas->TexPixelsRGBA32  = &var_int_145;
     //var_int_145                          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(var_int_145),"TexPixelsRGBA32"));
-    in_out_ImFontAtlas->TexWidth         = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexWidth),"TexWidth"));
-    in_out_ImFontAtlas->TexHeight        = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexHeight),"TexHeight"));
+    // TexWidth is now internal/read-only in ImGui 1.92
+    // TexHeight is now internal/read-only in ImGui 1.92
     lua_getfield(lua, index, "TexUvScale");
     in_out_ImFontAtlas->TexUvScale       = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "TexUvWhitePixel");
@@ -2616,7 +2240,7 @@ ImFontAtlas * lua_pop_ImFontAtlas_pointer(lua_State *lua, const int index, ImFon
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
+    // CustomRectIds removed in ImGui 1.92
 
      //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -2667,7 +2291,7 @@ ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiSt
     lua_getfield(lua, index, "WindowTitleAlign");
     in_out_ImGuiStyle->WindowTitleAlign          = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "WindowMenuButtonPosition");
-    in_out_ImGuiStyle->WindowMenuButtonPosition  = luaL_checkinteger(lua,index);
+    in_out_ImGuiStyle->WindowMenuButtonPosition  = (ImGuiDir)luaL_checkinteger(lua,index);
     in_out_ImGuiStyle->ChildRounding             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ChildRounding),"ChildRounding"));
     in_out_ImGuiStyle->ChildBorderSize           = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ChildBorderSize),"ChildBorderSize"));
     in_out_ImGuiStyle->PopupRounding             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->PopupRounding),"PopupRounding"));
@@ -2691,7 +2315,7 @@ ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiSt
     in_out_ImGuiStyle->TabRounding               = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabRounding),"TabRounding"));
     in_out_ImGuiStyle->TabBorderSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabBorderSize),"TabBorderSize"));
     lua_getfield(lua, index, "ColorButtonPosition");
-    in_out_ImGuiStyle->ColorButtonPosition       = luaL_checkinteger(lua,index);
+    in_out_ImGuiStyle->ColorButtonPosition       = (ImGuiDir)luaL_checkinteger(lua,index);
     lua_getfield(lua, index, "ButtonTextAlign");
     in_out_ImGuiStyle->ButtonTextAlign           = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "SelectableTextAlign");
@@ -2742,7 +2366,7 @@ void lua_push_ImFontConfig_pointer(lua_State *lua, const ImFontConfig * p_in_ImF
         lua_setfield(lua, -2, "OversampleV");
         lua_pushboolean(lua,p_in_ImFontConfig->PixelSnapH);
         lua_setfield(lua, -2, "PixelSnapH");
-        lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphExtraSpacing);
+        // GlyphExtraSpacing removed in ImGui 1.92
         lua_setfield(lua, -2, "GlyphExtraSpacing");
         lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphOffset);
         lua_setfield(lua, -2, "GlyphOffset");
@@ -2757,7 +2381,7 @@ void lua_push_ImFontConfig_pointer(lua_State *lua, const ImFontConfig * p_in_ImF
         lua_setfield(lua, -2, "GlyphMaxAdvanceX");
         lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
         lua_setfield(lua, -2, "MergeMode");
-        lua_pushinteger(lua,p_in_ImFontConfig->RasterizerFlags);
+        // RasterizerFlags removed in ImGui 1.92
         lua_setfield(lua, -2, "RasterizerFlags");
         lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
         lua_setfield(lua, -2, "RasterizerMultiply");
@@ -2808,46 +2432,46 @@ void lua_push_ImFont_pointer(lua_State *lua, const ImFont * p_in_ImFont)
         lua_newtable(lua);
 
          //#error "5 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-        lua_pushnumber(lua,p_in_ImFont->FallbackAdvanceX);
+        // FallbackAdvanceX is now internal in ImGui 1.92
         lua_setfield(lua, -2, "FallbackAdvanceX");
-        lua_pushnumber(lua,p_in_ImFont->FontSize);
+        // FontSize is now internal in ImGui 1.92
         lua_setfield(lua, -2, "FontSize");
 
          //#error "5 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
 
          //#error "5 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-        if(p_in_ImFont->FallbackGlyph)
+        // FallbackGlyph is now internal in ImGui 1.92
         {
-            lua_push_ImFontGlyph(lua,*p_in_ImFont->FallbackGlyph);
+            // Fallback Glyph internal
             lua_setfield(lua, -2, "FallbackGlyph");
         }
-        lua_push_ImVec2(lua,p_in_ImFont->DisplayOffset);
+        // DisplayOffset is now internal in ImGui 1.92
         lua_setfield(lua, -2, "DisplayOffset");
-        if(p_in_ImFont->ContainerAtlas)
+        // ContainerAtlas is now internal in ImGui 1.92
         {
-            lua_push_ImFontAtlas(lua,*p_in_ImFont->ContainerAtlas);
+            // ContainerAtlas internal
             lua_setfield(lua, -2, "ContainerAtlas");
         }
-        if(p_in_ImFont->ConfigData)
+        // ConfigData is now internal in ImGui 1.92
         {
-            lua_push_ImFontConfig(lua,*p_in_ImFont->ConfigData);
+            // ConfigData internal
             lua_setfield(lua, -2, "ConfigData");
         }
-        lua_pushinteger(lua,p_in_ImFont->ConfigDataCount);
+        // ConfigDataCount is now internal in ImGui 1.92
         lua_setfield(lua, -2, "ConfigDataCount");
         lua_pushinteger(lua,p_in_ImFont->FallbackChar);
         lua_setfield(lua, -2, "FallbackChar");
         lua_pushinteger(lua,p_in_ImFont->EllipsisChar);
         lua_setfield(lua, -2, "EllipsisChar");
-        lua_pushnumber(lua,p_in_ImFont->Scale);
+        // lua_pushnumber(lua,p_in_ImFont->Scale); // ImFont::Scale is now private in ImGui 1.92
         lua_setfield(lua, -2, "Scale");
-        lua_pushnumber(lua,p_in_ImFont->Ascent);
+        // Ascent is now internal in ImGui 1.92
         lua_setfield(lua, -2, "Ascent");
-        lua_pushnumber(lua,p_in_ImFont->Descent);
+        // Descent is now internal in ImGui 1.92
         lua_setfield(lua, -2, "Descent");
-        lua_pushinteger(lua,p_in_ImFont->MetricsTotalSurface);
+        // MetricsTotalSurface is now internal in ImGui 1.92
         lua_setfield(lua, -2, "MetricsTotalSurface");
-        lua_pushboolean(lua,p_in_ImFont->DirtyLookupTables);
+        // DirtyLookupTables is now internal in ImGui 1.92
         lua_setfield(lua, -2, "DirtyLookupTables");
 
     }
@@ -2905,7 +2529,7 @@ void lua_push_ImFontAtlas_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFon
         //    ;
         //    lua_setfield(lua, -2, "TexID");
         //}
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexDesiredWidth);
+        // TexDesiredWidth is now internal in ImGui 1.92
         lua_setfield(lua, -2, "TexDesiredWidth");
         lua_pushinteger(lua,p_in_ImFontAtlas->TexGlyphPadding);
         lua_setfield(lua, -2, "TexGlyphPadding");
@@ -2914,14 +2538,14 @@ void lua_push_ImFontAtlas_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFon
         //    lua_pushstring(lua, p_in_ImFontAtlas->TexPixelsAlpha8);
         //    lua_setfield(lua, -2, "TexPixelsAlpha8");
         //}
-        if(p_in_ImFontAtlas->TexPixelsRGBA32)
+        // TexPixelsRGBA32 is now internal in ImGui 1.92
         {
-            lua_pushinteger(lua,*p_in_ImFontAtlas->TexPixelsRGBA32);
+            // TexPixelsRGBA32 internal
             lua_setfield(lua, -2, "TexPixelsRGBA32");
         }
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexWidth);
+        // TexWidth is now internal/read-only in ImGui 1.92
         lua_setfield(lua, -2, "TexWidth");
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexHeight);
+        // TexHeight is now internal/read-only in ImGui 1.92
         lua_setfield(lua, -2, "TexHeight");
         lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvScale);
         lua_setfield(lua, -2, "TexUvScale");
@@ -2933,7 +2557,7 @@ void lua_push_ImFontAtlas_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFon
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
+        // CustomRectIds removed in ImGui 1.92
         lua_setfield(lua, -2, "CustomRectIds");
 
          //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
@@ -2980,7 +2604,7 @@ ImFontConfig * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontCon
     in_out_ImFontConfig->OversampleV           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleV),"OversampleV"));
     in_out_ImFontConfig->PixelSnapH            = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->PixelSnapH),"PixelSnapH"));
     lua_getfield(lua, index, "GlyphExtraSpacing");
-    in_out_ImFontConfig->GlyphExtraSpacing     = lua_pop_ImVec2(lua,index);
+    // GlyphExtraSpacing removed in ImGui 1.92
     lua_getfield(lua, index, "GlyphOffset");
     in_out_ImFontConfig->GlyphOffset           = lua_pop_ImVec2(lua,index);
     static ImWchar var_ImWchar_147;//TODO: 11 check here, apparently, "ImFontConfig->GlyphRanges" is a pointer
@@ -2988,7 +2612,7 @@ ImFontConfig * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontCon
     in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
     in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
     in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    in_out_ImFontConfig->RasterizerFlags       = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerFlags),"RasterizerFlags"));
+    // RasterizerFlags replaced with FontLoaderFlags in ImGui 1.92
     in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
@@ -3013,14 +2637,14 @@ ImFontAtlas * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontAtla
     lua_getfield(lua, index, "Flags");
     in_out_ImFontAtlas->Flags            = luaL_checkinteger(lua,index);
     lua_pop(lua, 1);
-    in_out_ImFontAtlas->TexDesiredWidth  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexDesiredWidth),"TexDesiredWidth"));
+    // TexDesiredWidth is now internal in ImGui 1.92
     in_out_ImFontAtlas->TexGlyphPadding  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexGlyphPadding),"TexGlyphPadding"));
     //in_out_ImFontAtlas->TexPixelsAlpha8  = get_string_from_field(lua, index, "TexPixelsAlpha8");
     //static int var_int_151               = 0;//TODO: 9 check here, apparently, "ImFontAtlas->TexPixelsRGBA32" is a pointer
     //in_out_ImFontAtlas->TexPixelsRGBA32  = &var_int_151;
     //var_int_151                          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(var_int_151),"TexPixelsRGBA32"));
-    in_out_ImFontAtlas->TexWidth         = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexWidth),"TexWidth"));
-    in_out_ImFontAtlas->TexHeight        = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexHeight),"TexHeight"));
+    // TexWidth is now internal/read-only in ImGui 1.92
+    // TexHeight is now internal/read-only in ImGui 1.92
     lua_getfield(lua, index, "TexUvScale");
     in_out_ImFontAtlas->TexUvScale       = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "TexUvWhitePixel");
@@ -3031,7 +2655,7 @@ ImFontAtlas * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontAtla
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
      //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    get_int_arrayFromTable(lua,index,in_out_ImFontAtlas->CustomRectIds ,sizeof(in_out_ImFontAtlas->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 10 check if the type is right
+    // CustomRectIds removed in ImGui 1.92
 
      //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
 
@@ -3087,30 +2711,30 @@ ImFont * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImFont * 
     lua_check_is_table(lua, index, "ImFont");
 
      //#error "6 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-    in_out_ImFont->FallbackAdvanceX     = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->FallbackAdvanceX),"FallbackAdvanceX"));
-    in_out_ImFont->FontSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->FontSize),"FontSize"));
+    // FallbackAdvanceX is now internal in ImGui 1.92
+    // FontSize is now internal in ImGui 1.92
 
      //#error "6 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
 
      //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
     static ImFontGlyph var_ImFontGlyph_156;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
-    in_out_ImFont->FallbackGlyph        = lua_pop_ImFont_pointer(lua, index, &var_ImFontGlyph_156);
+    // FallbackGlyph is now internal in ImGui 1.92
     lua_getfield(lua, index, "DisplayOffset");
-    in_out_ImFont->DisplayOffset        = lua_pop_ImVec2(lua,index);
+    // DisplayOffset is now internal in ImGui 1.92
     static ImFontAtlas var_ImFontAtlas_157;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
-    in_out_ImFont->ContainerAtlas       = lua_pop_ImFont_pointer(lua, index, &var_ImFontAtlas_157);
+    // ContainerAtlas is now internal in ImGui 1.92
     static ImFontConfig var_ImFontConfig_158;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
-    in_out_ImFont->ConfigData           = lua_pop_ImFont_pointer(lua, index, &var_ImFontConfig_158);
-    in_out_ImFont->ConfigDataCount      = static_cast<short>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->ConfigDataCount),"ConfigDataCount"));
+    // ConfigData is now internal in ImGui 1.92
+    // ConfigData is now internal in ImGui 1.92
     lua_getfield(lua, index, "FallbackChar");
     in_out_ImFont->FallbackChar         = luaL_checkinteger(lua,index);
     lua_getfield(lua, index, "EllipsisChar");
     in_out_ImFont->EllipsisChar         = luaL_checkinteger(lua,index);
-    in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale"));
-    in_out_ImFont->Ascent               = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Ascent),"Ascent"));
-    in_out_ImFont->Descent              = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Descent),"Descent"));
-    in_out_ImFont->MetricsTotalSurface  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->MetricsTotalSurface),"MetricsTotalSurface"));
-    in_out_ImFont->DirtyLookupTables    = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->DirtyLookupTables),"DirtyLookupTables"));
+    // in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale")); // ImFont::Scale is now private in ImGui 1.92
+    // Ascent is now internal in ImGui 1.92
+    // Descent is now internal in ImGui 1.92
+    // MetricsTotalSurface is now internal in ImGui 1.92
+    // DirtyLookupTables is now internal in ImGui 1.92
 
     return in_out_ImFont;
 }
@@ -3157,7 +2781,7 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontConfig * p_in_ImFontConf
         lua_setfield(lua, -2, "OversampleV");
         lua_pushboolean(lua,p_in_ImFontConfig->PixelSnapH);
         lua_setfield(lua, -2, "PixelSnapH");
-        lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphExtraSpacing);
+        // GlyphExtraSpacing removed in ImGui 1.92
         lua_setfield(lua, -2, "GlyphExtraSpacing");
         lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphOffset);
         lua_setfield(lua, -2, "GlyphOffset");
@@ -3172,7 +2796,7 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontConfig * p_in_ImFontConf
         lua_setfield(lua, -2, "GlyphMaxAdvanceX");
         lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
         lua_setfield(lua, -2, "MergeMode");
-        lua_pushinteger(lua,p_in_ImFontConfig->RasterizerFlags);
+        // RasterizerFlags removed in ImGui 1.92
         lua_setfield(lua, -2, "RasterizerFlags");
         lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
         lua_setfield(lua, -2, "RasterizerMultiply");
@@ -3207,7 +2831,7 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas
         //    ;
         //    lua_setfield(lua, -2, "TexID");
         //}
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexDesiredWidth);
+        // TexDesiredWidth is now internal in ImGui 1.92
         lua_setfield(lua, -2, "TexDesiredWidth");
         lua_pushinteger(lua,p_in_ImFontAtlas->TexGlyphPadding);
         lua_setfield(lua, -2, "TexGlyphPadding");
@@ -3216,14 +2840,14 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas
         //    lua_pushstring(lua, p_in_ImFontAtlas->TexPixelsAlpha8);
         //    lua_setfield(lua, -2, "TexPixelsAlpha8");
         //}
-        if(p_in_ImFontAtlas->TexPixelsRGBA32)
+        // TexPixelsRGBA32 is now internal in ImGui 1.92
         {
-            lua_pushinteger(lua,*p_in_ImFontAtlas->TexPixelsRGBA32);
+            // TexPixelsRGBA32 internal
             lua_setfield(lua, -2, "TexPixelsRGBA32");
         }
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexWidth);
+        // TexWidth is now internal/read-only in ImGui 1.92
         lua_setfield(lua, -2, "TexWidth");
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexHeight);
+        // TexHeight is now internal/read-only in ImGui 1.92
         lua_setfield(lua, -2, "TexHeight");
         lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvScale);
         lua_setfield(lua, -2, "TexUvScale");
@@ -3235,7 +2859,7 @@ void lua_pop_ImFont_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
 
          //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        push_int_arrayFromTable(lua,p_in_ImFontAtlas->CustomRectIds ,sizeof(p_in_ImFontAtlas->CustomRectIds) / sizeof(int));//TODO: 8 check if the type is right
+        // CustomRectIds removed in ImGui 1.92
         lua_setfield(lua, -2, "CustomRectIds");
 
          //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
@@ -3290,46 +2914,46 @@ void lua_pop_ImFontConfig_pointer(lua_State *lua, const ImFont * p_in_ImFont)
         lua_newtable(lua);
 
          //#error "5 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-        lua_pushnumber(lua,p_in_ImFont->FallbackAdvanceX);
+        // FallbackAdvanceX is now internal in ImGui 1.92
         lua_setfield(lua, -2, "FallbackAdvanceX");
-        lua_pushnumber(lua,p_in_ImFont->FontSize);
+        // FontSize is now internal in ImGui 1.92
         lua_setfield(lua, -2, "FontSize");
 
          //#error "5 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
 
          //#error "5 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-        if(p_in_ImFont->FallbackGlyph)
+        // FallbackGlyph is now internal in ImGui 1.92
         {
-            lua_push_ImFontGlyph(lua,*p_in_ImFont->FallbackGlyph);
+            // Fallback Glyph internal
             lua_setfield(lua, -2, "FallbackGlyph");
         }
-        lua_push_ImVec2(lua,p_in_ImFont->DisplayOffset);
+        // DisplayOffset is now internal in ImGui 1.92
         lua_setfield(lua, -2, "DisplayOffset");
-        if(p_in_ImFont->ContainerAtlas)
+        // ContainerAtlas is now internal in ImGui 1.92
         {
-            lua_push_ImFontAtlas(lua,*p_in_ImFont->ContainerAtlas);
+            // ContainerAtlas internal
             lua_setfield(lua, -2, "ContainerAtlas");
         }
-        if(p_in_ImFont->ConfigData)
+        // ConfigData is now internal in ImGui 1.92
         {
-            lua_push_ImFontConfig(lua,*p_in_ImFont->ConfigData);
+            // ConfigData internal
             lua_setfield(lua, -2, "ConfigData");
         }
-        lua_pushinteger(lua,p_in_ImFont->ConfigDataCount);
+        // ConfigDataCount is now internal in ImGui 1.92
         lua_setfield(lua, -2, "ConfigDataCount");
         lua_pushinteger(lua,p_in_ImFont->FallbackChar);
         lua_setfield(lua, -2, "FallbackChar");
         lua_pushinteger(lua,p_in_ImFont->EllipsisChar);
         lua_setfield(lua, -2, "EllipsisChar");
-        lua_pushnumber(lua,p_in_ImFont->Scale);
+        // lua_pushnumber(lua,p_in_ImFont->Scale); // ImFont::Scale is now private in ImGui 1.92
         lua_setfield(lua, -2, "Scale");
-        lua_pushnumber(lua,p_in_ImFont->Ascent);
+        // Ascent is now internal in ImGui 1.92
         lua_setfield(lua, -2, "Ascent");
-        lua_pushnumber(lua,p_in_ImFont->Descent);
+        // Descent is now internal in ImGui 1.92
         lua_setfield(lua, -2, "Descent");
-        lua_pushinteger(lua,p_in_ImFont->MetricsTotalSurface);
+        // MetricsTotalSurface is now internal in ImGui 1.92
         lua_setfield(lua, -2, "MetricsTotalSurface");
-        lua_pushboolean(lua,p_in_ImFont->DirtyLookupTables);
+        // DirtyLookupTables is now internal in ImGui 1.92
         lua_setfield(lua, -2, "DirtyLookupTables");
 
     }
@@ -3672,7 +3296,7 @@ int onShowUserGuideImGuiLua(lua_State *lua)
 
 int onGetVersionImGuiLua(lua_State *lua)
 {
-    //  Get the compiled version string e.g. "1.23" (essentially the compiled value for IMGUI_VERSION)
+    //  Get the compiled version string e.g. "1.92.6 WIP" (essentially the compiled value for IMGUI_VERSION)
     const char* ret_char  = ImGui::GetVersion();
     lua_pushstring(lua,ret_char);
     return 1;
@@ -3818,7 +3442,8 @@ int onGetWindowWidthImGuiLua(lua_State *lua)
 
 int onGetZoomImGuiLua(lua_State *lua)
 {
-    const float zoom  = key_mouse::mouse_wheel;
+    ImGuiIO& io = ImGui::GetIO();
+    const float zoom = io.MouseWheel;
     lua_pushnumber(lua,zoom);
     return 1;
 }
@@ -3949,7 +3574,7 @@ int onSetWindowFontScaleImGuiLua(lua_State *lua)
     //  Set font scale. Adjust IO.FontGlobalScale if you want to scale all windows. This is an old API! For correct scaling, prefer to reload font + rebuild ImFontAtlas + call style.ScaleAllSizes().
     int index_input    = 1;
     const float scale  = luaL_checknumber(lua,index_input++);
-    ImGui::SetWindowFontScale(scale);
+    // ImGui::SetWindowFontScale(scale); // REMOVED in ImGui 1.92 - use ImGui::GetIO().FontGlobalScale instead
     return 0;
 }
     
@@ -3971,7 +3596,10 @@ int onSetWindowCollapsedImGuiLua(lua_State *lua)
 int onGetContentRegionMaxImGuiLua(lua_State *lua)
 {
     //  Current content boundaries (typically window boundaries including scrolling, or current column boundaries), in windows coordinates
-    const ImVec2 ret_ImVec2  = ImGui::GetContentRegionMax();
+    //  NOTE: GetContentRegionMax() was removed in ImGui 1.89+. Use GetContentRegionAvail() + GetCursorPos() instead.
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const ImVec2 cursor = ImGui::GetCursorPos();
+    const ImVec2 ret_ImVec2 = ImVec2(avail.x + cursor.x, avail.y + cursor.y);
     lua_push_ImVec2(lua,ret_ImVec2);
     return 1;
 }
@@ -3987,7 +3615,8 @@ int onGetContentRegionAvailImGuiLua(lua_State *lua)
 int onGetWindowContentRegionMinImGuiLua(lua_State *lua)
 {
     //  Content boundaries min (roughly (0,0)-Scroll), in window coordinates
-    const ImVec2 ret_ImVec2  = ImGui::GetWindowContentRegionMin();
+    //  NOTE: GetWindowContentRegionMin() was removed in ImGui 1.89+. Using GetCursorStartPos() as closest approximation.
+    const ImVec2 ret_ImVec2  = ImGui::GetCursorStartPos();
     lua_push_ImVec2(lua,ret_ImVec2);
     return 1;
 }
@@ -3995,16 +3624,11 @@ int onGetWindowContentRegionMinImGuiLua(lua_State *lua)
 int onGetWindowContentRegionMaxImGuiLua(lua_State *lua)
 {
     //  Content boundaries max (roughly (0,0)+Size-Scroll) where Size can be override with SetNextWindowContentSize(), in window coordinates
-    const ImVec2 ret_ImVec2  = ImGui::GetWindowContentRegionMax();
+    //  NOTE: GetWindowContentRegionMax() was removed in ImGui 1.89+. Calculate as CursorStartPos + ContentRegionAvail.
+    const ImVec2 start = ImGui::GetCursorStartPos();
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const ImVec2 ret_ImVec2 = ImVec2(start.x + avail.x, start.y + avail.y);
     lua_push_ImVec2(lua,ret_ImVec2);
-    return 1;
-}
-
-int onGetWindowContentRegionWidthImGuiLua(lua_State *lua)
-{
-    // 
-    const float ret_float  = ImGui::GetWindowContentRegionWidth();
-    lua_pushnumber(lua,ret_float);
     return 1;
 }
 
@@ -4035,17 +3659,9 @@ int onGetScrollMaxXImGuiLua(lua_State *lua)
 
 int onIsScrollVisibleImGuiLua(lua_State *lua)
 {
-    /*
-    void IsScrollVisible(bool* x, bool * y)
-    {
-        ImGuiWindow* window = GImGui->CurrentWindow;
-        *x = window->ScrollbarX;
-        *y = window->ScrollbarY;
-    }
-    */
-    bool x = false;
-    bool y = false;
-    ImGui::IsScrollVisible(&x,&y);
+    // Check if scrollbars are visible by checking if there's scrollable content
+    bool x = ImGui::GetScrollMaxX() > 0.0f;
+    bool y = ImGui::GetScrollMaxY() > 0.0f;
     lua_pushboolean(lua,x);
     lua_pushboolean(lua,y);
     return 2;
@@ -4125,7 +3741,7 @@ int onPushFontImGuiLua(lua_State *lua)
     int index_input  = 1;
     ImFont font;
     ImFont * p_font  =  lua_type(lua,index_input) == LUA_TNIL ? nullptr : lua_pop_ImFont_pointer(lua, index_input, &font);
-    ImGui::PushFont(p_font);
+    ImGui::PushFont(p_font, 0.0f); // NOTE: ImGui 1.92 requires second parameter (font_scale)
     return 0;
 }
 
@@ -4342,33 +3958,54 @@ int onPopTextWrapPosImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onPushAllowKeyboardFocusImGuiLua(lua_State *lua)
+int onPushTabStopImGuiLua(lua_State *lua)
 {
     //  Allow focusing using TAB/Shift-TAB, enabled by default but you can disable it for certain widgets
+    //  NOTE: PushTabStop was removed in ImGui 1.90+. Use PushItemFlag(ImGuiItemFlags_NoTabStop) instead.
     int index_input                  = 1;
     const bool allow_keyboard_focus  = lua_toboolean(lua,index_input++);
-    ImGui::PushAllowKeyboardFocus(allow_keyboard_focus);
+    ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, !allow_keyboard_focus);
     return 0;
 }
 
-int onPopAllowKeyboardFocusImGuiLua(lua_State *lua)
+int onPopTabStopImGuiLua(lua_State *lua)
 {
-    ImGui::PopAllowKeyboardFocus();
+    //  NOTE: PopTabStop was removed in ImGui 1.90+. Use PopItemFlag instead.
+    ImGui::PopItemFlag();
     return 0;
 }
 
 int onPushButtonRepeatImGuiLua(lua_State *lua)
 {
     //  In 'repeat' mode, Button*() functions return repeated true in a typematic manner (using io.KeyRepeatDelay/io.KeyRepeatRate setting). Note that you can call IsItemActive() after any Button() to tell if the button is held in the current frame.
+    //  NOTE: PushButtonRepeat was removed in ImGui 1.90+. Use PushItemFlag(ImGuiItemFlags_ButtonRepeat) instead.
     int index_input    = 1;
     const bool repeat  = lua_toboolean(lua,index_input++);
-    ImGui::PushButtonRepeat(repeat);
+    ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, repeat);
     return 0;
 }
 
 int onPopButtonRepeatImGuiLua(lua_State *lua)
 {
-    ImGui::PopButtonRepeat();
+    //  NOTE: PopButtonRepeat was removed in ImGui 1.90+. Use PopItemFlag instead.
+    ImGui::PopItemFlag();
+    return 0;
+}
+
+int onPushItemFlagImGuiLua(lua_State *lua)
+{
+    //  Generic item flag push - allows setting any ImGuiItemFlags
+    int index_input           = 1;
+    ImGuiItemFlags flags      = luaL_checkinteger(lua, index_input++);
+    const bool value          = lua_toboolean(lua, index_input++);
+    ImGui::PushItemFlag(flags, value);
+    return 0;
+}
+
+int onPopItemFlagImGuiLua(lua_State *lua)
+{
+    //  Pop item flag
+    ImGui::PopItemFlag();
     return 0;
 }
 
@@ -4709,7 +4346,37 @@ int onArrowButtonImGuiLua(lua_State *lua)
     //  Square button with an arrow shape
     int index_input        = 1;
     const char * p_str_id  = luaL_checkstring(lua,index_input++);
-    ImGuiDir dir           = luaL_checkinteger(lua, index_input++);
+    ImGuiDir dir           = ImGuiDir_None;
+    
+    if(lua_type(lua,index_input) == LUA_TSTRING)
+    {
+        const char * dirStr = luaL_checkstring(lua,index_input++);
+        const auto it = enumDirMap.find(dirStr);
+        if(it == enumDirMap.end())
+        {
+            std::string msg("ImGuiDir not found [");
+            msg += dirStr;
+            msg += "]. Valid values: ImGuiDir_None, ImGuiDir_Left, ImGuiDir_Right, ImGuiDir_Up, ImGuiDir_Down";
+            lua_log_error(lua,msg.c_str());
+        }
+        else
+        {
+            dir = static_cast<ImGuiDir>(it->second);
+        }
+    }
+    else
+    {
+        int dirInt = luaL_checkinteger(lua, index_input++);
+        if(dirInt < ImGuiDir_None || dirInt >= ImGuiDir_COUNT)
+        {
+            char msg[255];
+            snprintf(msg, sizeof(msg), "ImGuiDir value out of range [%d]. Valid range: %d to %d", 
+                     dirInt, ImGuiDir_None, ImGuiDir_COUNT - 1);
+            lua_log_error(lua, msg);
+        }
+        dir = static_cast<ImGuiDir>(dirInt);
+    }
+    
     const bool ret_bool    = ImGui::ArrowButton(p_str_id,dir);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4722,11 +4389,11 @@ int onImageImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //if(lua_type(lua,index_input) == LUA_TNUMBER)
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //else
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -4736,7 +4403,7 @@ int onImageImGuiLua(lua_State *lua)
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
     const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
     const ImVec4 line_color             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,1);
-    ImGui::Image(user_texture_id, size, uv0 , uv1 , bg_col, line_color );
+    //ImGui::Image(user_texture_id, size, uv0 , uv1 , bg_col, line_color );
     return 0;
 }
 
@@ -4746,11 +4413,11 @@ int onImageQuadImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //if(lua_type(lua,index_input) == LUA_TNUMBER)
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //else
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -4762,7 +4429,7 @@ int onImageQuadImGuiLua(lua_State *lua)
     const ImVec2 uv3                    = lua_pop_ImVec2(lua, index_input++);
     const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
     const ImVec4 line_color             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,1);
-    ImGui::ImageQuad(user_texture_id, size, uv0 , uv1 , uv2, uv3,  bg_col, line_color );
+    //ImGui::ImageQuad(user_texture_id, size, uv0 , uv1 , uv2, uv3,  bg_col, line_color );
     return 0;
 }
 
@@ -4772,11 +4439,11 @@ int onImageButtonImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //if(lua_type(lua,index_input) == LUA_TNUMBER)
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //else
+    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -4787,8 +4454,8 @@ int onImageButtonImGuiLua(lua_State *lua)
     const int frame_padding             = top >= index_input ? luaL_checkinteger(lua, index_input++): -1;
     const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
     const ImVec4 tint_col               = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-    const bool result                   = ImGui::ImageButton(user_texture_id, size, uv0 , uv1 , frame_padding,  bg_col, tint_col );
-    lua_pushboolean(lua,result);
+    //const bool result                   = ImGui::ImageButton(user_texture_id, size, uv0 , uv1 , frame_padding,  bg_col, tint_col );
+    lua_pushboolean(lua,false);
     return 1;
 }
 
@@ -5074,16 +4741,16 @@ int onDragIntRange2ImGuiLua(lua_State *lua)
 
 int onSliderFloatImGuiLua(lua_State *lua)
 {
-    //  Adjust format to decorate the value with a prefix or a suffix for in-slider labels or unit display. Use power!=1.0 for power curve sliders
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value            = luaL_checknumber(lua,index_input++);
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::SliderFloat(p_label,&value,v_min,v_max,p_format,power);
+    //  Adjust format to decorate the value with a prefix or a suffix for in-slider labels or unit display.
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value                = luaL_checknumber(lua,index_input++);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::SliderFloat(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
     return 2;
@@ -5091,16 +4758,16 @@ int onSliderFloatImGuiLua(lua_State *lua)
 
 int onSliderFloat2ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[2]         = {0.0f,0.0f};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[2]             = {0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[2]");
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::SliderFloat2(p_label,value,v_min,v_max,p_format,power);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::SliderFloat2(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5108,16 +4775,16 @@ int onSliderFloat2ImGuiLua(lua_State *lua)
 
 int onSliderFloat3ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[3]         = {0.0f,0.0f,0.0f};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[3]             = {0.0f,0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[3]");
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::SliderFloat3(p_label,value,v_min,v_max,p_format,power);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::SliderFloat3(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5125,16 +4792,16 @@ int onSliderFloat3ImGuiLua(lua_State *lua)
 
 int onSliderFloat4ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[4]         = {0.0f,0.0f,0.0f,0.0f};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[4]             = {0.0f,0.0f,0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[4]");
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::SliderFloat4(p_label,value,v_min,v_max,p_format,power);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::SliderFloat4(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5142,14 +4809,15 @@ int onSliderFloat4ImGuiLua(lua_State *lua)
 
 int onSliderAngleImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value            = luaL_checknumber(lua,index_input++);
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const bool ret_bool    = ImGui::SliderAngle(p_label,&value,v_min,v_max,p_format);
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value                = luaL_checknumber(lua,index_input++);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.0f deg";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::SliderAngle(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
     return 2;
@@ -5220,16 +4888,16 @@ int onSliderInt4ImGuiLua(lua_State *lua)
 
 int onVSliderFloatImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    ImVec2 size            = lua_pop_ImVec2(lua, index_input++);
-    float value            = luaL_checknumber(lua,index_input++);
-    const float v_min      = luaL_checknumber(lua,index_input++);
-    const float v_max      = luaL_checknumber(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) : 1.0f;
-    const bool ret_bool    = ImGui::VSliderFloat(p_label,size,&value,v_min,v_max,p_format,power);
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    ImVec2 size                = lua_pop_ImVec2(lua, index_input++);
+    float value                = luaL_checknumber(lua,index_input++);
+    const float v_min          = luaL_checknumber(lua,index_input++);
+    const float v_max          = luaL_checknumber(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::VSliderFloat(p_label,size,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
     return 2;
@@ -5607,33 +5275,23 @@ int onListBoxImGuiLua(lua_State *lua)
     return 3;
 }
 
-int onListBoxHeaderImGuiLua(lua_State *lua)
+int onBeginListBoxImGuiLua(lua_State *lua)
 {
-    //  Use if you want to reimplement ListBox() will custom data or interactions. if the function return true, you can output elements then call ListBoxFooter() afterwards.
+    //  Use if you want to reimplement ListBox() with custom data or interactions. if the function return true, you can output elements then call EndListBox() afterwards.
     int index_input       = 1;
     const int top         = lua_gettop(lua);
     const char * p_label  = luaL_checkstring(lua,index_input++);
-    bool ret_bool         = false;
-    if(lua_type(lua,index_input) == LUA_TTABLE)
-    {
-        const ImVec2  size         = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0,0);
-        ret_bool                   = ImGui::ListBoxHeader(p_label,size);
-    }
-    else
-    {
-        const int items_count      = luaL_checkinteger(lua,index_input++);
-        const int height_in_items  = top >= index_input ? luaL_checkinteger(lua,index_input++) :  -1;
-        ret_bool                   = ImGui::ListBoxHeader(p_label,items_count,height_in_items);
-    }
+    const ImVec2  size    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0,0);
+    const bool ret_bool   = ImGui::BeginListBox(p_label,size);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
 
 
-int onListBoxFooterImGuiLua(lua_State *lua)
+int onEndListBoxImGuiLua(lua_State *lua)
 {
-    //  Terminate the scrolling region. only call ListBoxFooter() if ListBoxHeader() returned true!
-    ImGui::ListBoxFooter();
+    //  Terminate the scrolling region. only call EndListBox() if BeginListBox() returned true!
+    ImGui::EndListBox();
     return 0;
 }
 
@@ -5893,8 +5551,7 @@ int onBeginPopupContextWindowImGuiLua(lua_State *lua)
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
     ImGuiMouseButton mouse_button      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  1;
-    const bool also_over_items         = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
-    const bool ret_bool                = ImGui::BeginPopupContextWindow(p_str_id,mouse_button,also_over_items);
+    const bool ret_bool                = ImGui::BeginPopupContextWindow(p_str_id,mouse_button);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -5945,14 +5602,14 @@ int onEndPopupImGuiLua(lua_State *lua)
 
 int onOpenPopupOnItemClickImGuiLua(lua_State *lua)
 {
-    //  Helper to open popup when clicked on last item (note: actually triggers on the mouse _released_ event to be consistent with popup behaviors). return true when just opened.
+    // Helper to open a popup if mouse button is released over the item
+    // - This is essentially the same as BeginPopupContextItem() but without the trailing BeginPopup()
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiMouseButton mouse_button      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const bool ret_bool                = ImGui::OpenPopupOnItemClick(p_str_id,mouse_button);
-    lua_pushboolean(lua,ret_bool);
-    return 1;
+    ImGuiPopupFlags popup_flags        = top >= index_input ? luaL_checkinteger(lua, index_input++) :  1;
+    ImGui::OpenPopupOnItemClick(p_str_id,popup_flags);
+    return 0;
 }
 /*
 namespace ImGui
@@ -6000,6 +5657,7 @@ int onCloseCurrentPopupImGuiLua(lua_State *lua)
 
 int onColumnsImGuiLua(lua_State *lua)
 {
+    // NOTE: Columns API is legacy/deprecated in ImGui 1.92+. Consider using Tables API instead.
     int index_input    = 1;
     const int top      = lua_gettop(lua);
     const int count    = top >= index_input ? luaL_checkinteger(lua,index_input++) :  1;
@@ -6429,10 +6087,10 @@ int onGetItemRectSizeImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onSetItemAllowOverlapImGuiLua(lua_State *lua)
+int onSetNextItemAllowOverlapImGuiLua(lua_State *lua)
 {
-    //  Allow last item to be overlapped by a subsequent item. sometimes useful with invisible buttons, selectables, etc. to catch unused area.
-    ImGui::SetItemAllowOverlap();
+    //  Set next item to allow being overlapped by a subsequent item. Call before item.
+    ImGui::SetNextItemAllowOverlap();
     return 0;
 }
 
@@ -6487,40 +6145,14 @@ int onCalcTextSizeImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onCalcListClippingImGuiLua(lua_State *lua)
-{
-    //  Calculate coarse clipping for large list of evenly sized items. Prefer using the ImGuiListClipper higher-level helper if you can.
-    int index_input                  = 1;
-    const int items_count            = luaL_checkinteger(lua,index_input++);
-    const float items_height         = luaL_checknumber(lua,index_input++);
-    int   p_out_items_display_start  = 0;
-    int   p_out_items_display_end    = 0;
-    ImGui::CalcListClipping(items_count,items_height,&p_out_items_display_start,&p_out_items_display_end);
-    lua_pushinteger(lua,p_out_items_display_start);
-    lua_pushinteger(lua,p_out_items_display_end);
-    return 2;
-}
+// REMOVED: CalcListClipping - deprecated in ImGui 1.92
+// Use ImGuiListClipper class instead for large lists
 
-int onBeginChildFrameImGuiLua(lua_State *lua)
-{
-    //  Helper to create a child window / scrolling region that looks like a normal widget frame
-    int index_input             = 1;
-    const int top               = lua_gettop(lua);
-    ImGuiID id                  = luaL_checkinteger(lua, index_input++);
-    ImVec2 size(0,0);
-    lua_pop_ImVec2_pointer(lua, index_input++, &size);
-    ImGuiWindowFlags   flags    = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const bool ret_bool         = ImGui::BeginChildFrame(id,size,flags);
-    lua_pushboolean(lua,ret_bool);
-    return 1;
-}
+// REMOVED: BeginChildFrame - deprecated in ImGui 1.92
+// Use BeginChild with PushStyleVar/PushStyleColor for frame styling instead
 
-int onEndChildFrameImGuiLua(lua_State *lua)
-{
-    //  Always call EndChildFrame() regardless of BeginChildFrame() return values (which indicates a collapsed/clipped window)
-    ImGui::EndChildFrame();
-    return 0;
-}
+// REMOVED: EndChildFrame - deprecated in ImGui 1.92
+// Use EndChild instead
 
 int onColorConvertU32ToFloat4ImGuiLua(lua_State *lua)
 {
@@ -6574,19 +6206,21 @@ int onColorConvertHSVtoRGBImGuiLua(lua_State *lua)
 
 int onGetKeyIndexImGuiLua(lua_State *lua)
 {
-    //  Map ImGuiKey_* values into user's key index. == io.KeyMap[key]
+    //  DEPRECATED: This function is deprecated in newer ImGui versions.
+    //  ImGuiKey values can be used directly now.
     int index_input         = 1;
-    ImGuiKey imgui_key      = 0;
+    ImGuiKey imgui_key      = ImGuiKey_None;
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        imgui_key      = luaL_checkinteger(lua, index_input++);
+    {
+        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
+    }
     else
     {
         const char* key = luaL_checkstring(lua,index_input++);
         const auto  it  = enumKeyMap.find(key);
         if(it != enumKeyMap.end())
         {
-            ImGuiIO& imGuIo = ImGui::GetIO();
-            imgui_key = imGuIo.KeyMap[it->second];
+            imgui_key = static_cast<ImGuiKey>(it->second);
         }
         else
         {
@@ -6595,26 +6229,27 @@ int onGetKeyIndexImGuiLua(lua_State *lua)
             lua_log_error(lua,str);
         }
     }
-    const int ret_int       = ImGui::GetKeyIndex(imgui_key);
-    lua_pushinteger(lua,ret_int);
+    // In new ImGui API, ImGuiKey values are used directly
+    lua_pushinteger(lua, static_cast<int>(imgui_key));
     return 1;
 }
 
 int onIsKeyDownImGuiLua(lua_State *lua)
 {
-    //  Is key being held. == io.KeysDown[user_key_index].
+    //  Is key being held.
     int index_input           = 1;
-    int user_key_index        = 0;
+    ImGuiKey imgui_key        = ImGuiKey_None;
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_key_index        = luaL_checkinteger(lua, index_input++);
+    {
+        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
+    }
     else
     {
         const char* key       = luaL_checkstring(lua,index_input++);
         const auto  it        = enumKeyMap.find(key);
         if(it != enumKeyMap.end())
         {
-            ImGuiIO& imGuIo = ImGui::GetIO();
-            user_key_index  = static_cast<int>(imGuIo.KeyMap[it->second]);
+            imgui_key  = static_cast<ImGuiKey>(it->second);
         }
         else
         {
@@ -6623,7 +6258,7 @@ int onIsKeyDownImGuiLua(lua_State *lua)
             lua_log_error(lua,str);
         }
     }
-    const bool ret_bool       = ImGui::IsKeyDown(user_key_index); //key_mouse::KeysDown[user_key_index];
+    const bool ret_bool       = ImGui::IsKeyDown(imgui_key);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -6633,17 +6268,18 @@ int onIsKeyPressedImGuiLua(lua_State *lua)
     //  Was key pressed (went from !Down to Down)? if repeat=true, uses io.KeyRepeatDelay / KeyRepeatRate
     int index_input           = 1;
     const int top             = lua_gettop(lua);
-    int user_key_index        = 0;
+    ImGuiKey imgui_key        = ImGuiKey_None;
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_key_index        = luaL_checkinteger(lua, index_input++);
+    {
+        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
+    }
     else
     {
         const char* key       = luaL_checkstring(lua,index_input++);
         const auto  it        = enumKeyMap.find(key);
         if(it != enumKeyMap.end())
         {
-            ImGuiIO& imGuIo = ImGui::GetIO();
-            user_key_index  = static_cast<int>(imGuIo.KeyMap[it->second]);
+            imgui_key  = static_cast<ImGuiKey>(it->second);
         }
         else
         {
@@ -6653,7 +6289,7 @@ int onIsKeyPressedImGuiLua(lua_State *lua)
         }
     }
     const bool repeat         = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
-    const bool ret_bool       = ImGui::IsKeyPressed(user_key_index,repeat);
+    const bool ret_bool       = ImGui::IsKeyPressed(imgui_key,repeat);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -6662,17 +6298,18 @@ int onIsKeyReleasedImGuiLua(lua_State *lua)
 {
     //  Was key released (went from Down to !Down)?
     int index_input           = 1;
-    int user_key_index        = 0;
+    ImGuiKey imgui_key        = ImGuiKey_None;
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_key_index        = luaL_checkinteger(lua, index_input++);
+    {
+        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
+    }
     else
     {
         const char* key       = luaL_checkstring(lua,index_input++);
         const auto  it        = enumKeyMap.find(key);
         if(it != enumKeyMap.end())
         {
-            ImGuiIO& imGuIo = ImGui::GetIO();
-            user_key_index  = static_cast<int>(imGuIo.KeyMap[it->second]);
+            imgui_key  = static_cast<ImGuiKey>(it->second);
         }
         else
         {
@@ -6681,7 +6318,7 @@ int onIsKeyReleasedImGuiLua(lua_State *lua)
             lua_log_error(lua,str);
         }
     }
-    const bool ret_bool       = ImGui::IsKeyReleased(user_key_index);
+    const bool ret_bool       = ImGui::IsKeyReleased(imgui_key);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -6690,17 +6327,18 @@ int onGetKeyPressedAmountImGuiLua(lua_State *lua)
 {
     //  Uses provided repeat rate/delay. return a count, most often 0 or 1 but might be >1 if RepeatRate is small enough that DeltaTime > RepeatRate
     int index_input           = 1;
-    int user_key_index        = 0;
+    ImGuiKey imgui_key        = ImGuiKey_None;
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_key_index        = luaL_checkinteger(lua, index_input++);
+    {
+        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
+    }
     else
     {
         const char* key       = luaL_checkstring(lua,index_input++);
         const auto  it        = enumKeyMap.find(key);
         if(it != enumKeyMap.end())
         {
-            ImGuiIO& imGuIo = ImGui::GetIO();
-            user_key_index  = static_cast<int>(imGuIo.KeyMap[it->second]);
+            imgui_key  = static_cast<ImGuiKey>(it->second);
         }
         else
         {
@@ -6711,34 +6349,28 @@ int onGetKeyPressedAmountImGuiLua(lua_State *lua)
     }
     const float repeat_delay  = luaL_checknumber(lua,index_input++);
     const float rate          = luaL_checknumber(lua,index_input++);
-    const int ret_int         = ImGui::GetKeyPressedAmount(user_key_index,repeat_delay,rate);
+    const int ret_int         = ImGui::GetKeyPressedAmount(imgui_key,repeat_delay,rate);
     lua_pushinteger(lua,ret_int);
     return 1;
 }
 
 int onGetMainMenuBarHeightImGuiLua(lua_State *lua)
 {
-    /* implementation
-    float ImGui::GetMainMenuBarHeight()
-    {
-        float height = 0;
-        if (ImGuiWindow* window = FindWindowByName("##MainMenuBar"))
-            height = window->Size.y;
-        return height;
-    }
-    */
-    float height = ImGui::GetMainMenuBarHeight();
+    // GetMainMenuBarHeight doesn't exist in ImGui 1.92 public API
+    // Return the frame height which is typically the menu bar height
+    float height = ImGui::GetFrameHeight();
     lua_pushnumber(lua,height);
     return 1;
 }
 
 int onCaptureKeyboardFromAppImGuiLua(lua_State *lua)
 {
-    //  Attention: misleading name! manually override io.WantCaptureKeyboard flag next frame (said flag is entirely left for your application to handle). e.g. force capture keyboard when your widget is being hovered. This is equivalent to setting "io.WantCaptureKeyboard = want_capture_keyboard_value"; after the next NewFrame() call.
+    //  Manually override io.WantCaptureKeyboard flag next frame (said flag is entirely left for your application to handle). e.g. force capture keyboard when your widget is being hovered.
     int index_input                         = 1;
     const int top                           = lua_gettop(lua);
     const bool want_capture_keyboard_value  = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
-    ImGui::CaptureKeyboardFromApp(want_capture_keyboard_value);
+    ImGuiIO& io = ImGui::GetIO();
+    io.WantCaptureKeyboard = want_capture_keyboard_value;
     return 0;
 }
 
@@ -6913,11 +6545,12 @@ int onSetMouseCursorImGuiLua(lua_State *lua)
 
 int onCaptureMouseFromAppImGuiLua(lua_State *lua)
 {
-    //  Attention: misleading name! manually override io.WantCaptureMouse flag next frame (said flag is entirely left for your application to handle). This is equivalent to setting "io.WantCaptureMouse = want_capture_mouse_value;" after the next NewFrame() call.
+    //  Manually override io.WantCaptureMouse flag next frame (said flag is entirely left for your application to handle).
     int index_input                      = 1;
     const int top                        = lua_gettop(lua);
     const bool want_capture_mouse_value  = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
-    ImGui::CaptureMouseFromApp(want_capture_mouse_value);
+    ImGuiIO& io = ImGui::GetIO();
+    io.WantCaptureMouse = want_capture_mouse_value;
     return 0;
 }
 
@@ -6989,12 +6622,8 @@ int onSetNextTreeNodeOpenImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onGetContentRegionAvailWidthImGuiLua(lua_State *lua)
-{
-    const float ret_float  = ImGui::GetContentRegionAvail().x;
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
+// REMOVED: GetContentRegionAvailWidth - deprecated in ImGui 1.92
+// Use GetContentRegionAvail().x instead
 
 int onSetScrollHereImGuiLua(lua_State *lua)
 {
@@ -7088,51 +6717,18 @@ int onHelpMarkerLua(lua_State *lua)
     return 0;
 }
 
-
-/*int onPushClipRectImDrawListLua(lua_State *lua)
-{
-    //  Render-level scissoring. This is passed down to your render function but not used for CPU-side coarse clipping. Prefer using higher-level ImGui::PushClipRect() to affect logic (hit-testing and widget culling)
-    int index_input                              = 1;
-    const int top                                = lua_gettop(lua);
-    const ImVec2 clip_rect_min                   = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 clip_rect_max                   = lua_pop_ImVec2(lua, index_input++);
-    const bool intersect_with_current_clip_rect  = top >= index_input ? lua_toboolean(lua,index_input++) :  false;
-    ImDrawList* draw_list                        = GetImDrawListLua();
-    draw_list->PushClipRect(clip_rect_min,clip_rect_max,intersect_with_current_clip_rect);
-    return 0;
-}
-    
-int onPushClipRectFullScreenImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PushClipRectFullScreen();
-    return 0;
-}
-    
-int onPopClipRectImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PopClipRect();
-    return 0;
-}*/
-    
 int onPushTextureIDImDrawListLua(lua_State *lua)
 {
-    int index_input                     = 1;
-    ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PushTextureID(user_texture_id);
+    // NOTE: ImDrawList::PushTextureID() was removed in ImGui 1.89+.
+    // Textures are now passed directly to each draw call (AddImage, etc.).
+    // This function is now a no-op for backward compatibility.
     return 0;
 }
     
 int onPopTextureIDImDrawListLua(lua_State *lua)
 {
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PopTextureID();
+    // NOTE: ImDrawList::PopTextureID() was removed in ImGui 1.89+.
+    // This function is now a no-op for backward compatibility.
     return 0;
 }
     
@@ -7170,7 +6766,7 @@ int onAddRectImDrawListLua(lua_State *lua)
     const ImVec2 p_max                      = lua_pop_ImVec2(lua, index_input++);
     const ImU32 color                       = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++));
     const float rounding                    = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    ImDrawCornerFlags rounding_corners      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawCornerFlags_All;
+    ImDrawFlags rounding_corners            = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawFlags_RoundCornersAll;
     const float thickness                   = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
     ImDrawList* draw_list                   = GetImDrawListLua();
     draw_list->AddRect(p_min,p_max,color,rounding,rounding_corners,thickness);
@@ -7186,7 +6782,7 @@ int onAddRectFilledImDrawListLua(lua_State *lua)
     const ImVec2 p_max                      = lua_pop_ImVec2(lua, index_input++);
     const ImU32 color                       = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++));
     const float rounding                    = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    ImDrawCornerFlags   rounding_corners    = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawCornerFlags_All;
+    ImDrawFlags   rounding_corners          = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawFlags_RoundCornersAll;
     ImDrawList* draw_list                   = GetImDrawListLua();
     draw_list->AddRectFilled(p_min,p_max,color,rounding,rounding_corners);
     return 0;
@@ -7351,7 +6947,7 @@ int onAddConvexPolyFilledImDrawListLua(lua_State *lua)
     return 0;
 }
     
-int onAddBezierCurveImDrawListLua(lua_State *lua)
+int onAddBezierCubicImDrawListLua(lua_State *lua)
 {
     int index_input          = 1;
     const int top            = lua_gettop(lua);
@@ -7363,7 +6959,7 @@ int onAddBezierCurveImDrawListLua(lua_State *lua)
     const float thickness    = luaL_checknumber(lua,index_input++);
     const int num_segments   = top >= index_input ? luaL_checkinteger(lua,index_input++) :  0;
     ImDrawList* draw_list    = GetImDrawListLua();
-    draw_list->AddBezierCurve(p1,p2,p3,p4,ImGui::GetColorU32(color),thickness,num_segments);
+    draw_list->AddBezierCubic(p1,p2,p3,p4,ImGui::GetColorU32(color),thickness,num_segments);
     return 0;
 }
     
@@ -7409,141 +7005,27 @@ int onAddImageQuadImDrawListLua(lua_State *lua)
     return 0;
 }
     
-int onAddImageRoundedImDrawListLua(lua_State *lua)
+int onAddImageRoundedImDrawListLua(lua_State* lua)
 {
-    int index_input                         = 1;
-    const int top                           = lua_gettop(lua);
-    ImTextureID user_texture_id             = reinterpret_cast<ImTextureID>(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id                     = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    int index_input = 1;
+    const int top = lua_gettop(lua);
+    ImTextureID user_texture_id = reinterpret_cast<ImTextureID>(0);
+    if (lua_type(lua, index_input) == LUA_TNUMBER)
+        user_texture_id = reinterpret_cast<ImTextureID>(lua_tointeger(lua, index_input++));
     else
-        user_texture_id                     = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
-    const ImVec2 p_min                      = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 p_max                      = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color                       = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++));
-    const ImVec2 uv_min                     = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0, 0);
-    const ImVec2 uv_max                     = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(1, 1);
-    const float rounding                    = top >= index_input ? luaL_checknumber(lua,index_input++) : 0.0f;
-    ImDrawCornerFlags rounding_corners      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawCornerFlags_All;
-    ImDrawList* draw_list                   = GetImDrawListLua();
-    draw_list->AddImageRounded(user_texture_id,p_min,p_max,uv_min,uv_max,color,rounding,rounding_corners);
-    return 0;
-}
- /*   
-int onPathClearImDrawListLua(lua_State *lua)
-{
+        user_texture_id = reinterpret_cast<ImTextureID>(get_texture_id(lua, luaL_checkstring(lua, index_input++)));
+    const ImVec2 p_min = lua_pop_ImVec2(lua, index_input++);
+    const ImVec2 p_max = lua_pop_ImVec2(lua, index_input++);
+    const ImU32 color = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua, index_input++));
+    const ImVec2 uv_min = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0, 0);
+    const ImVec2 uv_max = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1, 1);
+    const float rounding = top >= index_input ? luaL_checknumber(lua, index_input++) : 0.0f;
+    ImDrawFlags rounding_corners = top >= index_input ? luaL_checkinteger(lua, index_input++) : ImDrawFlags_RoundCornersAll;
     ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PathClear();
+    draw_list->AddImageRounded(user_texture_id, p_min, p_max, uv_min, uv_max, color, rounding, rounding_corners);
     return 0;
 }
-    
-int onPathLineToImDrawListLua(lua_State *lua)
-{
-    const ImVec2 pos      = lua_pop_ImVec2(lua, 1);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PathLineTo(pos);
-    return 0;
-}
-    
-int onPathLineToMergeDuplicateImDrawListLua(lua_State *lua)
-{
-    const ImVec2 pos      = lua_pop_ImVec2(lua, 1);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PathLineToMergeDuplicate(pos);
-    return 0;
-}
-    
-int onPathFillConvexImDrawListLua(lua_State *lua)
-{
-    //  Note: Anti-aliased filling requires points to be in clockwise order.
-    const ImU32 color     = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,1));
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PathFillConvex(color);
-    return 0;
-}
-    
-int onPathStrokeImDrawListLua(lua_State *lua)
-{
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const ImU32 color      = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,1));
-    const bool closed      = lua_toboolean(lua,index_input++);
-    const float thickness  = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    ImDrawList* draw_list  = GetImDrawListLua();
-    draw_list->PathStroke(color,closed,thickness);
-    return 0;
-}
-    
-int onPathArcToImDrawListLua(lua_State *lua)
-{
-    int index_input            = 1;
-    const int top              = lua_gettop(lua);
-    const ImVec2 center        = lua_pop_ImVec2(lua, index_input++);
-    const float radius         = luaL_checknumber(lua,index_input++);
-    const float a_min          = luaL_checknumber(lua,index_input++);
-    const float a_max          = luaL_checknumber(lua,index_input++);
-    const int num_segments     = top >= index_input ? luaL_checkinteger(lua,index_input++) :  10;
-    ImDrawList* draw_list      = GetImDrawListLua();
-    draw_list->PathArcTo(center,radius,a_min,a_max,num_segments);
-    return 0;
-}
-    
-int onPathArcToFastImDrawListLua(lua_State *lua)
-{
-    //  Use precomputed angles for a 12 steps circle
-    int index_input              = 1;
-    const ImVec2 center          = lua_pop_ImVec2(lua, index_input++);
-    const float radius           = luaL_checknumber(lua,index_input++);
-    const int a_min_of_12        = luaL_checkinteger(lua,index_input++);
-    const int a_max_of_12        = luaL_checkinteger(lua,index_input++);
-    ImDrawList* draw_list        = GetImDrawListLua();
-    draw_list->PathArcToFast(center,radius,a_min_of_12,a_max_of_12);
-    return 0;
-}
-    
-int onPathBezierCurveToImDrawListLua(lua_State *lua)
-{
-    int index_input         = 1;
-    const int top           = lua_gettop(lua);
-    const ImVec2 p2         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 p3         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 p4         = lua_pop_ImVec2(lua, index_input++);
-    const int num_segments  = top >= index_input ? luaL_checkinteger(lua,index_input++) :  0;
-    ImDrawList* draw_list   = GetImDrawListLua();
-    draw_list->PathBezierCurveTo(p2,p3,p4,num_segments);
-    return 0;
-}
-    
-int onPathRectImDrawListLua(lua_State *lua)
-{
-    int index_input                         = 1;
-    const int top                           = lua_gettop(lua);
-    const ImVec2 rect_min                   = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 rect_max                   = lua_pop_ImVec2(lua, index_input++);
-    const float rounding                    = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    ImDrawCornerFlags   rounding_corners    = top >= index_input ? luaL_checkinteger(lua, index_input++) :  ImDrawCornerFlags_All;
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PathRect(rect_min,rect_max,rounding,rounding_corners);
-    return 0;
-}
-    */
-/*int onAddCallbackImDrawListLua(lua_State *lua)
-{
-    //  Your rendering function must check for 'UserCallback' in ImDrawCmd and call the function instead of rendering triangles.
-    int index_input                                                           = 1;
-    #error "8 - do not know what to do for this: type:nil variable:var_nil_1  = nil"
-    static void var_void_2                                                    = 0;
-    void * p_callback_data                                                    = nullptr;
-    if(top >= index_input)
-    {
-        var_void_2                                                            = ;
-        p_callback_data                                                       = &var_void_2;
-    }
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->AddCallback(var_nil_1,p_callback_data);
-    return 0;
-}*/
-    
+   
 int onAddDrawCmdImDrawListLua(lua_State *lua)
 {
     //  This is useful if you need to forcefully create a new draw call (to allow for dependent rendering / blending). Otherwise primitives are merged into the same draw-call as much as possible
@@ -7551,164 +7033,7 @@ int onAddDrawCmdImDrawListLua(lua_State *lua)
     draw_list->AddDrawCmd();
     return 0;
 }
-    
-/*int onCloneOutputImDrawListLua(lua_State *lua)
-{
-    //  Create a clone of the CmdBuffer/IdxBuffer/VtxBuffer.
-    int index_input                                                           = 1;
-    #error "8 - do not know what to do for this: type:nil variable:var_nil_3  = nil"
-    const ImDrawList ret_ImDrawList                                           = CloneOutput(var_nil_3);
-    lua_push_ImDrawList(lua,ret_ImDrawList);
-    return 1;
-}*/
-    /*
-int onChannelsSplitImDrawListLua(lua_State *lua)
-{
-    const int count       = luaL_checkinteger(lua,1);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->ChannelsSplit(count);
-    return 0;
-}
-    
-int onChannelsMergeImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->ChannelsMerge();
-    return 0;
-}
-    
-int onChannelsSetCurrentImDrawListLua(lua_State *lua)
-{
-    const int n           = luaL_checkinteger(lua,1);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->ChannelsSetCurrent(n);
-    return 0;
-}*/
-    
-/*int onClearImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->
-    return 0;
-}*/
-    
-/*int onClearFreeMemoryImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->ClearFreeMemory();
-    return 0;
-}
-    
-int onPrimReserveImDrawListLua(lua_State *lua)
-{
-    int index_input       = 1;
-    const int idx_count   = luaL_checkinteger(lua,index_input++);
-    const int vtx_count   = luaL_checkinteger(lua,index_input++);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PrimReserve(idx_count,vtx_count);
-    return 0;
-}
-    
-int onPrimUnreserveImDrawListLua(lua_State *lua)
-{
-    int index_input       = 1;
-    const int idx_count   = luaL_checkinteger(lua,index_input++);
-    const int vtx_count   = luaL_checkinteger(lua,index_input++);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PrimUnreserve(idx_count,vtx_count);
-    return 0;
-}
-    
-int onPrimRectImDrawListLua(lua_State *lua)
-{
-    //  Axis aligned rectangle (composed of two triangles)
-    int index_input       = 1;
-    const int top         = lua_gettop(lua);
-    const ImVec2 a        = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 b        = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color     = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++))  :  IM_COL32_WHITE;
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PrimRect(a,b,color);
-    return 0;
-}
-    
-int onPrimRectUVImDrawListLua(lua_State *lua)
-{
-    int index_input           = 1;
-    const int top             = lua_gettop(lua);
-    const ImVec2 a            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 b            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_a         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_b         = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color         = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++))  :  IM_COL32_WHITE;
-    ImDrawList* draw_list     = GetImDrawListLua();
-    draw_list->PrimRectUV(a,b,uv_a,uv_b,color);
-    return 0;
-}
-    
-int onPrimQuadUVImDrawListLua(lua_State *lua)
-{
-    int index_input           = 1;
-    const int top             = lua_gettop(lua);
-    const ImVec2 a            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 b            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 c            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 d            = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_a         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_b         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_c         = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv_d         = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color         = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++))  :  IM_COL32_WHITE;
-    ImDrawList* draw_list     = GetImDrawListLua();
-    draw_list->PrimQuadUV(a,b,c,d,uv_a,uv_b,uv_c,uv_d,color);
-    return 0;
-}
-    
-int onPrimWriteVtxImDrawListLua(lua_State *lua)
-{
-    int index_input           = 1;
-    const int top             = lua_gettop(lua);
-    const ImVec2 pos          = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv           = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color         = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++))  :  IM_COL32_WHITE;
-    ImDrawList* draw_list     = GetImDrawListLua();
-    draw_list->PrimWriteVtx(pos,uv,color);
-    return 0;
-}
-    
-int onPrimWriteIdxImDrawListLua(lua_State *lua)
-{
-    const int idx         = luaL_checkinteger(lua,1);
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->PrimWriteIdx(idx);
-    return 0;
-}
-    
-int onPrimVtxImDrawListLua(lua_State *lua)
-{
-    int index_input           = 1;
-    const int top             = lua_gettop(lua);
-    const ImVec2 pos          = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv           = lua_pop_ImVec2(lua, index_input++);
-    const ImU32 color         = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++))  :  IM_COL32_WHITE;
-    ImDrawList* draw_list     = GetImDrawListLua();
-    draw_list->PrimVtx(pos,uv,color);
-    return 0;
-}
-    
-int onUpdateClipRectImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->UpdateClipRect();
-    return 0;
-}
-    
-int onUpdateTextureIDImDrawListLua(lua_State *lua)
-{
-    ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->UpdateTextureID();
-    return 0;
-}*/
+
 int onNewimguiLua(lua_State *lua)
 {
     lua_settop(lua, 0);
@@ -7718,7 +7043,7 @@ int onNewimguiLua(lua_State *lua)
         {"ArrowButton",                                           onArrowButtonImGuiLua },
         {"Begin",                                                       onBeginImGuiLua },
         {"BeginChild",                                             onBeginChildImGuiLua },
-        {"BeginChildFrame",                                   onBeginChildFrameImGuiLua },
+        // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
         {"BeginCombo",                                             onBeginComboImGuiLua },
         {"BeginDragDropSource",                           onBeginDragDropSourceImGuiLua },
         {"BeginDragDropTarget",                           onBeginDragDropTargetImGuiLua },
@@ -7738,7 +7063,7 @@ int onNewimguiLua(lua_State *lua)
         {"BulletText",                                             onBulletTextImGuiLua },
         {"Button",                                                     onButtonImGuiLua },
         {"CalcItemWidth",                                       onCalcItemWidthImGuiLua },
-        {"CalcListClipping",                                 onCalcListClippingImGuiLua },
+        // CalcListClipping removed - deprecated in ImGui 1.92, use ImGuiListClipper instead
         {"CalcTextSize",                                         onCalcTextSizeImGuiLua },
         {"CaptureKeyboardFromApp",                     onCaptureKeyboardFromAppImGuiLua },
         {"CaptureMouseFromApp",                           onCaptureMouseFromAppImGuiLua },
@@ -7770,7 +7095,7 @@ int onNewimguiLua(lua_State *lua)
         {"Dummy",                                                       onDummyImGuiLua },
         {"End",                                                           onEndImGuiLua },
         {"EndChild",                                                 onEndChildImGuiLua },
-        {"EndChildFrame",                                       onEndChildFrameImGuiLua },
+        // EndChildFrame removed - deprecated in ImGui 1.92, use EndChild instead
         {"EndCombo",                                                 onEndComboImGuiLua },
         {"EndDragDropSource",                               onEndDragDropSourceImGuiLua },
         {"EndDragDropTarget",                               onEndDragDropTargetImGuiLua },
@@ -7791,7 +7116,7 @@ int onNewimguiLua(lua_State *lua)
         {"GetColumnWidth",                                     onGetColumnWidthImGuiLua },
         {"GetColumnsCount",                                   onGetColumnsCountImGuiLua },
         {"GetContentRegionAvail",                       onGetContentRegionAvailImGuiLua },
-        {"GetContentRegionAvailWidth",             onGetContentRegionAvailWidthImGuiLua },
+        // GetContentRegionAvailWidth removed - use GetContentRegionAvail().x instead
         {"GetContentRegionMax",                           onGetContentRegionMaxImGuiLua },
         {"GetCursorPos",                                         onGetCursorPosImGuiLua },
         {"GetCursorPosX",                                       onGetCursorPosXImGuiLua },
@@ -7830,7 +7155,6 @@ int onNewimguiLua(lua_State *lua)
         {"GetVersion",                                             onGetVersionImGuiLua },
         {"GetWindowContentRegionMax",               onGetWindowContentRegionMaxImGuiLua },
         {"GetWindowContentRegionMin",               onGetWindowContentRegionMinImGuiLua },
-        {"GetWindowContentRegionWidth",           onGetWindowContentRegionWidthImGuiLua },
         {"GetWindowHeight",                                   onGetWindowHeightImGuiLua },
         {"GetWindowPos",                                         onGetWindowPosImGuiLua },
         {"GetWindowSize",                                       onGetWindowSizeImGuiLua },
@@ -7889,9 +7213,9 @@ int onNewimguiLua(lua_State *lua)
         {"IsWindowFocused",                                   onIsWindowFocusedImGuiLua },
         {"IsWindowHovered",                                   onIsWindowHoveredImGuiLua },
         {"LabelText",                                               onLabelTextImGuiLua },
+        {"BeginListBox",                                         onBeginListBoxImGuiLua },
+        {"EndListBox",                                             onEndListBoxImGuiLua },
         {"ListBox",                                                   onListBoxImGuiLua },
-        {"ListBoxFooter",                                       onListBoxFooterImGuiLua },
-        {"ListBoxHeader",                                       onListBoxHeaderImGuiLua },
         {"LoadIniSettingsFromDisk",                   onLoadIniSettingsFromDiskImGuiLua },
         {"LoadIniSettingsFromMemory",               onLoadIniSettingsFromMemoryImGuiLua },
         {"LogButtons",                                             onLogButtonsImGuiLua },
@@ -7907,8 +7231,9 @@ int onNewimguiLua(lua_State *lua)
         {"OpenPopupOnItemClick",                         onOpenPopupOnItemClickImGuiLua },
         {"PlotHistogram",                                       onPlotHistogramImGuiLua },
         {"PlotLines",                                               onPlotLinesImGuiLua },
-        {"PopAllowKeyboardFocus",                       onPopAllowKeyboardFocusImGuiLua },
-        {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua },
+        {"PopTabStop",                                     onPopTabStopImGuiLua },        // Backward compat wrapper
+        {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua }, // Backward compat wrapper
+        {"PopItemFlag",                                          onPopItemFlagImGuiLua },   // NEW: Generic item flag function
         {"PopClipRect",                                           onPopClipRectImGuiLua },
         {"PopFont",                                                   onPopFontImGuiLua },
         {"PopID",                                                       onPopIDImGuiLua },
@@ -7917,8 +7242,9 @@ int onNewimguiLua(lua_State *lua)
         {"PopStyleVar",                                           onPopStyleVarImGuiLua },
         {"PopTextWrapPos",                                     onPopTextWrapPosImGuiLua },
         {"ProgressBar",                                           onProgressBarImGuiLua },
-        {"PushAllowKeyboardFocus",                     onPushAllowKeyboardFocusImGuiLua },
-        {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua },
+        {"PushTabStop",                                   onPushTabStopImGuiLua },        // Backward compat wrapper
+        {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Backward compat wrapper
+        {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // NEW: Generic item flag function
         {"PushClipRect",                                         onPushClipRectImGuiLua },
         {"PushFont",                                                 onPushFontImGuiLua },
         {"PushID",                                                     onPushIDImGuiLua },
@@ -7942,7 +7268,7 @@ int onNewimguiLua(lua_State *lua)
         {"SetCursorPosY",                                       onSetCursorPosYImGuiLua },
         {"SetCursorScreenPos",                             onSetCursorScreenPosImGuiLua },
         {"SetDragDropPayload",                             onSetDragDropPayloadImGuiLua },
-        {"SetItemAllowOverlap",                           onSetItemAllowOverlapImGuiLua },
+        {"SetNextItemAllowOverlap",                       onSetNextItemAllowOverlapImGuiLua },
         {"SetItemDefaultFocus",                           onSetItemDefaultFocusImGuiLua },
         {"SetKeyboardFocusHere",                         onSetKeyboardFocusHereImGuiLua },
         {"SetMouseCursor",                                     onSetMouseCursorImGuiLua },
@@ -8004,8 +7330,7 @@ int onNewimguiLua(lua_State *lua)
         {"VSliderInt",                                             onVSliderIntImGuiLua },
         
         //ImDrawList
-        {"AddBezierCurve",                     onAddBezierCurveImDrawListLua },
-        //{"AddCallback",                           onAddCallbackImDrawListLua },
+        {"AddBezierCubic",                     onAddBezierCubicImDrawListLua },
         {"AddCircle",                               onAddCircleImDrawListLua },
         {"AddCircleFilled",                   onAddCircleFilledImDrawListLua },
         {"AddConvexPolyFilled",           onAddConvexPolyFilledImDrawListLua },
@@ -8025,38 +7350,8 @@ int onNewimguiLua(lua_State *lua)
         {"AddText",                                   onAddTextImDrawListLua },
         {"AddTriangle",                           onAddTriangleImDrawListLua },
         {"AddTriangleFilled",               onAddTriangleFilledImDrawListLua },
-        //{"ChannelsMerge",                       onChannelsMergeImDrawListLua },
-        //{"ChannelsSetCurrent",             onChannelsSetCurrentImDrawListLua },
-        //{"ChannelsSplit",                       onChannelsSplitImDrawListLua },
-        //{"Clear",                                       onClearImDrawListLua },
-        //{"ClearFreeMemory",                   onClearFreeMemoryImDrawListLua },
-        //{"CloneOutput",                           onCloneOutputImDrawListLua },
-        //{"PathArcTo",                               onPathArcToImDrawListLua },
-        //{"PathArcToFast",                       onPathArcToFastImDrawListLua },
-        //{"PathBezierCurveTo",               onPathBezierCurveToImDrawListLua },
-        //{"PathClear",                               onPathClearImDrawListLua },
-        //{"PathFillConvex",                     onPathFillConvexImDrawListLua },
-        //{"PathLineTo",                             onPathLineToImDrawListLua },
-        //{"PathLineToMergeDuplicate", onPathLineToMergeDuplicateImDrawListLua },
-        //{"PathRect",                                 onPathRectImDrawListLua },
-        //{"PathStroke",                             onPathStrokeImDrawListLua },
-        //{"PopClipRectIDraw",                      onPopClipRectImDrawListLua },
-        {"PopTextureID",                         onPopTextureIDImDrawListLua },
-        //{"PrimQuadUV",                             onPrimQuadUVImDrawListLua },
-        //{"PrimRect",                                 onPrimRectImDrawListLua },
-        //{"PrimRectUV",                             onPrimRectUVImDrawListLua },
-        //{"PrimReserve",                           onPrimReserveImDrawListLua },
-        //{"PrimUnreserve",                       onPrimUnreserveImDrawListLua },
-        //{"PrimVtx",                                   onPrimVtxImDrawListLua },
-        //{"PrimWriteIdx",                         onPrimWriteIdxImDrawListLua },
-        //{"PrimWriteVtx",                         onPrimWriteVtxImDrawListLua },
-        //{"PushClipRectIDraw",                    onPushClipRectImDrawListLua },
-        //{"PushClipRectFullScreen",     onPushClipRectFullScreenImDrawListLua },
-        {"PushTextureID",                         onPushTextureIDImDrawListLua },
         {"SetImDrawListToBackground",              onImDrawListToBackgroundLua },
         {"SetImDrawListToForeground",              onImDrawListToForegroundLua },
-        //{"UpdateClipRect",                     onUpdateClipRectImDrawListLua },
-        //{"UpdateTextureID",                   onUpdateTextureIDImDrawListLua },
         {nullptr, nullptr}};
 
     luaL_newlib(lua, regimguiMethods);
