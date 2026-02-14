@@ -90,9 +90,10 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_OPENGL_ES;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary></ClCompile>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -173,4 +174,3 @@ Call  "$(MSBuildProjectDirectory)\..\mini-mbm\create_shortcut_for_dev_kit.bat"</
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-

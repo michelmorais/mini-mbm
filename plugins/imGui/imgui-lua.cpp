@@ -92,7 +92,6 @@ class IMGUI_LUA;
 #endif
 
 // Helper function to map native keys to ImGuiKey
-#if !defined(_WIN32)
 static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
 {
     #if defined(_WIN32)
@@ -334,7 +333,6 @@ static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
     return ImGuiKey_None;
     #endif
 }
-#endif // !defined(_WIN32)
 
 
 static int PLUGIN_IDENTIFIER = 1; //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
@@ -1279,10 +1277,9 @@ public:
 
     void onTouchDown(int key, float x, float y)
     {
-        // On Windows, ImGui_ImplWin32 handles input automatically via WndProc
-        // On Linux/Android, we must feed input manually
-#if !defined(_WIN32)
-        if(imGuiContext)
+		// On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
+		// On Linux/Android, we must feed input manually for both mouse and touch
+		if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
             x *= sx;
@@ -1295,12 +1292,12 @@ public:
                 io.AddMouseButtonEvent(key, true);
             }
         }
-#endif
     }
 
     void onTouchUp(int key, float x, float y)
     {
-#if !defined(_WIN32)
+        // On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
+        // On Linux/Android, we must feed input manually for both mouse and touch
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1314,12 +1311,12 @@ public:
                 io.AddMouseButtonEvent(key, false);
             }
         }
-#endif
     }
 
     void onTouchMove(int key, float x, float y)
     {
-#if !defined(_WIN32)
+        // On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
+        // On Linux/Android, we must feed input manually for both mouse and touch
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1331,24 +1328,24 @@ public:
             MousePos.y      = y;
             io.AddMousePosEvent(x, y);
         }
-#endif
     }
 
     void onTouchZoom(float zoom)
     {
-#if !defined(_WIN32)
+        // On Windows, ImGui_ImplWin32 handles mouse input automatically via WndProc however we implement because can't modify the engine's WndProc
+        // On Linux/Android, we must feed input manually for both mouse and touch
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
             io.AddMouseWheelEvent(0.0f, zoom);
         }
-#endif
     }
     
     void onKeyDown(int key)
     {
-        // On Windows, ImGui_ImplWin32 handles keyboard input automatically via WndProc
-        // On Linux/Android, we must feed input manually
+        // On Windows, ImGui_ImplWin32 handles keyboard input automatically via WndProc however we implement because can't modify the engine's WndProc
+        // On Linux/Android, we must feed input manually for both mouse and touch
+
 #if !defined(_WIN32)
         if(imGuiContext)
         {
@@ -1419,7 +1416,6 @@ public:
 
     void onKeyUp(int key)
     {
-#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1441,9 +1437,17 @@ public:
                 io.AddKeyEvent(ImGuiMod_Alt, false);
             if (key == XK_Super_L || key == XK_Super_R)
                 io.AddKeyEvent(ImGuiMod_Super, false);
+            #elif defined(_WIN32)
+            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
+                io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
+                io.AddKeyEvent(ImGuiMod_Shift, false);
+            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
+                io.AddKeyEvent(ImGuiMod_Alt, false);
+            if (key == VK_LWIN || key == VK_RWIN)
+                io.AddKeyEvent(ImGuiMod_Super, false);
             #endif
         }
-#endif
     }
 
     const bool isCapsLockOn()
@@ -1565,6 +1569,12 @@ public:
 #else
         #error "Not implemented for ImGui Shutdown"
 #endif
+        
+        // Shutdown platform backend
+        #if defined _WIN32
+            ImGui_ImplWin32_Shutdown();
+        #endif
+        
         ImGui::DestroyContext();
         imGuiContext = nullptr;
     }
