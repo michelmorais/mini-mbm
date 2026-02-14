@@ -24,8 +24,24 @@
 // Using Dear ImGui via a shared library is not recommended, because of function call overhead and because we don't guarantee backward nor forward ABI compatibility.
 // - Windows DLL users: heaps and globals are not shared across DLL boundaries! You will need to call SetCurrentContext() + SetAllocatorFunctions()
 //   for each static/DLL boundary you are calling from. Read "Context and Memory Allocators" section of imgui.cpp for more details.
-//#define IMGUI_API __declspec(dllexport)                   // MSVC Windows: DLL export
-//#define IMGUI_API __declspec(dllimport)                   // MSVC Windows: DLL import
+
+// IMPORTANT: Define IMGUI_API properly for DLL/shared library builds
+// For DLL builds, define IMGUI_EXPORTS when building the DLL, 
+// and IMGUI_IMPORTS when using the DLL from another project
+#if defined(_WIN32)
+    #if defined(IMGUI_EXPORTS) || defined(_USRDLL)  // Building the DLL
+        #define IMGUI_API __declspec(dllexport)
+    #elif defined(IMGUI_IMPORTS)  // Using the DLL
+        #define IMGUI_API __declspec(dllimport)
+    #else
+        #define IMGUI_API  // Static library
+    #endif
+#elif defined(__GNUC__) && defined(__linux__) // Linux shared library
+    #define IMGUI_API __attribute__((visibility("default")))
+#else
+    #define IMGUI_API
+#endif
+
 //#define IMGUI_API __attribute__((visibility("default")))  // GCC/Clang: override visibility when set is hidden
 
 //---- Don't define obsolete functions/enums/behaviors. Consider enabling from time to time after updating to clean your code of obsolete function/names.
@@ -148,6 +164,9 @@ namespace ImGui
 
 //---- Custom ImTextureID type for mbm engine
 // Forward declare the texture class
+// NOTE: Custom ImTextureID is DISABLED to avoid struct layout mismatches across DLL boundaries
+// Use void* (default) and cast to mbm::TEXTURE* when needed
+/*
 namespace mbm
 {
     class TEXTURE;
@@ -156,3 +175,4 @@ namespace mbm
 // Define ImTextureID as mbm::TEXTURE* instead of void*
 // This allows passing texture pointers directly without casting
 #define ImTextureID mbm::TEXTURE*
+*/

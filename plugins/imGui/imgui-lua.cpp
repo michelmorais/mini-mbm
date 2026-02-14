@@ -1,4 +1,4 @@
-ï»¿/*-----------------------------------------------------------------------------------------------------------------------|
+/*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT);                                                                                                     |
 | Copyright (C); 2020      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                      |
 |                                                                                                                        |
@@ -1070,13 +1070,39 @@ public:
 
     void onSubscribe(int width,int height, void * _context)
     {
+        // Debug: Print struct sizes to identify mismatch
+        printf("=== ImGui Struct Size Debug ===\n");
+        printf("sizeof(ImGuiIO):    %zu\n", sizeof(ImGuiIO));
+        printf("sizeof(ImGuiStyle): %zu\n", sizeof(ImGuiStyle));
+        printf("sizeof(ImVec2):     %zu\n", sizeof(ImVec2));
+        printf("sizeof(ImVec4):     %zu\n", sizeof(ImVec4));
+        printf("sizeof(ImDrawVert): %zu\n", sizeof(ImDrawVert));
+        printf("sizeof(ImDrawIdx):  %zu\n", sizeof(ImDrawIdx));
+        printf("IMGUI_VERSION:      %s\n", IMGUI_VERSION);
+        printf("==============================\n");
+        
         IMGUI_CHECKVERSION();
         imGuiContext = ImGui::CreateContext();
         if(imGuiContext != nullptr)
         {
+            // IMPORTANT: When using ImGui as a DLL, you MUST set the context explicitly
+            // because each DLL has its own static storage
+            ImGui::SetCurrentContext(imGuiContext);
+            
             // Setup Dear ImGui style
             ImGui::StyleColorsDark();
             ImGuiIO& imGuIo = ImGui::GetIO();
+            
+            // Load default font with extended Latin characters (includes Portuguese: á, é, í, ó, ú, ã, õ, ç)
+            ImFontConfig font_cfg;
+            font_cfg.OversampleH = 2;
+            font_cfg.OversampleV = 2;
+            font_cfg.PixelSnapH = true;
+            
+            // GetGlyphRangesDefault() includes basic Latin (0x0020-0x00FF) which covers Portuguese
+            // Font atlas will be built automatically when rendering starts
+            imGuIo.Fonts->AddFontDefault(&font_cfg);
+            
             //imgui_impl_opengl3.cpp
             //ImGui_ImplOpenGL3_Init("#version 110");
             //#if defined _WIN32
@@ -4389,11 +4415,11 @@ int onImageImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //ImTextureID user_texture_id         = (ImTextureID)(0);
     //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
     //else
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -4413,11 +4439,11 @@ int onImageQuadImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //ImTextureID user_texture_id         = (ImTextureID)(0);
     //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
     //else
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -4439,11 +4465,11 @@ int onImageButtonImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = reinterpret_cast<ImTextureID>(0);
+    //ImTextureID user_texture_id         = (ImTextureID)(0);
     //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
     //else
-    //    user_texture_id                 = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
+    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
     ImVec2 size (static_cast<float>(width),static_cast<float>(height));
     if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
         size                                = lua_pop_ImVec2(lua, index_input);
@@ -6967,11 +6993,11 @@ int onAddImageImDrawListLua(lua_State *lua)
 {
     int index_input                 = 1;
     const int top                   = lua_gettop(lua);
-    ImTextureID user_texture_id     = reinterpret_cast<ImTextureID>(0);
+    ImTextureID user_texture_id     = (ImTextureID)(0);
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id             = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+        user_texture_id             = (ImTextureID)(lua_tointeger(lua,index_input++));
     else
-        user_texture_id             = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
+        user_texture_id             = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
     const ImVec2 p_min              = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p_max              = lua_pop_ImVec2(lua, index_input++);
     const ImU32 col                 = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++)) :  IM_COL32_WHITE;
@@ -6986,11 +7012,11 @@ int onAddImageQuadImDrawListLua(lua_State *lua)
 {
     int index_input                 = 1;
     const int top                   = lua_gettop(lua);
-    ImTextureID user_texture_id     = reinterpret_cast<ImTextureID>(0);
+    ImTextureID user_texture_id     = (ImTextureID)(0);
     if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id             = reinterpret_cast<ImTextureID>(lua_tointeger(lua,index_input++));
+        user_texture_id             = (ImTextureID)(lua_tointeger(lua,index_input++));
     else
-        user_texture_id             = reinterpret_cast<ImTextureID>(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
+        user_texture_id             = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
     const ImVec2 p1                 = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p2                 = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p3                 = lua_pop_ImVec2(lua, index_input++);
@@ -7009,11 +7035,11 @@ int onAddImageRoundedImDrawListLua(lua_State* lua)
 {
     int index_input = 1;
     const int top = lua_gettop(lua);
-    ImTextureID user_texture_id = reinterpret_cast<ImTextureID>(0);
+    ImTextureID user_texture_id = (ImTextureID)(0);
     if (lua_type(lua, index_input) == LUA_TNUMBER)
-        user_texture_id = reinterpret_cast<ImTextureID>(lua_tointeger(lua, index_input++));
+        user_texture_id = (ImTextureID)(lua_tointeger(lua, index_input++));
     else
-        user_texture_id = reinterpret_cast<ImTextureID>(get_texture_id(lua, luaL_checkstring(lua, index_input++)));
+        user_texture_id = (ImTextureID)(get_texture_id(lua, luaL_checkstring(lua, index_input++)));
     const ImVec2 p_min = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p_max = lua_pop_ImVec2(lua, index_input++);
     const ImU32 color = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua, index_input++));

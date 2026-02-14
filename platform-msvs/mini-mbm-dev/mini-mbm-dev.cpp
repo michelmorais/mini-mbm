@@ -1,5 +1,7 @@
 // mini-mbm-launcher.cpp : Defines the entry point for the application.
 //
+#pragma execution_character_set("utf-8") // MSVC: Treat source as UTF-8
+
 #include "mini-mbm-lib.h"
 #include "framework.h"
 #include "mini-mbm-launcher.h"
