@@ -17,9 +17,9 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-    #define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-#endif
+// NOTE: IMGUI_DISABLE_OBSOLETE_FUNCTIONS must be defined in imconfig.h, NOT here!
+// Defining it only in imgui-lua.cpp causes struct layout mismatch with imgui.cpp
+// (ImGuiIO struct size differs by 32 bytes due to conditional obsolete fields)
 #include "imgui.h"
 
 #if defined USE_OPENGL_ES
