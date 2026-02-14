@@ -214,7 +214,25 @@ namespace mbm
             {
                 case KeyPress:
                 {
-                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    // Use XkbKeycodeToKeysym with effective group to respect NumLock
+                    // For numpad keys, if NumLock is on (Mod2Mask), use group 1 to get numbers
+                    unsigned int state = xevent.xkey.state;
+                    bool numLockOn = (state & Mod2Mask) != 0;
+                    KeySym keysym;
+                    
+                    // First get the base keysym to check if it's a keypad key
+                    keysym = XLookupKeysym(&xevent.xkey, 0);
+                    
+                    // For keypad keys, NumLock inverts the keysym group
+                    // Keypad keysyms are in range 0xFF80-0xFFBD
+                    bool isKeypad = (keysym >= 0xFF80 && keysym <= 0xFFBD);
+                    if (isKeypad && numLockOn)
+                    {
+                        // Use index 1 to get the number/decimal keysyms
+                        keysym = XLookupKeysym(&xevent.xkey, 1);
+                    }
+                    
+                    auto key = static_cast<int>(keysym);
                     if (key >= 'a' && key <= 'z')
                         key = toupper(key);
                     if (key == XK_Caps_Lock)
@@ -224,7 +242,20 @@ namespace mbm
                 break;
                 case KeyRelease:
                 {
-                    auto key = static_cast<int>(XLookupKeysym(&xevent.xkey, 0));
+                    // Same NumLock handling for key release
+                    unsigned int state = xevent.xkey.state;
+                    bool numLockOn = (state & Mod2Mask) != 0;
+                    KeySym keysym;
+                    
+                    keysym = XLookupKeysym(&xevent.xkey, 0);
+                    
+                    bool isKeypad = (keysym >= 0xFF80 && keysym <= 0xFFBD);
+                    if (isKeypad && numLockOn)
+                    {
+                        keysym = XLookupKeysym(&xevent.xkey, 1);
+                    }
+                    
+                    auto key = static_cast<int>(keysym);
                     if (key >= 'a' && key <= 'z')
                         key = toupper(key);
                     this->onKeyUp(key);

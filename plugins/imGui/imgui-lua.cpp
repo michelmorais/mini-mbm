@@ -17,9 +17,6 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-// NOTE: IMGUI_DISABLE_OBSOLETE_FUNCTIONS must be defined in imconfig.h, NOT here!
-// Defining it only in imgui-lua.cpp causes struct layout mismatch with imgui.cpp
-// (ImGuiIO struct size differs by 32 bytes due to conditional obsolete fields)
 #include "imgui.h"
 
 #if defined USE_OPENGL_ES
@@ -47,6 +44,9 @@
 #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
     #ifndef XK_MISCELLANY
         #define XK_MISCELLANY
+    #endif
+    #ifndef XK_LATIN1
+        #define XK_LATIN1
     #endif
     #include <X11/XKBlib.h>
     #include <X11/keysymdef.h>
@@ -92,7 +92,8 @@ class IMGUI_LUA;
 #endif
 
 // Helper function to map native keys to ImGuiKey
-/*static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
+#if !defined(_WIN32)
+static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
 {
     #if defined(_WIN32)
     switch(native_key)
@@ -203,7 +204,7 @@ class IMGUI_LUA;
         default: return ImGuiKey_None;
     }
     #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-    // Add Linux/Mac key mapping here as needed
+    // Linux/Mac key mapping (keys are converted to uppercase by the engine)
     switch(native_key)
     {
         case XK_Tab: return ImGuiKey_Tab;
@@ -218,16 +219,122 @@ class IMGUI_LUA;
         case XK_Insert: return ImGuiKey_Insert;
         case XK_Delete: return ImGuiKey_Delete;
         case XK_BackSpace: return ImGuiKey_Backspace;
+        case XK_space: return ImGuiKey_Space;
         case XK_KP_Space: return ImGuiKey_Space;
         case XK_Return: return ImGuiKey_Enter;
+        case XK_KP_Enter: return ImGuiKey_KeypadEnter;
         case XK_Escape: return ImGuiKey_Escape;
-        // Add more mappings as needed
+        case XK_apostrophe: return ImGuiKey_Apostrophe;
+        case XK_comma: return ImGuiKey_Comma;
+        case XK_minus: return ImGuiKey_Minus;
+        case XK_period: return ImGuiKey_Period;
+        case XK_slash: return ImGuiKey_Slash;
+        case XK_semicolon: return ImGuiKey_Semicolon;
+        case XK_equal: return ImGuiKey_Equal;
+        case XK_bracketleft: return ImGuiKey_LeftBracket;
+        case XK_backslash: return ImGuiKey_Backslash;
+        case XK_bracketright: return ImGuiKey_RightBracket;
+        case XK_grave: return ImGuiKey_GraveAccent;
+        case XK_Caps_Lock: return ImGuiKey_CapsLock;
+        case XK_Scroll_Lock: return ImGuiKey_ScrollLock;
+        case XK_Num_Lock: return ImGuiKey_NumLock;
+        case XK_Print: return ImGuiKey_PrintScreen;
+        case XK_Pause: return ImGuiKey_Pause;
+        // Alphanumeric keys (engine converts to uppercase)
+        case '0': return ImGuiKey_0;
+        case '1': return ImGuiKey_1;
+        case '2': return ImGuiKey_2;
+        case '3': return ImGuiKey_3;
+        case '4': return ImGuiKey_4;
+        case '5': return ImGuiKey_5;
+        case '6': return ImGuiKey_6;
+        case '7': return ImGuiKey_7;
+        case '8': return ImGuiKey_8;
+        case '9': return ImGuiKey_9;
+        case 'A': return ImGuiKey_A;
+        case 'B': return ImGuiKey_B;
+        case 'C': return ImGuiKey_C;
+        case 'D': return ImGuiKey_D;
+        case 'E': return ImGuiKey_E;
+        case 'F': return ImGuiKey_F;
+        case 'G': return ImGuiKey_G;
+        case 'H': return ImGuiKey_H;
+        case 'I': return ImGuiKey_I;
+        case 'J': return ImGuiKey_J;
+        case 'K': return ImGuiKey_K;
+        case 'L': return ImGuiKey_L;
+        case 'M': return ImGuiKey_M;
+        case 'N': return ImGuiKey_N;
+        case 'O': return ImGuiKey_O;
+        case 'P': return ImGuiKey_P;
+        case 'Q': return ImGuiKey_Q;
+        case 'R': return ImGuiKey_R;
+        case 'S': return ImGuiKey_S;
+        case 'T': return ImGuiKey_T;
+        case 'U': return ImGuiKey_U;
+        case 'V': return ImGuiKey_V;
+        case 'W': return ImGuiKey_W;
+        case 'X': return ImGuiKey_X;
+        case 'Y': return ImGuiKey_Y;
+        case 'Z': return ImGuiKey_Z;
+        // F-keys
+        case XK_F1: return ImGuiKey_F1;
+        case XK_F2: return ImGuiKey_F2;
+        case XK_F3: return ImGuiKey_F3;
+        case XK_F4: return ImGuiKey_F4;
+        case XK_F5: return ImGuiKey_F5;
+        case XK_F6: return ImGuiKey_F6;
+        case XK_F7: return ImGuiKey_F7;
+        case XK_F8: return ImGuiKey_F8;
+        case XK_F9: return ImGuiKey_F9;
+        case XK_F10: return ImGuiKey_F10;
+        case XK_F11: return ImGuiKey_F11;
+        case XK_F12: return ImGuiKey_F12;
+        // Keypad numbers (NumLock on)
+        case XK_KP_0: return ImGuiKey_Keypad0;
+        case XK_KP_1: return ImGuiKey_Keypad1;
+        case XK_KP_2: return ImGuiKey_Keypad2;
+        case XK_KP_3: return ImGuiKey_Keypad3;
+        case XK_KP_4: return ImGuiKey_Keypad4;
+        case XK_KP_5: return ImGuiKey_Keypad5;
+        case XK_KP_6: return ImGuiKey_Keypad6;
+        case XK_KP_7: return ImGuiKey_Keypad7;
+        case XK_KP_8: return ImGuiKey_Keypad8;
+        case XK_KP_9: return ImGuiKey_Keypad9;
+        case XK_KP_Decimal: return ImGuiKey_KeypadDecimal;
+        case XK_KP_Divide: return ImGuiKey_KeypadDivide;
+        case XK_KP_Multiply: return ImGuiKey_KeypadMultiply;
+        case XK_KP_Subtract: return ImGuiKey_KeypadSubtract;
+        case XK_KP_Add: return ImGuiKey_KeypadAdd;
+        // Keypad navigation (NumLock off - arrows combined with numpad)
+        case XK_KP_Home: return ImGuiKey_Home;
+        case XK_KP_Up: return ImGuiKey_UpArrow;
+        case XK_KP_Page_Up: return ImGuiKey_PageUp;
+        case XK_KP_Left: return ImGuiKey_LeftArrow;
+        case XK_KP_Begin: return ImGuiKey_Keypad5;  // Numpad 5 without NumLock
+        case XK_KP_Right: return ImGuiKey_RightArrow;
+        case XK_KP_End: return ImGuiKey_End;
+        case XK_KP_Down: return ImGuiKey_DownArrow;
+        case XK_KP_Page_Down: return ImGuiKey_PageDown;
+        case XK_KP_Insert: return ImGuiKey_Insert;
+        case XK_KP_Delete: return ImGuiKey_Delete;
+        // Modifier keys
+        case XK_Shift_L: return ImGuiKey_LeftShift;
+        case XK_Shift_R: return ImGuiKey_RightShift;
+        case XK_Control_L: return ImGuiKey_LeftCtrl;
+        case XK_Control_R: return ImGuiKey_RightCtrl;
+        case XK_Alt_L: return ImGuiKey_LeftAlt;
+        case XK_Alt_R: return ImGuiKey_RightAlt;
+        case XK_Super_L: return ImGuiKey_LeftSuper;
+        case XK_Super_R: return ImGuiKey_RightSuper;
+        case XK_Menu: return ImGuiKey_Menu;
         default: return ImGuiKey_None;
     }
     #else
     return ImGuiKey_None;
     #endif
-}*/
+}
+#endif // !defined(_WIN32)
 
 
 static int PLUGIN_IDENTIFIER = 1; //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
@@ -341,51 +448,51 @@ static const std::map<std::string,int> enumKeyMap = {
 };
 
 static const std::map<std::string,int> allFlags = {
-{"ImGuiWindowFlags_None",                             ImGuiWindowFlags_None},
-{"ImGuiWindowFlags_NoTitleBar",                       ImGuiWindowFlags_NoTitleBar},
-{"ImGuiWindowFlags_NoResize",                         ImGuiWindowFlags_NoResize},
-{"ImGuiWindowFlags_NoMove",                           ImGuiWindowFlags_NoMove},
-{"ImGuiWindowFlags_NoScrollbar",                      ImGuiWindowFlags_NoScrollbar},
-{"ImGuiWindowFlags_NoScrollWithMouse",                ImGuiWindowFlags_NoScrollWithMouse},
-{"ImGuiWindowFlags_NoCollapse",                       ImGuiWindowFlags_NoCollapse},
-{"ImGuiWindowFlags_AlwaysAutoResize",                 ImGuiWindowFlags_AlwaysAutoResize},
-{"ImGuiWindowFlags_NoBackground",                     ImGuiWindowFlags_NoBackground},
-{"ImGuiWindowFlags_NoSavedSettings",                  ImGuiWindowFlags_NoSavedSettings},
-{"ImGuiWindowFlags_NoMouseInputs",                    ImGuiWindowFlags_NoMouseInputs},
-{"ImGuiWindowFlags_MenuBar",                          ImGuiWindowFlags_MenuBar},
-{"ImGuiWindowFlags_HorizontalScrollbar",              ImGuiWindowFlags_HorizontalScrollbar},
-{"ImGuiWindowFlags_NoFocusOnAppearing",               ImGuiWindowFlags_NoFocusOnAppearing},
-{"ImGuiWindowFlags_NoBringToFrontOnFocus",            ImGuiWindowFlags_NoBringToFrontOnFocus},
-{"ImGuiWindowFlags_AlwaysVerticalScrollbar",          ImGuiWindowFlags_AlwaysVerticalScrollbar},
-{"ImGuiWindowFlags_AlwaysHorizontalScrollbar",        ImGuiWindowFlags_AlwaysHorizontalScrollbar},
+        {"ImGuiWindowFlags_None",                             ImGuiWindowFlags_None},
+        {"ImGuiWindowFlags_NoTitleBar",                       ImGuiWindowFlags_NoTitleBar},
+        {"ImGuiWindowFlags_NoResize",                         ImGuiWindowFlags_NoResize},
+        {"ImGuiWindowFlags_NoMove",                           ImGuiWindowFlags_NoMove},
+        {"ImGuiWindowFlags_NoScrollbar",                      ImGuiWindowFlags_NoScrollbar},
+        {"ImGuiWindowFlags_NoScrollWithMouse",                ImGuiWindowFlags_NoScrollWithMouse},
+        {"ImGuiWindowFlags_NoCollapse",                       ImGuiWindowFlags_NoCollapse},
+        {"ImGuiWindowFlags_AlwaysAutoResize",                 ImGuiWindowFlags_AlwaysAutoResize},
+        {"ImGuiWindowFlags_NoBackground",                     ImGuiWindowFlags_NoBackground},
+        {"ImGuiWindowFlags_NoSavedSettings",                  ImGuiWindowFlags_NoSavedSettings},
+        {"ImGuiWindowFlags_NoMouseInputs",                    ImGuiWindowFlags_NoMouseInputs},
+        {"ImGuiWindowFlags_MenuBar",                          ImGuiWindowFlags_MenuBar},
+        {"ImGuiWindowFlags_HorizontalScrollbar",              ImGuiWindowFlags_HorizontalScrollbar},
+        {"ImGuiWindowFlags_NoFocusOnAppearing",               ImGuiWindowFlags_NoFocusOnAppearing},
+        {"ImGuiWindowFlags_NoBringToFrontOnFocus",            ImGuiWindowFlags_NoBringToFrontOnFocus},
+        {"ImGuiWindowFlags_AlwaysVerticalScrollbar",          ImGuiWindowFlags_AlwaysVerticalScrollbar},
+        {"ImGuiWindowFlags_AlwaysHorizontalScrollbar",        ImGuiWindowFlags_AlwaysHorizontalScrollbar},
 
-{"ImGuiWindowFlags_NoNavInputs",                      ImGuiWindowFlags_NoNavInputs},
-{"ImGuiWindowFlags_NoNavFocus",                       ImGuiWindowFlags_NoNavFocus},
-{"ImGuiWindowFlags_UnsavedDocument",                  ImGuiWindowFlags_UnsavedDocument},
-{"ImGuiWindowFlags_NoNav",                            ImGuiWindowFlags_NoNav},
-{"ImGuiWindowFlags_NoDecoration",                     ImGuiWindowFlags_NoDecoration},
-{"ImGuiWindowFlags_NoInputs",                         ImGuiWindowFlags_NoInputs},
-{"ImGuiInputTextFlags_None",                          ImGuiInputTextFlags_None},
-{"ImGuiInputTextFlags_CharsDecimal",                  ImGuiInputTextFlags_CharsDecimal},
-{"ImGuiInputTextFlags_CharsHexadecimal",              ImGuiInputTextFlags_CharsHexadecimal},
-{"ImGuiInputTextFlags_CharsUppercase",                ImGuiInputTextFlags_CharsUppercase},
-{"ImGuiInputTextFlags_CharsNoBlank",                  ImGuiInputTextFlags_CharsNoBlank},
-{"ImGuiInputTextFlags_AutoSelectAll",                 ImGuiInputTextFlags_AutoSelectAll},
-{"ImGuiInputTextFlags_EnterReturnsTrue",              ImGuiInputTextFlags_EnterReturnsTrue},
-{"ImGuiInputTextFlags_CallbackCompletion",            ImGuiInputTextFlags_CallbackCompletion},
-{"ImGuiInputTextFlags_CallbackHistory",               ImGuiInputTextFlags_CallbackHistory},
-{"ImGuiInputTextFlags_CallbackAlways",                ImGuiInputTextFlags_CallbackAlways},
-{"ImGuiInputTextFlags_CallbackCharFilter",            ImGuiInputTextFlags_CallbackCharFilter},
-{"ImGuiInputTextFlags_AllowTabInput",                 ImGuiInputTextFlags_AllowTabInput},
-{"ImGuiInputTextFlags_CtrlEnterForNewLine",           ImGuiInputTextFlags_CtrlEnterForNewLine},
-{"ImGuiInputTextFlags_NoHorizontalScroll",            ImGuiInputTextFlags_NoHorizontalScroll},
-{"ImGuiInputTextFlags_AlwaysOverwrite",               ImGuiInputTextFlags_AlwaysOverwrite},
-{"ImGuiInputTextFlags_ReadOnly",                      ImGuiInputTextFlags_ReadOnly},
-{"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
-{"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
-{"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
-{"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
-{"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
+        {"ImGuiWindowFlags_NoNavInputs",                      ImGuiWindowFlags_NoNavInputs},
+        {"ImGuiWindowFlags_NoNavFocus",                       ImGuiWindowFlags_NoNavFocus},
+        {"ImGuiWindowFlags_UnsavedDocument",                  ImGuiWindowFlags_UnsavedDocument},
+        {"ImGuiWindowFlags_NoNav",                            ImGuiWindowFlags_NoNav},
+        {"ImGuiWindowFlags_NoDecoration",                     ImGuiWindowFlags_NoDecoration},
+        {"ImGuiWindowFlags_NoInputs",                         ImGuiWindowFlags_NoInputs},
+        {"ImGuiInputTextFlags_None",                          ImGuiInputTextFlags_None},
+        {"ImGuiInputTextFlags_CharsDecimal",                  ImGuiInputTextFlags_CharsDecimal},
+        {"ImGuiInputTextFlags_CharsHexadecimal",              ImGuiInputTextFlags_CharsHexadecimal},
+        {"ImGuiInputTextFlags_CharsUppercase",                ImGuiInputTextFlags_CharsUppercase},
+        {"ImGuiInputTextFlags_CharsNoBlank",                  ImGuiInputTextFlags_CharsNoBlank},
+        {"ImGuiInputTextFlags_AutoSelectAll",                 ImGuiInputTextFlags_AutoSelectAll},
+        {"ImGuiInputTextFlags_EnterReturnsTrue",              ImGuiInputTextFlags_EnterReturnsTrue},
+        {"ImGuiInputTextFlags_CallbackCompletion",            ImGuiInputTextFlags_CallbackCompletion},
+        {"ImGuiInputTextFlags_CallbackHistory",               ImGuiInputTextFlags_CallbackHistory},
+        {"ImGuiInputTextFlags_CallbackAlways",                ImGuiInputTextFlags_CallbackAlways},
+        {"ImGuiInputTextFlags_CallbackCharFilter",            ImGuiInputTextFlags_CallbackCharFilter},
+        {"ImGuiInputTextFlags_AllowTabInput",                 ImGuiInputTextFlags_AllowTabInput},
+        {"ImGuiInputTextFlags_CtrlEnterForNewLine",           ImGuiInputTextFlags_CtrlEnterForNewLine},
+        {"ImGuiInputTextFlags_NoHorizontalScroll",            ImGuiInputTextFlags_NoHorizontalScroll},
+        {"ImGuiInputTextFlags_AlwaysOverwrite",               ImGuiInputTextFlags_AlwaysOverwrite},
+        {"ImGuiInputTextFlags_ReadOnly",                      ImGuiInputTextFlags_ReadOnly},
+        {"ImGuiInputTextFlags_Password",                      ImGuiInputTextFlags_Password},
+        {"ImGuiInputTextFlags_NoUndoRedo",                    ImGuiInputTextFlags_NoUndoRedo},
+        {"ImGuiInputTextFlags_CharsScientific",               ImGuiInputTextFlags_CharsScientific},
+        {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
+        {"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
         {"ImGuiTreeNodeFlags_Selected",                       ImGuiTreeNodeFlags_Selected},
         // NOTE: Duplicate WindowFlags entries removed here - they're already defined above
         {"ImGuiTreeNodeFlags_Framed",                         ImGuiTreeNodeFlags_Framed},
@@ -506,16 +613,16 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCol_ResizeGripActive",                         ImGuiCol_ResizeGripActive},
         {"ImGuiCol_Tab",                                      ImGuiCol_Tab},
         {"ImGuiCol_TabHovered",                               ImGuiCol_TabHovered},
-        {"ImGuiCol_TabSelected",                                ImGuiCol_TabSelected},
-        {"ImGuiCol_TabDimmed",                             ImGuiCol_TabDimmed},
-        {"ImGuiCol_TabDimmedSelected",                       ImGuiCol_TabDimmedSelected},
+        {"ImGuiCol_TabSelected",                              ImGuiCol_TabSelected},
+        {"ImGuiCol_TabDimmed",                                ImGuiCol_TabDimmed},
+        {"ImGuiCol_TabDimmedSelected",                        ImGuiCol_TabDimmedSelected},
         {"ImGuiCol_PlotLines",                                ImGuiCol_PlotLines},
         {"ImGuiCol_PlotLinesHovered",                         ImGuiCol_PlotLinesHovered},
         {"ImGuiCol_PlotHistogram",                            ImGuiCol_PlotHistogram},
         {"ImGuiCol_PlotHistogramHovered",                     ImGuiCol_PlotHistogramHovered},
         {"ImGuiCol_TextSelectedBg",                           ImGuiCol_TextSelectedBg},
         {"ImGuiCol_DragDropTarget",                           ImGuiCol_DragDropTarget},
-        {"ImGuiCol_NavCursor",                             ImGuiCol_NavCursor},
+        {"ImGuiCol_NavCursor",                                ImGuiCol_NavCursor},
         {"ImGuiCol_NavWindowingHighlight",                    ImGuiCol_NavWindowingHighlight},
         {"ImGuiCol_NavWindowingDimBg",                        ImGuiCol_NavWindowingDimBg},
         {"ImGuiCol_ModalWindowDimBg",                         ImGuiCol_ModalWindowDimBg},
@@ -564,7 +671,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -737,16 +843,16 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiCol_ResizeGripActive",                         ImGuiCol_ResizeGripActive},
         {"ImGuiCol_Tab",                                      ImGuiCol_Tab},
         {"ImGuiCol_TabHovered",                               ImGuiCol_TabHovered},
-        {"ImGuiCol_TabSelected",                                ImGuiCol_TabSelected},
-        {"ImGuiCol_TabDimmed",                             ImGuiCol_TabDimmed},
-        {"ImGuiCol_TabDimmedSelected",                       ImGuiCol_TabDimmedSelected},
+        {"ImGuiCol_TabSelected",                              ImGuiCol_TabSelected},
+        {"ImGuiCol_TabDimmed",                                ImGuiCol_TabDimmed},
+        {"ImGuiCol_TabDimmedSelected",                        ImGuiCol_TabDimmedSelected},
         {"ImGuiCol_PlotLines",                                ImGuiCol_PlotLines},
         {"ImGuiCol_PlotLinesHovered",                         ImGuiCol_PlotLinesHovered},
         {"ImGuiCol_PlotHistogram",                            ImGuiCol_PlotHistogram},
         {"ImGuiCol_PlotHistogramHovered",                     ImGuiCol_PlotHistogramHovered},
         {"ImGuiCol_TextSelectedBg",                           ImGuiCol_TextSelectedBg},
         {"ImGuiCol_DragDropTarget",                           ImGuiCol_DragDropTarget},
-        {"ImGuiCol_NavCursor",                             ImGuiCol_NavCursor},
+        {"ImGuiCol_NavCursor",                                ImGuiCol_NavCursor},
         {"ImGuiCol_NavWindowingHighlight",                    ImGuiCol_NavWindowingHighlight},
         {"ImGuiCol_NavWindowingDimBg",                        ImGuiCol_NavWindowingDimBg},
         {"ImGuiCol_ModalWindowDimBg",                         ImGuiCol_ModalWindowDimBg},
@@ -795,7 +901,6 @@ static const std::map<std::string,int> allFlags = {
         {"ImGuiColorEditFlags_PickerHueWheel",                ImGuiColorEditFlags_PickerHueWheel},
         {"ImGuiColorEditFlags_InputRGB",                      ImGuiColorEditFlags_InputRGB},
         {"ImGuiColorEditFlags_InputHSV",                      ImGuiColorEditFlags_InputHSV},
-
         {"ImGuiMouseButton_Left",                             ImGuiMouseButton_Left},
         {"ImGuiMouseButton_Right",                            ImGuiMouseButton_Right},
         {"ImGuiMouseButton_Middle",                           ImGuiMouseButton_Middle},
@@ -1070,16 +1175,19 @@ public:
 
     void onSubscribe(int width,int height, void * _context)
     {
-        // Debug: Print struct sizes to identify mismatch
-        printf("=== ImGui Struct Size Debug ===\n");
-        printf("sizeof(ImGuiIO):    %zu\n", sizeof(ImGuiIO));
-        printf("sizeof(ImGuiStyle): %zu\n", sizeof(ImGuiStyle));
-        printf("sizeof(ImVec2):     %zu\n", sizeof(ImVec2));
-        printf("sizeof(ImVec4):     %zu\n", sizeof(ImVec4));
-        printf("sizeof(ImDrawVert): %zu\n", sizeof(ImDrawVert));
-        printf("sizeof(ImDrawIdx):  %zu\n", sizeof(ImDrawIdx));
-        printf("IMGUI_VERSION:      %s\n", IMGUI_VERSION);
-        printf("==============================\n");
+        #if defined DEBUG || defined _DEBUG
+            // Debug: Print struct sizes to identify mismatch
+            printf("Subscribing to ImGui with context: %p\n", _context);
+            printf("=== ImGui Struct Size Debug ===\n");
+            printf("sizeof(ImGuiIO):    %zu\n", sizeof(ImGuiIO));
+            printf("sizeof(ImGuiStyle): %zu\n", sizeof(ImGuiStyle));
+            printf("sizeof(ImVec2):     %zu\n", sizeof(ImVec2));
+            printf("sizeof(ImVec4):     %zu\n", sizeof(ImVec4));
+            printf("sizeof(ImDrawVert): %zu\n", sizeof(ImDrawVert));
+            printf("sizeof(ImDrawIdx):  %zu\n", sizeof(ImDrawIdx));
+            printf("IMGUI_VERSION:      %s\n", IMGUI_VERSION);
+            printf("==============================\n");
+        #endif  
         
         IMGUI_CHECKVERSION();
         imGuiContext = ImGui::CreateContext();
@@ -1093,7 +1201,7 @@ public:
             ImGui::StyleColorsDark();
             ImGuiIO& imGuIo = ImGui::GetIO();
             
-            // Load default font with extended Latin characters (includes Portuguese: �, �, �, �, �, �, �, �)
+            // Load default font with extended Latin characters (includes Portuguese accents)
             ImFontConfig font_cfg;
             font_cfg.OversampleH = 2;
             font_cfg.OversampleV = 2;
@@ -1171,9 +1279,9 @@ public:
 
     void onTouchDown(int key, float x, float y)
     {
-        // NOTE: Commented out - ImGui backend (ImGui_ImplWin32_NewFrame/ImGui_ImplDX9_NewFrame) handles input automatically in ImGui 1.92+
-        // Uncomment only if backend is not receiving input events
-        /*
+        // On Windows, ImGui_ImplWin32 handles input automatically via WndProc
+        // On Linux/Android, we must feed input manually
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1187,13 +1295,12 @@ public:
                 io.AddMouseButtonEvent(key, true);
             }
         }
-        */
+#endif
     }
 
     void onTouchUp(int key, float x, float y)
     {
-        // NOTE: Commented out - ImGui backend handles input automatically
-        /*
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1207,13 +1314,12 @@ public:
                 io.AddMouseButtonEvent(key, false);
             }
         }
-        */
+#endif
     }
 
     void onTouchMove(int key, float x, float y)
     {
-        // NOTE: Commented out - ImGui backend handles input automatically
-        /*
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1225,27 +1331,25 @@ public:
             MousePos.y      = y;
             io.AddMousePosEvent(x, y);
         }
-        */
+#endif
     }
 
     void onTouchZoom(float zoom)
     {
-        // NOTE: Commented out - ImGui backend handles mouse wheel automatically
-        /*
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
             io.AddMouseWheelEvent(0.0f, zoom);
         }
-        */
+#endif
     }
     
     void onKeyDown(int key)
     {
-        // NOTE: Commented out - ImGui backend (ImGui_ImplWin32) handles keyboard input automatically in ImGui 1.92+
-        // The backend's WndProc handler processes WM_KEYDOWN, WM_CHAR, etc. messages
-        // Uncomment only if backend is not receiving keyboard events
-        /*
+        // On Windows, ImGui_ImplWin32 handles keyboard input automatically via WndProc
+        // On Linux/Android, we must feed input manually
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1258,29 +1362,7 @@ public:
             }
             
             // Handle modifier keys
-            #if defined(_WIN32)
-            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
-                io.AddKeyEvent(ImGuiMod_Ctrl, true);
-            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
-                io.AddKeyEvent(ImGuiMod_Shift, true);
-            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
-                io.AddKeyEvent(ImGuiMod_Alt, true);
-            if (key == VK_LWIN || key == VK_RWIN)
-                io.AddKeyEvent(ImGuiMod_Super, true);
-            
-            // Handle character input for text fields
-            if (key >= '0' && key <= '9')
-            {
-                io.AddInputCharacter(key);
-            }
-            else if (key >= 'A' && key <= 'Z')
-            {
-                bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-                bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
-                bool uppercase = (shift && !caps) || (!shift && caps);
-                io.AddInputCharacter(uppercase ? key : (key - 'A' + 'a'));
-            }
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             if (key == XK_Control_L || key == XK_Control_R)
                 io.AddKeyEvent(ImGuiMod_Ctrl, true);
             if (key == XK_Shift_L || key == XK_Shift_R)
@@ -1289,15 +1371,55 @@ public:
                 io.AddKeyEvent(ImGuiMod_Alt, true);
             if (key == XK_Super_L || key == XK_Super_R)
                 io.AddKeyEvent(ImGuiMod_Super, true);
+            
+            // Add character input for text fields (only for printable characters)
+            // The engine converts lowercase to uppercase, so we need to handle case
+            if (key >= 'A' && key <= 'Z')
+            {
+                // Check if shift is held - if so, use uppercase, otherwise lowercase
+                bool shift_held = io.KeyShift;
+                bool caps_on = isCapsLockOn();
+                bool uppercase = (shift_held && !caps_on) || (!shift_held && caps_on);
+                io.AddInputCharacter(uppercase ? key : (key - 'A' + 'a'));
+            }
+            else if (key >= '0' && key <= '9')
+            {
+                // Handle shift+number for symbols
+                if (io.KeyShift)
+                {
+                    static const char shifted[] = ")!@#$%^&*(";
+                    io.AddInputCharacter(shifted[key - '0']);
+                }
+                else
+                {
+                    io.AddInputCharacter(key);
+                }
+            }
+            // Numpad numbers (NumLock on)
+            else if (key >= XK_KP_0 && key <= XK_KP_9)
+            {
+                io.AddInputCharacter('0' + (key - XK_KP_0));
+            }
+            else if (key == XK_KP_Decimal)
+            {
+                io.AddInputCharacter('.');
+            }
+            else if (key == XK_space || key == XK_KP_Space)
+            {
+                io.AddInputCharacter(' ');
+            }
+            else if (key == XK_Return || key == XK_KP_Enter)
+            {
+                io.AddInputCharacter('\n');
+            }
             #endif
         }
-        */
+#endif
     }
 
     void onKeyUp(int key)
     {
-        // NOTE: Commented out - ImGui backend handles keyboard input automatically
-        /*
+#if !defined(_WIN32)
         if(imGuiContext)
         {
             ImGuiIO& io = ImGui::GetIO();
@@ -1310,16 +1432,7 @@ public:
             }
             
             // Handle modifier keys
-            #if defined(_WIN32)
-            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL)
-                io.AddKeyEvent(ImGuiMod_Ctrl, false);
-            if (key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)
-                io.AddKeyEvent(ImGuiMod_Shift, false);
-            if (key == VK_MENU || key == VK_LMENU || key == VK_RMENU)
-                io.AddKeyEvent(ImGuiMod_Alt, false);
-            if (key == VK_LWIN || key == VK_RWIN)
-                io.AddKeyEvent(ImGuiMod_Super, false);
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
             if (key == XK_Control_L || key == XK_Control_R)
                 io.AddKeyEvent(ImGuiMod_Ctrl, false);
             if (key == XK_Shift_L || key == XK_Shift_R)
@@ -1330,7 +1443,7 @@ public:
                 io.AddKeyEvent(ImGuiMod_Super, false);
             #endif
         }
-        */
+#endif
     }
 
     const bool isCapsLockOn()
