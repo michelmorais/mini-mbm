@@ -87,9 +87,7 @@ class IMGUI_LUA;
     If there is no intent to use this module in the engine there is no problem. It can be used as normal module in lua.
 */
 
-#ifdef  PLUGIN_CALLBACK
-    #include <core_mbm/plugin-callback.h>
-#endif
+#include <core_mbm/plugin-callback.h>
 
 // Helper function to map native keys to ImGuiKey
 static ImGuiKey MapNativeKeyToImGuiKey(int native_key)
@@ -844,11 +842,7 @@ void lua_push_ImVec4(lua_State *lua, const ImVec4 & in);
 void lua_push_ImVec4_pointer(lua_State *lua,const ImVec4 * p_ImVec4);
 
 
-#ifdef  PLUGIN_CALLBACK
-    class IMGUI_LUA : public PLUGIN // structure that represent the wrapper
-#else
-    class IMGUI_LUA
-#endif
+class IMGUI_LUA : public PLUGIN // structure that represent the wrapper
 {
 public:
 
@@ -881,8 +875,6 @@ public:
     #elif defined(ANDROID)
         JNIEnv*     context;
     #endif
-
-    #ifdef  PLUGIN_CALLBACK
 
     void onSubscribe(int width,int height, void * _context)
     {
@@ -1442,7 +1434,6 @@ public:
         }
         #endif
     }
-    #endif
 };
 
 IMGUI_LUA *getImGuiFromRawTable(lua_State *lua, const int rawi, const int indexTable)
@@ -2399,7 +2390,6 @@ int onSetNextWindowSizeImGuiLua(lua_State *lua)
     return 0;
 }
 
-#ifdef  PLUGIN_CALLBACK
 
 int onSetNextWindowSizeConstraintsImGuiLua(lua_State *lua)
 {
@@ -2410,7 +2400,6 @@ int onSetNextWindowSizeConstraintsImGuiLua(lua_State *lua)
     ImGui::SetNextWindowSizeConstraints(size_min,size_max,nullptr,nullptr);
     return 0;
 }
-#endif
 
 int onSetNextWindowContentSizeImGuiLua(lua_State *lua)
 {
@@ -3720,9 +3709,6 @@ int onVSliderIntImGuiLua(lua_State *lua)
     return 2;
 }
 
-#ifdef  PLUGIN_CALLBACK
-
-
 int onInputTextImGuiLua(lua_State *lua)
 {
     int index_input                             = 1;
@@ -3764,8 +3750,6 @@ int onInputTextWithHintImGuiLua(lua_State *lua)
     lua_pushstring(lua,text.c_str());
     return 2;
 }
-
-#endif
 
 int onInputFloatImGuiLua(lua_State *lua)
 {
@@ -5680,11 +5664,9 @@ int onNewimguiLua(lua_State *lua)
         {"GetCursorPosY",                                       onGetCursorPosYImGuiLua }, // Not used, Queries/State
         {"GetCursorScreenPos",                             onGetCursorScreenPosImGuiLua },
         {"GetCursorStartPos",                               onGetCursorStartPosImGuiLua }, // Not used, Queries/State
-        // GetFontSize, GetFontTexUvWhitePixel, GetFrameCount, GetFrameHeight, GetFrameHeightWithSpacing, GetID removed - not used
         {"GetItemRectMax",                                     onGetItemRectMaxImGuiLua }, // Not used, Queries/State
         {"GetItemRectMin",                                     onGetItemRectMinImGuiLua }, // Not used, Queries/State
         {"GetItemRectSize",                                   onGetItemRectSizeImGuiLua }, // Not used, Queries/State
-        // GetKeyIndex removed - deprecated, use ImGuiKey values directly
         {"GetKeyPressedAmount",                           onGetKeyPressedAmountImGuiLua }, // Not used, Queries/State
         {"GetMainMenuBarHeight",                         onGetMainMenuBarHeightImGuiLua },
         {"GetMouseCursor",                                     onGetMouseCursorImGuiLua }, // Not used, Queries/State
@@ -5919,47 +5901,45 @@ int onNewimguiLua(lua_State *lua)
 
     lua_rawseti(lua, -2, 1);//set usedata as the first member in the table
 
-    #ifdef  PLUGIN_CALLBACK
-        bool bRegistered                       = false;
-        const int index_plugin                 = lua_gettop(lua);
-        unsigned int index_plugin_subscription = 0xffffffff;
-        lua_getglobal(lua,"mbm");//auto subscribe
-        if(lua_type(lua,-1) == LUA_TTABLE)
+    bool bRegistered                       = false;
+    const int index_plugin                 = lua_gettop(lua);
+    unsigned int index_plugin_subscription = 0xffffffff;
+    lua_getglobal(lua,"mbm");//auto subscribe
+    if(lua_type(lua,-1) == LUA_TTABLE)
+    {
+        lua_getfield(lua,-1,"subscribe");
+        if(lua_isfunction(lua,-1))
         {
-            lua_getfield(lua,-1,"subscribe");
-            if(lua_isfunction(lua,-1))
+            lua_pushvalue(lua,index_plugin);
+            constexpr int nargs    = 1;
+            constexpr int nresults = 1; //index plugin registered
+            if(lua_pcall(lua,nargs,nresults,0) == LUA_OK )
             {
-                lua_pushvalue(lua,index_plugin);
-                constexpr int nargs    = 1;
-                constexpr int nresults = 1; //index plugin registered
-                if(lua_pcall(lua,nargs,nresults,0) == LUA_OK )
+                if(lua_type(lua,-1) == LUA_TNUMBER)
                 {
-                    if(lua_type(lua,-1) == LUA_TNUMBER)
+                    unsigned int index_plugin_subscription = lua_tointeger(lua,-1);
+                    if(index_plugin_subscription != 0xffffffff)
                     {
-                        unsigned int index_plugin_subscription = lua_tointeger(lua,-1);
-                        if(index_plugin_subscription != 0xffffffff)
-                        {
-                            bRegistered = true;
-                        }
+                        bRegistered = true;
                     }
                 }
             }
         }
-        if(bRegistered)
+    }
+    if(bRegistered)
+    {
+        const int total_in_stack = lua_gettop(lua);
+        if(total_in_stack > index_plugin)
         {
-            const int total_in_stack = lua_gettop(lua);
-            if(total_in_stack > index_plugin)
-            {
-                const int total_pop = total_in_stack - index_plugin;
-                lua_pop(lua,total_pop);
-            }
+            const int total_pop = total_in_stack - index_plugin;
+            lua_pop(lua,total_pop);
         }
-        else
-        {
-            lua_settop(lua,0);
-            luaL_error(lua,"Error registering plugin...\nModule is defined to use PLUGIN_CALLBACK however could not subscribe to mbm.subscribe function!\n index of subscription [%d]",index_plugin_subscription);
-        }
-    #endif
+    }
+    else
+    {
+        lua_settop(lua,0);
+        luaL_error(lua,"Error registering plugin...\nModule is defined to use PLUGIN_CALLBACK however could not subscribe to mbm.subscribe function!\n index of subscription [%d]",index_plugin_subscription);
+    }
     return 1;
 }
 

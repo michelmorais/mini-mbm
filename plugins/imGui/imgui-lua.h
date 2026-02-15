@@ -34,11 +34,6 @@
   #endif
 #endif
 
-//You might disable it to do not implement the plugin callback (main purpose of use in the mbm engine)
-#ifndef PLUGIN_CALLBACK
-  #define PLUGIN_CALLBACK
-#endif
-
 extern "C"
 {
     #include <lualib.h>
