@@ -553,7 +553,6 @@ static const std::map<std::string,int> othersFlag = {
         {"ImGuiInputTextFlags_CallbackResize",                ImGuiInputTextFlags_CallbackResize},
         {"ImGuiTreeNodeFlags_None",                           ImGuiTreeNodeFlags_None},
         {"ImGuiTreeNodeFlags_Selected",                       ImGuiTreeNodeFlags_Selected},
-        // NOTE: Duplicate WindowFlags entries removed here - they're already defined above
         {"ImGuiTreeNodeFlags_Framed",                         ImGuiTreeNodeFlags_Framed},
         {"ImGuiTreeNodeFlags_AllowOverlap",                   ImGuiTreeNodeFlags_AllowOverlap},
         {"ImGuiTreeNodeFlags_NoTreePushOnOpen",               ImGuiTreeNodeFlags_NoTreePushOnOpen},
@@ -2489,14 +2488,7 @@ int onSetWindowFocusImGuiLua(lua_State *lua)
 }
 
 
-int onSetWindowFontScaleImGuiLua(lua_State *lua)
-{
-    //  Set font scale. Adjust IO.FontGlobalScale if you want to scale all windows. This is an old API! For correct scaling, prefer to reload font + rebuild ImFontAtlas + call style.ScaleAllSizes().
-    int index_input    = 1;
-    const float scale  = luaL_checknumber(lua,index_input++);
-    // ImGui::SetWindowFontScale(scale); // REMOVED in ImGui 1.92 - use ImGui::GetIO().FontGlobalScale instead
-    return 0;
-}
+// SetWindowFontScale removed - deprecated in ImGui 1.92, use GetIO().FontGlobalScale instead
     
 int onSetWindowCollapsedImGuiLua(lua_State *lua)
 {
@@ -2513,16 +2505,7 @@ int onSetWindowCollapsedImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onGetContentRegionMaxImGuiLua(lua_State *lua)
-{
-    //  Current content boundaries (typically window boundaries including scrolling, or current column boundaries), in windows coordinates
-    //  NOTE: GetContentRegionMax() was removed in ImGui 1.89+. Use GetContentRegionAvail() + GetCursorPos() instead.
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const ImVec2 cursor = ImGui::GetCursorPos();
-    const ImVec2 ret_ImVec2 = ImVec2(avail.x + cursor.x, avail.y + cursor.y);
-    lua_push_ImVec2(lua,ret_ImVec2);
-    return 1;
-}
+// GetContentRegionMax removed - deprecated in ImGui 1.89+, use GetContentRegionAvail() + GetCursorPos() instead
 
 int onGetContentRegionAvailImGuiLua(lua_State *lua)
 {
@@ -2532,25 +2515,7 @@ int onGetContentRegionAvailImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onGetWindowContentRegionMinImGuiLua(lua_State *lua)
-{
-    //  Content boundaries min (roughly (0,0)-Scroll), in window coordinates
-    //  NOTE: GetWindowContentRegionMin() was removed in ImGui 1.89+. Using GetCursorStartPos() as closest approximation.
-    const ImVec2 ret_ImVec2  = ImGui::GetCursorStartPos();
-    lua_push_ImVec2(lua,ret_ImVec2);
-    return 1;
-}
-
-int onGetWindowContentRegionMaxImGuiLua(lua_State *lua)
-{
-    //  Content boundaries max (roughly (0,0)+Size-Scroll) where Size can be override with SetNextWindowContentSize(), in window coordinates
-    //  NOTE: GetWindowContentRegionMax() was removed in ImGui 1.89+. Calculate as CursorStartPos + ContentRegionAvail.
-    const ImVec2 start = ImGui::GetCursorStartPos();
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const ImVec2 ret_ImVec2 = ImVec2(start.x + avail.x, start.y + avail.y);
-    lua_push_ImVec2(lua,ret_ImVec2);
-    return 1;
-}
+// GetWindowContentRegionMin/Max removed - deprecated in ImGui 1.89+
 
 int onGetScrollXImGuiLua(lua_State *lua)
 {
@@ -2783,8 +2748,6 @@ int onGetStyleColorVec4ImGuiLua(lua_State *lua)
     return 1;
 }
 
-// GetFontSize, GetFontTexUvWhitePixel removed - not used
-
 int onGetColorU32ImGuiLua(lua_State *lua)
 {
     //  Retrieve given style color with style alpha applied and optional extra alpha multiplier
@@ -2845,39 +2808,7 @@ int onPopTextWrapPosImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onPushTabStopImGuiLua(lua_State *lua)
-{
-    //  Allow focusing using TAB/Shift-TAB, enabled by default but you can disable it for certain widgets
-    //  NOTE: PushTabStop was removed in ImGui 1.90+. Use PushItemFlag(ImGuiItemFlags_NoTabStop) instead.
-    int index_input                  = 1;
-    const bool allow_keyboard_focus  = lua_toboolean(lua,index_input++);
-    ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, !allow_keyboard_focus);
-    return 0;
-}
-
-int onPopTabStopImGuiLua(lua_State *lua)
-{
-    //  NOTE: PopTabStop was removed in ImGui 1.90+. Use PopItemFlag instead.
-    ImGui::PopItemFlag();
-    return 0;
-}
-
-int onPushButtonRepeatImGuiLua(lua_State *lua)
-{
-    //  In 'repeat' mode, Button*() functions return repeated true in a typematic manner (using io.KeyRepeatDelay/io.KeyRepeatRate setting). Note that you can call IsItemActive() after any Button() to tell if the button is held in the current frame.
-    //  NOTE: PushButtonRepeat was removed in ImGui 1.90+. Use PushItemFlag(ImGuiItemFlags_ButtonRepeat) instead.
-    int index_input    = 1;
-    const bool repeat  = lua_toboolean(lua,index_input++);
-    ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, repeat);
-    return 0;
-}
-
-int onPopButtonRepeatImGuiLua(lua_State *lua)
-{
-    //  NOTE: PopButtonRepeat was removed in ImGui 1.90+. Use PopItemFlag instead.
-    ImGui::PopItemFlag();
-    return 0;
-}
+// PushTabStop, PopTabStop, PushButtonRepeat, PopButtonRepeat removed - deprecated in ImGui 1.90+, use PushItemFlag/PopItemFlag instead
 
 int onPushItemFlagImGuiLua(lua_State *lua)
 {
@@ -4902,35 +4833,7 @@ int onColorConvertHSVtoRGBImGuiLua(lua_State *lua)
     return 3;
 }
 
-int onGetKeyIndexImGuiLua(lua_State *lua)
-{
-    //  DEPRECATED: This function is deprecated in newer ImGui versions.
-    //  ImGuiKey values can be used directly now.
-    int index_input         = 1;
-    ImGuiKey imgui_key      = ImGuiKey_None;
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-    {
-        imgui_key = static_cast<ImGuiKey>(luaL_checkinteger(lua, index_input++));
-    }
-    else
-    {
-        const char* key = luaL_checkstring(lua,index_input++);
-        const auto  it  = enumKeyMap.find(key);
-        if(it != enumKeyMap.end())
-        {
-            imgui_key = static_cast<ImGuiKey>(it->second);
-        }
-        else
-        {
-            char str [255] = "";
-            snprintf(str,sizeof(str),"Key [%s] not found",key);
-            lua_log_error(lua,str);
-        }
-    }
-    // In new ImGui API, ImGuiKey values are used directly
-    lua_pushinteger(lua, static_cast<int>(imgui_key));
-    return 1;
-}
+// GetKeyIndex removed - deprecated, ImGuiKey values can be used directly
 
 int onIsKeyDownImGuiLua(lua_State *lua)
 {
@@ -5771,8 +5674,7 @@ int onNewimguiLua(lua_State *lua)
         {"GetColorU32",                                           onGetColorU32ImGuiLua }, // Not used, Queries/State
         // GetColumn* removed - deprecated Columns API, use Tables API instead
         {"GetContentRegionAvail",                       onGetContentRegionAvailImGuiLua }, // Not used, Queries/State
-        // GetContentRegionAvailWidth removed - use GetContentRegionAvail().x instead
-        {"GetContentRegionMax",                           onGetContentRegionMaxImGuiLua }, // Not used, Queries/State
+        // GetContentRegionAvailWidth, GetContentRegionMax removed - deprecated in ImGui 1.89+
         {"GetCursorPos",                                         onGetCursorPosImGuiLua },
         {"GetCursorPosX",                                       onGetCursorPosXImGuiLua },
         {"GetCursorPosY",                                       onGetCursorPosYImGuiLua }, // Not used, Queries/State
@@ -5782,7 +5684,7 @@ int onNewimguiLua(lua_State *lua)
         {"GetItemRectMax",                                     onGetItemRectMaxImGuiLua }, // Not used, Queries/State
         {"GetItemRectMin",                                     onGetItemRectMinImGuiLua }, // Not used, Queries/State
         {"GetItemRectSize",                                   onGetItemRectSizeImGuiLua }, // Not used, Queries/State
-        {"GetKeyIndex",                                           onGetKeyIndexImGuiLua }, // Not used, Queries/State
+        // GetKeyIndex removed - deprecated, use ImGuiKey values directly
         {"GetKeyPressedAmount",                           onGetKeyPressedAmountImGuiLua }, // Not used, Queries/State
         {"GetMainMenuBarHeight",                         onGetMainMenuBarHeightImGuiLua },
         {"GetMouseCursor",                                     onGetMouseCursorImGuiLua }, // Not used, Queries/State
@@ -5801,8 +5703,7 @@ int onNewimguiLua(lua_State *lua)
         // GetTime removed - not used
         {"GetTreeNodeToLabelSpacing",               onGetTreeNodeToLabelSpacingImGuiLua }, // Not used, Queries/State
         {"GetVersion",                                             onGetVersionImGuiLua },
-        {"GetWindowContentRegionMax",               onGetWindowContentRegionMaxImGuiLua }, // Not used, Queries/State
-        {"GetWindowContentRegionMin",               onGetWindowContentRegionMinImGuiLua }, // Not used, Queries/State
+        // GetWindowContentRegionMin/Max removed - deprecated in ImGui 1.89+
         {"GetWindowHeight",                                   onGetWindowHeightImGuiLua }, // Not used, Queries/State
         {"GetWindowPos",                                         onGetWindowPosImGuiLua },
         {"GetWindowSize",                                       onGetWindowSizeImGuiLua },
@@ -5876,8 +5777,7 @@ int onNewimguiLua(lua_State *lua)
         {"OpenPopupOnItemClick",                         onOpenPopupOnItemClickImGuiLua }, // Not used, Popups
         {"PlotHistogram",                                       onPlotHistogramImGuiLua }, // Not used, List/Plotting
         {"PlotLines",                                               onPlotLinesImGuiLua }, // Not used, List/Plotting
-        {"PopTabStop",                                             onPopTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
-        {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
+        // PopTabStop, PopButtonRepeat removed - deprecated in ImGui 1.90+, use PopItemFlag
         {"PopItemFlag",                                           onPopItemFlagImGuiLua },   // Not used, Stack/State, NEW: Generic item flag function
         {"PopClipRect",                                           onPopClipRectImGuiLua }, // Not used, Stack/State
         {"PopFont",                                                   onPopFontImGuiLua }, // Not used, Stack/State
@@ -5887,8 +5787,7 @@ int onNewimguiLua(lua_State *lua)
         {"PopStyleVar",                                           onPopStyleVarImGuiLua },
         {"PopTextWrapPos",                                     onPopTextWrapPosImGuiLua }, // Not used, Stack/State
         {"ProgressBar",                                           onProgressBarImGuiLua },
-        {"PushTabStop",                                           onPushTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
-        {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
+        // PushTabStop, PushButtonRepeat removed - deprecated in ImGui 1.90+, use PushItemFlag
         {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // Not used, Stack/State, NEW: Generic item flag function
         {"PushClipRect",                                         onPushClipRectImGuiLua }, // Not used, Stack/State
         {"PushID",                                                     onPushIDImGuiLua }, // Not used, Stack/State
@@ -5932,7 +5831,7 @@ int onNewimguiLua(lua_State *lua)
         {"SetTooltip",                                             onSetTooltipImGuiLua }, // Not used, Window
         {"SetWindowCollapsed",                             onSetWindowCollapsedImGuiLua }, // Not used, Window
         {"SetWindowFocus",                                     onSetWindowFocusImGuiLua }, // Not used, Window
-        {"SetWindowFontScale",                             onSetWindowFontScaleImGuiLua }, // Not used, Window
+        // SetWindowFontScale removed - deprecated in ImGui 1.92
         {"SetWindowPos",                                         onSetWindowPosImGuiLua }, // Not used, Window
         {"SetWindowSize",                                       onSetWindowSizeImGuiLua }, // Not used, Window
 #if !defined (ANDROID)
