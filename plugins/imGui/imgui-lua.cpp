@@ -838,7 +838,6 @@ ImVec2 * lua_pop_ImVec2_pointer(lua_State *lua, const int index,ImVec2 * p_ImVec
 ImVec2 lua_pop_ImVec2(lua_State *lua, const int index);
 ImVec4 * lua_pop_ImVec4_pointer(lua_State *lua, const int index,ImVec4 * p_ImVec4);
 ImVec4 lua_pop_ImVec4(lua_State *lua, const int index);
-void lua_push_ImGuiPayload(lua_State *lua, const ImGuiPayload & in);
 void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in);
 void lua_push_ImVec2(lua_State *lua, const ImVec2 & in);
 void lua_push_ImVec2_pointer(lua_State *lua,const ImVec2 * p_ImVec2);
@@ -1490,26 +1489,6 @@ IMGUI_LUA *getImGuiFromRawTable(lua_State *lua, const int rawi, const int indexT
     return nullptr;
 }
 
-void lua_push_ImGuiPayload(lua_State *lua, const ImGuiPayload & in)
-{
-    lua_newtable(lua);
-    //lua_setfield(lua, -2, "Data");
-    lua_pushinteger(lua,in.DataSize);
-    lua_setfield(lua, -2, "DataSize");
-    lua_pushinteger(lua,in.SourceId);
-    lua_setfield(lua, -2, "SourceId");
-    lua_pushinteger(lua,in.SourceParentId);
-    lua_setfield(lua, -2, "SourceParentId");
-    lua_pushinteger(lua,in.DataFrameCount);
-    lua_setfield(lua, -2, "DataFrameCount");
-    lua_pushlstring(lua,in.DataType,sizeof(in.DataType) / sizeof(in.DataType[0]));
-    lua_setfield(lua, -2, "DataType");
-    lua_pushboolean(lua,in.Preview);
-    lua_setfield(lua, -2, "Preview");
-    lua_pushboolean(lua,in.Delivery);
-    lua_setfield(lua, -2, "Delivery");
-
-}
 void lua_push_rgba(lua_State * lua, const float p_col[4])
 {
     lua_newtable(lua);
@@ -4582,81 +4561,7 @@ int onCloseCurrentPopupImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onColumnsImGuiLua(lua_State *lua)
-{
-    // NOTE: Columns API is legacy/deprecated in ImGui 1.92+. Consider using Tables API instead.
-    int index_input    = 1;
-    const int top      = lua_gettop(lua);
-    const int count    = top >= index_input ? luaL_checkinteger(lua,index_input++) :  1;
-    const char * p_id  = top >= index_input ? lua_tostring(lua,index_input++) :  nullptr;
-    const bool border  = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
-    ImGui::Columns(count,p_id,border);
-    return 0;
-}
-
-int onNextColumnImGuiLua(lua_State *lua)
-{
-    //  Next column, defaults to current row or next row if the current row is finished
-    ImGui::NextColumn();
-    return 0;
-}
-
-int onGetColumnIndexImGuiLua(lua_State *lua)
-{
-    //  Get current column index
-    const int ret_int  = ImGui::GetColumnIndex();
-    lua_pushinteger(lua,ret_int);
-    return 1;
-}
-
-int onGetColumnWidthImGuiLua(lua_State *lua)
-{
-    //  Get column width (in pixels). pass -1 to use current column
-    int index_input         = 1;
-    const int top           = lua_gettop(lua);
-    const int column_index  = top >= index_input ? luaL_checkinteger(lua,index_input++) :  -1;
-    const float ret_float   = ImGui::GetColumnWidth(column_index);
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
-
-int onSetColumnWidthImGuiLua(lua_State *lua)
-{
-    //  Set column width (in pixels). pass -1 to use current column
-    int index_input         = 1;
-    const int column_index  = luaL_checkinteger(lua,index_input++);
-    const float width       = luaL_checknumber(lua,index_input++);
-    ImGui::SetColumnWidth(column_index,width);
-    return 0;
-}
-
-int onGetColumnOffsetImGuiLua(lua_State *lua)
-{
-    //  Get position of column line (in pixels, from the left side of the contents region). pass -1 to use current column, otherwise 0..GetColumnsCount() inclusive. column 0 is typically 0.0f
-    int index_input         = 1;
-    const int top           = lua_gettop(lua);
-    const int column_index  = top >= index_input ? luaL_checkinteger(lua,index_input++) :  -1;
-    const float ret_float   = ImGui::GetColumnOffset(column_index);
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
-
-int onSetColumnOffsetImGuiLua(lua_State *lua)
-{
-    //  Set position of column line (in pixels, from the left side of the contents region). pass -1 to use current column
-    int index_input         = 1;
-    const int column_index  = luaL_checkinteger(lua,index_input++);
-    const float offset_x    = luaL_checknumber(lua,index_input++);
-    ImGui::SetColumnOffset(column_index,offset_x);
-    return 0;
-}
-
-int onGetColumnsCountImGuiLua(lua_State *lua)
-{
-    const int ret_int  = ImGui::GetColumnsCount();
-    lua_pushinteger(lua,ret_int);
-    return 1;
-}
+// Columns API removed - deprecated in ImGui 1.92+. Use Tables API instead.
 
 int onBeginTabBarImGuiLua(lua_State *lua)
 {
@@ -4771,80 +4676,6 @@ int onLogTextImGuiLua(lua_State *lua)
     const char * text                                                           = luaL_checkstring(lua,index_input++);
     ImGui::LogText("%s", text);
     return 0;
-}
-
-int onBeginDragDropSourceImGuiLua(lua_State *lua)
-{
-    //  Call when the current item is active. If this return true, you can call SetDragDropPayload() + EndDragDropSource()
-    int index_input               = 1;
-    const int top                 = lua_gettop(lua);
-    ImGuiDragDropFlags   flags    = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const bool ret_bool           = ImGui::BeginDragDropSource(flags);
-    lua_pushboolean(lua,ret_bool);
-    return 1;
-}
-
-int onSetDragDropPayloadImGuiLua(lua_State *lua)
-{
-    //  Type is a user defined string of maximum 32 characters. Strings starting with '_' are reserved for dear imgui internal types. Data is copied and held by imgui.
-    int index_input           = 1;
-    const int top             = lua_gettop(lua);
-    std::string str_p_type    = luaL_checkstring(lua,index_input++);
-    if(str_p_type.size() > 32)
-        str_p_type.resize(32);
-    std::string  p_data       = top >= index_input ? luaL_checkstring(lua,index_input++) : "";
-    ImGuiCond  cond           = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const bool ret_bool       = ImGui::SetDragDropPayload(str_p_type.c_str(),p_data.data(),p_data.size(),cond);
-    lua_pushboolean(lua,ret_bool);
-    return 0;
-}
-
-int onEndDragDropSourceImGuiLua(lua_State *lua)
-{
-    //  Only call EndDragDropSource() if BeginDragDropSource() returns true!
-    ImGui::EndDragDropSource();
-    return 0;
-}
-
-int onBeginDragDropTargetImGuiLua(lua_State *lua)
-{
-    //  Call after submitting an item that may receive a payload. If this returns true, you can call AcceptDragDropPayload() + EndDragDropTarget()
-    const bool ret_bool  = ImGui::BeginDragDropTarget();
-    lua_pushboolean(lua,ret_bool);
-    return 1;
-}
-
-int onAcceptDragDropPayloadImGuiLua(lua_State *lua)
-{
-    //  Accept contents of a given type. If ImGuiDragDropFlags_AcceptBeforeDelivery is set you can peek into the payload before the mouse button is released.
-    int index_input                      = 1;
-    const int top                        = lua_gettop(lua);
-    const char * p_type                  = luaL_checkstring(lua,index_input++);
-    ImGuiDragDropFlags flags             = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
-    const ImGuiPayload *ret_ImGuiPayload = ImGui::AcceptDragDropPayload(p_type,flags);
-    if(ret_ImGuiPayload)
-        lua_push_ImGuiPayload(lua,*ret_ImGuiPayload);
-    return ret_ImGuiPayload == nullptr ? 0 : 1;
-}
-
-int onEndDragDropTargetImGuiLua(lua_State *lua)
-{
-    //  Only call EndDragDropTarget() if BeginDragDropTarget() returns true!
-    ImGui::EndDragDropTarget();
-    return 0;
-}
-
-int onGetDragDropPayloadImGuiLua(lua_State *lua)
-{
-    //  Peek directly into the current payload from anywhere. may return nullptr. use ImGuiPayload::IsDataType() to test for the payload type.
-    const ImGuiPayload* ret_ImGuiPayload  = ImGui::GetDragDropPayload();
-    if(ret_ImGuiPayload)
-    {
-        lua_push_ImGuiPayload(lua,*ret_ImGuiPayload);
-        return 1;
-    }
-    lua_pushnil(lua);
-    return 1;
 }
 
 int onPushClipRectImGuiLua(lua_State *lua)
@@ -5965,68 +5796,63 @@ int onNewimguiLua(lua_State *lua)
 {
     lua_settop(lua, 0);
     luaL_Reg regimguiMethods[]  = {  
-        {"AcceptDragDropPayload",                       onAcceptDragDropPayloadImGuiLua },
-        {"AlignTextToFramePadding",                   onAlignTextToFramePaddingImGuiLua },
+        {"AlignTextToFramePadding",                   onAlignTextToFramePaddingImGuiLua }, // Not used, Window/Layout
         {"ArrowButton",                                           onArrowButtonImGuiLua },
         {"Begin",                                                       onBeginImGuiLua },
-        {"BeginChild",                                             onBeginChildImGuiLua },
+        {"BeginChild",                                             onBeginChildImGuiLua }, // Not used, Window/Layout
         // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
-        {"BeginCombo",                                             onBeginComboImGuiLua },
-        {"BeginDragDropSource",                           onBeginDragDropSourceImGuiLua },
-        {"BeginDragDropTarget",                           onBeginDragDropTargetImGuiLua },
-        {"BeginGroup",                                             onBeginGroupImGuiLua },
+        {"BeginCombo",                                             onBeginComboImGuiLua }, // Not used, Window/Layout
+        {"BeginGroup",                                             onBeginGroupImGuiLua }, // Not used, Window/Layout
         {"BeginMainMenuBar",                                 onBeginMainMenuBarImGuiLua },
         {"BeginMenu",                                               onBeginMenuImGuiLua },
         {"BeginMenuBar",                                         onBeginMenuBarImGuiLua },
-        {"BeginPopup",                                             onBeginPopupImGuiLua },
+        {"BeginPopup",                                             onBeginPopupImGuiLua }, // Not used, Window/Layout
         {"BeginPopupContextItem",                       onBeginPopupContextItemImGuiLua },
         {"BeginPopupContextVoid",                       onBeginPopupContextVoidImGuiLua },
-        {"BeginPopupContextWindow",                   onBeginPopupContextWindowImGuiLua },
+        {"BeginPopupContextWindow",                   onBeginPopupContextWindowImGuiLua }, // Not used, Window/Layout
         {"BeginPopupModal",                                   onBeginPopupModalImGuiLua },
         {"BeginTabBar",                                           onBeginTabBarImGuiLua },
         {"BeginTabItem",                                         onBeginTabItemImGuiLua },
         {"BeginTooltip",                                         onBeginTooltipImGuiLua },
-        {"Bullet",                                                     onBulletImGuiLua },
-        {"BulletText",                                             onBulletTextImGuiLua },
+        {"Bullet",                                                     onBulletImGuiLua }, // Not used, Text/Labels
+        {"BulletText",                                             onBulletTextImGuiLua }, // Not used, Text/Labels
         {"Button",                                                     onButtonImGuiLua },
-        {"CalcItemWidth",                                       onCalcItemWidthImGuiLua },
+        {"CalcItemWidth",                                       onCalcItemWidthImGuiLua }, // Not used, Input Widgets
         // CalcListClipping removed - deprecated in ImGui 1.92, use ImGuiListClipper instead
-        {"CalcTextSize",                                         onCalcTextSizeImGuiLua },
-        {"CaptureKeyboardFromApp",                     onCaptureKeyboardFromAppImGuiLua },
-        {"CaptureMouseFromApp",                           onCaptureMouseFromAppImGuiLua },
+        {"CalcTextSize",                                         onCalcTextSizeImGuiLua }, // Not used, Queries/State
+        {"CaptureKeyboardFromApp",                     onCaptureKeyboardFromAppImGuiLua }, // Not used, Keyboard/Mouse
+        {"CaptureMouseFromApp",                           onCaptureMouseFromAppImGuiLua }, // Not used, Keyboard/Mouse
         {"Checkbox",                                                 onCheckboxImGuiLua },
-        {"CheckboxFlags",                                       onCheckboxFlagsImGuiLua },
+        {"CheckboxFlags",                                       onCheckboxFlagsImGuiLua }, // Not used, Input Widgets
         {"CloseCurrentPopup",                               onCloseCurrentPopupImGuiLua },
-        {"CollapsingHeader",                                 onCollapsingHeaderImGuiLua },
-        {"ColorButton",                                           onColorButtonImGuiLua },
-        {"ColorConvertFloat4ToU32",                   onColorConvertFloat4ToU32ImGuiLua },
-        {"ColorConvertHSVtoRGB",                         onColorConvertHSVtoRGBImGuiLua },
-        {"ColorConvertRGBtoHSV",                         onColorConvertRGBtoHSVImGuiLua },
-        {"ColorConvertU32ToFloat4",                   onColorConvertU32ToFloat4ImGuiLua },
+        {"CollapsingHeader",                                 onCollapsingHeaderImGuiLua }, // Not used, List/Plotting
+        {"ColorButton",                                           onColorButtonImGuiLua }, // Not used, Color Widgets
+        {"ColorConvertFloat4ToU32",                   onColorConvertFloat4ToU32ImGuiLua }, // Not used, Color Widgets
+        {"ColorConvertHSVtoRGB",                         onColorConvertHSVtoRGBImGuiLua }, // Not used, Color Widgets
+        {"ColorConvertRGBtoHSV",                         onColorConvertRGBtoHSVImGuiLua }, // Not used, Color Widgets
+        {"ColorConvertU32ToFloat4",                   onColorConvertU32ToFloat4ImGuiLua }, // Not used, Color Widgets
         {"ColorEdit3",                                             onColorEdit3ImGuiLua },
         {"ColorEdit4",                                             onColorEdit4ImGuiLua },
-        {"ColorPicker3",                                         onColorPicker3ImGuiLua },
-        {"ColorPicker4",                                         onColorPicker4ImGuiLua },
-        {"Columns",                                                   onColumnsImGuiLua },
+        {"ColorPicker3",                                         onColorPicker3ImGuiLua }, // Not used, Color Widgets
+        {"ColorPicker4",                                         onColorPicker4ImGuiLua }, // Not used, Color Widgets
+        // Columns API removed - deprecated in ImGui 1.92+, use Tables API instead
         {"Combo",                                                       onComboImGuiLua },
-        {"DragFloat",                                               onDragFloatImGuiLua },
-        {"DragFloat2",                                             onDragFloat2ImGuiLua },
-        {"DragFloat3",                                             onDragFloat3ImGuiLua },
-        {"DragFloat4",                                             onDragFloat4ImGuiLua },
-        {"DragFloatRange2",                                   onDragFloatRange2ImGuiLua },
+        {"DragFloat",                                               onDragFloatImGuiLua }, // Not used, Input Widgets
+        {"DragFloat2",                                             onDragFloat2ImGuiLua }, // Not used, Input Widgets
+        {"DragFloat3",                                             onDragFloat3ImGuiLua }, // Not used, Input Widgets
+        {"DragFloat4",                                             onDragFloat4ImGuiLua }, // Not used, Input Widgets
+        {"DragFloatRange2",                                   onDragFloatRange2ImGuiLua }, // Not used, Input Widgets
         {"DragInt",                                                   onDragIntImGuiLua },
-        {"DragInt2",                                                 onDragInt2ImGuiLua },
-        {"DragInt3",                                                 onDragInt3ImGuiLua },
-        {"DragInt4",                                                 onDragInt4ImGuiLua },
-        {"DragIntRange2",                                       onDragIntRange2ImGuiLua },
+        {"DragInt2",                                                 onDragInt2ImGuiLua }, // Not used, Input Widgets
+        {"DragInt3",                                                 onDragInt3ImGuiLua }, // Not used, Input Widgets
+        {"DragInt4",                                                 onDragInt4ImGuiLua }, // Not used, Input Widgets
+        {"DragIntRange2",                                       onDragIntRange2ImGuiLua }, // Not used, Input Widgets
         {"Dummy",                                                       onDummyImGuiLua },
         {"End",                                                           onEndImGuiLua },
-        {"EndChild",                                                 onEndChildImGuiLua },
+        {"EndChild",                                                 onEndChildImGuiLua }, // Not used, Window/Layout
         // EndChildFrame removed - deprecated in ImGui 1.92, use EndChild instead
-        {"EndCombo",                                                 onEndComboImGuiLua },
-        {"EndDragDropSource",                               onEndDragDropSourceImGuiLua },
-        {"EndDragDropTarget",                               onEndDragDropTargetImGuiLua },
-        {"EndGroup",                                                 onEndGroupImGuiLua },
+        {"EndCombo",                                                 onEndComboImGuiLua }, // Not used, Window/Layout
+        {"EndGroup",                                                 onEndGroupImGuiLua }, // Not used, Window/Layout
         {"EndMainMenuBar",                                     onEndMainMenuBarImGuiLua },
         {"EndMenu",                                                   onEndMenuImGuiLua },
         {"EndMenuBar",                                             onEndMenuBarImGuiLua },
@@ -6035,247 +5861,241 @@ int onNewimguiLua(lua_State *lua)
         {"EndTabItem",                                             onEndTabItemImGuiLua },
         {"EndTooltip",                                             onEndTooltipImGuiLua },
         {"Flags",                                                  onMakeFlagsImGuiLua  },
-        {"FlagList",                                               onListFlagsImGuiLua  },
-        {"GetClipboardText",                                 onGetClipboardTextImGuiLua },
-        {"GetColorU32",                                           onGetColorU32ImGuiLua },
-        {"GetColumnIndex",                                     onGetColumnIndexImGuiLua },
-        {"GetColumnOffset",                                   onGetColumnOffsetImGuiLua },
-        {"GetColumnWidth",                                     onGetColumnWidthImGuiLua },
-        {"GetColumnsCount",                                   onGetColumnsCountImGuiLua },
-        {"GetContentRegionAvail",                       onGetContentRegionAvailImGuiLua },
+        {"FlagList",                                               onListFlagsImGuiLua  }, // Not used, Queries/State
+        {"GetClipboardText",                                 onGetClipboardTextImGuiLua }, // Not used, Queries/State
+        {"GetColorU32",                                           onGetColorU32ImGuiLua }, // Not used, Queries/State
+        // GetColumn* removed - deprecated Columns API, use Tables API instead
+        {"GetContentRegionAvail",                       onGetContentRegionAvailImGuiLua }, // Not used, Queries/State
         // GetContentRegionAvailWidth removed - use GetContentRegionAvail().x instead
-        {"GetContentRegionMax",                           onGetContentRegionMaxImGuiLua },
+        {"GetContentRegionMax",                           onGetContentRegionMaxImGuiLua }, // Not used, Queries/State
         {"GetCursorPos",                                         onGetCursorPosImGuiLua },
         {"GetCursorPosX",                                       onGetCursorPosXImGuiLua },
-        {"GetCursorPosY",                                       onGetCursorPosYImGuiLua },
+        {"GetCursorPosY",                                       onGetCursorPosYImGuiLua }, // Not used, Queries/State
         {"GetCursorScreenPos",                             onGetCursorScreenPosImGuiLua },
-        {"GetCursorStartPos",                               onGetCursorStartPosImGuiLua },
-        {"GetDragDropPayload",                             onGetDragDropPayloadImGuiLua },
-        {"GetFontSize",                                           onGetFontSizeImGuiLua },
-        {"GetFontTexUvWhitePixel",                     onGetFontTexUvWhitePixelImGuiLua },
-        {"GetFrameCount",                                       onGetFrameCountImGuiLua },
-        {"GetFrameHeight",                                     onGetFrameHeightImGuiLua },
-        {"GetFrameHeightWithSpacing",               onGetFrameHeightWithSpacingImGuiLua },
-        {"GetID",                                                       onGetIDImGuiLua },
-        {"GetItemRectMax",                                     onGetItemRectMaxImGuiLua },
-        {"GetItemRectMin",                                     onGetItemRectMinImGuiLua },
-        {"GetItemRectSize",                                   onGetItemRectSizeImGuiLua },
-        {"GetKeyIndex",                                           onGetKeyIndexImGuiLua },
-        {"GetKeyPressedAmount",                           onGetKeyPressedAmountImGuiLua },
+        {"GetCursorStartPos",                               onGetCursorStartPosImGuiLua }, // Not used, Queries/State
+        {"GetFontSize",                                           onGetFontSizeImGuiLua }, // Not used, Queries/State
+        {"GetFontTexUvWhitePixel",                     onGetFontTexUvWhitePixelImGuiLua }, // Not used, Queries/State
+        {"GetFrameCount",                                       onGetFrameCountImGuiLua }, // Not used, Queries/State
+        {"GetFrameHeight",                                     onGetFrameHeightImGuiLua }, // Not used, Queries/State
+        {"GetFrameHeightWithSpacing",               onGetFrameHeightWithSpacingImGuiLua }, // Not used, Queries/State
+        {"GetID",                                                       onGetIDImGuiLua }, // Not used, Queries/State
+        {"GetItemRectMax",                                     onGetItemRectMaxImGuiLua }, // Not used, Queries/State
+        {"GetItemRectMin",                                     onGetItemRectMinImGuiLua }, // Not used, Queries/State
+        {"GetItemRectSize",                                   onGetItemRectSizeImGuiLua }, // Not used, Queries/State
+        {"GetKeyIndex",                                           onGetKeyIndexImGuiLua }, // Not used, Queries/State
+        {"GetKeyPressedAmount",                           onGetKeyPressedAmountImGuiLua }, // Not used, Queries/State
         {"GetMainMenuBarHeight",                         onGetMainMenuBarHeightImGuiLua },
-        {"GetMouseCursor",                                     onGetMouseCursorImGuiLua },
-        {"GetMouseDragDelta",                               onGetMouseDragDeltaImGuiLua },
+        {"GetMouseCursor",                                     onGetMouseCursorImGuiLua }, // Not used, Queries/State
+        {"GetMouseDragDelta",                               onGetMouseDragDeltaImGuiLua }, // Not used, Queries/State
         {"GetMousePos",                                           onGetMousePosImGuiLua },
-        {"GetMousePosOnOpeningCurrentPopup", onGetMousePosOnOpeningCurrentPopupImGuiLua },
-        {"GetScrollMaxX",                                       onGetScrollMaxXImGuiLua },
-        {"GetScrollMaxY",                                       onGetScrollMaxYImGuiLua },
-        {"GetScrollX",                                             onGetScrollXImGuiLua },
+        {"GetMousePosOnOpeningCurrentPopup", onGetMousePosOnOpeningCurrentPopupImGuiLua }, // Not used, Queries/State
+        {"GetScrollMaxX",                                       onGetScrollMaxXImGuiLua }, // Not used, Queries/State
+        {"GetScrollMaxY",                                       onGetScrollMaxYImGuiLua }, // Not used, Queries/State
+        {"GetScrollX",                                             onGetScrollXImGuiLua }, // Not used, Queries/State
         {"GetScrollY",                                             onGetScrollYImGuiLua },
         {"GetStyle",                                                 onGetStyleImGuiLua },
-        {"GetStyleColorName",                               onGetStyleColorNameImGuiLua },
-        {"GetStyleColorVec4",                               onGetStyleColorVec4ImGuiLua },
+        {"GetStyleColorName",                               onGetStyleColorNameImGuiLua }, // Not used, Queries/State
+        {"GetStyleColorVec4",                               onGetStyleColorVec4ImGuiLua }, // Not used, Queries/State
         {"GetTextLineHeight",                               onGetTextLineHeightImGuiLua },
-        {"GetTextLineHeightWithSpacing",         onGetTextLineHeightWithSpacingImGuiLua },
-        {"GetTime",                                                   onGetTimeImGuiLua },
-        {"GetTreeNodeToLabelSpacing",               onGetTreeNodeToLabelSpacingImGuiLua },
+        {"GetTextLineHeightWithSpacing",         onGetTextLineHeightWithSpacingImGuiLua }, // Not used, Queries/State
+        {"GetTime",                                                   onGetTimeImGuiLua }, // Not used, Queries/State
+        {"GetTreeNodeToLabelSpacing",               onGetTreeNodeToLabelSpacingImGuiLua }, // Not used, Queries/State
         {"GetVersion",                                             onGetVersionImGuiLua },
-        {"GetWindowContentRegionMax",               onGetWindowContentRegionMaxImGuiLua },
-        {"GetWindowContentRegionMin",               onGetWindowContentRegionMinImGuiLua },
-        {"GetWindowHeight",                                   onGetWindowHeightImGuiLua },
+        {"GetWindowContentRegionMax",               onGetWindowContentRegionMaxImGuiLua }, // Not used, Queries/State
+        {"GetWindowContentRegionMin",               onGetWindowContentRegionMinImGuiLua }, // Not used, Queries/State
+        {"GetWindowHeight",                                   onGetWindowHeightImGuiLua }, // Not used, Queries/State
         {"GetWindowPos",                                         onGetWindowPosImGuiLua },
         {"GetWindowSize",                                       onGetWindowSizeImGuiLua },
-        {"GetWindowWidth",                                     onGetWindowWidthImGuiLua },
+        {"GetWindowWidth",                                     onGetWindowWidthImGuiLua }, // Not used, Queries/State
         {"GetZoom",                                                   onGetZoomImGuiLua },
         {"HelpMarker",                                                  onHelpMarkerLua },
         {"Image",                                                       onImageImGuiLua },
         {"ImageQuad",                                               onImageQuadImGuiLua },
         {"ImageButton",                                           onImageButtonImGuiLua },
-        {"Indent",                                                     onIndentImGuiLua },
-        {"InputDouble",                                           onInputDoubleImGuiLua },
+        {"Indent",                                                     onIndentImGuiLua }, // Not used, Window/Layout
+        {"InputDouble",                                           onInputDoubleImGuiLua }, // Not used, Input Widgets
         {"InputFloat",                                             onInputFloatImGuiLua },
-        {"InputFloat2",                                           onInputFloat2ImGuiLua },
-        {"InputFloat3",                                           onInputFloat3ImGuiLua },
-        {"InputFloat4",                                           onInputFloat4ImGuiLua },
+        {"InputFloat2",                                           onInputFloat2ImGuiLua }, // Not used, Input Widgets
+        {"InputFloat3",                                           onInputFloat3ImGuiLua }, // Not used, Input Widgets
+        {"InputFloat4",                                           onInputFloat4ImGuiLua }, // Not used, Input Widgets
         {"InputInt",                                                 onInputIntImGuiLua },
-        {"InputInt2",                                               onInputInt2ImGuiLua },
-        {"InputInt3",                                               onInputInt3ImGuiLua },
-        {"InputInt4",                                               onInputInt4ImGuiLua },
+        {"InputInt2",                                               onInputInt2ImGuiLua }, // Not used, Input Widgets
+        {"InputInt3",                                               onInputInt3ImGuiLua }, // Not used, Input Widgets
+        {"InputInt4",                                               onInputInt4ImGuiLua }, // Not used, Input Widgets
         {"InputText",                                               onInputTextImGuiLua },
         {"InputTextMultiline",                             onInputTextMultilineImGuiLua },
         {"InputTextWithHint",                               onInputTextWithHintImGuiLua },
-        {"InvisibleButton",                                   onInvisibleButtonImGuiLua },
+        {"InvisibleButton",                                   onInvisibleButtonImGuiLua }, // Not used, Item State
         {"IsAnyItemActive",                                   onIsAnyItemActiveImGuiLua },
-        {"IsAnyItemFocused",                                 onIsAnyItemFocusedImGuiLua },
-        {"IsAnyItemHovered",                                 onIsAnyItemHoveredImGuiLua },
-        {"IsAnyMouseDown",                                     onIsAnyMouseDownImGuiLua },
-        {"IsAnyWindowFocused",                             onIsAnyWindowFocusedImGuiLua },
+        {"IsAnyItemFocused",                                 onIsAnyItemFocusedImGuiLua }, // Not used, Item State
+        {"IsAnyItemHovered",                                 onIsAnyItemHoveredImGuiLua }, // Not used, Item State
+        {"IsAnyMouseDown",                                     onIsAnyMouseDownImGuiLua }, // Not used, Item State
+        {"IsAnyWindowFocused",                             onIsAnyWindowFocusedImGuiLua }, // Not used, Item State
         {"IsAnyWindowHovered",                             onIsAnyWindowHoveredImGuiLua },
-        {"IsItemActivated",                                   onIsItemActivatedImGuiLua },
-        {"IsItemActive",                                         onIsItemActiveImGuiLua },
+        {"IsItemActivated",                                   onIsItemActivatedImGuiLua }, // Not used, Item State
+        {"IsItemActive",                                         onIsItemActiveImGuiLua }, // Not used, Item State
         {"IsItemClicked",                                       onIsItemClickedImGuiLua },
-        {"IsItemDeactivated",                               onIsItemDeactivatedImGuiLua },
-        {"IsItemDeactivatedAfterChange",         onIsItemDeactivatedAfterChangeImGuiLua },
-        {"IsItemDeactivatedAfterEdit",             onIsItemDeactivatedAfterEditImGuiLua },
-        {"IsItemEdited",                                         onIsItemEditedImGuiLua },
-        {"IsItemFocused",                                       onIsItemFocusedImGuiLua },
+        {"IsItemDeactivated",                               onIsItemDeactivatedImGuiLua }, // Not used, Item State
+        {"IsItemDeactivatedAfterChange",         onIsItemDeactivatedAfterChangeImGuiLua }, // Not used, Item State
+        {"IsItemDeactivatedAfterEdit",             onIsItemDeactivatedAfterEditImGuiLua }, // Not used, Item State
+        {"IsItemEdited",                                         onIsItemEditedImGuiLua }, // Not used, Item State
+        {"IsItemFocused",                                       onIsItemFocusedImGuiLua }, // Not used, Item State
         {"IsItemHovered",                                       onIsItemHoveredImGuiLua },
-        {"IsItemToggledOpen",                               onIsItemToggledOpenImGuiLua },
-        {"IsItemVisible",                                       onIsItemVisibleImGuiLua },
+        {"IsItemToggledOpen",                               onIsItemToggledOpenImGuiLua }, // Not used, Item State
+        {"IsItemVisible",                                       onIsItemVisibleImGuiLua }, // Not used, Item State
         {"IsKeyDown",                                               onIsKeyDownImGuiLua },
-        {"IsKeyPressed",                                         onIsKeyPressedImGuiLua },
-        {"IsKeyReleased",                                       onIsKeyReleasedImGuiLua },
+        {"IsKeyPressed",                                         onIsKeyPressedImGuiLua }, // Not used, Item State
+        {"IsKeyReleased",                                       onIsKeyReleasedImGuiLua }, // Not used, Item State
         {"IsMouseClicked",                                     onIsMouseClickedImGuiLua },
-        {"IsMouseDoubleClicked",                         onIsMouseDoubleClickedImGuiLua },
+        {"IsMouseDoubleClicked",                         onIsMouseDoubleClickedImGuiLua }, // Not used, Item State
         {"IsMouseDown",                                           onIsMouseDownImGuiLua },
-        {"IsMouseDragging",                                   onIsMouseDraggingImGuiLua },
+        {"IsMouseDragging",                                   onIsMouseDraggingImGuiLua }, // Not used, Item State
         {"IsMouseHoveringRect",                           onIsMouseHoveringRectImGuiLua },
-        {"IsMousePosValid",                                   onIsMousePosValidImGuiLua },
+        {"IsMousePosValid",                                   onIsMousePosValidImGuiLua }, // Not used, Item State
         {"IsMouseReleased",                                   onIsMouseReleasedImGuiLua },
-        {"IsPopupOpen",                                           onIsPopupOpenImGuiLua },
-        {"IsRectVisible",                                       onIsRectVisibleImGuiLua },
+        {"IsPopupOpen",                                           onIsPopupOpenImGuiLua }, // Not used, Item State
+        {"IsRectVisible",                                       onIsRectVisibleImGuiLua }, // Not used, Item State
         {"IsScrollVisible",                                   onIsScrollVisibleImGuiLua },
-        {"IsWindowAppearing",                               onIsWindowAppearingImGuiLua },
-        {"IsWindowCollapsed",                               onIsWindowCollapsedImGuiLua },
+        {"IsWindowAppearing",                               onIsWindowAppearingImGuiLua }, // Not used, Item State
+        {"IsWindowCollapsed",                               onIsWindowCollapsedImGuiLua }, // Not used, Item State
         {"IsWindowFocused",                                   onIsWindowFocusedImGuiLua },
         {"IsWindowHovered",                                   onIsWindowHoveredImGuiLua },
-        {"LabelText",                                               onLabelTextImGuiLua },
-        {"BeginListBox",                                         onBeginListBoxImGuiLua },
-        {"EndListBox",                                             onEndListBoxImGuiLua },
-        {"ListBox",                                                   onListBoxImGuiLua },
-        {"LoadIniSettingsFromDisk",                   onLoadIniSettingsFromDiskImGuiLua },
-        {"LoadIniSettingsFromMemory",               onLoadIniSettingsFromMemoryImGuiLua },
-        {"LogButtons",                                             onLogButtonsImGuiLua },
-        {"LogFinish",                                               onLogFinishImGuiLua },
-        {"LogText",                                                   onLogTextImGuiLua },
-        {"LogToClipboard",                                     onLogToClipboardImGuiLua },
-        {"LogToFile",                                               onLogToFileImGuiLua },
-        {"LogToTTY",                                                 onLogToTTYImGuiLua },
+        {"LabelText",                                               onLabelTextImGuiLua }, // Not used, Text/Labels
+        {"BeginListBox",                                         onBeginListBoxImGuiLua }, // Not used, List/Plotting
+        {"EndListBox",                                             onEndListBoxImGuiLua }, // Not used, List/Plotting
+        {"ListBox",                                                   onListBoxImGuiLua }, // Not used, List/Plotting
+        {"LoadIniSettingsFromDisk",                   onLoadIniSettingsFromDiskImGuiLua }, // Not used, Settings/INI
+        {"LoadIniSettingsFromMemory",               onLoadIniSettingsFromMemoryImGuiLua }, // Not used, Settings/INI
+        {"LogButtons",                                             onLogButtonsImGuiLua }, // Not used, Logging
+        {"LogFinish",                                               onLogFinishImGuiLua }, // Not used, Logging
+        {"LogText",                                                   onLogTextImGuiLua }, // Not used, Logging
+        {"LogToClipboard",                                     onLogToClipboardImGuiLua }, // Not used, Logging
+        {"LogToFile",                                               onLogToFileImGuiLua }, // Not used, Logging
+        {"LogToTTY",                                                 onLogToTTYImGuiLua }, // Not used, Logging
         {"MenuItem",                                                 onMenuItemImGuiLua },
         {"NewLine",                                                   onNewLineImGuiLua },
-        {"NextColumn",                                             onNextColumnImGuiLua },
+        // NextColumn removed - deprecated Columns API, use Tables API instead
         {"OpenPopup",                                               onOpenPopupImGuiLua },
-        {"OpenPopupOnItemClick",                         onOpenPopupOnItemClickImGuiLua },
-        {"PlotHistogram",                                       onPlotHistogramImGuiLua },
-        {"PlotLines",                                               onPlotLinesImGuiLua },
-        {"PopTabStop",                                     onPopTabStopImGuiLua },        // Backward compat wrapper
-        {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua }, // Backward compat wrapper
-        {"PopItemFlag",                                          onPopItemFlagImGuiLua },   // NEW: Generic item flag function
-        {"PopClipRect",                                           onPopClipRectImGuiLua },
-        {"PopFont",                                                   onPopFontImGuiLua },
-        {"PopID",                                                       onPopIDImGuiLua },
+        {"OpenPopupOnItemClick",                         onOpenPopupOnItemClickImGuiLua }, // Not used, Popups
+        {"PlotHistogram",                                       onPlotHistogramImGuiLua }, // Not used, List/Plotting
+        {"PlotLines",                                               onPlotLinesImGuiLua }, // Not used, List/Plotting
+        {"PopTabStop",                                     onPopTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
+        {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
+        {"PopItemFlag",                                          onPopItemFlagImGuiLua },   // Not used, Stack/State, NEW: Generic item flag function
+        {"PopClipRect",                                           onPopClipRectImGuiLua }, // Not used, Stack/State
+        {"PopFont",                                                   onPopFontImGuiLua }, // Not used, Stack/State
+        {"PopID",                                                       onPopIDImGuiLua }, // Not used, Stack/State
         {"PopItemWidth",                                         onPopItemWidthImGuiLua },
         {"PopStyleColor",                                       onPopStyleColorImGuiLua },
         {"PopStyleVar",                                           onPopStyleVarImGuiLua },
-        {"PopTextWrapPos",                                     onPopTextWrapPosImGuiLua },
+        {"PopTextWrapPos",                                     onPopTextWrapPosImGuiLua }, // Not used, Stack/State
         {"ProgressBar",                                           onProgressBarImGuiLua },
-        {"PushTabStop",                                   onPushTabStopImGuiLua },        // Backward compat wrapper
-        {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Backward compat wrapper
-        {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // NEW: Generic item flag function
-        {"PushClipRect",                                         onPushClipRectImGuiLua },
-        {"PushID",                                                     onPushIDImGuiLua },
+        {"PushTabStop",                                   onPushTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
+        {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
+        {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // Not used, Stack/State, NEW: Generic item flag function
+        {"PushClipRect",                                         onPushClipRectImGuiLua }, // Not used, Stack/State
+        {"PushID",                                                     onPushIDImGuiLua }, // Not used, Stack/State
         {"PushItemWidth",                                       onPushItemWidthImGuiLua },
         {"PushStyleColor",                                     onPushStyleColorImGuiLua },
         {"PushStyleVar",                                         onPushStyleVarImGuiLua },
-        {"PushTextWrapPos",                                   onPushTextWrapPosImGuiLua },
+        {"PushTextWrapPos",                                   onPushTextWrapPosImGuiLua }, // Not used, Stack/State
         {"RadioButton",                                           onRadioButtonImGuiLua },
-        {"ResetMouseDragDelta",                           onResetMouseDragDeltaImGuiLua },
+        {"ResetMouseDragDelta",                           onResetMouseDragDeltaImGuiLua }, // Not used, Keyboard/Mouse
         {"SameLine",                                                 onSameLineImGuiLua },
-        {"SaveIniSettingsToDisk",                       onSaveIniSettingsToDiskImGuiLua },
-        {"SaveIniSettingsToMemory",                   onSaveIniSettingsToMemoryImGuiLua },
+        {"SaveIniSettingsToDisk",                       onSaveIniSettingsToDiskImGuiLua }, // Not used, Settings/INI
+        {"SaveIniSettingsToMemory",                   onSaveIniSettingsToMemoryImGuiLua }, // Not used, Settings/INI
         {"Selectable",                                             onSelectableImGuiLua },
         {"Separator",                                               onSeparatorImGuiLua },
-        {"SetClipboardText",                                 onSetClipboardTextImGuiLua },
-        {"SetColorEditOptions",                           onSetColorEditOptionsImGuiLua },
-        {"SetColumnOffset",                                   onSetColumnOffsetImGuiLua },
-        {"SetColumnWidth",                                     onSetColumnWidthImGuiLua },
-        {"SetCursorPos",                                         onSetCursorPosImGuiLua },
+        {"SetClipboardText",                                 onSetClipboardTextImGuiLua }, // Not used, Clipboard
+        {"SetColorEditOptions",                           onSetColorEditOptionsImGuiLua }, // Not used, Color Widgets
+        // SetColumn* removed - deprecated Columns API, use Tables API instead
+        {"SetCursorPos",                                         onSetCursorPosImGuiLua }, // Not used, Window
         {"SetCursorPosX",                                       onSetCursorPosXImGuiLua },
         {"SetCursorPosY",                                       onSetCursorPosYImGuiLua },
         {"SetCursorScreenPos",                             onSetCursorScreenPosImGuiLua },
-        {"SetDragDropPayload",                             onSetDragDropPayloadImGuiLua },
-        {"SetNextItemAllowOverlap",                       onSetNextItemAllowOverlapImGuiLua },
+        {"SetNextItemAllowOverlap",                       onSetNextItemAllowOverlapImGuiLua }, // Not used, Window
         {"SetItemDefaultFocus",                           onSetItemDefaultFocusImGuiLua },
-        {"SetKeyboardFocusHere",                         onSetKeyboardFocusHereImGuiLua },
-        {"SetMouseCursor",                                     onSetMouseCursorImGuiLua },
+        {"SetKeyboardFocusHere",                         onSetKeyboardFocusHereImGuiLua }, // Not used, Keyboard/Mouse
+        {"SetMouseCursor",                                     onSetMouseCursorImGuiLua }, // Not used, Keyboard/Mouse
         {"SetNextItemOpen",                                   onSetNextItemOpenImGuiLua },
         {"SetNextItemWidth",                                 onSetNextItemWidthImGuiLua },
-        {"SetNextTreeNodeOpen",                           onSetNextTreeNodeOpenImGuiLua },
+        {"SetNextTreeNodeOpen",                           onSetNextTreeNodeOpenImGuiLua }, // Not used, Window
         {"SetNextWindowBgAlpha",                         onSetNextWindowBgAlphaImGuiLua },
         {"SetNextWindowCollapsed",                     onSetNextWindowCollapsedImGuiLua },
-        {"SetNextWindowContentSize",                 onSetNextWindowContentSizeImGuiLua },
+        {"SetNextWindowContentSize",                 onSetNextWindowContentSizeImGuiLua }, // Not used, Window
         {"SetNextWindowFocus",                             onSetNextWindowFocusImGuiLua },
         {"SetNextWindowPos",                                 onSetNextWindowPosImGuiLua },
         {"SetNextWindowSize",                               onSetNextWindowSizeImGuiLua },
         {"SetNextWindowSizeConstraints",         onSetNextWindowSizeConstraintsImGuiLua },
-        {"SetScrollFromPosX",                               onSetScrollFromPosXImGuiLua },
-        {"SetScrollFromPosY",                               onSetScrollFromPosYImGuiLua },
-        {"SetScrollHere",                                       onSetScrollHereImGuiLua },
-        {"SetScrollHereX",                                     onSetScrollHereXImGuiLua },
-        {"SetScrollHereY",                                     onSetScrollHereYImGuiLua },
-        {"SetScrollX",                                             onSetScrollXImGuiLua },
-        {"SetScrollY",                                             onSetScrollYImGuiLua },
-        {"SetTabItemClosed",                                 onSetTabItemClosedImGuiLua },
-        {"SetTooltip",                                             onSetTooltipImGuiLua },
-        {"SetWindowCollapsed",                             onSetWindowCollapsedImGuiLua },
-        {"SetWindowFocus",                                     onSetWindowFocusImGuiLua },
-        {"SetWindowFontScale",                             onSetWindowFontScaleImGuiLua },
-        {"SetWindowPos",                                         onSetWindowPosImGuiLua },
-        {"SetWindowSize",                                       onSetWindowSizeImGuiLua },
+        {"SetScrollFromPosX",                               onSetScrollFromPosXImGuiLua }, // Not used, Scroll
+        {"SetScrollFromPosY",                               onSetScrollFromPosYImGuiLua }, // Not used, Scroll
+        {"SetScrollHere",                                       onSetScrollHereImGuiLua }, // Not used, Scroll
+        {"SetScrollHereX",                                     onSetScrollHereXImGuiLua }, // Not used, Scroll
+        {"SetScrollHereY",                                     onSetScrollHereYImGuiLua }, // Not used, Scroll
+        {"SetScrollX",                                             onSetScrollXImGuiLua }, // Not used, Scroll
+        {"SetScrollY",                                             onSetScrollYImGuiLua }, // Not used, Scroll
+        {"SetTabItemClosed",                                 onSetTabItemClosedImGuiLua }, // Not used, Popups
+        {"SetTooltip",                                             onSetTooltipImGuiLua }, // Not used, Window
+        {"SetWindowCollapsed",                             onSetWindowCollapsedImGuiLua }, // Not used, Window
+        {"SetWindowFocus",                                     onSetWindowFocusImGuiLua }, // Not used, Window
+        {"SetWindowFontScale",                             onSetWindowFontScaleImGuiLua }, // Not used, Window
+        {"SetWindowPos",                                         onSetWindowPosImGuiLua }, // Not used, Window
+        {"SetWindowSize",                                       onSetWindowSizeImGuiLua }, // Not used, Window
 #if !defined (ANDROID)
-        {"ShowDemoWindow",                                     onShowDemoWindowImGuiLua },
-        {"ShowFontSelector",                                 onShowFontSelectorImGuiLua },
-        {"ShowStyleSelector",                               onShowStyleSelectorImGuiLua },
-        {"ShowUserGuide",                                       onShowUserGuideImGuiLua },
+        {"ShowDemoWindow",                                     onShowDemoWindowImGuiLua }, // Not used, Demo/Debug
+        {"ShowFontSelector",                                 onShowFontSelectorImGuiLua }, // Not used, Demo/Debug
+        {"ShowStyleSelector",                               onShowStyleSelectorImGuiLua }, // Not used, Demo/Debug
+        {"ShowUserGuide",                                       onShowUserGuideImGuiLua }, // Not used, Demo/Debug
 #endif
-        {"SliderAngle",                                           onSliderAngleImGuiLua },
+        {"SliderAngle",                                           onSliderAngleImGuiLua }, // Not used, Input Widgets
         {"SliderFloat",                                           onSliderFloatImGuiLua },
-        {"SliderFloat2",                                         onSliderFloat2ImGuiLua },
-        {"SliderFloat3",                                         onSliderFloat3ImGuiLua },
-        {"SliderFloat4",                                         onSliderFloat4ImGuiLua },
+        {"SliderFloat2",                                         onSliderFloat2ImGuiLua }, // Not used, Input Widgets
+        {"SliderFloat3",                                         onSliderFloat3ImGuiLua }, // Not used, Input Widgets
+        {"SliderFloat4",                                         onSliderFloat4ImGuiLua }, // Not used, Input Widgets
         {"SliderInt",                                               onSliderIntImGuiLua },
-        {"SliderInt2",                                             onSliderInt2ImGuiLua },
-        {"SliderInt3",                                             onSliderInt3ImGuiLua },
-        {"SliderInt4",                                             onSliderInt4ImGuiLua },
+        {"SliderInt2",                                             onSliderInt2ImGuiLua }, // Not used, Input Widgets
+        {"SliderInt3",                                             onSliderInt3ImGuiLua }, // Not used, Input Widgets
+        {"SliderInt4",                                             onSliderInt4ImGuiLua }, // Not used, Input Widgets
         {"SmallButton",                                           onSmallButtonImGuiLua },
-        {"Spacing",                                                   onSpacingImGuiLua },
-        {"StyleColorsClassic",                             onStyleColorsClassicImGuiLua },
-        {"StyleColorsDark",                                   onStyleColorsDarkImGuiLua },
-        {"StyleColorsLight",                                 onStyleColorsLightImGuiLua },
+        {"Spacing",                                                   onSpacingImGuiLua }, // Not used, Window/Layout
+        {"StyleColorsClassic",                             onStyleColorsClassicImGuiLua }, // Not used, Styles
+        {"StyleColorsDark",                                   onStyleColorsDarkImGuiLua }, // Not used, Styles
+        {"StyleColorsLight",                                 onStyleColorsLightImGuiLua }, // Not used, Styles
         {"Text",                                                         onTextImGuiLua },
         {"TextColored",                                           onTextColoredImGuiLua },
         {"TextDisabled",                                         onTextDisabledImGuiLua },
-        {"TextWrapped",                                           onTextWrappedImGuiLua },
-        {"TreeAdvanceToLabelPos",                       onTreeAdvanceToLabelPosImGuiLua },
+        {"TextWrapped",                                           onTextWrappedImGuiLua }, // Not used, Text/Labels
+        {"TreeAdvanceToLabelPos",                       onTreeAdvanceToLabelPosImGuiLua }, // Not used, Tree
         {"TreeNode",                                                 onTreeNodeImGuiLua },
         {"TreeNodeEx",                                             onTreeNodeExImGuiLua },
         {"TreePop",                                                   onTreePopImGuiLua },
-        {"TreePush",                                                 onTreePushImGuiLua },
-        {"Unindent",                                                 onUnindentImGuiLua },
-        {"VSliderFloat",                                         onVSliderFloatImGuiLua },
-        {"VSliderInt",                                             onVSliderIntImGuiLua },
+        {"TreePush",                                                 onTreePushImGuiLua }, // Not used, Tree
+        {"Unindent",                                                 onUnindentImGuiLua }, // Not used, Window/Layout
+        {"VSliderFloat",                                         onVSliderFloatImGuiLua }, // Not used, Input Widgets
+        {"VSliderInt",                                             onVSliderIntImGuiLua }, // Not used, Input Widgets
         
         //ImDrawList
-        {"AddBezierCubic",                     onAddBezierCubicImDrawListLua },
+        {"AddBezierCubic",                     onAddBezierCubicImDrawListLua }, // Not used, ImDrawList
         {"AddCircle",                               onAddCircleImDrawListLua },
         {"AddCircleFilled",                   onAddCircleFilledImDrawListLua },
-        {"AddConvexPolyFilled",           onAddConvexPolyFilledImDrawListLua },
-        {"AddDrawCmd",                             onAddDrawCmdImDrawListLua },
-        {"AddImage",                                 onAddImageImDrawListLua },
-        {"AddImageQuad",                         onAddImageQuadImDrawListLua },
-        {"AddImageRounded",                   onAddImageRoundedImDrawListLua },
+        {"AddConvexPolyFilled",           onAddConvexPolyFilledImDrawListLua }, // Not used, ImDrawList
+        {"AddDrawCmd",                             onAddDrawCmdImDrawListLua }, // Not used, ImDrawList
+        {"AddImage",                                 onAddImageImDrawListLua }, // Not used, ImDrawList
+        {"AddImageQuad",                         onAddImageQuadImDrawListLua }, // Not used, ImDrawList
+        {"AddImageRounded",                   onAddImageRoundedImDrawListLua }, // Not used, ImDrawList
         {"AddLine",                                   onAddLineImDrawListLua },
         {"AddNgon",                                   onAddNgonImDrawListLua },
-        {"AddNgonFilled",                       onAddNgonFilledImDrawListLua },
-        {"AddPolyline",                           onAddPolylineImDrawListLua },
-        {"AddQuad",                                   onAddQuadImDrawListLua },
-        {"AddQuadFilled",                       onAddQuadFilledImDrawListLua },
+        {"AddNgonFilled",                       onAddNgonFilledImDrawListLua }, // Not used, ImDrawList
+        {"AddPolyline",                           onAddPolylineImDrawListLua }, // Not used, ImDrawList
+        {"AddQuad",                                   onAddQuadImDrawListLua }, // Not used, ImDrawList
+        {"AddQuadFilled",                       onAddQuadFilledImDrawListLua }, // Not used, ImDrawList
         {"AddRect",                                   onAddRectImDrawListLua },
         {"AddRectFilled",                       onAddRectFilledImDrawListLua },
-        {"AddRectFilledMultiColor",   onAddRectFilledMultiColorImDrawListLua },
-        {"AddText",                                   onAddTextImDrawListLua },
+        {"AddRectFilledMultiColor",   onAddRectFilledMultiColorImDrawListLua }, // Not used, ImDrawList
+        {"AddText",                                   onAddTextImDrawListLua }, // Not used, ImDrawList
         {"AddTriangle",                           onAddTriangleImDrawListLua },
         {"AddTriangleFilled",               onAddTriangleFilledImDrawListLua },
-        {"SetImDrawListToBackground",              onImDrawListToBackgroundLua },
+        {"SetImDrawListToBackground",              onImDrawListToBackgroundLua }, // Not used, ImDrawList
         {"SetImDrawListToForeground",              onImDrawListToForegroundLua },
         {nullptr, nullptr}};
 
