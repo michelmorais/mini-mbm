@@ -414,11 +414,11 @@ static const std::map<std::string,int> enumMouseCursorMap = {
         {"ImGuiMouseCursor_NotAllowed",                       ImGuiMouseCursor_NotAllowed}};
 
 static const std::map<std::string,int> enumDirMap = {
-        {"None",                                              ImGuiDir_None},
-        {"Left",                                              ImGuiDir_Left},
-        {"Right",                                             ImGuiDir_Right},
-        {"Up",                                                ImGuiDir_Up},
-        {"Down",                                              ImGuiDir_Down}};
+        {"ImGuiDir_None",                                     ImGuiDir_None},
+        {"ImGuiDir_Left",                                     ImGuiDir_Left},
+        {"ImGuiDir_Right",                                    ImGuiDir_Right},
+        {"ImGuiDir_Up",                                       ImGuiDir_Up},
+        {"ImGuiDir_Down",                                     ImGuiDir_Down}};
 
 static const std::map<std::string,int> enumKeyMap = {
         {"ImGuiKey_Tab",                                      ImGuiKey_Tab},
@@ -4808,16 +4808,16 @@ int onComboImGuiLua(lua_State *lua)
 
 int onDragFloatImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value            = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const float v_speed    = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const float v_min      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const float v_max      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const char * p_format  = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::DragFloat(p_label,&value,v_speed,v_min,v_max,p_format,power);
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value                = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const float v_speed        = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
+    const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::DragFloat(p_label,&value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
     return 2;
@@ -4825,17 +4825,17 @@ int onDragFloatImGuiLua(lua_State *lua)
 
 int onDragFloat2ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[2]         = {0, 0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[2]             = {0, 0};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[2]");
-    const float v_speed    = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const float v_min      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const float v_max      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const char * p_format  = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::DragFloat2(p_label,value,v_speed,v_min,v_max,p_format,power);
+    const float v_speed        = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
+    const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::DragFloat2(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -4843,17 +4843,17 @@ int onDragFloat2ImGuiLua(lua_State *lua)
 
 int onDragFloat3ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[3]         = {0, 0, 0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[3]             = {0, 0, 0};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[3]");
-    const float v_speed    = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const float v_min      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const float v_max      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const char * p_format  = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::DragFloat3(p_label,value,v_speed,v_min,v_max,p_format,power);
+    const float v_speed        = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
+    const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::DragFloat3(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -4861,17 +4861,17 @@ int onDragFloat3ImGuiLua(lua_State *lua)
 
 int onDragFloat4ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    float value[4]         = {0, 0, 0, 0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    float value[4]             = {0, 0, 0, 0};
     get_float_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"float table[4]");
-    const float v_speed    = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const float v_min      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const float v_max      = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
-    const char * p_format  = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    const float power      = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool    = ImGui::DragFloat4(p_label,value,v_speed,v_min,v_max,p_format,power);
+    const float v_speed        = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
+    const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
+    const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::DragFloat4(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -4889,8 +4889,8 @@ int onDragFloatRange2ImGuiLua(lua_State *lua)
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0;
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
     const char * p_format_max  = top >= index_input ? lua_tostring(lua,index_input++) :  nullptr;
-    const float power          = top >= index_input ? luaL_checknumber(lua,index_input++) :  1.0f;
-    const bool ret_bool        = ImGui::DragFloatRange2(p_label,&v_current_min,&v_current_max,v_speed,v_min,v_max,p_format,p_format_max,power);
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  0;
+    const bool ret_bool        = ImGui::DragFloatRange2(p_label,&v_current_min,&v_current_max,v_speed,v_min,v_max,p_format,p_format_max,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,v_current_min);
     lua_pushnumber(lua,v_current_max);
@@ -5069,14 +5069,15 @@ int onSliderAngleImGuiLua(lua_State *lua)
 
 int onSliderIntImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    int value              = luaL_checkinteger(lua,index_input++);
-    const int v_min        = luaL_checkinteger(lua,index_input++);
-    const int v_max        = luaL_checkinteger(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    const bool ret_bool    = ImGui::SliderInt(p_label,&value,v_min,v_max,p_format);
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    int value                  = luaL_checkinteger(lua,index_input++);
+    const int v_min            = luaL_checkinteger(lua,index_input++);
+    const int v_max            = luaL_checkinteger(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::SliderInt(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushinteger(lua,value);
     return 2;
@@ -5084,15 +5085,16 @@ int onSliderIntImGuiLua(lua_State *lua)
 
 int onSliderInt2ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    int value[2]           = {0,0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    int value[2]               = {0,0};
     get_int_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"int table[2]");
-    const int v_min        = luaL_checkinteger(lua,index_input++);
-    const int v_max        = luaL_checkinteger(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    const bool ret_bool    = ImGui::SliderInt2(p_label,value,v_min,v_max,p_format);
+    const int v_min            = luaL_checkinteger(lua,index_input++);
+    const int v_max            = luaL_checkinteger(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::SliderInt2(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5100,15 +5102,16 @@ int onSliderInt2ImGuiLua(lua_State *lua)
 
 int onSliderInt3ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    int value[3]           = {0,0,0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    int value[3]               = {0,0,0};
     get_int_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"int table[3]");
-    const int v_min        = luaL_checkinteger(lua,index_input++);
-    const int v_max        = luaL_checkinteger(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    const bool ret_bool    = ImGui::SliderInt3(p_label,value,v_min,v_max,p_format);
+    const int v_min            = luaL_checkinteger(lua,index_input++);
+    const int v_max            = luaL_checkinteger(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::SliderInt3(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5116,15 +5119,16 @@ int onSliderInt3ImGuiLua(lua_State *lua)
 
 int onSliderInt4ImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    int value[4]           = {0,0,0,0};
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    int value[4]               = {0,0,0,0};
     get_int_arrayFromTable(lua,index_input++,value,sizeof(value) / sizeof(value[0]) ,"int table[4]");
-    const int v_min        = luaL_checkinteger(lua,index_input++);
-    const int v_max        = luaL_checkinteger(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    const bool ret_bool    = ImGui::SliderInt4(p_label,value,v_min,v_max,p_format);
+    const int v_min            = luaL_checkinteger(lua,index_input++);
+    const int v_max            = luaL_checkinteger(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::SliderInt4(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
     return 2;
@@ -5149,15 +5153,16 @@ int onVSliderFloatImGuiLua(lua_State *lua)
 
 int onVSliderIntImGuiLua(lua_State *lua)
 {
-    int index_input        = 1;
-    const int top          = lua_gettop(lua);
-    const char * p_label   = luaL_checkstring(lua,index_input++);
-    ImVec2 size            = lua_pop_ImVec2(lua, index_input++);
-    int value              = luaL_checkinteger(lua,index_input++);
-    const int v_min        = luaL_checkinteger(lua,index_input++);
-    const int v_max        = luaL_checkinteger(lua,index_input++);
-    const char * p_format  = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    const bool ret_bool    = ImGui::VSliderInt(p_label,size,&value,v_min,v_max,p_format);
+    int index_input            = 1;
+    const int top              = lua_gettop(lua);
+    const char * p_label       = luaL_checkstring(lua,index_input++);
+    ImVec2 size                = lua_pop_ImVec2(lua, index_input++);
+    int value                  = luaL_checkinteger(lua,index_input++);
+    const int v_min            = luaL_checkinteger(lua,index_input++);
+    const int v_max            = luaL_checkinteger(lua,index_input++);
+    const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
+    ImGuiSliderFlags flags     = top >= index_input ? luaL_checkinteger(lua, index_input++) : 0;
+    const bool ret_bool        = ImGui::VSliderInt(p_label,size,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushinteger(lua,value);
     return 2;
