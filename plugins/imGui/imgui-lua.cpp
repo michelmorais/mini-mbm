@@ -5327,42 +5327,7 @@ int onSetClipboardTextImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onLoadIniSettingsFromDiskImGuiLua(lua_State *lua)
-{
-    //  Call after CreateContext() and before the first call to NewFrame(). NewFrame() automatically calls LoadIniSettingsFromDisk(io.IniFilename).
-    int index_input              = 1;
-    const char * p_ini_filename  = luaL_checkstring(lua,index_input++);
-    ImGui::LoadIniSettingsFromDisk(p_ini_filename);
-    return 0;
-}
-
-int onLoadIniSettingsFromMemoryImGuiLua(lua_State *lua)
-{
-    //  Call after CreateContext() and before the first call to NewFrame() to provide .ini data from your own data source.
-    int index_input          = 1;
-    const char * p_ini_data  = luaL_checkstring(lua,index_input++);
-    const size_t ini_size    = p_ini_data ? strlen(p_ini_data) : 0;
-    ImGui::LoadIniSettingsFromMemory(p_ini_data,ini_size);
-    return 0;
-}
-
-int onSaveIniSettingsToDiskImGuiLua(lua_State *lua)
-{
-    //  This is automatically called (if io.IniFilename is not empty) a few seconds after any modification that should be reflected in the .ini file (and also by DestroyContext).
-    int index_input              = 1;
-    const char * p_ini_filename  = luaL_checkstring(lua,index_input++);
-    ImGui::SaveIniSettingsToDisk(p_ini_filename);
-    return 0;
-}
-
-int onSaveIniSettingsToMemoryImGuiLua(lua_State *lua)
-{
-    //  Return a zero-terminated string with the .ini data which you can save by your own mean. call when io.WantSaveIniSettings is set, then save data by your own mean and clear io.WantSaveIniSettings.
-    size_t out_ini_size           =  0;
-    const char * ret_char         = ImGui::SaveIniSettingsToMemory(&out_ini_size);
-    lua_pushstring(lua,ret_char);
-    return 1;
-}
+// IniSettings functions removed - Load/SaveIniSettingsFromDisk/Memory not used
 
 int onTreeAdvanceToLabelPosImGuiLua(lua_State *lua)
 {
@@ -5964,8 +5929,7 @@ int onNewimguiLua(lua_State *lua)
         {"BeginListBox",                                         onBeginListBoxImGuiLua }, // Not used, List/Plotting
         {"EndListBox",                                             onEndListBoxImGuiLua }, // Not used, List/Plotting
         {"ListBox",                                                   onListBoxImGuiLua }, // Not used, List/Plotting
-        {"LoadIniSettingsFromDisk",                   onLoadIniSettingsFromDiskImGuiLua }, // Not used, Settings/INI
-        {"LoadIniSettingsFromMemory",               onLoadIniSettingsFromMemoryImGuiLua }, // Not used, Settings/INI
+        // IniSettings functions removed - not used
         {"LogButtons",                                             onLogButtonsImGuiLua }, // Not used, Logging
         {"LogFinish",                                               onLogFinishImGuiLua }, // Not used, Logging
         {"LogText",                                                   onLogTextImGuiLua }, // Not used, Logging
@@ -6002,8 +5966,7 @@ int onNewimguiLua(lua_State *lua)
         {"RadioButton",                                           onRadioButtonImGuiLua },
         {"ResetMouseDragDelta",                           onResetMouseDragDeltaImGuiLua }, // Not used, Keyboard/Mouse
         {"SameLine",                                                 onSameLineImGuiLua },
-        {"SaveIniSettingsToDisk",                       onSaveIniSettingsToDiskImGuiLua }, // Not used, Settings/INI
-        {"SaveIniSettingsToMemory",                   onSaveIniSettingsToMemoryImGuiLua }, // Not used, Settings/INI
+        // SaveIniSettings removed - not used
         {"Selectable",                                             onSelectableImGuiLua },
         {"Separator",                                               onSeparatorImGuiLua },
         {"SetClipboardText",                                 onSetClipboardTextImGuiLua }, // Not used, Clipboard
