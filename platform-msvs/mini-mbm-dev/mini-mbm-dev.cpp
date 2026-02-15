@@ -54,6 +54,8 @@ int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
     bool full_screen_checked = false;
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
@@ -68,7 +70,7 @@ int main(const int argc,const char **argv)
             {"User specified"        ,"Script do usuário",        "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
-	size_app = size_app - 1; // remove the last one, it is a user specified script
+    size_app = size_app - 1; // remove the last one, it is a user specified script
     int index_app_selected = -1;
     std::string user_script_name;
 
@@ -77,7 +79,7 @@ int main(const int argc,const char **argv)
     {
         PARSE_laucher_ARGS parser(argv, argc);
 
-		unsigned int width = 0, height = 0;
+        unsigned int width = 0, height = 0;
         if (parser.getWidthHeight(width, height))
         {
             mbm::set_window_size(
@@ -115,7 +117,7 @@ int main(const int argc,const char **argv)
         }
         else
         {
-			mbm::set_app_name(title_app.c_str());
+            mbm::set_app_name(title_app.c_str());
         }
 
         //https://onlineconvertfree.com/convert/png/
@@ -142,8 +144,8 @@ int main(const int argc,const char **argv)
     int ret = 0;
     
     
-	mbm::set_verbose(true);
-	mbm::disable_splash();
+    mbm::set_verbose(true);
+    mbm::disable_splash();
     mbm::push_arg("--showconsole","true");
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
     if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))

@@ -205,14 +205,14 @@ namespace mbm
         }
     }
 
-    WCHAR *toWchar(const char *str, WCHAR *outText)
+WCHAR *toWchar(const char *str, WCHAR *outText)
 {
     if (str == nullptr)
         return nullptr;
-    int    len      = MultiByteToWideChar(CP_ACP, 0, str, -1, nullptr, 0) + 1;
-    WCHAR *strLocal = new WCHAR[len];
+    int    len = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0) + 1; // Changed CP_ACP to CP_UTF8
+    WCHAR* strLocal = new WCHAR[len];
     memset(strLocal, 0, sizeof(WCHAR) * len);
-    MultiByteToWideChar(CP_ACP, 0, str, -1, (LPWSTR)strLocal, len - 1);
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, (LPWSTR)strLocal, len - 1); // Changed CP_ACP to CP_UTF8
     if (outText)
     {
         wcscpy_s(outText, len, strLocal);
@@ -222,18 +222,18 @@ namespace mbm
     return strLocal;
 }
 
-    char *toChar(const WCHAR *wstr, char *outText)
+char *toChar(const WCHAR *wstr, char *outText)
 {
     if (wstr == nullptr)
         return nullptr;
-    int   len      = wcslen(wstr) + 1;
-    char *strLocal = new char[len];
-    memset(strLocal, 0, sizeof(char) * len);
-    int size_needed = WideCharToMultiByte(CP_ACP, 0, wstr, len - 1, nullptr, 0, nullptr, nullptr);
-    size_needed     = WideCharToMultiByte(CP_ACP, 0, wstr, len, strLocal, size_needed, nullptr, nullptr);
+    int   len = wcslen(wstr) + 1;
+    char* strLocal = new char[len * 3]; // UTF-8 can use up to 3 bytes per character
+    memset(strLocal, 0, sizeof(char) * len * 3);
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr, len - 1, nullptr, 0, nullptr, nullptr); // Changed CP_ACP to CP_UTF8
+    size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr, len, strLocal, size_needed, nullptr, nullptr); // Changed CP_ACP to CP_UTF8
     if (outText)
     {
-        strcpy_s(outText, len, strLocal);
+        strcpy_s(outText, len * 3, strLocal);
         delete[] strLocal;
         return outText;
     }
