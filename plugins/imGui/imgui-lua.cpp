@@ -829,36 +829,15 @@ const char * get_string_from_field(lua_State* lua,const int index,const char* fi
     return out_string.c_str();
 }
 
-ImFont * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImFont * in_out_ImFont);
-ImFont * lua_pop_ImFont_pointer(lua_State *lua, const int index,ImFont * p_ImFont);
-ImFont lua_pop_ImFont(lua_State *lua, const int index);
 void lua_get_rgba_FromTable(lua_State * lua, int index, float p_col[4]);
 ImVec4 lua_get_rgba_to_ImVec4_fromTable(lua_State * lua,const int index);
 void lua_push_rgba(lua_State * lua, const float p_col[4]);
 void lua_push_rgba(lua_State * lua, const ImVec4 & color);
-ImFontAtlas * lua_pop_ImFontAtlas_pointer(lua_State *lua, const int index,ImFontAtlas * p_ImFontAtlas);
-ImFontAtlas * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontAtlas * in_out_ImFontAtlas);
-ImFontAtlas lua_pop_ImFontAtlas(lua_State *lua, const int index);
-ImFontConfig * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index,ImFontConfig * p_ImFontConfig);
-ImFontConfig * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontConfig * in_out_ImFontConfig);
-ImFontConfig lua_pop_ImFontConfig(lua_State *lua, const int index);
-ImFontGlyph * lua_pop_ImFontGlyph_pointer(lua_State *lua, const int index,ImFontGlyph * p_ImFontGlyph);
-ImFontGlyph * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontGlyph * in_out_ImFontGlyph);
-ImFontGlyph lua_pop_ImFontGlyph(lua_State *lua, const int index);
 ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index,ImGuiStyle * p_ImGuiStyle);
 ImVec2 * lua_pop_ImVec2_pointer(lua_State *lua, const int index,ImVec2 * p_ImVec2);
 ImVec2 lua_pop_ImVec2(lua_State *lua, const int index);
 ImVec4 * lua_pop_ImVec4_pointer(lua_State *lua, const int index,ImVec4 * p_ImVec4);
 ImVec4 lua_pop_ImVec4(lua_State *lua, const int index);
-ImWchar * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImWchar * in_out_ImWchar);
-void lua_push_ImFont(lua_State *lua, const ImFont & in);
-void lua_push_ImFontAtlas(lua_State *lua, const ImFontAtlas & in);
-void lua_push_ImFontAtlas_pointer(lua_State *lua,const ImFontAtlas * p_ImFontAtlas);
-void lua_push_ImFontConfig(lua_State *lua, const ImFontConfig & in);
-void lua_push_ImFontConfig_pointer(lua_State *lua,const ImFontConfig * p_ImFontConfig);
-void lua_push_ImFontGlyph(lua_State *lua, const ImFontGlyph & in);
-void lua_push_ImFontGlyph_pointer(lua_State *lua,const ImFontGlyph * p_ImFontGlyph);
-void lua_push_ImFont_pointer(lua_State *lua,const ImFont * p_ImFont);
 void lua_push_ImGuiPayload(lua_State *lua, const ImGuiPayload & in);
 void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in);
 void lua_push_ImVec2(lua_State *lua, const ImVec2 & in);
@@ -1557,129 +1536,6 @@ void lua_push_rgba(lua_State * lua, const ImVec4 & color)
     lua_setfield(lua, -2, "a");
 }
 
-void lua_push_ImFontConfig(lua_State *lua, const ImFontConfig & in)
-{
-    lua_newtable(lua);
-    lua_pushlstring(lua,in.Name, sizeof(in.Name)-1);
-    lua_setfield(lua, -2, "Name");
-    lua_pushinteger(lua,in.FontDataSize);
-    lua_setfield(lua, -2, "FontDataSize");
-    lua_pushboolean(lua,in.FontDataOwnedByAtlas);
-    lua_setfield(lua, -2, "FontDataOwnedByAtlas");
-    lua_pushboolean(lua,in.MergeMode);
-    lua_setfield(lua, -2, "MergeMode");
-    lua_pushboolean(lua,in.PixelSnapH);
-    lua_setfield(lua, -2, "PixelSnapH");
-    lua_pushinteger(lua,in.OversampleH);
-    lua_setfield(lua, -2, "OversampleH");
-    lua_pushinteger(lua,in.OversampleV);
-    lua_setfield(lua, -2, "OversampleV");
-    lua_pushinteger(lua,in.EllipsisChar);
-    lua_setfield(lua, -2, "EllipsisChar");
-    lua_pushnumber(lua,in.SizePixels);
-    lua_setfield(lua, -2, "SizePixels");
-    lua_push_ImVec2(lua,in.GlyphOffset);
-    lua_setfield(lua, -2, "GlyphOffset");
-    lua_pushnumber(lua,in.GlyphMinAdvanceX);
-    lua_setfield(lua, -2, "GlyphMinAdvanceX");
-    lua_pushnumber(lua,in.GlyphMaxAdvanceX);
-    lua_setfield(lua, -2, "GlyphMaxAdvanceX");
-    lua_pushnumber(lua,in.GlyphExtraAdvanceX);
-    lua_setfield(lua, -2, "GlyphExtraAdvanceX");
-    lua_pushinteger(lua,in.FontNo);
-    lua_setfield(lua, -2, "FontNo");
-    lua_pushinteger(lua,in.FontLoaderFlags);
-    lua_setfield(lua, -2, "FontLoaderFlags");
-    lua_pushnumber(lua,in.RasterizerMultiply);
-    lua_setfield(lua, -2, "RasterizerMultiply");
-    lua_pushnumber(lua,in.RasterizerDensity);
-    lua_setfield(lua, -2, "RasterizerDensity");
-    lua_pushnumber(lua,in.ExtraSizeScale);
-    lua_setfield(lua, -2, "ExtraSizeScale");
-
-}
-
-void lua_push_ImFontAtlas(lua_State *lua, const ImFontAtlas & in)
-{
-    lua_newtable(lua);
-    lua_pushinteger(lua,in.Flags);
-    lua_setfield(lua, -2, "Flags");
-    lua_pushinteger(lua,in.TexDesiredFormat);
-    lua_setfield(lua, -2, "TexDesiredFormat");
-    lua_pushinteger(lua,in.TexGlyphPadding);
-    lua_setfield(lua, -2, "TexGlyphPadding");
-    lua_pushinteger(lua,in.TexMinWidth);
-    lua_setfield(lua, -2, "TexMinWidth");
-    lua_pushinteger(lua,in.TexMinHeight);
-    lua_setfield(lua, -2, "TexMinHeight");
-    lua_pushinteger(lua,in.TexMaxWidth);
-    lua_setfield(lua, -2, "TexMaxWidth");
-    lua_pushinteger(lua,in.TexMaxHeight);
-    lua_setfield(lua, -2, "TexMaxHeight");
-    lua_pushboolean(lua,in.Locked);
-    lua_setfield(lua, -2, "Locked");
-    lua_pushboolean(lua,in.RendererHasTextures);
-    lua_setfield(lua, -2, "RendererHasTextures");
-    lua_pushboolean(lua,in.TexIsBuilt);
-    lua_setfield(lua, -2, "TexIsBuilt");
-    lua_pushboolean(lua,in.TexPixelsUseColors);
-    lua_setfield(lua, -2, "TexPixelsUseColors");
-    lua_push_ImVec2(lua,in.TexUvScale);
-    lua_setfield(lua, -2, "TexUvScale");
-    lua_push_ImVec2(lua,in.TexUvWhitePixel);
-    lua_setfield(lua, -2, "TexUvWhitePixel");
-    lua_pushinteger(lua,in.Fonts.Size);
-    lua_setfield(lua, -2, "FontsCount");
-    lua_pushinteger(lua,in.TexNextUniqueID);
-    lua_setfield(lua, -2, "TexNextUniqueID");
-    lua_pushinteger(lua,in.FontNextUniqueID);
-    lua_setfield(lua, -2, "FontNextUniqueID");
-    if(in.FontLoaderName)
-    {
-        lua_pushstring(lua,in.FontLoaderName);
-        lua_setfield(lua, -2, "FontLoaderName");
-    }
-    lua_pushinteger(lua,in.FontLoaderFlags);
-    lua_setfield(lua, -2, "FontLoaderFlags");
-
-}
-
-
-void lua_push_ImFontGlyph(lua_State *lua, const ImFontGlyph & in)
-{
-    lua_newtable(lua);
-    lua_pushboolean(lua,in.Colored);
-    lua_setfield(lua, -2, "Colored");
-    lua_pushboolean(lua,in.Visible);
-    lua_setfield(lua, -2, "Visible");
-    lua_pushinteger(lua,in.SourceIdx);
-    lua_setfield(lua, -2, "SourceIdx");
-    lua_pushinteger(lua,in.Codepoint);
-    lua_setfield(lua, -2, "Codepoint");
-    lua_pushnumber(lua,in.AdvanceX);
-    lua_setfield(lua, -2, "AdvanceX");
-    lua_pushnumber(lua,in.X0);
-    lua_setfield(lua, -2, "X0");
-    lua_pushnumber(lua,in.Y0);
-    lua_setfield(lua, -2, "Y0");
-    lua_pushnumber(lua,in.X1);
-    lua_setfield(lua, -2, "X1");
-    lua_pushnumber(lua,in.Y1);
-    lua_setfield(lua, -2, "Y1");
-    lua_pushnumber(lua,in.U0);
-    lua_setfield(lua, -2, "U0");
-    lua_pushnumber(lua,in.V0);
-    lua_setfield(lua, -2, "V0");
-    lua_pushnumber(lua,in.U1);
-    lua_setfield(lua, -2, "U1");
-    lua_pushnumber(lua,in.V1);
-    lua_setfield(lua, -2, "V1");
-    lua_pushinteger(lua,in.PackId);
-    lua_setfield(lua, -2, "PackId");
-
-}
-
-
 void lua_push_ImVec4(lua_State *lua, const ImVec4 & in)
 {
     lua_newtable(lua);
@@ -1692,22 +1548,6 @@ void lua_push_ImVec4(lua_State *lua, const ImVec4 & in)
     lua_pushnumber(lua,in.w);
     lua_setfield(lua, -2, "w");
 
-}
-
-
-void lua_push_ImFont(lua_State *lua, const ImFont & in)
-{
-    lua_newtable(lua);
-    mbm::printStack(lua,__FILE__,__LINE__);
-    // Most ImFont fields are now internal/private in ImGui 1.92
-    // Only expose public fields
-    lua_pushinteger(lua,in.FallbackChar);
-    lua_setfield(lua, -2, "FallbackChar");
-    lua_pushinteger(lua,in.EllipsisChar);
-    lua_setfield(lua, -2, "EllipsisChar");
-    // lua_pushnumber(lua,in.Scale); // ImFont::Scale is now private in ImGui 1.92
-    // lua_setfield(lua, -2, "Scale");
-    mbm::printStack(lua,__FILE__,__LINE__);
 }
 
 
@@ -1808,72 +1648,6 @@ void lua_push_ImVec2(lua_State *lua, const ImVec2 & in)
 }
 
 
-ImFontConfig lua_pop_ImFontConfig(lua_State *lua,const int index)
-{
-    ImFontConfig ImFontConfig_out;
-    lua_check_is_table(lua, index, "ImFontConfig");
-    //lua_getfield(lua, index, "FontData");
-    //ImFontConfig_out.FontData              = ;
-    //lua_pop(lua, 1);
-    lua_getfield(lua, index, "FontDataSize");
-    ImFontConfig_out.FontDataSize          = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "FontDataOwnedByAtlas");
-    ImFontConfig_out.FontDataOwnedByAtlas  = lua_toboolean(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "FontNo");
-    ImFontConfig_out.FontNo                = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "SizePixels");
-    ImFontConfig_out.SizePixels            = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "OversampleH");
-    ImFontConfig_out.OversampleH           = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "OversampleV");
-    ImFontConfig_out.OversampleV           = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "PixelSnapH");
-    ImFontConfig_out.PixelSnapH            = lua_toboolean(lua,-1);
-    lua_pop(lua, 1);
-    // GlyphExtraSpacing was removed in ImGui 1.92
-    lua_getfield(lua, index, "GlyphOffset");
-    ImFontConfig_out.GlyphOffset           = lua_pop_ImVec2(lua,-1);
-    lua_pop(lua, 1);
-    //lua_getfield(lua, index, "GlyphRanges");
-    //ImFontConfig_out.GlyphRanges           = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "GlyphMinAdvanceX");
-    ImFontConfig_out.GlyphMinAdvanceX      = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "GlyphMaxAdvanceX");
-    ImFontConfig_out.GlyphMaxAdvanceX      = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "MergeMode");
-    ImFontConfig_out.MergeMode             = lua_toboolean(lua,-1);
-    lua_pop(lua, 1);
-    // RasterizerFlags was removed in ImGui 1.92, use FontLoaderFlags instead
-    lua_getfield(lua, index, "FontLoaderFlags");
-    if (lua_isnumber(lua, -1))
-        ImFontConfig_out.FontLoaderFlags   = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "RasterizerMultiply");
-    ImFontConfig_out.RasterizerMultiply    = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "EllipsisChar");
-    ImFontConfig_out.EllipsisChar          = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "Name");
-    const char* name = luaL_checkstring(lua,-1);
-    snprintf(ImFontConfig_out.Name,sizeof(ImFontConfig_out.Name),"%s",name);
-    //#warning "1 - (make_pop_methods) do not know what to do! it was NOT supposed be here: charName"
-    //lua_getfield(lua, index, "DstFont");
-    //ImFontConfig_out.DstFont               = lua_pop_ImFont(lua,-1);
-    lua_pop(lua, 1);
-
-    return ImFontConfig_out;
-}
-
 ImVec4 lua_pop_ImVec4(lua_State *lua,const int index)
 {
     ImVec4 ImVec4_out;
@@ -1892,27 +1666,6 @@ ImVec4 lua_pop_ImVec4(lua_State *lua,const int index)
     lua_pop(lua, 1);
 
     return ImVec4_out;
-}
-
-ImFont lua_pop_ImFont(lua_State *lua,const int index)
-{
-    ImFont ImFont_out;
-    lua_check_is_table(lua, index, "ImFont");
-    // Most ImFont fields are now internal/private in ImGui 1.92
-    // These fields cannot be set from Lua anymore
-    // Only Scale, FallbackChar, and EllipsisChar remain public
-    lua_getfield(lua, index, "FallbackChar");
-    ImFont_out.FallbackChar         = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "EllipsisChar");
-    ImFont_out.EllipsisChar         = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "Scale");
-    // ImFont_out.Scale                = luaL_checknumber(lua,-1); // ImFont::Scale is now private in ImGui 1.92
-    lua_pop(lua, 1);
-    lua_pop(lua, 1);
-
-    return ImFont_out;
 }
 
 void lua_get_rgba_FromTable(lua_State * lua, int index, float p_col[4])
@@ -1999,128 +1752,6 @@ ImVec2 lua_pop_ImVec2(lua_State *lua,const int index)
 }
 
 
-ImFontAtlas lua_pop_ImFontAtlas(lua_State *lua,const int index)
-{
-    ImFontAtlas ImFontAtlas_out;
-    lua_check_is_table(lua, index, "ImFontAtlas");
-    // Most ImFontAtlas fields are now read-only in ImGui 1.92
-    // Only Flags, TexGlyphPadding, and a few others can be set
-    lua_getfield(lua, index, "Flags");
-    ImFontAtlas_out.Flags            = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexDesiredFormat");
-    if (lua_isnumber(lua, -1))
-        ImFontAtlas_out.TexDesiredFormat = (ImTextureFormat)luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexGlyphPadding");
-    ImFontAtlas_out.TexGlyphPadding  = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexMinWidth");
-    if (lua_isnumber(lua, -1))
-        ImFontAtlas_out.TexMinWidth  = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexMinHeight");
-    if (lua_isnumber(lua, -1))
-        ImFontAtlas_out.TexMinHeight = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexMaxWidth");
-    if (lua_isnumber(lua, -1))
-        ImFontAtlas_out.TexMaxWidth  = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "TexMaxHeight");
-    if (lua_isnumber(lua, -1))
-        ImFontAtlas_out.TexMaxHeight = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    //#error "1 - (make_pop_methods) Not found ImVector<ImFont>, do not know what to do for variables: Fonts, "
-    //#error "1 - (make_pop_methods) Not found ImVector<ImFontAtlasCustomRect>, do not know what to do for variables: CustomRects, "
-    //#error "1 - (make_pop_methods) Not found ImVector<ImFontConfig>, do not know what to do for variables: ConfigData, "
-    //get_int_arrayFromTable(lua,index,ImFontAtlas_out->CustomRectIds ,sizeof(ImFontAtlas_out->CustomRectIds) / sizeof(int),"CustomRectIds");//TODO: 1 check if the type is right
-    //#warning "1 - (make_pop_methods) do not know what to do! it was NOT supposed be here: intCustomRectIds"
-    //#error "1 - (make_pop_methods) Not found typedef, do not know what to do for variables: ImFontAtlasCustomRect    CustomRect, "
-    //#error "1 - (make_pop_methods) Not found typedef, do not know what to do for variables: ImFontGlyphRangesBuilder GlyphRangesBuilder, "
-
-    return ImFontAtlas_out;
-}
-
-ImFontGlyph lua_pop_ImFontGlyph(lua_State *lua,const int index)
-{
-    ImFontGlyph ImFontGlyph_out;
-    lua_check_is_table(lua, index, "ImFontGlyph");
-    lua_getfield(lua, index, "Codepoint");
-    ImFontGlyph_out.Codepoint  = luaL_checkinteger(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "AdvanceX");
-    ImFontGlyph_out.AdvanceX   = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "X0");
-    ImFontGlyph_out.X0         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "Y0");
-    ImFontGlyph_out.Y0         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "X1");
-    ImFontGlyph_out.X1         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "Y1");
-    ImFontGlyph_out.Y1         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "U0");
-    ImFontGlyph_out.U0         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "V0");
-    ImFontGlyph_out.V0         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "U1");
-    ImFontGlyph_out.U1         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-    lua_getfield(lua, index, "V1");
-    ImFontGlyph_out.V1         = luaL_checknumber(lua,-1);
-    lua_pop(lua, 1);
-
-    return ImFontGlyph_out;
-}
-
-ImFontConfig * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImFontConfig * in_out_ImFontConfig)
-{
-    if (in_out_ImFontConfig == nullptr)
-    {
-        lua_log_error(lua,"ImFontConfig can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontConfig");
-    //static void var_void_137                   = 0;//TODO: 9 check here, apparently, "ImFontConfig->FontData" is a pointer
-    //in_out_ImFontConfig->FontData              = &var_void_137;
-    //var_void_137                               = static_cast<void>(get_number_from_field(lua,index,static_cast<lua_Number>(var_void_137),"FontData"));
-    in_out_ImFontConfig->FontDataSize          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontDataSize),"FontDataSize"));
-    in_out_ImFontConfig->FontDataOwnedByAtlas  = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontDataOwnedByAtlas),"FontDataOwnedByAtlas"));
-    in_out_ImFontConfig->FontNo                = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontNo),"FontNo"));
-    in_out_ImFontConfig->SizePixels            = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->SizePixels),"SizePixels"));
-    in_out_ImFontConfig->OversampleH           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleH),"OversampleH"));
-    in_out_ImFontConfig->OversampleV           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleV),"OversampleV"));
-    in_out_ImFontConfig->PixelSnapH            = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->PixelSnapH),"PixelSnapH"));
-    lua_getfield(lua, index, "GlyphExtraSpacing");
-    // GlyphExtraSpacing removed in ImGui 1.92
-    lua_getfield(lua, index, "GlyphOffset");
-    in_out_ImFontConfig->GlyphOffset           = lua_pop_ImVec2(lua,index);
-    static ImWchar var_ImWchar_138;//TODO: 11 check here, apparently, "ImFontConfig->GlyphRanges" is a pointer
-    in_out_ImFontConfig->GlyphRanges           = lua_pop_ImFontConfig_pointer(lua, index, &var_ImWchar_138);
-    in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
-    in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
-    in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    // RasterizerFlags replaced with FontLoaderFlags in ImGui 1.92
-    in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
-    lua_getfield(lua, index, "EllipsisChar");
-    in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
-    lua_getfield(lua, index, "Name");
-    const char* name = luaL_checkstring(lua,-1);
-    snprintf(in_out_ImFontConfig->Name,sizeof(in_out_ImFontConfig->Name),"%s",name);
-    //static ImFont var_ImFont_139;//TODO: 11 check here, apparently, "ImFontConfig->DstFont" is a pointer
-    //in_out_ImFontConfig->DstFont               = lua_pop_ImFontConfig_pointer(lua, index, &var_ImFont_139);
-
-    return in_out_ImFontConfig;
-}
-
-
 ImVec4 * lua_pop_ImVec4_pointer(lua_State *lua, const int index, ImVec4 * in_out_ImVec4)
 {
     if (in_out_ImVec4 == nullptr)
@@ -2137,44 +1768,6 @@ ImVec4 * lua_pop_ImVec4_pointer(lua_State *lua, const int index, ImVec4 * in_out
     return in_out_ImVec4;
 }
 
-ImFont * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFont * in_out_ImFont)
-{
-    if (in_out_ImFont == nullptr)
-    {
-        lua_log_error(lua,"ImFont can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFont");
-
-     //#error "6 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-    // FallbackAdvanceX is now internal in ImGui 1.92
-    // FontSize is now internal in ImGui 1.92
-
-     //#error "6 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
-
-     //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-    static ImFontGlyph var_ImFontGlyph_140;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
-    // FallbackGlyph is now internal in ImGui 1.92
-    lua_getfield(lua, index, "DisplayOffset");
-    // DisplayOffset is now internal in ImGui 1.92
-    static ImFontAtlas var_ImFontAtlas_141;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
-    // ContainerAtlas is now internal in ImGui 1.92
-    static ImFontConfig var_ImFontConfig_142;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
-    // ConfigData is now internal in ImGui 1.92
-    // ConfigData is now internal in ImGui 1.92
-    lua_getfield(lua, index, "FallbackChar");
-    in_out_ImFont->FallbackChar         = luaL_checkinteger(lua,index);
-    lua_getfield(lua, index, "EllipsisChar");
-    in_out_ImFont->EllipsisChar         = luaL_checkinteger(lua,index);
-    // in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale")); // ImFont::Scale is now private in ImGui 1.92
-    // Ascent is now internal in ImGui 1.92
-    // Descent is now internal in ImGui 1.92
-    // MetricsTotalSurface is now internal in ImGui 1.92
-    // DirtyLookupTables is now internal in ImGui 1.92
-
-    return in_out_ImFont;
-}
-
 ImVec2 * lua_pop_ImVec2_pointer(lua_State *lua, const int index, ImVec2 * in_out_ImVec2)
 {
     if (in_out_ImVec2 == nullptr)
@@ -2189,69 +1782,6 @@ ImVec2 * lua_pop_ImVec2_pointer(lua_State *lua, const int index, ImVec2 * in_out
     return in_out_ImVec2;
 }
 
-
-ImFontAtlas * lua_pop_ImFontAtlas_pointer(lua_State *lua, const int index, ImFontAtlas * in_out_ImFontAtlas)
-{
-    if (in_out_ImFontAtlas == nullptr)
-    {
-        lua_log_error(lua,"ImFontAtlas can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontAtlas");
-    in_out_ImFontAtlas->Locked           = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->Locked),"Locked"));
-    lua_getfield(lua, index, "Flags");
-    in_out_ImFontAtlas->Flags            = luaL_checkinteger(lua,index);
-    lua_pop(lua, 1);
-    // TexDesiredWidth is now internal in ImGui 1.92
-    in_out_ImFontAtlas->TexGlyphPadding  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexGlyphPadding),"TexGlyphPadding"));
-    //in_out_ImFontAtlas->TexPixelsAlpha8  = get_string_from_field(lua, index, "TexPixelsAlpha8");
-    //static int var_int_145               = 0;//TODO: 9 check here, apparently, "ImFontAtlas->TexPixelsRGBA32" is a pointer
-    //in_out_ImFontAtlas->TexPixelsRGBA32  = &var_int_145;
-    //var_int_145                          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(var_int_145),"TexPixelsRGBA32"));
-    // TexWidth is now internal/read-only in ImGui 1.92
-    // TexHeight is now internal/read-only in ImGui 1.92
-    lua_getfield(lua, index, "TexUvScale");
-    in_out_ImFontAtlas->TexUvScale       = lua_pop_ImVec2(lua,index);
-    lua_getfield(lua, index, "TexUvWhitePixel");
-    in_out_ImFontAtlas->TexUvWhitePixel  = lua_pop_ImVec2(lua,index);
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFont>, do not know what to do for the variables: Fonts, "
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    // CustomRectIds removed in ImGui 1.92
-
-     //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
-
-     //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontGlyphRangesBuilder GlyphRangesBuilder, "
-
-    return in_out_ImFontAtlas;
-}
-
-
-ImFontGlyph * lua_pop_ImFontGlyph_pointer(lua_State *lua, const int index, ImFontGlyph * in_out_ImFontGlyph)
-{
-    if (in_out_ImFontGlyph == nullptr)
-    {
-        lua_log_error(lua,"ImFontGlyph can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontGlyph");
-    lua_getfield(lua, index, "Codepoint");
-    in_out_ImFontGlyph->Codepoint  = luaL_checkinteger(lua,index);
-    in_out_ImFontGlyph->AdvanceX   = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->AdvanceX),"AdvanceX"));
-    in_out_ImFontGlyph->X0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->X0),"X0"));
-    in_out_ImFontGlyph->Y0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->Y0),"Y0"));
-    in_out_ImFontGlyph->X1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->X1),"X1"));
-    in_out_ImFontGlyph->Y1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->Y1),"Y1"));
-    in_out_ImFontGlyph->U0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->U0),"U0"));
-    in_out_ImFontGlyph->V0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->V0),"V0"));
-    in_out_ImFontGlyph->U1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->U1),"U1"));
-    in_out_ImFontGlyph->V1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->V1),"V1"));
-
-    return in_out_ImFontGlyph;
-}
 
 ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiStyle * in_out_ImGuiStyle)
 {
@@ -2318,67 +1848,6 @@ ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiSt
 }
 
 
-void lua_push_ImFontConfig_pointer(lua_State *lua, const ImFontConfig * p_in_ImFontConfig)
-{
-    if (p_in_ImFontConfig == nullptr)
-    {
-        lua_log_error(lua,"ImFontConfig can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        //if(p_in_ImFontConfig->FontData)
-        //{
-        //    ;
-        //    lua_setfield(lua, -2, "FontData");
-        //}
-        lua_pushinteger(lua,p_in_ImFontConfig->FontDataSize);
-        lua_setfield(lua, -2, "FontDataSize");
-        lua_pushboolean(lua,p_in_ImFontConfig->FontDataOwnedByAtlas);
-        lua_setfield(lua, -2, "FontDataOwnedByAtlas");
-        lua_pushinteger(lua,p_in_ImFontConfig->FontNo);
-        lua_setfield(lua, -2, "FontNo");
-        lua_pushnumber(lua,p_in_ImFontConfig->SizePixels);
-        lua_setfield(lua, -2, "SizePixels");
-        lua_pushinteger(lua,p_in_ImFontConfig->OversampleH);
-        lua_setfield(lua, -2, "OversampleH");
-        lua_pushinteger(lua,p_in_ImFontConfig->OversampleV);
-        lua_setfield(lua, -2, "OversampleV");
-        lua_pushboolean(lua,p_in_ImFontConfig->PixelSnapH);
-        lua_setfield(lua, -2, "PixelSnapH");
-        // GlyphExtraSpacing removed in ImGui 1.92
-        lua_setfield(lua, -2, "GlyphExtraSpacing");
-        lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphOffset);
-        lua_setfield(lua, -2, "GlyphOffset");
-        if(p_in_ImFontConfig->GlyphRanges)
-        {
-            lua_pushinteger(lua,*p_in_ImFontConfig->GlyphRanges);
-            lua_setfield(lua, -2, "GlyphRanges");
-        }
-        lua_pushnumber(lua,p_in_ImFontConfig->GlyphMinAdvanceX);
-        lua_setfield(lua, -2, "GlyphMinAdvanceX");
-        lua_pushnumber(lua,p_in_ImFontConfig->GlyphMaxAdvanceX);
-        lua_setfield(lua, -2, "GlyphMaxAdvanceX");
-        lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
-        lua_setfield(lua, -2, "MergeMode");
-        // RasterizerFlags removed in ImGui 1.92
-        lua_setfield(lua, -2, "RasterizerFlags");
-        lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
-        lua_setfield(lua, -2, "RasterizerMultiply");
-        lua_pushinteger(lua,p_in_ImFontConfig->EllipsisChar);
-        lua_setfield(lua, -2, "EllipsisChar");
-        lua_pushlstring(lua,p_in_ImFontConfig->Name ,sizeof(p_in_ImFontConfig->Name) / sizeof(char));
-        lua_setfield(lua, -2, "Name");
-        /*if(p_in_ImFontConfig->DstFont) //recursive??
-        {
-            lua_push_ImFont(lua,*p_in_ImFontConfig->DstFont);
-            lua_setfield(lua, -2, "DstFont");
-        }*/
-
-    }
-}
-
-
 void lua_push_ImVec4_pointer(lua_State *lua, const ImVec4 * p_in_ImVec4)
 {
     if (p_in_ImVec4 == nullptr)
@@ -2396,153 +1865,6 @@ void lua_push_ImVec4_pointer(lua_State *lua, const ImVec4 * p_in_ImVec4)
         lua_setfield(lua, -2, "z");
         lua_pushnumber(lua,p_in_ImVec4->w);
         lua_setfield(lua, -2, "w");
-
-    }
-}
-
-
-void lua_push_ImFont_pointer(lua_State *lua, const ImFont * p_in_ImFont)
-{
-    if (p_in_ImFont == nullptr)
-    {
-        lua_log_error(lua,"ImFont can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-
-         //#error "5 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-        // FallbackAdvanceX is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "FallbackAdvanceX");
-        // FontSize is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "FontSize");
-
-         //#error "5 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
-
-         //#error "5 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-        // FallbackGlyph is now internal in ImGui 1.92
-        {
-            // Fallback Glyph internal
-            lua_setfield(lua, -2, "FallbackGlyph");
-        }
-        // DisplayOffset is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "DisplayOffset");
-        // ContainerAtlas is now internal in ImGui 1.92
-        {
-            // ContainerAtlas internal
-            lua_setfield(lua, -2, "ContainerAtlas");
-        }
-        // ConfigData is now internal in ImGui 1.92
-        {
-            // ConfigData internal
-            lua_setfield(lua, -2, "ConfigData");
-        }
-        // ConfigDataCount is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "ConfigDataCount");
-        lua_pushinteger(lua,p_in_ImFont->FallbackChar);
-        lua_setfield(lua, -2, "FallbackChar");
-        lua_pushinteger(lua,p_in_ImFont->EllipsisChar);
-        lua_setfield(lua, -2, "EllipsisChar");
-        // lua_pushnumber(lua,p_in_ImFont->Scale); // ImFont::Scale is now private in ImGui 1.92
-        lua_setfield(lua, -2, "Scale");
-        // Ascent is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "Ascent");
-        // Descent is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "Descent");
-        // MetricsTotalSurface is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "MetricsTotalSurface");
-        // DirtyLookupTables is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "DirtyLookupTables");
-
-    }
-}
-
-
-void lua_push_ImFontGlyph_pointer(lua_State *lua, const ImFontGlyph * p_in_ImFontGlyph)
-{
-    if (p_in_ImFontGlyph == nullptr)
-    {
-        lua_log_error(lua,"ImFontGlyph can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        lua_pushinteger(lua,p_in_ImFontGlyph->Codepoint);
-        lua_setfield(lua, -2, "Codepoint");
-        lua_pushnumber(lua,p_in_ImFontGlyph->AdvanceX);
-        lua_setfield(lua, -2, "AdvanceX");
-        lua_pushnumber(lua,p_in_ImFontGlyph->X0);
-        lua_setfield(lua, -2, "X0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->Y0);
-        lua_setfield(lua, -2, "Y0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->X1);
-        lua_setfield(lua, -2, "X1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->Y1);
-        lua_setfield(lua, -2, "Y1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->U0);
-        lua_setfield(lua, -2, "U0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->V0);
-        lua_setfield(lua, -2, "V0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->U1);
-        lua_setfield(lua, -2, "U1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->V1);
-        lua_setfield(lua, -2, "V1");
-
-    }
-}
-
-void lua_push_ImFontAtlas_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas)
-{
-    if (p_in_ImFontAtlas == nullptr)
-    {
-        lua_log_error(lua,"ImFontAtlas can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        lua_pushboolean(lua,p_in_ImFontAtlas->Locked);
-        lua_setfield(lua, -2, "Locked");
-        lua_pushinteger(lua,p_in_ImFontAtlas->Flags);
-        lua_setfield(lua, -2, "Flags");
-        //if(p_in_ImFontAtlas->TexID)
-        //{
-        //    ;
-        //    lua_setfield(lua, -2, "TexID");
-        //}
-        // TexDesiredWidth is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "TexDesiredWidth");
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexGlyphPadding);
-        lua_setfield(lua, -2, "TexGlyphPadding");
-        //if(p_in_ImFontAtlas->TexPixelsAlpha8)
-        //{
-        //    lua_pushstring(lua, p_in_ImFontAtlas->TexPixelsAlpha8);
-        //    lua_setfield(lua, -2, "TexPixelsAlpha8");
-        //}
-        // TexPixelsRGBA32 is now internal in ImGui 1.92
-        {
-            // TexPixelsRGBA32 internal
-            lua_setfield(lua, -2, "TexPixelsRGBA32");
-        }
-        // TexWidth is now internal/read-only in ImGui 1.92
-        lua_setfield(lua, -2, "TexWidth");
-        // TexHeight is now internal/read-only in ImGui 1.92
-        lua_setfield(lua, -2, "TexHeight");
-        lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvScale);
-        lua_setfield(lua, -2, "TexUvScale");
-        lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvWhitePixel);
-        lua_setfield(lua, -2, "TexUvWhitePixel");
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFont>, do not know what to do for the variables: Fonts, "
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        // CustomRectIds removed in ImGui 1.92
-        lua_setfield(lua, -2, "CustomRectIds");
-
-         //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
-
-         //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontGlyphRangesBuilder GlyphRangesBuilder, "
 
     }
 }
@@ -2565,161 +1887,6 @@ void lua_push_ImVec2_pointer(lua_State *lua, const ImVec2 * p_in_ImVec2)
 }
 
 
-ImFontConfig * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontConfig * in_out_ImFontConfig)
-{
-    if (in_out_ImFontConfig == nullptr)
-    {
-        lua_log_error(lua,"ImFontConfig can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontConfig");
-    //static void var_void_146                   = 0;//TODO: 9 check here, apparently, "ImFontConfig->FontData" is a pointer
-    //in_out_ImFontConfig->FontData              = &var_void_146;
-    //var_void_146                               = static_cast<void>(get_number_from_field(lua,index,static_cast<lua_Number>(var_void_146),"FontData"));
-    in_out_ImFontConfig->FontDataSize          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontDataSize),"FontDataSize"));
-    in_out_ImFontConfig->FontDataOwnedByAtlas  = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontDataOwnedByAtlas),"FontDataOwnedByAtlas"));
-    in_out_ImFontConfig->FontNo                = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->FontNo),"FontNo"));
-    in_out_ImFontConfig->SizePixels            = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->SizePixels),"SizePixels"));
-    in_out_ImFontConfig->OversampleH           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleH),"OversampleH"));
-    in_out_ImFontConfig->OversampleV           = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->OversampleV),"OversampleV"));
-    in_out_ImFontConfig->PixelSnapH            = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->PixelSnapH),"PixelSnapH"));
-    lua_getfield(lua, index, "GlyphExtraSpacing");
-    // GlyphExtraSpacing removed in ImGui 1.92
-    lua_getfield(lua, index, "GlyphOffset");
-    in_out_ImFontConfig->GlyphOffset           = lua_pop_ImVec2(lua,index);
-    static ImWchar var_ImWchar_147;//TODO: 11 check here, apparently, "ImFontConfig->GlyphRanges" is a pointer
-    in_out_ImFontConfig->GlyphRanges           = lua_pop_ImFontConfig_pointer(lua, index, &var_ImWchar_147);
-    in_out_ImFontConfig->GlyphMinAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMinAdvanceX),"GlyphMinAdvanceX"));
-    in_out_ImFontConfig->GlyphMaxAdvanceX      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->GlyphMaxAdvanceX),"GlyphMaxAdvanceX"));
-    in_out_ImFontConfig->MergeMode             = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->MergeMode),"MergeMode"));
-    // RasterizerFlags replaced with FontLoaderFlags in ImGui 1.92
-    in_out_ImFontConfig->RasterizerMultiply    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontConfig->RasterizerMultiply),"RasterizerMultiply"));
-    lua_getfield(lua, index, "EllipsisChar");
-    in_out_ImFontConfig->EllipsisChar          = luaL_checkinteger(lua,index);
-    lua_getfield(lua, index, "Name");
-    const char* name = luaL_checkstring(lua,-1);
-    snprintf(in_out_ImFontConfig->Name,sizeof(in_out_ImFontConfig->Name),"%s",name);
-    //static ImFont var_ImFont_148;//TODO: 11 check here, apparently, "ImFontConfig->DstFont" is a pointer
-    //in_out_ImFontConfig->DstFont               = lua_pop_ImFontConfig_pointer(lua, index, &var_ImFont_148);
-
-    return in_out_ImFontConfig;
-}
-
-ImFontAtlas * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontAtlas * in_out_ImFontAtlas)
-{
-    if (in_out_ImFontAtlas == nullptr)
-    {
-        lua_log_error(lua,"ImFontAtlas can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontAtlas");
-    in_out_ImFontAtlas->Locked           = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->Locked),"Locked"));
-    lua_getfield(lua, index, "Flags");
-    in_out_ImFontAtlas->Flags            = luaL_checkinteger(lua,index);
-    lua_pop(lua, 1);
-    // TexDesiredWidth is now internal in ImGui 1.92
-    in_out_ImFontAtlas->TexGlyphPadding  = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontAtlas->TexGlyphPadding),"TexGlyphPadding"));
-    //in_out_ImFontAtlas->TexPixelsAlpha8  = get_string_from_field(lua, index, "TexPixelsAlpha8");
-    //static int var_int_151               = 0;//TODO: 9 check here, apparently, "ImFontAtlas->TexPixelsRGBA32" is a pointer
-    //in_out_ImFontAtlas->TexPixelsRGBA32  = &var_int_151;
-    //var_int_151                          = static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(var_int_151),"TexPixelsRGBA32"));
-    // TexWidth is now internal/read-only in ImGui 1.92
-    // TexHeight is now internal/read-only in ImGui 1.92
-    lua_getfield(lua, index, "TexUvScale");
-    in_out_ImFontAtlas->TexUvScale       = lua_pop_ImVec2(lua,index);
-    lua_getfield(lua, index, "TexUvWhitePixel");
-    in_out_ImFontAtlas->TexUvWhitePixel  = lua_pop_ImVec2(lua,index);
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFont>, do not know what to do for the variables: Fonts, "
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
-
-     //#error "6 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-    // CustomRectIds removed in ImGui 1.92
-
-     //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
-
-     //#error "6 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontGlyphRangesBuilder GlyphRangesBuilder, "
-
-    return in_out_ImFontAtlas;
-}
-
-
-ImFontGlyph * lua_pop_ImFont_pointer(lua_State *lua, const int index, ImFontGlyph * in_out_ImFontGlyph)
-{
-    if (in_out_ImFontGlyph == nullptr)
-    {
-        lua_log_error(lua,"ImFontGlyph can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFontGlyph");
-    lua_getfield(lua, index, "Codepoint");
-    in_out_ImFontGlyph->Codepoint  = luaL_checkinteger(lua,index);
-    in_out_ImFontGlyph->AdvanceX   = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->AdvanceX),"AdvanceX"));
-    in_out_ImFontGlyph->X0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->X0),"X0"));
-    in_out_ImFontGlyph->Y0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->Y0),"Y0"));
-    in_out_ImFontGlyph->X1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->X1),"X1"));
-    in_out_ImFontGlyph->Y1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->Y1),"Y1"));
-    in_out_ImFontGlyph->U0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->U0),"U0"));
-    in_out_ImFontGlyph->V0         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->V0),"V0"));
-    in_out_ImFontGlyph->U1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->U1),"U1"));
-    in_out_ImFontGlyph->V1         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFontGlyph->V1),"V1"));
-
-    return in_out_ImFontGlyph;
-}
-
-
-ImWchar * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImWchar * in_out_ImWchar)
-{
-    if (in_out_ImWchar == nullptr)
-    {
-        lua_log_error(lua,"ImWchar can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImWchar");
-
-    return in_out_ImWchar;
-}
-
-ImFont * lua_pop_ImFontConfig_pointer(lua_State *lua, const int index, ImFont * in_out_ImFont)
-{
-    if (in_out_ImFont == nullptr)
-    {
-        lua_log_error(lua,"ImFont can not be null");
-        return nullptr;
-    }
-    lua_check_is_table(lua, index, "ImFont");
-
-     //#error "6 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-    // FallbackAdvanceX is now internal in ImGui 1.92
-    // FontSize is now internal in ImGui 1.92
-
-     //#error "6 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
-
-     //#error "6 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-    static ImFontGlyph var_ImFontGlyph_156;//TODO: 11 check here, apparently, "ImFont->FallbackGlyph" is a pointer
-    // FallbackGlyph is now internal in ImGui 1.92
-    lua_getfield(lua, index, "DisplayOffset");
-    // DisplayOffset is now internal in ImGui 1.92
-    static ImFontAtlas var_ImFontAtlas_157;//TODO: 11 check here, apparently, "ImFont->ContainerAtlas" is a pointer
-    // ContainerAtlas is now internal in ImGui 1.92
-    static ImFontConfig var_ImFontConfig_158;//TODO: 11 check here, apparently, "ImFont->ConfigData" is a pointer
-    // ConfigData is now internal in ImGui 1.92
-    // ConfigData is now internal in ImGui 1.92
-    lua_getfield(lua, index, "FallbackChar");
-    in_out_ImFont->FallbackChar         = luaL_checkinteger(lua,index);
-    lua_getfield(lua, index, "EllipsisChar");
-    in_out_ImFont->EllipsisChar         = luaL_checkinteger(lua,index);
-    // in_out_ImFont->Scale                = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImFont->Scale),"Scale")); // ImFont::Scale is now private in ImGui 1.92
-    // Ascent is now internal in ImGui 1.92
-    // Descent is now internal in ImGui 1.92
-    // MetricsTotalSurface is now internal in ImGui 1.92
-    // DirtyLookupTables is now internal in ImGui 1.92
-
-    return in_out_ImFont;
-}
-
-
 ImDrawIdx * lua_pushinteger_pointer(lua_State *lua, const int index, ImDrawIdx * in_out_ImDrawIdx)
 {
     if (in_out_ImDrawIdx == nullptr)
@@ -2732,212 +1899,6 @@ ImDrawIdx * lua_pushinteger_pointer(lua_State *lua, const int index, ImDrawIdx *
     return in_out_ImDrawIdx;
 }
 
-
-void lua_pop_ImFont_pointer(lua_State *lua, const ImFontConfig * p_in_ImFontConfig)
-{
-    if (p_in_ImFontConfig == nullptr)
-    {
-        lua_log_error(lua,"ImFontConfig can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        //if(p_in_ImFontConfig->FontData)
-        //{
-        //    ;
-        //    lua_setfield(lua, -2, "FontData");
-        //}
-        lua_pushinteger(lua,p_in_ImFontConfig->FontDataSize);
-        lua_setfield(lua, -2, "FontDataSize");
-        lua_pushboolean(lua,p_in_ImFontConfig->FontDataOwnedByAtlas);
-        lua_setfield(lua, -2, "FontDataOwnedByAtlas");
-        lua_pushinteger(lua,p_in_ImFontConfig->FontNo);
-        lua_setfield(lua, -2, "FontNo");
-        lua_pushnumber(lua,p_in_ImFontConfig->SizePixels);
-        lua_setfield(lua, -2, "SizePixels");
-        lua_pushinteger(lua,p_in_ImFontConfig->OversampleH);
-        lua_setfield(lua, -2, "OversampleH");
-        lua_pushinteger(lua,p_in_ImFontConfig->OversampleV);
-        lua_setfield(lua, -2, "OversampleV");
-        lua_pushboolean(lua,p_in_ImFontConfig->PixelSnapH);
-        lua_setfield(lua, -2, "PixelSnapH");
-        // GlyphExtraSpacing removed in ImGui 1.92
-        lua_setfield(lua, -2, "GlyphExtraSpacing");
-        lua_push_ImVec2(lua,p_in_ImFontConfig->GlyphOffset);
-        lua_setfield(lua, -2, "GlyphOffset");
-        if(p_in_ImFontConfig->GlyphRanges)
-        {
-            lua_pushinteger(lua,*p_in_ImFontConfig->GlyphRanges);
-            lua_setfield(lua, -2, "GlyphRanges");
-        }
-        lua_pushnumber(lua,p_in_ImFontConfig->GlyphMinAdvanceX);
-        lua_setfield(lua, -2, "GlyphMinAdvanceX");
-        lua_pushnumber(lua,p_in_ImFontConfig->GlyphMaxAdvanceX);
-        lua_setfield(lua, -2, "GlyphMaxAdvanceX");
-        lua_pushboolean(lua,p_in_ImFontConfig->MergeMode);
-        lua_setfield(lua, -2, "MergeMode");
-        // RasterizerFlags removed in ImGui 1.92
-        lua_setfield(lua, -2, "RasterizerFlags");
-        lua_pushnumber(lua,p_in_ImFontConfig->RasterizerMultiply);
-        lua_setfield(lua, -2, "RasterizerMultiply");
-        lua_pushinteger(lua,p_in_ImFontConfig->EllipsisChar);
-        lua_setfield(lua, -2, "EllipsisChar");
-        lua_pushlstring(lua,p_in_ImFontConfig->Name,sizeof(p_in_ImFontConfig->Name)-1);
-        lua_setfield(lua, -2, "Name");
-        /*if(p_in_ImFontConfig->DstFont)
-        {
-            lua_push_ImFont(lua,*p_in_ImFontConfig->DstFont);
-            lua_setfield(lua, -2, "DstFont");
-        }*/
-
-    }
-}
-
-void lua_pop_ImFont_pointer(lua_State *lua, const ImFontAtlas * p_in_ImFontAtlas)
-{
-    if (p_in_ImFontAtlas == nullptr)
-    {
-        lua_log_error(lua,"ImFontAtlas can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        lua_pushboolean(lua,p_in_ImFontAtlas->Locked);
-        lua_setfield(lua, -2, "Locked");
-        lua_pushinteger(lua,p_in_ImFontAtlas->Flags);
-        lua_setfield(lua, -2, "Flags");
-        //if(p_in_ImFontAtlas->TexID)
-        //{
-        //    ;
-        //    lua_setfield(lua, -2, "TexID");
-        //}
-        // TexDesiredWidth is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "TexDesiredWidth");
-        lua_pushinteger(lua,p_in_ImFontAtlas->TexGlyphPadding);
-        lua_setfield(lua, -2, "TexGlyphPadding");
-        //if(p_in_ImFontAtlas->TexPixelsAlpha8)
-        //{
-        //    lua_pushstring(lua, p_in_ImFontAtlas->TexPixelsAlpha8);
-        //    lua_setfield(lua, -2, "TexPixelsAlpha8");
-        //}
-        // TexPixelsRGBA32 is now internal in ImGui 1.92
-        {
-            // TexPixelsRGBA32 internal
-            lua_setfield(lua, -2, "TexPixelsRGBA32");
-        }
-        // TexWidth is now internal/read-only in ImGui 1.92
-        lua_setfield(lua, -2, "TexWidth");
-        // TexHeight is now internal/read-only in ImGui 1.92
-        lua_setfield(lua, -2, "TexHeight");
-        lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvScale);
-        lua_setfield(lua, -2, "TexUvScale");
-        lua_push_ImVec2(lua,p_in_ImFontAtlas->TexUvWhitePixel);
-        lua_setfield(lua, -2, "TexUvWhitePixel");
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFont>, do not know what to do for the variables: Fonts, "
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFontAtlasCustomRect>, do not know what to do for the variables: CustomRects, "
-
-         //#error "5 - Not found ImFontAtlas->ImVector<ImFontConfig>, do not know what to do for the variables: ConfigData, "
-        // CustomRectIds removed in ImGui 1.92
-        lua_setfield(lua, -2, "CustomRectIds");
-
-         //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontAtlasCustomRect    CustomRect, "
-
-         //#error "5 - Not found ImFontAtlas->typedef, do not know what to do for the variables: ImFontGlyphRangesBuilder GlyphRangesBuilder, "
-
-    }
-}
-
-
-void lua_pop_ImFont_pointer(lua_State *lua, const ImFontGlyph * p_in_ImFontGlyph)
-{
-    if (p_in_ImFontGlyph == nullptr)
-    {
-        lua_log_error(lua,"ImFontGlyph can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-        lua_pushinteger(lua,p_in_ImFontGlyph->Codepoint);
-        lua_setfield(lua, -2, "Codepoint");
-        lua_pushnumber(lua,p_in_ImFontGlyph->AdvanceX);
-        lua_setfield(lua, -2, "AdvanceX");
-        lua_pushnumber(lua,p_in_ImFontGlyph->X0);
-        lua_setfield(lua, -2, "X0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->Y0);
-        lua_setfield(lua, -2, "Y0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->X1);
-        lua_setfield(lua, -2, "X1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->Y1);
-        lua_setfield(lua, -2, "Y1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->U0);
-        lua_setfield(lua, -2, "U0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->V0);
-        lua_setfield(lua, -2, "V0");
-        lua_pushnumber(lua,p_in_ImFontGlyph->U1);
-        lua_setfield(lua, -2, "U1");
-        lua_pushnumber(lua,p_in_ImFontGlyph->V1);
-        lua_setfield(lua, -2, "V1");
-
-    }
-}
-
-void lua_pop_ImFontConfig_pointer(lua_State *lua, const ImFont * p_in_ImFont)
-{
-    if (p_in_ImFont == nullptr)
-    {
-        lua_log_error(lua,"ImFont can not be null");
-    }
-    else
-    {
-        lua_newtable(lua);
-
-         //#error "5 - Not found ImFont->ImVector<float>, do not know what to do for the variables: IndexAdvanceX, "
-        // FallbackAdvanceX is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "FallbackAdvanceX");
-        // FontSize is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "FontSize");
-
-         //#error "5 - Not found ImFont->ImVector<ImWchar>, do not know what to do for the variables: IndexLookup, "
-
-         //#error "5 - Not found ImFont->ImVector<ImFontGlyph>, do not know what to do for the variables: Glyphs, "
-        // FallbackGlyph is now internal in ImGui 1.92
-        {
-            // Fallback Glyph internal
-            lua_setfield(lua, -2, "FallbackGlyph");
-        }
-        // DisplayOffset is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "DisplayOffset");
-        // ContainerAtlas is now internal in ImGui 1.92
-        {
-            // ContainerAtlas internal
-            lua_setfield(lua, -2, "ContainerAtlas");
-        }
-        // ConfigData is now internal in ImGui 1.92
-        {
-            // ConfigData internal
-            lua_setfield(lua, -2, "ConfigData");
-        }
-        // ConfigDataCount is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "ConfigDataCount");
-        lua_pushinteger(lua,p_in_ImFont->FallbackChar);
-        lua_setfield(lua, -2, "FallbackChar");
-        lua_pushinteger(lua,p_in_ImFont->EllipsisChar);
-        lua_setfield(lua, -2, "EllipsisChar");
-        // lua_pushnumber(lua,p_in_ImFont->Scale); // ImFont::Scale is now private in ImGui 1.92
-        lua_setfield(lua, -2, "Scale");
-        // Ascent is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "Ascent");
-        // Descent is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "Descent");
-        // MetricsTotalSurface is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "MetricsTotalSurface");
-        // DirtyLookupTables is now internal in ImGui 1.92
-        lua_setfield(lua, -2, "DirtyLookupTables");
-
-    }
-}
 
 void get_int_arrayFromTable(lua_State *lua, const int index, int *lsArrayOut, const unsigned int sizeBuffer,const char* table_name)
 {
@@ -3715,16 +2676,6 @@ int onSetScrollFromPosYImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onPushFontImGuiLua(lua_State *lua)
-{
-    //  Use nullptr as a shortcut to push default font
-    int index_input  = 1;
-    ImFont font;
-    ImFont * p_font  =  lua_type(lua,index_input) == LUA_TNIL ? nullptr : lua_pop_ImFont_pointer(lua, index_input, &font);
-    ImGui::PushFont(p_font, 0.0f); // NOTE: ImGui 1.92 requires second parameter (font_scale)
-    return 0;
-}
-
 int onPopFontImGuiLua(lua_State *lua)
 {
     ImGui::PopFont();
@@ -3851,15 +2802,6 @@ int onGetStyleColorVec4ImGuiLua(lua_State *lua)
     float color[4] = {ret_ImVec4.x,ret_ImVec4.y,ret_ImVec4.z,ret_ImVec4.w};
     lua_push_rgba(lua,color);
     return 1;
-}
-
-int onGetFontImGuiLua(lua_State *lua)
-{
-    //  Get current font
-    const ImFont* ret_ImFont  = ImGui::GetFont();
-    if(ret_ImFont)
-        lua_push_ImFont(lua,*ret_ImFont);
-    return ret_ImFont != nullptr ? 1 : 0;
 }
 
 int onGetFontSizeImGuiLua(lua_State *lua)
@@ -7109,7 +6051,6 @@ int onNewimguiLua(lua_State *lua)
         {"GetCursorScreenPos",                             onGetCursorScreenPosImGuiLua },
         {"GetCursorStartPos",                               onGetCursorStartPosImGuiLua },
         {"GetDragDropPayload",                             onGetDragDropPayloadImGuiLua },
-        {"GetFont",                                                   onGetFontImGuiLua },
         {"GetFontSize",                                           onGetFontSizeImGuiLua },
         {"GetFontTexUvWhitePixel",                     onGetFontTexUvWhitePixelImGuiLua },
         {"GetFrameCount",                                       onGetFrameCountImGuiLua },
@@ -7231,7 +6172,6 @@ int onNewimguiLua(lua_State *lua)
         {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Backward compat wrapper
         {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // NEW: Generic item flag function
         {"PushClipRect",                                         onPushClipRectImGuiLua },
-        {"PushFont",                                                 onPushFontImGuiLua },
         {"PushID",                                                     onPushIDImGuiLua },
         {"PushItemWidth",                                       onPushItemWidthImGuiLua },
         {"PushStyleColor",                                     onPushStyleColorImGuiLua },
