@@ -42,11 +42,11 @@ namespace usage
     {
         std::vector<std::string> ret;
         const char* search_path = path ? path : "..\\editor";
-        WIN32_FIND_DATA fd;
+        WIN32_FIND_DATAA fd;
         std::string              p(search_path);
         p += "\\*.*";
         const uint32_t l = strlen(search_path);
-        HANDLE hFind = FindFirstFile(p.c_str(), &fd);
+        HANDLE hFind = FindFirstFileA(p.c_str(), &fd);
         if (hFind != INVALID_HANDLE_VALUE)
         {
             do
@@ -61,7 +61,7 @@ namespace usage
                         ret.emplace_back(file);
                     }
                 }
-            } while (FindNextFile(hFind, &fd));
+            } while (FindNextFileA(hFind, &fd));
             FindClose(hFind);
         }
         if (ret.size() == 0 && path == nullptr)

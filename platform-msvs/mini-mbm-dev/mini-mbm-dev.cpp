@@ -1,7 +1,6 @@
 // mini-mbm-launcher.cpp : Defines the entry point for the application.
 //
-#pragma execution_character_set("utf-8") // MSVC: Treat source as UTF-8
-
+#include <locale.h>
 #include "mini-mbm-lib.h"
 #include "framework.h"
 #include "mini-mbm-launcher.h"
@@ -54,20 +53,22 @@ int main(const int argc,const char **argv)
 {
     bool allowFullScreen = false;
     bool full_screen_checked = false;
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+    // Set console to Windows ANSI code page for Portuguese
+    SetConsoleOutputCP(1252);
+    SetConsoleCP(1252);
+    setlocale(LC_ALL, "Portuguese");
 
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
             {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
-            {"Particle Editor"       ,"Editor de Part√≠culas",     "particle_editor.lua"},
-            {"Physics Editor"        ,"Editor de F√≠sica",         "physic_editor.lua"},
+            {"Particle Editor"       ,"Editor de PartÌculas",     "particle_editor.lua"},
+            {"Physics Editor"        ,"Editor de FÌsica",         "physic_editor.lua"},
             {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
             {"Shader Editor"         ,"Editor de Shader",         "shader_editor.lua"},
             {"Sprite Maker"          ,"Editor de Sprite",         "sprite_maker.lua"},
             {"Texture Packer"        ,"Empacotador de texturas",  "texture_packer.lua"},
             {"Tile-Map Editor"       ,"Editor de mapa de blocos", "tilemap_editor.lua"},
-            {"User specified"        ,"Script do usu√°rio",        "user_specified.lua"},
+            {"User specified"        ,"Script do usu·rio",        "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
     size_app = size_app - 1; // remove the last one, it is a user specified script
