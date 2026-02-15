@@ -867,26 +867,6 @@ void lua_push_ImVec4(lua_State *lua, const ImVec4 & in);
 void lua_push_ImVec4_pointer(lua_State *lua,const ImVec4 * p_ImVec4);
 
 
-
-#if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
-    #define VKL_TAB          0x09
-    #define VKL_LEFT         0x25
-    #define VKL_RIGHT        0x27
-    #define VKL_UP           0x26
-    #define VKL_DOWN         0x28
-    #define VKL_PRIOR        0x21
-    #define VKL_NEXT         0x22
-    #define VKL_HOME         0x24
-    #define VKL_END          0x23
-    #define VKL_INSERT       0x2D
-    #define VKL_DELETE       0x2E
-    #define VKL_BACK         0x08
-    #define VKL_SPACE        0x20
-    #define VKL_RETURN       0x0D
-    #define VKL_ESCAPE       0x1B
-    #define VKL_ENTER        0x0D
-#endif
-
 #ifdef  PLUGIN_CALLBACK
     class IMGUI_LUA : public PLUGIN // structure that represent the wrapper
 #else
@@ -903,16 +883,6 @@ public:
         delta                   = 0;//updated each loop
         sx                      = 1.0f;
         sy                      = 1.0f;
-        /*key_mouse::mouse_wheel = 0.0f;
-        key_mouse::KeyCtrl      = false;
-        key_mouse::KeyShift     = false;
-        key_mouse::KeyAlt       = false;
-        key_mouse::KeySuper     = false;
-        key_mouse::KeyCapital   = false;
-        context                 = nullptr;
-
-        memset(key_mouse::MouseDown,0,sizeof(key_mouse::MouseDown));
-        memset(key_mouse::KeysDown,0,sizeof(key_mouse::KeysDown));*/
         MousePos.x     = 0;
         MousePos.y     = 0;
         MousePosPrev.x = 0;
