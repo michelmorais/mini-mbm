@@ -2783,21 +2783,7 @@ int onGetStyleColorVec4ImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onGetFontSizeImGuiLua(lua_State *lua)
-{
-    //  Get current font size (= height in pixels) of current font with current scale applied
-    const float ret_float  = ImGui::GetFontSize();
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
-
-int onGetFontTexUvWhitePixelImGuiLua(lua_State *lua)
-{
-    //  Get UV coordinate for a while pixel, useful to draw custom shapes via the ImDrawList API
-    const ImVec2 ret_ImVec2  = ImGui::GetFontTexUvWhitePixel();
-    lua_push_ImVec2(lua,ret_ImVec2);
-    return 1;
-}
+// GetFontSize, GetFontTexUvWhitePixel removed - not used
 
 int onGetColorU32ImGuiLua(lua_State *lua)
 {
@@ -3084,21 +3070,7 @@ int onGetTextLineHeightWithSpacingImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onGetFrameHeightImGuiLua(lua_State *lua)
-{
-    //  ~FontSize + style.FramePadding.y * 2
-    const float ret_float  = ImGui::GetFrameHeight();
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
-
-int onGetFrameHeightWithSpacingImGuiLua(lua_State *lua)
-{
-    //  ~FontSize + style.FramePadding.y * 2 + style.ItemSpacing.y (distance in pixels between 2 consecutive lines of framed widgets)
-    const float ret_float  = ImGui::GetFrameHeightWithSpacing();
-    lua_pushnumber(lua,ret_float);
-    return 1;
-}
+// GetFrameHeight, GetFrameHeightWithSpacing removed - not used
 
 int onPushIDImGuiLua(lua_State *lua)
 {
@@ -3144,15 +3116,7 @@ int onPopIDImGuiLua(lua_State *lua)
     return 0;
 }
 
-int onGetIDImGuiLua(lua_State *lua)
-{
-    //  Calculate unique ID (hash of whole ID stack + given parameter). e.g. if you want to query into ImGuiStorage yourself
-    int index_input            = 1;
-    const char * p_str_id      = luaL_checkstring(lua,index_input++);
-    const ImGuiID ret_ImGuiID  = ImGui::GetID(p_str_id);
-    lua_pushinteger(lua,ret_ImGuiID);
-    return 1;
-}
+// GetID removed - not used
 
 int onTextImGuiLua(lua_State *lua)
 {
@@ -4863,31 +4827,7 @@ int onIsRectVisibleImGuiLua(lua_State *lua)
     return 1;
 }
 
-int onGetTimeImGuiLua(lua_State *lua)
-{
-    //  Get global imgui time. incremented by io.DeltaTime every frame.
-    const double ret_double  = ImGui::GetTime();
-    lua_pushnumber(lua,static_cast<lua_Number>(ret_double));
-    return 1;
-}
-
-int onGetFrameCountImGuiLua(lua_State *lua)
-{
-    //  Get global imgui frame count. incremented by 1 every frame.
-    const int ret_int  = ImGui::GetFrameCount();
-    lua_pushinteger(lua,ret_int);
-    return 1;
-}
-
-int onGetStyleColorNameImGuiLua(lua_State *lua)
-{
-    //  Get a string corresponding to the enum value (for display, saving, etc.).
-    int index_input       = 1;
-    ImGuiCol idx          = luaL_checkinteger(lua, index_input++);
-    const char* ret_char  = ImGui::GetStyleColorName(idx);
-    lua_pushstring(lua,ret_char);
-    return 1;
-}
+// GetTime, GetFrameCount, GetStyleColorName removed - not used
 
 
 int onCalcTextSizeImGuiLua(lua_State *lua)
@@ -5838,12 +5778,7 @@ int onNewimguiLua(lua_State *lua)
         {"GetCursorPosY",                                       onGetCursorPosYImGuiLua }, // Not used, Queries/State
         {"GetCursorScreenPos",                             onGetCursorScreenPosImGuiLua },
         {"GetCursorStartPos",                               onGetCursorStartPosImGuiLua }, // Not used, Queries/State
-        {"GetFontSize",                                           onGetFontSizeImGuiLua }, // Not used, Queries/State
-        {"GetFontTexUvWhitePixel",                     onGetFontTexUvWhitePixelImGuiLua }, // Not used, Queries/State
-        {"GetFrameCount",                                       onGetFrameCountImGuiLua }, // Not used, Queries/State
-        {"GetFrameHeight",                                     onGetFrameHeightImGuiLua }, // Not used, Queries/State
-        {"GetFrameHeightWithSpacing",               onGetFrameHeightWithSpacingImGuiLua }, // Not used, Queries/State
-        {"GetID",                                                       onGetIDImGuiLua }, // Not used, Queries/State
+        // GetFontSize, GetFontTexUvWhitePixel, GetFrameCount, GetFrameHeight, GetFrameHeightWithSpacing, GetID removed - not used
         {"GetItemRectMax",                                     onGetItemRectMaxImGuiLua }, // Not used, Queries/State
         {"GetItemRectMin",                                     onGetItemRectMinImGuiLua }, // Not used, Queries/State
         {"GetItemRectSize",                                   onGetItemRectSizeImGuiLua }, // Not used, Queries/State
@@ -5859,11 +5794,11 @@ int onNewimguiLua(lua_State *lua)
         {"GetScrollX",                                             onGetScrollXImGuiLua }, // Not used, Queries/State
         {"GetScrollY",                                             onGetScrollYImGuiLua },
         {"GetStyle",                                                 onGetStyleImGuiLua },
-        {"GetStyleColorName",                               onGetStyleColorNameImGuiLua }, // Not used, Queries/State
+        // GetStyleColorName removed - not used
         {"GetStyleColorVec4",                               onGetStyleColorVec4ImGuiLua }, // Not used, Queries/State
         {"GetTextLineHeight",                               onGetTextLineHeightImGuiLua },
         {"GetTextLineHeightWithSpacing",         onGetTextLineHeightWithSpacingImGuiLua }, // Not used, Queries/State
-        {"GetTime",                                                   onGetTimeImGuiLua }, // Not used, Queries/State
+        // GetTime removed - not used
         {"GetTreeNodeToLabelSpacing",               onGetTreeNodeToLabelSpacingImGuiLua }, // Not used, Queries/State
         {"GetVersion",                                             onGetVersionImGuiLua },
         {"GetWindowContentRegionMax",               onGetWindowContentRegionMaxImGuiLua }, // Not used, Queries/State
@@ -5929,7 +5864,6 @@ int onNewimguiLua(lua_State *lua)
         {"BeginListBox",                                         onBeginListBoxImGuiLua }, // Not used, List/Plotting
         {"EndListBox",                                             onEndListBoxImGuiLua }, // Not used, List/Plotting
         {"ListBox",                                                   onListBoxImGuiLua }, // Not used, List/Plotting
-        // IniSettings functions removed - not used
         {"LogButtons",                                             onLogButtonsImGuiLua }, // Not used, Logging
         {"LogFinish",                                               onLogFinishImGuiLua }, // Not used, Logging
         {"LogText",                                                   onLogTextImGuiLua }, // Not used, Logging
@@ -5938,14 +5872,13 @@ int onNewimguiLua(lua_State *lua)
         {"LogToTTY",                                                 onLogToTTYImGuiLua }, // Not used, Logging
         {"MenuItem",                                                 onMenuItemImGuiLua },
         {"NewLine",                                                   onNewLineImGuiLua },
-        // NextColumn removed - deprecated Columns API, use Tables API instead
         {"OpenPopup",                                               onOpenPopupImGuiLua },
         {"OpenPopupOnItemClick",                         onOpenPopupOnItemClickImGuiLua }, // Not used, Popups
         {"PlotHistogram",                                       onPlotHistogramImGuiLua }, // Not used, List/Plotting
         {"PlotLines",                                               onPlotLinesImGuiLua }, // Not used, List/Plotting
-        {"PopTabStop",                                     onPopTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
+        {"PopTabStop",                                             onPopTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
         {"PopButtonRepeat",                                   onPopButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
-        {"PopItemFlag",                                          onPopItemFlagImGuiLua },   // Not used, Stack/State, NEW: Generic item flag function
+        {"PopItemFlag",                                           onPopItemFlagImGuiLua },   // Not used, Stack/State, NEW: Generic item flag function
         {"PopClipRect",                                           onPopClipRectImGuiLua }, // Not used, Stack/State
         {"PopFont",                                                   onPopFontImGuiLua }, // Not used, Stack/State
         {"PopID",                                                       onPopIDImGuiLua }, // Not used, Stack/State
@@ -5954,7 +5887,7 @@ int onNewimguiLua(lua_State *lua)
         {"PopStyleVar",                                           onPopStyleVarImGuiLua },
         {"PopTextWrapPos",                                     onPopTextWrapPosImGuiLua }, // Not used, Stack/State
         {"ProgressBar",                                           onProgressBarImGuiLua },
-        {"PushTabStop",                                   onPushTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
+        {"PushTabStop",                                           onPushTabStopImGuiLua },        // Not used, Stack/State, Backward compat wrapper
         {"PushButtonRepeat",                                 onPushButtonRepeatImGuiLua }, // Not used, Stack/State, Backward compat wrapper
         {"PushItemFlag",                                         onPushItemFlagImGuiLua },  // Not used, Stack/State, NEW: Generic item flag function
         {"PushClipRect",                                         onPushClipRectImGuiLua }, // Not used, Stack/State
@@ -5966,12 +5899,10 @@ int onNewimguiLua(lua_State *lua)
         {"RadioButton",                                           onRadioButtonImGuiLua },
         {"ResetMouseDragDelta",                           onResetMouseDragDeltaImGuiLua }, // Not used, Keyboard/Mouse
         {"SameLine",                                                 onSameLineImGuiLua },
-        // SaveIniSettings removed - not used
         {"Selectable",                                             onSelectableImGuiLua },
         {"Separator",                                               onSeparatorImGuiLua },
         {"SetClipboardText",                                 onSetClipboardTextImGuiLua }, // Not used, Clipboard
         {"SetColorEditOptions",                           onSetColorEditOptionsImGuiLua }, // Not used, Color Widgets
-        // SetColumn* removed - deprecated Columns API, use Tables API instead
         {"SetCursorPos",                                         onSetCursorPosImGuiLua }, // Not used, Window
         {"SetCursorPosX",                                       onSetCursorPosXImGuiLua },
         {"SetCursorPosY",                                       onSetCursorPosYImGuiLua },
