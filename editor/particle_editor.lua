@@ -448,12 +448,12 @@ function drawStrength(title,x,y,z)
     return x * length , y * length, z
 end
 
-function drawSlider(value,title,v_min,v_max,power)
+function drawSlider(value,title,v_min,v_max)
     tImGui.PushItemWidth(150)
     tImGui.Text(title)
     local label   = '##' ..title
     local format  = "%.3f"
-    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format,power)
+    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format,'ImGuiSliderFlags_Logarithmic')
     if result then
         value = fValue
     end
@@ -517,9 +517,8 @@ function showParticleOptions()
             tParticle:setStage(iStageParticle)
             
             if tImGui.TreeNode("Arise Time") then
-                local power         = 1.0
                 local arise_time = tParticle:getAriseTime(iStageParticle)
-                arise_time       = drawSlider(arise_time,'Time to rise\n(when add particle)',0.1,iRangeAriseTimeParticle,power)
+                arise_time       = drawSlider(arise_time,'Time to rise\n(when add particle)',0.1,iRangeAriseTimeParticle)
                 tParticle:setAriseTime(iStageParticle,arise_time)
 
                 tImGui.Text('Range Arise Time')
@@ -641,12 +640,11 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Life Time") then
-                local power         = 1.0
                 local min_life_time = tParticle:getMinLifeTime(iStageParticle)
-                min_life_time = drawSlider(min_life_time,'Min Life Time',0.1,iRangeLifeTimeParticle,power)
+                min_life_time = drawSlider(min_life_time,'Min Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMinLifeTime(iStageParticle,min_life_time)
                 local max_life_time = tParticle:getMaxLifeTime(iStageParticle)
-                max_life_time = drawSlider(max_life_time,'Max Life Time',0.1,iRangeLifeTimeParticle,power)
+                max_life_time = drawSlider(max_life_time,'Max Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMaxLifeTime(iStageParticle,max_life_time)
 
                 tImGui.Text('Range Life Time')
@@ -669,9 +667,8 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Stage Time") then
-                local power                   = 1.0
                 local stageTime               = tParticle:getStageTime(iStageParticle)
-                stageTime                     = drawSlider(stageTime,'Stage Time\n(each stage is like an animation)',0.1,iRangeStageTimeParticle,power)
+                stageTime                     = drawSlider(stageTime,'Stage Time\n(each stage is like an animation)',0.1,iRangeStageTimeParticle)
                 tParticle:setStageTime(iStageParticle,stageTime)
 
                 tImGui.Text('Range Stage Time')
@@ -695,19 +692,18 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Offset") then
-                local power             = 1.0
                 local v_min             = -iRangeOffsetParticle
                 local v_max             = iRangeOffsetParticle
                 local x_min,y_min,z_min = tParticle:getMinOffset(iStageParticle)
-                x_min = drawSlider(x_min,'X Min Offset',v_min,v_max,power)
-                y_min = drawSlider(y_min,'Y Min Offset',v_min,v_max,power)
-                z_min = drawSlider(z_min,'Z Min Offset',v_min,v_max,power)
+                x_min = drawSlider(x_min,'X Min Offset',v_min,v_max)
+                y_min = drawSlider(y_min,'Y Min Offset',v_min,v_max)
+                z_min = drawSlider(z_min,'Z Min Offset',v_min,v_max)
                 tParticle:setMinOffset(iStageParticle,x_min,y_min,z_min)
 
                 local x_max,y_max,z_max = tParticle:getMaxOffset(iStageParticle)
-                x_max = drawSlider(x_max,'X Max Offset',v_min,v_max,power)
-                y_max = drawSlider(y_max,'Y Max Offset',v_min,v_max,power)
-                z_max = drawSlider(z_max,'Z Max Offset',v_min,v_max,power)
+                x_max = drawSlider(x_max,'X Max Offset',v_min,v_max)
+                y_max = drawSlider(y_max,'Y Max Offset',v_min,v_max)
+                z_max = drawSlider(z_max,'Z Max Offset',v_min,v_max)
                 tParticle:setMaxOffset(iStageParticle,x_max,y_max,z_max)
                 
 
@@ -750,12 +746,11 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Speed") then
-                local power     = 3.0
                 local min_speed = tParticle:getMinSpeed(iStageParticle)
-                min_speed = drawSlider(min_speed,'Min Speed',0,iRangeSpeedParticle,power)
+                min_speed = drawSlider(min_speed,'Min Speed',0,iRangeSpeedParticle)
                 tParticle:setMinSpeed(iStageParticle,min_speed)
                 local max_speed = tParticle:getMaxSpeed(iStageParticle)
-                max_speed = drawSlider(max_speed,'Max Speed',0,iRangeSpeedParticle,power)
+                max_speed = drawSlider(max_speed,'Max Speed',0,iRangeSpeedParticle)
                 tParticle:setMaxSpeed(iStageParticle,max_speed)
 
                 tImGui.Text('Range Speed')
@@ -837,12 +832,11 @@ void main()
             end
 
             if tImGui.TreeNode("Size") then
-                local power         = 1.0
                 local min_size = tParticle:getMinSize(iStageParticle)
-                min_size = drawSlider(min_size,'Min Size',0.1,iRangeSizeParticle,power)
+                min_size = drawSlider(min_size,'Min Size',0.1,iRangeSizeParticle)
                 tParticle:setMinSize(iStageParticle,min_size)
                 local max_size = tParticle:getMaxSize(iStageParticle)
-                max_size = drawSlider(max_size,'Max Size',0.1,iRangeSizeParticle,power)
+                max_size = drawSlider(max_size,'Max Size',0.1,iRangeSizeParticle)
                 tParticle:setMaxSize(iStageParticle,max_size)
 
                 tImGui.Text('Range Size')

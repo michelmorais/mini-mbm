@@ -480,7 +480,7 @@ tUtil.showOverlayMessage = function()
         else
             tImGui.SetNextWindowBgAlpha(0.75);
         end
-        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false,tImGui.Flags(flags) )
+        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false, tImGui.Flags(flags) )
         if is_opened then
             tImGui.Text(tUtil.sMessageOverlay)
         end
