@@ -72,6 +72,7 @@ function onInitScene()
     }
     bEnableMoveWindow       = false
     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
+    ImGuiSliderFlags_Logarithmic = tImGui.Flags('ImGuiSliderFlags_Logarithmic')
     tLineCenterX            = line:new("2dw",0,0,200)
     tLineCenterY            = line:new("2dw",0,0,200)
     local tLx               = {-9999999,0, 9999999,0}
@@ -453,7 +454,7 @@ function drawSlider(value,title,v_min,v_max)
     tImGui.Text(title)
     local label   = '##' ..title
     local format  = "%.3f"
-    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format,'ImGuiSliderFlags_Logarithmic')
+    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format, ImGuiSliderFlags_Logarithmic)
     if result then
         value = fValue
     end

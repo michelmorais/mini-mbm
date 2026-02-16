@@ -910,16 +910,13 @@ static bool isValidFlagValue(int value, const std::map<std::string, int>& validF
     Accepts:
     - String: single flag name (e.g., "ImGuiWindowFlags_NoTitleBar")
     - Table: array of flag names to combine (e.g., {"ImGuiWindowFlags_NoTitleBar", "ImGuiWindowFlags_NoResize"})
-    - Integer: validated against validFlags map in DEBUG mode
+    - Integer: validated against validFlags map
     
     Parameters:
     - lua: Lua state
     - index: stack index
     - default_value: value to return if nil/none
     - validFlags: map of valid flags for this parameter (for validation)
-    
-    In DEBUG mode, if an integer is passed that doesn't match valid flags,
-    an error is raised showing which flags are acceptable.
 */
 int lua_get_flags(lua_State *lua, int index, int default_value, const std::map<std::string, int>& validFlags)
 {
@@ -943,14 +940,12 @@ int lua_get_flags(lua_State *lua, int index, int default_value, const std::map<s
         itFlag = allFlags.find(flag_name);
         if (itFlag != allFlags.cend())
         {
-#ifndef NDEBUG
             // Warn in debug mode if flag is not in expected set
-            printf("Warning: Flag [%s] is not in the expected flag set for this function.\n%s\n", 
+            WARN_LOG("Flag [%s] is not in the expected flag set for this function.\n%s\n", 
                    flag_name, buildValidFlagsMessage(validFlags).c_str());
-#endif
             return itFlag->second;
         }
-        printf("Flag [%s] not found!\n%s\n", flag_name, buildValidFlagsMessage(validFlags).c_str());
+        WARN_LOG("Flag [%s] not found!\n%s\n", flag_name, buildValidFlagsMessage(validFlags).c_str());
         return default_value;
     }
     
@@ -972,14 +967,12 @@ int lua_get_flags(lua_State *lua, int index, int default_value, const std::map<s
                 itFlag = allFlags.find(flags[i]);
                 if (itFlag != allFlags.cend())
                 {
-#ifndef NDEBUG
-                    printf("Warning: Flag [%s] is not in the expected flag set for this function.\n", flags[i].c_str());
-#endif
+                    WARN_LOG("Flag [%s] is not in the expected flag set for this function.\n", flags[i].c_str());
                     combined_flags |= itFlag->second;
                 }
                 else
                 {
-                    printf("Flag [%s] not found!\n%s\n", flags[i].c_str(), buildValidFlagsMessage(validFlags).c_str());
+                    WARN_LOG("Flag [%s] not found!\n%s\n", flags[i].c_str(), buildValidFlagsMessage(validFlags).c_str());
                 }
             }
         }
@@ -989,8 +982,7 @@ int lua_get_flags(lua_State *lua, int index, int default_value, const std::map<s
     if (lua_type_at_index == LUA_TNUMBER)
     {
         const int flag_value = static_cast<int>(lua_tointeger(lua, index));
-#ifndef NDEBUG
-        // Debug mode: validate the integer value
+        // validate the integer value
         if (!isValidFlagValue(flag_value, validFlags))
         {
             std::string error_msg = "Invalid flag value passed as integer. ";
@@ -998,7 +990,6 @@ int lua_get_flags(lua_State *lua, int index, int default_value, const std::map<s
             lua_log_error(lua, error_msg.c_str());
             return default_value;
         }
-#endif
         return flag_value;
     }
     
@@ -1064,9 +1055,6 @@ void lua_push_ImVec4_pointer(lua_State *lua,const ImVec4 * p_ImVec4);
 class IMGUI_LUA : public PLUGIN // structure that represent the wrapper
 {
 public:
-
-    
-
     IMGUI_LUA():KEY_SPACE(' '),KEY_0('0'),KEY_1('1'),KEY_9('9'),KEY_A('A'),KEY_Z('Z')
     {
         imGuiContext            = nullptr;
@@ -3935,9 +3923,11 @@ int onInputTextImGuiLua(lua_State *lua)
     const char * p_label                        = luaL_checkstring(lua,index_input++);
     std::string text                            = luaL_checkstring(lua,index_input++);
     ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
-    bool ret_bool                               = ImGui::InputText(p_label,const_cast<char*>(text.c_str()),text.size(),flags);
+    const size_t buf_size                       = text.size() + 256;
+    text.resize(buf_size);
+    bool ret_bool                               = ImGui::InputText(p_label, &text[0], buf_size, flags);
     lua_pushboolean(lua,ret_bool);
-    lua_pushstring(lua,text.c_str());
+    lua_pushstring(lua, text.c_str());
     return 2;
 }
 
@@ -3950,9 +3940,11 @@ int onInputTextMultilineImGuiLua(lua_State *lua)
     std::string text                            = luaL_checkstring(lua,index_input++);
     const ImVec2 size                           = top >= index_input ? lua_pop_ImVec2(lua,index_input++) : ImVec2(0,0);
     ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
-    bool ret_bool                               = ImGui::InputTextMultiline(p_label,const_cast<char*>(text.c_str()),text.size(),size,flags);
+    const size_t buf_size                       = text.size() + 1024;
+    text.resize(buf_size);
+    bool ret_bool                               = ImGui::InputTextMultiline(p_label, &text[0], buf_size, size, flags);
     lua_pushboolean(lua,ret_bool);
-    lua_pushstring(lua,text.c_str());
+    lua_pushstring(lua, text.c_str());
     return 2;
 }
 
@@ -3964,9 +3956,11 @@ int onInputTextWithHintImGuiLua(lua_State *lua)
     std::string text                            = luaL_checkstring(lua,index_input++);
     const char* hint                            = luaL_checkstring(lua,index_input++);
     ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
-    bool ret_bool                               = ImGui::InputTextWithHint(p_label,hint,const_cast<char*>(text.c_str()),flags);
+    const size_t buf_size                       = text.size() + 256;
+    text.resize(buf_size);
+    bool ret_bool                               = ImGui::InputTextWithHint(p_label, hint, &text[0], buf_size, flags);
     lua_pushboolean(lua,ret_bool);
-    lua_pushstring(lua,text.c_str());
+    lua_pushstring(lua, text.c_str());
     return 2;
 }
 
@@ -4542,8 +4536,8 @@ int onBeginPopupContextItemImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiMouseButton  mouse_button     = top >= index_input ? luaL_checkinteger(lua, index_input++) :  1;
-    const bool ret_bool                = ImGui::BeginPopupContextItem(p_str_id,mouse_button);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    const bool ret_bool                = ImGui::BeginPopupContextItem(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -4554,8 +4548,8 @@ int onBeginPopupContextWindowImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiMouseButton mouse_button      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  1;
-    const bool ret_bool                = ImGui::BeginPopupContextWindow(p_str_id,mouse_button);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    const bool ret_bool                = ImGui::BeginPopupContextWindow(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }
@@ -4566,8 +4560,8 @@ int onBeginPopupContextVoidImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiMouseButton mouse_button      = top >= index_input ? luaL_checkinteger(lua, index_input++) :  1;
-    const bool ret_bool                = ImGui::BeginPopupContextVoid(p_str_id,mouse_button);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    const bool ret_bool                = ImGui::BeginPopupContextVoid(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
 }

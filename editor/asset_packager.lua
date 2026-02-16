@@ -58,6 +58,8 @@ function onInitScene()
     tLineCenterX:setColor(1,0,0)
     tLineCenterY:add({0,-9999999, 0,9999999})
     tLineCenterY:setColor(0,1,0)
+    ImGuiPopupFlags_MouseButtonLeft = tImGui.Flags('ImGuiPopupFlags_MouseButtonLeft')
+    ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 end
 
 
@@ -278,7 +280,7 @@ function showAssets()
                 for j=1, #tFolders do
                     local tFiles = tFolders[j]
                     if tImGui.TreeNodeEx(tFiles.path,flags,'##' .. tFiles.path) then
-                        if right_mouse_pressed == false and tImGui.BeginPopupContextItem(tostring(i) .. tostring(j), 1) then
+                        if right_mouse_pressed == false and tImGui.BeginPopupContextItem(tostring(i) .. tostring(j), ImGuiPopupFlags_MouseButtonRight) then
                             right_mouse_pressed = true
                             if tImGui.Selectable("Delete\n" .. tFiles.path) then
                                 removeFolderAnSubFolder(tFiles.path)
@@ -304,7 +306,7 @@ function showAssets()
                                 destroyMesh()
                             end
 
-                            if bSelected and bUniquePoupUpContext and tImGui.BeginPopupContextItem("Options Frame List") then
+                            if bSelected and bUniquePoupUpContext and tImGui.BeginPopupContextItem("Options Frame List", ImGuiPopupFlags_MouseButtonRight) then
                                 bUniquePoupUpContext = false
                                 local sOriginalFile = string.format('%s%s%s',tFiles.path,tFolders.separator,sFile)
                                 if sPackageName:len() > 0 then
