@@ -150,6 +150,7 @@ function onInitScene()
     tLineRectTile:add({0,0,0,0})
     tLineRectTile:setColor(0,1,1)
     tLineRectTile.visible = false
+    ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 end
 
 function onOpenTileBinary()
@@ -2161,8 +2162,7 @@ end
 
 function menuPopUpOptionToAddBrick()
     if tEditorOptions.iBrickIdSelected ~= 0 then
-        local mouse_button = 1
-        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', mouse_button) then
+        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', ImGuiPopupFlags_MouseButtonRight) then
             if tImGui.Selectable("Fill layer with brick ID: " .. tostring(tEditorOptions.iBrickIdSelected)) then
                 local total = tTile:getMapCountWidth() * tTile:getMapCountHeight()
                 for i=1, total do
