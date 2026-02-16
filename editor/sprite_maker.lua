@@ -1736,7 +1736,7 @@ function showFrameAdd()
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
-            local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+            local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
             tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             if tFrameAddOptions.iIndexPrimitiveType ~= indexPrimitive then
                 tFrameAddOptions.iNumElements    = 2
@@ -2965,7 +2965,7 @@ function showEditPhysics()
                 local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
                 local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
                 local rounding          =  2.0
-                local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+                local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
                 tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             elseif indexPrimitive == 2 then
                 local center        = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
