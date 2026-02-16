@@ -314,6 +314,23 @@ namespace mbm
         if (headerMbmOut.version < INITIAL_VERSION_MBM_HEADER || headerMbmOut.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__,"incompatible version [%s]\ncurrent version [%d] \nversion in file [%d]",fileNamePath, CURRENT_VERSION_MBM_HEADER, headerMbmOut.version);
 
+        for (int i = 0; i < headerMbmOut.extraHeader; i++)
+        {
+            util::EXTRA_HEADER extra;
+            if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
+            if (extra.type == 1)// paths
+            {
+                std::string path(extra.sizeExtraHeader + 1, 0);
+                if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
+            }
+            else
+            {
+                return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
+            }
+        }
+
         if(headerMbmOut.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
             if (!fread(&info_mode, sizeof(util::INFO_DRAW_MODE), 1, fp))
