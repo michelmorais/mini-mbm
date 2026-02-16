@@ -59,6 +59,7 @@
 #include <lua-wrap/render-table/sprite-lua.h>
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/font-lua.h>
+#include <lua-wrap/texture-info-lua.h>
 #if defined USE_EDITOR_FEATURES
     #include <lua-wrap/render-table/mesh-debug-lua.h>
 #endif
@@ -2265,28 +2266,9 @@ namespace mbm
             return lua_error_debug(lua, "expected: mbm.loadTexture(string file_name_texture,boolean * alpha = true)");
         const char* file_name_texture      = luaL_checkstring(lua,1);
         const bool  alpha                  = top > 1 ? lua_toboolean(lua,2) : true;
-        uint32_t width                     = 0;
-        uint32_t height                    = 0;
         TEXTURE_MANAGER * texture_manager  = TEXTURE_MANAGER::getInstance();
         TEXTURE * tex                      = texture_manager->load(file_name_texture,alpha);
-        if(tex)
-        {
-            width   = tex->getWidth();
-            height  = tex->getHeight();
-        }
-        lua_pushinteger(lua,width);
-        lua_pushinteger(lua,height);
-        if(tex)
-        {
-            lua_pushinteger(lua,tex->idTexture);
-            lua_pushboolean(lua,tex->useAlphaChannel);
-        }
-        else
-        {
-            lua_pushinteger(lua,0);
-            lua_pushboolean(lua,0);
-        }
-        return 4;
+        return onNewTextureInfoLua(lua, tex);
     }
 
     inline void addFolderToMap(const char * path, std::map<std::string,std::vector<std::string>> & folderAndFiles)
@@ -2539,6 +2521,7 @@ namespace mbm
         registerClassLineMesh(lua);
         registerClassParticle(lua);
         registerClassRender2TextureTarget(lua);
+        registerClassTextureInfo(lua);
     #if defined USE_EDITOR_FEATURES
         registerClassMeshDebug(lua);
     #endif

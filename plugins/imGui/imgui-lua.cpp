@@ -59,6 +59,7 @@
 #include <core_mbm/device.h>
 #include <core_mbm/texture-manager.h>
 #include <plugin-helper/plugin-helper.h>
+#include <lua-wrap/texture-info-lua.h>
 
 extern "C" 
 {
@@ -379,6 +380,105 @@ const int get_texture_id(lua_State *lua,const char* texture_name)
     msg += "] not found!";
     lua_log_error(lua,msg.c_str());
     return 0;
+}
+
+// Helper to get texture from: TextureInfo table, number (texture id), or string (filename)
+// Returns texture pointer and populates width/height if texture is valid
+mbm::TEXTURE* get_texture_from_lua(lua_State *lua, int index, unsigned int &width_out, unsigned int &height_out)
+{
+    width_out = 0;
+    height_out = 0;
+    
+    const int type = lua_type(lua, index);
+    
+    if (type == LUA_TTABLE)
+    {
+        // Check if it's a TextureInfo table
+        auto **ud = static_cast<mbm::TEXTURE_INFO_DATA **>(
+            mbm::lua_get_userType_no_throw(lua, 1, index, mbm::L_USER_TYPE_TEXTURE_INFO));
+        if (ud && *ud)
+        {
+            mbm::TEXTURE *texture = (*ud)->getTexture();
+            if (texture)
+            {
+                width_out = texture->getWidth();
+                height_out = texture->getHeight();
+                return texture;
+            }
+        }
+        lua_log_error(lua, "Invalid or released TextureInfo");
+        return nullptr;
+    }
+    else if (type == LUA_TNUMBER)
+    {
+        // Direct texture ID - need to find by ID (not recommended but kept for compatibility)
+        // This path doesn't provide width/height
+        return nullptr;
+    }
+    else if (type == LUA_TSTRING)
+    {
+        const char* texture_name = lua_tostring(lua, index);
+        mbm::TEXTURE_MANAGER* texMan = mbm::TEXTURE_MANAGER::getInstance();
+        mbm::TEXTURE* texture = texMan->load(texture_name, true);
+        if (texture)
+        {
+            width_out = texture->getWidth();
+            height_out = texture->getHeight();
+            return texture;
+        }
+        std::string msg("Texture [");
+        msg += texture_name ? texture_name : "nullptr";
+        msg += "] not found!";
+        lua_log_error(lua, msg.c_str());
+        return nullptr;
+    }
+    
+    lua_log_error(lua, "Expected TextureInfo, texture filename (string), or texture id (number)");
+    return nullptr;
+}
+
+// Get ImTextureID from: TextureInfo table, number (texture id), or string (filename)
+ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width_out, unsigned int &height_out)
+{
+    width_out = 0;
+    height_out = 0;
+    
+    const int type = lua_type(lua, index);
+    
+    if (type == LUA_TNUMBER)
+    {
+        // Direct texture ID
+        return (ImTextureID)(intptr_t)(lua_tointeger(lua, index++));
+    }
+    else if (type == LUA_TSTRING)
+    {
+        const char* texture_name = lua_tostring(lua, index++);
+        return (ImTextureID)(intptr_t)(get_texture_id(lua, texture_name, width_out, height_out));
+    }
+    else if (type == LUA_TTABLE)
+    {
+        // Check if it's a TextureInfo table
+        auto **ud = static_cast<mbm::TEXTURE_INFO_DATA **>(
+            mbm::lua_get_userType_no_throw(lua, 1, index, mbm::L_USER_TYPE_TEXTURE_INFO));
+        if (ud && *ud)
+        {
+            mbm::TEXTURE *texture = (*ud)->getTexture();
+            if (texture)
+            {
+                width_out = texture->getWidth();
+                height_out = texture->getHeight();
+                index++;
+                return (ImTextureID)(texture->ptrTexture);
+            }
+        }
+        lua_log_error(lua, "Invalid or released TextureInfo");
+        index++;
+        return (ImTextureID)(0);
+    }
+    
+    lua_log_error(lua, "Expected TextureInfo, texture filename (string), or texture id (number)");
+    index++;
+    return (ImTextureID)(0);
 }
 
 void assert_imgui_lua(bool value,const char* file_name,const int line)
@@ -3376,26 +3476,29 @@ int onArrowButtonImGuiLua(lua_State *lua)
 
 int onImageImGuiLua(lua_State *lua)
 {
-    // TODO: make this work in Directx, test in spritre maker 
     int index_input                     = 1;
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = (ImTextureID)(0);
-    //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
-    //else
-    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
-    ImVec2 size (static_cast<float>(width),static_cast<float>(height));
-    if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
-        size                                = lua_pop_ImVec2(lua, index_input);
+    ImTextureID user_texture_id         = get_imgui_texture_id(lua, index_input, width, height);
+    ImVec2 size (static_cast<float>(width), static_cast<float>(height));
+    if(top >= index_input && lua_type(lua, index_input) != LUA_TNIL)
+        size                            = lua_pop_ImVec2(lua, index_input);
     
     index_input++;
     const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
-    const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-    const ImVec4 line_color             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,1);
-    //ImGui::Image(user_texture_id, size, uv0 , uv1 , bg_col, line_color );
+    // Use ImageWithBg if tint/bg colors are provided, otherwise use basic Image
+    if (top >= index_input)
+    {
+        const ImVec4 tint_col           = lua_get_rgba_to_ImVec4_fromTable(lua, index_input++);
+        const ImVec4 bg_col             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,0);
+        ImGui::ImageWithBg(user_texture_id, size, uv0, uv1, bg_col, tint_col);
+    }
+    else
+    {
+        ImGui::Image(user_texture_id, size, uv0, uv1);
+    }
     return 0;
 }
 
@@ -3405,23 +3508,26 @@ int onImageQuadImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = (ImTextureID)(0);
-    //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
-    //else
-    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
-    ImVec2 size (static_cast<float>(width),static_cast<float>(height));
-    if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
-        size                                = lua_pop_ImVec2(lua, index_input);
+    ImTextureID user_texture_id         = get_imgui_texture_id(lua, index_input, width, height);
+    ImVec2 size (static_cast<float>(width), static_cast<float>(height));
+    if(top >= index_input && lua_type(lua, index_input) != LUA_TNIL)
+        size                            = lua_pop_ImVec2(lua, index_input);
     
     index_input++;
-    const ImVec2 uv0                    = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv1                    = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv2                    = lua_pop_ImVec2(lua, index_input++);
-    const ImVec2 uv3                    = lua_pop_ImVec2(lua, index_input++);
-    const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-    const ImVec4 line_color             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,1);
-    //ImGui::ImageQuad(user_texture_id, size, uv0 , uv1 , uv2, uv3,  bg_col, line_color );
+    const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
+    const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,0);
+    const ImVec2 uv2                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
+    const ImVec2 uv3                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,1);
+    const ImVec4 tint_col               = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
+    // Note: ImageQuad is not a standard ImGui function - using draw list instead
+    ImDrawList* draw_list               = ImGui::GetWindowDrawList();
+    ImVec2 cursor_pos                   = ImGui::GetCursorScreenPos();
+    ImVec2 p1(cursor_pos.x, cursor_pos.y);
+    ImVec2 p2(cursor_pos.x + size.x, cursor_pos.y);
+    ImVec2 p3(cursor_pos.x + size.x, cursor_pos.y + size.y);
+    ImVec2 p4(cursor_pos.x, cursor_pos.y + size.y);
+    draw_list->AddImageQuad(user_texture_id, p1, p2, p3, p4, uv0, uv1, uv2, uv3, ImGui::GetColorU32(tint_col));
+    ImGui::Dummy(size); // Reserve space
     return 0;
 }
 
@@ -3431,23 +3537,19 @@ int onImageButtonImGuiLua(lua_State *lua)
     const int top                       = lua_gettop(lua);
     unsigned int width                  = 0;
     unsigned int height                 = 0;
-    //ImTextureID user_texture_id         = (ImTextureID)(0);
-    //if(lua_type(lua,index_input) == LUA_TNUMBER)
-    //    user_texture_id                 = (ImTextureID)(lua_tointeger(lua,index_input++));
-    //else
-    //    user_texture_id                 = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++),width,height));
-    ImVec2 size (static_cast<float>(width),static_cast<float>(height));
-    if(top >= index_input && lua_type(lua,index_input) != LUA_TNIL)
-        size                                = lua_pop_ImVec2(lua, index_input);
+    const char* str_id                  = luaL_checkstring(lua, index_input++);
+    ImTextureID user_texture_id         = get_imgui_texture_id(lua, index_input, width, height);
+    ImVec2 size (static_cast<float>(width), static_cast<float>(height));
+    if(top >= index_input && lua_type(lua, index_input) != LUA_TNIL)
+        size                            = lua_pop_ImVec2(lua, index_input);
     
     index_input++;
     const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
-    const int frame_padding             = top >= index_input ? luaL_checkinteger(lua, index_input++): -1;
-    const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
+    const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,0);
     const ImVec4 tint_col               = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-    //const bool result                   = ImGui::ImageButton(user_texture_id, size, uv0 , uv1 , frame_padding,  bg_col, tint_col );
-    lua_pushboolean(lua,false);
+    const bool result                   = ImGui::ImageButton(str_id, user_texture_id, size, uv0, uv1, bg_col, tint_col);
+    lua_pushboolean(lua, result);
     return 1;
 }
 
@@ -5731,11 +5833,9 @@ int onAddImageImDrawListLua(lua_State *lua)
 {
     int index_input                 = 1;
     const int top                   = lua_gettop(lua);
-    ImTextureID user_texture_id     = (ImTextureID)(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id             = (ImTextureID)(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id             = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
+    unsigned int tex_width          = 0;
+    unsigned int tex_height         = 0;
+    ImTextureID user_texture_id     = get_imgui_texture_id(lua, index_input, tex_width, tex_height);
     const ImVec2 p_min              = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p_max              = lua_pop_ImVec2(lua, index_input++);
     const ImU32 col                 = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++)) :  IM_COL32_WHITE;
@@ -5750,11 +5850,9 @@ int onAddImageQuadImDrawListLua(lua_State *lua)
 {
     int index_input                 = 1;
     const int top                   = lua_gettop(lua);
-    ImTextureID user_texture_id     = (ImTextureID)(0);
-    if(lua_type(lua,index_input) == LUA_TNUMBER)
-        user_texture_id             = (ImTextureID)(lua_tointeger(lua,index_input++));
-    else
-        user_texture_id             = (ImTextureID)(get_texture_id(lua,luaL_checkstring(lua,index_input++)));
+    unsigned int tex_width          = 0;
+    unsigned int tex_height         = 0;
+    ImTextureID user_texture_id     = get_imgui_texture_id(lua, index_input, tex_width, tex_height);
     const ImVec2 p1                 = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p2                 = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p3                 = lua_pop_ImVec2(lua, index_input++);
@@ -5773,11 +5871,9 @@ int onAddImageRoundedImDrawListLua(lua_State* lua)
 {
     int index_input = 1;
     const int top = lua_gettop(lua);
-    ImTextureID user_texture_id = (ImTextureID)(0);
-    if (lua_type(lua, index_input) == LUA_TNUMBER)
-        user_texture_id = (ImTextureID)(lua_tointeger(lua, index_input++));
-    else
-        user_texture_id = (ImTextureID)(get_texture_id(lua, luaL_checkstring(lua, index_input++)));
+    unsigned int tex_width = 0;
+    unsigned int tex_height = 0;
+    ImTextureID user_texture_id = get_imgui_texture_id(lua, index_input, tex_width, tex_height);
     const ImVec2 p_min = lua_pop_ImVec2(lua, index_input++);
     const ImVec2 p_max = lua_pop_ImVec2(lua, index_input++);
     const ImU32 color = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua, index_input++));

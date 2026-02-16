@@ -3,6 +3,7 @@ cmake_policy(SET CMP0054 NEW)
 project(${IMGUI_LIBRARY})
 
 set(SRC_INCLUDES            ${CMAKE_SOURCE_DIR}/include)
+set(LUA_WRAP                ${CMAKE_SOURCE_DIR}/include/lua-interface)
 set(PLUGIN_HELPER_INC          ${CMAKE_SOURCE_DIR}/plugins)
 set(IMGUI_INCLUDE           ".")
 set(IMGUI_SRC               ".")
@@ -43,6 +44,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STRE
 include_directories(  ${IMGUI_INCLUDE}
                       ${LUA_INCLUDE}
                       ${SRC_INCLUDES}
+                      ${LUA_WRAP}
                       ${PLUGIN_HELPER_INC}
                       ${THIRD_PARTY})
  

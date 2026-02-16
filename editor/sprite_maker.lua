@@ -419,7 +419,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesEditor[i]            = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesEditor[i]            = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
 
@@ -432,7 +432,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesFrameList[i]         = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesFrameList[i]         = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
         
@@ -1931,7 +1931,6 @@ function showFrameAdd()
         local label_textures    = string.format('Textures (%d)',#tSelectedTextures)
         tFrameAddOptions.tSelectedTexture = nil
         if tImGui.TreeNode('##textures_for_frame', label_textures) then
-            local frame_padding = 5
             for i=1, #tSelectedTextures do
                 local flag_node      = 0
                 local id_node        = string.format('##tex_%d',i)
@@ -1959,7 +1958,7 @@ function showFrameAdd()
                         pushed_color = 2
                     end
                     -- TODO: make this work in any backend engine . e.g.: Directx
-                    if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
+                    if tImGui.ImageButton(string.format('frame_tex_%d', i), tTexture.id, size,uv0,uv1) then
                         tFrameAddOptions.iIndexSelectedNode       = i
                         tFrameAddOptions.bValidFrameSelected      = true
                         tFrameAddOptions.bShowFramePreview        = true

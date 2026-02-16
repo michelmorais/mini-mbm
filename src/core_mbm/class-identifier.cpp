@@ -53,13 +53,14 @@ namespace mbm
             case L_USER_TYPE_BACKGROUND                 :return "_usertype_background";
             case L_USER_TYPE_BOX2D                      :return "_usertype_box2d";
             case L_USER_TYPE_BOX2D_JOINT                :return "_usertype_box2d_joint";
-			case L_USER_TYPE_BOX2D_STEERED_PARTICLE     :return "_usertype_box2d_steered_particle";
+	    case L_USER_TYPE_BOX2D_STEERED_PARTICLE     :return "_usertype_box2d_steered_particle";
             case L_USER_TYPE_BOX2D_LF                   :return "_usertype_box2d_liquidfluid";
             case L_USER_TYPE_BOX2D_LF_JOINT             :return "_usertype_box2d_joint_liquidfluid";
             case L_USER_TYPE_BOX2D_LF_STEERED_PARTICLE  :return "_usertype_box2d_steered_particle_liquidfluid";
             case L_USER_TYPE_BULLET3D                   :return "_usertype_bullet3d";
             case L_USER_TYPE_TILE                       :return "_usertype_tile";
             case L_USER_TYPE_TILE_OBJ                   :return "_usertype_tile_obj";
+            case L_USER_TYPE_TEXTURE_INFO               :return "_usertype_texture_info";
             case L_USER_TYPE_PLUGIN                     :return "_usertype_plugin";
             case L_USER_TYPE_NEW_WRAPPER                :return "_usertype_new_wrapper";
             case L_USER_TYPE_END                        :return "_usertype_end";
