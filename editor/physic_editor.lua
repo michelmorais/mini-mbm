@@ -1074,13 +1074,13 @@ function showEditPhysics()
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
-            local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+            local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
             tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
         elseif indexPrimitive == 2 then
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
-            local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+            local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
             tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             tImGui.AddLine(p_min,p_max,color,thickness)
             if tPhysicsOptions.iPrimitivesRectangle > 2 then
@@ -1641,7 +1641,9 @@ function loop(delta)
         tUtil.showStatusMessage('Info',string.format('Scale: %2.2f\nPhysics %d\n%s',tMesh.sx,#tInfoPhysics,strSelected))
     end
 
-    if bShowEditPhysics then
-        showEditPhysics()
+    if #tSimulate == 0 then
+        if bShowEditPhysics then
+            showEditPhysics()
+        end
     end
 end
