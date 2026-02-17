@@ -18,6 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #if defined USE_OPENGL_ES
 
@@ -81,8 +82,88 @@ extern "C"
 #endif
 
 #include <core_mbm/util-interface.h>
+#include <cstring>
 
 class IMGUI_LUA;
+
+//-----------------------------------------------------------------------------
+// OS-dependent clipboard for ImGui
+// Windows: Uses built-in Win32 clipboard (imgui.cpp default)
+// Linux/macOS: Override with xclip/xsel for OS clipboard integration
+//-----------------------------------------------------------------------------
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+// Requirements on Linux/macOS
+// Install one of:
+// xclip: apt install xclip (Debian/Ubuntu) or brew install xclip (macOS)
+// xsel: apt install xsel (Debian/Ubuntu) or brew install xsel (macOS)
+static void Platform_SetClipboardTextFn_Linux(ImGuiContext* ctx, const char* text)
+{
+    if (!text) return;
+    FILE* f = popen("xclip -selection clipboard 2>/dev/null", "w");
+    if (f)
+    {
+        size_t len = strlen(text);
+        if (fwrite(text, 1, len, f) == len)
+        {
+            pclose(f);
+            return;
+        }
+        pclose(f);
+    }
+    f = popen("xsel --clipboard --input 2>/dev/null", "w");
+    if (f)
+    {
+        size_t len = strlen(text);
+        if (fwrite(text, 1, len, f) == len)
+            pclose(f);
+        else
+            pclose(f);
+    }
+}
+static const char* Platform_GetClipboardTextFn_Linux(ImGuiContext* ctx)
+{
+    ImGuiContext& g = *ctx;
+    g.ClipboardHandlerData.clear();
+    FILE* f = popen("xclip -selection clipboard -o 2>/dev/null", "r");
+    if (f)
+    {
+        char buf[256];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+        {
+            size_t old_sz = g.ClipboardHandlerData.Size;
+            g.ClipboardHandlerData.resize(old_sz + (int)n);
+            memcpy(g.ClipboardHandlerData.Data + old_sz, buf, n);
+        }
+        pclose(f);
+        if (g.ClipboardHandlerData.Size > 0)
+        {
+            g.ClipboardHandlerData.push_back(0);
+            return g.ClipboardHandlerData.Data;
+        }
+    }
+    g.ClipboardHandlerData.clear();
+    f = popen("xsel --clipboard --output 2>/dev/null", "r");
+    if (f)
+    {
+        char buf[256];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+        {
+            size_t old_sz = g.ClipboardHandlerData.Size;
+            g.ClipboardHandlerData.resize(old_sz + (int)n);
+            memcpy(g.ClipboardHandlerData.Data + old_sz, buf, n);
+        }
+        pclose(f);
+        if (g.ClipboardHandlerData.Size > 0)
+        {
+            g.ClipboardHandlerData.push_back(0);
+            return g.ClipboardHandlerData.Data;
+        }
+    }
+    return NULL;
+}
+#endif
 
 /*
     This class is intended to be used as interface to mbm engine.
@@ -1253,8 +1334,13 @@ public:
             #if defined _WIN32
                 context = static_cast<HWND>(_context);
                 ImGui_ImplWin32_Init(context);
+                // Windows: clipboard uses built-in Win32 handlers from imgui.cpp
             #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
                 context = static_cast<Display*>(_context);
+                // Linux/macOS: install xclip/xsel-based clipboard for OS integration
+                ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
+                platform_io.Platform_GetClipboardTextFn = Platform_GetClipboardTextFn_Linux;
+                platform_io.Platform_SetClipboardTextFn = Platform_SetClipboardTextFn_Linux;
             #endif
 
             imGuIo.DeltaTime            = 1.0f/60.0f;
