@@ -169,10 +169,12 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-dummy-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-linux-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\manager-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\texture-info-lua.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
@@ -268,6 +270,7 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\require_embedded.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\texture-info-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />

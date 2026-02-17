@@ -1,3 +1,4 @@
+#if defined DEBUG || defined _DEBUG
 // dear imgui, v1.92.6 WIP
 // (demo code)
 
@@ -10942,3 +10943,5 @@ bool ImGui::ShowStyleSelector(const char*) { return false; }
 #endif // #ifndef IMGUI_DISABLE_DEMO_WINDOWS
 
 #endif // #ifndef IMGUI_DISABLE
+
+#endif

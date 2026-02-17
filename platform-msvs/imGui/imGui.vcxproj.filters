@@ -80,5 +80,8 @@
     <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\imgui_demo_stubs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
