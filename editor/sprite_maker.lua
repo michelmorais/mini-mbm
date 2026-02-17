@@ -1474,12 +1474,12 @@ function showFramePreview()
         local size           = {x=new_width,y=sy}
         local uv0            = {x=0,y=0}
         local uv1            = {x=1,y=1}
-        local bg_col         = {r=1,g=1,b=1,a=1}
-        local line_color     = {r=0,g=0,b=0,a=1}
+        local bg_col         = {r=0,g=0,b=0,a=0}
+        local tint_col       = {r=1,g=1,b=1,a=1}
         local tCursorPos     = tImGui.GetCursorPos()
         local color_rect     = {r=0,g=0,b=0,a=1.0}
         local thickness      = 1.5
-        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,line_color)
+        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,tint_col)
         local winPos         = tImGui.GetWindowPos()
         local originImg      = {x= winPos.x + tCursorPos.x , y = winPos.y + tCursorPos.y - tImGui.GetScrollY()}
         
@@ -2331,28 +2331,28 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         if tRender == nil then
             return getTextureIdForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStart == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
             return getTextureIdForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStop == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 2)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
             return getTextureIdForAnimImage(tFrame, 2)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     end
 
     if tRender == nil then
         tRender = render2texture:new('2dw')
-        local bSuccess,nick_name, id = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
-        if bSuccess and id > 0 then
-            tRender.texture_id = id
+        local bSuccess,nick_name, tTextureInfo = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
+        if bSuccess and tTextureInfo then
+            tRender.tTextureInfo = tTextureInfo
             tRender.nick_name = nick_name
         else
             print('error','Could not create dynamic texture!',sTexHash)
@@ -2374,7 +2374,7 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y)
         tRender:add(tSubset.tShape)
     end
-    return tRender.texture_id, tRender.nick_name
+    return tRender.tTextureInfo, tRender.nick_name
 end
 
 function applyZoomFrameAnimation()
@@ -2405,15 +2405,15 @@ function applyZoomFrameAnimation()
 end
 
 function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
-    local iW, iH        = mbm.getRealSizeScreen()
-    local bg_col        = {r=1,g=1,b=1,a=1}
-    local line_color    = {r=0,g=0,b=0,a=1}
+    local iW, iH          = mbm.getRealSizeScreen()
+    local bg_col          = {r=0,g=0,b=0,a=0}
+    local tint_col        = {r=1,g=1,b=1,a=1}
     if tFrame == nil then trace() end
-    local new_width     = math.min(tFrame.width, winSize.x - padding.x)
-    local sy            = new_width / tFrame.width  * tFrame.height
-    local size          = {x = math.min(new_width,iW), y = math.min(sy,iH) }
-    local texture_id, _ = getTextureIdForAnimImage(tFrame, iNumImage)
-    tImGui.Image(texture_id,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,line_color)
+    local new_width       = math.min(tFrame.width, winSize.x - padding.x)
+    local sy              = new_width / tFrame.width  * tFrame.height
+    local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
+    local tTextureInfo, _ = getTextureIdForAnimImage(tFrame, iNumImage)
+    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
     applyZoomFrameAnimation()
     tImGui.HelpMarker('Use Control+scroll to zoom it!')
     

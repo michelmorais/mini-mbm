@@ -2585,7 +2585,7 @@ int onBeginChildImGuiLua(lua_State *lua)
     const char * p_str_id       = get_string_or_null(lua,index_input++);
     ImVec2 size                 = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0,0);
     const bool border           = top >= index_input ? lua_toboolean(lua,index_input++) :  false;
-    ImGuiWindowFlags flags      = lua_opt_flags(lua, top, index_input, 0, windowFlagsMap);
+    ImGuiWindowFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiWindowFlags_None, windowFlagsMap);
     const bool ret_bool         = ImGui::BeginChild(p_str_id,size,border,flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -2616,7 +2616,7 @@ int onIsWindowFocusedImGuiLua(lua_State *lua)
     //  Is current window focused? or its root/child, depending on flags. see flags for options.
     int index_input              = 1;
     const int top                = lua_gettop(lua);
-    ImGuiFocusedFlags flags      = lua_opt_flags(lua, top, index_input, 0, focusedFlagsMap);
+    ImGuiFocusedFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiFocusedFlags_None, focusedFlagsMap);
     const bool ret_bool          = ImGui::IsWindowFocused(flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -2627,7 +2627,7 @@ int onIsWindowHoveredImGuiLua(lua_State *lua)
     //  Is current window hovered (and typically: not blocked by a popup/modal)? see flags for options. NB: If you are trying to check whether your mouse should be dispatched to imgui or to your app, you should use the 'io.WantCaptureMouse' boolean for that! Please read the FAQ!
     int index_input              = 1;
     const int top                = lua_gettop(lua);
-    ImGuiHoveredFlags flags      = lua_opt_flags(lua, top, index_input, 0, hoveredFlagsMap);
+    ImGuiHoveredFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiHoveredFlags_None, hoveredFlagsMap);
     const bool ret_bool          = ImGui::IsWindowHovered(flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -3491,8 +3491,8 @@ int onImageImGuiLua(lua_State *lua)
     // Use ImageWithBg if tint/bg colors are provided, otherwise use basic Image
     if (top >= index_input)
     {
-        const ImVec4 tint_col           = lua_get_rgba_to_ImVec4_fromTable(lua, index_input++);
-        const ImVec4 bg_col             = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,0);
+        const ImVec4 bg_col           = lua_get_rgba_to_ImVec4_fromTable(lua, index_input++);
+        const ImVec4 tint_col         = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
         ImGui::ImageWithBg(user_texture_id, size, uv0, uv1, bg_col, tint_col);
     }
     else
@@ -3610,7 +3610,7 @@ int onBeginComboImGuiLua(lua_State *lua)
     const int top                 = lua_gettop(lua);
     const char * p_label          = luaL_checkstring(lua,index_input++);
     const char * p_preview_value  = luaL_checkstring(lua,index_input++);
-    ImGuiComboFlags flags         = lua_opt_flags(lua, top, index_input, 0, comboFlagsMap);
+    ImGuiComboFlags flags         = lua_opt_flags(lua, top, index_input, ImGuiComboFlags_None, comboFlagsMap);
     const bool ret_bool           = ImGui::BeginCombo(p_label,p_preview_value,flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -3666,7 +3666,7 @@ int onDragFloatImGuiLua(lua_State *lua)
     const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::DragFloat(p_label,&value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
@@ -3684,7 +3684,7 @@ int onDragFloat2ImGuiLua(lua_State *lua)
     const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::DragFloat2(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3702,7 +3702,7 @@ int onDragFloat3ImGuiLua(lua_State *lua)
     const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::DragFloat3(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3720,7 +3720,7 @@ int onDragFloat4ImGuiLua(lua_State *lua)
     const float v_min          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0.0f;
     const char * p_format      = top >= index_input ? luaL_checkstring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::DragFloat4(p_label,value,v_speed,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3739,7 +3739,7 @@ int onDragFloatRange2ImGuiLua(lua_State *lua)
     const float v_max          = top >= index_input ? luaL_checknumber(lua,index_input++) :  0;
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
     const char * p_format_max  = top >= index_input ? lua_tostring(lua,index_input++) :  nullptr;
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::DragFloatRange2(p_label,&v_current_min,&v_current_max,v_speed,v_min,v_max,p_format,p_format_max,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,v_current_min);
@@ -3843,7 +3843,7 @@ int onSliderFloatImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderFloat(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
@@ -3860,7 +3860,7 @@ int onSliderFloat2ImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderFloat2(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3877,7 +3877,7 @@ int onSliderFloat3ImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderFloat3(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3894,7 +3894,7 @@ int onSliderFloat4ImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderFloat4(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3910,7 +3910,7 @@ int onSliderAngleImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.0f deg";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderAngle(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
@@ -3926,7 +3926,7 @@ int onSliderIntImGuiLua(lua_State *lua)
     const int v_min            = luaL_checkinteger(lua,index_input++);
     const int v_max            = luaL_checkinteger(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderInt(p_label,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushinteger(lua,value);
@@ -3943,7 +3943,7 @@ int onSliderInt2ImGuiLua(lua_State *lua)
     const int v_min            = luaL_checkinteger(lua,index_input++);
     const int v_max            = luaL_checkinteger(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderInt2(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3960,7 +3960,7 @@ int onSliderInt3ImGuiLua(lua_State *lua)
     const int v_min            = luaL_checkinteger(lua,index_input++);
     const int v_max            = luaL_checkinteger(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderInt3(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3977,7 +3977,7 @@ int onSliderInt4ImGuiLua(lua_State *lua)
     const int v_min            = luaL_checkinteger(lua,index_input++);
     const int v_max            = luaL_checkinteger(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::SliderInt4(p_label,value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,value,sizeof(value) / sizeof(value[0]));
@@ -3994,7 +3994,7 @@ int onVSliderFloatImGuiLua(lua_State *lua)
     const float v_min          = luaL_checknumber(lua,index_input++);
     const float v_max          = luaL_checknumber(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::VSliderFloat(p_label,size,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
@@ -4011,7 +4011,7 @@ int onVSliderIntImGuiLua(lua_State *lua)
     const int v_min            = luaL_checkinteger(lua,index_input++);
     const int v_max            = luaL_checkinteger(lua,index_input++);
     const char * p_format      = top >= index_input ? lua_tostring(lua,index_input++) :  "%d";
-    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, 0, sliderFlagsMap);
+    ImGuiSliderFlags flags     = lua_opt_flags(lua, top, index_input, ImGuiSliderFlags_None, sliderFlagsMap);
     const bool ret_bool        = ImGui::VSliderInt(p_label,size,&value,v_min,v_max,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushinteger(lua,value);
@@ -4024,7 +4024,7 @@ int onInputTextImGuiLua(lua_State *lua)
     const int top                               = lua_gettop(lua);
     const char * p_label                        = luaL_checkstring(lua,index_input++);
     std::string text                            = luaL_checkstring(lua,index_input++);
-    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const size_t buf_size                       = text.size() + 256;
     text.resize(buf_size);
     bool ret_bool                               = ImGui::InputText(p_label, &text[0], buf_size, flags);
@@ -4041,7 +4041,7 @@ int onInputTextMultilineImGuiLua(lua_State *lua)
     const char * p_label                        = luaL_checkstring(lua,index_input++);
     std::string text                            = luaL_checkstring(lua,index_input++);
     const ImVec2 size                           = top >= index_input ? lua_pop_ImVec2(lua,index_input++) : ImVec2(0,0);
-    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const size_t buf_size                       = text.size() + 1024;
     text.resize(buf_size);
     bool ret_bool                               = ImGui::InputTextMultiline(p_label, &text[0], buf_size, size, flags);
@@ -4057,7 +4057,7 @@ int onInputTextWithHintImGuiLua(lua_State *lua)
     const char * p_label                        = luaL_checkstring(lua,index_input++);
     std::string text                            = luaL_checkstring(lua,index_input++);
     const char* hint                            = luaL_checkstring(lua,index_input++);
-    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags                   = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const size_t buf_size                       = text.size() + 256;
     text.resize(buf_size);
     bool ret_bool                               = ImGui::InputTextWithHint(p_label, hint, &text[0], buf_size, flags);
@@ -4075,7 +4075,7 @@ int onInputFloatImGuiLua(lua_State *lua)
     const float step               = top >= index_input ? luaL_checknumber(lua,index_input++) :  1;
     const float step_fast          = top >= index_input ? luaL_checknumber(lua,index_input++) :  100;
     const char * p_format          = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputFloat(p_label,&value,step,step_fast,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua,value);
@@ -4090,7 +4090,7 @@ int onInputIntImGuiLua(lua_State *lua)
     int  value                     = luaL_checkinteger(lua,index_input++);
     const int step                 = top >= index_input ? luaL_checkinteger(lua,index_input++) :  1;
     const int step_fast            = top >= index_input ? luaL_checkinteger(lua,index_input++) :  100;
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputInt(p_label,&value,step,step_fast,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushinteger(lua,value);
@@ -4104,7 +4104,7 @@ int onInputInt2ImGuiLua(lua_State *lua)
     const char * p_label           = luaL_checkstring(lua,index_input++);
     int values[2]                  = {0,0};
     get_int_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"int table[2]");
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputInt2(p_label,values,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
@@ -4118,7 +4118,7 @@ int onInputInt3ImGuiLua(lua_State *lua)
     const char * p_label           = luaL_checkstring(lua,index_input++);
     int values[3]                  = {0,0,0};
     get_int_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"int table[3]");
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputInt3(p_label,values,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
@@ -4132,7 +4132,7 @@ int onInputInt4ImGuiLua(lua_State *lua)
     const char * p_label           = luaL_checkstring(lua,index_input++);
     int values[4]                  = {0,0,0,4};
     get_int_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"int table[4]");
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputInt4(p_label,values,flags);
     lua_pushboolean(lua,ret_bool);
     push_int_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
@@ -4148,7 +4148,7 @@ int onInputDoubleImGuiLua(lua_State *lua)
     const float step               = top >= index_input ? luaL_checknumber(lua,index_input++) :  1;
     const float step_fast          = top >= index_input ? luaL_checknumber(lua,index_input++) :  100;
     const char * p_format          = top >= index_input ? lua_tostring(lua,index_input++) :  "%.6f";
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputDouble(p_label,&value,step,step_fast,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushnumber(lua, static_cast<lua_Number>(value));
@@ -4162,7 +4162,7 @@ int onColorEdit3ImGuiLua(lua_State *lua)
     const char * p_label           = luaL_checkstring(lua,index_input++);
     float p_col[4]                 = {1,1,1,1};
     lua_get_rgba_FromTable(lua, index_input++, p_col);
-    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, 0, colorEditFlagsMap);
+    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiColorEditFlags_None, colorEditFlagsMap);
     const bool ret_bool            = ImGui::ColorEdit3(p_label,p_col,flags);
     lua_pushboolean(lua,ret_bool);
     lua_push_rgba(lua,p_col);
@@ -4176,7 +4176,7 @@ int onColorEdit4ImGuiLua(lua_State *lua)
     const char * p_label           = luaL_checkstring(lua,index_input++);
     float p_col[4]                 = {1,1,1,1};
     lua_get_rgba_FromTable(lua, index_input++, p_col);
-    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, 0, colorEditFlagsMap);
+    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiColorEditFlags_None, colorEditFlagsMap);
     const bool ret_bool            = ImGui::ColorEdit4(p_label,p_col,flags);
     lua_pushboolean(lua,ret_bool);
     lua_push_rgba(lua,p_col);
@@ -4191,7 +4191,7 @@ int onColorPicker3ImGuiLua(lua_State *lua)
     float  p_col [4]               = {1,1,1,1};
     if(top >= index_input)
         lua_get_rgba_FromTable(lua,index_input++,p_col);
-    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, 0, colorEditFlagsMap);
+    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiColorEditFlags_None, colorEditFlagsMap);
     const bool ret_bool            = ImGui::ColorPicker3(p_label,p_col,flags);
     lua_pushboolean(lua,ret_bool);
     lua_push_rgba(lua,p_col);
@@ -4206,7 +4206,7 @@ int onColorPicker4ImGuiLua(lua_State *lua)
     float  p_col [4]               = {1,1,1,1};
     if(top >= index_input)
         lua_get_rgba_FromTable(lua,index_input++,p_col);
-    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, 0, colorEditFlagsMap);
+    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiColorEditFlags_None, colorEditFlagsMap);
     float p_ref_col[4]             =  {1,1,1,1};
     if(top >= index_input)
         lua_get_rgba_FromTable(lua,index_input++,p_ref_col);
@@ -4225,7 +4225,7 @@ int onColorButtonImGuiLua(lua_State *lua)
     float col[4]                   = {1,1,1,1};
     lua_get_rgba_FromTable(lua, index_input++, col);
     ImVec4  p_col(col[0],col[1],col[1],col[1]);
-    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, 0, colorEditFlagsMap);
+    ImGuiColorEditFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiColorEditFlags_None, colorEditFlagsMap);
     ImVec2 size                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0,0);
     const bool ret_bool            = ImGui::ColorButton(p_desc_id,p_col,flags,size);
     lua_pushboolean(lua,ret_bool);
@@ -4319,7 +4319,7 @@ int onCollapsingHeaderImGuiLua(lua_State *lua)
     const int top                 = lua_gettop(lua);
     const char * p_label          = luaL_checkstring(lua,index_input++);
     bool p_p_open                 = top >= index_input ? lua_toboolean(lua,index_input++) : false;
-    ImGuiTreeNodeFlags flags      = lua_opt_flags(lua, top, index_input, 0, treeNodeFlagsMap);
+    ImGuiTreeNodeFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiTreeNodeFlags_None, treeNodeFlagsMap);
     const bool ret_bool           = ImGui::CollapsingHeader(p_label,p_p_open ? &p_p_open : nullptr,flags);
     lua_pushboolean(lua,ret_bool);
     lua_pushboolean(lua,p_p_open);
@@ -4332,7 +4332,7 @@ int onSetNextItemOpenImGuiLua(lua_State *lua)
     int index_input     = 1;
     const int top       = lua_gettop(lua);
     const bool is_open  = lua_toboolean(lua,index_input++);
-    ImGuiCond cond      = lua_opt_flags(lua, top, index_input, 0, condFlagsMap);
+    ImGuiCond cond      = lua_opt_flags(lua, top, index_input, ImGuiCond_None, condFlagsMap);
     ImGui::SetNextItemOpen(is_open,cond);
     return 0;
 }
@@ -4344,7 +4344,7 @@ int onSelectableImGuiLua(lua_State *lua)
     const int top                   = lua_gettop(lua);
     const char * p_label            = luaL_checkstring(lua,index_input++);
     bool selected                   = top >= index_input ? lua_toboolean(lua,index_input++) :  false;
-    ImGuiSelectableFlags flags      = lua_opt_flags(lua, top, index_input, 0, selectableFlagsMap);
+    ImGuiSelectableFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiSelectableFlags_None, selectableFlagsMap);
     ImVec2 size                     = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const bool ret_bool             = ImGui::Selectable(p_label,static_cast<bool*>(&selected),flags,size);
     lua_pushboolean(lua,ret_bool);
@@ -4626,7 +4626,7 @@ int onBeginPopupImGuiLua(lua_State *lua)
     int index_input             = 1;
     const int top               = lua_gettop(lua);
     const char * p_str_id       = get_string_or_null(lua,index_input++);
-    ImGuiWindowFlags   flags    = lua_opt_flags(lua, top, index_input, 0, windowFlagsMap);
+    ImGuiWindowFlags   flags    = lua_opt_flags(lua, top, index_input, ImGuiWindowFlags_None, windowFlagsMap);
     const bool ret_bool         = ImGui::BeginPopup(p_str_id,flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4638,7 +4638,7 @@ int onBeginPopupContextItemImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, ImGuiPopupFlags_None, popupFlagsMap);
     const bool ret_bool                = ImGui::BeginPopupContextItem(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4650,7 +4650,7 @@ int onBeginPopupContextWindowImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, ImGuiPopupFlags_MouseButtonRight, popupFlagsMap);
     const bool ret_bool                = ImGui::BeginPopupContextWindow(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4662,7 +4662,7 @@ int onBeginPopupContextVoidImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, ImGuiPopupFlags_MouseButtonRight, popupFlagsMap);
     const bool ret_bool                = ImGui::BeginPopupContextVoid(p_str_id,popup_flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4707,7 +4707,7 @@ int onOpenPopupOnItemClickImGuiLua(lua_State *lua)
     int index_input                    = 1;
     const int top                      = lua_gettop(lua);
     const char * p_str_id              = get_string_or_null(lua,index_input++);
-    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, 1, popupFlagsMap);
+    ImGuiPopupFlags popup_flags        = lua_opt_flags(lua, top, index_input, ImGuiPopupFlags_MouseButtonRight, popupFlagsMap);
     ImGui::OpenPopupOnItemClick(p_str_id,popup_flags);
     return 0;
 }
@@ -4764,7 +4764,7 @@ int onBeginTabBarImGuiLua(lua_State *lua)
     int index_input             = 1;
     const int top               = lua_gettop(lua);
     const char * p_str_id       = get_string_or_null(lua,index_input++);
-    ImGuiTabBarFlags   flags    = lua_opt_flags(lua, top, index_input, 0, tabBarFlagsMap);
+    ImGuiTabBarFlags   flags    = lua_opt_flags(lua, top, index_input, ImGuiTabBarFlags_None, tabBarFlagsMap);
     const bool ret_bool         = ImGui::BeginTabBar(p_str_id,flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4797,7 +4797,7 @@ int onBeginTabItemImGuiLua(lua_State *lua)
             index_input++;
         }
     }
-    ImGuiTabItemFlags flags      = lua_opt_flags(lua, top, index_input, 0, tabItemFlagsMap);
+    ImGuiTabItemFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiTabItemFlags_None, tabItemFlagsMap);
     const bool ret_bool          = ImGui::BeginTabItem(p_label,p_p_open,flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -4911,7 +4911,7 @@ int onIsItemHoveredImGuiLua(lua_State *lua)
     //  Is the last item hovered? (and usable, aka not blocked by a popup, etc.). See ImGuiHoveredFlags for more options.
     int index_input              = 1;
     const int top                = lua_gettop(lua);
-    ImGuiHoveredFlags flags      = lua_opt_flags(lua, top, index_input, 0, hoveredFlagsMap);
+    ImGuiHoveredFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiHoveredFlags_None, hoveredFlagsMap);
     const bool ret_bool          = ImGui::IsItemHovered(flags);
     lua_pushboolean(lua,ret_bool);
     return 1;
@@ -5515,7 +5515,7 @@ int onInputFloat2ImGuiLua(lua_State *lua)
     float values[2]                = {0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"float table[2]");
     const char * p_format          = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputFloat2(p_label,values,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
@@ -5530,7 +5530,7 @@ int onInputFloat3ImGuiLua(lua_State *lua)
     float values[3]                = {0.0f,0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"float table[3]");
     const char * p_format          = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputFloat3(p_label,values,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
@@ -5545,7 +5545,7 @@ int onInputFloat4ImGuiLua(lua_State *lua)
     float values[4]                = {0.0f,0.0f,0.0f,0.0f};
     get_float_arrayFromTable(lua,index_input++,values,sizeof(values) / sizeof(values[0]) ,"float table[4]");
     const char * p_format          = top >= index_input ? lua_tostring(lua,index_input++) :  "%.3f";
-    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, 0, inputTextFlagsMap);
+    ImGuiInputTextFlags flags      = lua_opt_flags(lua, top, index_input, ImGuiInputTextFlags_None, inputTextFlagsMap);
     const bool ret_bool            = ImGui::InputFloat4(p_label,values,p_format,flags);
     lua_pushboolean(lua,ret_bool);
     push_float_arrayFromTable(lua,values,sizeof(values) / sizeof(values[0]));
