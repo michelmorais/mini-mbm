@@ -71,6 +71,7 @@ extern "C"
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <stdio.h>
 
 #if defined _WIN32
@@ -1173,6 +1174,7 @@ public:
     bool            beginRenderWasCalled;
     
     ImVec2 MousePos,MousePosPrev;
+    std::set<int> keysDown;  // Track keys that are currently down to filter OS key repeats
 
     ImGuiContext*   imGuiContext;
     #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
@@ -1220,6 +1222,12 @@ public:
             // GetGlyphRangesDefault() includes basic Latin (0x0020-0x00FF) which covers Portuguese
             // Font atlas will be built automatically when rendering starts
             imGuIo.Fonts->AddFontDefault(&font_cfg);
+
+            // High values to prevent rapid navigation repeat when holding arrow keys
+            // This affects tree navigation, list selection, etc.
+            // Text field character repeat still works via AddInputCharacter
+            imGuIo.KeyRepeatDelay = 0.400f;  // Time before first repeat (default 0.25f)
+            imGuIo.KeyRepeatRate = 0.080f;   // Time between repeats (default 0.05f)
             
             //imgui_impl_opengl3.cpp
             //ImGui_ImplOpenGL3_Init("#version 110");
@@ -1363,11 +1371,36 @@ public:
         {
             ImGuiIO& io = ImGui::GetIO();
             
+            // Check if this is an OS key repeat (key already down)
+            // If so, skip AddKeyEvent but still process character input for text fields
+            bool isRepeat = (keysDown.find(key) != keysDown.end());
+            
             // Map native key to ImGuiKey
             ImGuiKey imgui_key = MapNativeKeyToImGuiKey(key);
-            if (imgui_key != ImGuiKey_None)
+            if (imgui_key != ImGuiKey_None && !isRepeat)
             {
+                // For navigation keys (arrows), send as instant tap to prevent
+                // ImGui's internal repeat from processing multiple frames
+                bool isNavKey = (imgui_key == ImGuiKey_UpArrow || 
+                                 imgui_key == ImGuiKey_DownArrow ||
+                                 imgui_key == ImGuiKey_LeftArrow || 
+                                 imgui_key == ImGuiKey_RightArrow ||
+                                 imgui_key == ImGuiKey_Home ||
+                                 imgui_key == ImGuiKey_End ||
+                                 imgui_key == ImGuiKey_PageUp ||
+                                 imgui_key == ImGuiKey_PageDown);
+                
                 io.AddKeyEvent(imgui_key, true);
+                if (isNavKey)
+                {
+                    // Immediately release nav keys so they don't repeat
+                    io.AddKeyEvent(imgui_key, false);
+                    // Don't add to keysDown so next OS repeat can trigger another single nav
+                }
+                else
+                {
+                    keysDown.insert(key);
+                }
             }
             
             // Handle modifier keys
@@ -1411,6 +1444,22 @@ public:
             else if (key == VK_DECIMAL)
             {
                 io.AddInputCharacter('.');
+            }
+            else if (key == VK_DIVIDE)
+            {
+                io.AddInputCharacter('/');
+            }
+            else if (key == VK_MULTIPLY)
+            {
+                io.AddInputCharacter('*');
+            }
+            else if (key == VK_SUBTRACT)
+            {
+                io.AddInputCharacter('-');
+            }
+            else if (key == VK_ADD)
+            {
+                io.AddInputCharacter('+');
             }
             else if (key == VK_SPACE)
             {
@@ -1507,6 +1556,22 @@ public:
             {
                 io.AddInputCharacter('.');
             }
+            else if (key == XK_KP_Divide)
+            {
+                io.AddInputCharacter('/');
+            }
+            else if (key == XK_KP_Multiply)
+            {
+                io.AddInputCharacter('*');
+            }
+            else if (key == XK_KP_Subtract)
+            {
+                io.AddInputCharacter('-');
+            }
+            else if (key == XK_KP_Add)
+            {
+                io.AddInputCharacter('+');
+            }
             else if (key == XK_space || key == XK_KP_Space)
             {
                 io.AddInputCharacter(' ');
@@ -1514,6 +1579,51 @@ public:
             else if (key == XK_Return || key == XK_KP_Enter)
             {
                 io.AddInputCharacter('\n');
+            }
+            // Handle special punctuation keys on Linux/macOS
+            else if (key == XK_semicolon)
+            {
+                io.AddInputCharacter(io.KeyShift ? ':' : ';');
+            }
+            else if (key == XK_equal)
+            {
+                io.AddInputCharacter(io.KeyShift ? '+' : '=');
+            }
+            else if (key == XK_comma)
+            {
+                io.AddInputCharacter(io.KeyShift ? '<' : ',');
+            }
+            else if (key == XK_minus)
+            {
+                io.AddInputCharacter(io.KeyShift ? '_' : '-');
+            }
+            else if (key == XK_period)
+            {
+                io.AddInputCharacter(io.KeyShift ? '>' : '.');
+            }
+            else if (key == XK_slash)
+            {
+                io.AddInputCharacter(io.KeyShift ? '?' : '/');
+            }
+            else if (key == XK_grave)
+            {
+                io.AddInputCharacter(io.KeyShift ? '~' : '`');
+            }
+            else if (key == XK_bracketleft)
+            {
+                io.AddInputCharacter(io.KeyShift ? '{' : '[');
+            }
+            else if (key == XK_backslash)
+            {
+                io.AddInputCharacter(io.KeyShift ? '|' : '\\');
+            }
+            else if (key == XK_bracketright)
+            {
+                io.AddInputCharacter(io.KeyShift ? '}' : ']');
+            }
+            else if (key == XK_apostrophe)
+            {
+                io.AddInputCharacter(io.KeyShift ? '"' : '\'');
             }
             #endif
         }
@@ -1525,11 +1635,27 @@ public:
         {
             ImGuiIO& io = ImGui::GetIO();
             
+            // Remove from tracked keys
+            keysDown.erase(key);
+            
             // Map native key to ImGuiKey
             ImGuiKey imgui_key = MapNativeKeyToImGuiKey(key);
             if (imgui_key != ImGuiKey_None)
             {
-                io.AddKeyEvent(imgui_key, false);
+                // Navigation keys already had their key-up sent immediately in onKeyDown
+                // Skip sending another key-up to avoid potential issues
+                bool isNavKey = (imgui_key == ImGuiKey_UpArrow || 
+                                 imgui_key == ImGuiKey_DownArrow ||
+                                 imgui_key == ImGuiKey_LeftArrow || 
+                                 imgui_key == ImGuiKey_RightArrow ||
+                                 imgui_key == ImGuiKey_Home ||
+                                 imgui_key == ImGuiKey_End ||
+                                 imgui_key == ImGuiKey_PageUp ||
+                                 imgui_key == ImGuiKey_PageDown);
+                if (!isNavKey)
+                {
+                    io.AddKeyEvent(imgui_key, false);
+                }
             }
             
             // Handle modifier keys

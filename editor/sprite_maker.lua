@@ -2321,7 +2321,7 @@ function makeHashStringForAnimImage(tFrame, iNumImage)
     return sTexHash
 end
 
-function getTextureIdForAnimImage(tFrame, iNumImage)
+function getTextureInfoForAnimImage(tFrame, iNumImage)
     local sTexHash = makeHashStringForAnimImage(tFrame, iNumImage)
     local tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
     --it will not render the frame twice, thats why we return the same previous frame
@@ -2329,21 +2329,21 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
         return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStart == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
         return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStop == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 2)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 2)
+            return getTextureInfoForAnimImage(tFrame, 2)
         end
         return tRender.tTextureInfo, tRender.nick_name
     end
@@ -2412,7 +2412,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local new_width       = math.min(tFrame.width, winSize.x - padding.x)
     local sy              = new_width / tFrame.width  * tFrame.height
     local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
-    local tTextureInfo, _ = getTextureIdForAnimImage(tFrame, iNumImage)
+    local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
     tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
     applyZoomFrameAnimation()
     tImGui.HelpMarker('Use Control+scroll to zoom it!')
@@ -2512,7 +2512,7 @@ function showAnimationAdd(delta)
             end
             
             local tFrame             = tFrameList[indexFrame]
-            local id, nick_name      = getTextureIdForAnimImage(tFrame, 3)
+            local id, nick_name      = getTextureInfoForAnimImage(tFrame, 3)
             local alpha              = true
             local stage              = 1
             local tShapeAnimations   = getShapeViewForAnim(tFrame)
