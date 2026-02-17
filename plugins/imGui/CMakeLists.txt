@@ -27,6 +27,15 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} ST
     list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_win32.cpp")
 endif()
 
+# Exclude imgui_demo.cpp in release mode (ShowDemoWindow, ShowStyleSelector, etc. are debug-only)
+STRING(TOLOWER "${CMAKE_BUILD_TYPE}" _IMGUI_CMAKE_BUILD_TYPE_LOWER)
+if (NOT _IMGUI_CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_demo.cpp")
+    message(STATUS "ImGui: excluding imgui_demo.cpp, using imgui_demo_stubs.cpp (release build)")
+else()
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_demo_stubs.cpp")
+endif()
+
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
 
     find_package(X11 REQUIRED)

@@ -2705,6 +2705,7 @@ int onGetStyleImGuiLua(lua_State *lua)
         return 1;
     }
 }
+#if defined DEBUG || defined _DEBUG
 #if !defined (ANDROID)
 int onShowDemoWindowImGuiLua(lua_State *lua)
 {
@@ -2738,6 +2739,7 @@ int onShowUserGuideImGuiLua(lua_State *lua)
     ImGui::ShowUserGuide();
     return 0;
 }
+#endif
 #endif
 
 int onGetVersionImGuiLua(lua_State *lua)
@@ -6355,11 +6357,13 @@ int onNewimguiLua(lua_State *lua)
         // SetWindowFontScale removed - deprecated in ImGui 1.92
         {"SetWindowPos",                                         onSetWindowPosImGuiLua }, // Not used, Window
         {"SetWindowSize",                                       onSetWindowSizeImGuiLua }, // Not used, Window
+#if defined DEBUG || defined _DEBUG        
 #if !defined (ANDROID)
         {"ShowDemoWindow",                                     onShowDemoWindowImGuiLua }, // Not used, Demo/Debug
         {"ShowFontSelector",                                 onShowFontSelectorImGuiLua }, // Not used, Demo/Debug
         {"ShowStyleSelector",                               onShowStyleSelectorImGuiLua }, // Not used, Demo/Debug
         {"ShowUserGuide",                                       onShowUserGuideImGuiLua }, // Not used, Demo/Debug
+#endif
 #endif
         {"SliderAngle",                                           onSliderAngleImGuiLua }, // Not used, Input Widgets
         {"SliderFloat",                                           onSliderFloatImGuiLua },
