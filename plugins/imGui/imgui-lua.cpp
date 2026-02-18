@@ -2059,14 +2059,24 @@ void lua_push_ImVec4(lua_State *lua, const ImVec4 & in)
 void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in)
 {
     lua_newtable(lua);
+    lua_pushnumber(lua,in.FontSizeBase);
+    lua_setfield(lua, -2, "FontSizeBase");
+    lua_pushnumber(lua,in.FontScaleMain);
+    lua_setfield(lua, -2, "FontScaleMain");
+    lua_pushnumber(lua,in.FontScaleDpi);
+    lua_setfield(lua, -2, "FontScaleDpi");
     lua_pushnumber(lua,in.Alpha);
     lua_setfield(lua, -2, "Alpha");
+    lua_pushnumber(lua,in.DisabledAlpha);
+    lua_setfield(lua, -2, "DisabledAlpha");
     lua_push_ImVec2(lua,in.WindowPadding);
     lua_setfield(lua, -2, "WindowPadding");
     lua_pushnumber(lua,in.WindowRounding);
     lua_setfield(lua, -2, "WindowRounding");
     lua_pushnumber(lua,in.WindowBorderSize);
     lua_setfield(lua, -2, "WindowBorderSize");
+    lua_pushnumber(lua,in.WindowBorderHoverPadding);
+    lua_setfield(lua, -2, "WindowBorderHoverPadding");
     lua_push_ImVec2(lua,in.WindowMinSize);
     lua_setfield(lua, -2, "WindowMinSize");
     lua_push_ImVec2(lua,in.WindowTitleAlign);
@@ -2091,6 +2101,8 @@ void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in)
     lua_setfield(lua, -2, "ItemSpacing");
     lua_push_ImVec2(lua,in.ItemInnerSpacing);
     lua_setfield(lua, -2, "ItemInnerSpacing");
+    lua_push_ImVec2(lua,in.CellPadding);
+    lua_setfield(lua, -2, "CellPadding");
     lua_push_ImVec2(lua,in.TouchExtraPadding);
     lua_setfield(lua, -2, "TouchExtraPadding");
     lua_pushnumber(lua,in.IndentSpacing);
@@ -2101,20 +2113,64 @@ void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in)
     lua_setfield(lua, -2, "ScrollbarSize");
     lua_pushnumber(lua,in.ScrollbarRounding);
     lua_setfield(lua, -2, "ScrollbarRounding");
+    lua_pushnumber(lua,in.ScrollbarPadding);
+    lua_setfield(lua, -2, "ScrollbarPadding");
     lua_pushnumber(lua,in.GrabMinSize);
     lua_setfield(lua, -2, "GrabMinSize");
     lua_pushnumber(lua,in.GrabRounding);
     lua_setfield(lua, -2, "GrabRounding");
+    lua_pushnumber(lua,in.LogSliderDeadzone);
+    lua_setfield(lua, -2, "LogSliderDeadzone");
+    lua_pushnumber(lua,in.ImageRounding);
+    lua_setfield(lua, -2, "ImageRounding");
+    lua_pushnumber(lua,in.ImageBorderSize);
+    lua_setfield(lua, -2, "ImageBorderSize");
     lua_pushnumber(lua,in.TabRounding);
     lua_setfield(lua, -2, "TabRounding");
     lua_pushnumber(lua,in.TabBorderSize);
     lua_setfield(lua, -2, "TabBorderSize");
+    lua_pushnumber(lua,in.TabMinWidthBase);
+    lua_setfield(lua, -2, "TabMinWidthBase");
+    lua_pushnumber(lua,in.TabMinWidthShrink);
+    lua_setfield(lua, -2, "TabMinWidthShrink");
+    lua_pushnumber(lua,in.TabCloseButtonMinWidthSelected);
+    lua_setfield(lua, -2, "TabCloseButtonMinWidthSelected");
+    lua_pushnumber(lua,in.TabCloseButtonMinWidthUnselected);
+    lua_setfield(lua, -2, "TabCloseButtonMinWidthUnselected");
+    lua_pushnumber(lua,in.TabBarBorderSize);
+    lua_setfield(lua, -2, "TabBarBorderSize");
+    lua_pushnumber(lua,in.TabBarOverlineSize);
+    lua_setfield(lua, -2, "TabBarOverlineSize");
+    lua_pushnumber(lua,in.TableAngledHeadersAngle);
+    lua_setfield(lua, -2, "TableAngledHeadersAngle");
+    lua_push_ImVec2(lua,in.TableAngledHeadersTextAlign);
+    lua_setfield(lua, -2, "TableAngledHeadersTextAlign");
+    lua_pushinteger(lua,in.TreeLinesFlags);
+    lua_setfield(lua, -2, "TreeLinesFlags");
+    lua_pushnumber(lua,in.TreeLinesSize);
+    lua_setfield(lua, -2, "TreeLinesSize");
+    lua_pushnumber(lua,in.TreeLinesRounding);
+    lua_setfield(lua, -2, "TreeLinesRounding");
+    lua_pushnumber(lua,in.DragDropTargetRounding);
+    lua_setfield(lua, -2, "DragDropTargetRounding");
+    lua_pushnumber(lua,in.DragDropTargetBorderSize);
+    lua_setfield(lua, -2, "DragDropTargetBorderSize");
+    lua_pushnumber(lua,in.DragDropTargetPadding);
+    lua_setfield(lua, -2, "DragDropTargetPadding");
+    lua_pushnumber(lua,in.ColorMarkerSize);
+    lua_setfield(lua, -2, "ColorMarkerSize");
     lua_pushinteger(lua,in.ColorButtonPosition);
     lua_setfield(lua, -2, "ColorButtonPosition");
     lua_push_ImVec2(lua,in.ButtonTextAlign);
     lua_setfield(lua, -2, "ButtonTextAlign");
     lua_push_ImVec2(lua,in.SelectableTextAlign);
     lua_setfield(lua, -2, "SelectableTextAlign");
+    lua_pushnumber(lua,in.SeparatorTextBorderSize);
+    lua_setfield(lua, -2, "SeparatorTextBorderSize");
+    lua_push_ImVec2(lua,in.SeparatorTextAlign);
+    lua_setfield(lua, -2, "SeparatorTextAlign");
+    lua_push_ImVec2(lua,in.SeparatorTextPadding);
+    lua_setfield(lua, -2, "SeparatorTextPadding");
     lua_push_ImVec2(lua,in.DisplayWindowPadding);
     lua_setfield(lua, -2, "DisplayWindowPadding");
     lua_push_ImVec2(lua,in.DisplaySafeAreaPadding);
@@ -2123,10 +2179,24 @@ void lua_push_ImGuiStyle(lua_State *lua, const ImGuiStyle & in)
     lua_setfield(lua, -2, "MouseCursorScale");
     lua_pushboolean(lua,in.AntiAliasedLines);
     lua_setfield(lua, -2, "AntiAliasedLines");
+    lua_pushboolean(lua,in.AntiAliasedLinesUseTex);
+    lua_setfield(lua, -2, "AntiAliasedLinesUseTex");
     lua_pushboolean(lua,in.AntiAliasedFill);
     lua_setfield(lua, -2, "AntiAliasedFill");
     lua_pushnumber(lua,in.CurveTessellationTol);
     lua_setfield(lua, -2, "CurveTessellationTol");
+    lua_pushnumber(lua,in.CircleTessellationMaxError);
+    lua_setfield(lua, -2, "CircleTessellationMaxError");
+    lua_pushnumber(lua,in.HoverStationaryDelay);
+    lua_setfield(lua, -2, "HoverStationaryDelay");
+    lua_pushnumber(lua,in.HoverDelayShort);
+    lua_setfield(lua, -2, "HoverDelayShort");
+    lua_pushnumber(lua,in.HoverDelayNormal);
+    lua_setfield(lua, -2, "HoverDelayNormal");
+    lua_pushinteger(lua,in.HoverFlagsForTooltipMouse);
+    lua_setfield(lua, -2, "HoverFlagsForTooltipMouse");
+    lua_pushinteger(lua,in.HoverFlagsForTooltipNav);
+    lua_setfield(lua, -2, "HoverFlagsForTooltipNav");
     push_RGBA_arrayFromTable(lua,in.Colors,sizeof(in.Colors) / sizeof(in.Colors[0]));
     lua_setfield(lua, -2, "Colors");
 
@@ -2296,11 +2366,16 @@ ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiSt
         return nullptr;
     }
     lua_check_is_table(lua, index, "ImGuiStyle");
+    in_out_ImGuiStyle->FontSizeBase              = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->FontSizeBase),"FontSizeBase"));
+    in_out_ImGuiStyle->FontScaleMain             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->FontScaleMain),"FontScaleMain"));
+    in_out_ImGuiStyle->FontScaleDpi              = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->FontScaleDpi),"FontScaleDpi"));
     in_out_ImGuiStyle->Alpha                     = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->Alpha),"Alpha"));
+    in_out_ImGuiStyle->DisabledAlpha             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->DisabledAlpha),"DisabledAlpha"));
     lua_getfield(lua, index, "WindowPadding");
     in_out_ImGuiStyle->WindowPadding             = lua_pop_ImVec2(lua,index);
     in_out_ImGuiStyle->WindowRounding            = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->WindowRounding),"WindowRounding"));
     in_out_ImGuiStyle->WindowBorderSize          = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->WindowBorderSize),"WindowBorderSize"));
+    in_out_ImGuiStyle->WindowBorderHoverPadding  = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->WindowBorderHoverPadding),"WindowBorderHoverPadding"));
     lua_getfield(lua, index, "WindowMinSize");
     in_out_ImGuiStyle->WindowMinSize             = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "WindowTitleAlign");
@@ -2319,30 +2394,72 @@ ImGuiStyle * lua_pop_ImGuiStyle_pointer(lua_State *lua, const int index, ImGuiSt
     in_out_ImGuiStyle->ItemSpacing               = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "ItemInnerSpacing");
     in_out_ImGuiStyle->ItemInnerSpacing          = lua_pop_ImVec2(lua,index);
+    lua_getfield(lua, index, "CellPadding");
+    if (lua_istable(lua, -1))
+        lua_pop_ImVec2_pointer(lua, lua_gettop(lua), &in_out_ImGuiStyle->CellPadding);
+    lua_pop(lua, 1);
     lua_getfield(lua, index, "TouchExtraPadding");
     in_out_ImGuiStyle->TouchExtraPadding         = lua_pop_ImVec2(lua,index);
     in_out_ImGuiStyle->IndentSpacing             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->IndentSpacing),"IndentSpacing"));
     in_out_ImGuiStyle->ColumnsMinSpacing         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ColumnsMinSpacing),"ColumnsMinSpacing"));
     in_out_ImGuiStyle->ScrollbarSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ScrollbarSize),"ScrollbarSize"));
     in_out_ImGuiStyle->ScrollbarRounding         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ScrollbarRounding),"ScrollbarRounding"));
+    in_out_ImGuiStyle->ScrollbarPadding          = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ScrollbarPadding),"ScrollbarPadding"));
     in_out_ImGuiStyle->GrabMinSize               = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->GrabMinSize),"GrabMinSize"));
     in_out_ImGuiStyle->GrabRounding              = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->GrabRounding),"GrabRounding"));
+    in_out_ImGuiStyle->LogSliderDeadzone         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->LogSliderDeadzone),"LogSliderDeadzone"));
+    in_out_ImGuiStyle->ImageRounding             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ImageRounding),"ImageRounding"));
+    in_out_ImGuiStyle->ImageBorderSize           = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ImageBorderSize),"ImageBorderSize"));
     in_out_ImGuiStyle->TabRounding               = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabRounding),"TabRounding"));
     in_out_ImGuiStyle->TabBorderSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabBorderSize),"TabBorderSize"));
+    in_out_ImGuiStyle->TabMinWidthBase           = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabMinWidthBase),"TabMinWidthBase"));
+    in_out_ImGuiStyle->TabMinWidthShrink         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabMinWidthShrink),"TabMinWidthShrink"));
+    in_out_ImGuiStyle->TabCloseButtonMinWidthSelected   = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabCloseButtonMinWidthSelected),"TabCloseButtonMinWidthSelected"));
+    in_out_ImGuiStyle->TabCloseButtonMinWidthUnselected  = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabCloseButtonMinWidthUnselected),"TabCloseButtonMinWidthUnselected"));
+    in_out_ImGuiStyle->TabBarBorderSize          = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabBarBorderSize),"TabBarBorderSize"));
+    in_out_ImGuiStyle->TabBarOverlineSize        = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TabBarOverlineSize),"TabBarOverlineSize"));
+    in_out_ImGuiStyle->TableAngledHeadersAngle   = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TableAngledHeadersAngle),"TableAngledHeadersAngle"));
+    lua_getfield(lua, index, "TableAngledHeadersTextAlign");
+    if (lua_istable(lua, -1))
+        lua_pop_ImVec2_pointer(lua, lua_gettop(lua), &in_out_ImGuiStyle->TableAngledHeadersTextAlign);
+    lua_pop(lua, 1);
+    in_out_ImGuiStyle->TreeLinesFlags            = (ImGuiTreeNodeFlags)static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TreeLinesFlags),"TreeLinesFlags"));
+    in_out_ImGuiStyle->TreeLinesSize             = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TreeLinesSize),"TreeLinesSize"));
+    in_out_ImGuiStyle->TreeLinesRounding        = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->TreeLinesRounding),"TreeLinesRounding"));
+    in_out_ImGuiStyle->DragDropTargetRounding    = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->DragDropTargetRounding),"DragDropTargetRounding"));
+    in_out_ImGuiStyle->DragDropTargetBorderSize  = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->DragDropTargetBorderSize),"DragDropTargetBorderSize"));
+    in_out_ImGuiStyle->DragDropTargetPadding     = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->DragDropTargetPadding),"DragDropTargetPadding"));
+    in_out_ImGuiStyle->ColorMarkerSize           = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->ColorMarkerSize),"ColorMarkerSize"));
     lua_getfield(lua, index, "ColorButtonPosition");
     in_out_ImGuiStyle->ColorButtonPosition       = (ImGuiDir)luaL_checkinteger(lua,index);
     lua_getfield(lua, index, "ButtonTextAlign");
     in_out_ImGuiStyle->ButtonTextAlign           = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "SelectableTextAlign");
     in_out_ImGuiStyle->SelectableTextAlign       = lua_pop_ImVec2(lua,index);
+    in_out_ImGuiStyle->SeparatorTextBorderSize   = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->SeparatorTextBorderSize),"SeparatorTextBorderSize"));
+    lua_getfield(lua, index, "SeparatorTextAlign");
+    if (lua_istable(lua, -1))
+        lua_pop_ImVec2_pointer(lua, lua_gettop(lua), &in_out_ImGuiStyle->SeparatorTextAlign);
+    lua_pop(lua, 1);
+    lua_getfield(lua, index, "SeparatorTextPadding");
+    if (lua_istable(lua, -1))
+        lua_pop_ImVec2_pointer(lua, lua_gettop(lua), &in_out_ImGuiStyle->SeparatorTextPadding);
+    lua_pop(lua, 1);
     lua_getfield(lua, index, "DisplayWindowPadding");
     in_out_ImGuiStyle->DisplayWindowPadding      = lua_pop_ImVec2(lua,index);
     lua_getfield(lua, index, "DisplaySafeAreaPadding");
     in_out_ImGuiStyle->DisplaySafeAreaPadding    = lua_pop_ImVec2(lua,index);
     in_out_ImGuiStyle->MouseCursorScale          = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->MouseCursorScale),"MouseCursorScale"));
     in_out_ImGuiStyle->AntiAliasedLines          = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->AntiAliasedLines),"AntiAliasedLines"));
+    in_out_ImGuiStyle->AntiAliasedLinesUseTex    = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->AntiAliasedLinesUseTex),"AntiAliasedLinesUseTex"));
     in_out_ImGuiStyle->AntiAliasedFill           = static_cast<bool>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->AntiAliasedFill),"AntiAliasedFill"));
-    in_out_ImGuiStyle->CurveTessellationTol      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->CurveTessellationTol),"CurveTessellationTol"));
+    in_out_ImGuiStyle->CurveTessellationTol     = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->CurveTessellationTol),"CurveTessellationTol"));
+    in_out_ImGuiStyle->CircleTessellationMaxError= static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->CircleTessellationMaxError),"CircleTessellationMaxError"));
+    in_out_ImGuiStyle->HoverStationaryDelay      = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->HoverStationaryDelay),"HoverStationaryDelay"));
+    in_out_ImGuiStyle->HoverDelayShort          = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->HoverDelayShort),"HoverDelayShort"));
+    in_out_ImGuiStyle->HoverDelayNormal         = static_cast<float>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->HoverDelayNormal),"HoverDelayNormal"));
+    in_out_ImGuiStyle->HoverFlagsForTooltipMouse = (ImGuiHoveredFlags)static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->HoverFlagsForTooltipMouse),"HoverFlagsForTooltipMouse"));
+    in_out_ImGuiStyle->HoverFlagsForTooltipNav   = (ImGuiHoveredFlags)static_cast<int>(get_number_from_field(lua,index,static_cast<lua_Number>(in_out_ImGuiStyle->HoverFlagsForTooltipNav),"HoverFlagsForTooltipNav"));
     lua_getfield(lua, index, "Colors");
     for(int i=0; i < ImGuiCol_COUNT; i++)
     {
@@ -2534,9 +2651,25 @@ int onGetStyleImGuiLua(lua_State *lua)
         for(int i=1; i <= top; ++i)
         {
             const char * sNext = luaL_checkstring(lua,i);
-            if(strcmp(sNext,"Alpha")                        == 0)
+            if(strcmp(sNext,"FontSizeBase")                  == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.FontSizeBase);
+            }
+            else if(strcmp(sNext,"FontScaleMain")            == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.FontScaleMain);
+            }
+            else if(strcmp(sNext,"FontScaleDpi")             == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.FontScaleDpi);
+            }
+            else if(strcmp(sNext,"Alpha")                        == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.Alpha);
+            }
+            else if(strcmp(sNext,"DisabledAlpha")            == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.DisabledAlpha);
             }
             else if(strcmp(sNext,"WindowPadding")            == 0)
             {
@@ -2549,6 +2682,10 @@ int onGetStyleImGuiLua(lua_State *lua)
             else if(strcmp(sNext,"WindowBorderSize")         == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.WindowBorderSize);
+            }
+            else if(strcmp(sNext,"WindowBorderHoverPadding")  == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.WindowBorderHoverPadding);
             }
             else if(strcmp(sNext,"WindowMinSize")            == 0)
             {
@@ -2598,6 +2735,10 @@ int onGetStyleImGuiLua(lua_State *lua)
             {
                 lua_push_ImVec2(lua,ret_ImGuiStyle.ItemInnerSpacing);
             }
+            else if(strcmp(sNext,"CellPadding")               == 0)
+            {
+                lua_push_ImVec2(lua,ret_ImGuiStyle.CellPadding);
+            }
             else if(strcmp(sNext,"TouchExtraPadding")        == 0)
             {
                 lua_push_ImVec2(lua,ret_ImGuiStyle.TouchExtraPadding);
@@ -2618,6 +2759,10 @@ int onGetStyleImGuiLua(lua_State *lua)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.ScrollbarRounding);
             }
+            else if(strcmp(sNext,"ScrollbarPadding")         == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.ScrollbarPadding);
+            }
             else if(strcmp(sNext,"GrabMinSize")              == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.GrabMinSize);
@@ -2626,6 +2771,18 @@ int onGetStyleImGuiLua(lua_State *lua)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.GrabRounding);
             }
+            else if(strcmp(sNext,"LogSliderDeadzone")        == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.LogSliderDeadzone);
+            }
+            else if(strcmp(sNext,"ImageRounding")            == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.ImageRounding);
+            }
+            else if(strcmp(sNext,"ImageBorderSize")          == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.ImageBorderSize);
+            }
             else if(strcmp(sNext,"TabRounding")              == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.TabRounding);
@@ -2633,6 +2790,66 @@ int onGetStyleImGuiLua(lua_State *lua)
             else if(strcmp(sNext,"TabBorderSize")            == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.TabBorderSize);
+            }
+            else if(strcmp(sNext,"TabMinWidthBase")          == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabMinWidthBase);
+            }
+            else if(strcmp(sNext,"TabMinWidthShrink")        == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabMinWidthShrink);
+            }
+            else if(strcmp(sNext,"TabCloseButtonMinWidthSelected") == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabCloseButtonMinWidthSelected);
+            }
+            else if(strcmp(sNext,"TabCloseButtonMinWidthUnselected") == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabCloseButtonMinWidthUnselected);
+            }
+            else if(strcmp(sNext,"TabBarBorderSize")         == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabBarBorderSize);
+            }
+            else if(strcmp(sNext,"TabBarOverlineSize")       == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TabBarOverlineSize);
+            }
+            else if(strcmp(sNext,"TableAngledHeadersAngle")   == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TableAngledHeadersAngle);
+            }
+            else if(strcmp(sNext,"TableAngledHeadersTextAlign") == 0)
+            {
+                lua_push_ImVec2(lua,ret_ImGuiStyle.TableAngledHeadersTextAlign);
+            }
+            else if(strcmp(sNext,"TreeLinesFlags")           == 0)
+            {
+                lua_pushinteger(lua,ret_ImGuiStyle.TreeLinesFlags);
+            }
+            else if(strcmp(sNext,"TreeLinesSize")            == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TreeLinesSize);
+            }
+            else if(strcmp(sNext,"TreeLinesRounding")        == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.TreeLinesRounding);
+            }
+            else if(strcmp(sNext,"DragDropTargetRounding")   == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.DragDropTargetRounding);
+            }
+            else if(strcmp(sNext,"DragDropTargetBorderSize") == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.DragDropTargetBorderSize);
+            }
+            else if(strcmp(sNext,"DragDropTargetPadding")    == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.DragDropTargetPadding);
+            }
+            else if(strcmp(sNext,"ColorMarkerSize")          == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.ColorMarkerSize);
             }
             else if(strcmp(sNext,"ColorButtonPosition")      == 0)
             {
@@ -2645,6 +2862,18 @@ int onGetStyleImGuiLua(lua_State *lua)
             else if(strcmp(sNext,"SelectableTextAlign")      == 0)
             {
                 lua_push_ImVec2(lua,ret_ImGuiStyle.SelectableTextAlign);
+            }
+            else if(strcmp(sNext,"SeparatorTextBorderSize")  == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.SeparatorTextBorderSize);
+            }
+            else if(strcmp(sNext,"SeparatorTextAlign")       == 0)
+            {
+                lua_push_ImVec2(lua,ret_ImGuiStyle.SeparatorTextAlign);
+            }
+            else if(strcmp(sNext,"SeparatorTextPadding")     == 0)
+            {
+                lua_push_ImVec2(lua,ret_ImGuiStyle.SeparatorTextPadding);
             }
             else if(strcmp(sNext,"DisplayWindowPadding")     == 0)
             {
@@ -2662,6 +2891,10 @@ int onGetStyleImGuiLua(lua_State *lua)
             {
                 lua_pushboolean(lua,ret_ImGuiStyle.AntiAliasedLines);
             }
+            else if(strcmp(sNext,"AntiAliasedLinesUseTex")   == 0)
+            {
+                lua_pushboolean(lua,ret_ImGuiStyle.AntiAliasedLinesUseTex);
+            }
             else if(strcmp(sNext,"AntiAliasedFill")          == 0)
             {
                 lua_pushboolean(lua,ret_ImGuiStyle.AntiAliasedFill);
@@ -2669,6 +2902,30 @@ int onGetStyleImGuiLua(lua_State *lua)
             else if(strcmp(sNext,"CurveTessellationTol")     == 0)
             {
                 lua_pushnumber(lua,ret_ImGuiStyle.CurveTessellationTol);
+            }
+            else if(strcmp(sNext,"CircleTessellationMaxError") == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.CircleTessellationMaxError);
+            }
+            else if(strcmp(sNext,"HoverStationaryDelay")     == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.HoverStationaryDelay);
+            }
+            else if(strcmp(sNext,"HoverDelayShort")           == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.HoverDelayShort);
+            }
+            else if(strcmp(sNext,"HoverDelayNormal")         == 0)
+            {
+                lua_pushnumber(lua,ret_ImGuiStyle.HoverDelayNormal);
+            }
+            else if(strcmp(sNext,"HoverFlagsForTooltipMouse") == 0)
+            {
+                lua_pushinteger(lua,ret_ImGuiStyle.HoverFlagsForTooltipMouse);
+            }
+            else if(strcmp(sNext,"HoverFlagsForTooltipNav")  == 0)
+            {
+                lua_pushinteger(lua,ret_ImGuiStyle.HoverFlagsForTooltipNav);
             }
             else if(strncmp(sNext,"ImGuiCol_",9)             == 0)
             {
