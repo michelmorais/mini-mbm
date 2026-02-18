@@ -5,30 +5,33 @@
       "name": "mini-mbm-dev (Windows Debug)",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/platform-msvs/Win32/Debug/mini-mbm-dev.exe",
+      "program": "${workspaceFolder}/platform-msvs/Debug/mini-mbm-dev.exe",
       "args": [],
-      "cwd": "${workspaceFolder}/platform-msvs/Win32/Debug",
+      "cwd": "${workspaceFolder}/platform-msvs/Debug",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Debug)"
+      "preLaunchTask": "Build mini-mbm (Debug)",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
       "name": "mini-mbm-dev (Windows Release)",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/platform-msvs/Win32/Release/mini-mbm-dev.exe",
+      "program": "${workspaceFolder}/platform-msvs/Release/mini-mbm-dev.exe",
       "args": [],
-      "cwd": "${workspaceFolder}/platform-msvs/Win32/Release",
+      "cwd": "${workspaceFolder}/platform-msvs/Release",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Release)"
+      "preLaunchTask": "Build mini-mbm (Release)",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
       "name": "mini-mbm-dev (Windows Debug, no build)",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/platform-msvs/Win32/Debug/mini-mbm-dev.exe",
+      "program": "${workspaceFolder}/platform-msvs/Debug/mini-mbm-dev.exe",
       "args": [],
-      "cwd": "${workspaceFolder}/platform-msvs/Win32/Debug",
-      "stopAtEntry": false
+      "cwd": "${workspaceFolder}/platform-msvs/Debug",
+      "stopAtEntry": false,
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
       "name": "C/C++ Debug (gdb Attach)",
