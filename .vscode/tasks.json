@@ -1,0 +1,94 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build mini-mbm (Release)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/p:Configuration=Release",
+        "/p:Platform=Win32",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Build mini-mbm (Debug)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/p:Configuration=Debug",
+        "/p:Platform=Win32",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Build mini-mbm (Release x64)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/p:Configuration=Release",
+        "/p:Platform=x64",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Rebuild mini-mbm (Release)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/t:Rebuild",
+        "/p:Configuration=Release",
+        "/p:Platform=Win32",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
+    }
+  ]
+}
