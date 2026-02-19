@@ -966,7 +966,77 @@ static const std::map<std::string,int> othersFlag = {
         {"ImDrawListFlags_None",                              ImDrawListFlags_None},
         {"ImDrawListFlags_AntiAliasedLines",                  ImDrawListFlags_AntiAliasedLines},
         {"ImDrawListFlags_AntiAliasedFill",                   ImDrawListFlags_AntiAliasedFill},
-        {"ImDrawListFlags_AllowVtxOffset",                    ImDrawListFlags_AllowVtxOffset}
+        {"ImDrawListFlags_AllowVtxOffset",                    ImDrawListFlags_AllowVtxOffset},
+        // ImGuiTableFlags (BeginTable)
+        {"ImGuiTableFlags_None",                              ImGuiTableFlags_None},
+        {"ImGuiTableFlags_Resizable",                         ImGuiTableFlags_Resizable},
+        {"ImGuiTableFlags_Reorderable",                      ImGuiTableFlags_Reorderable},
+        {"ImGuiTableFlags_Hideable",                          ImGuiTableFlags_Hideable},
+        {"ImGuiTableFlags_Sortable",                          ImGuiTableFlags_Sortable},
+        {"ImGuiTableFlags_NoSavedSettings",                   ImGuiTableFlags_NoSavedSettings},
+        {"ImGuiTableFlags_ContextMenuInBody",                 ImGuiTableFlags_ContextMenuInBody},
+        {"ImGuiTableFlags_RowBg",                             ImGuiTableFlags_RowBg},
+        {"ImGuiTableFlags_BordersInnerH",                     ImGuiTableFlags_BordersInnerH},
+        {"ImGuiTableFlags_BordersOuterH",                     ImGuiTableFlags_BordersOuterH},
+        {"ImGuiTableFlags_BordersInnerV",                     ImGuiTableFlags_BordersInnerV},
+        {"ImGuiTableFlags_BordersOuterV",                     ImGuiTableFlags_BordersOuterV},
+        {"ImGuiTableFlags_BordersH",                          ImGuiTableFlags_BordersH},
+        {"ImGuiTableFlags_BordersV",                          ImGuiTableFlags_BordersV},
+        {"ImGuiTableFlags_BordersInner",                      ImGuiTableFlags_BordersInner},
+        {"ImGuiTableFlags_BordersOuter",                      ImGuiTableFlags_BordersOuter},
+        {"ImGuiTableFlags_Borders",                           ImGuiTableFlags_Borders},
+        {"ImGuiTableFlags_NoBordersInBody",                   ImGuiTableFlags_NoBordersInBody},
+        {"ImGuiTableFlags_NoBordersInBodyUntilResize",         ImGuiTableFlags_NoBordersInBodyUntilResize},
+        {"ImGuiTableFlags_SizingFixedFit",                    ImGuiTableFlags_SizingFixedFit},
+        {"ImGuiTableFlags_SizingFixedSame",                   ImGuiTableFlags_SizingFixedSame},
+        {"ImGuiTableFlags_SizingStretchProp",                 ImGuiTableFlags_SizingStretchProp},
+        {"ImGuiTableFlags_SizingStretchSame",                 ImGuiTableFlags_SizingStretchSame},
+        {"ImGuiTableFlags_NoHostExtendX",                     ImGuiTableFlags_NoHostExtendX},
+        {"ImGuiTableFlags_NoHostExtendY",                     ImGuiTableFlags_NoHostExtendY},
+        {"ImGuiTableFlags_NoKeepColumnsVisible",              ImGuiTableFlags_NoKeepColumnsVisible},
+        {"ImGuiTableFlags_PreciseWidths",                     ImGuiTableFlags_PreciseWidths},
+        {"ImGuiTableFlags_NoClip",                            ImGuiTableFlags_NoClip},
+        {"ImGuiTableFlags_PadOuterX",                         ImGuiTableFlags_PadOuterX},
+        {"ImGuiTableFlags_NoPadOuterX",                       ImGuiTableFlags_NoPadOuterX},
+        {"ImGuiTableFlags_NoPadInnerX",                       ImGuiTableFlags_NoPadInnerX},
+        {"ImGuiTableFlags_ScrollX",                           ImGuiTableFlags_ScrollX},
+        {"ImGuiTableFlags_ScrollY",                           ImGuiTableFlags_ScrollY},
+        {"ImGuiTableFlags_SortMulti",                         ImGuiTableFlags_SortMulti},
+        {"ImGuiTableFlags_SortTristate",                      ImGuiTableFlags_SortTristate},
+        {"ImGuiTableFlags_HighlightHoveredColumn",            ImGuiTableFlags_HighlightHoveredColumn},
+        // ImGuiTableColumnFlags (TableSetupColumn)
+        {"ImGuiTableColumnFlags_None",                        ImGuiTableColumnFlags_None},
+        {"ImGuiTableColumnFlags_Disabled",                    ImGuiTableColumnFlags_Disabled},
+        {"ImGuiTableColumnFlags_DefaultHide",                 ImGuiTableColumnFlags_DefaultHide},
+        {"ImGuiTableColumnFlags_DefaultSort",                 ImGuiTableColumnFlags_DefaultSort},
+        {"ImGuiTableColumnFlags_WidthStretch",                ImGuiTableColumnFlags_WidthStretch},
+        {"ImGuiTableColumnFlags_WidthFixed",                  ImGuiTableColumnFlags_WidthFixed},
+        {"ImGuiTableColumnFlags_NoResize",                    ImGuiTableColumnFlags_NoResize},
+        {"ImGuiTableColumnFlags_NoReorder",                   ImGuiTableColumnFlags_NoReorder},
+        {"ImGuiTableColumnFlags_NoHide",                       ImGuiTableColumnFlags_NoHide},
+        {"ImGuiTableColumnFlags_NoClip",                      ImGuiTableColumnFlags_NoClip},
+        {"ImGuiTableColumnFlags_NoSort",                       ImGuiTableColumnFlags_NoSort},
+        {"ImGuiTableColumnFlags_NoSortAscending",              ImGuiTableColumnFlags_NoSortAscending},
+        {"ImGuiTableColumnFlags_NoSortDescending",            ImGuiTableColumnFlags_NoSortDescending},
+        {"ImGuiTableColumnFlags_NoHeaderLabel",               ImGuiTableColumnFlags_NoHeaderLabel},
+        {"ImGuiTableColumnFlags_NoHeaderWidth",               ImGuiTableColumnFlags_NoHeaderWidth},
+        {"ImGuiTableColumnFlags_PreferSortAscending",         ImGuiTableColumnFlags_PreferSortAscending},
+        {"ImGuiTableColumnFlags_PreferSortDescending",        ImGuiTableColumnFlags_PreferSortDescending},
+        {"ImGuiTableColumnFlags_IndentEnable",                ImGuiTableColumnFlags_IndentEnable},
+        {"ImGuiTableColumnFlags_IndentDisable",               ImGuiTableColumnFlags_IndentDisable},
+        {"ImGuiTableColumnFlags_AngledHeader",                ImGuiTableColumnFlags_AngledHeader},
+        {"ImGuiTableColumnFlags_IsEnabled",                   ImGuiTableColumnFlags_IsEnabled},
+        {"ImGuiTableColumnFlags_IsVisible",                   ImGuiTableColumnFlags_IsVisible},
+        {"ImGuiTableColumnFlags_IsSorted",                    ImGuiTableColumnFlags_IsSorted},
+        {"ImGuiTableColumnFlags_IsHovered",                   ImGuiTableColumnFlags_IsHovered},
+        // ImGuiTableRowFlags (TableNextRow)
+        {"ImGuiTableRowFlags_None",                           ImGuiTableRowFlags_None},
+        {"ImGuiTableRowFlags_Headers",                        ImGuiTableRowFlags_Headers},
+        // ImGuiTableBgTarget (TableSetBgColor)
+        {"ImGuiTableBgTarget_None",                           ImGuiTableBgTarget_None},
+        {"ImGuiTableBgTarget_RowBg0",                         ImGuiTableBgTarget_RowBg0},
+        {"ImGuiTableBgTarget_RowBg1",                         ImGuiTableBgTarget_RowBg1},
+        {"ImGuiTableBgTarget_CellBg",                         ImGuiTableBgTarget_CellBg}
 };
 
 // Combine all flag maps for lookup
@@ -3082,6 +3152,167 @@ int onBeginChildImGuiLua(lua_State *lua)
 int onEndChildImGuiLua(lua_State *)
 {
     ImGui::EndChild();
+    return 0;
+}
+
+// Tables API - see imgui_demo.cpp "Tables & Columns"
+int onBeginTableImGuiLua(lua_State *lua)
+{
+    int index_input             = 1;
+    const int top               = lua_gettop(lua);
+    const char * str_id         = luaL_checkstring(lua, index_input++);
+    const int columns           = luaL_checkinteger(lua, index_input++);
+    ImGuiTableFlags flags       = top >= index_input ? lua_opt_flags(lua, top, index_input, ImGuiTableFlags_None, allFlags) : ImGuiTableFlags_None;
+    ImVec2 outer_size           = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0.0f, 0.0f);
+    const float inner_width     = top >= index_input ? (float)luaL_optnumber(lua, index_input++, 0.0) : 0.0f;
+    const bool ret_bool        = ImGui::BeginTable(str_id, columns, flags, outer_size, inner_width);
+    lua_pushboolean(lua, ret_bool);
+    return 1;
+}
+
+int onEndTableImGuiLua(lua_State *)
+{
+    ImGui::EndTable();
+    return 0;
+}
+
+int onTableNextRowImGuiLua(lua_State *lua)
+{
+    int index_input             = 1;
+    const int top               = lua_gettop(lua);
+    ImGuiTableRowFlags row_flags = top >= index_input ? lua_opt_flags(lua, top, index_input, ImGuiTableRowFlags_None, allFlags) : ImGuiTableRowFlags_None;
+    const float min_row_height  = top >= index_input ? (float)luaL_checknumber(lua, index_input++) : 0.0f;
+    ImGui::TableNextRow(row_flags, min_row_height);
+    return 0;
+}
+
+int onTableNextColumnImGuiLua(lua_State *lua)
+{
+    const bool ret_bool = ImGui::TableNextColumn();
+    lua_pushboolean(lua, ret_bool);
+    return 1;
+}
+
+int onTableSetColumnIndexImGuiLua(lua_State *lua)
+{
+    const int column_n  = luaL_checkinteger(lua, 1);
+    const bool ret_bool = ImGui::TableSetColumnIndex(column_n);
+    lua_pushboolean(lua, ret_bool);
+    return 1;
+}
+
+int onTableSetupColumnImGuiLua(lua_State *lua)
+{
+    int index_input             = 1;
+    const int top               = lua_gettop(lua);
+    const char * label          = luaL_checkstring(lua, index_input++);
+    ImGuiTableColumnFlags flags = top >= index_input ? lua_opt_flags(lua, top, index_input, ImGuiTableColumnFlags_None, allFlags) : ImGuiTableColumnFlags_None;
+    const float init_width      = top >= index_input ? (float)luaL_optnumber(lua, index_input++, 0.0) : 0.0f;
+    ImGuiID user_id             = top >= index_input ? (ImGuiID)luaL_optinteger(lua, index_input++, 0) : 0;
+    ImGui::TableSetupColumn(label, flags, init_width, user_id);
+    return 0;
+}
+
+int onTableSetupScrollFreezeImGuiLua(lua_State *lua)
+{
+    const int cols = luaL_checkinteger(lua, 1);
+    const int rows = luaL_checkinteger(lua, 2);
+    ImGui::TableSetupScrollFreeze(cols, rows);
+    return 0;
+}
+
+int onTableHeaderImGuiLua(lua_State *lua)
+{
+    const char * label = luaL_checkstring(lua, 1);
+    ImGui::TableHeader(label);
+    return 0;
+}
+
+int onTableHeadersRowImGuiLua(lua_State *)
+{
+    ImGui::TableHeadersRow();
+    return 0;
+}
+
+int onTableAngledHeadersRowImGuiLua(lua_State *)
+{
+    ImGui::TableAngledHeadersRow();
+    return 0;
+}
+
+int onTableGetColumnCountImGuiLua(lua_State *lua)
+{
+    const int ret = ImGui::TableGetColumnCount();
+    lua_pushinteger(lua, ret);
+    return 1;
+}
+
+int onTableGetColumnIndexImGuiLua(lua_State *lua)
+{
+    const int ret = ImGui::TableGetColumnIndex();
+    lua_pushinteger(lua, ret);
+    return 1;
+}
+
+int onTableGetRowIndexImGuiLua(lua_State *lua)
+{
+    const int ret = ImGui::TableGetRowIndex();
+    lua_pushinteger(lua, ret);
+    return 1;
+}
+
+int onTableGetColumnNameImGuiLua(lua_State *lua)
+{
+    const int column_n  = lua_gettop(lua) >= 1 ? luaL_optinteger(lua, 1, -1) : -1;
+    const char * ret    = ImGui::TableGetColumnName(column_n);
+    lua_pushstring(lua, ret ? ret : "");
+    return 1;
+}
+
+int onTableGetColumnFlagsImGuiLua(lua_State *lua)
+{
+    const int column_n  = lua_gettop(lua) >= 1 ? luaL_optinteger(lua, 1, -1) : -1;
+    const ImGuiTableColumnFlags ret = ImGui::TableGetColumnFlags(column_n);
+    lua_pushinteger(lua, ret);
+    return 1;
+}
+
+int onTableSetColumnEnabledImGuiLua(lua_State *lua)
+{
+    const int column_n  = luaL_checkinteger(lua, 1);
+    const bool v        = lua_toboolean(lua, 2);
+    ImGui::TableSetColumnEnabled(column_n, v);
+    return 0;
+}
+
+int onTableGetHoveredColumnImGuiLua(lua_State *lua)
+{
+    const int ret = ImGui::TableGetHoveredColumn();
+    lua_pushinteger(lua, ret);
+    return 1;
+}
+
+int onTableSetBgColorImGuiLua(lua_State *lua)
+{
+    int index_input         = 1;
+    const int top           = lua_gettop(lua);
+    ImGuiTableBgTarget target = ImGuiTableBgTarget_None;
+    if (lua_type(lua, index_input) == LUA_TSTRING)
+    {
+        const char * name = lua_tostring(lua, index_input++);
+        const auto it = allFlags.find(name);
+        if (it != allFlags.cend())
+            target = (ImGuiTableBgTarget)it->second;
+    }
+    else
+        target = (ImGuiTableBgTarget)luaL_checkinteger(lua, index_input++);
+    ImU32 color;
+    if (lua_type(lua, index_input) == LUA_TTABLE)
+        color = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua, index_input++));
+    else
+        color = (ImU32)lua_tointeger(lua, index_input++);
+    const int column_n = top >= index_input ? luaL_optinteger(lua, index_input++, -1) : -1;
+    ImGui::TableSetBgColor(target, color, column_n);
     return 0;
 }
 
@@ -6401,6 +6632,7 @@ int onNewimguiLua(lua_State *lua)
         {"BeginPopupContextVoid",                       onBeginPopupContextVoidImGuiLua },
         {"BeginPopupContextWindow",                   onBeginPopupContextWindowImGuiLua }, // Not Tested, Window/Layout
         {"BeginPopupModal",                                   onBeginPopupModalImGuiLua },
+        {"BeginTable",                                           onBeginTableImGuiLua },
         {"BeginTabBar",                                           onBeginTabBarImGuiLua },
         {"BeginTabItem",                                         onBeginTabItemImGuiLua },
         {"BeginTooltip",                                         onBeginTooltipImGuiLua },
@@ -6447,6 +6679,7 @@ int onNewimguiLua(lua_State *lua)
         {"EndMenu",                                                   onEndMenuImGuiLua },
         {"EndMenuBar",                                             onEndMenuBarImGuiLua },
         {"EndPopup",                                                 onEndPopupImGuiLua },
+        {"EndTable",                                                 onEndTableImGuiLua },
         {"EndTabBar",                                               onEndTabBarImGuiLua },
         {"EndTabItem",                                             onEndTabItemImGuiLua },
         {"EndTooltip",                                             onEndTooltipImGuiLua },
@@ -6607,6 +6840,22 @@ int onNewimguiLua(lua_State *lua)
         {"SetScrollHereY",                                     onSetScrollHereYImGuiLua }, // Not Tested, Scroll
         {"SetScrollX",                                             onSetScrollXImGuiLua }, // Not Tested, Scroll
         {"SetScrollY",                                             onSetScrollYImGuiLua }, // Not Tested, Scroll
+        {"TableAngledHeadersRow",                         onTableAngledHeadersRowImGuiLua },
+        {"TableGetColumnCount",                           onTableGetColumnCountImGuiLua },
+        {"TableGetColumnFlags",                           onTableGetColumnFlagsImGuiLua },
+        {"TableGetColumnIndex",                           onTableGetColumnIndexImGuiLua },
+        {"TableGetColumnName",                            onTableGetColumnNameImGuiLua },
+        {"TableGetHoveredColumn",                         onTableGetHoveredColumnImGuiLua },
+        {"TableGetRowIndex",                              onTableGetRowIndexImGuiLua },
+        {"TableHeader",                                   onTableHeaderImGuiLua },
+        {"TableHeadersRow",                               onTableHeadersRowImGuiLua },
+        {"TableNextColumn",                               onTableNextColumnImGuiLua },
+        {"TableNextRow",                                  onTableNextRowImGuiLua },
+        {"TableSetBgColor",                               onTableSetBgColorImGuiLua },
+        {"TableSetColumnEnabled",                         onTableSetColumnEnabledImGuiLua },
+        {"TableSetColumnIndex",                           onTableSetColumnIndexImGuiLua },
+        {"TableSetupColumn",                              onTableSetupColumnImGuiLua },
+        {"TableSetupScrollFreeze",                        onTableSetupScrollFreezeImGuiLua },
         {"SetTabItemClosed",                                 onSetTabItemClosedImGuiLua }, // Not Tested, Popups
         {"SetTooltip",                                             onSetTooltipImGuiLua }, // Not Tested, Window
         {"SetWindowCollapsed",                             onSetWindowCollapsedImGuiLua }, // Not Tested, Window
