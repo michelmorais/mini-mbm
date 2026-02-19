@@ -1,57 +1,67 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "C/C++ Debug (gdb Attach)",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
-            "args": [
-                "/home/michel/tower-defense/main.lua",
-                "-w",
-                "1920",
-                "-h",
-                "1080",
-                "-ew",
-                "1920",
-                "-eh",
-                "1080"
-            ],
-            "MIMode": "gdb",
-            "cwd": "/home/michel/mini-mbm/bin/debug/linux_x86/",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
-        },
-        {
-            "name": "C/C++: g++ build and debug active file",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${fileDirname}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                },
-                {
-                    "description": "Set Disassembly Flavor to Intel",
-                    "text": "-gdb-set disassembly-flavor intel",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "C/C++: g++ build active file",
-            "miDebuggerPath": "/usr/bin/gdb"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "mini-mbm-dev (Windows Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/platform-msvs/Debug/mini-mbm-dev.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/platform-msvs/Debug",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Debug)",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
+    },
+    {
+      "name": "mini-mbm-dev (Windows Release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/platform-msvs/Release/mini-mbm-dev.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/platform-msvs/Release",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Release)",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
+    },
+    {
+      "name": "mini-mbm-dev (Windows Debug, no build)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/platform-msvs/Debug/mini-mbm-dev.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/platform-msvs/Debug",
+      "stopAtEntry": false,
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
+    },
+    {
+      "name": "C/C++ Debug (gdb Attach)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/home/michel/mini-mbm/bin/debug/linux_x86/mini-mbm",
+      "args": ["/home/michel/tower-defense/main.lua", "-w", "1920", "-h", "1080", "-ew", "1920", "-eh", "1080"],
+      "MIMode": "gdb",
+      "cwd": "/home/michel/mini-mbm/bin/debug/linux_x86/",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+    },
+    {
+      "name": "C/C++: g++ build and debug active file",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${fileDirname}/${fileBasenameNoExtension}",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${fileDirname}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true },
+        { "description": "Set Disassembly Flavor to Intel", "text": "-gdb-set disassembly-flavor intel", "ignoreFailures": true }
+      ],
+      "preLaunchTask": "C/C++: g++ build active file",
+      "miDebuggerPath": "/usr/bin/gdb"
+    }
+  ]
 }

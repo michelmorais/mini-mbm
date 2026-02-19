@@ -1,0 +1,41 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/src/mini-mbm-lib",
+        "${workspaceFolder}/platform-msvs/mini-mbm-launcher",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/plugins",
+        "${workspaceFolder}/third-party"
+      ],
+      "defines": ["_DEBUG", "WIN32", "_CONSOLE"],
+      "windowsSdkVersion": "10.0.22621.0",
+      "compilerPath": "",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "windows-msvc-x86"
+    },
+    {
+      "name": "WSL",
+      "includePath": ["${workspaceFolder}/**"],
+      "defines": [],
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64"
+    },
+    {
+      "name": "Mac",
+      "includePath": ["${workspaceFolder}/**"],
+      "defines": [],
+      "macFrameworkPath": ["/System/Library/Frameworks", "/Library/Frameworks"],
+      "compilerPath": "/usr/bin/clang",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "macos-clang-x64"
+    }
+  ],
+  "version": 4
+}

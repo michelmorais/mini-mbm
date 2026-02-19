@@ -45,6 +45,9 @@
     <ClInclude Include="..\..\plugins\imGui\imstb_truetype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\plugins\imGui\imgui-lua.cpp">
@@ -72,6 +75,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\imGui\imgui_stdlib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\imgui_demo_stubs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

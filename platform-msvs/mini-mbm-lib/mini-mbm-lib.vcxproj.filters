@@ -168,6 +168,12 @@
     <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp">
       <Filter>Source Files\Lua-wrapper</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\framework-dummy-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\lua-wrap\texture-info-lua.cpp">
+      <Filter>Source Files\Lua-wrapper</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">
@@ -583,6 +589,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h">
       <Filter>Header Files\mini-mbm-lib-interface</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\texture-info-lua.h">
+      <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

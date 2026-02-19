@@ -63,8 +63,9 @@
     4.1   LiquidFun for box 2d 2.3.0 and box 2d 2.4.1 in library separated
     4.2   Reorganized framework, moved needed function to plugins, LiquidFun and Box2d Available.
     5.0   Include Directx 9 backend support. Refactoried core-manager-opengl_es to core-manager-renderer with support to Directx9 and Opengl-ES and future renderers.
+    5.1   Updated IM-GUI version to 1.92.6
 */
-#define MBM_VERSION "5.0"
+#define MBM_VERSION "5.1"
 #endif
 
 #endif

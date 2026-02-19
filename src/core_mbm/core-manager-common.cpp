@@ -1229,6 +1229,12 @@ namespace mbm
                             {
                                 *event_zoom = *event;
                             }
+                            else
+                            {
+                                // Queue empty: coalescing would drop the event. Add it instead.
+                                this->lastEvent = *event;
+                                this->lsEvents.push_back(*event);
+                            }
                             mutexEvents.unlock();
                             return;
                         }

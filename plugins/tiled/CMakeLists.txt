@@ -19,7 +19,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-add_definitions(-DPLUGIN_CALLBACK)
 message(STATUS "Building ${TILED_LIBRARY} lib...")
 file(GLOB_RECURSE RENDERER_SOURCES        "${CUSTOM_RENDER_LIB_SRC}/*.cpp" "${PLUGIN_HELPER_SRC}/*.cpp")
 

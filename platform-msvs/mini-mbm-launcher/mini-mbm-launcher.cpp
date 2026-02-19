@@ -1,5 +1,6 @@
 // mini-mbm-launcher.cpp : Defines the entry point for the application.
 //
+#pragma execution_character_set("utf-8") // MSVC: Treat source as UTF-8
 #include "mini-mbm-lib.h"
 #include "framework.h"
 #include "mini-mbm-launcher.h"
@@ -70,13 +71,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             mbm::set_window_size(1920, 1080);
         }
 
-		unsigned int expected_width = 0, expected_height = 0;
+        unsigned int expected_width = 0, expected_height = 0;
         if(parser.getExpectedWidthHeight(expected_width, expected_height))
                     {
             mbm::set_expected_window_size(
                 expected_width,
                 expected_height);
-		}
+        }
         else
         {
             mbm::set_expected_window_size(1920, 1080);
@@ -87,8 +88,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         {
             mbm::disable_splash();
         }
-		const char* nameApp = parser.getNameApplication();
-		if (nameApp && strlen(nameApp) > 0)
+        const char* nameApp = parser.getNameApplication();
+        if (nameApp && strlen(nameApp) > 0)
         {
             title_app = nameApp;
             mbm::set_app_name(title_app.c_str());
@@ -103,8 +104,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
         mbm::set_window_theme(parser.window_theme,parser.enableBorder);//11 15 19 20 21 20, 24 is the default
 
-		const char* fileNameInitialLua = parser.getFileNameInitialLua();
-		if (fileNameInitialLua && strlen(fileNameInitialLua) > 0)
+        const char* fileNameInitialLua = parser.getFileNameInitialLua();
+        if (fileNameInitialLua && strlen(fileNameInitialLua) > 0)
         {
             mbm::set_scene(fileNameInitialLua);
         }

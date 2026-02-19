@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -72,29 +72,29 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
     <LibraryPath>$(OutDir);$(SolutionDir)..\third-party\gles\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>
     </LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
     <LibraryPath>$(OutDir);$(SolutionDir)..\third-party\gles\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;USE_OPENGL_ES;IMGUI_IMP_BUILD_DLL;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;PLUGIN_CALLBACK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;IMGUI_IMPL_OPENGL_ES2;IMGUI_DISABLE_OBSOLETE_FUNCTIONS;IMGUI_IMP_BUILD_DLL;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
@@ -172,6 +172,7 @@
     <ClInclude Include="..\..\plugins\imGui\imgui-lua.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_win32.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_internal.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_stdlib.h" />
@@ -183,10 +184,12 @@
     <ClCompile Include="..\..\plugins\imGui\imgui-lua.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_demo.cpp" />
+    <ClCompile Include="..\..\plugins\imGui\imgui_demo_stubs.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_win32.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_stdlib.cpp" />
+    <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_widgets.cpp" />
     <ClCompile Include="ImGui-dllmain.cpp" />
   </ItemGroup>

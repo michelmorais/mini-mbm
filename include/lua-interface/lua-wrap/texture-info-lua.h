@@ -1,9 +1,9 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
-| MIT License (MIT);                                                                                                     |
-| Copyright (C); 2020      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                      |
+| MIT License (MIT)                                                                                                      |
+| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
-| documentation files (the "Software");, to deal in the Software without restriction, including without limitation       |
+| documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
 | the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |
 | to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |
 |                                                                                                                        |
@@ -17,35 +17,42 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef IMGUI_IMPORTER_H
+#ifndef TEXTURE_INFO_LUA_H
+#define TEXTURE_INFO_LUA_H
 
-#define IMGUI_IMPORTER_H
+#include <string>
+#include <core_mbm/texture-manager.h>
 
-#if defined (__GNUC__) 
-  #define IMGUI_IMP_API  __attribute__ ((__visibility__("default")))
-#elif defined (WIN32)
-    //assuming that we are using the version of LUA 5.4
-    #pragma comment(lib, "lua5.4.lib") 
-    // To build the DLL on Windows define this IMGUI_IMP_BUILD_DLL, to use the DLL do not define
-  #ifdef IMGUI_IMP_BUILD_DLL
-    #define IMGUI_IMP_API  __declspec(dllexport)
-  #else
-    #define IMGUI_IMP_API   __declspec(dllimport)
-  #endif
-#endif
+struct lua_State;
 
-extern "C"
+namespace mbm
 {
-    #include <lualib.h>
-    #include <lauxlib.h>
-    #include <lua.h>
+    class TEXTURE;
+    class TEXTURE_MANAGER;
+    
+    // Wrapper struct to store texture filename for safe lookup
+    // Stores filename instead of raw pointer to handle device loss gracefully
+    struct TEXTURE_INFO_DATA
+    {
+        std::string fileName;
+        bool        hasAlpha;
+        
+        TEXTURE_INFO_DATA(const char *name, bool alpha) 
+            : fileName(name ? name : ""), hasAlpha(alpha) {}
+        
+        inline TEXTURE *getTexture() const
+        {
+            if (fileName.empty())
+                return nullptr;
+            TEXTURE_MANAGER *manager = TEXTURE_MANAGER::getInstance();
+            if (manager && manager->existTexture(fileName.c_str()))
+                return manager->load(fileName.c_str(), hasAlpha);
+            return nullptr;
+        }
+    };
+    
+    int onNewTextureInfoLua(lua_State *lua, TEXTURE *texture);
+    void registerClassTextureInfo(lua_State *lua);
 }
 
-// Note that the name of this function is not flexible
-extern "C" IMGUI_IMP_API int luaopen_ImGui (lua_State * lua);
-//sometimes it is followed by "lib" -> "lib"ImGui
-extern "C" IMGUI_IMP_API int luaopen_libImGui (lua_State *lua);
-
-
-#endif // ! IMGUI_IMPORTER_H
-
+#endif

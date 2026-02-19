@@ -150,6 +150,7 @@ function onInitScene()
     tLineRectTile:add({0,0,0,0})
     tLineRectTile:setColor(0,1,1)
     tLineRectTile.visible = false
+    ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 end
 
 function onOpenTileBinary()
@@ -1022,10 +1023,10 @@ function drawTileSetTab(item_width)
     if tTextureTileSet[tEditorOptions.iSelectedTileSetPreview] then
 
         if tImGui.Button('Set Image Size', {x=item_width,y=0}) then
-            local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
-            if id ~= 0 then
-                tEditorOptions.iDefaultTileSetWidth  = width
-                tEditorOptions.iDefaultTileSetHeight = height
+            local texInfo = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
+            if texInfo:isValid() then
+                tEditorOptions.iDefaultTileSetWidth  = texInfo:getWidth()
+                tEditorOptions.iDefaultTileSetHeight = texInfo:getHeight()
                 anyChange = true
             end
         end
@@ -1080,10 +1081,10 @@ function drawTileSetTab(item_width)
                                         tEditorOptions.iDefaultTileSetSpaceY,
                                         tEditorOptions.iDefaultTileSetMarginX,
                                         tEditorOptions.iDefaultTileSetMarginY)
-                    local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet[1])
-                    tEditorOptions.iWidth  = width
-                    tEditorOptions.iHeight = height
-                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = width,yEnd = height}
+                    local texInfo = mbm.loadTexture(tTextureTileSet[1])
+                    tEditorOptions.iWidth  = texInfo:getWidth()
+                    tEditorOptions.iHeight = texInfo:getHeight()
+                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = texInfo:getWidth(),yEnd = texInfo:getHeight()}
                 else
                     tTile:showTileSetPreview(tTextureTileSet,
                                         tEditorOptions.iDefaultTileSetWidth,
@@ -1092,10 +1093,10 @@ function drawTileSetTab(item_width)
                                         tEditorOptions.iDefaultTileSetSpaceY,
                                         tEditorOptions.iDefaultTileSetMarginX,
                                         tEditorOptions.iDefaultTileSetMarginY)
-                    local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet)
-                    tEditorOptions.iWidth  = width
-                    tEditorOptions.iHeight = height
-                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = width,yEnd = height}
+                    local texInfo = mbm.loadTexture(tTextureTileSet)
+                    tEditorOptions.iWidth  = texInfo:getWidth()
+                    tEditorOptions.iHeight = texInfo:getHeight()
+                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = texInfo:getWidth(),yEnd = texInfo:getHeight()}
                 end
             end
         end
@@ -2161,8 +2162,7 @@ end
 
 function menuPopUpOptionToAddBrick()
     if tEditorOptions.iBrickIdSelected ~= 0 then
-        local mouse_button = 1
-        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', mouse_button) then
+        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', ImGuiPopupFlags_MouseButtonRight) then
             if tImGui.Selectable("Fill layer with brick ID: " .. tostring(tEditorOptions.iBrickIdSelected)) then
                 local total = tTile:getMapCountWidth() * tTile:getMapCountHeight()
                 for i=1, total do
@@ -2301,16 +2301,14 @@ function main_menu_tiled()
             if pressed then
                 local sFileName = mbm.openMultiFile(tTextureTileSet[1] or '',"png","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
                 if sFileName then
-                    local IDTexture = 0
+                    local texInfo
                     if type(sFileName) == 'table' then
-                        local width,height,id, has_alpha = mbm.loadTexture(sFileName[1])
-                        IDTexture = id
+                        texInfo = mbm.loadTexture(sFileName[1])
                         sFileName = sFileName[1]
                     else
-                        local width,height,id, has_alpha = mbm.loadTexture(sFileName)
-                        IDTexture = id
+                        texInfo = mbm.loadTexture(sFileName)
                     end
-                    tUtil.showMessage('Path of texture:\n' .. sFileName .. '\nid:'.. tostring(IDTexture) .. '\n\nadded to the engine!\nThe next tile which depends on that path will know where to search.')
+                    tUtil.showMessage('Path of texture:\n' .. sFileName .. '\nid:'.. tostring(texInfo:getId()) .. '\n\nadded to the engine!\nThe next tile which depends on that path will know where to search.')
                 end
             end
             tImGui.EndMenu();

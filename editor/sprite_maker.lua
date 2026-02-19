@@ -419,7 +419,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesEditor[i]            = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesEditor[i]            = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
 
@@ -432,7 +432,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesFrameList[i]         = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesFrameList[i]         = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
         
@@ -1474,12 +1474,12 @@ function showFramePreview()
         local size           = {x=new_width,y=sy}
         local uv0            = {x=0,y=0}
         local uv1            = {x=1,y=1}
-        local bg_col         = {r=1,g=1,b=1,a=1}
-        local line_color     = {r=0,g=0,b=0,a=1}
+        local bg_col         = {r=0,g=0,b=0,a=0}
+        local tint_col       = {r=1,g=1,b=1,a=1}
         local tCursorPos     = tImGui.GetCursorPos()
         local color_rect     = {r=0,g=0,b=0,a=1.0}
         local thickness      = 1.5
-        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,line_color)
+        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,tint_col)
         local winPos         = tImGui.GetWindowPos()
         local originImg      = {x= winPos.x + tCursorPos.x , y = winPos.y + tCursorPos.y - tImGui.GetScrollY()}
         
@@ -1736,7 +1736,7 @@ function showFrameAdd()
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
-            local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+            local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
             tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             if tFrameAddOptions.iIndexPrimitiveType ~= indexPrimitive then
                 tFrameAddOptions.iNumElements    = 2
@@ -1931,7 +1931,6 @@ function showFrameAdd()
         local label_textures    = string.format('Textures (%d)',#tSelectedTextures)
         tFrameAddOptions.tSelectedTexture = nil
         if tImGui.TreeNode('##textures_for_frame', label_textures) then
-            local frame_padding = 5
             for i=1, #tSelectedTextures do
                 local flag_node      = 0
                 local id_node        = string.format('##tex_%d',i)
@@ -1959,7 +1958,7 @@ function showFrameAdd()
                         pushed_color = 2
                     end
                     -- TODO: make this work in any backend engine . e.g.: Directx
-                    if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
+                    if tImGui.ImageButton(string.format('frame_tex_%d', i), tTexture.id, size,uv0,uv1) then
                         tFrameAddOptions.iIndexSelectedNode       = i
                         tFrameAddOptions.bValidFrameSelected      = true
                         tFrameAddOptions.bShowFramePreview        = true
@@ -2322,7 +2321,7 @@ function makeHashStringForAnimImage(tFrame, iNumImage)
     return sTexHash
 end
 
-function getTextureIdForAnimImage(tFrame, iNumImage)
+function getTextureInfoForAnimImage(tFrame, iNumImage)
     local sTexHash = makeHashStringForAnimImage(tFrame, iNumImage)
     local tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
     --it will not render the frame twice, thats why we return the same previous frame
@@ -2330,30 +2329,30 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStart == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStop == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 2)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 2)
+            return getTextureInfoForAnimImage(tFrame, 2)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     end
 
     if tRender == nil then
         tRender = render2texture:new('2dw')
-        local bSuccess,nick_name, id = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
-        if bSuccess and id > 0 then
-            tRender.texture_id = id
+        local bSuccess,nick_name, tTextureInfo = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
+        if bSuccess and tTextureInfo then
+            tRender.tTextureInfo = tTextureInfo
             tRender.nick_name = nick_name
         else
             print('error','Could not create dynamic texture!',sTexHash)
@@ -2375,7 +2374,7 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y)
         tRender:add(tSubset.tShape)
     end
-    return tRender.texture_id, tRender.nick_name
+    return tRender.tTextureInfo, tRender.nick_name
 end
 
 function applyZoomFrameAnimation()
@@ -2406,15 +2405,15 @@ function applyZoomFrameAnimation()
 end
 
 function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
-    local iW, iH        = mbm.getRealSizeScreen()
-    local bg_col        = {r=1,g=1,b=1,a=1}
-    local line_color    = {r=0,g=0,b=0,a=1}
+    local iW, iH          = mbm.getRealSizeScreen()
+    local bg_col          = {r=0,g=0,b=0,a=0}
+    local tint_col        = {r=1,g=1,b=1,a=1}
     if tFrame == nil then trace() end
-    local new_width     = math.min(tFrame.width, winSize.x - padding.x)
-    local sy            = new_width / tFrame.width  * tFrame.height
-    local size          = {x = math.min(new_width,iW), y = math.min(sy,iH) }
-    local texture_id, _ = getTextureIdForAnimImage(tFrame, iNumImage)
-    tImGui.Image(texture_id,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,line_color)
+    local new_width       = math.min(tFrame.width, winSize.x - padding.x)
+    local sy              = new_width / tFrame.width  * tFrame.height
+    local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
+    local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
+    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
     applyZoomFrameAnimation()
     tImGui.HelpMarker('Use Control+scroll to zoom it!')
     
@@ -2513,7 +2512,7 @@ function showAnimationAdd(delta)
             end
             
             local tFrame             = tFrameList[indexFrame]
-            local id, nick_name      = getTextureIdForAnimImage(tFrame, 3)
+            local id, nick_name      = getTextureInfoForAnimImage(tFrame, 3)
             local alpha              = true
             local stage              = 1
             local tShapeAnimations   = getShapeViewForAnim(tFrame)
@@ -2966,7 +2965,7 @@ function showEditPhysics()
                 local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
                 local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
                 local rounding          =  2.0
-                local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+                local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
                 tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             elseif indexPrimitive == 2 then
                 local center        = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}

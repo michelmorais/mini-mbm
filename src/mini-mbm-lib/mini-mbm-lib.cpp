@@ -437,7 +437,7 @@ namespace mbm
     {
         log_util::print_colored(COLOR_TERMINAL_YELLOW, "restoreDeviceTest called");
         mbm::DEVICE::getInstance()->refreshDevice();
-	}
+    }
 #endif
 
 #if defined (WIN32)
@@ -508,9 +508,9 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "OpÃ§Ãµes de Tela";
+            temp_app_name        = "Opções de Tela";
             temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma ResoluÃ§Ã£o:";
+            temp_resol_name      = "Selecione uma Resolução:";
             temp_full_screen_lbl = "Tela cheia";
             temp_play_lbl        = "INICIAR";
         }
@@ -538,7 +538,9 @@ namespace mbm
             {
                 if (isPTbr)
                 {
-                    sprintf(str, "%d: %ld x %ld, frequÃªncia:%lu, posiÃ§Ã£o:%ld x %ld", (int)i + 1, temp.width, temp.height,
+                    // Format string must not have u8 prefix for sprintf
+                    const char* format = "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld";
+                    sprintf(str, format, (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 else

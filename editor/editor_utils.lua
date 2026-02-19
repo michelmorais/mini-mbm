@@ -141,7 +141,6 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
             local size          = {x=new_width,y=sy}
             local uv0           = {x=0,y=0}
             local uv1           = {x=1,y=1}
-            local frame_padding = 5
             local pushed_color  = 0
             if tUtil.bEraseOnClick_showTextureAssets then
                 if tTexture.isSelected then
@@ -158,7 +157,7 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
                 pushed_color = 2
             end
 
-            if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
+            if tImGui.ImageButton(string.format('tex_btn_%d', i), tTexture.id, size,uv0,uv1) then
                 if tUtil.bEraseOnClick_showTextureAssets then
                     table.remove(tTexturesToEditor,i)
                     if pushed_color > 0 then
@@ -249,20 +248,20 @@ tUtil.loadInfoImagesToTable = function(tFiles,tTexturesIn)
     if type(tFiles) == 'table' then
         local bSuccess = false
         for i=1, #tFiles do
-            local width,height,id,alpha = mbm.loadTexture(tFiles[i])
-            if id ~= 0 then
+            local texInfo = mbm.loadTexture(tFiles[i])
+            if texInfo:isValid() then
                 bSuccess = true
                 local base_file_name = tUtil.getBaseFileName(tFiles[i])
-                table.insert(tTexturesIn,{file_name = tFiles[i],width = width, height = height, alpha = alpha,id = id , base_file_name = base_file_name})
+                table.insert(tTexturesIn,{file_name = tFiles[i],width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
             else
                 print('Could not load texture:',tFiles[i])
             end
         end
     elseif type(tFiles) == 'string' then
-        local width,height,id,alpha = mbm.loadTexture(tFiles)
-        if id ~= 0 then
+        local texInfo = mbm.loadTexture(tFiles)
+        if texInfo:isValid() then
             local base_file_name = tUtil.getBaseFileName(tFiles)
-            table.insert(tTexturesIn,{file_name = tFiles,width = width, height = height, alpha = alpha,id = id , base_file_name = base_file_name})
+            table.insert(tTexturesIn,{file_name = tFiles,width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
         else
             print('Could not load texture:',tFiles)
         end
@@ -480,7 +479,7 @@ tUtil.showOverlayMessage = function()
         else
             tImGui.SetNextWindowBgAlpha(0.75);
         end
-        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false,tImGui.Flags(flags) )
+        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false, tImGui.Flags(flags) )
         if is_opened then
             tImGui.Text(tUtil.sMessageOverlay)
         end

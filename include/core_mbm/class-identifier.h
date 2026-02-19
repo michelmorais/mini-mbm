@@ -61,6 +61,7 @@ namespace mbm
         L_USER_TYPE_BULLET3D                  ,
         L_USER_TYPE_TILE                      ,
         L_USER_TYPE_TILE_OBJ                  ,
+        L_USER_TYPE_TEXTURE_INFO              ,
         L_USER_TYPE_PLUGIN                    ,
         L_USER_TYPE_NEW_WRAPPER               ,
         L_USER_TYPE_END                       ,
