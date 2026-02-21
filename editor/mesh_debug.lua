@@ -49,6 +49,13 @@ function onInitScene()
         title_apply_all   = 'Apply to All'
     }
     tUtil.sMessageOverlay = 'Welcome to Mesh Debug Editor! Load meshes from File or Folder.'
+    tUtil.bRightSide      = true   -- overlay on right so it is not covered by mesh tree on left
+    tUtil.tTimerOverlay:start()   -- start timer so welcome message auto-hides after 13.5s
+    iSelectedMeshIndex   = 0      -- single-expand: only one mesh node open at a time
+    tPreviewMesh         = nil    -- mesh/sprite/tile shown on screen when selected
+    tPreviewFont         = nil    -- font object when preview is a font (tPreviewMesh.tFont)
+    iLastPreviewedIndex  = 0      -- track which mesh we last previewed
+    isClickedMouseleft   = false
 end
 
 function onLoadMeshFromFile()
@@ -110,6 +117,72 @@ end
 
 function removeMeshFromTable(index)
     table.remove(tLoadedMeshes, index)
+    if iSelectedMeshIndex == index then
+        iSelectedMeshIndex = 0
+        iLastPreviewedIndex = 0
+        destroyPreviewMesh()
+    elseif iSelectedMeshIndex > index then
+        iSelectedMeshIndex = iSelectedMeshIndex - 1
+        iLastPreviewedIndex = 0
+    end
+end
+
+function destroyPreviewMesh()
+    if tPreviewMesh then
+        tPreviewMesh.tFont = nil
+        tPreviewMesh:destroy()
+        tPreviewMesh = nil
+    end
+    tPreviewFont = nil
+end
+
+-- Load selected mesh for preview. Calls fakeRelease before load so file changes are reflected.
+function updatePreviewMesh()
+    if iSelectedMeshIndex == iLastPreviewedIndex then return end
+    destroyPreviewMesh()
+    iLastPreviewedIndex = iSelectedMeshIndex
+    if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
+
+    local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    local fileName = tEntry.fileName
+    local info = tEntry.info or {}
+    local meshType = info.type or 'unknown'
+
+    meshDebug:fakeRelease(fileName)
+    local dir = fileName:match('^(.*)[/\\]')
+    if dir then mbm.addPath(dir) end
+
+    local ok = false
+    if meshType == 'sprite' then
+        tPreviewMesh = sprite:new('2dw')
+        ok = tPreviewMesh:load(fileName)
+    elseif meshType == 'mesh' then
+        tPreviewMesh = mesh:new('2dw')
+        ok = tPreviewMesh:load(fileName)
+    elseif meshType == 'tile' then
+        tPreviewMesh = tile:new('2dw')
+        ok = tPreviewMesh:load(fileName)
+    elseif meshType == 'particle' then
+        tPreviewMesh = particle:new('2dw')
+        ok = tPreviewMesh:load(fileName)
+        if ok then tPreviewMesh:add(100); tPreviewMesh.revive = true end
+    elseif meshType == 'font' then
+        tPreviewFont = font:new(fileName)
+        if tPreviewFont then
+            tPreviewMesh = tPreviewFont:add('2dw', 'Mesh Debug')
+            tPreviewMesh.tFont = tPreviewFont
+            ok = (tPreviewMesh ~= nil)
+        end
+    elseif meshType == 'texture' then
+        tPreviewMesh = texture:new('2dw')
+        ok = tPreviewMesh:load(fileName)
+    end
+
+    if ok and tPreviewMesh then
+        tPreviewMesh.visible = true
+    else
+        destroyPreviewMesh()
+    end
 end
 
 -- Returns total vertex count across all frames/subsets, or 0 on error
@@ -162,9 +235,9 @@ function showMeshOptions(tEntry, index)
             if tEntry.info then tEntry.info.hasNormal = false end
             if nVertices > 0 then
                 local bytesSaved = nVertices * 12  -- 3 floats per normal
-                tUtil.showMessage(string.format('Removed normals: %s\n%d vertices (~%s saved)', shortName, nVertices, formatBytes(bytesSaved)))
+                tUtil.showMessage(string.format('Removed normals: %s\n%d vertices (~%s saved)', shortName, nVertices, formatBytes(bytesSaved)), 5)
             else
-                tUtil.showMessage('Removed normals: ' .. shortName)
+                tUtil.showMessage('Removed normals: ' .. shortName, 4)
             end
         end
         tImGui.SameLine()
@@ -173,9 +246,9 @@ function showMeshOptions(tEntry, index)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
             if nVertices > 0 then
-                tUtil.showMessage(string.format('Added normals: %s\n%d vertices', shortName, nVertices))
+                tUtil.showMessage(string.format('Added normals: %s\n%d vertices', shortName, nVertices), 4)
             else
-                tUtil.showMessage('Added normals: ' .. shortName)
+                tUtil.showMessage('Added normals: ' .. shortName, 4)
             end
         end
         tImGui.TreePop()
@@ -205,6 +278,7 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button('Save (overwrite)##' .. index) then
             local ok = meshD:save(tEntry.fileName, false, false)
             if ok then
+                iLastPreviewedIndex = 0
                 tUtil.showMessage(string.format('Saved: %s', shortName))
             else
                 tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
@@ -214,6 +288,8 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button('Save (recalc normals)##' .. index) then
             local ok = meshD:save(tEntry.fileName, true, false)
             if ok then
+                if tEntry.info then tEntry.info.hasNormal = true end
+                iLastPreviewedIndex = 0
                 tUtil.showMessage(string.format('Saved: %s', shortName))
             else
                 tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
@@ -253,9 +329,11 @@ function applyToAll(operation)
             ok = meshD:save(tEntry.fileName, false, false)
         elseif operation == 'saveRecalcNormals' then
             ok = meshD:save(tEntry.fileName, true, false)
+            if ok and tEntry.info then tEntry.info.hasNormal = true end
         end
         if ok then
             iSuccess = iSuccess + 1
+            iLastPreviewedIndex = 0
         else
             iFailed = iFailed + 1
         end
@@ -305,6 +383,9 @@ function main_menu_mesh_debug()
             tImGui.Separator()
             if tImGui.MenuItem('Clear All') then
                 tLoadedMeshes = {}
+                iSelectedMeshIndex = 0
+                iLastPreviewedIndex = 0
+                destroyPreviewMesh()
                 tUtil.showMessage('Cleared all meshes')
             end
             tImGui.EndMenu()
@@ -344,7 +425,6 @@ function showMeshTreeWindow()
         if #tLoadedMeshes == 0 then
             tImGui.TextWrapped('Use File menu or Load from Folder to add meshes.')
         else
-            local flags = tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')
             local tToRemove = {}
             for i = 1, #tLoadedMeshes do
                 local tEntry = tLoadedMeshes[i]
@@ -352,12 +432,21 @@ function showMeshTreeWindow()
                 local typeStr = (tEntry.info and tEntry.info.type) or '?'
                 local label = string.format('%s [%s]', shortName, typeStr)
 
+                local isSelected = (iSelectedMeshIndex == i)
+                tImGui.SetNextItemOpen(isSelected, tImGui.Flags('ImGuiCond_Always'))
+                local flags = isSelected and tImGui.Flags('ImGuiTreeNodeFlags_Selected') or tImGui.Flags('ImGuiTreeNodeFlags_None')
+
                 if tImGui.TreeNodeEx(label, flags, 'mesh-' .. i) then
+                    iSelectedMeshIndex = i
                     showMeshOptions(tEntry, i)
                     if tImGui.Button('Remove from list##' .. i) then
                         table.insert(tToRemove, i)
                     end
                     tImGui.TreePop()
+                else
+                    if i == iSelectedMeshIndex then
+                        iSelectedMeshIndex = 0
+                    end
                 end
             end
             for j = #tToRemove, 1, -1 do
@@ -374,11 +463,43 @@ end
 function loop(delta)
     main_menu_mesh_debug()
     showMeshTreeWindow()
+    updatePreviewMesh()
     tUtil.showOverlayMessage()
 end
 
-function onTouchDown() end
-function onTouchMove() end
-function onTouchUp() end
+function onTouchDown(key, x, y)
+    if not tImGui.IsAnyWindowHovered() then
+        isClickedMouseleft = (key == 1)
+        camera2d.mx = x
+        camera2d.my = y
+    end
+end
+
+function onTouchMove(key, x, y)
+    if isClickedMouseleft and not tImGui.IsAnyWindowHovered() then
+        local px = (camera2d.mx - x) * camera2d.sx
+        local py = (camera2d.my - y) * camera2d.sy
+        camera2d.mx = x
+        camera2d.my = y
+        camera2d:setPos(camera2d.x + px, camera2d.y - py)
+    end
+end
+
+function onTouchUp(key, x, y)
+    isClickedMouseleft = false
+    camera2d.mx = x
+    camera2d.my = y
+end
+
+function onTouchZoom(zoom)
+    if tPreviewMesh and not tImGui.IsAnyWindowHovered() then
+        local s = zoom * 0.2
+        tPreviewMesh.sx = (tPreviewMesh.sx or 1) + s
+        if (tPreviewMesh.sx or 1) < 0.2 then tPreviewMesh.sx = 0.2 end
+        tPreviewMesh.sy = tPreviewMesh.sx
+        tPreviewMesh.sz = tPreviewMesh.sx
+    end
+end
+
 function onKeyDown() end
 function onKeyUp() end

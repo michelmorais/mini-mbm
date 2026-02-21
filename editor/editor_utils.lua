@@ -500,11 +500,12 @@ tUtil.showOverlayMessage = function()
     if tUtil.sMessageOverlay then
         local flags = {'ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
         local window_pos = {x = 0, y = tImGui.GetMainMenuBarHeight()}
+        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bRightSide then
             local iW, iH       = mbm.getRealSizeScreen()
-            window_pos.x = iW - tUtil.tSizeWindowOverlay.x
+            window_pos.x = iW
+            window_pos_pivot = {x = 1, y = 0}  -- anchor window's right edge to screen right
         end
-        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bFocusMsgOnce then
             tUtil.bFocusMsgOnce = false
             tImGui.SetNextWindowFocus(tUtil.title_overlay)

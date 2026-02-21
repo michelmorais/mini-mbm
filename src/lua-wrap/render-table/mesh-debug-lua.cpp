@@ -142,6 +142,13 @@ namespace mbm
         return 1;
     }
 
+    int onFakeReleaseMeshManagerLua(lua_State *lua)
+    {
+        const char *fileName = luaL_checkstring(lua, 2);
+        MESH_MANAGER::getInstance()->fakeRelease(fileName);
+        return 0;
+    }
+
     int onGetInfoMeshDebugLua(lua_State *lua)
     {
         util::HEADER_MESH headerMeshMbmOut;
@@ -1463,7 +1470,8 @@ namespace mbm
 
     int onNewMeshDebugLua(lua_State *lua)
     {
-        luaL_Reg regFrameMeshMethods[] = {{"load", onLoadMeshDebugLua},
+        luaL_Reg regFrameMeshMethods[] = {{"fakeRelease", onFakeReleaseMeshManagerLua},
+                                          {"load", onLoadMeshDebugLua},
                                           {"save", onSaveMeshDebugLua},
                                           {"setType", onSetTypeMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},
@@ -1542,6 +1550,7 @@ namespace mbm
                                           {"__newindex", onNewIndexMeshDebug},
                                           {"__index", onIndexMeshDebug},
                                           {"__gc", onDestroyMeshDebugLua},
+                                          {"fakeRelease", onFakeReleaseMeshManagerLua},
                                           {"getInfo", onGetInfoMeshDebugLua},
                                           {"getType", onGetTypeMeshDebugLua},
 										  {"getExt", onGetStaticExtensionLua},
