@@ -508,9 +508,9 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "Op\E7\F5es de Tela";
+            temp_app_name        = "Opções de Tela";
             temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma Resolu\E7\E3o:";
+            temp_resol_name      = "Selecione uma Resolução:";
             temp_full_screen_lbl = "Tela cheia";
             temp_play_lbl        = "INICIAR";
         }
@@ -539,7 +539,7 @@ namespace mbm
                 if (isPTbr)
                 {
                     // Format string must not have u8 prefix for sprintf
-                    const char* format = "%d: %ld x %ld, frequ\EAncia:%lu, posi\E7\E3o:%ld x %ld";
+                    const char* format = "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld";
                     sprintf(str, format, (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }

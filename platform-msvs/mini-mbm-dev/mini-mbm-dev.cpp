@@ -6,7 +6,7 @@
 #include "mini-mbm-launcher.h"
 #include <string>
 #include <core_mbm/parse-launcher-args.hpp>
-#include <util-interface.h>
+#include <core_mbm/util-interface.h>
 #include "resource.h"
 
 #pragma comment(lib, "core_mbm.lib")
