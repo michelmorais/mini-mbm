@@ -62,7 +62,7 @@ int main(const int argc,const char **argv)
     mbm::APP_RUN default_applications[] = {
             {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
             {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
-            {"Mesh Debug"            ,"Editor de debug de mesh",  "mesh_debug.lua"},
+            {"Mesh Editor"           ,"Editor de Mesh",           "mesh_debug.lua"},
             {"Particle Editor"       ,"Editor de Partículas",     "particle_editor.lua"},
             {"Physics Editor"        ,"Editor de Física",         "physic_editor.lua"},
             {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
