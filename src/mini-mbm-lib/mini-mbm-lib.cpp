@@ -769,6 +769,10 @@ namespace mbm
             
         mbm::set_window_position(my_monitor_selected.position.x,my_monitor_selected.position.y);
         mbm::set_window_size(selected_width,selected_height);
+        if (full_screen)
+        {
+            mbm::set_expected_window_size(selected_width, selected_height);
+        }
         reg_index_monitor.setVal(key_index_monitor.c_str(),my_monitor_selected.index);
         reg_index_resolution.setVal(key_resolution.c_str(),w.getSelectedIndex(idResolution));
         reg_full_screen.setVal(key_screen_full_screen.c_str(),full_screen ? 1 : 0);
@@ -1037,15 +1041,24 @@ namespace mbm
                 XDrawString(display, win, gc, monitor_up.x + 8, monitor_up.y + 17, ">", 1);
                 y_pos += combo_height + spacing + 10;
                 
-                // Draw resolution selection
+                // Draw resolution selection (when full screen, show monitor resolution since that will be used)
                 XDrawString(display, win, gc, margin, y_pos + 14, "Resolution:", 11);
                 y_pos += label_height + 5;
                 
                 char res_str[256];
-                snprintf(res_str, sizeof(res_str), "%d x %d %s",
-                    valid_resolutions[selected_resolution].width,
-                    valid_resolutions[selected_resolution].height,
-                    valid_resolutions[selected_resolution].description ? valid_resolutions[selected_resolution].description : "");
+                if (full_screen)
+                {
+                    int fs_w = (num_monitors > 0 && selected_monitor < num_monitors) ? monitors[selected_monitor].width : max_width;
+                    int fs_h = (num_monitors > 0 && selected_monitor < num_monitors) ? monitors[selected_monitor].height : max_height;
+                    snprintf(res_str, sizeof(res_str), "%d x %d (Full screen)", fs_w, fs_h);
+                }
+                else
+                {
+                    snprintf(res_str, sizeof(res_str), "%d x %d %s",
+                        valid_resolutions[selected_resolution].width,
+                        valid_resolutions[selected_resolution].height,
+                        valid_resolutions[selected_resolution].description ? valid_resolutions[selected_resolution].description : "");
+                }
                 
                 XDrawRectangle(display, win, gc, margin, y_pos, win_width - 2*margin - 60, combo_height);
                 XDrawString(display, win, gc, margin + 5, y_pos + 17, res_str, strlen(res_str));
@@ -1221,6 +1234,10 @@ namespace mbm
             
             mbm::set_window_position(pos_x, pos_y);
             mbm::set_window_size(sel_width, sel_height);
+            if (full_screen)
+            {
+                mbm::set_expected_window_size(sel_width, sel_height);
+            }
             
             if (index_app_selected)
             {
