@@ -610,7 +610,9 @@ namespace mbm
         // In OpenGL, a uniform location of - 1 means "not found", 
         // but a handle of 0 suggests GLGetUniformLocation() isn't finding the uniform in your shader.
 
-		const std::string bothShaderCode(std::string(this->pShader ? this->pShader->getCode() : defaultCodePs) + std::string(this->vShader ? this->vShader->getCode() : defaultCodeVs));
+        const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
+        const std::string pixelShaderCode(this->pShader ? this->pShader->getCode() : defaultCodePs);
+        const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -624,13 +626,9 @@ namespace mbm
         {
             gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvMatrix");
         }
-        if (bothShaderCode.find("aNormal") != std::string::npos)
-		{   // Note that aNormal is in the default pisel shader but not in the default vertex shader.
-			//This will cause normalHandle to remain -1 if the attribute is not used (has no effect in shader)
-            //If debug mode, it will print the follwoing error:
-            // "Attribute location invalid [aNormal] in shader program"
-            // updated: removed
-            gles_shaderSpecific->normalHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aNormal")
+        if (vertexShaderCode.find("aNormal") != std::string::npos)
+        {   // Attributes are vertex-only; use Optional - aNormal can be inactive if linker optimizes out unused varying
+            gles_shaderSpecific->normalHandle = GLGetAttribLocationOptional(gles_shaderSpecific->programObject, "aNormal");
         }
         if (bothShaderCode.find("aTextCoord") != std::string::npos)
         {

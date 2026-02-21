@@ -78,5 +78,14 @@ GLint checkAttribLocation(const GLint location, const char* name)
     return location;
 }
 
+GLint checkAttribLocationOptional(const GLint location, const char* name)
+{
+    if (location == -1)
+    {
+        WARN_LOG("Attribute location invalid [%s] in shader program.\n"
+            "The attribute may have been optimized out (e.g. unused varying) and can be ignored.\n", name);
+    }
+    return location;
+}
 
 #endif
