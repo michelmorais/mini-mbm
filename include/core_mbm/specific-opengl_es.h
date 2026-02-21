@@ -91,6 +91,7 @@ namespace log_util
 #ifdef _DEBUG
 GLint checkUniformLocation(const GLint location, const char * name);
 GLint checkAttribLocation(const GLint location, const char* name);
+GLint checkAttribLocationOptional(const GLint location, const char* name);
 #endif
 
 #ifdef _DEBUG
@@ -113,8 +114,11 @@ GLint checkAttribLocation(const GLint location, const char* name);
 #define GLGetAttribLocation(program, name)                                                                               \
     checkAttribLocation(glGetAttribLocation(program, name), name);                                                       \
     log_util::checkGlError(__FILE__, __LINE__);
+#define GLGetAttribLocationOptional(program, name)                                                                       \
+    checkAttribLocationOptional(glGetAttribLocation(program, name), name);
 #else
     #define GLGetAttribLocation(program, name) glGetAttribLocation(program, name);
+    #define GLGetAttribLocationOptional(program, name) glGetAttribLocation(program, name);
 #endif
 
 #ifdef _DEBUG

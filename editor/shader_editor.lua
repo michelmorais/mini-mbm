@@ -377,7 +377,7 @@ function drawSlider(value,title,v_min,v_max,power)
     tImGui.Text(title)
     local label   = '##' ..title
     local format  = "%.3f"
-    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format,power)
+    local result, fValue = tImGui.SliderFloat(label, value, v_min, v_max, format, tImGui.ImGuiSliderFlags_None)
     if result then
         value = fValue
     end
@@ -990,8 +990,7 @@ function mainMenuShader()
             local v_min   = 0.2
             local v_max   = 10
             local format  = "Scale %.1f"
-            local power   = 1.0
-            local result, fValue = tImGui.SliderFloat(label, fScaleMesh, v_min, v_max, format,power)
+            local result, fValue = tImGui.SliderFloat(label, fScaleMesh, v_min, v_max, format, tImGui.ImGuiSliderFlags_None)
             if result then
                 fScaleMesh = fValue
             end

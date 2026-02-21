@@ -2394,8 +2394,7 @@ function main_menu_tiled()
             local v_min   = 0.2
             local v_max   = 10
             local format  = "Scale %.1f"
-            local power   = 1.0
-            local result, fValue = tImGui.SliderFloat(label, tTile:getScale().x, v_min, v_max, format,power)
+            local result, fValue = tImGui.SliderFloat(label, tTile:getScale().x, v_min, v_max, format, tImGui.ImGuiSliderFlags_None)
             if result then
                 tTile:setScale({x=fValue,y=fValue})
             end

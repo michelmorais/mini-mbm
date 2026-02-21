@@ -82,6 +82,22 @@ namespace mbm
         return GL_TRIANGLES;
     }
 
+    // Disable vertex attrib arrays not used for this draw so ANGLE (and strict drivers) do not see
+    // stale enabled state from another program (e.g. ImGui) and raise GL_INVALID_OPERATION.
+    static void disableUnusedVertexAttribs(const GLES_PS_VS* gles, bool useNormal, bool useTexCoord)
+    {
+        GLint maxAttribs = 0;
+        glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
+        const int pos = gles->positionHandle;
+        const int norm = useNormal && gles->normalHandle >= 0 ? gles->normalHandle : -1;
+        const int tex = useTexCoord && gles->texCoordHandle >= 0 ? gles->texCoordHandle : -1;
+        for (GLint a = 0; a < maxAttribs; ++a)
+        {
+            if (a != pos && a != norm && a != tex)
+                glDisableVertexAttribArray(static_cast<GLuint>(a));
+        }
+    }
+
     BUFFER_GL::BUFFER_GL():
         indexStartIB(nullptr),
         indexCountIB(nullptr),
@@ -594,7 +610,9 @@ namespace mbm
         // In OpenGL, a uniform location of - 1 means "not found", 
         // but a handle of 0 suggests GLGetUniformLocation() isn't finding the uniform in your shader.
 
-		const std::string bothShaderCode(std::string(this->pShader ? this->pShader->getCode() : defaultCodePs) + std::string(this->vShader ? this->vShader->getCode() : defaultCodeVs));
+        const std::string vertexShaderCode(this->vShader ? this->vShader->getCode() : defaultCodeVs);
+        const std::string pixelShaderCode(this->pShader ? this->pShader->getCode() : defaultCodePs);
+        const std::string bothShaderCode(pixelShaderCode + vertexShaderCode);
 
         if (bothShaderCode.find("aPosition") != std::string::npos)
         {
@@ -608,13 +626,9 @@ namespace mbm
         {
             gles_shaderSpecific->mvMatrixHandle = GLGetUniformLocation(gles_shaderSpecific->programObject, "mvMatrix");
         }
-        if (bothShaderCode.find("aNormal") != std::string::npos)
-		{   // Note that aNormal is in the default pisel shader but not in the default vertex shader.
-			//This will cause normalHandle to remain -1 if the attribute is not used (has no effect in shader)
-            //If debug mode, it will print the follwoing error:
-            // "Attribute location invalid [aNormal] in shader program"
-            // updated: removed
-            gles_shaderSpecific->normalHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aNormal")
+        if (vertexShaderCode.find("aNormal") != std::string::npos)
+        {   // Attributes are vertex-only; use Optional - aNormal can be inactive if linker optimizes out unused varying
+            gles_shaderSpecific->normalHandle = GLGetAttribLocationOptional(gles_shaderSpecific->programObject, "aNormal");
         }
         if (bothShaderCode.find("aTextCoord") != std::string::npos)
         {
@@ -688,6 +702,7 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+                disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
         }
@@ -702,14 +717,14 @@ namespace mbm
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
+                if (gles_shaderSpecific->normalHandle != -1 && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0)
                 {
                     GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboNormalSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->texCoordHandle != -1)
+                if (gles_shaderSpecific->texCoordHandle != -1 && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0)
                 {
                     GLBindBuffer(GL_ARRAY_BUFFER, pBufferId->bs->vboTextureSubsetVB[i]);
                     GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
@@ -737,6 +752,12 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+
+                const bool useNormal = (gles_shaderSpecific->normalHandle != -1)
+                    && pBufferId->bs->vboNormalSubsetVB && pBufferId->bs->vboNormalSubsetVB[i] != 0;
+                const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1)
+                    && pBufferId->bs->vboTextureSubsetVB && pBufferId->bs->vboTextureSubsetVB[i] != 0;
+                disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
             }
@@ -793,6 +814,7 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+                disableUnusedVertexAttribs(gles_shaderSpecific, gles_shaderSpecific->normalHandle != -1, gles_shaderSpecific->texCoordHandle != -1);
                 GLDrawElements(modeDrawGl, pBufferId->indexCountIB[i], GL_UNSIGNED_SHORT, nullptr);
             }
         }
@@ -806,14 +828,17 @@ namespace mbm
                 GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
                 //-----------------------------------------------------------------------------------------------------------
-                if (gles_shaderSpecific->normalHandle != -1) // Normal  (nem sempre temos normal nos shaders)
+                if (gles_shaderSpecific->normalHandle != -1 && normal)
                 {
                     GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                     GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);
                 }
                 //-----------------------------------------------------------------------------------------------------------
-                GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
-                GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                if (gles_shaderSpecific->texCoordHandle != -1 && uv)
+                {
+                    GLEnableVertexAttribArray(gles_shaderSpecific->texCoordHandle);
+                    GLVertexAttribPointer(gles_shaderSpecific->texCoordHandle, 2, GL_FLOAT, GL_FALSE, sizeof(VEC2), uv);
+                }
                 //-----------------------------------------------------------------------------------------------------------
                 GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, mvpMatrix.p);
                 GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, modelView.p);
@@ -834,6 +859,10 @@ namespace mbm
                 {
                     GLBindTexture(GL_TEXTURE_2D, 0);
                 }
+
+                const bool useNormal = (gles_shaderSpecific->normalHandle != -1) && (normal != nullptr);
+                const bool useTexCoord = (gles_shaderSpecific->texCoordHandle != -1) && (uv != nullptr);
+                disableUnusedVertexAttribs(gles_shaderSpecific, useNormal, useTexCoord);
 
                 GLDrawArrays(modeDrawGl, 0, pBufferId->vertexCountVB[i]);
             }

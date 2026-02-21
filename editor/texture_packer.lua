@@ -1704,8 +1704,7 @@ function main_menu_texture_packer()
             local v_min   = 0.2
             local v_max   = 10
             local format  = "Scale %.1f"
-            local power   = 1.0
-            local result, fValue = tImGui.SliderFloat(label, scale, v_min, v_max, format,power)
+            local result, fValue = tImGui.SliderFloat(label, scale, v_min, v_max, format, tImGui.ImGuiSliderFlags_None)
             if result and fValue > 0 then
                 scale = fValue
                 tShape:setScale(scale,scale)
