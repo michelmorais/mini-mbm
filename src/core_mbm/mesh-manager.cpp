@@ -28,6 +28,7 @@
 #include <deprecated.h>
 #include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
+#include <header-mesh.h>
 
 #include <cfloat>
 #include <string>
@@ -808,6 +809,10 @@ namespace mbm
         {
             util::BUFFER_MESH_DEBUG *currentFrameBuffer = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(currentFrame)];
             auto *                   position           = reinterpret_cast<VEC3 *>(currentFrameBuffer->position);
+            if (currentFrameBuffer->normal == nullptr)
+            {
+                currentFrameBuffer->normal = new float[currentFrameBuffer->headerFrame.sizeVertexBuffer * 3];
+            }
             auto *                   normal             = reinterpret_cast<VEC3 *>(currentFrameBuffer->normal);
             const auto       sSub               = static_cast<uint32_t>(currentFrameBuffer->subset.size());
             if (currentFrameBuffer->indexBuffer == nullptr) // vertex
@@ -873,6 +878,26 @@ namespace mbm
                 }
             }
         }
+    }
+    
+    void MESH_MBM_DEBUG::removeNormals()
+    {
+        for (std::vector<util::BUFFER_MESH_DEBUG *>::size_type i = 0; i < this->buffer.size(); ++i)
+        {
+            util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[i];
+            if (bufferCurrent->normal)
+            {
+                delete[] bufferCurrent->normal;
+                bufferCurrent->normal = nullptr;
+            }
+        }
+        headerMesh.hasNorText[0] = 0;
+    }
+    
+    void MESH_MBM_DEBUG::addNormals()
+    {
+        calculateNormals();
+        headerMesh.hasNorText[0] = 1;
     }
     
     void MESH_MBM_DEBUG::calculateUV()
@@ -2151,7 +2176,7 @@ namespace mbm
                 VEC2 *pTexture  = nullptr;
                 if (!this->loadFromSplited(fp, headerFrame->sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
                                            headerMesh.hasNorText, indexArray, headerFrame->sizeIndexBuffer,
-                                           headerFrame->stride))
+                                           headerFrame->stride, this->headerMain.version))
                 {
                     delete[] indexArray;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
@@ -2175,7 +2200,7 @@ namespace mbm
                 VEC3 *pNormal   = nullptr;
                 VEC2 *pTexture  = nullptr;
                 if (!this->loadFromSplited(fp, headerFrame->sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, nullptr, 0, headerFrame->stride))
+                                           headerMesh.hasNorText, nullptr, 0, headerFrame->stride, this->headerMain.version))
                 {
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
                 }
@@ -2665,7 +2690,10 @@ namespace mbm
             if (lenLastVertex > 0)
             {
                 memcpy(static_cast<void*>(&newPosition[vertexEndSubset + totalVertex]), &oldPosition[vertexEndSubset],sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
-                memcpy(static_cast<void*>(&newNormal[vertexEndSubset + totalVertex]), &oldNormal[vertexEndSubset],sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
+                if (oldNormal)
+                    memcpy(static_cast<void*>(&newNormal[vertexEndSubset + totalVertex]), &oldNormal[vertexEndSubset],sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
+                else
+                    memset(static_cast<void*>(&newNormal[vertexEndSubset + totalVertex]), 0, sizeof(VEC3) * static_cast<size_t>(lenLastVertex));
                 memcpy(static_cast<void*>(&newUv[vertexEndSubset + totalVertex]), &oldUv[vertexEndSubset], sizeof(VEC2) * static_cast<size_t>(lenLastVertex));
             }
 
@@ -2680,6 +2708,7 @@ namespace mbm
             if (oldUv)
                 delete[] oldUv;
 
+            headerMesh.hasNorText[0] = 1; // addVertex always allocates normals
             pSubset->vertexCount += totalVertex;
             // update
             uint32_t lastCountVertex = 0;
@@ -3040,10 +3069,15 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                 VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                uint16_t *indexArray, const int sizeArrayIndex, const int stride)
+                                uint16_t *indexArray, const int sizeArrayIndex, const int stride,
+                                int fileVersion)
     {
+        const bool noNormals = (fileVersion >= NORMAL_OPTIONAL_VERSION_MBM_HEADER && hasNorText[0] == 0);
+        const bool hasNormalsFromFile = (hasNorText[0] == 1);
+        const bool calculateNormals = !noNormals && !hasNormalsFromFile;
+
         auto pPosition = new VEC3[sizeVertexBuffer];
-        auto pNormal   = new VEC3[sizeVertexBuffer];
+        VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
         auto pTexture  = new VEC2[sizeVertexBuffer];
         *positionOut            = pPosition;
         *normalOut              = pNormal;
@@ -3053,11 +3087,11 @@ namespace mbm
             if (!fread(pPosition, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
             {
                 delete[] pPosition;
-                delete[] pNormal;
+                if (pNormal) delete[] pNormal;
                 delete[] pTexture;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
             }
-            if (hasNorText[0])
+            if (hasNormalsFromFile)
             {
                 if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -3067,7 +3101,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
                 }
             }
-            else
+            else if (calculateNormals)
             {
                 if (indexArray && sizeArrayIndex)
                 {
@@ -3173,7 +3207,7 @@ namespace mbm
             if (!fread(pStridePosition, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
             {
                 delete[] pPosition;
-                delete[] pNormal;
+                if (pNormal) delete[] pNormal;
                 delete[] pTexture;
                 delete[] pStridePosition;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
@@ -3186,7 +3220,7 @@ namespace mbm
             }
             delete[] pStridePosition;
             pStridePosition = nullptr;
-            if (hasNorText[0])
+            if (hasNormalsFromFile)
             {
                 if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -3196,7 +3230,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
                 }
             }
-            else
+            else if (calculateNormals)
             {
                 if (indexArray && sizeArrayIndex)
                 {
@@ -4491,7 +4525,7 @@ namespace mbm
                 VEC2 *pTexture  = nullptr;
                 if (!this->loadFromSplited(fp, headerFrame.sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
                                            headerMesh.hasNorText, indexArray, headerFrame.sizeIndexBuffer,
-                                           headerFrame.stride))
+                                           headerFrame.stride, headerMain.version))
                 {
                     delete[] indexArray;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
@@ -4544,7 +4578,7 @@ namespace mbm
                 VEC2 *pTexture  = nullptr;
                 constexpr bool isDynamic = false;
                 if (!this->loadFromSplited(fp, headerFrame.sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, nullptr, 0, headerFrame.stride))
+                                           headerMesh.hasNorText, nullptr, 0, headerFrame.stride, headerMain.version))
                 {
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
                 }
@@ -4637,10 +4671,15 @@ namespace mbm
     
     bool MESH_MBM::loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                 VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                uint16_t *indexArray, const int sizeArrayIndex, const int stride)
+                                uint16_t *indexArray, const int sizeArrayIndex, const int stride,
+                                int fileVersion)
     {
+        const bool noNormals = (fileVersion >= NORMAL_OPTIONAL_VERSION_MBM_HEADER && hasNorText[0] == 0);
+        const bool hasNormalsFromFile = (hasNorText[0] == 1);
+        const bool calculateNormals = !noNormals && !hasNormalsFromFile;
+
         auto pPosition = new VEC3[sizeVertexBuffer];
-        auto pNormal   = new VEC3[sizeVertexBuffer];
+        VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
         auto pTexture  = new VEC2[sizeVertexBuffer];
         *positionOut            = pPosition;
         *normalOut              = pNormal;
@@ -4650,11 +4689,11 @@ namespace mbm
             if (!fread(pPosition, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
             {
                 delete[] pPosition;
-                delete[] pNormal;
+                if (pNormal) delete[] pNormal;
                 delete[] pTexture;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
             }
-            if (hasNorText[0])
+            if (hasNormalsFromFile)
             {
                 if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -4664,7 +4703,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
                 }
             }
-            else
+            else if (calculateNormals)
             {
                 if (indexArray && sizeArrayIndex)
                 {
@@ -4770,7 +4809,7 @@ namespace mbm
             if (!fread(pStridePosition, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
             {
                 delete[] pPosition;
-                delete[] pNormal;
+                if (pNormal) delete[] pNormal;
                 delete[] pTexture;
                 delete[] pStridePosition;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
@@ -4783,7 +4822,7 @@ namespace mbm
             }
             delete[] pStridePosition;
             pStridePosition = nullptr;
-            if (hasNorText[0])
+            if (hasNormalsFromFile)
             {
                 if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -4793,7 +4832,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
                 }
             }
-            else
+            else if (calculateNormals)
             {
                 if (indexArray && sizeArrayIndex)
                 {
@@ -5666,6 +5705,12 @@ namespace mbm
         }
 
         headerMesh.totalFrames = meshMemory->getTotalFrame();
+        {
+            const BUFFER_MESH* pBufferMesh0 = meshMemory->getBuffer(0);
+            const BUFFER_GL* pGl0 = pBufferMesh0 ? pBufferMesh0->pBufferGL : nullptr;
+            const bool hasNormals = pGl0 && (pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+            headerMesh.hasNorText[0] = hasNormals ? 1 : 0;
+        }
         //std::map<int, float> lsLetterChangedValuesByLetterX;
         std::map<int, float> lsLetterChangedValuesByCurFrameX;
         //std::map<int, float> lsLetterChangedValuesByLetterY;

@@ -110,8 +110,9 @@ namespace util
     #define SPACE_SHIP_VERSION_MBM_HEADER  4
     #define MODE_DRAW_VERSION_MBM_HEADER   5
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
+    #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] 0=no normals (default), 1=in file, 2=calculate
 
-    #define CURRENT_VERSION_MBM_HEADER     6
+    #define CURRENT_VERSION_MBM_HEADER     7
 
     // step 1:
     struct API_IMPL HEADER
@@ -179,7 +180,7 @@ namespace util
         int          totalAnimation;         // Total de anima��o na mesh
         int          totalFrames;            // Total de frames para o arquivo. cada frame � dividido em uma ou mais subsets.
         int          deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
-        int16_t    hasNorText[2];          // hasNorText[0]: Indica se ha normal (0: sera calculado as normais,1:tera normal em cada frame)
+        int16_t    hasNorText[2];          // hasNorText[0] (since v7): 0=no normals (default), 1=normal in file, 2=calculate when loading. (v<=6: 0=calculate, 1=in file)
         // hasNorText[1]:textura (0: n�o tera textura, 1: tera textura em cada frame, 2: tera textura somente no frame 1, os outros ser�o copiados).
         float angleX, angleY, angleZ; 
         float posX, posY, posZ;       

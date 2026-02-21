@@ -103,7 +103,8 @@ namespace mbm
                 headerFrame->sizeVertexBuffer = (acumulated);
                 const uint32_t totalUv = (acumulated) * 2;
                 pBuffer->position = new float[headerFrame->sizeVertexBuffer * 3];
-                pBuffer->normal = new float[headerFrame->sizeVertexBuffer * 3];
+                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                pBuffer->normal = hasNormals ? new float[headerFrame->sizeVertexBuffer * 3] : nullptr;
                 pBuffer->uv = new float[totalUv];
             }
             // 6.3 Vertex Buffer somente
@@ -114,7 +115,8 @@ namespace mbm
                 const uint32_t totalNormal = (headerFrame->sizeVertexBuffer) * 3;
                 const uint32_t totalUv = (headerFrame->sizeVertexBuffer) * 2;
                 pBuffer->position = new float[totalVertex];
-                pBuffer->normal = new float[totalNormal];
+                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                pBuffer->normal = hasNormals ? new float[totalNormal] : nullptr;
                 pBuffer->uv = new float[totalUv];
             }
             else
@@ -191,19 +193,26 @@ namespace mbm
                     }
                 }
             }
+            const bool hasNormals = (pBuffer->normal != nullptr);
+            if (hasNormals)
+            {
+                if (is_dynamic_shape == false)
+                {
+                    GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[1]);
+                    pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
+                }
+                if (pNormal == nullptr)
+                {
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get normal at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
+                }
+                memcpy(pBuffer->normal, pNormal, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
+                if (is_dynamic_shape == false)
+                {
+                    glUnmapBufferOES(GL_ARRAY_BUFFER);
+                }
+            }
             if (is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[1]);
-                pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-            }
-            if (pNormal == nullptr)
-            {
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get normal at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
-            }
-            memcpy(pBuffer->normal, pNormal, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
-            if (is_dynamic_shape == false)
-            {
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
                 GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[2]);
                 pTexture = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
             }

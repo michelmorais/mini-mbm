@@ -82,9 +82,14 @@ GLint checkAttribLocationOptional(const GLint location, const char* name)
 {
     if (location == -1)
     {
-        WARN_LOG("Attribute [%s] was optimized out (unused in shader).\n"
-            "Your vertex buffer may include this data (e.g. normals) but the shader does not use it.\n"
-            "Consider: use FVF_POS or FVF_POS_UV if you don't need normals, or use the normal in the shader (e.g. lighting).\n", name);
+        static bool warned = false;
+        if (!warned)
+        {
+            warned = true;
+            WARN_LOG("Attribute [%s] was optimized out (unused in shader).\n"
+                "Your vertex buffer may include this data (e.g. normals) but the shader does not use it.\n"
+                "Consider: use FVF_POS or FVF_POS_UV if you don't need normals, or use the normal in the shader (e.g. lighting).\n", name);
+        }
     }
     return location;
 }

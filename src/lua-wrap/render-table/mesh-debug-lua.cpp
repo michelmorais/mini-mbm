@@ -763,14 +763,24 @@ namespace mbm
                     lua_pushnumber(lua, pPosition[indexRaw].z);
                     lua_setfield(lua, -2, "z");
 
-                    lua_pushnumber(lua, pNormal[indexRaw].x);
-                    lua_setfield(lua, -2, "nx");
-
-                    lua_pushnumber(lua, pNormal[indexRaw].y);
-                    lua_setfield(lua, -2, "ny");
-
-                    lua_pushnumber(lua, pNormal[indexRaw].z);
-                    lua_setfield(lua, -2, "nz");
+                    if (pNormal)
+                    {
+                        lua_pushnumber(lua, pNormal[indexRaw].x);
+                        lua_setfield(lua, -2, "nx");
+                        lua_pushnumber(lua, pNormal[indexRaw].y);
+                        lua_setfield(lua, -2, "ny");
+                        lua_pushnumber(lua, pNormal[indexRaw].z);
+                        lua_setfield(lua, -2, "nz");
+                    }
+                    else
+                    {
+                        lua_pushnumber(lua, 0.0);
+                        lua_setfield(lua, -2, "nx");
+                        lua_pushnumber(lua, 0.0);
+                        lua_setfield(lua, -2, "ny");
+                        lua_pushnumber(lua, 0.0);
+                        lua_setfield(lua, -2, "nz");
+                    }
 
                     lua_pushnumber(lua, pUv[indexRaw].x);
                     lua_setfield(lua, -2, "u");
@@ -827,9 +837,12 @@ namespace mbm
                     getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &pPosition[indexRaw].y);
                     getFieldPrimaryFromTable(lua, indexTable, "z", LUA_TNUMBER, &pPosition[indexRaw].z);
 
-                    getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
-                    getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
-                    getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                    if (pNormal)
+                    {
+                        getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
+                        getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
+                        getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                    }
 
                     getFieldPrimaryFromTable(lua, indexTable, "u", LUA_TNUMBER, &pUv[indexRaw].x);
                     getFieldPrimaryFromTable(lua, indexTable, "v", LUA_TNUMBER, &pUv[indexRaw].y);
@@ -847,9 +860,12 @@ namespace mbm
                         getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &pPosition[indexRaw].y);
                         getFieldPrimaryFromTable(lua, indexTable, "z", LUA_TNUMBER, &pPosition[indexRaw].z);
 
-                        getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
-                        getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
-                        getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        if (pNormal)
+                        {
+                            getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
+                            getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
+                            getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        }
 
                         getFieldPrimaryFromTable(lua, indexTable, "u", LUA_TNUMBER, &pUv[indexRaw].x);
                         getFieldPrimaryFromTable(lua, indexTable, "v", LUA_TNUMBER, &pUv[indexRaw].y);
@@ -913,6 +929,7 @@ namespace mbm
                 {
                     if (meshDebug->mesh.addVertex(indexFrame, indexSubset, 1))
                     {
+                        buffer = meshDebug->mesh.buffer[indexFrame]; // re-fetch after addVertex (may reallocate)
                         auto *             pPosition  = reinterpret_cast<VEC3 *>(buffer->position);
                         auto *             pNormal    = reinterpret_cast<VEC3 *>(buffer->normal);
                         auto *             pUv        = reinterpret_cast<VEC2 *>(buffer->uv);
@@ -922,9 +939,12 @@ namespace mbm
                         getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &pPosition[indexRaw].y);
                         getFieldPrimaryFromTable(lua, indexTable, "z", LUA_TNUMBER, &pPosition[indexRaw].z);
 
-                        getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
-                        getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
-                        getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        if (pNormal)
+                        {
+                            getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
+                            getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
+                            getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        }
 
                         getFieldPrimaryFromTable(lua, indexTable, "u", LUA_TNUMBER, &pUv[indexRaw].x);
                         getFieldPrimaryFromTable(lua, indexTable, "v", LUA_TNUMBER, &pUv[indexRaw].y);
@@ -936,6 +956,7 @@ namespace mbm
                 }
                 else if (meshDebug->mesh.addVertex(indexFrame, indexSubset, lenTable))
                 {
+                    buffer = meshDebug->mesh.buffer[indexFrame]; // re-fetch after addVertex (may reallocate)
                     auto *pPosition = reinterpret_cast<VEC3 *>(buffer->position);
                     auto *pNormal   = reinterpret_cast<VEC3 *>(buffer->normal);
                     auto *pUv       = reinterpret_cast<VEC2 *>(buffer->uv);
@@ -948,9 +969,12 @@ namespace mbm
                         getFieldPrimaryFromTable(lua, indexTable, "y", LUA_TNUMBER, &pPosition[indexRaw].y);
                         getFieldPrimaryFromTable(lua, indexTable, "z", LUA_TNUMBER, &pPosition[indexRaw].z);
 
-                        getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
-                        getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
-                        getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        if (pNormal)
+                        {
+                            getFieldPrimaryFromTable(lua, indexTable, "nx", LUA_TNUMBER, &pNormal[indexRaw].x);
+                            getFieldPrimaryFromTable(lua, indexTable, "ny", LUA_TNUMBER, &pNormal[indexRaw].y);
+                            getFieldPrimaryFromTable(lua, indexTable, "nz", LUA_TNUMBER, &pNormal[indexRaw].z);
+                        }
 
                         getFieldPrimaryFromTable(lua, indexTable, "u", LUA_TNUMBER, &pUv[indexRaw].x);
                         getFieldPrimaryFromTable(lua, indexTable, "v", LUA_TNUMBER, &pUv[indexRaw].y);
@@ -1198,6 +1222,20 @@ namespace mbm
         MESH_DEBUG_LUA *meshDebug               = getMeshDebugFromRawTable(lua, 1, 1);
         const int       enable                  = lua_toboolean(lua, 2);
         meshDebug->mesh.headerMesh.hasNorText[0] = enable ? 1 : 0;
+        return 0;
+    }
+
+    int onRemoveNormalsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        meshDebug->mesh.removeNormals();
+        return 0;
+    }
+
+    int onAddNormalsMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        meshDebug->mesh.addNormals();
         return 0;
     }
 
@@ -1456,6 +1494,8 @@ namespace mbm
                                           {"check", onCheckMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
                                           {"enableNormal", onEnableNormalsMeshDebugLua},
+                                          {"removeNormals", onRemoveNormalsMeshDebugLua},
+                                          {"addNormals", onAddNormalsMeshDebugLua},
                                           {"enableUv", onEnableUvMeshDebugLua},
                                           {"copyAnimationsFromMesh", onCopyAnimationsFromMeshLua},
                                           {"updateAnim", onUpdateAnimationDebugLua},
