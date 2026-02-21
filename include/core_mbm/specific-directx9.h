@@ -59,17 +59,10 @@
 #endif
 
 #include <primitives.h>
+#include <shader.h>
 
 namespace mbm
 {
-    enum class FVF_PROVIDE_BY_ENGINE // we only provide those type of FVF for this engine
-    {
-        FVF_POS,
-        FVF_POS_UV,
-        FVF_POS_NOR,
-        FVF_POS_NOR_UV,
-    };
-
     class D3D_VERTEX_CONVERTER // convert automaticlly to directx VERTEX (see above)
     {
     public:

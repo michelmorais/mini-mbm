@@ -41,6 +41,16 @@ namespace mbm
     struct PARTICLE_CONTROL;
     enum TYPE_VAR_SHADER : char;
 
+    /** Flexible Vertex Format - indicates which vertex attributes (normal, UV) the vertex has.
+     *  Used by compileShader when building the default shader to add/remove aNormal and vTexCoord. */
+    enum class FVF_PROVIDE_BY_ENGINE
+    {
+        FVF_POS,       // position only
+        FVF_POS_UV,    // position + UV
+        FVF_POS_NOR,   // position + normal
+        FVF_POS_NOR_UV // position + normal + UV
+    };
+
     enum TYPE_ANIMATION : char
     { 
       TYPE_ANIMATION_PAUSED          = 0, // Pausa A Animação
@@ -111,6 +121,8 @@ namespace mbm
         int32_t* vertexCountVB;     // Total vertex buffer per each subset VB
         uint32_t sizeOfArrayVertex; // Size of Vertx array
 
+        FVF_PROVIDE_BY_ENGINE fvf;  // vertex format (set by loadBuffer); used when compiling default shader
+
         uint32_t mode_draw; //default (GL_TRIANGLES), mode: GL_POINTS, GL_LINES, GL_LINE_LOOP, GL_LINE_STRIP, GL_TRIANGLES, GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN
         uint32_t mode_cull_face;//GL_FRONT, GL_BACK,GL_FRONT_AND_BACK
         uint32_t mode_front_face_direction; //GL_CW, GL_CCW
@@ -144,6 +156,7 @@ namespace mbm
         friend class SHADER;
       public:
         std::string fileName; // shader
+        FVF_PROVIDE_BY_ENGINE FVF; // vertex format: used by compileShader when default shader adds/removes aNormal, vTexCoord
         API_IMPL BASE_SHADER() noexcept;
         API_IMPL virtual ~BASE_SHADER();
         API_IMPL const char *getCode();
@@ -173,6 +186,7 @@ namespace mbm
         void releaseShader();
         void onRestore();
         bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader);
+        void setFVF(FVF_PROVIDE_BY_ENGINE fvf) noexcept; // set FVF before compileShader when using default shader
         bool isLoad() const noexcept;
         bool render(const BUFFER_GL *pBufferId) const;
         bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
@@ -182,6 +196,7 @@ namespace mbm
       private:
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
+        FVF_PROVIDE_BY_ENGINE fvfDefault; // used when default shader is requested (ptrPshader/ptrVshader nullptr)
     };
 
 }

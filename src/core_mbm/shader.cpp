@@ -153,7 +153,7 @@ namespace mbm
         }
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept = default;
+    BASE_SHADER::BASE_SHADER() noexcept : FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV) {}
 
     BASE_SHADER::~BASE_SHADER()
     {
@@ -223,6 +223,11 @@ namespace mbm
     std::vector<VAR_SHADER*> * BASE_SHADER::getVars()
     {
         return &this->lsVar;
+    }
+
+    void SHADER::setFVF(FVF_PROVIDE_BY_ENGINE fvf) noexcept
+    {
+        this->fvfDefault = fvf;
     }
 
     bool BASE_SHADER::isThereVarIntoLsVars(const char *nameVar)
