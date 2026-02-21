@@ -441,7 +441,7 @@ namespace mbm
 #endif
 
 #if defined (WIN32)
-    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
+    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked, int requested_width, int requested_height)
     {
         mbm::REGEDIT reg_index_monitor,reg_index_resolution,reg_full_screen, reg_script_app, reg_user_script;
         const char * strKeyName = my_app_name.length() > 0 ? my_app_name.c_str() : "Mini-Mbm";
@@ -586,24 +586,60 @@ namespace mbm
             screen_resolution_list = default_resolutions;
         }
         
+        std::vector<SCREEN_RESOLUTION> resolution_list_for_combobox;
+        if (requested_width > 0 && requested_height > 0 && requested_width <= max_width && requested_height <= max_height)
+        {
+            for (int i = 0; i < size_screen_resolution_list; i++)
+            {
+                SCREEN_RESOLUTION* r = &screen_resolution_list[i];
+                if (r->width <= max_width && r->height <= max_height)
+                    resolution_list_for_combobox.push_back(*r);
+            }
+            bool found = false;
+            for (size_t i = 0; i < resolution_list_for_combobox.size(); i++)
+            {
+                if (resolution_list_for_combobox[i].width == requested_width && resolution_list_for_combobox[i].height == requested_height)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                resolution_list_for_combobox.push_back({requested_width, requested_height, "Requested"});
+        }
+        
+        SCREEN_RESOLUTION* list_to_use = screen_resolution_list;
+        int list_size = size_screen_resolution_list;
+        if (!resolution_list_for_combobox.empty())
+        {
+            list_to_use = resolution_list_for_combobox.data();
+            list_size = static_cast<int>(resolution_list_for_combobox.size());
+        }
+        
         int ilastIndex = -1;
-        w.setObjectContext(static_cast<void*>(screen_resolution_list), 4);
+        int index_requested_resolution = -1;
+        w.setObjectContext(static_cast<void*>(list_to_use), 4);
         int idResolution = w.addCombobox(10, 130, 380, 100,onSelectRelosution);
         
-        for (int i = 0; i < size_screen_resolution_list; i++)
+        for (int i = 0; i < list_size; i++)
         {
             char         str[255];
-            SCREEN_RESOLUTION * screen_resolution = &screen_resolution_list[i];
+            SCREEN_RESOLUTION * screen_resolution = &list_to_use[i];
             if(screen_resolution->width <= max_width && screen_resolution->height <= max_height)
             {
                 sprintf(str, "%d x %d %s",screen_resolution->width, screen_resolution->height, screen_resolution->description ? screen_resolution->description : "");
                 w.addText(idResolution, str);
                 selected_width  = screen_resolution->width;
                 selected_height = screen_resolution->height;
+                if (requested_width > 0 && requested_height > 0 && screen_resolution->width == requested_width && screen_resolution->height == requested_height)
+                    index_requested_resolution = ilastIndex + 1;
                 ilastIndex++;
             }
         }
-        w.setSelectedIndex(idResolution,ilastIndex);
+        int default_resolution_index = ilastIndex;
+        if (index_requested_resolution >= 0)
+            default_resolution_index = index_requested_resolution;
+        w.setSelectedIndex(idResolution, default_resolution_index);
         
         w.setObjectContext(static_cast<void*>(&full_screen), 5);
         if(allow_full_screen)
@@ -624,11 +660,16 @@ namespace mbm
             manMonitor.getMonitor(regindex_monitor, &my_monitor_selected);
         }
         const int regindex_resolution = reg_index_resolution.getVal(key_resolution.c_str(),0xff);
-        if(regindex_resolution != 0xff && regindex_resolution <= ilastIndex && regindex_resolution < size_screen_resolution_list)
+        if (index_requested_resolution < 0 && regindex_resolution != 0xff && regindex_resolution <= ilastIndex && regindex_resolution < list_size)
         {
             w.setSelectedIndex(idResolution,regindex_resolution);
-            selected_width  = screen_resolution_list[regindex_resolution].width;
-            selected_height = screen_resolution_list[regindex_resolution].height;
+            selected_width  = list_to_use[regindex_resolution].width;
+            selected_height = list_to_use[regindex_resolution].height;
+        }
+        else if (index_requested_resolution >= 0)
+        {
+            selected_width  = requested_width;
+            selected_height = requested_height;
         }
 
         std::string script_app;
@@ -737,12 +778,12 @@ namespace mbm
 
     bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
-        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked);
+        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked, 0, 0);
     }
     #elif defined (__linux__) || defined(__APPLE__)
     
     // Simple X11 dialog for resolution/app selection
-    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
+    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked, int requested_width, int requested_height)
     {
         Display* display = XOpenDisplay(nullptr);
         if (!display)
@@ -803,6 +844,26 @@ namespace mbm
         // Selection state
         int selected_monitor = 0;
         int selected_resolution = valid_resolutions.size() - 1; // Default to highest valid
+        
+        // When -w/-h passed, ensure requested resolution is in list and selected as default
+        if (requested_width > 0 && requested_height > 0 && requested_width <= max_width && requested_height <= max_height)
+        {
+            int found_index = -1;
+            for (size_t i = 0; i < valid_resolutions.size(); i++)
+            {
+                if (valid_resolutions[i].width == requested_width && valid_resolutions[i].height == requested_height)
+                {
+                    found_index = static_cast<int>(i);
+                    break;
+                }
+            }
+            if (found_index < 0)
+            {
+                valid_resolutions.push_back({requested_width, requested_height, "Requested"});
+                found_index = static_cast<int>(valid_resolutions.size() - 1);
+            }
+            selected_resolution = found_index;
+        }
         int selected_app = (index_app_selected && *index_app_selected >= 0) ? *index_app_selected : 0;
         bool full_screen = allow_full_screen && full_screen_checked;
         bool confirmed = false;
@@ -1084,7 +1145,7 @@ namespace mbm
     
     bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
-        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked);
+        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked, 0, 0);
     }
 #endif
 

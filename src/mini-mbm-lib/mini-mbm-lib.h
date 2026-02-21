@@ -114,7 +114,7 @@ extern "C"
         LIB_IMP_API bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0, bool allow_full_screen = true,const bool full_screen_checked = true);// with no args provide the most common resolution, you can set your own resolution list
         
         #endif
-        LIB_IMP_API bool select_app_and_resolution(APP_RUN* app_run = nullptr, int size_app_run = 0, int * index_app_selected = nullptr, SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0, bool allow_full_screen = true, const bool full_screen_checked = true);// with no args provide the most common resolution, you can set your own resolution list
+        LIB_IMP_API bool select_app_and_resolution(APP_RUN* app_run = nullptr, int size_app_run = 0, int * index_app_selected = nullptr, SCREEN_RESOLUTION* screen_resolution_list = nullptr, int size_screen_resolution_list = 0, bool allow_full_screen = true, const bool full_screen_checked = true, int requested_width = 0, int requested_height = 0);// with no args provide the most common resolution, you can set your own resolution list. When requested_width and requested_height are both > 0, that resolution is ensured in the list and selected as default.
 
 #if defined _DEBUG
 		LIB_IMP_API void restoreDeviceTest();//for testing the restore device, you can call it from lua script, e.g. mbm.restoreDeviceTest()

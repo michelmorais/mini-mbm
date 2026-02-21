@@ -85,6 +85,7 @@ int main(const int argc,const char **argv)
     int index_app_selected = -1;
     std::string user_script_name;
     std::string user_script_display_name;
+    unsigned int requested_width = 0, requested_height = 0;
 
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
@@ -94,6 +95,8 @@ int main(const int argc,const char **argv)
         unsigned int width = 0, height = 0;
         if (parser.getWidthHeight(width, height))
         {
+            requested_width = width;
+            requested_height = height;
             mbm::set_window_size(
                 width,
                 height);
@@ -164,7 +167,7 @@ int main(const int argc,const char **argv)
         #endif
     #endif
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
-    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked))
+    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked, requested_width, requested_height))
     {
         if (index_app_selected > -1 && index_app_selected < size_app)
         {
