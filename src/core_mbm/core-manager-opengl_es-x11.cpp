@@ -80,7 +80,7 @@ namespace mbm
             return false;
         }
         Screen *screen = DefaultScreenOfDisplay(this->device->specificContextDevice->display_x11);
-        if ((height + 60) >= screen->height)
+        if (border && (height + 60) >= screen->height)
         {
             height -= 60;
             y = height;
