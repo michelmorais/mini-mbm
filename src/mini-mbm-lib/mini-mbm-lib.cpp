@@ -508,9 +508,9 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "Opções de Tela";
+            temp_app_name        = "Op\E7\F5es de Tela";
             temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma Resolução:";
+            temp_resol_name      = "Selecione uma Resolu\E7\E3o:";
             temp_full_screen_lbl = "Tela cheia";
             temp_play_lbl        = "INICIAR";
         }
@@ -539,7 +539,7 @@ namespace mbm
                 if (isPTbr)
                 {
                     // Format string must not have u8 prefix for sprintf
-                    const char* format = "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld";
+                    const char* format = "%d: %ld x %ld, frequ\EAncia:%lu, posi\E7\E3o:%ld x %ld";
                     sprintf(str, format, (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
@@ -654,9 +654,18 @@ namespace mbm
             {
                 if(i == size_app_run - 1)
                 {
-                    custom_script = reg_user_script.getString(key_user_script.c_str(), "User specified script");
-                    w.addText(idAppSelection, custom_script.c_str());
-                    app_run[i].script_path = custom_script.c_str();
+                    if (index_app_selected != nullptr && (*index_app_selected) == (size_app_run - 1) && app_run[i].script_path &&
+                        (strchr(app_run[i].script_path, '/') != nullptr || strchr(app_run[i].script_path, '\\') != nullptr))
+                    {
+                        custom_script = app_run[i].name_eng ? app_run[i].name_eng : util::getBaseName(app_run[i].script_path);
+                        w.addText(idAppSelection, custom_script.c_str());
+                    }
+                    else
+                    {
+                        custom_script = reg_user_script.getString(key_user_script.c_str(), "User specified script");
+                        w.addText(idAppSelection, custom_script.c_str());
+                        app_run[i].script_path = custom_script.c_str();
+                    }
                 }
                 else if (isPTbr)
                 {

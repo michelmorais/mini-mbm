@@ -6,6 +6,7 @@
 #include "mini-mbm-launcher.h"
 #include <string>
 #include <core_mbm/parse-launcher-args.hpp>
+#include <util-interface.h>
 #include "resource.h"
 
 #pragma comment(lib, "core_mbm.lib")
@@ -74,6 +75,7 @@ int main(const int argc,const char **argv)
     size_app = size_app - 1; // remove the last one, it is a user specified script
     int index_app_selected = -1;
     std::string user_script_name;
+    std::string user_script_display_name;
 
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
@@ -135,6 +137,9 @@ int main(const int argc,const char **argv)
             index_app_selected = size_app - 1;
             user_script_name = fileNameInitialLua;
             default_applications[index_app_selected].script_path = user_script_name.c_str();
+            user_script_display_name = util::getBaseName(fileNameInitialLua);
+            default_applications[index_app_selected].name_eng = user_script_display_name.c_str();
+            default_applications[index_app_selected].name_pt_br = user_script_display_name.c_str();
         }
 
         mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);
