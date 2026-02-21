@@ -24,7 +24,7 @@
 
 namespace mbm
 {
-    static const char* resourceShader[] = {//organizado de 3 em 3. sendo: Nome do arquivo, Codigo shader e configuraões CFG.
+    static const char* resourceShader[] = {//organizado de 3 em 3. sendo: Nome do arquivo, Codigo shader e configuraes CFG.
 
 
         /* Alpha It -----------------------------------------------------------------------------------------------------*/
@@ -1607,7 +1607,7 @@ namespace mbm
 "\n"
 "float4x4 mvpMatrix;\n"
 "\n"
-"VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL,in float2 uv : TEXCOORD0)\n"
+"VS_OUTPUT main(in float4 pos : POSITION, in float2 uv : TEXCOORD0)\n"
 "{\n"
 "	VS_OUTPUT ret;\n"
 "	ret.pos = mul(pos, mvpMatrix);\n"
@@ -1630,7 +1630,7 @@ namespace mbm
 "float4x4 mvpMatrix;\n"
 "float2 scale;\n"
 "\n"
-"VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+"VS_OUTPUT main(in float4 pos : POSITION, in float2 uv : TEXCOORD0)\n"
 "{\n"
 "	VS_OUTPUT ret;\n"
 "	pos.x *= scale.x;\n"
@@ -1659,7 +1659,7 @@ namespace mbm
     "	float2 uv : TEXCOORD0;\n"
     "};\n"
     "\n"
-    "VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+    "VS_OUTPUT main(in float4 pos : POSITION, in float2 uv : TEXCOORD0)\n"
     "{\n"
     "	VS_OUTPUT ret;\n"
     "	if (pos.y > height)\n"
@@ -1700,7 +1700,7 @@ namespace mbm
     "};\n"
     "\n"
     "\n"
-    "VS_OUTPUT main(in float4 pos : POSITION, in float4 nor : NORMAL, in float2 uv : TEXCOORD0)\n"
+    "VS_OUTPUT main(in float4 pos : POSITION, in float2 uv : TEXCOORD0)\n"
     "{\n"
     "	VS_OUTPUT ret;\n"
     "	if (pos.y > height)\n"
