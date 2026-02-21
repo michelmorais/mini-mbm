@@ -2981,6 +2981,57 @@ namespace mbm
                     ID_RESOURCE_ICON_APP,doubleBuffer);
     }
 
+    // Per-monitor DPI helpers so window size matches requested size on any monitor (e.g. second monitor at 1920x1080).
+    static void enableDpiAwarenessOnce()
+    {
+        static bool once = false;
+        if (once) return;
+        once = true;
+        typedef BOOL(WINAPI* PFN_SetProcessDpiAwarenessContext)(void*);
+        typedef HRESULT(WINAPI* PFN_SetProcessDpiAwareness)(int);
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        HMODULE shcore = LoadLibraryA("shcore.dll");
+        if (user32)
+        {
+            PFN_SetProcessDpiAwarenessContext SetProcessDpiAwarenessContextFn =
+                (PFN_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+            if (SetProcessDpiAwarenessContextFn)
+            {
+                // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = (DPI_AWARENESS_CONTEXT)-4
+                if (SetProcessDpiAwarenessContextFn((void*)-4)) return;
+            }
+        }
+        if (shcore)
+        {
+            PFN_SetProcessDpiAwareness SetProcessDpiAwarenessFn =
+                (PFN_SetProcessDpiAwareness)GetProcAddress(shcore, "SetProcessDpiAwareness");
+            if (SetProcessDpiAwarenessFn && SUCCEEDED(SetProcessDpiAwarenessFn(2))) return; // PROCESS_PER_MONITOR_DPI_AWARE = 2
+        }
+        SetProcessDPIAware();
+    }
+    static UINT getDpiAtPoint(long x, long y)
+    {
+        HMODULE shcore = GetModuleHandleA("shcore.dll");
+        if (!shcore) return 96u;
+        typedef HRESULT(WINAPI* PFN_GetDpiForMonitor)(HMONITOR, int, UINT*, UINT*);
+        PFN_GetDpiForMonitor GetDpiForMonitorFn = (PFN_GetDpiForMonitor)GetProcAddress(shcore, "GetDpiForMonitor");
+        if (!GetDpiForMonitorFn) return 96u;
+        POINT pt = { x, y };
+        HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        UINT dpiX = 96, dpiY = 96;
+        if (SUCCEEDED(GetDpiForMonitorFn(mon, 0, &dpiX, &dpiY))) return dpiX;
+        return 96u;
+    }
+    static BOOL adjustWindowRectForDpi(RECT* prc, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi)
+    {
+        typedef BOOL(WINAPI* PFN_AdjustWindowRectExForDpi)(LPRECT, DWORD, BOOL, DWORD, UINT);
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        if (!user32) return AdjustWindowRectEx(prc, dwStyle, bMenu, dwExStyle);
+        PFN_AdjustWindowRectExForDpi fn = (PFN_AdjustWindowRectExForDpi)GetProcAddress(user32, "AdjustWindowRectExForDpi");
+        if (fn) return fn(prc, dwStyle, bMenu, dwExStyle, dpi);
+        return AdjustWindowRectEx(prc, dwStyle, bMenu, dwExStyle);
+    }
+
     bool WINDOW::init(const char *nameApp, const int width, const int height, const long positionX,
                      const long positionY, const bool enableResize, const bool enableMaximizeButton,
                      const bool enableMinimizeButton , const bool maximized,
@@ -2989,6 +3040,7 @@ namespace mbm
     {
         if (isWin32Initialized)
             return true;
+        enableDpiAwarenessOnce();
         if (nameApp)
             strcpy(nameAplication, nameApp);
 #if UNICODE
@@ -3063,15 +3115,25 @@ namespace mbm
         }
         const int widthScreen  = GetSystemMetrics(SM_CXSCREEN);
         const int heightScreen = GetSystemMetrics(SM_CYSCREEN);
-        AdjustWindowRectEx(&WindowRect, dwStyle, 0, dwExStyle);
+        const bool explicitPosition = (positionX != 0 || positionY != 0) && (positionX != 0xffffff && positionY != 0xffffff);
+        if (explicitPosition)
+        {
+            UINT dpi = getDpiAtPoint((long)positionX, (long)positionY);
+            adjustWindowRectForDpi(&WindowRect, dwStyle, 0, dwExStyle, dpi);
+        }
+        else
+            AdjustWindowRectEx(&WindowRect, dwStyle, 0, dwExStyle);
         this->adjustRectLeft = WindowRect.left < 0 ? WindowRect.left * -1 : WindowRect.left;
         this->adjustRectTop  = WindowRect.top < 0 ? WindowRect.top * -1 : WindowRect.top;
         int wWin             = WindowRect.right - WindowRect.left;
         int hWin             = WindowRect.bottom - WindowRect.top;
-        if (wWin > widthScreen)
-            wWin = widthScreen;
-        if (hWin > heightScreen)
-            hWin = heightScreen;
+        if (!explicitPosition)
+        {
+            if (wWin > widthScreen)
+                wWin = widthScreen;
+            if (hWin > heightScreen)
+                hWin = heightScreen;
+        }
 #if UNICODE
         WCHAR *tmp_nameAplication = mbm::toWchar(nameAplication, nullptr);
         this->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, 0, 0, wWin, hWin, nullptr, nullptr,
