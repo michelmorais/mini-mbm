@@ -781,6 +781,11 @@ namespace mbm
         this->releaseAnimation();
     }
 
+    FVF_PROVIDE_BY_ENGINE ANIMATION_MANAGER::getDefaultFVF() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+    }
+
     void ANIMATION_MANAGER::populateTextureStage2FromMesh(MESH_MBM *mesh)
     {
         TEXTURE_MANAGER *texMan = TEXTURE_MANAGER::getInstance();
@@ -1098,7 +1103,7 @@ namespace mbm
         auto anim = new ANIMATION();
         this->lsAnimation.push_back(anim);
         this->indexCurrentAnimation = static_cast<uint32_t>(this->lsAnimation.size() - 1);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");
         }

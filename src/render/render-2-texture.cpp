@@ -441,62 +441,25 @@ namespace mbm
     
     void RENDER_2_TEXTURE::fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
     {
-        const float x  = width * 0.5f;
-        const float y  = height * 0.5f;
-        _position[0].x = -x;
-        _position[0].y = -y;
-        _position[0].z = 0;
-
-        _position[1].x = -x;
-        _position[1].y = y; //-V525
-        _position[1].z = 0;
-
-        _position[2].x = x;
-        _position[2].y = -y;
-        _position[2].z = 0;
-
-        _position[3].x = x;
-        _position[3].y = y;
-        _position[3].z = 0;
-        if (normal)
-        {
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
-        }
-        // OpenGL ES : Origin at bottom - left, Y - axis points up(standard math convention)
-        //	DirectX9 : Origin at top - left, Y - axis points down(screen convention)
-        //  So when rendering to texture, DirectX9's render target flips the Y-axis relative to what OpenGL ES produces.
+        // OpenGL ES: origin bottom-left. DirectX9: origin top-left (flip V).
 #if defined(USE_DIRECTX9)
-        uv[0].x = 0;
-        uv[0].y = 1;
-        uv[1].x = 0;
-        uv[1].y = 0;
-        uv[2].x = 1;
-        uv[2].y = 1;
-        uv[3].x = 1;
-        uv[3].y = 0;
+        mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
 #else
-        uv[0].x = 0;
-        uv[0].y = 0;
-        uv[1].x = 0;
-        uv[1].y = 1;
-        uv[2].x = 1;
-        uv[2].y = 0;
-        uv[3].x = 1;
-        uv[3].y = 1;
+        mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
 #endif
     }
     
+    FVF_PROVIDE_BY_ENGINE RENDER_2_TEXTURE::getDefaultFVF() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+    }
+
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
             return false;
         return true;
     }

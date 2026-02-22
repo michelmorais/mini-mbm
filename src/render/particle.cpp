@@ -183,7 +183,7 @@ namespace mbm
         anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs.c_str(), TYPE_ANIMATION_PAUSED);
         anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
         anim->fx.shader.releaseShader();
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
             return false;
         float defaultVar[4] = { 1, 1, 1, 1 };
         if (anim->fx.fxPS->ptrCurrentShader == nullptr ||
@@ -420,6 +420,11 @@ namespace mbm
         {
             theParticle->onEndAnimation(nameAnimation, renderizable);
         }
+    }
+
+    FVF_PROVIDE_BY_ENGINE PARTICLE::getDefaultFVF() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
     }
 
     bool PARTICLE::releaseOnFail()

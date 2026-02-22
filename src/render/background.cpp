@@ -255,15 +255,17 @@ namespace mbm
             int                indexStart = 0;
             int                indexCount = 6;
             VEC3            _position[4];
-            VEC3*            normal = nullptr;
             VEC2            uv[4];
             unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
             this->texture               = TEXTURE_MANAGER::getInstance()->load(fileName, hasAlpha);
             if (this->texture == nullptr)
                 return false;
             this->buffer = new BUFFER_GL();
-            this->fillvertexQuadTexture(_position, normal, uv, static_cast<float>(this->texture->getWidth()),static_cast<float>(this->texture->getHeight()));
-            const bool ret = this->buffer->loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+            mbm::fillVertexQuadTexture(_position, uv, static_cast<float>(this->texture->getWidth()),
+                                     static_cast<float>(this->texture->getHeight()));
+            this->bound.halfDim.x = static_cast<float>(this->texture->getWidth()) * 0.5f;
+            this->bound.halfDim.y = static_cast<float>(this->texture->getHeight()) * 0.5f;
+            const bool ret = this->buffer->loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
             if (ret == false)
                 return false;
 			this->addAnimation();
@@ -774,47 +776,11 @@ namespace mbm
         return true;
     }
     
-    void BACKGROUND::fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
+    FVF_PROVIDE_BY_ENGINE BACKGROUND::getDefaultFVF() const noexcept
     {
-        const float x         = width * 0.5f;
-        const float y         = height * 0.5f;
-        this->bound.halfDim.x = x;
-        this->bound.halfDim.y = y;
-        _position[0].x        = -x;
-        _position[0].y        = -y;
-        _position[0].z        = 0;
-
-        _position[1].x = -x;
-        _position[1].y = y; //-V525
-        _position[1].z = 0;
-
-        _position[2].x = x;
-        _position[2].y = -y;
-        _position[2].z = 0;
-
-        _position[3].x = x;
-        _position[3].y = y;
-        _position[3].z = 0;
-        if (normal)
-        {
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
-        }
-        //----------------------------------------
-        uv[0].x = 0;
-        uv[0].y = 1;
-        uv[1].x = 0;
-        uv[1].y = 0;
-        uv[2].x = 1;
-        uv[2].y = 1;
-        uv[3].x = 1;
-        uv[3].y = 0;
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
     }
-        
+
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 
     {
         if (this->mesh)

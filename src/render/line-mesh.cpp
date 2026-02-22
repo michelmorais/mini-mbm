@@ -374,7 +374,7 @@ namespace mbm
         anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
         if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
             return false;
-        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF());
         if (!ret)
         {
             PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
@@ -399,6 +399,11 @@ namespace mbm
             }
         }
         return true;
+    }
+
+    FVF_PROVIDE_BY_ENGINE LINE_MESH::getDefaultFVF() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS;
     }
 
     FX*  LINE_MESH::getFx()const

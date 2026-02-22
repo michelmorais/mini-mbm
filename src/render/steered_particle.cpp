@@ -270,7 +270,7 @@ namespace mbm
             anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_GROWING);
             anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_GROWING);
             anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
                 return false;
 
             const float defaultVar[4] = { p_color->r, p_color->g, p_color->b, p_color->a };
@@ -301,10 +301,15 @@ namespace mbm
             anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, defaultCodePs, TYPE_ANIMATION_PAUSED);
             anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, defaultCodeVs, TYPE_ANIMATION_PAUSED);
             anim->fx.shader.releaseShader();
-            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : mbm::FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV))
+            if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
                 return false;
         }
         return true;
+    }
+
+    FVF_PROVIDE_BY_ENGINE STEERED_PARTICLE::getDefaultFVF() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
     }
     
     bool STEERED_PARTICLE::render()
