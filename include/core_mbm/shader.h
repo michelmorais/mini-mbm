@@ -42,7 +42,7 @@ namespace mbm
     enum TYPE_VAR_SHADER : char;
 
     /** Flexible Vertex Format - indicates which vertex attributes (normal, UV) the vertex has.
-     *  Used by compileShader when building the default shader to add/remove aNormal and vTexCoord. */
+     *  Passed to compileShader so the shader can add/remove aNormal and vTexCoord. */
     enum class FVF_PROVIDE_BY_ENGINE
     {
         FVF_POS,       // position only
@@ -185,8 +185,7 @@ namespace mbm
         virtual ~SHADER();
         void releaseShader();
         void onRestore();
-        bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader);
-        void setFVF(FVF_PROVIDE_BY_ENGINE fvf) noexcept; // set FVF before compileShader when using default shader
+        bool compileShader(BASE_SHADER *ptrPshader, BASE_SHADER *ptrVshader, FVF_PROVIDE_BY_ENGINE fvf);
         bool isLoad() const noexcept;
         bool render(const BUFFER_GL *pBufferId) const;
         bool renderParticle(const BUFFER_GL* pBufferId, const PARTICLE_CONTROL* particleControl) const;
@@ -196,7 +195,6 @@ namespace mbm
       private:
         BASE_SHADER *pShader;
         BASE_SHADER *vShader;
-        FVF_PROVIDE_BY_ENGINE fvfDefault; // used when default shader is requested (ptrPshader/ptrVshader nullptr)
     };
 
 }

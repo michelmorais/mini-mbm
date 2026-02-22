@@ -225,11 +225,6 @@ namespace mbm
         return &this->lsVar;
     }
 
-    void SHADER::setFVF(FVF_PROVIDE_BY_ENGINE fvf) noexcept
-    {
-        this->fvfDefault = fvf;
-    }
-
     bool BASE_SHADER::isThereVarIntoLsVars(const char *nameVar)
     {
         if (nameVar == nullptr)

@@ -65,7 +65,7 @@ namespace mbm
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
         sizeOfArrayVertex(0),
-        fvf(FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV),
+        fvf(FVF_PROVIDE_BY_ENGINE::FVF_POS_UV),
         mode_draw(util::MODE_DRAW_TRIANGLES),
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
@@ -674,8 +674,7 @@ namespace mbm
     SHADER::SHADER() : 
         ptrShaderSpecific(new D3D_PS_VS()),
         pShader(nullptr),
-        vShader(nullptr),
-        fvfDefault(FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV)
+        vShader(nullptr)
     {
     }
 
@@ -699,11 +698,10 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        const FVF_PROVIDE_BY_ENGINE fvf = (ptrVshader ? ptrVshader->FVF : this->fvfDefault);
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
         const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
 

@@ -43,7 +43,7 @@ namespace mbm
 
     bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
                                     SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs,
-                                    const TYPE_ANIMATION typeVs, const float timeAnimVs)
+                                    const TYPE_ANIMATION typeVs, const float timeAnimVs, FVF_PROVIDE_BY_ENGINE fvf)
     {
         BASE_SHADER *basePixelShader  = nullptr;
         BASE_SHADER *baseVertexShader = nullptr;
@@ -64,7 +64,8 @@ namespace mbm
         {
             fxVS->ptrCurrentShader = nullptr;
         }
-        const bool ret = shader.compileShader(basePixelShader, baseVertexShader);
+        const FVF_PROVIDE_BY_ENGINE fvfForCompile = baseVertexShader ? baseVertexShader->FVF : fvf;
+        const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvfForCompile);
         if (!ret)
             return false;
         if (pShaderCfg)

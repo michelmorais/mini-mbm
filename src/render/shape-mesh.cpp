@@ -277,8 +277,7 @@ namespace mbm
                 auto anim = new ANIMATION();
                 this->lsAnimation.push_back(anim);
                 strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-                anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-                if (!anim->fx.shader.compileShader(nullptr, nullptr))
+                if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                     return false;
             }
             this->fileName = nickName;
@@ -394,8 +393,7 @@ namespace mbm
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
             strncpy(anim->nameAnimation, "circle",sizeof(anim->nameAnimation)-1);
-            anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -574,8 +572,7 @@ namespace mbm
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
             strncpy(anim->nameAnimation, "rectangle",sizeof(anim->nameAnimation)-1);
-            anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -676,8 +673,7 @@ namespace mbm
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
             strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -846,8 +842,7 @@ namespace mbm
             auto anim = new ANIMATION();
             this->lsAnimation.push_back(anim);
             strncpy(anim->nameAnimation, "triangle",sizeof(anim->nameAnimation)-1);
-            anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -1034,8 +1029,7 @@ namespace mbm
             this->lsAnimation.push_back(anim);
             this->mesh->infoPhysics.lsCube.push_back(cube);
             strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
-            anim->fx.shader.setFVF(mesh->getBuffer(0)->pBufferGL->fvf);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
@@ -1223,7 +1217,7 @@ namespace mbm
             this->lsAnimation.push_back(anim);
             strncpy(anim->nameAnimation, "unic-anim",sizeof(anim->nameAnimation)-1);
             this->mesh->infoPhysics.lsCube.push_back(cube);
-            if (!anim->fx.shader.compileShader(nullptr, nullptr))
+            if (!anim->fx.shader.compileShader(nullptr, nullptr, mesh->getBuffer(0)->pBufferGL->fvf))
                 return false;
             this->fileName = nickName;
             this->updateAABB();
