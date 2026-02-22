@@ -285,7 +285,7 @@ function showMeshOptions(tEntry, index)
             end
         end
         tImGui.SameLine()
-        if tImGui.Button('Save (recalc normals)##' .. index) then
+        if tImGui.Button('Save (with calculated normals)##' .. index) then
             local ok = meshD:save(tEntry.fileName, true, false)
             if ok then
                 if tEntry.info then tEntry.info.hasNormal = true end
@@ -295,6 +295,7 @@ function showMeshOptions(tEntry, index)
                 tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
             end
         end
+        tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
         tImGui.TreePop()
     end
 end
@@ -362,7 +363,7 @@ function showApplyToAllMenu()
         if tImGui.MenuItem('Save All (overwrite)', nil, false, enabled) then
             applyToAll('save')
         end
-        if tImGui.MenuItem('Save All (recalc normals)', nil, false, enabled) then
+        if tImGui.MenuItem('Save All (with calculated normals)', nil, false, enabled) then
             applyToAll('saveRecalcNormals')
         end
         tImGui.EndMenu()

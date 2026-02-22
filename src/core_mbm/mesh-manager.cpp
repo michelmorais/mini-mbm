@@ -787,8 +787,8 @@ namespace mbm
                 typeOut = util::TYPE_MESH_PARTICLE;
             else if (strncmp(headerMbmOut.typeApp, "Tile mbm", 15) == 0) // Tile mbm
                 typeOut = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMain.typeApp, "Shape mbm", 15) == 0) // Shape mbm
-                typeMe = util::TYPE_MESH_SHAPE;
+            else if (strncmp(headerMbmOut.typeApp, "Shape mbm", 15) == 0) // Shape mbm
+                typeOut = util::TYPE_MESH_SHAPE;
         }
         else
         {
@@ -965,11 +965,15 @@ namespace mbm
         {
             case util::TYPE_MESH_3D:        {strncpy(headerMain.typeApp, "Mesh 3d mbm",sizeof(headerMain.typeApp)-1);}
             break;
+            case util::TYPE_MESH_USER:      {strncpy(headerMain.typeApp, "User mbm",sizeof(headerMain.typeApp)-1);}
+            break;
             case util::TYPE_MESH_SPRITE:    {strncpy(headerMain.typeApp, "Sprite mbm",sizeof(headerMain.typeApp)-1);}
             break;
             case util::TYPE_MESH_TILE_MAP:  {strncpy(headerMain.typeApp, "Tile mbm",sizeof(headerMain.typeApp)-1);}
             break;
             case util::TYPE_MESH_FONT:      {strncpy(headerMain.typeApp, "Font mbm",sizeof(headerMain.typeApp)-1);}
+            break;
+            case util::TYPE_MESH_TEXTURE:   {strncpy(headerMain.typeApp, "Texture mbm",sizeof(headerMain.typeApp)-1);}
             break;
             case util::TYPE_MESH_PARTICLE:  {strncpy(headerMain.typeApp, "Particle mbm",sizeof(headerMain.typeApp)-1); }
             break;
@@ -1482,7 +1486,7 @@ namespace mbm
             else if (strncmp(headerMain.typeApp, "Tile mbm", 15) == 0) // Tile mbm
                 typeMe = util::TYPE_MESH_TILE_MAP;
             else if (strncmp(headerMain.typeApp, "Particle mbm", 15) == 0) // Particle mbm
-                typeMe = util::TYPE_MESH_SPRITE;
+                typeMe = util::TYPE_MESH_PARTICLE;
             else if (strncmp(headerMain.typeApp, "Shape mbm", 15) == 0)
                 typeMe = util::TYPE_MESH_SHAPE;
         }
