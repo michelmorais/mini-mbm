@@ -118,8 +118,8 @@ namespace util
         posY                   = 0;
         posZ                   = 0;
         deprecated_typePhysics = 0;
-        hasNorText[0]          = 0;
-        hasNorText[1]          = 1;
+        hasNorText[0]          = HAS_NOR_NO;
+        hasNorText[1]          = HAS_TEX_EACH_FRAME;
     }
 
     HEADER_ANIMATION::HEADER_ANIMATION() noexcept

@@ -1228,7 +1228,7 @@ namespace mbm
     {
         MESH_DEBUG_LUA *meshDebug               = getMeshDebugFromRawTable(lua, 1, 1);
         const int       enable                  = lua_toboolean(lua, 2);
-        meshDebug->mesh.headerMesh.hasNorText[0] = enable ? 1 : 0;
+        meshDebug->mesh.headerMesh.hasNorText[0] = enable ? HAS_NOR_IN_FILE : HAS_NOR_NO;
         return 0;
     }
 
@@ -1255,13 +1255,13 @@ namespace mbm
         if (enable)
         {
             if (enableFirstFrame)
-                meshDebug->mesh.headerMesh.hasNorText[1] = 2;
+                meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_FIRST_FRAME;
             else
-                meshDebug->mesh.headerMesh.hasNorText[1] = 1;
+                meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         }
         else
         {
-            meshDebug->mesh.headerMesh.hasNorText[1] = 0;
+            meshDebug->mesh.headerMesh.hasNorText[1] = HAS_TEX_NO;
         }
         return 0;
     }

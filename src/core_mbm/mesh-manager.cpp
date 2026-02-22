@@ -93,8 +93,8 @@ namespace mbm
         typeMe              = util::TYPE_MESH_UNKNOWN;
         util::MATERIAL_GLES m;
         this->headerMesh.material      = m;
-        this->headerMesh.hasNorText[0] = 0;
-        this->headerMesh.hasNorText[1] = 1;
+        this->headerMesh.hasNorText[0] = HAS_NOR_NO;
+        this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         zoomEditorSprite.x            = 1.0f;
         zoomEditorSprite.y            = 1.0f;
         extraInfo                     = nullptr;
@@ -891,13 +891,13 @@ namespace mbm
                 bufferCurrent->normal = nullptr;
             }
         }
-        headerMesh.hasNorText[0] = 0;
+        headerMesh.hasNorText[0] = HAS_NOR_NO;
     }
     
     void MESH_MBM_DEBUG::addNormals()
     {
         calculateNormals();
-        headerMesh.hasNorText[0] = 1;
+        headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
     }
     
     void MESH_MBM_DEBUG::calculateUV()
@@ -1016,12 +1016,12 @@ namespace mbm
         if (recalculateNormal)
         {
             this->calculateNormals();
-            this->headerMesh.hasNorText[0] = 1;
+            this->headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
         }
         if (recalculateUV)
         {
             this->calculateUV();
-            this->headerMesh.hasNorText[1] = 1;
+            this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         }
         {
             std::string which_mode;
@@ -1408,19 +1408,19 @@ namespace mbm
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC3), &file))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                if (headerMesh.hasNorText[0])
+                if (headerMesh.hasNorText[0] != HAS_NOR_NO)
                 {
                     if (!util::addToFileBinary(fileOut, currentFrameBuffer->normal,
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC3), &file))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                if (headerMesh.hasNorText[1] == 1)
+                if (headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME)
                 {
                     if (!util::addToFileBinary(fileOut, currentFrameBuffer->uv,
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC2), &file))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
-                else if (currentFrame == 0 && headerMesh.hasNorText[1] == 2)
+                else if (currentFrame == 0 && headerMesh.hasNorText[1] == HAS_TEX_FIRST_FRAME)
                 {
                     if (!util::addToFileBinary(fileOut, currentFrameBuffer->uv,
                                                static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC2), &file))
@@ -2708,7 +2708,7 @@ namespace mbm
             if (oldUv)
                 delete[] oldUv;
 
-            headerMesh.hasNorText[0] = 1; // addVertex always allocates normals
+            headerMesh.hasNorText[0] = HAS_NOR_IN_FILE; // addVertex always allocates normals
             pSubset->vertexCount += totalVertex;
             // update
             uint32_t lastCountVertex = 0;
@@ -2907,8 +2907,8 @@ namespace mbm
         zoomEditorSprite.y = 1.0f;
         util::MATERIAL_GLES m;
         this->headerMesh.material      = m;
-        this->headerMesh.hasNorText[0] = 0;
-        this->headerMesh.hasNorText[1] = 1;
+        this->headerMesh.hasNorText[0] = HAS_NOR_NO;
+        this->headerMesh.hasNorText[1] = HAS_TEX_EACH_FRAME;
         this->infoPhysics.release();
         this->infoAnimation.release();
     }
@@ -3072,9 +3072,10 @@ namespace mbm
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        const bool noNormals = (fileVersion >= NORMAL_OPTIONAL_VERSION_MBM_HEADER && hasNorText[0] == 0);
-        const bool hasNormalsFromFile = (hasNorText[0] == 1);
-        const bool calculateNormals = !noNormals && !hasNormalsFromFile;
+        /* hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, or HAS_NOR_CALCULATE */
+        const bool noNormals = (hasNorText[0] == HAS_NOR_NO);
+        const bool hasNormalsFromFile = (hasNorText[0] == HAS_NOR_IN_FILE);
+        const bool calculateNormals = (hasNorText[0] == HAS_NOR_CALCULATE);
 
         auto pPosition = new VEC3[sizeVertexBuffer];
         VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
@@ -3138,7 +3139,7 @@ namespace mbm
                     }
                 }
             }
-            if (hasNorText[1] == 1) // As coordenadas estão presentes em cada frame
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
                 if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -3148,7 +3149,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
                 }
             }
-            else if (hasNorText[1] == 2) // As coordenadas só estão presentes no primeiro frame
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
             {
                 if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
                 {
@@ -3267,7 +3268,7 @@ namespace mbm
                     }
                 }
             }
-            if (hasNorText[1] == 1) // As coordenadas estão presentes em cada frame
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
                 if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -3277,7 +3278,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
                 }
             }
-            else if (hasNorText[1] == 2) // As coordenadas só estão presentes no primeiro frame
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
             {
                 if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
                 {
@@ -4674,9 +4675,10 @@ namespace mbm
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        const bool noNormals = (fileVersion >= NORMAL_OPTIONAL_VERSION_MBM_HEADER && hasNorText[0] == 0);
-        const bool hasNormalsFromFile = (hasNorText[0] == 1);
-        const bool calculateNormals = !noNormals && !hasNormalsFromFile;
+        /* hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, or HAS_NOR_CALCULATE */
+        const bool noNormals = (hasNorText[0] == HAS_NOR_NO);
+        const bool hasNormalsFromFile = (hasNorText[0] == HAS_NOR_IN_FILE);
+        const bool calculateNormals = (hasNorText[0] == HAS_NOR_CALCULATE);
 
         auto pPosition = new VEC3[sizeVertexBuffer];
         VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
@@ -4740,7 +4742,7 @@ namespace mbm
                     }
                 }
             }
-            if (hasNorText[1] == 1) // As coordenadas estão presentes em cada frame
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
                 if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -4750,7 +4752,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
                 }
             }
-            else if (hasNorText[1] == 2) // As coordenadas só estão presentes no primeiro frame
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
             {
                 if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
                 {
@@ -4869,7 +4871,7 @@ namespace mbm
                     }
                 }
             }
-            if (hasNorText[1] == 1) // As coordenadas estão presentes em cada frame
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
                 if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
                 {
@@ -4879,7 +4881,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
                 }
             }
-            else if (hasNorText[1] == 2) // As coordenadas só estão presentes no primeiro frame
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
             {
                 if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
                 {
@@ -5318,8 +5320,8 @@ namespace mbm
             lsMeshes[fileNameBaseSuppose] = mesh;
             const char *fontps                 = "font.ps";
             header->headerAnim->typeAnimation  = 1;
-            mesh->hasNormTex[0] = 1;//has normal
-            mesh->hasNormTex[1] = 1;//uv each frame
+            mesh->hasNormTex[0] = HAS_NOR_IN_FILE;//has normal
+            mesh->hasNormTex[1] = HAS_TEX_EACH_FRAME;//uv each frame
             strncpy(header->headerAnim->nameAnimation,"font-1",sizeof(header->headerAnim->nameAnimation)-1);
             auto effectFont = new util::INFO_FX();
             header->effetcShader = effectFont;
@@ -5709,7 +5711,7 @@ namespace mbm
             const BUFFER_MESH* pBufferMesh0 = meshMemory->getBuffer(0);
             const BUFFER_GL* pGl0 = pBufferMesh0 ? pBufferMesh0->pBufferGL : nullptr;
             const bool hasNormals = pGl0 && (pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl0->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
-            headerMesh.hasNorText[0] = hasNormals ? 1 : 0;
+            headerMesh.hasNorText[0] = hasNormals ? HAS_NOR_IN_FILE : HAS_NOR_NO;
         }
         //std::map<int, float> lsLetterChangedValuesByLetterX;
         std::map<int, float> lsLetterChangedValuesByCurFrameX;
