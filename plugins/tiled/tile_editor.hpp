@@ -65,6 +65,7 @@ namespace mbm
         const INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *    getMesh() const        override;
         bool                isLoaded() const       override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         FX*                 getFx() const          override;
         ANIMATION_MANAGER*  getAnimationManager()  override;
 

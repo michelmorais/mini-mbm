@@ -404,7 +404,7 @@ namespace mbm
     FVF_PROVIDE_BY_ENGINE LINE_MESH::getFvfFromBuffer() const noexcept
     {
         if (lsLines.empty() || !lsLines[0]->buffer.isLoadedBuffer())
-            return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+            return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         return lsLines[0]->buffer.fvf;
     }
 

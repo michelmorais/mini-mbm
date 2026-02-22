@@ -778,7 +778,7 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE BACKGROUND::getFvfFromBuffer() const noexcept
     {
-        return (buffer && buffer->isLoadedBuffer()) ? buffer->fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return (buffer && buffer->isLoadedBuffer()) ? buffer->fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 

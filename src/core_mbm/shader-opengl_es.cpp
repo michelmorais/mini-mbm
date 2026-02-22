@@ -563,6 +563,8 @@ namespace mbm
 
     bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
+        if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
+            return false;
         this->pShader             = ptrPshader;
         this->vShader            = ptrVshader;
         const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);

@@ -1099,7 +1099,7 @@ namespace mbm
         this->lsAnimation.push_back(anim);
         this->indexCurrentAnimation = static_cast<uint32_t>(this->lsAnimation.size() - 1);
         RENDERIZABLE* r = dynamic_cast<RENDERIZABLE*>(this);
-        const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        const FVF_PROVIDE_BY_ENGINE fvf = r ? r->getFvfFromBuffer() : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
         if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
         {
             ERROR_AT(__LINE__,__FILE__, "error on add animation");

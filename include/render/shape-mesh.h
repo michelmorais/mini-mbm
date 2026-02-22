@@ -102,7 +102,8 @@ namespace mbm
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager()  noexcept override;
 		API_IMPL void setOnRenderDynamicBuffer(OnRenderDynamicBuffer _onRenderDynamicBuffer) noexcept { onRenderDynamicBuffer = _onRenderDynamicBuffer;}
 		API_IMPL const bool isDynamicBufferMode() const  noexcept { return dynamicVertex.size() > 0 && mesh != nullptr; }
-		
+		FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
+
       private:
         bool isOnFrustum() override;
         bool render() override;

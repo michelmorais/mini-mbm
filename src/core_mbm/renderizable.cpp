@@ -59,10 +59,6 @@ namespace mbm
         this->lsDynamicVar.clear();
     }
 
-    FVF_PROVIDE_BY_ENGINE RENDERIZABLE::getFvfFromBuffer() const noexcept
-    {
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
-    }
 
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
     {

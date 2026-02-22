@@ -570,6 +570,17 @@ namespace mbm
         return this->mesh != nullptr;
     }
 
+    FVF_PROVIDE_BY_ENGINE TILE::getFvfFromBuffer() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     const util::BTILE_INFO *	TILE::getTileInfo() const
     {
         if(this->mesh)
@@ -1000,6 +1011,17 @@ namespace mbm
     const MESH_MBM * TILE_OBJ::getMesh() const
     {
         return ptr_Mesh;
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE_OBJ::getFvfFromBuffer() const noexcept
+    {
+        if (ptr_Mesh)
+        {
+            BUFFER_MESH* buf = ptr_Mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     bool TILE_OBJ::isLoaded() const

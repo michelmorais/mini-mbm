@@ -166,6 +166,9 @@ namespace mbm
                 vertex_declaration = vertex_declaration_pos_norm_uv;
             }
             break;
+            case FVF_PROVIDE_BY_ENGINE::FVF_NONE:
+            default:
+                break;
         }
         return vertex_declaration;
     }

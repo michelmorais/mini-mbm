@@ -202,7 +202,7 @@ namespace mbm
             if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
                 return buf->pBufferGL->fvf;
         }
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
     
     bool SPRITE::isLoaded() const

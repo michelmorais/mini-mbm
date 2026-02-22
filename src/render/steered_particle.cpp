@@ -309,7 +309,7 @@ namespace mbm
 
     FVF_PROVIDE_BY_ENGINE STEERED_PARTICLE::getFvfFromBuffer() const noexcept
     {
-        return bufferGl.isLoadedBuffer() ? bufferGl.fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return bufferGl.isLoadedBuffer() ? bufferGl.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
     
     bool STEERED_PARTICLE::render()

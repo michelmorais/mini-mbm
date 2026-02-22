@@ -115,6 +115,17 @@ namespace mbm
         return nullptr;
     }
 
+    FVF_PROVIDE_BY_ENGINE TILE_EDITOR::getFvfFromBuffer() const noexcept
+    {
+        if (emptyBrick.isLoadedBuffer())
+            return emptyBrick.fvf;
+        if (backGroundMap.isLoadedBuffer())
+            return backGroundMap.fvf;
+        if (tileSetPreview.isLoadedBuffer())
+            return tileSetPreview.fvf;
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     const MESH_MBM *    TILE_EDITOR::getMesh() const
     {
         return nullptr;

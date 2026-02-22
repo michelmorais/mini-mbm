@@ -42,9 +42,11 @@ namespace mbm
     enum TYPE_VAR_SHADER : char;
 
     /** Flexible Vertex Format - indicates which vertex attributes (normal, UV) the vertex has.
-     *  Passed to compileShader so the shader can add/remove aNormal and vTexCoord. */
+     *  Passed to compileShader so the shader can add/remove aNormal and vTexCoord.
+     *  FVF_NONE = invalid/undefined; compileShader fails when given this (helps detect invalid flow). */
     enum class FVF_PROVIDE_BY_ENGINE
     {
+        FVF_NONE,      // invalid/undefined - compileShader must fail
         FVF_POS,       // position only
         FVF_POS_UV,    // position + UV
         FVF_POS_NOR,   // position + normal

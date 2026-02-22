@@ -451,7 +451,7 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE RENDER_2_TEXTURE::getFvfFromBuffer() const noexcept
     {
-        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()

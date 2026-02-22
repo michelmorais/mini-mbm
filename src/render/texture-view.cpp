@@ -326,7 +326,7 @@ namespace mbm
     
     FVF_PROVIDE_BY_ENGINE TEXTURE_VIEW::getFvfFromBuffer() const noexcept
     {
-        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)
