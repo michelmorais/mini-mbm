@@ -235,7 +235,7 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                               util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
-                              std::vector<util::STAGE_PARTICLE> & lsStageParticle)
+                              std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut)
     {
         bool isImage    = false;
         bool isMesh     = false;
@@ -257,6 +257,7 @@ namespace mbm
             }
             util::HEADER_MESH tmp;
             headerMeshMbmOut = tmp;
+            if (versionOut) *versionOut = 0;
             return true;    
         }
         if(!isMesh)
@@ -702,6 +703,7 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
         fclose(fp);
         fp = nullptr;
+        if (versionOut) *versionOut = headerMbmOut.version;
         return true;
     }
     

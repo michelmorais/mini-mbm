@@ -156,8 +156,9 @@ namespace mbm
 		util::INFO_DRAW_MODE info_mode;
         INFO_BOUND_FONT  datailFontOut;
         std::vector<util::STAGE_PARTICLE> lsParticleInfo;
+        int version = 0;
         const char *          fileName = luaL_checkstring(lua, 2);
-        if (!MESH_MBM_DEBUG::getInfo(fileName, headerMeshMbmOut, info_mode,typeOut, datailFontOut, lsParticleInfo))
+        if (!MESH_MBM_DEBUG::getInfo(fileName, headerMeshMbmOut, info_mode,typeOut, datailFontOut, lsParticleInfo, &version))
         {
             lua_pushnil(lua);
             return 1;
@@ -176,6 +177,8 @@ namespace mbm
         angle         = {x,y,z}   --Initial angle (deprected)
         */
         lua_newtable(lua);
+        lua_pushinteger(lua, version);
+        lua_setfield(lua, -2, "version");
         lua_pushinteger(lua, headerMeshMbmOut.totalAnimation);
         lua_setfield(lua, -2, "animation");
         bool unknown = false;
@@ -244,6 +247,11 @@ namespace mbm
         {
             lua_pushstring(lua,datailFontOut.fontName.c_str());
             lua_setfield(lua, -2, "ext");
+        }
+        if (typeOut == util::TYPE_MESH_PARTICLE)
+        {
+            lua_pushinteger(lua, static_cast<lua_Integer>(lsParticleInfo.size()));
+            lua_setfield(lua, -2, "stages");
         }
         return 1;
     }
@@ -646,6 +654,155 @@ namespace mbm
 		const char *  mode_front_face = util::get_mode_front_face_direction_from_uint(meshDebug->mesh.info_mode.mode_front_face_direction,"nil");
         lua_pushstring(lua,mode_front_face);
         return 1;
+    }
+
+    int onGetVersionMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_pushinteger(lua, meshDebug->mesh.headerMain.version);
+        return 1;
+    }
+
+    int onGetAngleMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_newtable(lua);
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleX);
+        lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleY);
+        lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.angleZ);
+        lua_setfield(lua, -2, "z");
+        return 1;
+    }
+
+    int onSetAngleMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float x = static_cast<float>(luaL_checknumber(lua, 2));
+        const float y = static_cast<float>(luaL_checknumber(lua, 3));
+        const float z = static_cast<float>(luaL_checknumber(lua, 4));
+        meshDebug->mesh.headerMesh.angleX = x;
+        meshDebug->mesh.headerMesh.angleY = y;
+        meshDebug->mesh.headerMesh.angleZ = z;
+        meshDebug->mesh.angleDefault       = VEC3(x, y, z);
+        return 0;
+    }
+
+    int onGetPositionMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        lua_newtable(lua);
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posX);
+        lua_setfield(lua, -2, "x");
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posY);
+        lua_setfield(lua, -2, "y");
+        lua_pushnumber(lua, meshDebug->mesh.headerMesh.posZ);
+        lua_setfield(lua, -2, "z");
+        return 1;
+    }
+
+    int onSetPositionMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const float x = static_cast<float>(luaL_checknumber(lua, 2));
+        const float y = static_cast<float>(luaL_checknumber(lua, 3));
+        const float z = static_cast<float>(luaL_checknumber(lua, 4));
+        meshDebug->mesh.headerMesh.posX = x;
+        meshDebug->mesh.headerMesh.posY = y;
+        meshDebug->mesh.headerMesh.posZ = z;
+        meshDebug->mesh.positionOffset  = VEC3(x, y, z);
+        return 0;
+    }
+
+    int onGetMaterialMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        lua_newtable(lua);
+        lua_newtable(lua);
+        lua_pushnumber(lua, m.Diffuse.r);
+        lua_setfield(lua, -2, "r");
+        lua_pushnumber(lua, m.Diffuse.g);
+        lua_setfield(lua, -2, "g");
+        lua_pushnumber(lua, m.Diffuse.b);
+        lua_setfield(lua, -2, "b");
+        lua_pushnumber(lua, m.Diffuse.a);
+        lua_setfield(lua, -2, "a");
+        lua_setfield(lua, -2, "Diffuse");
+        lua_newtable(lua);
+        lua_pushnumber(lua, m.Ambient.r);
+        lua_setfield(lua, -2, "r");
+        lua_pushnumber(lua, m.Ambient.g);
+        lua_setfield(lua, -2, "g");
+        lua_pushnumber(lua, m.Ambient.b);
+        lua_setfield(lua, -2, "b");
+        lua_pushnumber(lua, m.Ambient.a);
+        lua_setfield(lua, -2, "a");
+        lua_setfield(lua, -2, "Ambient");
+        lua_newtable(lua);
+        lua_pushnumber(lua, m.Specular.r);
+        lua_setfield(lua, -2, "r");
+        lua_pushnumber(lua, m.Specular.g);
+        lua_setfield(lua, -2, "g");
+        lua_pushnumber(lua, m.Specular.b);
+        lua_setfield(lua, -2, "b");
+        lua_pushnumber(lua, m.Specular.a);
+        lua_setfield(lua, -2, "a");
+        lua_setfield(lua, -2, "Specular");
+        lua_newtable(lua);
+        lua_pushnumber(lua, m.Emissive.r);
+        lua_setfield(lua, -2, "r");
+        lua_pushnumber(lua, m.Emissive.g);
+        lua_setfield(lua, -2, "g");
+        lua_pushnumber(lua, m.Emissive.b);
+        lua_setfield(lua, -2, "b");
+        lua_pushnumber(lua, m.Emissive.a);
+        lua_setfield(lua, -2, "a");
+        lua_setfield(lua, -2, "Emissive");
+        lua_pushnumber(lua, m.Power);
+        lua_setfield(lua, -2, "Power");
+        return 1;
+    }
+
+    int onSetMaterialMeshDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        util::MATERIAL_GLES &m = meshDebug->mesh.headerMesh.material;
+        luaL_checktype(lua, 2, LUA_TTABLE);
+        auto getColor = [lua](const char *key, float *r, float *g, float *b, float *a) {
+            *r = *g = *b = *a = 1.0f;
+            lua_getfield(lua, 2, key);
+            if (lua_istable(lua, -1)) {
+                lua_getfield(lua, -1, "r");
+                if (lua_isnumber(lua, -1)) *r = static_cast<float>(lua_tonumber(lua, -1));
+                lua_pop(lua, 1);
+                lua_getfield(lua, -1, "g");
+                if (lua_isnumber(lua, -1)) *g = static_cast<float>(lua_tonumber(lua, -1));
+                lua_pop(lua, 1);
+                lua_getfield(lua, -1, "b");
+                if (lua_isnumber(lua, -1)) *b = static_cast<float>(lua_tonumber(lua, -1));
+                lua_pop(lua, 1);
+                lua_getfield(lua, -1, "a");
+                if (lua_isnumber(lua, -1)) *a = static_cast<float>(lua_tonumber(lua, -1));
+                lua_pop(lua, 1);
+            }
+            lua_pop(lua, 1);
+        };
+        float r, g, b, a;
+        getColor("Diffuse", &r, &g, &b, &a);
+        m.Diffuse = mbm::COLOR(r, g, b, a);
+        getColor("Ambient", &r, &g, &b, &a);
+        m.Ambient = mbm::COLOR(r, g, b, a);
+        getColor("Specular", &r, &g, &b, &a);
+        m.Specular = mbm::COLOR(r, g, b, a);
+        getColor("Emissive", &r, &g, &b, &a);
+        m.Emissive = mbm::COLOR(r, g, b, a);
+        lua_getfield(lua, 2, "Power");
+        if (lua_isnumber(lua, -1))
+            m.Power = static_cast<float>(lua_tonumber(lua, -1));
+        lua_pop(lua, 1);
+        return 0;
     }
 
     int onGetTotalFrameMeshDebugLua(lua_State *lua)
@@ -1481,6 +1638,13 @@ namespace mbm
 			                              {"getModeCullFace", onGetMode_CullFaceMeshDebugLua},
 										  {"setModeFrontFace", onSetMode_FrontFaceMeshDebugLua},
 			                              {"getModeFrontFace", onGetMode_FrontFaceMeshDebugLua},
+                                          {"getVersion", onGetVersionMeshDebugLua},
+                                          {"getAngle", onGetAngleMeshDebugLua},
+                                          {"setAngle", onSetAngleMeshDebugLua},
+                                          {"getPosition", onGetPositionMeshDebugLua},
+                                          {"setPosition", onSetPositionMeshDebugLua},
+                                          {"getMaterial", onGetMaterialMeshDebugLua},
+                                          {"setMaterial", onSetMaterialMeshDebugLua},
                                           {"setPhysics", onSetPhysicsMeshDebugLua},
                                           {"getPhysics", onGetPhysicsMeshDebugLua},
                                           {"getTotalFrame", onGetTotalFrameMeshDebugLua},

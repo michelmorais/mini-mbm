@@ -110,7 +110,8 @@ function addMeshToTable(fileName)
         fileName = fileName,
         meshDebug = meshD,
         info = info,
-        loaded = true
+        loaded = true,
+        modified = false
     })
     return true
 end
@@ -136,7 +137,8 @@ function destroyPreviewMesh()
     tPreviewFont = nil
 end
 
--- Load selected mesh for preview. Calls fakeRelease before load so file changes are reflected.
+-- Load selected mesh for preview. When mesh has unsaved changes, saves to temp and loads from there
+-- so animation/transform edits are visible at runtime without saving to file.
 function updatePreviewMesh()
     if iSelectedMeshIndex == iLastPreviewedIndex then return end
     destroyPreviewMesh()
@@ -144,30 +146,43 @@ function updatePreviewMesh()
     if iSelectedMeshIndex <= 0 or iSelectedMeshIndex > #tLoadedMeshes then return end
 
     local tEntry = tLoadedMeshes[iSelectedMeshIndex]
+    local meshD = tEntry.meshDebug
     local fileName = tEntry.fileName
     local info = tEntry.info or {}
     local meshType = info.type or 'unknown'
 
-    meshDebug:fakeRelease(fileName)
+    local loadPath = fileName
+    if tEntry.modified then
+        local ext = fileName:match('%.([^%.]+)$') or 'msh'
+        tEntry.previewPath = tEntry.previewPath or (os.tmpname() .. '.' .. ext)
+        if meshD:save(tEntry.previewPath, false, false) then
+            meshDebug:fakeRelease(fileName)
+            meshDebug:fakeRelease(tEntry.previewPath)
+            loadPath = tEntry.previewPath
+        end
+    else
+        meshDebug:fakeRelease(fileName)
+    end
+
     local dir = fileName:match('^(.*)[/\\]')
     if dir then mbm.addPath(dir) end
 
     local ok = false
     if meshType == 'sprite' then
         tPreviewMesh = sprite:new('2dw')
-        ok = tPreviewMesh:load(fileName)
+        ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new('2dw')
-        ok = tPreviewMesh:load(fileName)
+        ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'tile' then
         tPreviewMesh = tile:new('2dw')
-        ok = tPreviewMesh:load(fileName)
+        ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'particle' then
         tPreviewMesh = particle:new('2dw')
-        ok = tPreviewMesh:load(fileName)
+        ok = tPreviewMesh:load(loadPath)
         if ok then tPreviewMesh:add(100); tPreviewMesh.revive = true end
     elseif meshType == 'font' then
-        tPreviewFont = font:new(fileName)
+        tPreviewFont = font:new(loadPath)
         if tPreviewFont then
             tPreviewMesh = tPreviewFont:add('2dw', 'Mesh Debug')
             tPreviewMesh.tFont = tPreviewFont
@@ -175,7 +190,7 @@ function updatePreviewMesh()
         end
     elseif meshType == 'texture' then
         tPreviewMesh = texture:new('2dw')
-        ok = tPreviewMesh:load(fileName)
+        ok = tPreviewMesh:load(loadPath)
     end
 
     if ok and tPreviewMesh then
@@ -204,6 +219,46 @@ function getMeshTotalVertices(meshD)
     return total
 end
 
+-- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
+function getMeshTotalTriangles(meshD)
+    local total = 0
+    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not ok or not nFrames then return 0 end
+    for f = 1, nFrames do
+        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        if ok2 and nSubsets then
+            for s = 1, nSubsets do
+                local ok3, nIdx = pcall(function() return meshD:getTotalIndex(f, s) end)
+                if ok3 and nIdx then
+                    total = total + math.floor(nIdx / 3)
+                end
+            end
+        end
+    end
+    return total
+end
+
+-- Returns unique texture names used by the mesh
+function getMeshTextures(meshD)
+    local seen = {}
+    local list = {}
+    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not ok or not nFrames then return list end
+    for f = 1, nFrames do
+        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        if ok2 and nSubsets then
+            for s = 1, nSubsets do
+                local ok3, tex = pcall(function() return meshD:getTexture(f, s) end)
+                if ok3 and tex and tex ~= '' and not seen[tex] then
+                    seen[tex] = true
+                    table.insert(list, tex)
+                end
+            end
+        end
+    end
+    return list
+end
+
 -- Format bytes for display (e.g. 1234 -> "1.2 KB")
 function formatBytes(bytes)
     if bytes >= 1024 * 1024 then
@@ -215,10 +270,187 @@ function formatBytes(bytes)
     end
 end
 
+-- Options for editable draw/cull/front-face combos
+local tModeDrawOpts   = {'TRIANGLES','TRIANGLE_STRIP','TRIANGLE_FAN','LINES','LINE_LOOP','LINE_STRIP','POINTS'}
+local tModeCullOpts   = {'FRONT','BACK','FRONT_AND_BACK'}
+local tModeFrontOpts  = {'CW','CCW'}
+-- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
+local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
+
+local function indexOf(t, val)
+    for i, v in ipairs(t) do if v == val then return i end end
+    return 1
+end
+
+function showMeshInfoTable(tEntry, index)
+    local meshD = tEntry.meshDebug
+    local info = tEntry.info or {}
+    local step, stepFast, fmt = 0.01, 0.1, '%.3f'
+    local flags = 0
+
+    local function onEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    -- Read-only info table
+    local tRows = {}
+    local function addRow(prop, val)
+        if val ~= nil and val ~= '' then table.insert(tRows, { prop, tostring(val) }) end
+    end
+    addRow('File version', info.version)
+    do local ok, v = pcall(function() return meshD:getVersion() end); if ok and v and v > 0 then addRow('Loaded version', v) end end
+    addRow('Type', info.type)
+    do local ok, v = pcall(function() return meshD:getTotalFrame() end); addRow('Total frames', info.totalFrames or (ok and v)) end
+    if info.type == 'particle' then addRow('Stages', info.stages) end
+    if info.type == 'texture' and info.ext then addRow('Extension', info.ext) end
+    addRow('Has normals', info.hasNormal ~= nil and (info.hasNormal and 'yes' or 'no') or nil)
+    addRow('Has texture', info.hasTexture ~= nil and (info.hasTexture and 'yes' or 'no') or nil)
+    local nVert = getMeshTotalVertices(meshD)
+    if nVert > 0 then addRow('Total vertices', nVert) end
+    local nTri = getMeshTotalTriangles(meshD)
+    if nTri > 0 then addRow('Total triangles', nTri) end
+    do local ok, ib = pcall(function() return meshD:isIndexBuffer() end); if ok then addRow('Index buffer', ib and 'yes' or 'no') end end
+    local texList = getMeshTextures(meshD)
+    if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
+
+    if #tRows > 0 then
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+        if tImGui.BeginTable('meshInfoRO-' .. index, 2, tblFlags) then
+            tImGui.TableSetupColumn('Property')
+            tImGui.TableSetupColumn('Value')
+            tImGui.TableHeadersRow()
+            for i = 1, #tRows do
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                tImGui.Text(tRows[i][1])
+                tImGui.TableNextColumn()
+                tImGui.TextWrapped(tRows[i][2])
+            end
+            tImGui.EndTable()
+        end
+    end
+
+    -- Editable: Mode draw
+    tImGui.Spacing()
+    tImGui.Text('Draw mode')
+    tImGui.SameLine()
+    tImGui.HelpMarker('An error may occur at runtime if the engine does not implement the selected draw mode.')
+    do
+        local ok, curMode = pcall(function() return meshD:getModeDraw() end)
+        if ok and curMode then
+            local idx = indexOf(tModeDrawOpts, curMode)
+            local ret, newIdx = tImGui.Combo('##modeDraw-' .. index, idx, tModeDrawOpts, -1)
+            if ret and newIdx and newIdx ~= idx then
+                local okSet = pcall(function() meshD:setModeDraw(tModeDrawOpts[newIdx]) end)
+                if okSet then onEdit() end
+            end
+        end
+    end
+
+    -- Editable: Face culling
+    tImGui.Text('Face culling')
+    do
+        local ok, curMode = pcall(function() return meshD:getModeCullFace() end)
+        if ok and curMode then
+            local idx = indexOf(tModeCullOpts, curMode)
+            local ret, newIdx = tImGui.Combo('##modeCull-' .. index, idx, tModeCullOpts, -1)
+            if ret and newIdx and newIdx ~= idx then
+                local okSet = pcall(function() meshD:setModeCullFace(tModeCullOpts[newIdx]) end)
+                if okSet then onEdit() end
+            end
+        end
+    end
+
+    -- Editable: Front face
+    tImGui.Text('Front face')
+    do
+        local ok, curMode = pcall(function() return meshD:getModeFrontFace() end)
+        if ok and curMode then
+            local idx = indexOf(tModeFrontOpts, curMode)
+            local ret, newIdx = tImGui.Combo('##modeFront-' .. index, idx, tModeFrontOpts, -1)
+            if ret and newIdx and newIdx ~= idx then
+                local okSet = pcall(function() meshD:setModeFrontFace(tModeFrontOpts[newIdx]) end)
+                if okSet then onEdit() end
+            end
+        end
+    end
+
+    -- Editable: Default angle
+    tImGui.Text('Default angle (X, Y, Z)')
+    do
+        local ok, ang = pcall(function() return meshD:getAngle() end)
+        if ok and ang then
+            local v = {ang.x or 0, ang.y or 0, ang.z or 0}
+            local r1, n1 = tImGui.InputFloat('##angX-' .. index, v[1], step, stepFast, fmt, flags)
+            local r2, n2 = tImGui.InputFloat('##angY-' .. index, v[2], step, stepFast, fmt, flags)
+            local r3, n3 = tImGui.InputFloat('##angZ-' .. index, v[3], step, stepFast, fmt, flags)
+            if (r1 or r2 or r3) then
+                local okSet = pcall(function() meshD:setAngle(n1 or v[1], n2 or v[2], n3 or v[3]) end)
+                if okSet then onEdit() end
+            end
+        end
+    end
+
+    -- Editable: Default position
+    tImGui.Text('Default position (X, Y, Z)')
+    do
+        local ok, pos = pcall(function() return meshD:getPosition() end)
+        if ok and pos then
+            local v = {pos.x or 0, pos.y or 0, pos.z or 0}
+            local r1, n1 = tImGui.InputFloat('##posX-' .. index, v[1], step, stepFast, fmt, flags)
+            local r2, n2 = tImGui.InputFloat('##posY-' .. index, v[2], step, stepFast, fmt, flags)
+            local r3, n3 = tImGui.InputFloat('##posZ-' .. index, v[3], step, stepFast, fmt, flags)
+            if (r1 or r2 or r3) then
+                local okSet = pcall(function() meshD:setPosition(n1 or v[1], n2 or v[2], n3 or v[3]) end)
+                if okSet then onEdit() end
+            end
+        end
+    end
+
+    -- Editable: Material (Diffuse + Power)
+    if tImGui.TreeNodeEx('Material', 0, 'material-' .. index) then
+        local ok, mat = pcall(function() return meshD:getMaterial() end)
+        if ok and mat and mat.Diffuse then
+            local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
+            local clicked, newD = tImGui.ColorEdit3('Diffuse##mat-' .. index, d, flags)
+            if clicked and newD then
+                local newMat = { Diffuse = {r=newD.r,g=newD.g,b=newD.b,a=1}, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = mat.Power or 1 }
+                local okSet = pcall(function() meshD:setMaterial(newMat) end)
+                if okSet then onEdit() end
+            end
+            local pw = mat.Power or 1
+            local rp, np = tImGui.InputFloat('Power##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
+            if rp then
+                local newMat = { Diffuse = mat.Diffuse, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = np }
+                local okSet = pcall(function() meshD:setMaterial(newMat) end)
+                if okSet then onEdit() end
+            end
+        end
+        tImGui.TreePop()
+    end
+end
+
 function showMeshOptions(tEntry, index)
     local meshD = tEntry.meshDebug
-    local info = tEntry.info
+    local info = tEntry.info or {}
     local shortName = tUtil.getShortName(tEntry.fileName)
+    local flags = 0
+
+    local function onEdit()
+        tEntry.modified = true
+        if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
+    end
+
+    if tImGui.TreeNodeEx('Mesh Info', 0, 'meshinfo-' .. index) then
+        if tEntry.modified then
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
+            tImGui.Text('Unsaved changes')
+            tImGui.PopStyleColor(1)
+        end
+        showMeshInfoTable(tEntry, index)
+        tImGui.TreePop()
+    end
 
     if tImGui.TreeNodeEx('Normals', 0, 'normals-' .. index) then
         if info and info.hasNormal then
@@ -233,6 +465,8 @@ function showMeshOptions(tEntry, index)
             end
             meshD:removeNormals()
             if tEntry.info then tEntry.info.hasNormal = false end
+            tEntry.modified = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             if nVertices > 0 then
                 local bytesSaved = nVertices * 12  -- 3 floats per normal
                 tUtil.showMessage(string.format('Removed normals: %s\n%d vertices (~%s saved)', shortName, nVertices, formatBytes(bytesSaved)), 5)
@@ -245,6 +479,8 @@ function showMeshOptions(tEntry, index)
             local nVertices = getMeshTotalVertices(meshD)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
+            tEntry.modified = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             if nVertices > 0 then
                 tUtil.showMessage(string.format('Added normals: %s\n%d vertices', shortName, nVertices), 4)
             else
@@ -257,47 +493,95 @@ function showMeshOptions(tEntry, index)
     if tImGui.TreeNodeEx('Transform', 0, 'transform-' .. index) then
         if tImGui.Button('Centralize##' .. index) then
             meshD:centralize()
+            tEntry.modified = true
+            if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             tUtil.showMessage(string.format('Centralized: %s', shortName))
         end
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Validation', 0, 'validation-' .. index) then
-        if tImGui.Button('Check##' .. index) then
-            local ok, err = meshD:check()
-            if ok then
-                tUtil.showMessage(string.format('Check OK: %s', shortName))
-            else
-                tUtil.showMessageWarn(string.format('Check failed: %s\n%s', shortName, err or ''))
+    local nAnim = info.animation or 0
+    if tImGui.TreeNodeEx('Animations' .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+        if index == iSelectedMeshIndex and tPreviewMesh then
+            if tImGui.Button('Restart animation##' .. index) then
+                pcall(function() tPreviewMesh:restartAnim() end)
             end
+        end
+        if nAnim and nAnim > 0 then
+            for i = 1, nAnim do
+                local ok, name, initF, finF, time, typ = pcall(function()
+                    return meshD:getAnim(i)
+                end)
+                if ok and name then
+                    if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
+                        tImGui.Text('Name')
+                        local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
+                        tImGui.Text('Initial frame')
+                        local ri, ni = tImGui.InputInt('##animInit-' .. index .. '-' .. i, initF or 1, 1, 1, flags)
+                        tImGui.Text('Final frame')
+                        local rf, nf = tImGui.InputInt('##animFin-' .. index .. '-' .. i, finF or 1, 1, 1, flags)
+                        tImGui.Text('Time between frames')
+                        local rt, nt = tImGui.InputFloat('##animTime-' .. index .. '-' .. i, time or 0.1, 0.01, 0.1, '%.3f', flags)
+                        tImGui.Text('Type')
+                        local typIdx = math.max(1, math.min((typ or 0) + 1, #tAnimTypeOpts))
+                        local rty, newTypIdx = tImGui.Combo('##animType-' .. index .. '-' .. i, typIdx, tAnimTypeOpts, -1)
+                        local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
+                        if (mod or ri or rf or rt or rty) then
+                            local totalFrames = info.totalFrames or 0
+                            local okTotal, nF = pcall(function() return meshD:getTotalFrame() end)
+                            if okTotal and nF then totalFrames = nF end
+                            local initVal = math.max(1, math.min(ni or initF or 1, totalFrames > 0 and totalFrames or 1))
+                            local finVal  = math.max(1, math.min(nf or finF or 1, totalFrames > 0 and totalFrames or 1))
+                            local timeVal = (nt or time or 0.1) > 0 and (nt or time or 0.1) or 0.1
+                            local typeVal = math.max(0, math.min(nty, 6))
+                            if totalFrames > 0 then
+                                local okUp = pcall(function()
+                                    meshD:updateAnim(i, newName or name, initVal, finVal, timeVal, typeVal)
+                                end)
+                                if okUp then onEdit() end
+                            end
+                        end
+                        tImGui.TreePop()
+                    end
+                end
+            end
+        else
+            tImGui.TextDisabled('No animations')
         end
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Save', 0, 'save-' .. index) then
-        if tImGui.Button('Save (overwrite)##' .. index) then
-            local ok = meshD:save(tEntry.fileName, false, false)
-            if ok then
-                iLastPreviewedIndex = 0
-                tUtil.showMessage(string.format('Saved: %s', shortName))
-            else
-                tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
-            end
+    if tImGui.Button('Check##' .. index) then
+        local ok, err = meshD:check()
+        if ok then
+            tUtil.showMessage(string.format('Check OK: %s', shortName))
+        else
+            tUtil.showMessageWarn(string.format('Check failed: %s\n%s', shortName, err or ''))
         end
-        tImGui.SameLine()
-        if tImGui.Button('Save (with calculated normals)##' .. index) then
-            local ok = meshD:save(tEntry.fileName, true, false)
-            if ok then
-                if tEntry.info then tEntry.info.hasNormal = true end
-                iLastPreviewedIndex = 0
-                tUtil.showMessage(string.format('Saved: %s', shortName))
-            else
-                tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
-            end
-        end
-        tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
-        tImGui.TreePop()
     end
+
+    if tImGui.Button('Save (overwrite)##' .. index) then
+        local ok = meshD:save(tEntry.fileName, false, false)
+        if ok then
+            tEntry.modified = false
+            iLastPreviewedIndex = 0
+            tUtil.showMessage(string.format('Saved: %s', shortName))
+        else
+            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+        end
+    end
+    if tImGui.Button('Save (with calculated normals)##' .. index) then
+        local ok = meshD:save(tEntry.fileName, true, false)
+        if ok then
+            tEntry.modified = false
+            if tEntry.info then tEntry.info.hasNormal = true end
+            iLastPreviewedIndex = 0
+            tUtil.showMessage(string.format('Saved: %s', shortName))
+        else
+            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+        end
+    end
+    tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
 end
 
 function applyToAll(operation)
@@ -317,20 +601,27 @@ function applyToAll(operation)
             end
             meshD:removeNormals()
             if tEntry.info then tEntry.info.hasNormal = false end
+            tEntry.modified = true
             ok = true
         elseif operation == 'addNormals' then
             iTotalVertices = iTotalVertices + getMeshTotalVertices(meshD)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
+            tEntry.modified = true
             ok = true
         elseif operation == 'centralize' then
             meshD:centralize()
+            tEntry.modified = true
             ok = true
         elseif operation == 'save' then
             ok = meshD:save(tEntry.fileName, false, false)
+            if ok then tEntry.modified = false end
         elseif operation == 'saveRecalcNormals' then
             ok = meshD:save(tEntry.fileName, true, false)
-            if ok and tEntry.info then tEntry.info.hasNormal = true end
+            if ok then
+                tEntry.modified = false
+                if tEntry.info then tEntry.info.hasNormal = true end
+            end
         end
         if ok then
             iSuccess = iSuccess + 1
@@ -389,6 +680,10 @@ function main_menu_mesh_debug()
                 destroyPreviewMesh()
                 tUtil.showMessage('Cleared all meshes')
             end
+            tImGui.Separator()
+            if tImGui.MenuItem('Quit') then
+                mbm.quit()
+            end
             tImGui.EndMenu()
         end
         if tImGui.BeginMenu('View') then
@@ -431,7 +726,7 @@ function showMeshTreeWindow()
                 local tEntry = tLoadedMeshes[i]
                 local shortName = tUtil.getShortName(tEntry.fileName)
                 local typeStr = (tEntry.info and tEntry.info.type) or '?'
-                local label = string.format('%s [%s]', shortName, typeStr)
+                local label = string.format('%s [%s]%s', shortName, typeStr, tEntry.modified and ' *' or '')
 
                 local isSelected = (iSelectedMeshIndex == i)
                 tImGui.SetNextItemOpen(isSelected, tImGui.Flags('ImGuiCond_Always'))

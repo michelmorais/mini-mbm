@@ -77,7 +77,7 @@ namespace mbm
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                                   util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
-                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle);
+                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
         API_IMPL static std::string getExtension(const char* fileName);
         API_IMPL util::TYPE_MESH getType() noexcept;
