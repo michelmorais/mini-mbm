@@ -73,7 +73,7 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -84,15 +84,15 @@ namespace mbm
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        if (!createAnimationAndShader2Texture())
-            return false;
-        
+
         TEXTURE_MANAGER* manTex = TEXTURE_MANAGER::getInstance();
         INFO_GIF infoGif;
         if (manTex->loadGIF(fileNameTexture, infoGif) == false)
             return false;
         const bool idFrame = this->setFrame(w <= 0.0f ? infoGif.widthTexture : w, h <= 0.0f ? infoGif.heightTexture : h);
         if (idFrame == false)
+            return false;
+        if (!createAnimationAndShader2Texture())
             return false;
         this->interval.clear();
         for(unsigned int i=0; i< infoGif.totalFrames; ++i)
@@ -350,9 +350,9 @@ namespace mbm
 
     }
     
-    FVF_PROVIDE_BY_ENGINE GIF_VIEW::getDefaultFVF() const noexcept
+    BUFFER_GL* GIF_VIEW::getBufferForShading() const noexcept
     {
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+        return const_cast<BUFFER_GL*>(&bufferGL);
     }
 
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)

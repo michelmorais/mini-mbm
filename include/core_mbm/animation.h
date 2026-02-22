@@ -216,8 +216,10 @@ namespace mbm
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
         API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
         API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
-        /** Vertex format for default shader when no custom VS is used. Override in subclasses that use different FVF. */
-        API_IMPL virtual FVF_PROVIDE_BY_ENGINE getDefaultFVF() const noexcept;
+        /** Buffer used for shading; FVF comes from here. Override in subclasses that have a buffer. */
+        API_IMPL virtual BUFFER_GL* getBufferForShading() const noexcept { return nullptr; }
+        /** FVF from BUFFER_GL when loaded; fallback when buffer not ready. */
+        API_IMPL FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept;
     
         uint32_t                    indexCurrentAnimation;
         OnEndAnimation              onEndAnimation;

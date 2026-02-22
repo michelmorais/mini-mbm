@@ -153,7 +153,7 @@ namespace mbm
         }
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept : FVF(FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV) {}
+    BASE_SHADER::BASE_SHADER() noexcept {}
 
     BASE_SHADER::~BASE_SHADER()
     {

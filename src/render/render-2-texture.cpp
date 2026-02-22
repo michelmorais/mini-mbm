@@ -449,9 +449,9 @@ namespace mbm
 #endif
     }
     
-    FVF_PROVIDE_BY_ENGINE RENDER_2_TEXTURE::getDefaultFVF() const noexcept
+    BUFFER_GL* RENDER_2_TEXTURE::getBufferForShading() const noexcept
     {
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+        return const_cast<BUFFER_GL*>(&bufferGL);
     }
 
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()
@@ -459,7 +459,7 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;
     }

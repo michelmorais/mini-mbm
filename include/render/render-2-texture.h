@@ -73,7 +73,7 @@ namespace mbm
         virtual bool isOnFrustum() override;
         bool onRestoreDevice() override;
         void fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height);
-        FVF_PROVIDE_BY_ENGINE getDefaultFVF() const noexcept override;
+        BUFFER_GL* getBufferForShading() const noexcept override;
         bool createAnimationAndShader2Render2Texture();
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;

@@ -63,7 +63,7 @@ namespace mbm
         API_IMPL void drawBounding(RENDERIZABLE* ptr,const bool useAABB)noexcept;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
-		FVF_PROVIDE_BY_ENGINE getDefaultFVF() const noexcept override;
+		BUFFER_GL* getBufferForShading() const noexcept override;
 
     private:
         bool isOnFrustum() override;

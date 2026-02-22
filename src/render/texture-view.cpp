@@ -67,7 +67,7 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader ? anim->fx.fxVS->ptrCurrentShader->FVF : getDefaultFVF()))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -101,13 +101,13 @@ namespace mbm
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        if (!createAnimationAndShader2Texture())
-            return false;
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
         if (this->texture == nullptr)
             return false;
         const bool idFrame = this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
         if (idFrame == false)
+            return false;
+        if (!createAnimationAndShader2Texture())
             return false;
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
         const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
@@ -324,9 +324,9 @@ namespace mbm
         return false;
     }
     
-    FVF_PROVIDE_BY_ENGINE TEXTURE_VIEW::getDefaultFVF() const noexcept
+    BUFFER_GL* TEXTURE_VIEW::getBufferForShading() const noexcept
     {
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_UV;
+        return const_cast<BUFFER_GL*>(&bufferGL);
     }
 
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)

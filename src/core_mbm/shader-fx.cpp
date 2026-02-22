@@ -64,8 +64,7 @@ namespace mbm
         {
             fxVS->ptrCurrentShader = nullptr;
         }
-        const FVF_PROVIDE_BY_ENGINE fvfForCompile = baseVertexShader ? baseVertexShader->FVF : fvf;
-        const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvfForCompile);
+        const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvf);
         if (!ret)
             return false;
         if (pShaderCfg)

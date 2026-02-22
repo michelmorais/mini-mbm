@@ -52,7 +52,7 @@ namespace mbm
         bool render() override;
         bool onRestoreDevice() override;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
         void updateRestoreTexture(const float w, const float h);
-        FVF_PROVIDE_BY_ENGINE getDefaultFVF() const noexcept override;
+        BUFFER_GL* getBufferForShading() const noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

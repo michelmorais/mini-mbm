@@ -69,7 +69,7 @@ namespace mbm
         bool render() override;
         bool onRestoreDevice() override;
         bool setScale(const bool majorScale);
-        FVF_PROVIDE_BY_ENGINE getDefaultFVF() const noexcept override;
+        BUFFER_GL* getBufferForShading() const noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

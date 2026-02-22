@@ -156,7 +156,6 @@ namespace mbm
         friend class SHADER;
       public:
         std::string fileName; // shader
-        FVF_PROVIDE_BY_ENGINE FVF; // vertex format: used by compileShader when default shader adds/removes aNormal, vTexCoord
         API_IMPL BASE_SHADER() noexcept;
         API_IMPL virtual ~BASE_SHADER();
         API_IMPL const char *getCode();

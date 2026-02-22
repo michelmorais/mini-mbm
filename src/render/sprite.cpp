@@ -193,6 +193,16 @@ namespace mbm
     {
         return this;
     }
+
+    BUFFER_GL* SPRITE::getBufferForShading() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            return buf ? buf->pBufferGL : nullptr;
+        }
+        return nullptr;
+    }
     
     bool SPRITE::isLoaded() const
     {
