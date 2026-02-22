@@ -776,9 +776,9 @@ namespace mbm
         return true;
     }
     
-    BUFFER_GL* BACKGROUND::getBufferForShading() const noexcept
+    FVF_PROVIDE_BY_ENGINE BACKGROUND::getFvfFromBuffer() const noexcept
     {
-        return buffer;
+        return (buffer && buffer->isLoadedBuffer()) ? buffer->fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
     }
 
     const mbm::INFO_PHYSICS * BACKGROUND::getInfoPhysics() const 

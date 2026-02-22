@@ -307,9 +307,9 @@ namespace mbm
         return true;
     }
 
-    BUFFER_GL* STEERED_PARTICLE::getBufferForShading() const noexcept
+    FVF_PROVIDE_BY_ENGINE STEERED_PARTICLE::getFvfFromBuffer() const noexcept
     {
-        return const_cast<BUFFER_GL*>(&bufferGl);
+        return bufferGl.isLoadedBuffer() ? bufferGl.fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
     }
     
     bool STEERED_PARTICLE::render()

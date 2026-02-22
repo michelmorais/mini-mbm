@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "blend.h"
+#include "shader.h"
 #include <string>
 #include <map>
 
@@ -104,6 +105,8 @@ namespace mbm
         API_IMPL virtual bool                isLoaded() const       = 0;
         API_IMPL virtual FX*                 getFx() const          = 0;
         API_IMPL virtual ANIMATION_MANAGER*  getAnimationManager()  = 0;
+        /** FVF from BUFFER_GL (single source of truth). Override in subclasses that have a buffer. */
+        API_IMPL virtual FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept;
 
       protected:
         API_IMPL virtual bool isOnFrustum()     = 0;

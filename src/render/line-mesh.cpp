@@ -401,9 +401,11 @@ namespace mbm
         return true;
     }
 
-    BUFFER_GL* LINE_MESH::getBufferForShading() const noexcept
+    FVF_PROVIDE_BY_ENGINE LINE_MESH::getFvfFromBuffer() const noexcept
     {
-        return lsLines.empty() ? nullptr : &lsLines[0]->buffer;
+        if (lsLines.empty() || !lsLines[0]->buffer.isLoadedBuffer())
+            return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return lsLines[0]->buffer.fvf;
     }
 
     FX*  LINE_MESH::getFx()const

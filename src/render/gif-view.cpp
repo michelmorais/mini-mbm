@@ -350,9 +350,9 @@ namespace mbm
 
     }
     
-    BUFFER_GL* GIF_VIEW::getBufferForShading() const noexcept
+    FVF_PROVIDE_BY_ENGINE GIF_VIEW::getFvfFromBuffer() const noexcept
     {
-        return const_cast<BUFFER_GL*>(&bufferGL);
+        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
     }
 
     void GIF_VIEW::updateRestoreTexture(const float w, const float h)

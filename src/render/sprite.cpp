@@ -194,14 +194,15 @@ namespace mbm
         return this;
     }
 
-    BUFFER_GL* SPRITE::getBufferForShading() const noexcept
+    FVF_PROVIDE_BY_ENGINE SPRITE::getFvfFromBuffer() const noexcept
     {
         if (mesh)
         {
             BUFFER_MESH* buf = mesh->getBuffer(0);
-            return buf ? buf->pBufferGL : nullptr;
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
         }
-        return nullptr;
+        return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
     }
     
     bool SPRITE::isLoaded() const

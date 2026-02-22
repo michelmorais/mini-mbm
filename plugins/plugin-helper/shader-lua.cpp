@@ -38,17 +38,7 @@ namespace mbm
 {
     static FVF_PROVIDE_BY_ENGINE getFvfForRenderizable(RENDERIZABLE* renderizable)
     {
-        ANIMATION_MANAGER* am = renderizable->getAnimationManager();
-        if (am)
-            return am->getFvfFromBuffer();
-        const MESH_MBM* mesh = renderizable->getMesh();
-        if (mesh)
-        {
-            BUFFER_MESH* buf = mesh->getBuffer(0);
-            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
-                return buf->pBufferGL->fvf;
-        }
-        return FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV;
+        return renderizable->getFvfFromBuffer();
     }
 
 	int onLoadNewShaderLua(lua_State *lua)
