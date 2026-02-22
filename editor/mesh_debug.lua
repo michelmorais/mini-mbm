@@ -277,6 +277,60 @@ local tModeFrontOpts  = {'CW','CCW'}
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
 
+-- Shader effect variable helpers (same as shader_editor)
+local function shaderInputFloatMinMax(psVs, tVar, index, sAlias, sTreeName)
+    local flags, ret = 0, false
+    if tImGui.TreeNodeEx(sTreeName or tVar.name, flags) then
+        local step = (tVar.max[index] - tVar.min[index]) * 0.05
+        if step <= 0 then step = 0.01 end
+        local stepFast, fmt = step * 5, "%.7f"
+        local r, fv = tImGui.InputFloat('##' .. psVs .. '-' .. tVar.name .. '-' .. tostring(index), tVar.value[index], step, stepFast, fmt, flags)
+        if r and fv >= tVar.min[index] and fv <= tVar.max[index] then tVar.value[index] = fv ret = true end
+        tImGui.TextDisabled((sAlias or 'Value') .. ' min')
+        r, fv = tImGui.InputFloat('##' .. psVs .. '-min-' .. tVar.name, tVar.min[index], 0.5, 1, fmt, flags)
+        if r and fv <= tVar.max[index] then tVar.min[index] = fv ret = true end
+        tImGui.TextDisabled((sAlias or 'Value') .. ' max')
+        r, fv = tImGui.InputFloat('##' .. psVs .. '-max-' .. tVar.name, tVar.max[index], 0.5, 1, fmt, flags)
+        if r and fv >= tVar.min[index] then tVar.max[index] = fv ret = true end
+        tImGui.TreePop()
+    end
+    return ret
+end
+
+local function shaderColorRGBMinMax(psVs, tVar)
+    local flags, ret = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel'), false
+    if tImGui.TreeNodeEx(tVar.name, 0) then
+        local c = {r=tVar.value[1], g=tVar.value[2], b=tVar.value[3]}
+        local clicked, rgb = tImGui.ColorEdit3('##cur-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.value[1],tVar.value[2],tVar.value[3] = rgb.r,rgb.g,rgb.b ret = true end
+        c = {r=tVar.min[1], g=tVar.min[2], b=tVar.min[3]}
+        clicked, rgb = tImGui.ColorEdit3('##min-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.min[1],tVar.min[2],tVar.min[3] = rgb.r,rgb.g,rgb.b ret = true end
+        c = {r=tVar.max[1], g=tVar.max[2], b=tVar.max[3]}
+        clicked, rgb = tImGui.ColorEdit3('##max-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.max[1],tVar.max[2],tVar.max[3] = rgb.r,rgb.g,rgb.b ret = true end
+        tImGui.TreePop()
+    end
+    return ret
+end
+
+local function shaderColorRGBAMinMax(psVs, tVar)
+    local flags, ret = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel'), false
+    if tImGui.TreeNodeEx(tVar.name, 0) then
+        local c = {r=tVar.value[1], g=tVar.value[2], b=tVar.value[3], a=tVar.value[4]}
+        local clicked, rgb = tImGui.ColorEdit4('##cur-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.value[1],tVar.value[2],tVar.value[3],tVar.value[4] = rgb.r,rgb.g,rgb.b,rgb.a ret = true end
+        c = {r=tVar.min[1], g=tVar.min[2], b=tVar.min[3], a=tVar.min[4]}
+        clicked, rgb = tImGui.ColorEdit4('##min-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.min[1],tVar.min[2],tVar.min[3],tVar.min[4] = rgb.r,rgb.g,rgb.b,rgb.a ret = true end
+        c = {r=tVar.max[1], g=tVar.max[2], b=tVar.max[3], a=tVar.max[4]}
+        clicked, rgb = tImGui.ColorEdit4('##max-' .. psVs .. tVar.name, c, flags)
+        if clicked then tVar.max[1],tVar.max[2],tVar.max[3],tVar.max[4] = rgb.r,rgb.g,rgb.b,rgb.a ret = true end
+        tImGui.TreePop()
+    end
+    return ret
+end
+
 local function indexOf(t, val)
     for i, v in ipairs(t) do if v == val then return i end end
     return 1
@@ -442,12 +496,13 @@ function showMeshOptions(tEntry, index)
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
     end
 
+    if tEntry.modified then
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
+        tImGui.Text('Unsaved changes')
+        tImGui.PopStyleColor(1)
+    end
+
     if tImGui.TreeNodeEx('Mesh Info', 0, 'meshinfo-' .. index) then
-        if tEntry.modified then
-            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
-            tImGui.Text('Unsaved changes')
-            tImGui.PopStyleColor(1)
-        end
         showMeshInfoTable(tEntry, index)
         tImGui.TreePop()
     end
@@ -547,6 +602,176 @@ function showMeshOptions(tEntry, index)
             end
         else
             tImGui.TextDisabled('No animations')
+        end
+        tImGui.TreePop()
+    end
+
+    if tImGui.TreeNodeEx('Shader', 0, 'shader-' .. index) then
+        if index == iSelectedMeshIndex and tPreviewMesh then
+            local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
+            if okSh and tShader then
+                tImGui.PushItemWidth(180)
+                local sAnim, iCurAnim = tPreviewMesh:getAnim()
+                local nTotalAnim = (tPreviewMesh.getTotalAnim and tPreviewMesh:getTotalAnim()) or 1
+                if nTotalAnim > 1 then
+                    tImGui.Text('Animation (shader applies to)')
+                    local r, v = tImGui.InputInt('##shaderAnimIdx-' .. index, iCurAnim or 1, 1, 1, 0)
+                    if r and v and v >= 1 and v <= nTotalAnim then
+                        tPreviewMesh:setAnim(v)
+                    end
+                    tImGui.TextDisabled(sAnim or '')
+                end
+                local tBlend = {'DISABLE','ZERO','ONE','SRC COLOR','INV SRC COLOR','SRC ALPHA','INV SRC ALPHA','DEST ALPHA','INV DEST ALPHA','DEST COLOR','INV DEST COLOR'}
+                local tBlendOp = {'ADD','SUBTRACT','REVERSE_SUBTRACT','MIN','MAX'}
+                local function applyShaderToMesh() meshD:copyAnimationsFromMesh(tPreviewMesh) onEdit() end
+                if tImGui.TreeNodeEx('Blend', 0) then
+                    local sBlend, iBlend = tPreviewMesh:getBlend()
+                    local r, ci = tImGui.Combo('Blend Function##' .. index, (iBlend or 0) + 1, tBlend)
+                    if r and ci then tPreviewMesh:setBlend(ci - 1) applyShaderToMesh() end
+                    local sOp = tShader:getBlendOp()
+                    local iOpIdx = 1
+                    for k = 1, #tBlendOp do if tBlendOp[k] == sOp then iOpIdx = k break end end
+                    r, ci = tImGui.Combo('Blend Operation##' .. index, iOpIdx, tBlendOp)
+                    if r and ci then tShader:setBlendOp(tBlendOp[ci]) applyShaderToMesh() end
+                    tImGui.TreePop()
+                end
+                local psName, vsName = tShader:getNames()
+                local tVarPs, tVarVs = tShader:getVars()
+                if tImGui.TreeNodeEx('Pixel Shader', 0) then
+                    local tList = mbm.getShaderList(false, 'ps')
+                    table.insert(tList, '\0')
+                    table.sort(tList)
+                    tList[1] = 'No Shader'
+                    local iIdx = 1
+                    if psName then for k = 1, #tList do if tList[k] == psName then iIdx = k break end end end
+                    local r, ci = tImGui.Combo('##ComboPS-' .. index, iIdx, tList)
+                    if r and ci then
+                        local _, iTypeVs = tShader:getVStype()
+                        local fTimeVs = tShader:getVStime()
+                        local newPs = (tList[ci] == 'No Shader') and nil or tList[ci]
+                        if tShader:load(newPs, vsName, mbm.GROWING, 1.0, iTypeVs or 0, fTimeVs or 1.0) then
+                            applyShaderToMesh()
+                        else
+                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                        end
+                    end
+                    if psName then
+                        tImGui.Text('Type')
+                        local _, iTypePs = tShader:getPStype()
+                        r, ci = tImGui.Combo('##TypePS-' .. index, (iTypePs or 0) + 1, tAnimTypeOpts)
+                        if r and ci then tShader:setPStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
+                        tImGui.Text('Time')
+                        local fTime = tShader:getPStime()
+                        local rt, ft = tImGui.InputFloat('##TimePS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
+                        if rt and ft and ft >= 0 then tShader:setPStime(ft) applyShaderToMesh() end
+                        for j = 1, #(tVarPs or {}) do
+                            local tv = tVarPs[j]
+                            local changed = false
+                            if tv.type == 'number' then changed = shaderInputFloatMinMax('ps', tv, 1, 'Value') end
+                            if tv.type == 'vec2' then for k, ax in ipairs({'X','Y'}) do if shaderInputFloatMinMax('ps', tv, k, ax, tv.name .. '-' .. ax) then changed = true end end end
+                            if tv.type == 'vec3' then for k, ax in ipairs({'X','Y','Z'}) do if shaderInputFloatMinMax('ps', tv, k, ax, tv.name .. '-' .. ax) then changed = true end end end
+                            if tv.type == 'rgb' then changed = shaderColorRGBMinMax('ps', tv) end
+                            if tv.type == 'rgba' then changed = shaderColorRGBAMinMax('ps', tv) end
+                            if changed then
+                                tShader:setPSmin(tv.name, tv.min[1], tv.min[2], tv.min[3], tv.min[4])
+                                tShader:setPSmax(tv.name, tv.max[1], tv.max[2], tv.max[3], tv.max[4])
+                                tShader:setPS(tv.name, tv.value[1], tv.value[2], tv.value[3], tv.value[4])
+                                applyShaderToMesh()
+                            end
+                        end
+                    end
+                    tImGui.TreePop()
+                end
+                if tImGui.TreeNodeEx('Vertex Shader', 0) then
+                    local tList = mbm.getShaderList(false, 'vs')
+                    table.insert(tList, '\0')
+                    table.sort(tList)
+                    tList[1] = 'No Shader'
+                    local iIdx = 1
+                    if vsName then for k = 1, #tList do if tList[k] == vsName then iIdx = k break end end end
+                    local r, ci = tImGui.Combo('##ComboVS-' .. index, iIdx, tList)
+                    if r and ci then
+                        local _, iTypePs = tShader:getPStype()
+                        local fTimePs = tShader:getPStime()
+                        local newVs = (tList[ci] == 'No Shader') and nil or tList[ci]
+                        if tShader:load(psName, newVs, iTypePs or 0, fTimePs or 1.0, mbm.GROWING, 1.0, 1) then
+                            applyShaderToMesh()
+                        else
+                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                        end
+                    end
+                    if vsName then
+                        tImGui.Text('Type')
+                        local _, iTypeVs = tShader:getVStype()
+                        r, ci = tImGui.Combo('##TypeVS-' .. index, (iTypeVs or 0) + 1, tAnimTypeOpts)
+                        if r and ci then tShader:setVStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
+                        tImGui.Text('Time')
+                        local fTime = tShader:getVStime()
+                        local rt, ft = tImGui.InputFloat('##TimeVS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
+                        if rt and ft and ft >= 0 then tShader:setVStime(ft) applyShaderToMesh() end
+                        for j = 1, #(tVarVs or {}) do
+                            local tv = tVarVs[j]
+                            local changed = false
+                            if tv.type == 'number' then changed = shaderInputFloatMinMax('vs', tv, 1, 'Value') end
+                            if tv.type == 'vec2' then for k, ax in ipairs({'X','Y'}) do if shaderInputFloatMinMax('vs', tv, k, ax, tv.name .. '-' .. ax) then changed = true end end end
+                            if tv.type == 'vec3' then for k, ax in ipairs({'X','Y','Z'}) do if shaderInputFloatMinMax('vs', tv, k, ax, tv.name .. '-' .. ax) then changed = true end end end
+                            if tv.type == 'rgb' then changed = shaderColorRGBMinMax('vs', tv) end
+                            if tv.type == 'rgba' then changed = shaderColorRGBAMinMax('vs', tv) end
+                            if changed then
+                                tShader:setVSmin(tv.name, tv.min[1], tv.min[2], tv.min[3], tv.min[4])
+                                tShader:setVSmax(tv.name, tv.max[1], tv.max[2], tv.max[3], tv.max[4])
+                                tShader:setVS(tv.name, tv.value[1], tv.value[2], tv.value[3], tv.value[4])
+                                applyShaderToMesh()
+                            end
+                        end
+                    end
+                    tImGui.TreePop()
+                end
+                if tImGui.TreeNodeEx('Texture Stage 2', 0) then
+                    local tex2 = tShader:getTextureStage2()
+                    tImGui.TextDisabled(tex2 and tUtil.getShortName(tex2) or 'No Texture')
+                    if tImGui.Button('Set Texture##' .. index) then
+                        local f = mbm.openFile(sLastMeshPath, table.unpack(tUtil.supported_images or {'png','jpg'}))
+                        if f then
+                            if type(f) == 'table' then f = f[1] end
+                            tPreviewMesh:setTexture(f, true, 2)
+                            applyShaderToMesh()
+                        end
+                    end
+                    tImGui.TreePop()
+                end
+                tImGui.PopItemWidth()
+            else
+                tImGui.TextDisabled('Preview required. Select mesh to see shader options.')
+            end
+        else
+            tImGui.TextDisabled('Copy shader from another mesh file.')
+            if tImGui.Button('Copy from file##' .. index) then
+                local refFile = mbm.openMultiFile(sLastMeshPath, 'spt', 'msh', 'fnt', 'tile', 'ptl')
+                if refFile then
+                    if type(refFile) == 'table' then refFile = refFile[1] end
+                    local refDir = refFile:match('^(.*)[/\\]')
+                    if refDir then mbm.addPath(refDir) end
+                    local refInfo = meshDebug:getInfo(refFile)
+                    if refInfo and refInfo.type then
+                        local refMesh = nil
+                        if refInfo.type == 'sprite' then refMesh = sprite:new('2dw')
+                        elseif refInfo.type == 'mesh' then refMesh = mesh:new('2dw')
+                        elseif refInfo.type == 'tile' then refMesh = tile:new('2dw')
+                        elseif refInfo.type == 'particle' then refMesh = particle:new('2dw')
+                        elseif refInfo.type == 'font' then local f = font:new(refFile) if f then refMesh = f:add('2dw', 'Copy') end end
+                        if refMesh and refMesh:load(refFile) then
+                            local ok = meshD:copyAnimationsFromMesh(refMesh)
+                            refMesh:destroy()
+                            if ok then onEdit() tUtil.showMessage(string.format('Copied shader from %s', tUtil.getShortName(refFile)))
+                            else tUtil.showMessageWarn('Copy failed (mesh may have no shader effect)') end
+                        else
+                            if refMesh then refMesh:destroy() end
+                            tUtil.showMessageWarn('Failed to load reference mesh')
+                        end
+                    else tUtil.showMessageWarn('Could not read mesh info') end
+                end
+            end
         end
         tImGui.TreePop()
     end
@@ -690,6 +915,29 @@ function main_menu_mesh_debug()
             local pressed, checked = tImGui.MenuItem('Show Mesh Tree', nil, bShowMeshTree)
             if pressed then
                 bShowMeshTree = not bShowMeshTree
+            end
+            tImGui.EndMenu()
+        end
+        if tImGui.BeginMenu('About') then
+            local pressed = tImGui.MenuItem('Mesh Debug Editor', nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
+                end
+            end
+            pressed = tImGui.MenuItem('Mbm Engine', nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                end
+            end
+            if tImGui.BeginMenu('Version') then
+                tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
+                tImGui.EndMenu()
             end
             tImGui.EndMenu()
         end
