@@ -103,7 +103,8 @@ namespace mbm
                 headerFrame->sizeVertexBuffer = (acumulated);
                 const uint32_t totalUv = (acumulated) * 2;
                 pBuffer->position = new float[headerFrame->sizeVertexBuffer * 3];
-                pBuffer->normal = new float[headerFrame->sizeVertexBuffer * 3];
+                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                pBuffer->normal = hasNormals ? new float[headerFrame->sizeVertexBuffer * 3] : nullptr;
                 pBuffer->uv = new float[totalUv];
             }
             // 6.3 Vertex Buffer somente
@@ -114,7 +115,8 @@ namespace mbm
                 const uint32_t totalNormal = (headerFrame->sizeVertexBuffer) * 3;
                 const uint32_t totalUv = (headerFrame->sizeVertexBuffer) * 2;
                 pBuffer->position = new float[totalVertex];
-                pBuffer->normal = new float[totalNormal];
+                const bool hasNormals = (pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || pGl->fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+                pBuffer->normal = hasNormals ? new float[totalNormal] : nullptr;
                 pBuffer->uv = new float[totalUv];
             }
             else
@@ -130,14 +132,14 @@ namespace mbm
             if (infoShape && infoShape->dynamicVertex)
             {
                 pPosition = infoShape->dynamicVertex;
-                pNormal = infoShape->dynamicNormal;
-                pTexture = infoShape->dynamicNormal;
-                is_dynamic_shape = pPosition != nullptr && pNormal != nullptr && pTexture != nullptr;
+                pNormal = (infoShape->size_normal > 0) ? infoShape->dynamicNormal : nullptr;
+                pTexture = infoShape->dynamicUV;
+                is_dynamic_shape = pPosition != nullptr && pTexture != nullptr;
                 if (is_dynamic_shape == false)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has nullptr [%s]", meshMemory->getFilenameMesh());
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has nullptr (vertex or uv) [%s]", meshMemory->getFilenameMesh());
                 if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_vertex / 3))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent vertex buffer [%s] sizeVertexBuffer: [%d] size_vertex [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_vertex);
-                if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_normal / 3))
+                if (infoShape->size_normal > 0 && headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_normal / 3))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent normal buffer [%s] sizeVertexBuffer: [%d] size_normal [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_normal);
                 if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_uv / 2))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent uv buffer [%s] sizeVertexBuffer: [%d] size_uv [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_uv);
@@ -191,19 +193,26 @@ namespace mbm
                     }
                 }
             }
+            const bool hasNormals = (pBuffer->normal != nullptr);
+            if (hasNormals)
+            {
+                if (is_dynamic_shape == false)
+                {
+                    GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[1]);
+                    pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
+                }
+                if (pNormal == nullptr)
+                {
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get normal at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
+                }
+                memcpy(pBuffer->normal, pNormal, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
+                if (is_dynamic_shape == false)
+                {
+                    glUnmapBufferOES(GL_ARRAY_BUFFER);
+                }
+            }
             if (is_dynamic_shape == false)
             {
-                GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[1]);
-                pNormal = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
-            }
-            if (pNormal == nullptr)
-            {
-                return log_util::onFailed(nullptr, __FILE__, __LINE__, "Failed to get normal at [glMapBufferOES] [%s]", meshMemory->getFilenameMesh());
-            }
-            memcpy(pBuffer->normal, pNormal, sizeof(float) * 3 * static_cast<size_t>(headerFrame->sizeVertexBuffer));
-            if (is_dynamic_shape == false)
-            {
-                glUnmapBufferOES(GL_ARRAY_BUFFER);
                 GLBindBuffer(GL_ARRAY_BUFFER, pGl->bs->vboVertNorTexIB[2]);
                 pTexture = static_cast<float*>(glMapBufferOES(GL_ARRAY_BUFFER, GL_WRITE_ONLY_OES));
             }

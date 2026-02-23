@@ -58,6 +58,8 @@ namespace mbm
         }
         this->lsDynamicVar.clear();
     }
+
+
     DYNAMIC_VAR * RENDERIZABLE::getDynamicVar(const char *nameVar)noexcept
     {
         return this->lsDynamicVar[nameVar];

@@ -77,13 +77,15 @@ namespace mbm
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
                                   util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut, 
-                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle);
+                                  std::vector<util::STAGE_PARTICLE> & lsStageParticle, int *versionOut = nullptr);
         API_IMPL static const char* getValidExtension(const char* fileName,bool &isImage,bool &isMesh,bool &isUnknown);
         API_IMPL static std::string getExtension(const char* fileName);
         API_IMPL util::TYPE_MESH getType() noexcept;
         API_IMPL util::TYPE_MESH getType(const char *fileNamePath);
         API_IMPL void calculateNormals();
         API_IMPL void calculateUV();
+        API_IMPL void removeNormals();
+        API_IMPL void addNormals();
         API_IMPL bool saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         API_IMPL bool loadDebug(const char *fileNamePath);
@@ -114,7 +116,8 @@ namespace mbm
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride);
+                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride,
+                                    int fileVersion = CURRENT_VERSION_MBM_HEADER);
     
         bool saveAnimationHeaders(const char *fileOut, FILE **file);
         bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
@@ -159,7 +162,8 @@ namespace mbm
         void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
-                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride);
+                                    uint16_t *indexArray, const int sizeArrayIndex, const int stride,
+                                    int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
 
         BUFFER_MESH *               buffer;

@@ -114,12 +114,11 @@ GLint checkAttribLocationOptional(const GLint location, const char* name);
 #define GLGetAttribLocation(program, name)                                                                               \
     checkAttribLocation(glGetAttribLocation(program, name), name);                                                       \
     log_util::checkGlError(__FILE__, __LINE__);
-#define GLGetAttribLocationOptional(program, name)                                                                       \
-    checkAttribLocationOptional(glGetAttribLocation(program, name), name);
 #else
     #define GLGetAttribLocation(program, name) glGetAttribLocation(program, name);
-    #define GLGetAttribLocationOptional(program, name) glGetAttribLocation(program, name);
 #endif
+/* Always run optional check (warning appears at most once) */
+#define GLGetAttribLocationOptional(program, name) checkAttribLocationOptional(glGetAttribLocation(program, name), name);
 
 #ifdef _DEBUG
 #define GLUseProgram(program)                                                                                            \

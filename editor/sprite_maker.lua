@@ -378,17 +378,15 @@ function onSaveUserData(name,value,tOut)
         local index_read_only   = name .. '.index_read_only'
         local uv                = name .. '.uv'
         local uv_bkp            = name .. '.uv_bkp'
-        local normal            = name .. '.normal'
         local index_buffer_edit = name .. '.index_buffer_edit'
         
         tUtil.save(uv,                 value.uv,                tOut, onSaveUserData)
         tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData)
         tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData)
-        tUtil.save(normal,             value.normal,            tOut, onSaveUserData)
         tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData)
         tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData)
         
-        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),nil,%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
+        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
         local s,e                  = name:match('^().*%]%[()')
         local tFrameListAtIndex    = name:sub(s,e)
         local sCommand             = string.format('return %stTexture"]["file_name"]', tFrameListAtIndex ) -- return tFrameList[1]["tTexture"]["file_name"]
@@ -501,12 +499,13 @@ function onSaveSprite(fileName)
 
     local function makeVertex(vertex, normal, uv, pivot, stride)
         local vertex_array = {}
+        local nz = (stride == 3) and 1 or -1  -- default normal when SHAPE_MESH has none
         for i=1, #vertex do
             local single_vertex = { x  = vertex[i].x - pivot.x,
                                     y  = vertex[i].y - pivot.y,
-                                    nx = normal[i].nx,
-                                    ny = normal[i].ny,
-                                    nz = normal[i].nz,
+                                    nx = (normal and normal[i]) and normal[i].nx or 0,
+                                    ny = (normal and normal[i]) and normal[i].ny or 0,
+                                    nz = (normal and normal[i]) and normal[i].nz or nz,
                                     u  = uv[i].u,
                                     v  = uv[i].v,
                                 }
@@ -850,7 +849,7 @@ function getRangeUV(uv)
     return uMin, vMin, uMax, vMax
 end
 
-function onRenderShape(self,vertex,normal,uv,index_read_only)
+function onRenderShape(self,vertex,uv,index_read_only)
     if self.mark_to_remove == true then
         self:destroy()
         --print(string.format('removed shape %s',self ))
@@ -926,9 +925,7 @@ function onRenderShape(self,vertex,normal,uv,index_read_only)
         end
         self.uv_bkp = uv_bkp
     end
-    if self.normal == nil then
-        self.normal = normal
-    end
+    self.normal = nil  -- SHAPE_MESH no longer provides normals
     self.index_read_only = index_read_only
     if self.index_buffer_edit == nil then
         self.index_buffer_edit = {}
@@ -936,7 +933,7 @@ function onRenderShape(self,vertex,normal,uv,index_read_only)
             self.index_buffer_edit[i] = index_read_only[i]
         end
     end
-    return self.vertex, self.normal, self.uv
+    return self.vertex, self.uv
 end
 
 function setShapeToRender(tShape,tFrame)
@@ -2307,10 +2304,9 @@ function getShapeViewForAnim(tFrame)
         local x,y      = tFrame.width / 0.5, tFrame.height / 0.5
         local tVertex  = {-x,-y,  -x,y,  x,-y,       x,-y, -x,y, x,y}
         local tUv      = {0,0, 0,1, 1,0, 1,0, 0,1, 1,1} --invert V
-        local tNormal  = nil
         local nickName = getUniqueNickName()
         local tShape   = shape:new('2dw')
-        tShape:create(tVertex,tUv,tNormal,nickName)
+        tShape:create(tVertex,tUv,nickName)
         tAnimationOptions.tShapeAnimations[sTexHash] = tShape
     end
     return tAnimationOptions.tShapeAnimations[sTexHash]

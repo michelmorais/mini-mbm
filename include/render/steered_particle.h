@@ -50,6 +50,7 @@ namespace mbm
         API_IMPL const char* getTextureFileName()const;
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         API_IMPL bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL bool clonePhysics(const mbm::INFO_PHYSICS * const new_info_physics);
         API_IMPL const mbm::INFO_PHYSICS *getInfoPhysics() const override;

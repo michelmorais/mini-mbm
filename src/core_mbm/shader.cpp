@@ -153,7 +153,7 @@ namespace mbm
         }
     }
 
-    BASE_SHADER::BASE_SHADER() noexcept = default;
+    BASE_SHADER::BASE_SHADER() noexcept {}
 
     BASE_SHADER::~BASE_SHADER()
     {

@@ -143,26 +143,21 @@ namespace mbm
     
     unsigned int LINE_MESH::add(std::vector<VEC3> && arrayLines)
     {
-        
-        if (this->lsLines.size() == 0)
+        auto myLine = new MY_LINES();
+        if (!myLine->setLines(std::move(arrayLines), is2dS))
+        {
+            delete myLine;
+            return 0xffffffff;
+        }
+        this->lsLines.push_back(myLine);
+        if (this->lsLines.size() == 1)
         {
             if (this->createAnimationAndShader2Line() == false)
             {
                 return 0xffffffff;
             }
         }
-        auto myLine = new MY_LINES();
-        if (myLine->setLines(std::move(arrayLines), is2dS))
-        {
-            this->lsLines.push_back(myLine);
-            const auto index = static_cast<unsigned int>(this->lsLines.size() - 1);
-            return index;
-        }
-        else
-        {
-            delete myLine;
-            return 0xffffffff;
-        }
+        return static_cast<unsigned int>(this->lsLines.size() - 1);
     }
     
     unsigned int LINE_MESH::getTotalLines() const
@@ -374,7 +369,7 @@ namespace mbm
         anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
         if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
             return false;
-        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader);
+        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer());
         if (!ret)
         {
             PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
@@ -399,6 +394,13 @@ namespace mbm
             }
         }
         return true;
+    }
+
+    FVF_PROVIDE_BY_ENGINE LINE_MESH::getFvfFromBuffer() const noexcept
+    {
+        if (lsLines.empty() || !lsLines[0]->buffer.isLoadedBuffer())
+            return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        return lsLines[0]->buffer.fvf;
     }
 
     FX*  LINE_MESH::getFx()const

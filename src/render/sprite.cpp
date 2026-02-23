@@ -193,6 +193,17 @@ namespace mbm
     {
         return this;
     }
+
+    FVF_PROVIDE_BY_ENGINE SPRITE::getFvfFromBuffer() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
     
     bool SPRITE::isLoaded() const
     {

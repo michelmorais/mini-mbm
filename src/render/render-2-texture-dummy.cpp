@@ -49,6 +49,11 @@ namespace mbm
         REMINDER_TODO
     }
 
+    FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     RENDER2TARGET_DUMMY::~RENDER2TARGET_DUMMY()
     {
         release();

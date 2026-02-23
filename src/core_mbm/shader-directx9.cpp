@@ -65,6 +65,7 @@ namespace mbm
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
         sizeOfArrayVertex(0),
+        fvf(FVF_PROVIDE_BY_ENGINE::FVF_POS_UV),
         mode_draw(util::MODE_DRAW_TRIANGLES),
         mode_cull_face(util::CULL_BACK),
         mode_front_face_direction(util::CCW),
@@ -276,7 +277,7 @@ namespace mbm
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
-        this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = this->bs->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
         
@@ -317,7 +318,7 @@ namespace mbm
         IDirect3DDevice9* pd3dDevice = device->specificContextDevice->pd3dDevice;
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex, normal, uv, sizeOfArrayVertex);
-        this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = this->bs->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
 
@@ -404,7 +405,7 @@ namespace mbm
         const std::vector<VEC2> uv(hasUv ? sizeOfArrayVertex : 0);
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
         const D3D_VERTEX_CONVERTER d3d_converter(vertex.data(), hasNormal ? normal.data() : nullptr, hasUv ? uv.data() : nullptr, sizeOfArrayVertex);
-        this->bs->FVF = d3d_converter.getFVF();
+        this->fvf = this->bs->FVF = d3d_converter.getFVF();
         const DWORD DFVF = d3d_converter.get3d3FVF();
         this->bs->sizeStructVertexInBytes = d3d_converter.getSizeOfStructureInBytes();
 
@@ -697,54 +698,52 @@ namespace mbm
         this->vShader         = nullptr;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
+        if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
+            return false;
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
-        constexpr char *defaultCodePs = "sampler2D sample0 : register(s0);"
-                                        ""
-                                        "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
-                                        "{"
-                                        "    return tex2D(sample0, texCoord);"
-                                        "}";
+        const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
 
-        constexpr char *defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
-                                        ""
-                                        "struct VS_INPUT"
-                                        "{"
-                                        "    float4 position : POSITION;"
-                                        "    float3 normal : NORMAL;"
-                                        "    float2 texCoord : TEXCOORD0;"
-                                        "};"
-                                        ""
-                                        "struct VS_OUTPUT"
-                                        "{"
-                                        "    float4 position : POSITION;"
-                                        "    float2 texCoord : TEXCOORD0;"
-                                        "};"
-                                        ""
-                                        "VS_OUTPUT main(VS_INPUT input)"
-                                        "{"
-                                        "    VS_OUTPUT output;"
-                                        "    output.position = mul(input.position, mvpMatrix);"
-                                        "    output.texCoord = input.texCoord;"
-                                        "    return output;"
-                                        "}";
-        
+        std::string defaultCodePs;
+        if (hasUV)
+        {
+            defaultCodePs = "sampler2D sample0 : register(s0);"
+                "float4 main(float2 texCoord : TEXCOORD0) : COLOR"
+                "{ return tex2D(sample0, texCoord); }";
+        }
+        else
+        {
+            defaultCodePs = "float4 main() : COLOR"
+                "{ return float4(1,1,1,1); }";
+        }
 
+        std::string defaultCodeVs = "float4x4 mvpMatrix : register(c0);"
+            "struct VS_INPUT { float4 position : POSITION;";
+        if (hasNormal) defaultCodeVs += " float3 normal : NORMAL;";
+        if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        defaultCodeVs += " };"
+            "struct VS_OUTPUT { float4 position : POSITION;";
+        if (hasUV) defaultCodeVs += " float2 texCoord : TEXCOORD0;";
+        defaultCodeVs += " };"
+            "VS_OUTPUT main(VS_INPUT input)"
+            "{ VS_OUTPUT output; output.position = mul(input.position, mvpMatrix);";
+        if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
+        defaultCodeVs += " return output; }";
 
-        
         constexpr char* mainFunction = "main";
         const char* versionPS        = getPSVersion();
-        const char* versionVS        = getVSVersion();
-        ID3DXBuffer* bufferPS        = nullptr;
-        ID3DXBuffer* bufferVS        = nullptr;
-        ID3DXBuffer* errorBuffer     = nullptr;
-        
+        const char* versionVS       = getVSVersion();
+        ID3DXBuffer* bufferPS       = nullptr;
+        ID3DXBuffer* bufferVS       = nullptr;
+        ID3DXBuffer* errorBuffer    = nullptr;
+
         D3D_PS_VS* d3dPsVs = static_cast<D3D_PS_VS*>(ptrShaderSpecific);
-        
-        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs;
-        const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs;
+
+        const char* codePS = ptrPshader ? this->pShader->getCode() : defaultCodePs.c_str();
+        const char* codeVS = ptrVshader ? this->vShader->getCode() : defaultCodeVs.c_str();
         const int sizeOfCodePS = strlen(codePS);
         const int sizeOfCodeVS = strlen(codeVS);
 #if defined _DEBUG

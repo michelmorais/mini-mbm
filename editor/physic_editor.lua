@@ -134,12 +134,12 @@ function updatePhysics(tPhysic)
     tInfoPhysics:updateCircles()
 end
 
-function onRender(tShape, vertex, normal, uv, index_read_only)
+function onRender(tShape, vertex, uv, index_read_only)
     if tShape.vertex == nil then
         tShape.vertex = vertex
     end
     vertex = tShape.vertex
-    return vertex,normal,uv
+    return vertex,uv
 end
 
 

@@ -46,6 +46,11 @@ namespace mbm
         delete static_cast<RENDER2TARGET_GLES*>(this->specificConfig);
     }
 
+    FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)
     {
         if(newFileOutNamePNG == nullptr)

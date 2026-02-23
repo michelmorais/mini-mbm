@@ -291,6 +291,44 @@ tUtil.hasSupportedImageExtension = function(file_name)
     return false
 end
 
+tUtil.hasSupportedMeshExtension = function(file_name)
+    local tSupportedTypes = {'.spt', '.msh', '.fnt', '.tile', '.ptl'}
+    file_name = file_name:lower()
+    for i=1, #tSupportedTypes do
+        local supportedType = tSupportedTypes[i]
+        if file_name:match("%g%" .. supportedType .. '$') then
+            return true
+        end
+    end
+    return false
+end
+
+tUtil.getMeshFilesFromFolder = function(dirname)
+    local tFiles = {}
+    dirname = string.gsub(dirname, "\\", "/")
+    if #dirname > 0 and dirname:sub(-1) ~= '/' then
+        dirname = dirname .. '/'
+    end
+    local f = nil
+    if mbm.is("windows") then
+        f = io.popen('dir /b "' .. dirname .. '"')
+    else
+        f = io.popen('ls -1 "' .. dirname .. '"')
+    end
+    if f then
+        local ret = f:read("*a")
+        f:close()
+        local lines = ret:split('\n')
+        for i = 1, #lines do
+            local file_name = lines[i]:match("^%s*(.-)%s*$")
+            if file_name and file_name:len() > 0 and tUtil.hasSupportedMeshExtension(file_name) then
+                table.insert(tFiles, dirname .. file_name)
+            end
+        end
+    end
+    return tFiles
+end
+
 tUtil.loadInfoImagesFromFolderToTable  = function(dirname,tTexturesIn)
     local f = nil
     local tFiles = {}
@@ -462,11 +500,12 @@ tUtil.showOverlayMessage = function()
     if tUtil.sMessageOverlay then
         local flags = {'ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
         local window_pos = {x = 0, y = tImGui.GetMainMenuBarHeight()}
+        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bRightSide then
             local iW, iH       = mbm.getRealSizeScreen()
-            window_pos.x = iW - tUtil.tSizeWindowOverlay.x
+            window_pos.x = iW
+            window_pos_pivot = {x = 1, y = 0}  -- anchor window's right edge to screen right
         end
-        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bFocusMsgOnce then
             tUtil.bFocusMsgOnce = false
             tImGui.SetNextWindowFocus(tUtil.title_overlay)

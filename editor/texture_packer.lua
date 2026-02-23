@@ -323,9 +323,8 @@ function adjustTextureSize()
             local tVertex     = {-half_width ,-half_height,  -half_width,half_height,  half_width,-half_height,  half_width,half_height}
             local tUv         = {0,0,           0,1,      1,0,       1,1  }
             local tIndex      = {1,2,3, 3,2,4 }
-            local tNormal     = nil
             
-            tShape:createIndexed(tVertex,tIndex,tUv,tNormal,getNextNickName())
+            tShape:createIndexed(tVertex,tIndex,tUv,getNextNickName())
             tShape:setTexture(texture_name)
             tShape:setScale(scale,scale)
 

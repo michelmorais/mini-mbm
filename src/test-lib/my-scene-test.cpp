@@ -90,20 +90,20 @@ void MY_SCENE::init()
     device->colorClearBackGround.b = 0.5f;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
-	this->background = new mbm::BACKGROUND(this, false);
-	bool majorScale = true;
-    this->background->load("ground.png", true, majorScale);
+	//this->background = new mbm::BACKGROUND(this, false);
+	//bool majorScale = true;
+    //this->background->load("ground.png", true, majorScale);
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
     
 
-	this->fontDraw = new mbm::FONT_DRAW(this);
-    if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
-    {
-		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
-        this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
-    }
+	//this->fontDraw = new mbm::FONT_DRAW(this);
+    //if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
+    //{
+	//	this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
+    //    this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
+    //}
 
     //if (meshDebug.loadDebugFromMemory(this->fontDraw->getMesh()))
     //{
@@ -136,11 +136,11 @@ void MY_SCENE::init()
     //}
 
 	////TODO: check why gif is resizing wrong when load with width and height on lost device
-    gif = new mbm::GIF_VIEW(this,false,false);
-    gif->load("Lion-King.gif",600,400);
+    //gif = new mbm::GIF_VIEW(this,false,false);
+    //gif->load("Lion-King.gif",600,400);
 
-    this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
-    this->texBox->load("wooden-box.jpg", 200, 200);
+    //this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
+    //this->texBox->load("wooden-box.jpg", 200, 200);
     
     //TODO: Needs to be investgated
     //hmd = new mbm::HMD(this);

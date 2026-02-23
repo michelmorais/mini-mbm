@@ -41,6 +41,7 @@ class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
     API_IMPL const char *getFileName();
 	API_IMPL FX*  getFx() const override;
 	API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+	FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
     bool                     isOnFrustum() override;

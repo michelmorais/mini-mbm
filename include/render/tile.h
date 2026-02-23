@@ -42,6 +42,7 @@ namespace mbm
     friend class TILE;
     public:
         API_IMPL TILE_OBJ(TILE* tileMap,MESH_MBM * pMesh, const uint32_t tileID,const uint32_t indexLayer);
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         API_IMPL virtual~TILE_OBJ();
         API_IMPL virtual const INFO_PHYSICS *getInfoPhysics() const override;
         API_IMPL virtual const MESH_MBM *    getMesh() const override;
@@ -87,6 +88,7 @@ namespace mbm
         API_IMPL void  setZLayer(const uint32_t indexLayer, const float z);
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
     private:
         bool                    isOnFrustum() override;

@@ -104,6 +104,7 @@ namespace mbm
         vertexStartVB(nullptr),
         vertexCountVB(nullptr),
         sizeOfArrayVertex(0),
+        fvf(FVF_PROVIDE_BY_ENGINE::FVF_POS_UV),
         mode_draw(GL_TRIANGLES),
         mode_cull_face(GL_BACK),
         mode_front_face_direction(GL_CW),
@@ -184,6 +185,7 @@ namespace mbm
         this->bs->vboNormalSubsetVB  = new uint32_t[totalSubset];
         this->bs->vboTextureSubsetVB = new uint32_t[totalSubset];
         this->initializeVertexBufferControl(totalSubsets, sizeOfArrayVertex, vertexStartSubset, vertexCountSubset, info_draw_mode);
+        this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         memset(this->bs->vboVertexSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->bs->vboNormalSubsetVB, 0, sizeof(uint32_t) *  static_cast<size_t>(totalSubset));
         memset(this->bs->vboTextureSubsetVB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
@@ -237,6 +239,7 @@ namespace mbm
         this->totalSubset      = totalSubsets;
         this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->fvf = (normal && uv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (normal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (uv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * static_cast<size_t>(totalSubset));
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
         if (!this->bs->vboIndexSubsetIB[0])
@@ -286,6 +289,7 @@ namespace mbm
         this->bs->vboIndexSubsetIB = new uint32_t[totalSubset];
         memset(this->bs->vboIndexSubsetIB, 0, sizeof(uint32_t) * totalSubset);
         this->initializeIndexBufferControl(totalSubsets, sizeOfArrayVertex, indexStartSubset, indexCountSubset, info_draw_mode);
+        this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV : (hasNormal ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR : (hasUv ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV : FVF_PROVIDE_BY_ENGINE::FVF_POS));
         GLGenBuffers(static_cast<GLsizei>(this->totalSubset), this->bs->vboIndexSubsetIB);
         if (!this->bs->vboIndexSubsetIB[0])
         {
@@ -557,29 +561,37 @@ namespace mbm
         return static_cast<const GLES_PS_VS*>(ptrShaderSpecific)->programObject != 0;
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
+        if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
+            return false;
         this->pShader             = ptrPshader;
-        this->vShader             = ptrVshader;
-        const char *defaultCodePs = "precision mediump float;"
-                                    "varying vec2 vTexCoord;"
-                                    "uniform sampler2D sample0;"
-                                    "void main()"
-                                    "{"
-                                    "    gl_FragColor = texture2D( sample0, vTexCoord );"
-                                    "}";
+        this->vShader            = ptrVshader;
+        const bool hasNormal = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        const bool hasUV = (fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_UV || fvf == FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
 
-        const char *defaultCodeVs =
-            "attribute vec4 aPosition;"
-            "attribute vec2 aTextCoord;"
-            // "attribute vec3 aNormal;" // Per-vertex normal information we will pass in. (not used, removed since cause confusion
-            "uniform mat4 mvpMatrix;" // A constant representing the combined model/view/projection matrix.
-            "varying vec2 vTexCoord;"
-            "void main()"
-            "{"
-            "     gl_Position = mvpMatrix * aPosition;"
-            "     vTexCoord = aTextCoord;"
-            "}";
+        std::string defaultCodePs;
+        if (hasUV)
+        {
+            defaultCodePs = "precision mediump float;"
+                "varying vec2 vTexCoord;"
+                "uniform sampler2D sample0;"
+                "void main() { gl_FragColor = texture2D(sample0, vTexCoord); }";
+        }
+        else
+        {
+            defaultCodePs = "precision mediump float;"
+                "void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); }";
+        }
+
+        std::string defaultCodeVs = "attribute vec4 aPosition;";
+        if (hasNormal) defaultCodeVs += " attribute vec3 aNormal;";
+        if (hasUV) defaultCodeVs += " attribute vec2 aTextCoord;";
+        defaultCodeVs += " uniform mat4 mvpMatrix;";
+        if (hasUV) defaultCodeVs += " varying vec2 vTexCoord;";
+        defaultCodeVs += " void main() { gl_Position = mvpMatrix * aPosition;";
+        if (hasUV) defaultCodeVs += " vTexCoord = aTextCoord;";
+        defaultCodeVs += " }";
         GLES_PS_VS* gles_shaderSpecific = static_cast<GLES_PS_VS*>(ptrShaderSpecific);
         if (gles_shaderSpecific->programObject)
         {
@@ -588,17 +600,17 @@ namespace mbm
         }
         if (this->pShader == nullptr && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs, defaultCodePs))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader == nullptr && this->vShader)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), defaultCodePs))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, this->vShader->getCode(), defaultCodePs.c_str()))
                 return false;
         }
         else if (this->pShader && this->vShader == nullptr)
         {
-            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs, this->pShader->getCode()))
+            if (!loadShaderProgram(this->pShader, this->vShader, ptrShaderSpecific, defaultCodeVs.c_str(), this->pShader->getCode()))
                 return false;
         }
         else if (this->pShader && this->vShader)
@@ -630,9 +642,17 @@ namespace mbm
         {   // Attributes are vertex-only; use Optional - aNormal can be inactive if linker optimizes out unused varying
             gles_shaderSpecific->normalHandle = GLGetAttribLocationOptional(gles_shaderSpecific->programObject, "aNormal");
         }
+        else
+        {
+            gles_shaderSpecific->normalHandle = -1;
+        }
         if (bothShaderCode.find("aTextCoord") != std::string::npos)
         {
             gles_shaderSpecific->texCoordHandle = GLGetAttribLocation(gles_shaderSpecific->programObject, "aTextCoord");
+        }
+        else
+        {
+            gles_shaderSpecific->texCoordHandle = -1;
         }
         if (bothShaderCode.find("sample0") != std::string::npos)
         {
@@ -783,7 +803,7 @@ namespace mbm
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
             //-----------------------------------------------------------------------------------------------------------
-            if (gles_shaderSpecific->normalHandle != -1)
+            if (gles_shaderSpecific->normalHandle != -1 && normal)
             {
                 GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);

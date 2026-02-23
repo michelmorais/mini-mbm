@@ -115,6 +115,17 @@ namespace mbm
         return nullptr;
     }
 
+    FVF_PROVIDE_BY_ENGINE TILE_EDITOR::getFvfFromBuffer() const noexcept
+    {
+        if (emptyBrick.isLoadedBuffer())
+            return emptyBrick.fvf;
+        if (backGroundMap.isLoadedBuffer())
+            return backGroundMap.fvf;
+        if (tileSetPreview.isLoadedBuffer())
+            return tileSetPreview.fvf;
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     const MESH_MBM *    TILE_EDITOR::getMesh() const
     {
         return nullptr;
@@ -1872,7 +1883,6 @@ namespace mbm
         if(whatBuffer.isLoadedBuffer() == false)
         {
             VEC3 vertex[4];
-            VEC3 normal[4];
             VEC2 uv[4];
             int indexStart = 0;
             int indexCount = 6;
@@ -1893,12 +1903,7 @@ namespace mbm
             vertex[3].x = x;
             vertex[3].y = y;
             vertex[3].z = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
+
             uv[0].x = 0;
             uv[0].y = 1;
             uv[1].x = 0;
@@ -1909,7 +1914,7 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            return whatBuffer.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+            return whatBuffer.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         }
         return true;
     }

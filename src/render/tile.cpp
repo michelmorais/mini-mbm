@@ -153,7 +153,6 @@ namespace mbm
         if(backGroundMap.isLoadedBuffer() == false)
         {
             VEC3 vertex[4];
-            VEC3 normal[4];
             VEC2 uv[4];
             int indexStart = 0;
             int indexCount = 6;
@@ -174,12 +173,7 @@ namespace mbm
             vertex[3].x = x;
             vertex[3].y = y;
             vertex[3].z = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
+
             uv[0].x = 0;
             uv[0].y = 1;
             uv[1].x = 0;
@@ -190,7 +184,7 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            if(backGroundMap.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
+            if(backGroundMap.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
             {
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
@@ -568,6 +562,17 @@ namespace mbm
     bool TILE::isLoaded() const
     {
         return this->mesh != nullptr;
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE::getFvfFromBuffer() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     const util::BTILE_INFO *	TILE::getTileInfo() const
@@ -1000,6 +1005,17 @@ namespace mbm
     const MESH_MBM * TILE_OBJ::getMesh() const
     {
         return ptr_Mesh;
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE_OBJ::getFvfFromBuffer() const noexcept
+    {
+        if (ptr_Mesh)
+        {
+            BUFFER_MESH* buf = ptr_Mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     bool TILE_OBJ::isLoaded() const

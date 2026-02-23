@@ -110,8 +110,19 @@ namespace util
     #define SPACE_SHIP_VERSION_MBM_HEADER  4
     #define MODE_DRAW_VERSION_MBM_HEADER   5
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
+    #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
 
-    #define CURRENT_VERSION_MBM_HEADER     6
+    #define CURRENT_VERSION_MBM_HEADER     7
+
+    /* hasNorText[0] (normals) */
+    #define HAS_NOR_NO           0  /* no normals */
+    #define HAS_NOR_IN_FILE      1  /* normals stored in file */
+    #define HAS_NOR_CALCULATE    2  /* calculate normals from geometry */
+
+    /* hasNorText[1] (UV/texture) */
+    #define HAS_TEX_NO           0  /* no texture */
+    #define HAS_TEX_EACH_FRAME   1  /* texture in each frame */
+    #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
 
     // step 1:
     struct API_IMPL HEADER
@@ -179,8 +190,7 @@ namespace util
         int          totalAnimation;         // Total de anima��o na mesh
         int          totalFrames;            // Total de frames para o arquivo. cada frame � dividido em uma ou mais subsets.
         int          deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
-        int16_t    hasNorText[2];          // hasNorText[0]: Indica se ha normal (0: sera calculado as normais,1:tera normal em cada frame)
-        // hasNorText[1]:textura (0: n�o tera textura, 1: tera textura em cada frame, 2: tera textura somente no frame 1, os outros ser�o copiados).
+        int16_t    hasNorText[2];          // hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, HAS_NOR_CALCULATE. hasNorText[1]: HAS_TEX_NO, HAS_TEX_EACH_FRAME, HAS_TEX_FIRST_FRAME
         float angleX, angleY, angleZ; 
         float posX, posY, posZ;       
     

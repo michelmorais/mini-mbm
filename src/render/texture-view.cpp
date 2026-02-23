@@ -67,7 +67,7 @@ namespace mbm
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -101,13 +101,13 @@ namespace mbm
             return true;
         if (fileNameTexture == nullptr)
             return false;
-        if (!createAnimationAndShader2Texture())
-            return false;
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, alpha);
         if (this->texture == nullptr)
             return false;
         const bool idFrame = this->setFrame(w <= 0.0f ? this->texture->getWidth() : w, h <= 0.0f ? this->texture->getHeight() : h);
         if (idFrame == false)
+            return false;
+        if (!createAnimationAndShader2Texture())
             return false;
         this->bufferGL.setTextureByStage(this->texture, 0, 0);
         const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
@@ -124,15 +124,14 @@ namespace mbm
         int                indexStart = 0;
         int                indexCount = 6;
         VEC3            _position[4];
-        VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
         this->bufferGL.release();
-        this->fillvertexQuadTexture(_position, normal, uv, diameter <= 0.0f ? 100.0f : diameter,
-                                    diameter <= 0.0f ? 100.0f : diameter);
-        const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        mbm::fillVertexQuadTexture(_position, uv, diameter <= 0.0f ? 100.0f : diameter,
+                                   diameter <= 0.0f ? 100.0f : diameter);
+        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
             this->bufferGL.setTextureByStage(idTexture0, 0, 0);
@@ -159,14 +158,13 @@ namespace mbm
         int                indexStart = 0;
         int                indexCount = 6;
         VEC3            _position[4];
-        VEC3            normal[4];
         VEC2            uv[4];
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
         TEXTURE * idTexture0 = this->bufferGL.getTextureByStage(0, 0);
         TEXTURE * idTexture1 = this->bufferGL.getTextureByStage(1, 0);
-        this->fillvertexQuadTexture(_position, normal, uv, width <= 0.0f ? 100.0f : width,
-                                    height <= 0.0f ? 100.0f : height);
-        const bool ret = this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        mbm::fillVertexQuadTexture(_position, uv, width <= 0.0f ? 100.0f : width,
+                                   height <= 0.0f ? 100.0f : height);
+        const bool ret = this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret)
         {
             this->bufferGL.setTextureByStage(idTexture0, 0, 0);
@@ -326,44 +324,11 @@ namespace mbm
         return false;
     }
     
-    void TEXTURE_VIEW::fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
-                                      const float height)
+    FVF_PROVIDE_BY_ENGINE TEXTURE_VIEW::getFvfFromBuffer() const noexcept
     {
-        const float x  = width * 0.5f;
-        const float y  = height * 0.5f;
-        _position[0].x = -x;
-        _position[0].y = -y;
-        _position[0].z = 0;
-
-        _position[1].x = -x;
-        _position[1].y = y;
-        _position[1].z = 0;
-
-        _position[2].x = x;
-        _position[2].y = -y;
-        _position[2].z = 0;
-
-        _position[3].x = x;
-        _position[3].y = y;
-        _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
-        }
-
-        //----------------------------------------
-        uv[0].x = 0;
-        uv[0].y = 1;
-        uv[1].x = 0;
-        uv[1].y = 0;
-        uv[2].x = 1;
-        uv[2].y = 1;
-        uv[3].x = 1;
-        uv[3].y = 0;
+        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
-    
+
     void TEXTURE_VIEW::updateRestoreTexture(const float w, const float h)
     {
         if (this->fileName.size())

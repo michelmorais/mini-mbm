@@ -51,7 +51,7 @@ namespace mbm
         REMINDER_TODO
     }
 
-    BUFFER_GL::BUFFER_GL()
+    BUFFER_GL::BUFFER_GL() : fvf(FVF_PROVIDE_BY_ENGINE::FVF_POS_UV)
     {
         REMINDER_TODO
         //we initialize this at the moment (just once)
@@ -198,8 +198,10 @@ namespace mbm
         REMINDER_TODO
     }
 
-    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader)
+    bool SHADER::compileShader(mbm::BASE_SHADER *ptrPshader, mbm::BASE_SHADER *ptrVshader, mbm::FVF_PROVIDE_BY_ENGINE fvf)
     {
+        if (fvf == FVF_PROVIDE_BY_ENGINE::FVF_NONE)
+            return false;
         this->pShader             = ptrPshader;
         this->vShader             = ptrVshader;
         constexpr char *defaultCodePs = "sampler2D sample0 : register(s0);"

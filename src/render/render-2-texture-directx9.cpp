@@ -46,6 +46,11 @@ namespace mbm
         delete static_cast<RENDER2TARGET_DIRECTX9*>(this->specificConfig);
     }
 
+    FVF_PROVIDE_BY_ENGINE RENDERIZABLE_TO_TARGET::getFvfFromBuffer() const noexcept
+    {
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     RENDER2TARGET_DIRECTX9::~RENDER2TARGET_DIRECTX9()
     {
         release();
