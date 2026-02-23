@@ -458,7 +458,7 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void* ptrShaderSpecific)
+    void BASE_SHADER::update(void* ptrShaderSpecific) const
     {
         const GLES_PS_VS* gles_shaderSpecific = static_cast<const GLES_PS_VS*>(ptrShaderSpecific);
         if (gles_shaderSpecific->programObject == 0)

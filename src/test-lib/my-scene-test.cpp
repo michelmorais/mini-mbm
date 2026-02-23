@@ -295,17 +295,17 @@ void MY_SCENE::logic()
     }
     if (sprite)
     {
-        //auto fx = sprite->getFx();
-        //if (fx)
-        //{
-        //    float              data[4] = { 0,0,0,0 };
-        //    fx->getVarPShader("percent", data);
-        //    INFO_LOG("data : %g", data[0]);
-        //    //data[0] += 0.01f;
-        //    //if (data[0] > 1.0f)
-        //    //    data[0] = 0.0f;
-        //    //fx->setVarPShader("percent", data);
-		//}
+        auto fx = sprite->getFx();
+        if (fx)
+        {
+            float              data[4] = { 0,0,0,0 };
+            fx->getVarPShader("percent", data);
+            INFO_LOG("data : %g", data[0]);
+            //data[0] += 0.01f;
+            //if (data[0] > 1.0f)
+            //    data[0] = 0.0f;
+            //fx->setVarPShader("percent", data);
+		}
     }
 }
 

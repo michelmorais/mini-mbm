@@ -172,7 +172,7 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void * ptrShaderSpecific)
+    void BASE_SHADER::update(void * ptrShaderSpecific) const
     {
         REMINDER_TODO
     }

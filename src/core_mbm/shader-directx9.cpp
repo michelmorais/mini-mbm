@@ -591,7 +591,7 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void * ptrShaderSpecific)
+    void BASE_SHADER::update(void * ptrShaderSpecific) const
     {
         const D3D_PS_VS* d3dPsVs = static_cast<const D3D_PS_VS*>(ptrShaderSpecific);
         if (d3dPsVs->pd3dPixelShader == nullptr && d3dPsVs->pd3dVertexShader == nullptr) // simple check
@@ -904,6 +904,12 @@ namespace mbm
             }
         }
 
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -975,29 +981,22 @@ namespace mbm
                 //    pBufferId->indexStartIB[i],
                 //    pBufferId->indexCountIB[i]);
 
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+                // Pixel shaders use sample0 (stage 0); sprites often set only stage 1. Use stage 1 for stage 0 when stage 0 is null.
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
-                    //PRINT_IF_DEBUG("  Texture pointer: %p", pp3DTexture9);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
-
-                    // ADD THIS - Set sampler states!
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-
-                    
+                }
+                else if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
                 {
-                    //PRINT_IF_DEBUG("  WARNING: texture0 is NULL!");
                     pd3dDevice->SetTexture(0, nullptr);
                 }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
 
                 if (texture1)
                 {
@@ -1093,18 +1092,21 @@ namespace mbm
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
                 }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
                 if (texture1)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
@@ -1247,6 +1249,12 @@ namespace mbm
             }
         }
 
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1312,18 +1320,21 @@ namespace mbm
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
                 }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
                 if (texture1)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
@@ -1525,6 +1536,12 @@ namespace mbm
             }
         }
 
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1587,18 +1604,21 @@ namespace mbm
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
+                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
+                    pd3dDevice->SetTexture(0, pp3DTexture9);
+                }
+                else if (texture1)
+                {
+                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
                 }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
                 if (texture1)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
