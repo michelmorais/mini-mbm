@@ -51,13 +51,12 @@ namespace mbm
         this->mesh                  = nullptr;
         this->onRenderDynamicBuffer = nullptr;
         dynamicVertex.clear();
-        dynamicNormal.clear();
         dynamicUV.clear();
         dynamicIndex.clear();
     }
     
     bool SHAPE_MESH::loadIndexedDynamic(const char *nickName, std::vector<float> &&_dynamicVertex,
-                                   std::vector<float> &&_dynamicNormal, std::vector<float> &&_dynamicUV,
+                                   std::vector<float> &&_dynamicUV,
                                    std::unique_ptr<unsigned short int[],DeleteArrayUnShortInt> &&indexArray,
                                    const unsigned int _sizeVertexArray, const unsigned int _sizeIndexArray,const util::INFO_DRAW_MODE * info_draw_mode)
     {
@@ -72,10 +71,8 @@ namespace mbm
         VEC3 vMin(FLT_MAX, FLT_MAX, FLT_MAX);
         VEC3 vMax(-FLT_MAX, -FLT_MAX, -FLT_MAX);
         dynamicVertex.clear();
-        dynamicNormal.clear();
         dynamicUV.clear();
         dynamicIndex.clear();
-        const bool hasNormal = _dynamicNormal.size() ? true : false;
         const bool hasUV     = _dynamicUV.size()     ? true : false;
         if (sizeVertexBuffer == _sizeVertexArray)
         {
@@ -93,10 +90,6 @@ namespace mbm
                 vertex[p + 2] = 0.0f;
             }
         }
-        if (hasNormal)
-            this->dynamicNormal = std::move(_dynamicNormal);
-        else
-            this->dynamicNormal.resize(sizeVertexBuffer);
         if (hasUV)
         {
             this->dynamicUV = std::move(_dynamicUV);
@@ -126,41 +119,6 @@ namespace mbm
                 if (vertex[p + 2] < vMin.z)
                     vMin.z = vertex[p + 2];
             }
-            if (hasNormal == false)
-            {
-                auto normal = dynamicNormal.data();
-                auto index  = indexArray.get();
-                // recalcula as normais
-                for (unsigned int i = 0; (i + 8) < sizeVertexBuffer; i += 9)
-                {
-                    const unsigned int index0 = i;
-                    const unsigned int index1 = i + 3;
-                    const unsigned int index2 = i + 6;
-                    VEC3   a, b, n;
-                    a.x = vertex[index[index1]] - vertex[index[index0]];
-                    a.y = vertex[index[index1 + 1]] - vertex[index[index0 + 1]];
-                    a.z = vertex[index[index1 + 2]] - vertex[index[index0 + 2]];
-
-                    b.x = vertex[index[index2]] - vertex[index[index0]];
-                    b.y = vertex[index[index2 + 1]] - vertex[index[index0 + 1]];
-                    b.z = vertex[index[index2 + 2]] - vertex[index[index0 + 2]];
-
-                    vec3Cross(&n, &a, &b);
-                    vec3Normalize(&n, &n);
-
-                    normal[index[index0]]     = n.x;
-                    normal[index[index0 + 1]] = n.y;
-                    normal[index[index0 + 2]] = n.z;
-
-                    normal[index[index1]]     = n.x;
-                    normal[index[index1 + 1]] = n.y;
-                    normal[index[index1 + 2]] = n.z;
-
-                    normal[index[index2]]     = n.x;
-                    normal[index[index2 + 1]] = n.y;
-                    normal[index[index2 + 2]] = n.z;
-                }
-            }
         }
         else
         {
@@ -179,16 +137,6 @@ namespace mbm
                     vMin.x = vertex[p];
                 if (vertex[p + 1] < vMin.y)
                     vMin.y = vertex[p + 1];
-            }
-            if (hasNormal == false)
-            {
-                auto normal = dynamicNormal.data();
-                for (unsigned int p = 0; p < sizeVertexBuffer; p += 3)
-                {
-                    normal[p]     = 0;
-                    normal[p + 1] = 0;
-                    normal[p + 2] = -1;
-                }
             }
         }
         if (hasUV == false)
@@ -219,7 +167,7 @@ namespace mbm
         {
             dynamicIndex[i] = indexArray[i];
         }
-        util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
+        util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
         mesh = mehManager->loadDynamicIndex(nickName, sizeVertexBuffer, indexArray.get(), _sizeIndexArray,info_draw_mode,dynamic_shape_info);
         if (mesh)
         {
@@ -320,12 +268,10 @@ namespace mbm
             const unsigned int numIndex      = numTriangles * 3;
             const   float degree    = util::degreeToRadian(360) / numTriangles;
             std::vector<float> vertex(numVertex * 3);
-            std::vector<float> normal(numVertex * 3);
             std::vector<float> uv(numVertex * 2);
             std::vector<unsigned short int> lsIndex(numIndex);
 
             float *pVertex = vertex.data();
-            float *pNormal = normal.data();
             float *pUv     = uv.data();
             unsigned short int *pIndex = lsIndex.data();
 
@@ -338,19 +284,11 @@ namespace mbm
             pVertex[1] = 0.0f;
             pVertex[2] = 0.0f;
 
-            pNormal[0] = 0.0f;
-            pNormal[1] = 0.0f;
-            pNormal[2] = 1.0f;
-
             for (int i = 0, index = 3; i < numTriangles; ++i, index +=3) 
             {
                 pVertex[index]   = std::sin(degree * i) * ray_width;
                 pVertex[index+1] = std::cos(degree * i) * ray_height;
                 pVertex[index+2] = 0.0f;
-
-                pNormal[index]     = 0.0f;
-                pNormal[index + 1] = 0.0f;
-                pNormal[index + 2] = 1.0f;
             }
 
             for (int i = 0, index = 0, index_uv = 0; i <= numTriangles; ++i, index +=3, index_uv += 2) 
@@ -373,15 +311,14 @@ namespace mbm
             if(dynamicBuffer)
             {
                 dynamicVertex = std::move(vertex);
-                dynamicNormal = std::move(normal);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
                 mesh = mehManager->loadDynamicIndex(nickName,vertex.size(), pIndex, lsIndex.size(),nullptr,dynamic_shape_info);
             }
             else
             {
-                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, vertex.size(), pIndex,lsIndex.size(),nullptr);
+                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, vertex.size(), pIndex,lsIndex.size(),nullptr);
             }
         }
         if (mesh)
@@ -435,11 +372,9 @@ namespace mbm
             */
             const  int total_vertex = numTriangles + 2;
             std::vector<float> vertex(3 * total_vertex);
-            std::vector<float> normal(3 * total_vertex);
             std::vector<float> uv    (2 * total_vertex);
 
             float * pVertex = vertex.data();
-            float * pNormal = normal.data();
             float * pUv = uv.data();
             
             float step = 0.0f;
@@ -457,13 +392,6 @@ namespace mbm
                     pVertex[index + 3] = step;
                     pVertex[index + 4] = height;
                     pVertex[index + 5] = 0.0f;
-
-                    pNormal[index    ] = 0.0f;
-                    pNormal[index + 1] = 0.0f;
-                    pNormal[index + 2] = 1.0f;
-                    pNormal[index + 3] = 0.0f;
-                    pNormal[index + 4] = 0.0f;
-                    pNormal[index + 5] = 1.0f;
 
                     const float w_u = step > 0.0f ? step / width : 0.0f;
                     pUv[index_uv ]    = w_u;// 0
@@ -490,13 +418,6 @@ namespace mbm
                     pVertex[index + 3] = step;
                     pVertex[index + 4] = height;
                     pVertex[index + 5] = 0.0f;
-
-                    pNormal[index    ] = 0.0f;
-                    pNormal[index + 1] = 0.0f;
-                    pNormal[index + 2] = 1.0f;
-                    pNormal[index + 3] = 0.0f;
-                    pNormal[index + 4] = 0.0f;
-                    pNormal[index + 5] = 1.0f;
 
                     const float w_u = step > 0.0f ? step / width : 0.0f;
                     pUv[index_uv ]    = w_u;// 0
@@ -552,16 +473,15 @@ namespace mbm
             if(dynamicBuffer)
             {
                 dynamicVertex = std::move(vertex);
-                dynamicNormal = std::move(normal);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
                 mesh = mehManager->loadDynamicIndex(nickName,3 * total_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
 
             }
             else
             {
-                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, 3 * total_vertex, pIndex, size_index,nullptr);
+                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, 3 * total_vertex, pIndex, size_index,nullptr);
             }
         }
         if (mesh)
@@ -598,13 +518,11 @@ namespace mbm
             constexpr int size_uv = numVertex * 2;
 
             std::vector<float> vertex(size_vertex);
-            std::vector<float> normal(size_vertex);
             std::vector<float> uv(size_uv);
             std::vector<unsigned short int> lsIndex(size_index);
 
 
             float * pVertex = vertex.data();
-            float * pNormal = normal.data();
             float * pUv = uv.data();
             unsigned short int* pIndex = lsIndex.data();
 
@@ -630,26 +548,18 @@ namespace mbm
                 pUv[index_uv    ] = 1;
                 pUv[index_uv + 1] = 0;
             }
-            
-            for (int i = 0; i < size_vertex; i+=3)
-            {
-                pNormal[i    ] = 0.0f;
-                pNormal[i + 1] = 0.0f;
-                pNormal[i + 2] = 1.0f;
-            }
 
             if(dynamicBuffer)
             {
                 dynamicVertex = std::move(vertex);
-                dynamicNormal = std::move(normal);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
                 mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
             }
             else
             {
-                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
+                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, size_vertex, pIndex, size_index,nullptr);
             }
         }
         if (mesh)
@@ -716,7 +626,6 @@ namespace mbm
             const int size_uv = numVertex * 2;
 
             std::vector<float> vertex(size_vertex);
-            std::vector<float> normal(size_vertex);
             std::vector<float> uv(size_uv);
             std::vector<unsigned short int> lsIndex(size_index);
 
@@ -729,7 +638,6 @@ namespace mbm
             const float y  = height * 0.5f;
 
             float * pVertex = vertex.data();
-            float * pNormal = normal.data();
             float * pUv = uv.data();
             unsigned short int* pIndex = lsIndex.data();
 
@@ -791,26 +699,18 @@ namespace mbm
                 pUv[index_uv    ] = px / width;
                 pUv[index_uv + 1] = 1.0f - (py / height);
             }
-            
-            for (int i = 0; i < size_vertex; i+=3)
-            {
-                pNormal[i    ] = 0.0f;
-                pNormal[i + 1] = 0.0f;
-                pNormal[i + 2] = 1.0f;
-            }
 
             if(dynamicBuffer)
             {
                 dynamicVertex = std::move(vertex);
-                dynamicNormal = std::move(normal);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(),dynamicNormal.data(),dynamicUV.data(),dynamicVertex.size(),dynamicNormal.size(),dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
                 mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
             }
             else
             {
-                mesh = mehManager->loadIndex(nickName, pVertex, pNormal, pUv, size_vertex, pIndex, size_index,nullptr);
+                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, size_vertex, pIndex, size_index,nullptr);
             }
         }
         if (mesh)
@@ -870,7 +770,6 @@ namespace mbm
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
-            vertex.ls_normal      = new float[sizeVertexBuffer];
             vertex.ls_uv          = new float[sizeUv];
             for (unsigned int p = 0, uv = 0; p < sizeVertexBuffer; p += 3, uv += 2)
             {
@@ -895,45 +794,6 @@ namespace mbm
                     vertex.ls_uv[uv]     = autoVertex->ls_uv[uv];
                     vertex.ls_uv[uv + 1] = autoVertex->ls_uv[uv + 1];
                 }
-                if (autoVertex->ls_normal)
-                {
-                    vertex.ls_normal[p]     = autoVertex->ls_normal[p];
-                    vertex.ls_normal[p + 1] = autoVertex->ls_normal[p + 1];
-                    vertex.ls_normal[p + 2] = autoVertex->ls_normal[p + 2];
-                }
-            }
-            if (autoVertex->ls_normal == nullptr)
-            {
-                // recalcula as normais
-                for (unsigned int i = 0; (i + 8) < sizeVertexBuffer; i += 9)
-                {
-                    const unsigned int index0 = i;
-                    const unsigned int index1 = i + 3;
-                    const unsigned int index2 = i + 6;
-                    VEC3   a, b, n;
-                    a.x = vertex.ls_xyz[index1] - vertex.ls_xyz[index0];
-                    a.y = vertex.ls_xyz[index1 + 1] - vertex.ls_xyz[index0 + 1];
-                    a.z = vertex.ls_xyz[index1 + 2] - vertex.ls_xyz[index0 + 2];
-
-                    b.x = vertex.ls_xyz[index2] - vertex.ls_xyz[index0];
-                    b.y = vertex.ls_xyz[index2 + 1] - vertex.ls_xyz[index0 + 1];
-                    b.z = vertex.ls_xyz[index2 + 2] - vertex.ls_xyz[index0 + 2];
-
-                    vec3Cross(&n, &a, &b);
-                    vec3Normalize(&n, &n);
-
-                    vertex.ls_normal[index0]     = n.x;
-                    vertex.ls_normal[index0 + 1] = n.y;
-                    vertex.ls_normal[index0 + 2] = n.z;
-
-                    vertex.ls_normal[index1]     = n.x;
-                    vertex.ls_normal[index1 + 1] = n.y;
-                    vertex.ls_normal[index1 + 2] = n.z;
-
-                    vertex.ls_normal[index2]     = n.x;
-                    vertex.ls_normal[index2 + 1] = n.y;
-                    vertex.ls_normal[index2 + 2] = n.z;
-                }
             }
         }
         else
@@ -942,7 +802,6 @@ namespace mbm
             vMin.z                = 0;
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
-            vertex.ls_normal      = new float[sizeVertexBuffer];
             vertex.ls_uv          = new float[sizeUv];
             for (unsigned int p = 0, j = 0, uv = 0, s = 0; s < sizeVertexBuffer; p += 3, j += 2, uv += 2, s += 3)
             {
@@ -963,9 +822,6 @@ namespace mbm
                     vertex.ls_uv[uv]     = autoVertex->ls_uv[uv];
                     vertex.ls_uv[uv + 1] = autoVertex->ls_uv[uv + 1];
                 }
-                vertex.ls_normal[p]     = 0;
-                vertex.ls_normal[p + 1] = 0;
-                vertex.ls_normal[p + 2] = -1;
             }
         }
         if (autoVertex->ls_uv == nullptr)
@@ -978,7 +834,7 @@ namespace mbm
                 vertex.ls_uv[uv + 1] = 1.0f - ((vertex.ls_xyz[p + 1] - vMin.y) / height);
             }
         }
-        mesh = mehManager->load(nickName, vertex.ls_xyz, vertex.ls_normal, vertex.ls_uv, sizeVertexBuffer,info_draw_mode);
+        mesh = mehManager->load(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer,info_draw_mode);
         if (mesh)
         {
             this->position += mesh->positionOffset;
@@ -1059,7 +915,6 @@ namespace mbm
         {
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
-            vertex.ls_normal      = new float[sizeVertexBuffer];
             vertex.ls_uv          = new float[sizeUv];
             for (unsigned int p = 0, uv = 0; p < sizeVertexBuffer; p += 3, uv += 2)
             {
@@ -1084,45 +939,6 @@ namespace mbm
                     vertex.ls_uv[uv]     = autoVertex->ls_uv[uv];
                     vertex.ls_uv[uv + 1] = autoVertex->ls_uv[uv + 1];
                 }
-                if (autoVertex->ls_normal)
-                {
-                    vertex.ls_normal[p]     = autoVertex->ls_normal[p];
-                    vertex.ls_normal[p + 1] = autoVertex->ls_normal[p + 1];
-                    vertex.ls_normal[p + 2] = autoVertex->ls_normal[p + 2];
-                }
-            }
-            if (autoVertex->ls_normal == nullptr)
-            {
-                // recalcula as normais
-                for (unsigned int i = 0; (i + 8) < sizeVertexBuffer; i += 9)
-                {
-                    const unsigned int index0 = i;
-                    const unsigned int index1 = i + 3;
-                    const unsigned int index2 = i + 6;
-                    VEC3   a, b, n;
-                    a.x = vertex.ls_xyz[index[index1]] - vertex.ls_xyz[index[index0]];
-                    a.y = vertex.ls_xyz[index[index1 + 1]] - vertex.ls_xyz[index[index0 + 1]];
-                    a.z = vertex.ls_xyz[index[index1 + 2]] - vertex.ls_xyz[index[index0 + 2]];
-
-                    b.x = vertex.ls_xyz[index[index2]] - vertex.ls_xyz[index[index0]];
-                    b.y = vertex.ls_xyz[index[index2 + 1]] - vertex.ls_xyz[index[index0 + 1]];
-                    b.z = vertex.ls_xyz[index[index2 + 2]] - vertex.ls_xyz[index[index0 + 2]];
-
-                    vec3Cross(&n, &a, &b);
-                    vec3Normalize(&n, &n);
-
-                    vertex.ls_normal[index[index0]]     = n.x;
-                    vertex.ls_normal[index[index0 + 1]] = n.y;
-                    vertex.ls_normal[index[index0 + 2]] = n.z;
-
-                    vertex.ls_normal[index[index1]]     = n.x;
-                    vertex.ls_normal[index[index1 + 1]] = n.y;
-                    vertex.ls_normal[index[index1 + 2]] = n.z;
-
-                    vertex.ls_normal[index[index2]]     = n.x;
-                    vertex.ls_normal[index[index2 + 1]] = n.y;
-                    vertex.ls_normal[index[index2 + 2]] = n.z;
-                }
             }
         }
         else
@@ -1131,7 +947,6 @@ namespace mbm
             vMin.z                = 0;
             const unsigned sizeUv = (sizeVertexBuffer / 3) * 2;
             vertex.ls_xyz         = new float[sizeVertexBuffer];
-            vertex.ls_normal      = new float[sizeVertexBuffer];
             vertex.ls_uv          = new float[sizeUv];
             for (unsigned int p = 0, j = 0, uv = 0, s = 0; s < sizeVertexBuffer; p += 3, j += 2, uv += 2, s += 3)
             {
@@ -1152,9 +967,6 @@ namespace mbm
                     vertex.ls_uv[uv]     = autoVertex->ls_uv[uv];
                     vertex.ls_uv[uv + 1] = autoVertex->ls_uv[uv + 1];
                 }
-                vertex.ls_normal[p]     = 0;
-                vertex.ls_normal[p + 1] = 0;
-                vertex.ls_normal[p + 2] = -1;
             }
         }
         if (autoVertex->ls_uv == nullptr)
@@ -1167,7 +979,7 @@ namespace mbm
                 vertex.ls_uv[uv + 1] = 1.0f - ((vertex.ls_xyz[p + 1] - vMin.y) / height);
             }
         }
-        mesh = mehManager->loadIndex(nickName, vertex.ls_xyz, vertex.ls_normal, vertex.ls_uv, sizeVertexBuffer, index,autoVertex->sizeIndex,info_draw_mode);
+        mesh = mehManager->loadIndex(nickName, vertex.ls_xyz, nullptr, vertex.ls_uv, sizeVertexBuffer, index,autoVertex->sizeIndex,info_draw_mode);
         if (mesh)
         {
             this->position += mesh->positionOffset;
@@ -1254,20 +1066,12 @@ namespace mbm
                     if(onRenderDynamicBuffer)
                     {
                         const auto last_size_vertex = dynamicVertex.size();
-                        const auto last_size_normal = dynamicNormal.size();
                         const auto last_size_uv     = dynamicUV.size();
-                        onRenderDynamicBuffer(this, dynamicVertex,dynamicNormal,dynamicUV,dynamicIndex);
+                        onRenderDynamicBuffer(this, dynamicVertex,dynamicUV,dynamicIndex);
                         if(dynamicVertex.size() != last_size_vertex)
                         {
                             ERROR_LOG("Size of dynamic vertex changed detected. Aborting...");
                             ERROR_LOG("Resizing the vertex is not allowed.");
-                            mesh = nullptr;
-                            return false;
-                        }
-                        if(dynamicNormal.size() != last_size_normal)
-                        {
-                            ERROR_LOG("Size of dynamic normal changed detected. Aborting...");
-                            ERROR_LOG("Resizing the normal is not allowed.");
                             mesh = nullptr;
                             return false;
                         }
@@ -1293,20 +1097,12 @@ namespace mbm
             if(this->alwaysRenderize && this->dynamicVertex.size() > 0 && onRenderDynamicBuffer)
             {
                 const auto last_size_vertex = dynamicVertex.size();
-                const auto last_size_normal = dynamicNormal.size();
                 const auto last_size_uv     = dynamicUV.size();
-                onRenderDynamicBuffer(this, dynamicVertex,dynamicNormal,dynamicUV,dynamicIndex);
+                onRenderDynamicBuffer(this, dynamicVertex,dynamicUV,dynamicIndex);
                 if(dynamicVertex.size() != last_size_vertex)
                 {
                     ERROR_LOG("Size of dynamic vertex changed detected. Aborting...");
                     ERROR_LOG("Resizing the vertex is not allowed.");
-                    mesh = nullptr;
-                    return false;
-                }
-                if(dynamicNormal.size() != last_size_normal)
-                {
-                    ERROR_LOG("Size of dynamic normal changed detected. Aborting...");
-                    ERROR_LOG("Resizing the normal is not allowed.");
                     mesh = nullptr;
                     return false;
                 }
@@ -1348,7 +1144,7 @@ namespace mbm
                 {
                     if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
-                                                reinterpret_cast<VEC3 *>(this->dynamicNormal.data()),
+                                                nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),
                                                 animation->fx.textureOverrideStage2))
                         return false;
@@ -1357,7 +1153,7 @@ namespace mbm
                 {
                     if (!mesh->renderDynamic(static_cast<unsigned int>(animation->indexCurrentFrame), &animation->fx.shader,
                                                 reinterpret_cast<VEC3 *>(this->dynamicVertex.data()), 
-                                                reinterpret_cast<VEC3 *>(this->dynamicNormal.data()),
+                                                nullptr,
                                                 reinterpret_cast<VEC2 *>(this->dynamicUV.data()),0))
                         return false;
                 }

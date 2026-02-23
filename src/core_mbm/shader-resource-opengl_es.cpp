@@ -478,7 +478,7 @@ namespace mbm
     "   gl_FragColor = vec4(max(tex.r,color.r),max(tex.g,color.g),max(tex.b,color.b),tex.a);\n"
     "}\n",
 
-    "[ps-tint.ps] = color it.ps\n"
+    "[ps-tint.ps] = tint.ps\n"
     "[ps-tint.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
 
     // color it **********************

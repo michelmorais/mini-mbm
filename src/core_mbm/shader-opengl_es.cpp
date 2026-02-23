@@ -803,7 +803,7 @@ namespace mbm
             GLEnableVertexAttribArray(gles_shaderSpecific->positionHandle);
             GLVertexAttribPointer(gles_shaderSpecific->positionHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), vertex);
             //-----------------------------------------------------------------------------------------------------------
-            if (gles_shaderSpecific->normalHandle != -1)
+            if (gles_shaderSpecific->normalHandle != -1 && normal)
             {
                 GLEnableVertexAttribArray(gles_shaderSpecific->normalHandle);
                 GLVertexAttribPointer(gles_shaderSpecific->normalHandle, 3, GL_FLOAT, GL_FALSE, sizeof(VEC3), normal);

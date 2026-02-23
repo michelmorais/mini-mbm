@@ -132,14 +132,14 @@ namespace mbm
             if (infoShape && infoShape->dynamicVertex)
             {
                 pPosition = infoShape->dynamicVertex;
-                pNormal = infoShape->dynamicNormal;
-                pTexture = infoShape->dynamicNormal;
-                is_dynamic_shape = pPosition != nullptr && pNormal != nullptr && pTexture != nullptr;
+                pNormal = (infoShape->size_normal > 0) ? infoShape->dynamicNormal : nullptr;
+                pTexture = infoShape->dynamicUV;
+                is_dynamic_shape = pPosition != nullptr && pTexture != nullptr;
                 if (is_dynamic_shape == false)
-                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has nullptr [%s]", meshMemory->getFilenameMesh());
+                    return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has nullptr (vertex or uv) [%s]", meshMemory->getFilenameMesh());
                 if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_vertex / 3))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent vertex buffer [%s] sizeVertexBuffer: [%d] size_vertex [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_vertex);
-                if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_normal / 3))
+                if (infoShape->size_normal > 0 && headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_normal / 3))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent normal buffer [%s] sizeVertexBuffer: [%d] size_normal [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_normal);
                 if (headerFrame->sizeVertexBuffer != static_cast<int>(infoShape->size_uv / 2))
                     return log_util::onFailed(nullptr, __FILE__, __LINE__, "Dynamic shape has inconsistent uv buffer [%s] sizeVertexBuffer: [%d] size_uv [%d] ", meshMemory->getFilenameMesh(), headerFrame->sizeVertexBuffer, infoShape->size_uv);

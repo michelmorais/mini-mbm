@@ -45,7 +45,7 @@ namespace mbm
 
     "TODO",
 
-    "[ps-tint.ps] = color it.ps\n"
+    "[ps-tint.ps] = tint.ps\n"
     "[ps-tint.ps][rgb][color]           = min 0.0 0.0 0.0     max 1.0 1.0 1.0     default 1.0 0.0 0.0 \n",
 
     // color it **********************
