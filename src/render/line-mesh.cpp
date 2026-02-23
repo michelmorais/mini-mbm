@@ -143,26 +143,21 @@ namespace mbm
     
     unsigned int LINE_MESH::add(std::vector<VEC3> && arrayLines)
     {
-        
-        if (this->lsLines.size() == 0)
+        auto myLine = new MY_LINES();
+        if (!myLine->setLines(std::move(arrayLines), is2dS))
+        {
+            delete myLine;
+            return 0xffffffff;
+        }
+        this->lsLines.push_back(myLine);
+        if (this->lsLines.size() == 1)
         {
             if (this->createAnimationAndShader2Line() == false)
             {
                 return 0xffffffff;
             }
         }
-        auto myLine = new MY_LINES();
-        if (myLine->setLines(std::move(arrayLines), is2dS))
-        {
-            this->lsLines.push_back(myLine);
-            const auto index = static_cast<unsigned int>(this->lsLines.size() - 1);
-            return index;
-        }
-        else
-        {
-            delete myLine;
-            return 0xffffffff;
-        }
+        return static_cast<unsigned int>(this->lsLines.size() - 1);
     }
     
     unsigned int LINE_MESH::getTotalLines() const

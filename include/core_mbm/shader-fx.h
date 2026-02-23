@@ -37,7 +37,7 @@ namespace mbm
         API_IMPL FX() noexcept;
         API_IMPL virtual ~FX();
         
-        API_IMPL bool loadNewShader(SHADER_CFG *pShaderCfg, SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs, const TYPE_ANIMATION typeVs, const float timeAnimVs, FVF_PROVIDE_BY_ENGINE fvf = FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV);
+        API_IMPL bool loadNewShader(SHADER_CFG *pShaderCfg, SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs, const TYPE_ANIMATION typeVs, const float timeAnimVs, FVF_PROVIDE_BY_ENGINE fvf = FVF_PROVIDE_BY_ENGINE::FVF_POS_UV);
         API_IMPL bool setVarPShader(const char *varName,const float data[4]);
         API_IMPL bool setMaxVarPShader(const char *varName,const  float data[4]);
         API_IMPL bool setMinVarPShader(const char *varName,const  float data[4]);

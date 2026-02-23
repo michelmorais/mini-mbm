@@ -153,7 +153,6 @@ namespace mbm
         if(backGroundMap.isLoadedBuffer() == false)
         {
             VEC3 vertex[4];
-            VEC3 normal[4];
             VEC2 uv[4];
             int indexStart = 0;
             int indexCount = 6;
@@ -174,12 +173,7 @@ namespace mbm
             vertex[3].x = x;
             vertex[3].y = y;
             vertex[3].z = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
+
             uv[0].x = 0;
             uv[0].y = 1;
             uv[1].x = 0;
@@ -190,7 +184,7 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            if(backGroundMap.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
+            if(backGroundMap.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
             {
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;

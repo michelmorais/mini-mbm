@@ -145,11 +145,10 @@ namespace mbm
                 int             indexStart = 0;
                 int             indexCount = 6;
                 VEC3            _position[4];
-                VEC3            normal[4];
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
-                this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
-                if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                this->fillvertexQuad(_position, nullptr, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
+                if (this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
                     this->bufferGL.setTextureByStage(this->texture, 0, 0 );
                 }
