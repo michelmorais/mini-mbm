@@ -22,6 +22,10 @@
 #include <blend.h>
 #include <specific-opengl_es.h>
 #include <shader-fx.h>
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+// needed GL_MIN / GL_MAX definitions
+#include <../third-party/gles/GLES3/gl3.h>
+#endif
 
 namespace mbm
 {
