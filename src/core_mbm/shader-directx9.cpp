@@ -30,6 +30,7 @@
 #include <texture-manager.h>
 #include <particle-control.h>
 #include <shader-resource.h>
+#include <unordered_set>
 
 namespace mbm
 {
@@ -748,6 +749,15 @@ namespace mbm
         const int sizeOfCodeVS = strlen(codeVS);
 #if defined _DEBUG
         constexpr DWORD flag = D3DXSHADER_DEBUG;
+        if (ptrPshader)
+        {
+            static std::unordered_set<std::string> pixel_used;
+            auto it = pixel_used.insert(ptrPshader->fileName);
+            if (it.second)
+            {
+                INFO_AT(__LINE__, __FILE__, "Pixel Shader used %s", ptrPshader->fileName.c_str());
+            }
+        }
 #else
         constexpr DWORD flag = D3DXSHADER_SKIPVALIDATION;
 #endif
