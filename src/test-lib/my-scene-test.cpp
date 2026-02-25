@@ -40,6 +40,7 @@ MY_SCENE::MY_SCENE()
     fontDraw        = nullptr;
     hmd             = nullptr;
     tile            = nullptr;
+    texture         = nullptr;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -70,6 +71,8 @@ MY_SCENE::~MY_SCENE()
 		delete hmd;
     if (tile)
         delete tile;
+    if (texture)
+        delete texture;
 }
 
 void MY_SCENE::startLoading()
@@ -158,7 +161,54 @@ void MY_SCENE::init()
     sprite->load("pie.spt");
     sprite->alwaysRenderize = true;
     sprite->position.z = 1;
-    
+
+    //texture = new mbm::TEXTURE_VIEW(this,false, false);
+    //if (texture->load("pie.png"))
+    //{
+    //    INFO_LOG("Pie texture loaded");
+    //    mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
+    //    if (pShaderCfgPie)
+    //    {
+    //        INFO_LOG("Pie shader found in the resource ...");
+    //        mbm::FX* fx = texture->getFx();
+    //        if (fx)
+    //        {
+    //            INFO_LOG(" Applying shader pie to texture");
+    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+    //            {
+    //                INFO_LOG("Shader pie applyied sucessfully to texture");
+    //                //float dataPercent[4]   = { 0, 0, 0, 0 };
+    //                //float dataAngle[4]     = { 0, 0, 0, 0 };
+    //                //float dataClockwise[4] = { 1, 0, 0, 0 };
+    //                //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+    //                //    INFO_LOG("Min shader values applied to pie");
+    //                //{
+    //                //    INFO_LOG("Min shader values applied to pie");
+    //                //}
+    //                //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+    //                //{
+    //                //    INFO_LOG("Max shader values applied to pie");
+    //                //}
+    //                //texture->restartAnimation();
+    //            }
+    //
+    //            /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
+    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+    //            {
+    //                INFO_LOG("Shader pie applyied sucessfully to texture");
+    //                float dataPercent[4] = { 0, 0, 0, 0 };
+    //                float dataAngle[4] = { 0, 0, 0, 0 };
+    //                float dataClockwise[4] = { 1, 0, 0, 0 };
+    //                if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+    //                    INFO_LOG("Min shader values applied to pie");
+    //                if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+    //                    INFO_LOG("Max shader values applied to pie");
+    //                texture->restartAnimation();
+    //            }*/
+    //        }
+    //    }
+    //}
+    //
     
     //**************
     //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails
@@ -295,17 +345,31 @@ void MY_SCENE::logic()
     }
     if (sprite)
     {
-        //auto fx = sprite->getFx();
-        //if (fx)
-        //{
-        //    float              data[4] = { 0,0,0,0 };
-        //    fx->getVarPShader("percent", data);
-        //    INFO_LOG("data : %g", data[0]);
-        //    //data[0] += 0.01f;
-        //    //if (data[0] > 1.0f)
-        //    //    data[0] = 0.0f;
-        //    //fx->setVarPShader("percent", data);
-		//}
+        auto fx = sprite->getFx();
+        if (fx)
+        {
+            float data[4] = { 0, 0, 0, 0 };
+            fx->getVarPShader("percent", data);
+            INFO_LOG("data : %g", data[0]);
+            //data[0] += 0.01f;
+            //if (data[0] > 1.0f)
+            //    data[0] = 0.0f;
+            //fx->setVarPShader("percent", data);
+		}
+    }
+    if (texture)
+    {
+        auto fx = texture->getFx();
+        if (fx)
+        {
+            float data[4] = { 0, 0, 0, 0 };
+            fx->getVarPShader("percent", data);
+            INFO_LOG("data : %g", data[0]);
+            //data[0] += 0.01f;
+            //if (data[0] > 1.0f)
+            //    data[0] = 0.0f;
+            //fx->setVarPShader("percent", data);
+        }
     }
 }
 
@@ -319,9 +383,8 @@ void MY_SCENE::onTouchDown(int key, float, float)
             auto fx = sprite->getFx();
             if (fx)
             {
-                float              data[4] = { 0,0,0,0 };
+                float data[4] = { 0, 0, 0, 0 };
                 fx->setVarPShader("percent", data);
-
             }
         }
         else

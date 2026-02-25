@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>USE_DIRECTX9;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_OPENGL_ES;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;AUDIO_ENGINE_AUDIERE;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeaderFile />
@@ -305,7 +305,6 @@
     <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-resource-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-resource-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-resource-opengl_es.cpp" />
@@ -337,8 +336,6 @@
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-directx9.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-dummy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp" />
     <ClCompile Include="..\..\src\core_mbm\texture-manager-dummy.cpp" />
     <ClCompile Include="..\..\src\platform\win32-platform.cpp" />

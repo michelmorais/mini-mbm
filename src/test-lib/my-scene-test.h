@@ -55,6 +55,7 @@ class MY_SCENE : public mbm::SCENE
 	mbm::MESH_MBM_DEBUG meshDebug;
 	mbm::HMD* hmd;
 	mbm::TILE* tile;
+    mbm::TEXTURE_VIEW* texture;
     bool randomizeParticleEachLoop;
 
 	void randomSteeredParticlePositions();

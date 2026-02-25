@@ -170,7 +170,7 @@ namespace mbm
         std::vector<VAR_SHADER *> *getVars();
       private:
         bool isThereVarIntoLsVars(const char *nameVar);
-        void update(void* ptrShaderSpecific);
+        void update(void* ptrShaderSpecific) const;
       protected:
         std::vector<VAR_SHADER *> lsVar;
         std::string        stringCodeShader;

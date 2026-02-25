@@ -30,6 +30,7 @@
 #include <texture-manager.h>
 #include <particle-control.h>
 #include <shader-resource.h>
+#include <unordered_set>
 
 namespace mbm
 {
@@ -591,7 +592,7 @@ namespace mbm
         return false;
     }
 
-    void BASE_SHADER::update(void * ptrShaderSpecific)
+    void BASE_SHADER::update(void * ptrShaderSpecific) const
     {
         const D3D_PS_VS* d3dPsVs = static_cast<const D3D_PS_VS*>(ptrShaderSpecific);
         if (d3dPsVs->pd3dPixelShader == nullptr && d3dPsVs->pd3dVertexShader == nullptr) // simple check
@@ -748,6 +749,15 @@ namespace mbm
         const int sizeOfCodeVS = strlen(codeVS);
 #if defined _DEBUG
         constexpr DWORD flag = D3DXSHADER_DEBUG;
+        if (ptrPshader)
+        {
+            static std::unordered_set<std::string> pixel_used;
+            auto it = pixel_used.insert(ptrPshader->fileName);
+            if (it.second)
+            {
+                INFO_AT(__LINE__, __FILE__, "Pixel Shader used %s", ptrPshader->fileName.c_str());
+            }
+        }
 #else
         constexpr DWORD flag = D3DXSHADER_SKIPVALIDATION;
 #endif
@@ -870,8 +880,6 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
                 return false;
             }
-            //D3DXHANDLE psamplerHandle0 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
-            //D3DXHANDLE psamplerHandle1 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
         }
         else
         {
@@ -903,7 +911,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -960,53 +975,28 @@ namespace mbm
                 return false;
             }
 
-            // SET RENDER STATES EARLY - before rendering anything
-            //pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-            //pd3dDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-            //pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-            //pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);  // Disable depth for sprites
-
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                // DEBUG: Log texture info
-                //PRINT_IF_DEBUG("Subset %u: texture0=%p, indexStart=%d, indexCount=%d",
-                //    i, texture0,
-                //    pBufferId->indexStartIB[i],
-                //    pBufferId->indexCountIB[i]);
-
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
-                    //PRINT_IF_DEBUG("  Texture pointer: %p", pp3DTexture9);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
-
-                    // ADD THIS - Set sampler states!
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-                    //pd3dDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-
-                    
                 }
                 else
                 {
-                    //PRINT_IF_DEBUG("  WARNING: texture0 is NULL!");
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
@@ -1090,6 +1080,18 @@ namespace mbm
                 pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
@@ -1103,18 +1105,6 @@ namespace mbm
                     pd3dDevice->SetTexture(0, nullptr);
                 }
 
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
-                }
-                    
                 switch (pBufferId->mode_draw)
                 {
                     case util::MODE_DRAW_POINTS:
@@ -1246,7 +1236,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1309,6 +1306,18 @@ namespace mbm
             const uint32_t totalAlive = particleControl->getTotalAlive();
             const VERTEX_UV* buffer = particleControl->getVertexBuffer();
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
@@ -1320,18 +1329,6 @@ namespace mbm
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
@@ -1524,7 +1521,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
+        // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
+        if (this->pShader)
+            this->pShader->update(this->ptrShaderSpecific);
+        if (this->vShader)
+            this->vShader->update(this->ptrShaderSpecific);
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1584,6 +1588,18 @@ namespace mbm
                 ? this->pShader->getVarByName("color")
                 : nullptr;
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
@@ -1595,18 +1611,6 @@ namespace mbm
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
