@@ -103,6 +103,17 @@ namespace mbm
         API_IMPL void setPath(const char *PathSource);
         API_IMPL bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                                   const uint32_t width, const uint32_t height, char *strMessageError);
+
+        // Decode PNG file to raw uint32_t array (0xRRGGBBAA). Used to regenerate .h resource files.
+        // Returns true on success. outData receives width*height pixels; outWidth/outHeight receive dimensions.
+        API_IMPL static bool generateImageFromPng(const char* pngPath,
+            std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
+            char* strMessageError = nullptr);
+
+        // Generate .h header file from PNG in IMAGE_RESOURCE format (e.g. mini-mbm-logo.h).
+        API_IMPL static bool generateImageResourceHeaderFromPng(const char* pngPath,
+            const char* outputHeaderPath, const char* resourceName,
+            uint32_t colorKey = 0xffffffff, char* strMessageError = nullptr);
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
         API_IMPL void setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound);

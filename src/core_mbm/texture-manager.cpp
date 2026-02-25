@@ -40,6 +40,7 @@
 
 #include <platform/mismatch-platform.h>
 #include <cstring>
+#include <cstdio>
 
 #if defined USE_EDITOR_FEATURES
     #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
@@ -721,6 +722,115 @@ namespace mbm
             return false;
         }
         lodepng::save_file(png, fileName);
+        return true;
+    }
+
+    bool TEXTURE_MANAGER::generateImageFromPng(const char* pngPath,
+        std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
+        char* strMessageError)
+    {
+        if (!pngPath)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "PNG path is null");
+            return false;
+        }
+        std::vector<uint8_t> image;
+        unsigned w = 0, h = 0;
+        unsigned error = lodepng::decode(image, w, h, pngPath, LCT_RGBA, 8);
+        if (error)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "PNG decode error [%s]", lodepng_error_text(error));
+            return false;
+        }
+        const uint32_t width = static_cast<uint32_t>(w);
+        const uint32_t height = static_cast<uint32_t>(h);
+        const size_t pixelCount = static_cast<size_t>(width) * height;
+        outData.resize(pixelCount);
+        for (size_t i = 0; i < pixelCount; ++i)
+        {
+            const size_t j = i * 4;
+            const uint8_t r = image[j];
+            const uint8_t g = image[j + 1];
+            const uint8_t b = image[j + 2];
+            const uint8_t a = image[j + 3];
+            outData[i] = (static_cast<uint32_t>(r) << 24) | (static_cast<uint32_t>(g) << 16)
+                | (static_cast<uint32_t>(b) << 8) | a;
+        }
+        outWidth = width;
+        outHeight = height;
+        return true;
+    }
+
+    bool TEXTURE_MANAGER::generateImageResourceHeaderFromPng(const char* pngPath,
+        const char* outputHeaderPath, const char* resourceName,
+        uint32_t colorKey, char* strMessageError)
+    {
+        std::vector<uint32_t> data;
+        uint32_t width = 0, height = 0;
+        if (!generateImageFromPng(pngPath, data, width, height, strMessageError))
+            return false;
+        if (!outputHeaderPath || !resourceName)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "output path or resource name is null");
+            return false;
+        }
+        FILE* fp = fopen(outputHeaderPath, "w");
+        if (!fp)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "failed to open output file [%s]", outputHeaderPath);
+            return false;
+        }
+        const uint32_t size = width * height;
+        fprintf(fp, "/*-----------------------------------------------------------------------------------------------------------------------|\n");
+        fprintf(fp, "| MIT License (MIT)                                                                                                      |\n");
+        fprintf(fp, "| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |\n");
+        fprintf(fp, "| documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation        |\n");
+        fprintf(fp, "| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |\n");
+        fprintf(fp, "| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |\n");
+        fprintf(fp, "| the Software.                                                                                                          |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE   |\n");
+        fprintf(fp, "| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |\n");
+        fprintf(fp, "| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |\n");
+        fprintf(fp, "| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "|-----------------------------------------------------------------------------------------------------------------------*/\n\n");
+        fprintf(fp, "#ifndef MY_RESOUCE_%s\n", resourceName);
+        fprintf(fp, "#define MY_RESOUCE_%s\n\n", resourceName);
+        fprintf(fp, "    #include <core_mbm/image-resource.h>\n\n");
+        fprintf(fp, "    static const char * nickNameImageFromResource_%s  = \"__%s\\0\";\n", resourceName, resourceName);
+        fprintf(fp, "    static const uint32_t widthImageFromResource_%s  = %u;\n", resourceName, width);
+        fprintf(fp, "    static const uint32_t heightImageFromResource_%s = %u;\n", resourceName, height);
+        fprintf(fp, "    static const uint32_t sizeImageFromResource_%s = %u;\n", resourceName, size);
+        fprintf(fp, "    static const uint32_t alphaImageFromResource_%s = 0x%08x;\n\n", resourceName, colorKey);
+        fprintf(fp, "    static const uint32_t imageFromResource_%s [] = {\n", resourceName);
+        constexpr int valuesPerLine = 22;
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            if (i > 0)
+            {
+                fprintf(fp, ",");
+                if (i % valuesPerLine == 0)
+                    fprintf(fp, "\n");
+            }
+            fprintf(fp, "0x%x", data[i]);
+        }
+        fprintf(fp, "\n};\n");
+        fprintf(fp, "namespace mbm\n");
+        fprintf(fp, "{\n");
+        fprintf(fp, "    const IMAGE_RESOURCE resource_%s(widthImageFromResource_%s,heightImageFromResource_%s,sizeImageFromResource_%s,nickNameImageFromResource_%s,imageFromResource_%s,alphaImageFromResource_%s);\n",
+            resourceName, resourceName, resourceName, resourceName, resourceName, resourceName, resourceName);
+        fprintf(fp, "}\n\n");
+        fprintf(fp, "#endif\n");
+        fclose(fp);
         return true;
     }
     
