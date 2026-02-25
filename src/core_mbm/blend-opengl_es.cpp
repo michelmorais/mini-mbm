@@ -19,6 +19,7 @@
 
 
 #if defined(USE_OPENGL_ES)
+
 #include <blend.h>
 #include <specific-opengl_es.h>
 #include <shader-fx.h>
