@@ -153,62 +153,62 @@ void MY_SCENE::init()
     //}
     
     
-    //sprite = new mbm::SPRITE(this, false, false);
+    sprite = new mbm::SPRITE(this, false, false);
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
 
-    //sprite->load("pie.spt");
-    //sprite->alwaysRenderize = true;
-    //sprite->position.z = 1;
+    sprite->load("pie.spt");
+    sprite->alwaysRenderize = true;
+    sprite->position.z = 1;
 
-    texture = new mbm::TEXTURE_VIEW(this,false, false);
-    if (texture->load("pie.png"))
-    {
-        INFO_LOG("Pie texture loaded");
-        mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
-        if (pShaderCfgPie)
-        {
-            INFO_LOG("Pie shader found in the resource ...");
-            mbm::FX* fx = texture->getFx();
-            if (fx)
-            {
-                INFO_LOG(" Applying shader pie to texture");
-                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
-                {
-                    INFO_LOG("Shader pie applyied sucessfully to texture");
-                    float dataPercent[4]   = { 0, 0, 0, 0 };
-                    float dataAngle[4]     = { 0, 0, 0, 0 };
-                    float dataClockwise[4] = { 1, 0, 0, 0 };
-                    if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-                        INFO_LOG("Min shader values applied to pie");
-                    {
-                        INFO_LOG("Min shader values applied to pie");
-                    }
-                    if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-                    {
-                        INFO_LOG("Max shader values applied to pie");
-                    }
-                    texture->restartAnimation();
-                }
-
-                /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
-                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
-                {
-                    INFO_LOG("Shader pie applyied sucessfully to texture");
-                    float dataPercent[4] = { 0, 0, 0, 0 };
-                    float dataAngle[4] = { 0, 0, 0, 0 };
-                    float dataClockwise[4] = { 1, 0, 0, 0 };
-                    if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-                        INFO_LOG("Min shader values applied to pie");
-                    if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-                        INFO_LOG("Max shader values applied to pie");
-                    texture->restartAnimation();
-                }*/
-            }
-        }
-    }
-    
+    //texture = new mbm::TEXTURE_VIEW(this,false, false);
+    //if (texture->load("pie.png"))
+    //{
+    //    INFO_LOG("Pie texture loaded");
+    //    mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
+    //    if (pShaderCfgPie)
+    //    {
+    //        INFO_LOG("Pie shader found in the resource ...");
+    //        mbm::FX* fx = texture->getFx();
+    //        if (fx)
+    //        {
+    //            INFO_LOG(" Applying shader pie to texture");
+    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+    //            {
+    //                INFO_LOG("Shader pie applyied sucessfully to texture");
+    //                //float dataPercent[4]   = { 0, 0, 0, 0 };
+    //                //float dataAngle[4]     = { 0, 0, 0, 0 };
+    //                //float dataClockwise[4] = { 1, 0, 0, 0 };
+    //                //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+    //                //    INFO_LOG("Min shader values applied to pie");
+    //                //{
+    //                //    INFO_LOG("Min shader values applied to pie");
+    //                //}
+    //                //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+    //                //{
+    //                //    INFO_LOG("Max shader values applied to pie");
+    //                //}
+    //                //texture->restartAnimation();
+    //            }
+    //
+    //            /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
+    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+    //            {
+    //                INFO_LOG("Shader pie applyied sucessfully to texture");
+    //                float dataPercent[4] = { 0, 0, 0, 0 };
+    //                float dataAngle[4] = { 0, 0, 0, 0 };
+    //                float dataClockwise[4] = { 1, 0, 0, 0 };
+    //                if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+    //                    INFO_LOG("Min shader values applied to pie");
+    //                if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+    //                    INFO_LOG("Max shader values applied to pie");
+    //                texture->restartAnimation();
+    //            }*/
+    //        }
+    //    }
+    //}
+    //
     
     //**************
     //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails
