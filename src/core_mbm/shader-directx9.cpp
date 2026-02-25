@@ -880,8 +880,6 @@ namespace mbm
                 ERROR_AT(__LINE__, __FILE__, "Failed to set Pixel Shader");
                 return false;
             }
-            //D3DXHANDLE psamplerHandle0 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle0);
-            //D3DXHANDLE psamplerHandle1 = *static_cast<D3DXHANDLE*>(this->ptrSamplerHandle1);
         }
         else
         {
@@ -977,46 +975,28 @@ namespace mbm
                 return false;
             }
 
-            // SET RENDER STATES EARLY - before rendering anything
-            //pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-            //pd3dDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-            //pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-            //pd3dDevice->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);  // Disable depth for sprites
-
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                // DEBUG: Log texture info
-                //PRINT_IF_DEBUG("Subset %u: texture0=%p, indexStart=%d, indexCount=%d",
-                //    i, texture0,
-                //    pBufferId->indexStartIB[i],
-                //    pBufferId->indexCountIB[i]);
-
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
-                // Pixel shaders use sample0 (stage 0); sprites often set only stage 1. Use stage 1 for stage 0 when stage 0 is null.
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
-                else if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
@@ -1100,34 +1080,31 @@ namespace mbm
                 pBufferId->bs->sizeStructVertexInBytes)))//Tamanho Da Estrutura De Nosso Vertex
                 return false;
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
-                else if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
                 }
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
-                }
-                    
+
                 switch (pBufferId->mode_draw)
                 {
                     case util::MODE_DRAW_POINTS:
@@ -1329,32 +1306,29 @@ namespace mbm
             const uint32_t totalAlive = particleControl->getTotalAlive();
             const VERTEX_UV* buffer = particleControl->getVertexBuffer();
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
-                else if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
@@ -1614,32 +1588,29 @@ namespace mbm
                 ? this->pShader->getVarByName("color")
                 : nullptr;
 
+            // texture stage 1 (2nd stage are used in some special shaders, and they are not per subset, are per BUFFER_GL
+            TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
+            if (texture1)
+            {
+                IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
+                pd3dDevice->SetTexture(1, pp3DTexture9);
+            }
+            else
+            {
+                pd3dDevice->SetTexture(1, nullptr);
+            }
+
             for (uint32_t i = 0; i < pBufferId->totalSubset; ++i)
             {
                 TEXTURE* texture0 = pBufferId->getTextureByStage(0, i);
-                TEXTURE* texture1 = pBufferId->getTextureByStage(1, 0);
                 if (texture0)
                 {
                     IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture0->ptrTexture);
                     pd3dDevice->SetTexture(0, pp3DTexture9);
                 }
-                else if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(0, pp3DTexture9);
-                }
                 else
                 {
                     pd3dDevice->SetTexture(0, nullptr);
-                }
-                if (texture1)
-                {
-                    IDirect3DTexture9* pp3DTexture9 = static_cast<IDirect3DTexture9*>(texture1->ptrTexture);
-                    pd3dDevice->SetTexture(1, pp3DTexture9);
-                }
-                else
-                {
-                    pd3dDevice->SetTexture(1, nullptr);
                 }
 
                 //https://learn.microsoft.com/en-us/windows/win32/direct3d9/rendering-from-vertex-and-index-buffers
