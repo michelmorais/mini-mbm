@@ -22,6 +22,7 @@
 #include <blend.h>
 #include <specific-directx9.h>
 #include <device.h>
+#include <shader-fx.h>
 
 namespace mbm
 {
@@ -54,6 +55,45 @@ namespace mbm
             case BLEND_DESTCOLOR:   pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);      break;
             case BLEND_INVDESTCOLOR:pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVDESTCOLOR);   break;
             default: {}
+        }
+    }
+
+    void FX::setBlendDefaultOp()
+    {
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+    }
+
+    void FX::setBlendOp()
+    {
+        IDirect3DDevice9* pd3dDevice = mbm::DEVICE::getInstance()->specificContextDevice->pd3dDevice;
+        switch (blendOperation)
+        {
+        case 1: // D3DBLENDOP_ADD              = 1,
+        {
+            pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_ADD);
+        }
+        break;
+        case 2: // D3DBLENDOP_SUBTRACT         = 2,
+        {
+            pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_SUBTRACT);
+        }
+        break;
+        case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
+        {
+            pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_REVSUBTRACT);
+        }
+        break;
+        case 4: // D3DBLENDOP_MIN              = 4,
+        {
+            pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_MIN);
+        }
+        break;
+        case 5: // D3DBLENDOP_MAX              = 5,
+        {
+            pd3dDevice->SetRenderState(D3DRS_BLENDOP, D3DBLENDOP_MAX);
+        }
+        break;
         }
     }
 }

@@ -479,9 +479,6 @@
     <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-opengl_es.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
@@ -579,12 +576,6 @@
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\shader-dummy.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-directx9.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\shader-fx-dummy.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\texture-manager-directx9.cpp">

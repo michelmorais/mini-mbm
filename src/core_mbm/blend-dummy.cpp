@@ -18,6 +18,8 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <blend.h>
+#include "dummy-engine.h" // for compiler_message, you can remove it after implement the functions
+#include <specific-dummy.h> // replace with your specific backend engine header
 
 #if defined (USE_DUMMY_BACK_END_ENGINE)
 
@@ -52,6 +54,16 @@ namespace mbm
             case BLEND_INVDESTCOLOR: ;break;
             default:{}
         }
+    }
+
+    void FX::setBlendDefaultOp()
+    {
+        REMINDER_TODO
+    }
+
+    void FX::setBlendOp()
+    {
+        REMINDER_TODO
     }
 }
 
