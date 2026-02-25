@@ -913,13 +913,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
             this->pShader->update(this->ptrShaderSpecific);
         if (this->vShader)
             this->vShader->update(this->ptrShaderSpecific);
-
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1258,13 +1259,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
             this->pShader->update(this->ptrShaderSpecific);
         if (this->vShader)
             this->vShader->update(this->ptrShaderSpecific);
-
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
@@ -1545,13 +1547,14 @@ namespace mbm
                 return false;
             }
         }
-
+        #if defined DEBUG_SHADER_D3D_MINIMIZE_ERROR
+        // You might have problem with shader, untill now the flow works fine, but in case suspicios if the constants are lost..
         // Re-apply PS/VS constants after shaders are bound (D3D9 can lose constants otherwise, e.g. pie.ps)
         if (this->pShader)
             this->pShader->update(this->ptrShaderSpecific);
         if (this->vShader)
             this->vShader->update(this->ptrShaderSpecific);
-
+        #endif
         // There is no direct equivalent to the OpenGL constant GL_FRONT in DirectX 9, as the two APIs handle face culling and rendering differently.
         // In OpenGL, GL_FRONT is used to specify the front - facing polygons for operations like culling or lighting, 
         // but DirectX 9 does not use this specific constant or naming convention.
