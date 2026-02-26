@@ -23,6 +23,7 @@
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/scene.h>
 #include <core_mbm/shader-resource.h>
+#include <static-resource/resource-particle.h>
 
 #if (defined _DEBUG || defined DEBUG_RESTORE)
     #include <core_mbm/log-util.h>
@@ -214,6 +215,11 @@ namespace mbm
             return false;
         if (bufferGl.loadParticleBuffer() == false)
             return false;
+        if (fileNameTexture == nullptr)
+        {
+            this->texture = TEXTURE_MANAGER::getInstance()->load(&resource_particle);
+            fileNameTexture = nickNameImageFromResource_particle;
+        }
         this->texture = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
         if (this->texture)
         {

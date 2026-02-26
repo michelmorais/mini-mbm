@@ -25,6 +25,7 @@
 #include <shader-var-cfg.h>
 #include <core_mbm/scene.h>
 #include <shader-resource.h>
+#include <static-resource/resource-particle.h>
 
 
 
@@ -62,7 +63,11 @@ namespace mbm
 
         if (bufferGl.loadParticleBuffer() == false)
             return false;
-        fileNameTextureOrMesh = fileNameTextureOrMesh ? fileNameTextureOrMesh : "#FFFFFFFF";
+        if (fileNameTextureOrMesh == nullptr)
+        {
+            this->texture = TEXTURE_MANAGER::getInstance()->load(&resource_particle);
+            fileNameTextureOrMesh = nickNameImageFromResource_particle;
+        }
         operatorShader = operatorShader ? operatorShader : "*";
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh

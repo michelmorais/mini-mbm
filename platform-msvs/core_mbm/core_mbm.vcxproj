@@ -246,6 +246,7 @@
     <ClInclude Include="..\..\include\render\steered_particle.h" />
     <ClInclude Include="..\..\include\render\texture-view.h" />
     <ClInclude Include="..\..\include\render\tile.h" />
+    <ClInclude Include="..\..\include\static-resource\resource-particle.h" />
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
