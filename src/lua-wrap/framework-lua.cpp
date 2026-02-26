@@ -132,7 +132,29 @@ namespace mbm
         device->ptrManager->execute_system_cmd_thread(command.c_str());
         return 0;
     }
+
     #endif
+
+    int onGenerateImageResourceHeaderFromPng(lua_State *lua)
+    {
+        const char *pngPath = luaL_checkstring(lua,1);
+        const char *outputHeaderPath = luaL_checkstring(lua,2);
+        const char *resourceName = strrchr(outputHeaderPath, '/');
+        if (resourceName)
+            resourceName++;
+        else
+            resourceName = outputHeaderPath;
+        uint32_t colorKey = 0xffffffff;
+        if (lua_type(lua, 3) == LUA_TNUMBER)
+            colorKey = lua_tointeger(lua, 3);
+        char strMessageError[1024] = {0};
+        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, colorKey, strMessageError);
+        if(ret == false)
+            ERROR_LOG("%s",strMessageError);
+        lua_pushboolean(lua, ret);
+        return 1;
+    }
+    
 
     void lua_userdata_register(lua_State *lua,const int value)
     {
@@ -2490,7 +2512,8 @@ namespace mbm
             
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
             {"executeInThread", onExecuteInOtherThread},
-    #endif
+            #endif
+            {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
         device->scene       = scene;

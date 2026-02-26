@@ -1535,6 +1535,14 @@ function main_menu_texture_packer()
                 end
             end
 
+            local pressed,checked = tImGui.MenuItem("Generate Image Resource Header From Image (Png)", nil, false)
+            if pressed then
+                local sFileName = mbm.saveFile('','*.h')
+                if sFileName then
+                    mbm.generateImageResourceHeaderFromPng(sFileName, sFileName:sub(1,sFileName:len()-4) .. '.h', 0xffffffff)
+                end
+            end
+
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem("Save Texture configuration", "Ctrl+S", false)
             if pressed then

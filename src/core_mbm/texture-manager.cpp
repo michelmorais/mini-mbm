@@ -729,6 +729,7 @@ namespace mbm
         std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
         char* strMessageError)
     {
+        #if defined USE_EDITOR_FEATURES && !defined ANDROID
         if (!pngPath)
         {
             if (strMessageError)
@@ -761,12 +762,19 @@ namespace mbm
         outWidth = width;
         outHeight = height;
         return true;
+        #else
+        if (strMessageError)
+            sprintf(strMessageError, "editor features are not enabled");
+        INFO_AT(__LINE__,__FILE__,"editor features are not enabled");
+        return false;
+        #endif
     }
 
     bool TEXTURE_MANAGER::generateImageResourceHeaderFromPng(const char* pngPath,
         const char* outputHeaderPath, const char* resourceName,
         uint32_t colorKey, char* strMessageError)
     {
+        #if defined USE_EDITOR_FEATURES && !defined ANDROID
         std::vector<uint32_t> data;
         uint32_t width = 0, height = 0;
         if (!generateImageFromPng(pngPath, data, width, height, strMessageError))
@@ -832,6 +840,12 @@ namespace mbm
         fprintf(fp, "#endif\n");
         fclose(fp);
         return true;
+        #else
+        if (strMessageError)
+            sprintf(strMessageError, "editor features are not enabled");
+        INFO_AT(__LINE__,__FILE__,"editor features are not enabled");
+        return false;
+        #endif
     }
     
     TEXTURE_MANAGER::~TEXTURE_MANAGER()
