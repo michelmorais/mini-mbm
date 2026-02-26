@@ -22,7 +22,7 @@
 
     #include <core_mbm/image-resource.h>
 
-    static const char * nickNameImageFromResource_particle  = "__particle\0";
+    static const char * nickNameImageFromResource_particle  = "__particle_mbm";
     static const uint32_t widthImageFromResource_particle  = 256;
     static const uint32_t heightImageFromResource_particle = 256;
     static const uint32_t sizeImageFromResource_particle = 65536;

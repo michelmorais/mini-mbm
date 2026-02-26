@@ -25,6 +25,7 @@
 
 #include <lodepng/lodepng.h>
 #include <stb/stb-interface.h>
+#include <static-resource/resource-particle.h>
 
 #if defined ANDROID
     #include <device.h>
@@ -879,6 +880,16 @@ namespace mbm
             }
             if (!existPath)
             {
+                // If the file is the particle resource, load it and return the nick name
+                if(strcmp(fileName, nickNameImageFromResource_particle) == 0)
+                {
+                     TEXTURE *texture = this->load(&resource_particle);
+                     if(texture)
+                     {
+                        fullFileName = fileName;
+                        return nickNameImageFromResource_particle;
+                     }
+                }
     #if defined USE_EDITOR_FEATURES
         #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
