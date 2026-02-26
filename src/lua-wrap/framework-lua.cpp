@@ -139,17 +139,32 @@ namespace mbm
     {
         const char *pngPath = luaL_checkstring(lua,1);
         const char *outputHeaderPath = luaL_checkstring(lua,2);
-        const char *resourceName = strrchr(outputHeaderPath, '/');
-        if (resourceName)
-            resourceName++;
+        const char *fileName = strrchr(outputHeaderPath, '/');
+        if (fileName)
+            fileName++;
         else
-            resourceName = outputHeaderPath;
-        uint32_t colorKey = 0xffffffff;
-        if (lua_type(lua, 3) == LUA_TNUMBER)
-            colorKey = lua_tointeger(lua, 3);
+            fileName = outputHeaderPath;
+        // Extract resource name: "resource-particle.h" -> "particle", "particle.h" -> "particle"
+        static char resourceNameBuf[256];
+        const char *dot = strrchr(fileName, '.');
+        size_t nameLen;
+        const char *nameStart;
+        if (strncmp(fileName, "resource-", 9) == 0)
+        {
+            nameStart = fileName + 9;
+            nameLen = dot ? (size_t)(dot - nameStart) : strlen(nameStart);
+        }
+        else
+        {
+            nameStart = fileName;
+            nameLen = dot ? (size_t)(dot - fileName) : strlen(fileName);
+        }
+        size_t copyLen = nameLen < sizeof(resourceNameBuf) - 1 ? nameLen : sizeof(resourceNameBuf) - 1;
+        memcpy(resourceNameBuf, nameStart, copyLen);
+        resourceNameBuf[copyLen] = '\0';
+        const char *resourceName = resourceNameBuf;
         char strMessageError[1024] = {0};
-        INFO_LOG("generateImageResourceHeaderFromPng: %s, %s, %s, %d", pngPath, outputHeaderPath, resourceName, colorKey);
-        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, colorKey, strMessageError);
+        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, strMessageError);
         if(ret == false)
             ERROR_LOG("%s",strMessageError);
         lua_pushboolean(lua, ret);

@@ -105,9 +105,10 @@ namespace mbm
                                   const uint32_t width, const uint32_t height, char *strMessageError);
 
         // Generate .h header file from PNG in IMAGE_RESOURCE format (e.g. mini-mbm-logo.h).
+        // Uses alpha channel from PNG; no color keying.
         API_IMPL static bool generateImageResourceHeaderFromPng(const char* pngPath,
             const char* outputHeaderPath, const char* resourceName,
-            uint32_t colorKey = 0xffffffff, char* strMessageError = nullptr);
+            char* strMessageError = nullptr);
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
         API_IMPL void setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound);

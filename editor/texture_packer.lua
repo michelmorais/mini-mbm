@@ -1543,7 +1543,7 @@ function main_menu_texture_packer()
                         if sFileNameTexture  and tTexturesToEditor[i].isSelected then
                             local sFileName = mbm.saveFile(tUtil.getShortName(sFileNameTexture):split('%.')[1] .. '.h','*.h')
                             if sFileName then
-                                if not mbm.generateImageResourceHeaderFromPng(sFileNameTexture, sFileName, 0xffffffff) then
+                                if not mbm.generateImageResourceHeaderFromPng(sFileNameTexture, sFileName) then
                                     tUtil.showMessageWarn('Failed to Generate Image Resource Header!')
                                 else
                                     tUtil.showMessage(string.format('Image Resource Header Generated Successfully! %s', sFileName))

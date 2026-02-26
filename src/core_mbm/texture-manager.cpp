@@ -448,6 +448,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             lsTextures[texture->fileName] = texture;
+            texture->useAlphaChannel = true;
         }
         else
         {
@@ -749,6 +750,7 @@ namespace mbm
         const uint32_t height = static_cast<uint32_t>(h);
         const size_t pixelCount = static_cast<size_t>(width) * height;
         outData.resize(pixelCount);
+        // Store as RGBA in memory (R at lowest address) to match OpenGL GL_RGBA and DirectX expectations
         for (size_t i = 0; i < pixelCount; ++i)
         {
             const size_t j = i * 4;
@@ -756,8 +758,8 @@ namespace mbm
             const uint8_t g = image[j + 1];
             const uint8_t b = image[j + 2];
             const uint8_t a = image[j + 3];
-            outData[i] = (static_cast<uint32_t>(r) << 24) | (static_cast<uint32_t>(g) << 16)
-                | (static_cast<uint32_t>(b) << 8) | a;
+            outData[i] = r | (static_cast<uint32_t>(g) << 8) | (static_cast<uint32_t>(b) << 16)
+                | (static_cast<uint32_t>(a) << 24);
         }
         outWidth = width;
         outHeight = height;
@@ -767,7 +769,7 @@ namespace mbm
 
     bool TEXTURE_MANAGER::generateImageResourceHeaderFromPng(const char* pngPath,
         const char* outputHeaderPath, const char* resourceName,
-        uint32_t colorKey, char* strMessageError)
+        char* strMessageError)
     {
         #if defined USE_EDITOR_FEATURES && !defined ANDROID
         std::vector<uint32_t> data;
@@ -813,7 +815,7 @@ namespace mbm
         fprintf(fp, "    static const uint32_t widthImageFromResource_%s  = %u;\n", resourceName, width);
         fprintf(fp, "    static const uint32_t heightImageFromResource_%s = %u;\n", resourceName, height);
         fprintf(fp, "    static const uint32_t sizeImageFromResource_%s = %u;\n", resourceName, size);
-        fprintf(fp, "    static const uint32_t alphaImageFromResource_%s = 0x%08x;\n\n", resourceName, colorKey);
+        fprintf(fp, "    static const uint32_t alphaImageFromResource_%s = 0xffffffff;\n\n", resourceName);
         fprintf(fp, "    static const uint32_t imageFromResource_%s [] = {\n", resourceName);
         constexpr int valuesPerLine = 22;
         for (size_t i = 0; i < data.size(); ++i)
