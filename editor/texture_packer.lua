@@ -1537,9 +1537,20 @@ function main_menu_texture_packer()
 
             local pressed,checked = tImGui.MenuItem("Generate Image Resource Header From Image (Png)", nil, false)
             if pressed then
-                local sFileName = mbm.saveFile('','*.h')
-                if sFileName then
-                    mbm.generateImageResourceHeaderFromPng(sFileName, sFileName:sub(1,sFileName:len()-4) .. '.h', 0xffffffff)
+                if #tTexturesToEditor > 0 then
+                    for i=1, #tTexturesToEditor do
+                        local sFileNameTexture = tTexturesToEditor[i].file_name
+                        if sFileNameTexture  and tTexturesToEditor[i].isSelected then
+                            local sFileName = mbm.saveFile(tUtil.getShortName(sFileNameTexture):split('%.')[1] .. '.h','*.h')
+                            if sFileName then
+                                if not mbm.generateImageResourceHeaderFromPng(sFileNameTexture, sFileName, 0xffffffff) then
+                                    tUtil.showMessageWarn('Failed to Generate Image Resource Header!')
+                                else
+                                    tUtil.showMessage(string.format('Image Resource Header Generated Successfully! %s', sFileName))
+                                end
+                            end
+                        end
+                    end
                 end
             end
 

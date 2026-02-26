@@ -148,6 +148,7 @@ namespace mbm
         if (lua_type(lua, 3) == LUA_TNUMBER)
             colorKey = lua_tointeger(lua, 3);
         char strMessageError[1024] = {0};
+        INFO_LOG("generateImageResourceHeaderFromPng: %s, %s, %s, %d", pngPath, outputHeaderPath, resourceName, colorKey);
         bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, colorKey, strMessageError);
         if(ret == false)
             ERROR_LOG("%s",strMessageError);

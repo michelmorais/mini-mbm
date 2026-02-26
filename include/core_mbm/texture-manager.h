@@ -104,12 +104,6 @@ namespace mbm
         API_IMPL bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                                   const uint32_t width, const uint32_t height, char *strMessageError);
 
-        // Decode PNG file to raw uint32_t array (0xRRGGBBAA). Used to regenerate .h resource files.
-        // Returns true on success. outData receives width*height pixels; outWidth/outHeight receive dimensions.
-        API_IMPL static bool generateImageFromPng(const char* pngPath,
-            std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
-            char* strMessageError = nullptr);
-
         // Generate .h header file from PNG in IMAGE_RESOURCE format (e.g. mini-mbm-logo.h).
         API_IMPL static bool generateImageResourceHeaderFromPng(const char* pngPath,
             const char* outputHeaderPath, const char* resourceName,
