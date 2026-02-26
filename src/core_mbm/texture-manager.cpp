@@ -320,6 +320,19 @@ namespace mbm
                 return true;
             return false;
         }
+        else if (fileNameTexture && strcmp(fileNameTexture, nickNameImageFromResource_particle) == 0) // trick to return particle texture from resource
+        {
+            TEXTURE* resouce = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
+            if (resouce)
+            {
+                this->ptrTexture = resouce->ptrTexture;
+                this->width = resouce->width;
+                this->height = resouce->height;
+                this->fileName = fileNameTexture;
+                this->useAlphaChannel = true;
+            }
+            return resouce != nullptr;
+        }
         else
         {
             int       x    = 0;
@@ -865,9 +878,19 @@ namespace mbm
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
         if (!existPath)
-            return fileName;
-        else
-            return fileName;
+        {
+            // If the file is the particle resource, load it and return the nick name
+            if (strcmp(fileName, nickNameImageFromResource_particle) == 0)
+            {
+                TEXTURE* texture = this->load(&resource_particle);
+                if (texture)
+                {
+                    fullFileName = fileName;
+                    return nickNameImageFromResource_particle;
+                }
+            }
+        }
+        return fileName;
     }
 #elif defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
         bool          existPath = false;
