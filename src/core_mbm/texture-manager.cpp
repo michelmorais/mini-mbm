@@ -338,7 +338,7 @@ namespace mbm
             int       x    = 0;
             int       y    = 0;
             int       comp = 0;
-            bool    result = false;
+            bool    ret_result = false;
             const int n    = hasColorAlpha == true ? 4 : 3;
             stbi_uc * data = stbi_load(fileNameTexture, &x, &y, &comp, n);
             if (data && x && y && comp)
@@ -346,9 +346,9 @@ namespace mbm
                 this->width  = static_cast<uint32_t>(x);
                 this->height = static_cast<uint32_t>(y);
                 if (hasColorAlpha)
-                    result = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
+                    ret_result = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
                 else
-                    result = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
+                    ret_result = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
                 free(data);
             }
             else
@@ -368,7 +368,7 @@ namespace mbm
 #endif
                 PRINT_IF_DEBUG("failed to load texture %s .", fileNameTexture);
             }
-            return result;
+            return ret_result;
         }
     }
 

@@ -66,7 +66,15 @@ namespace mbm
         if (fileNameTextureOrMesh == nullptr)
         {
             this->texture = TEXTURE_MANAGER::getInstance()->load(&resource_particle);
-            fileNameTextureOrMesh = nickNameImageFromResource_particle;
+            if (this->texture)
+            {
+                fileNameTextureOrMesh = nickNameImageFromResource_particle;
+            }
+            else
+            {
+                ERROR_LOG("Could not load [%s]!", nickNameImageFromResource_particle);
+                return false;
+            }
         }
         operatorShader = operatorShader ? operatorShader : "*";
         const size_t lFile = strlen(fileNameTextureOrMesh);
