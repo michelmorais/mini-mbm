@@ -26,7 +26,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} ST
 endif()
 
 # Compile only the render backend that matches the engine (USE_DIRECTX9 / USE_OPENGL_ES from root CMake)
-if (USE_DIRECTX9)
+# For USE_DUMMY_BACK_END_ENGINE, exclude both backends (imgui-lua.cpp uses dummy stubs)
+if (USE_DUMMY_BACK_END_ENGINE)
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_opengl3.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_dx9.cpp")
+elseif (USE_DIRECTX9)
     list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_opengl3.cpp")
 elseif (USE_OPENGL_ES)
     list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_dx9.cpp")
