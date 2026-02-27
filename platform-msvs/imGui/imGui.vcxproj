@@ -59,15 +59,19 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\mbm-backend.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\mbm-backend.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\mbm-backend.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\mbm-backend.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -94,7 +98,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;IMGUI_IMPL_OPENGL_ES2;IMGUI_DISABLE_OBSOLETE_FUNCTIONS;IMGUI_IMP_BUILD_DLL;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;IMGUI_DISABLE_OBSOLETE_FUNCTIONS;IMGUI_IMP_BUILD_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
@@ -129,7 +133,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_OPENGL_ES;WIN32;NDEBUG;IMGUI_IMP_BUILD_DLL;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;IMGUI_IMP_BUILD_DLL;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
@@ -167,10 +171,21 @@
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
+
+  <!-- Backend-specific defines/libs based on $(MbmBackend) from mbm-backend.props -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX9'">d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\plugins\imGui\imconfig.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui-lua.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui.h" />
+    <ClInclude Include="..\..\plugins\imGui\imgui_impl_dx9.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_impl_win32.h" />
@@ -186,7 +201,12 @@
     <ClCompile Include="..\..\plugins\imGui\imgui_demo.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_demo_stubs.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp" />
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\..\plugins\imGui\imgui_impl_dx9.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX9'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp">
+      <ExcludedFromBuild Condition="'$(MbmBackend)'!='OpenGLES'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_win32.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_stdlib.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp" />

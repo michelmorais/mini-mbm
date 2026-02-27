@@ -281,7 +281,7 @@ namespace mbm
             //luaCore.device->specificContextDevice->window.askOnExit = false;
             //luaCore.device->window.exitOnEsc = false;
     
-    #ifndef _DEBUG 
+    #if !defined(_DEBUG) && (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
             bool hideConsole = true;
             for (const auto & arg : args)
             {

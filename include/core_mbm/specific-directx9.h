@@ -22,15 +22,12 @@
 #define DIRECTX9_SPECIFIC_H
 #if defined (USE_DIRECTX9)
 
-#include <platform/win32-platform.h>
-#include <core-manager.h>
-
 //#include <dsetup.h>
 //#include <comdef.h>
 
 #ifndef __MINGW32__
 #pragma comment (lib, "d3d9.lib")
-#if defined _DEBUG
+#if defined(LINK_DIRECTX9_DEBUG_INFO) && defined(_DEBUG)
     #define D3D_DEBUG_INFO
     // https://learn.microsoft.com/en-us/windows/win32/direct3d9/enabling-direct3d-debug-information
     // The debug runtime is part of the DirectX SDK.
@@ -44,10 +41,13 @@
     //
     // Building your application with debug enabled will give you access to this additional variable :
     // LPCWSTR CreationCallStack;
-    #pragma comment (lib, "d3dx9d.lib") // Debug
+    #pragma comment (lib, "d3dx9d.lib") // Debug (slow, define LINK_DIRECTX9_DEBUG_INFO to check if you really need)
 #else
     #pragma comment (lib, "d3dx9.lib")
 #endif
+
+#include <platform/win32-platform.h>
+#include <core-manager.h>
 
 #include <d3d9.h>
 #include <d3dx9.h>

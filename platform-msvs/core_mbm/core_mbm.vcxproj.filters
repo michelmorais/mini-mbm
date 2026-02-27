@@ -649,5 +649,6 @@
     <None Include="..\copy-dlls.bat">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="..\mbm-backend.props" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Shared backend selection for the whole solution.
+    Import this .props from every project that must agree on the active graphics backend.
+
+    You can override by defining $(MbmBackend) before importing this file (e.g. in a .user.props):
+      - MbmBackend=DirectX9
+      - MbmBackend=OpenGLES
+  -->
+
+  <PropertyGroup Label="MbmBackendDefaults">
+    <!-- Keep current solution convention: Debug|Win32 defaults to DirectX9, everything else defaults to OpenGLES -->
+    <MbmBackend Condition="'$(MbmBackend)'=='' and '$(Configuration)|$(Platform)'=='Debug|Win32'">DirectX9</MbmBackend>
+    <MbmBackend Condition="'$(MbmBackend)'==''">OpenGLES</MbmBackend>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='DirectX9'">USE_DIRECTX9;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">USE_OPENGL_ES;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

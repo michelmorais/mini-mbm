@@ -219,7 +219,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
             #else
                 #error "Platform not supported"
             #endif
-            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle);
+            plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight),handle, nullptr);
             return this->lsPlugins.size() - 1;
         }
         return 0xffffffff;
