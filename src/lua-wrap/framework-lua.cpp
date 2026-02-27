@@ -132,7 +132,45 @@ namespace mbm
         device->ptrManager->execute_system_cmd_thread(command.c_str());
         return 0;
     }
+
     #endif
+
+    int onGenerateImageResourceHeaderFromPng(lua_State *lua)
+    {
+        const char *pngPath = luaL_checkstring(lua,1);
+        const char *outputHeaderPath = luaL_checkstring(lua,2);
+        const char *fileName = strrchr(outputHeaderPath, '/');
+        if (fileName)
+            fileName++;
+        else
+            fileName = outputHeaderPath;
+        // Extract resource name: "resource-particle.h" -> "particle", "particle.h" -> "particle"
+        static char resourceNameBuf[256];
+        const char *dot = strrchr(fileName, '.');
+        size_t nameLen;
+        const char *nameStart;
+        if (strncmp(fileName, "resource-", 9) == 0)
+        {
+            nameStart = fileName + 9;
+            nameLen = dot ? (size_t)(dot - nameStart) : strlen(nameStart);
+        }
+        else
+        {
+            nameStart = fileName;
+            nameLen = dot ? (size_t)(dot - fileName) : strlen(fileName);
+        }
+        size_t copyLen = nameLen < sizeof(resourceNameBuf) - 1 ? nameLen : sizeof(resourceNameBuf) - 1;
+        memcpy(resourceNameBuf, nameStart, copyLen);
+        resourceNameBuf[copyLen] = '\0';
+        const char *resourceName = resourceNameBuf;
+        char strMessageError[1024] = {0};
+        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, strMessageError);
+        if(ret == false)
+            ERROR_LOG("%s",strMessageError);
+        lua_pushboolean(lua, ret);
+        return 1;
+    }
+    
 
     void lua_userdata_register(lua_State *lua,const int value)
     {
@@ -2490,7 +2528,8 @@ namespace mbm
             
     #if defined USE_EDITOR_FEATURES && !defined ANDROID
             {"executeInThread", onExecuteInOtherThread},
-    #endif
+            #endif
+            {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
         device->scene       = scene;

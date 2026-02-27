@@ -105,9 +105,9 @@ function onNewParticle()
     end
     tParticle = particle:new('2dw',0,0,0)
     if tShaderByOperator.sAdditionalCode:len() > 0 then
-        tParticle:load('#FFFFFFFF',iNumberOfParticleByStageSet,tShaderByOperator[tShaderByOperator.index].op,tShaderByOperator.sAdditionalCode)
+        tParticle:load(nil,iNumberOfParticleByStageSet,tShaderByOperator[tShaderByOperator.index].op,tShaderByOperator.sAdditionalCode)
     else
-        tParticle:load('#FFFFFFFF',iNumberOfParticleByStageSet,tShaderByOperator[tShaderByOperator.index].op)
+        tParticle:load(nil,iNumberOfParticleByStageSet,tShaderByOperator[tShaderByOperator.index].op)
     end
     bShowParticleMenu = true
     tParticle:setMinSpeed(1,500,500)

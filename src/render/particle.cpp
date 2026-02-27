@@ -25,6 +25,7 @@
 #include <shader-var-cfg.h>
 #include <core_mbm/scene.h>
 #include <shader-resource.h>
+#include <static-resource/resource-particle.h>
 
 
 
@@ -62,7 +63,19 @@ namespace mbm
 
         if (bufferGl.loadParticleBuffer() == false)
             return false;
-        fileNameTextureOrMesh = fileNameTextureOrMesh ? fileNameTextureOrMesh : "#FFFFFFFF";
+        if (fileNameTextureOrMesh == nullptr)
+        {
+            this->texture = TEXTURE_MANAGER::getInstance()->load(&resource_particle);
+            if (this->texture)
+            {
+                fileNameTextureOrMesh = nickNameImageFromResource_particle;
+            }
+            else
+            {
+                ERROR_LOG("Could not load [%s]!", nickNameImageFromResource_particle);
+                return false;
+            }
+        }
         operatorShader = operatorShader ? operatorShader : "*";
         const size_t lFile = strlen(fileNameTextureOrMesh);
         if (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0)//is particle from mesh
@@ -112,7 +125,21 @@ namespace mbm
         if (this->texture)
         {
             bufferGl.setTextureByStage(this->texture, 0, 0);
-            control.initializeBuffer(totalParticleToLoad, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            // When loading from .ptl with sizeOfParticle==0, use totalParticle from file stages
+            unsigned int effectiveTotal = totalParticleToLoad;
+            if (sizeOfParticle == 0 && this->control.getTotalStage() > 0)
+            {
+                unsigned int maxFromStages = 0;
+                for (unsigned int i = 0; i < this->control.getTotalStage(); ++i)
+                {
+                    const util::STAGE_PARTICLE* s = this->control.getStageParticle(i);
+                    if (s && s->totalParticle > maxFromStages)
+                        maxFromStages = s->totalParticle;
+                }
+                if (maxFromStages > 0)
+                    effectiveTotal = maxFromStages;
+            }
+            control.initializeBuffer(effectiveTotal, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
             if (initializeParticleData)
             {
                 if (this->control.getTotalStage() == 0)
@@ -124,16 +151,18 @@ namespace mbm
                 else
                 {
                     util::STAGE_PARTICLE * sPart = this->control.getStageParticle(0);
-                    sPart->totalParticle = totalParticleToLoad;
+                    sPart->totalParticle = totalParticleToLoad ? totalParticleToLoad : effectiveTotal;
                 }
                 this->control.onResuscitate(this->control.getStageParticle(0), control.getTotalParticle());
             }
             char strTemp[255];
-            snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, totalParticleToLoad, operatorShader, newCodeLine ? newCodeLine : "");
+            snprintf(strTemp, sizeof(strTemp), "%s@%u@%s@%s", fileNameTextureOrMesh, effectiveTotal, operatorShader, newCodeLine ? newCodeLine : "");
             this->fileName = strTemp;
             this->enableRender = true;
             this->alwaysRenderize = true;
-            if (sizeOfParticle == 0)
+            // Only start with 0 alive when loading texture (not .ptl) without particle count - particles arise over time
+            const bool isPtlFile = (lFile > 4 && strcasecmp(&fileNameTextureOrMesh[lFile - 3], "ptl") == 0);
+            if (sizeOfParticle == 0 && !isPtlFile)
                 this->control.setTotalAlive(0);
             this->updateAABB();
             return true;
