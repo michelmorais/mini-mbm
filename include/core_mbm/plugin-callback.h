@@ -29,7 +29,7 @@ class PLUGIN
     public:
     PLUGIN                           () noexcept = default;
     virtual ~PLUGIN                  ()          = default;
-    virtual void onSubscribe         (int width, int height, void * context) = 0; //width and height of window. context will be the handle in Windows env.
+    virtual void onSubscribe         (int width, int height, void * context, void * renderDevice) = 0; // width/height of window; context = platform window handle (e.g. HWND on Windows); renderDevice = graphics API device for active backend (e.g. IDirect3DDevice9* when USE_DIRECTX9, nullptr when USE_OPENGL_ES)
     virtual void onResizeWindow      (int width, int height) = 0; //Resize window width and height of window. context will be the handle in Windows env.
     virtual void onTouchDown         (int key, float x, float y) = 0;// x and y are divided by camera.scale. If the plugin needs the real position it should multiply by the scale of camera2d.
     virtual void onTouchUp           (int key, float x, float y) = 0;// x and y are divided by camera.scale. If the plugin needs the real position it should multiply by the scale of camera2d.

@@ -1353,7 +1353,7 @@ public:
         JNIEnv*     context;
     #endif
 
-    void onSubscribe(int width,int height, void * _context)
+    void onSubscribe(int width,int height, void * _context, void * _renderDevice)
     {
         #if defined DEBUG || defined _DEBUG
             // Debug: Print struct sizes to identify mismatch
@@ -1411,7 +1411,7 @@ public:
         #error "Not implemented for opengl if not using ImGui_ImplOpenGL_ES2 or ImGui_ImplOpenGL_ES3"
     #endif
 #elif defined USE_DIRECTX9
-            ImGui_ImplDX9_Init(_context);
+            ImGui_ImplDX9_Init(static_cast<IDirect3DDevice9*>(_renderDevice));
 #elif defined USE_DUMMY_BACK_END_ENGINE
             REMINDER_TODO
 #else

@@ -18,13 +18,18 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-add_definitions(-DIMGUI_IMPL_OPENGL_ES2)
-add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_win32.cpp")
+endif()
+
+# Compile only the render backend that matches the engine (USE_DIRECTX9 / USE_OPENGL_ES from root CMake)
+if (USE_DIRECTX9)
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_opengl3.cpp")
+elseif (USE_OPENGL_ES)
+    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_dx9.cpp")
 endif()
 
 # Exclude imgui_demo.cpp in release mode (ShowDemoWindow, ShowStyleSelector, etc. are debug-only)
@@ -77,6 +82,13 @@ endif()
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
 add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})
+
+if (USE_OPENGL_ES)
+  target_compile_definitions(${IMGUI_LIBRARY} PRIVATE IMGUI_IMPL_OPENGL_ES2 IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+endif()
+if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+  target_link_libraries(${IMGUI_LIBRARY} d3d9)
+endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
   target_link_libraries(${IMGUI_LIBRARY} ${OPENGLES2_LIBRARY})
