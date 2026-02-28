@@ -42,7 +42,7 @@ namespace mbm
         angleOfView       (110.0f),
         zNear(0.1f),
         zFar(1000.0f),
-		perfectPixel(false)
+        perfectPixel(true)
     {
         memset(this->stretch, 0, sizeof(stretch));
     }

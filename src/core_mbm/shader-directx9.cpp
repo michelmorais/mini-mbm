@@ -113,7 +113,7 @@ namespace mbm
     }
 
     D3D_VERTEX_CONVERTER::D3D_VERTEX_CONVERTER(const VEC3* _pos, const VEC3* _normal, const VEC2* _uv, unsigned int _size_array) noexcept:
-        pos(_pos), normal(_normal),uv(_uv), size_array(_size_array)
+        pos(_pos), normal(_normal), uv(_uv), size_array(_size_array)
     {
         if (pos && uv && normal)
         {
@@ -268,7 +268,7 @@ namespace mbm
                                const int* vertexStartSubset,
                                const int* vertexCountSubset,
                                const util::INFO_DRAW_MODE* info_draw_mode,
-                               const bool isDynamic)// type vertex buffer, must be implemented by specific backend engine
+                               const bool isDynamic)
     {
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)

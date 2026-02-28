@@ -184,7 +184,7 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            if(backGroundMap.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
+            if(backGroundMap.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr) == false)
             {
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
