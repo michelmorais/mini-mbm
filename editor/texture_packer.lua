@@ -38,8 +38,8 @@ end
 
 function onInitScene()
     
-    tWindowsTitle        = {title_image_selector    = 'Image(s) selector',
-                            title_texture_options   = 'Texture options'}
+    tWindowsTitle        = {title_image_selector    = "title_image_selector",
+                            title_texture_options   = "title_texture_options"}
 
     camera2d		     = mbm.getCamera("2d")
     tLineCenterX         = line:new("2dw",0,0,50)
@@ -1069,10 +1069,10 @@ end
 
 
 function showSortOptions()
-    tImGui.Text('Sort Textures By:')
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by name', tTextureOptions.iIndexSortOption, 1)
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Ascending', tTextureOptions.iIndexSortOption, 2)
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Descending', tTextureOptions.iIndexSortOption, 3)
+    tImGui.Text(tLang.L("sort_textures_by"))
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_name"), tTextureOptions.iIndexSortOption, 1)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_size_asc"), tTextureOptions.iIndexSortOption, 2)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_size_desc"), tTextureOptions.iIndexSortOption, 3)
 
     tTextureOptions.bSortByName = false
     tTextureOptions.bSortBySizeAscending = false
@@ -1093,7 +1093,7 @@ function showTextureOptions()
         local max_width = 220
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_texture_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_texture_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_texture_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             
             local step       =  1
@@ -1114,7 +1114,7 @@ function showTextureOptions()
                 return  math.ceil(result)
             end
 
-            tImGui.Text('Width')
+            tImGui.Text(tLang.L("width"))
             local result, iValue = tImGui.InputInt('##WidthTexture', tTextureOptions.fWidth, step, step_fast, flags)
             if result and iValue > 0 then
                 if tTextureOptions.bPowerOf2 then
@@ -1127,7 +1127,7 @@ function showTextureOptions()
                 tTextureOptions.fWidth = iValue
             end
 
-            tImGui.Text('Height')
+            tImGui.Text(tLang.L("height"))
             local result, iValue = tImGui.InputInt('##HeightTexture', tTextureOptions.fHeight, step, step_fast, flags)
             if result and iValue > 0 then
                 if tTextureOptions.bPowerOf2 then
@@ -1142,31 +1142,31 @@ function showTextureOptions()
 
             tTextureOptions.bPowerOf2 = tImGui.Checkbox(tLang.L("power_of_2") .. '##P2', tTextureOptions.bPowerOf2)
 
-            tImGui.Text('Space X')
+            tImGui.Text(tLang.L("space_x_label"))
             local result, iValue = tImGui.InputInt('##SpaceXTexture', tTextureOptions.iSpaceX, step, step_fast, flags)
             if result then
                 tTextureOptions.iSpaceX = iValue
             end
 
-            tImGui.Text('Space Y')
+            tImGui.Text(tLang.L("space_y_label"))
             local result, iValue = tImGui.InputInt('##SpaceYTexture', tTextureOptions.iSpaceY, step, step_fast, flags)
             if result then
                 tTextureOptions.iSpaceY = iValue
             end
 
-            tImGui.Text('Offset X')
+            tImGui.Text(tLang.L("offset_x_label"))
             local result, iValue = tImGui.InputInt('##OffsetXTexture', tTextureOptions.iOffsetX, step, step_fast, flags)
             if result then
                 tTextureOptions.iOffsetX = iValue
             end
 
-            tImGui.Text('Offset Y')
+            tImGui.Text(tLang.L("offset_y_label"))
             local result, iValue = tImGui.InputInt('##OffsetYTexture', tTextureOptions.iOffsetY, step, step_fast, flags)
             if result then
                 tTextureOptions.iOffsetY = iValue
             end
 
-            tImGui.Text('Max Tile Count')
+            tImGui.Text(tLang.L("max_tile_count"))
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_zero_automatic"))
             local result, iValue = tImGui.InputInt('##MaxTileCount', tTextureOptions.iMaxTileCount, step, step_fast, flags)
@@ -1201,7 +1201,7 @@ function showTextureOptions()
                 tTextureOptions.iGridY = iValue
             end
 
-            tImGui.Text('Scale Image')
+            tImGui.Text(tLang.L("scale_image"))
             local step       =  0.01
             local step_fast  =  0.02
             local format     = "%.3f"
@@ -1211,7 +1211,7 @@ function showTextureOptions()
                 tTextureOptions.bGridForceFitScale = false
             end
 
-            tImGui.Text('Adjust scale on X')
+            tImGui.Text(tLang.L("adjust_scale_on_x"))
             local step       =  0.001
             local step_fast  =  0.002
             local format     = "%.3f"
@@ -1226,7 +1226,7 @@ function showTextureOptions()
                 end
             end
 
-            tImGui.Text('Adjust scale on Y')
+            tImGui.Text(tLang.L("adjust_scale_on_y"))
             local step       =  0.001
             local step_fast  =  0.002
             local format     = "%.3f"
@@ -1241,7 +1241,7 @@ function showTextureOptions()
                 end
             end
 
-            tImGui.Text('Background Color')
+            tImGui.Text(tLang.L("background_color_text"))
             local clicked, tRgba = tImGui.ColorEdit4('Select your color', tTextureOptions.tRgba, tImGui.Flags('ImGuiColorEditFlags_NoLabel'))
             if clicked then
                 tTextureOptions.tRgba = tRgba
@@ -1252,10 +1252,10 @@ function showTextureOptions()
             tTextureOptions.bAlpha    = tImGui.Checkbox(tLang.L("enable_alpha") .. '##AlphaTex', tTextureOptions.bAlpha)
 
             tImGui.NewLine()
-            tImGui.Text('Algorithm')
+            tImGui.Text(tLang.L("algorithm"))
             if tImGui.IsItemHovered(0) then
                 tImGui.BeginTooltip()
-                tImGui.Text('Select the algorithm to arrange the textures inside the sprite sheet.\nFirst Fit algorithm is more complex and try to fit more textures inside the sprite sheet.')
+                tImGui.Text(tLang.L("select_algorithm_note"))
                 tImGui.EndTooltip()
             end
             local height_in_items  =  -1
@@ -1283,13 +1283,13 @@ function showTextureOptions()
                 if tTextureOptions.iCurrentAlgorithm == 1 then -- 'Follow bigger or lower Texture'
                     tImGui.Text(string.format('Note: Textures are arranged following the size of the %s texture.',sDirection))
                 elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'First Fit algorithm'
-                    tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_first_fit"))
                 elseif tTextureOptions.iCurrentAlgorithm == 3 then
-                    tImGui.Text('Note: Textures are arranged using Best Fit algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_best_fit"))
                 elseif tTextureOptions.iCurrentAlgorithm == 4 then
-                    tImGui.Text('Note: Textures are arranged Grid (x) (Y) -based placement (for uniform distribution).')
+                    tImGui.Text(tLang.L("note_grid"))
                 elseif tTextureOptions.iCurrentAlgorithm == 5 then
-                    tImGui.Text('Note: Textures are arranged using MaxRects algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_maxrects"))
                 end
                 tImGui.EndTooltip()
             end
@@ -1297,10 +1297,10 @@ function showTextureOptions()
             tImGui.NewLine()
 
             if tTextureOptions.iCurrentAlgorithm ~= 5 then
-                tImGui.Text('Reference Texture Size')
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Bigger texture reference', tTextureOptions.indexReferenceTexture or 1, 1)
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Lower texture reference', tTextureOptions.indexReferenceTexture, 2)
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Texture size reference', tTextureOptions.indexReferenceTexture, 3)
+                tImGui.Text(tLang.L("reference_texture_size"))
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("bigger_texture_reference"), tTextureOptions.indexReferenceTexture or 1, 1)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("lower_texture_reference"), tTextureOptions.indexReferenceTexture, 2)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("texture_size_reference"), tTextureOptions.indexReferenceTexture, 3)
                 if tTextureOptions.indexReferenceTexture < 1 then
                     tTextureOptions.indexReferenceTexture = 1
                 elseif tTextureOptions.indexReferenceTexture > 3 then
@@ -1376,7 +1376,7 @@ function showTextureOptions()
                             tImGui.PopStyleColor(1)
                         end
                         showTextureHoverImage(i)
-                        tImGui.Text('Offset Per Texture')
+                        tImGui.Text(tLang.L("offset_per_texture"))
                         local result, iValue = tImGui.InputInt(tLang.L("axis_x") .. '##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureX = iValue
@@ -1387,8 +1387,8 @@ function showTextureOptions()
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
                         end
 
-                        tImGui.Text('Rotation Per Texture')
-                        local result, iValue = tImGui.InputInt('RX##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
+                        tImGui.Text(tLang.L("rotation_per_texture"))
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_rx") .. '##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1398,7 +1398,7 @@ function showTextureOptions()
                             tTexturesToEditor[i].iAnglePerTextureRX = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('RY##RotationPerTextureY' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRY or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_ry") .. '##RotationPerTextureY' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRY or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1408,7 +1408,7 @@ function showTextureOptions()
                             tTexturesToEditor[i].iAnglePerTextureRY = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('RZ##RotationPerTextureZ' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRZ or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_rz") .. '##RotationPerTextureZ' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRZ or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1420,13 +1420,13 @@ function showTextureOptions()
 
                         if tTextureOptions.iCurrentAlgorithm ~= 5 or tTextureOptions.bGridForceFitScale == false then
                         
-                            tImGui.Text('Scale Per Texture')
+                            tImGui.Text(tLang.L("scale_per_texture"))
 
                             local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
-                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.Text(tLang.L("scale_per_texture_disabled"))
                                     tImGui.EndTooltip()
                                 end
                             elseif result then
@@ -1442,7 +1442,7 @@ function showTextureOptions()
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
-                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.Text(tLang.L("scale_per_texture_disabled"))
                                     tImGui.EndTooltip()
                                 end
                             elseif result then

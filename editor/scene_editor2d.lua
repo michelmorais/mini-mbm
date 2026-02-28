@@ -43,11 +43,11 @@ function onInitScene()
     local tRectangleScreen = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2  }
     tLineScreen2d:add(tRectangleScreen)
     tLineScreen2d:setColor(0.7,0.7,0.7)
-    tWindowsTitle    = {    title_image_selector    = 'Image(s) selector',
-                            title_meshes            = 'Mesh(s)',
-                            title_mesh_info         = 'Mesh Information',
-                            title_loading           = 'loading',
-                            title_adding_mesh       = 'Options when Adding Mesh',
+    tWindowsTitle    = {    title_image_selector    = "title_image_selector",
+                            title_meshes            = "title_meshes",
+                            title_mesh_info         = "title_mesh_info",
+                            title_loading           = "title_loading",
+                            title_adding_mesh       = "title_adding_mesh",
                           }
     tLineCenterX:setColor(1,0,0)
     tLineCenterY:setColor(0,1,0)
@@ -655,7 +655,7 @@ function showAddingMeshOptions()
         local width        = 300
         local tPosWin      = {x = 0, y = 0}
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_adding_mesh,tPosWin.x,tPosWin.y,width,width + 50)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_adding_mesh, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_adding_mesh), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             tOptionsEditor.bAddObjAs2dw = tImGui.Checkbox(tLang.L("add_mesh_as_2dw"),tOptionsEditor.bAddObjAs2dw)
             tImGui.SameLine()
@@ -733,7 +733,7 @@ function showMeshList()
         local width        = 300
         local tPosWin      = {x = 0, y = 0}
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes,tPosWin.x,tPosWin.y,width,width + 50)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_meshes, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             local flags  = 0
             if tImGui.TreeNodeEx(string.format(tLang.L("filter"),#tAllMesh),flags,'##FilterMesh') then
@@ -1854,11 +1854,11 @@ function main_menu_scene_editor_2d()
                 indexAxis  = 3
             end
 
-            local index_activated = tImGui.RadioButton('X', indexAxis, 1)
+            local index_activated = tImGui.RadioButton(tLang.L("axis_x"), indexAxis, 1)
             tImGui.SameLine()
             index_activated       = tImGui.RadioButton('Y', index_activated, 2)
             tImGui.SameLine()
-            index_activated       = tImGui.RadioButton('Stretched', index_activated, 3)
+            index_activated       = tImGui.RadioButton(tLang.L("stretched"), index_activated, 3)
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_default_scale"))
 
@@ -2210,7 +2210,7 @@ function showDetailOfMesh()
         local window_pos     = {x = 300, y = 25}
         local window_pos_pivot = {x = 0, y = 0}
         tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_mesh_info, true,tImGui.Flags(flags) )
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_info), true, tImGui.Flags(flags))
         if is_opened then
             local sWorld = '2d World'
             if tObj.is2ds then
@@ -2223,12 +2223,12 @@ function showDetailOfMesh()
             tImGui.Text(string.format('Angle   : X:%g Y:%g Z:%g',tObj.ax,tObj.ay,tObj.az))
 
             if tObj.sText then
-                tImGui.Text('Text')
+                tImGui.Text(tLang.L("text_label_2"))
                 tImGui.Text(tObj.sText)
             end
             if tObj.tPhysicInfo then
                 local tPhysicInfo = tObj.tPhysicInfo
-                tImGui.Text('Physics:')
+                tImGui.Text(tLang.L("physics_colon"))
                 if tPhysicInfo.type then
                     tImGui.Text(string.format('Type (%s)',tPhysicInfo.type))
                 end
@@ -2273,7 +2273,7 @@ function onProgress(fPercent)
     tImGui.SetNextWindowBgAlpha(0.85);
     tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Always'), window_pos_pivot);
     tImGui.SetNextWindowSize({x = iW, y = iH},tImGui.Flags('ImGuiCond_Always'))
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_loading, false,tImGui.Flags(flags) )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_loading), false, tImGui.Flags(flags))
     if is_opened then
         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_FrameBg') , {r=0,g=0,b=0.5,a=0.7})
         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_PlotHistogram'), {r=0,g=1,b=0,a=1})
@@ -2296,7 +2296,7 @@ function showSetScaleCam()
     local width        = 300
     local tPosWin      = {x = 0, y = 0}
     tUtil.setInitialWindowPositionLeft('Camera adjust',tPosWin.x,tPosWin.y,width,width + 50)
-    local is_opened, closed_clicked = tImGui.Begin('Camera adjust', true,0 )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("title_camera_adjust"), true, 0)
     if is_opened then
         tImGui.Text(string.format('Camera  scale %f %f ',camera2d.sx,camera2d.sy))
 
@@ -2304,12 +2304,12 @@ function showSetScaleCam()
         local step_fast  =  10
         local flags      =  0
 
-        local result, iValue = tImGui.InputInt('Width', width_camera, step, step_fast, flags)
+        local result, iValue = tImGui.InputInt(tLang.L("width"), width_camera, step, step_fast, flags)
         if result then
             width_camera = iValue
         end
 
-        local result, iValue = tImGui.InputInt('Height', height_camera, step, step_fast, flags)
+        local result, iValue = tImGui.InputInt(tLang.L("height"), height_camera, step, step_fast, flags)
         if result then
             height_camera = iValue
         end

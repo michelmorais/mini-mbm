@@ -45,8 +45,8 @@ function onInitScene()
     sLastFolderPath       = sLastMeshPath
     bShowMeshTree         = true
     tWindowsTitle         = {
-        title_mesh_tree   = 'Mesh Debug - Loaded Meshes',
-        title_apply_all   = 'Apply to All'
+        title_mesh_tree   = "title_mesh_tree",
+        title_apply_all   = "title_apply_all"
     }
     tUtil.sMessageOverlay = 'Welcome to Mesh Debug Editor! Load meshes from File or Folder.'
     tUtil.bRightSide      = true   -- overlay on right so it is not covered by mesh tree on left
@@ -387,7 +387,7 @@ function showMeshInfoTable(tEntry, index)
 
     -- Editable: Mode draw
     tImGui.Spacing()
-    tImGui.Text('Draw mode')
+    tImGui.Text(tLang.L("draw_mode"))
     tImGui.SameLine()
     tImGui.HelpMarker(tLang.L("help_draw_mode_error"))
     do
@@ -403,7 +403,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Face culling
-    tImGui.Text('Face culling')
+    tImGui.Text(tLang.L("face_culling"))
     do
         local ok, curMode = pcall(function() return meshD:getModeCullFace() end)
         if ok and curMode then
@@ -417,7 +417,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Front face
-    tImGui.Text('Front face')
+    tImGui.Text(tLang.L("front_face_label"))
     do
         local ok, curMode = pcall(function() return meshD:getModeFrontFace() end)
         if ok and curMode then
@@ -431,7 +431,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Default angle
-    tImGui.Text('Default angle (X, Y, Z)')
+    tImGui.Text(tLang.L("default_angle_xyz"))
     do
         local ok, ang = pcall(function() return meshD:getAngle() end)
         if ok and ang then
@@ -447,7 +447,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Default position
-    tImGui.Text('Default position (X, Y, Z)')
+    tImGui.Text(tLang.L("default_position_xyz"))
     do
         local ok, pos = pcall(function() return meshD:getPosition() end)
         if ok and pos then
@@ -498,7 +498,7 @@ function showMeshOptions(tEntry, index)
 
     if tEntry.modified then
         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
-        tImGui.Text('Unsaved changes')
+        tImGui.Text(tLang.L("unsaved_changes"))
         tImGui.PopStyleColor(1)
     end
 
@@ -569,15 +569,15 @@ function showMeshOptions(tEntry, index)
                 end)
                 if ok and name then
                     if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
-                        tImGui.Text('Name')
+                        tImGui.Text(tLang.L("name"))
                         local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
-                        tImGui.Text('Initial frame')
+                        tImGui.Text(tLang.L("initial_frame"))
                         local ri, ni = tImGui.InputInt('##animInit-' .. index .. '-' .. i, initF or 1, 1, 1, flags)
-                        tImGui.Text('Final frame')
+                        tImGui.Text(tLang.L("final_frame"))
                         local rf, nf = tImGui.InputInt('##animFin-' .. index .. '-' .. i, finF or 1, 1, 1, flags)
-                        tImGui.Text('Time between frames')
+                        tImGui.Text(tLang.L("time_between_frames_anim"))
                         local rt, nt = tImGui.InputFloat('##animTime-' .. index .. '-' .. i, time or 0.1, 0.01, 0.1, '%.3f', flags)
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local typIdx = math.max(1, math.min((typ or 0) + 1, #tAnimTypeOpts))
                         local rty, newTypIdx = tImGui.Combo('##animType-' .. index .. '-' .. i, typIdx, tAnimTypeOpts, -1)
                         local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
@@ -614,7 +614,7 @@ function showMeshOptions(tEntry, index)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
                 local nTotalAnim = (tPreviewMesh.getTotalAnim and tPreviewMesh:getTotalAnim()) or 1
                 if nTotalAnim > 1 then
-                    tImGui.Text('Animation (shader applies to)')
+                    tImGui.Text(tLang.L("animation_shader_applies"))
                     local r, v = tImGui.InputInt('##shaderAnimIdx-' .. index, iCurAnim or 1, 1, 1, 0)
                     if r and v and v >= 1 and v <= nTotalAnim then
                         tPreviewMesh:setAnim(v)
@@ -656,11 +656,11 @@ function showMeshOptions(tEntry, index)
                         end
                     end
                     if psName then
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local _, iTypePs = tShader:getPStype()
                         r, ci = tImGui.Combo('##TypePS-' .. index, (iTypePs or 0) + 1, tAnimTypeOpts)
                         if r and ci then tShader:setPStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
-                        tImGui.Text('Time')
+                        tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getPStime()
                         local rt, ft = tImGui.InputFloat('##TimePS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
                         if rt and ft and ft >= 0 then tShader:setPStime(ft) applyShaderToMesh() end
@@ -701,11 +701,11 @@ function showMeshOptions(tEntry, index)
                         end
                     end
                     if vsName then
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local _, iTypeVs = tShader:getVStype()
                         r, ci = tImGui.Combo('##TypeVS-' .. index, (iTypeVs or 0) + 1, tAnimTypeOpts)
                         if r and ci then tShader:setVStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
-                        tImGui.Text('Time')
+                        tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getVStime()
                         local rt, ft = tImGui.InputFloat('##TimeVS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
                         if rt and ft and ft >= 0 then tShader:setVStime(ft) applyShaderToMesh() end
@@ -954,7 +954,7 @@ function showMeshTreeWindow()
 
     local width = 350
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_mesh_tree, true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
 
     if is_opened then
         if tImGui.BeginMenuBar() then

@@ -510,7 +510,7 @@ tUtil.showOverlayMessage = function()
         end
         if tUtil.bFocusMsgOnce then
             tUtil.bFocusMsgOnce = false
-            tImGui.SetNextWindowFocus(tUtil.title_overlay)
+            tImGui.SetNextWindowFocus(tLang.L("title_overlay"))
         end
         tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Always'), window_pos_pivot);
         tImGui.PushStyleColor('ImGuiCol_Text',{r=1,g=1,b=0,a=0.8})
@@ -520,7 +520,7 @@ tUtil.showOverlayMessage = function()
         else
             tImGui.SetNextWindowBgAlpha(0.75);
         end
-        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false, tImGui.Flags(flags) )
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L("title_overlay"), false, tImGui.Flags(flags))
         if is_opened then
             tImGui.Text(tUtil.sMessageOverlay)
         end

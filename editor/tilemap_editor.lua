@@ -39,9 +39,9 @@ end
 
 function onInitScene()
     
-    tWindowsTitle        = {title_image_selector    = tLang.L("title_image_selector"), 
-                            title_tile_map          = tLang.L("title_tile_map"),
-                            title_layer_brick_option= tLang.L("title_layer_brick_option")}
+    tWindowsTitle        = {title_image_selector    = "title_image_selector",
+                            title_tile_map          = "title_tile_map",
+                            title_layer_brick_option= "title_layer_brick_option"}
 
     camera2d		     = mbm.getCamera("2d")
     tLineCenterX         = line:new("2dw",0,0,50)
@@ -905,7 +905,7 @@ function drawBrickTab(item_width)
                 local format     = "%.3f"
                 if tPhysic.type == 'rectangle' or tPhysic.type == 'circle' then
                     
-                    tImGui.Text('X')
+                    tImGui.Text(tLang.L("axis_x"))
                     local result, fValue = tImGui.InputFloat(string.format('##Brick%sPosX%d-%d',tPhysic.type,n,j), tPhysic.x, step, step_fast, format, flags)
                     if result then
                         tPhysic.x = fValue
@@ -913,7 +913,7 @@ function drawBrickTab(item_width)
                         addHistoric()
                     end
 
-                    tImGui.Text('Y')
+                    tImGui.Text(tLang.L("axis_y"))
                     local result, fValue = tImGui.InputFloat(string.format('##Brick%sPosY%d-%d',tPhysic.type,n,j), tPhysic.y, step, step_fast, format, flags)
                     if result then
                         tPhysic.y = fValue
@@ -1130,7 +1130,7 @@ function drawTileSetTab(item_width)
         end
         tImGui.Text('')
 
-        tEditorOptions.bMakeSubTiles = tImGui.Checkbox("Create sub tile set",tEditorOptions.bMakeSubTiles)
+        tEditorOptions.bMakeSubTiles = tImGui.Checkbox(tLang.L("create_sub_tile_set"), tEditorOptions.bMakeSubTiles)
         tLineRectTile.visible = tEditorOptions.bMakeSubTiles
 
         tImGui.NewLine()
@@ -1660,14 +1660,14 @@ function drawMapTab(item_width)
             local format     = "%.3f"
             if tObj.type == 'rectangle' or tObj.type == 'circle' or tObj.type == 'point'  or tObj.type == 'triangle'  then
                 
-                tImGui.Text('X')
+                tImGui.Text(tLang.L("axis_x"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMap%sPosX-%d',tObj.type,j), tObj.x, step, step_fast, format, flags)
                 if result then
                     tObj.x = fValue
                     tTile:setObjectMap(j,tObj)
                 end
 
-                tImGui.Text('Y')
+                tImGui.Text(tLang.L("axis_y"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMap%sPosY-%d',tObj.type,j), tObj.y, step, step_fast, format, flags)
                 if result then
                     tObj.y = fValue
@@ -1801,23 +1801,23 @@ function showTileTools()
             if #tSelectedTileIDs > 1 then
                 tImGui.Text(string.format('Total Selected (%d)',#tSelectedTileIDs))
             else
-                tImGui.Text('Total Selected (1)')
+                tImGui.Text(tLang.L("total_selected_1"))
             end
             tImGui.SameLine()
             tImGui.HelpMarker(string.format(tLang.L("help_tile_id_selected_fmt"), table.concat(tSelectedTileIDs, ',')))
-            if tImGui.Button('Rotate Right', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("rotate_right"), {x=item_width,y=0}) then
                 local id = tTile:rotate('right')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Rotate Left', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("rotate_left"), {x=item_width,y=0}) then
                 local id = tTile:rotate('left')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Flip', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("flip_btn"), {x=item_width,y=0}) then
                 local id = tTile:flip()
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Delete', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("delete_btn"), {x=item_width,y=0}) then
                 tTile:deleteSelectedBricks()
             end
         end
@@ -2112,7 +2112,7 @@ function drawBrickSelector(xStart)
     local YPercentage  = 0.3
     local xRight       = 180 -- toolTip
     tUtil.setInitialWindowPositionDown(tWindowsTitle.title_layer_brick_option,xStart+25,YPercentage,xRight)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_layer_brick_option, true, 0)--
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_layer_brick_option), true, 0)
     if is_opened then
         local iTotalBrick = tTile:getTotalBricks()
         local xWinLastPos = tImGui.GetCursorPosX()
@@ -2201,8 +2201,8 @@ function main_tab_bar()
     local x_pos, y_pos = 0, 0
     local width        = 230
     local item_width   = 200
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_tile_map,x_pos,y_pos,width,width)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_tile_map, true, ImGuiWindowFlags_NoMove)
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_tile_map, x_pos, y_pos, width, width)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_tile_map), true, ImGuiWindowFlags_NoMove)
     bIsOverSizeBrickSelector = false
     if is_opened then
         tImGui.PushItemWidth(item_width)

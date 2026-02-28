@@ -92,7 +92,7 @@ function onInitScene()
 
      sLastEditorFileName = ''
 
-     tWindowsTitle        = {title_edit_physics      = 'Edit Physics'}
+     tWindowsTitle        = {title_edit_physics = "title_edit_physics"}
      ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
      tPhysicsOptions      = {
         iIndexPrimitiveType = 1,
@@ -970,10 +970,10 @@ function main_menu_physic_editor()
                 bUseSolidColorBackGround = not checked
             end
 
-            bShowOrigin = tImGui.Checkbox('Show Origin',bShowOrigin)
+            bShowOrigin = tImGui.Checkbox(tLang.L("show_origin"), bShowOrigin)
             tLineCenterX.visible = bShowOrigin
             tLineCenterY.visible = bShowOrigin
-            bUseSolidColorBackGround = tImGui.Checkbox('Background solid color',bUseSolidColorBackGround)
+            bUseSolidColorBackGround = tImGui.Checkbox(tLang.L("background_solid_color"), bUseSolidColorBackGround)
 
             if bUseSolidColorBackGround then
                 tex_alpha_pattern.visible = false
@@ -1036,13 +1036,13 @@ function showEditPhysics()
     local max_width = 250
     local tSizeBtn   = {x=width - 20,y=0} -- size button
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_edit_physics,x_pos,y_pos,width,max_width)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_edit_physics, true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, ImGuiWindowFlags_NoMove)
     
     if is_opened then
         
-        tImGui.Text('Primitive type')
-        local indexPrimitive = tImGui.RadioButton('Rectangle', tPhysicsOptions.iIndexPrimitiveType, 1)
-        indexPrimitive       = tImGui.RadioButton('Rectangle/Triangle', indexPrimitive, 2)
+        tImGui.Text(tLang.L("primitive_type"))
+        local indexPrimitive = tImGui.RadioButton(tLang.L("rectangle"), tPhysicsOptions.iIndexPrimitiveType, 1)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("rectangle_triangle"), indexPrimitive, 2)
         if indexPrimitive == 2 then
             tImGui.SameLine()
             tImGui.PushItemWidth(70)
@@ -1066,7 +1066,7 @@ function showEditPhysics()
             end
             tImGui.PopItemWidth()
         end
-        indexPrimitive       = tImGui.RadioButton('Triangle',           indexPrimitive, 5)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 5)
         local tSizeBtn       = {x=width - 20,y=0} -- size button
         
         local color             = {r=1,g=1,b=0.4,a=1}
@@ -1116,7 +1116,7 @@ function showEditPhysics()
         winPos.y = winPos.y + 100
         tImGui.SetCursorScreenPos(winPos)
         
-        if tImGui.Button('Add Physic', tSizeBtn) then
+        if tImGui.Button(tLang.L("add_physic_btn"), tSizeBtn) then
             local width,height,depth = tMesh:getSize()
             if depth == nil then
                 depth = 1
@@ -1197,14 +1197,14 @@ function showEditPhysics()
 
         tImGui.Separator()
 
-        if tImGui.Button('Enable Select All', tSizeBtn) then
+        if tImGui.Button(tLang.L("enable_select_all"), tSizeBtn) then
             for i=1, #tInfoPhysics do
                 local tPhysic       = tInfoPhysics[i]
                 tPhysic.selectable = true
             end
         end
 
-        if tImGui.Button('Disable Select All', tSizeBtn) then
+        if tImGui.Button(tLang.L("disable_select_all"), tSizeBtn) then
             for i=1, #tInfoPhysics do
                 local tPhysic       = tInfoPhysics[i]
                 tPhysic.selectable = false
@@ -1431,9 +1431,9 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i,3)
                         end
                     elseif tPhysic.type == 'complex' then
-                        tImGui.Text('Not implemented')
+                        tImGui.Text(tLang.L("not_implemented"))
                     end
-                    if tImGui.Button('Delete Physic', {x=0,y=0}) then
+                    if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then
                         table.remove(tInfoPhysics,i)
                         tPhysic:destroy()
                         tInfoPhysics:unSelectFrame()

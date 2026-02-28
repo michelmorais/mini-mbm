@@ -67,8 +67,8 @@ function onInitScene()
     addShaderParticle()
 
     tWindowsTitle = {
-            title_particle_options = 'Particle Options',
-            title_particle_status  = 'Particle Status'
+            title_particle_options = "title_particle_options",
+            title_particle_status  = "title_particle_status"
     }
     bEnableMoveWindow       = false
     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
@@ -421,7 +421,7 @@ function drawStrength(title,x,y,z)
     local step_fast  =  10.0
     local format     = "%.2f"
     local flags      =  0
-    tImGui.Text('Strength')
+    tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
@@ -433,7 +433,7 @@ function drawStrength(title,x,y,z)
     tImGui.PopItemWidth()
 
     local label      = '##ZDir' .. title
-    tImGui.Text('Z       ')
+    tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
@@ -470,12 +470,12 @@ function showParticleOptions()
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_particle_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_particle_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
 
             local indexCurrentStage, iTotalStage = tParticle:getStage()
             tImGui.PushItemWidth(150)
-            tImGui.Text('Number Of Particles')
+            tImGui.Text(tLang.L("number_of_particles"))
             local label      = '##Number of particles'
             local step       =  1
             local step_fast  =  10
@@ -489,11 +489,11 @@ function showParticleOptions()
             end
 
             tImGui.SameLine()
-            if tImGui.Button('Set', tSizeBtnAddSet) then
+            if tImGui.Button(tLang.L("set_btn"), tSizeBtnAddSet) then
                 tParticle:setTotalParticle(iStageParticle,iNumberOfParticleByStageSet)
             end
 
-            tImGui.Text('Stage')
+            tImGui.Text(tLang.L("stage_label"))
             local label      = '##Number of stage'
             local step_fast  =  1
             
@@ -510,7 +510,7 @@ function showParticleOptions()
                 tParticle:setTotalParticle(iStageParticle,iNumberOfParticleByStageSet)
             end
             
-            if tImGui.Button('Restart Stage(s)', tSizeBtn) then
+            if tImGui.Button(tLang.L("restart_stages"), tSizeBtn) then
                 tParticle:restartAnim()
                 indexCurrentStage = 1
             end
@@ -522,7 +522,7 @@ function showParticleOptions()
                 arise_time       = drawSlider(arise_time,'Time to rise\n(when add particle)',0.1,iRangeAriseTimeParticle)
                 tParticle:setAriseTime(iStageParticle,arise_time)
 
-                tImGui.Text('Range Arise Time')
+                tImGui.Text(tLang.L("range_arise_time"))
                 local label      = '##RangeAriseTime'
                 local step       =  0.001
                 local step_fast  =  1.0
@@ -563,7 +563,7 @@ function showParticleOptions()
                                         "MIN",
                                         "MAX"}
 
-                tImGui.Text('Blend Function')
+                tImGui.Text(tLang.L("blend_function"))
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L("help_blend_function_stages"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
@@ -572,7 +572,7 @@ function showParticleOptions()
                     tParticle:setBlend(iBlendIndex)
                 end
 
-                tImGui.Text('Blend Operation')
+                tImGui.Text(tLang.L("blend_operation"))
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L("help_blend_operation_stages"))
                 local iBlendOpIndex = 1
@@ -591,7 +591,7 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Color") then
-                tImGui.Text('Min Color')
+                tImGui.Text(tLang.L("min_color"))
                 local label      = tLang.L("min_color_particle") .. '##Min Color'
                 local flag_color = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel')
                 local tColor  = {}
@@ -601,7 +601,7 @@ function showParticleOptions()
                     tParticle:setMinColor(iStageParticle,tRgb.r,tRgb.g,tRgb.b)
                 end
 
-                tImGui.Text('Max Color')
+                tImGui.Text(tLang.L("max_color"))
                 local label     = tLang.L("max_color_particle") .. '##Max Color'
                 tColor.r, tColor.g, tColor.b = tParticle:getMaxColor(iStageParticle)
                 local clicked, tRgb = tImGui.ColorEdit3(label, tColor, flag_color)
@@ -623,19 +623,19 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Flags") then
-                tParticle.alpha      = tImGui.Checkbox('Alpha (Enable on Shader)',tParticle.alpha)
-                tParticle.grow       = tImGui.Checkbox('Min Size to Max Size',tParticle.grow)
-                tParticle.segmented  = tImGui.Checkbox('Segmented (UV)',tParticle.segmented)
-                tParticle.revive     = tImGui.Checkbox('Revive',tParticle.revive)
+                tParticle.alpha      = tImGui.Checkbox(tLang.L("alpha_enable_shader"), tParticle.alpha)
+                tParticle.grow       = tImGui.Checkbox(tLang.L("min_to_max_size"), tParticle.grow)
+                tParticle.segmented  = tImGui.Checkbox(tLang.L("segmented_uv"), tParticle.segmented)
+                tParticle.revive     = tImGui.Checkbox(tLang.L("revive"), tParticle.revive)
                 tImGui.TreePop()
             end
             
             if tImGui.TreeNode("Invert Color") then
                 local r,g,b,a  = tParticle:getInvertedColor(iStageParticle)
-                r              = tImGui.Checkbox('Red color',r)
-                g              = tImGui.Checkbox('Green color',g)
-                b              = tImGui.Checkbox('Blue color',b)
-                a              = tImGui.Checkbox('Alpha color',a)
+                r              = tImGui.Checkbox(tLang.L("red_color"), r)
+                g              = tImGui.Checkbox(tLang.L("green_color"), g)
+                b              = tImGui.Checkbox(tLang.L("blue_color"), b)
+                a              = tImGui.Checkbox(tLang.L("alpha_color"), a)
                 tParticle:setInvertedColor(iStageParticle,r,g,b,a)
                 tImGui.TreePop()
             end
@@ -648,7 +648,7 @@ function showParticleOptions()
                 max_life_time = drawSlider(max_life_time,'Max Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMaxLifeTime(iStageParticle,max_life_time)
 
-                tImGui.Text('Range Life Time')
+                tImGui.Text(tLang.L("range_life_time"))
                 local label      = '##RangeLifeTime'
                 local step       =  0.02
                 local step_fast  =  1.0
@@ -672,7 +672,7 @@ function showParticleOptions()
                 stageTime                     = drawSlider(stageTime,'Stage Time\n(each stage is like an animation)',0.1,iRangeStageTimeParticle)
                 tParticle:setStageTime(iStageParticle,stageTime)
 
-                tImGui.Text('Range Stage Time')
+                tImGui.Text(tLang.L("range_stage_time"))
                 local label      = '##RangeStageTime'
                 local step       =  0.001
                 local step_fast  =  1.0
@@ -708,7 +708,7 @@ function showParticleOptions()
                 tParticle:setMaxOffset(iStageParticle,x_max,y_max,z_max)
                 
 
-                tImGui.Text('Range Offset')
+                tImGui.Text(tLang.L("range_offset"))
                 local label      = '##RangeOffset'
                 local step       =  1
                 local step_fast  =  5
@@ -754,7 +754,7 @@ function showParticleOptions()
                 max_speed = drawSlider(max_speed,'Max Speed',0,iRangeSpeedParticle)
                 tParticle:setMaxSpeed(iStageParticle,max_speed)
 
-                tImGui.Text('Range Speed')
+                tImGui.Text(tLang.L("range_speed"))
                 local label      = '##RangeSpeedparticles'
                 local step       =  1
                 local step_fast  =  10
@@ -773,16 +773,16 @@ function showParticleOptions()
             end
 
             if tImGui.TreeNode("Shader") then
-                local indexSelected  = tImGui.RadioButton('Operator \'+\'', tShaderByOperator.index,  1)
-                indexSelected        = tImGui.RadioButton('Operator \'-\'', indexSelected, 2)
-                indexSelected        = tImGui.RadioButton('Operator \'/\'', indexSelected, 3)
-                indexSelected        = tImGui.RadioButton('Operator \'*\'', indexSelected, 4)
+                local indexSelected  = tImGui.RadioButton(tLang.L("operator_plus"), tShaderByOperator.index, 1)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_minus"), indexSelected, 2)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_div"), indexSelected, 3)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_mul"), indexSelected, 4)
                 if indexSelected ~= tShaderByOperator.index then
                     tShaderByOperator.index = indexSelected
                     tShader:load(tShaderByOperator[tShaderByOperator.index].name,nil,mbm.GROWING,1.0,mbm.GROWING_LOOP,1.0)
                 end
 
-                tImGui.Text('Additional Code Shader')
+                tImGui.Text(tLang.L("additional_code_shader"))
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L("help_not_saved_binary"))
                 local modified , sNewText = tImGui.InputTextMultiline('##AdditionalCode',tShaderByOperator.sAdditionalCode,{x=-1,y=0},flags)
@@ -793,7 +793,7 @@ function showParticleOptions()
                 if tShaderByOperator.sAdditionalCode:len() > 0 then
                     sAddCode = '\n // YOUR CODE ********** \n' ..  tShaderByOperator.sAdditionalCode .. '\n//END YOUR CODE ********** \n'
                 end
-                tImGui.Text('Code')
+                tImGui.Text(tLang.L("code_label"))
                 local sCodeShader = 
 [[precision mediump float;
 uniform vec4 color;
@@ -815,7 +815,7 @@ void main()
 }
 ]]
                 tImGui.TextDisabled(sCodeShader)
-                if tImGui.Button('Apply') then
+                if tImGui.Button(tLang.L("apply_btn")) then
                     local ext = tUtil.getExtension(sLastEditorFileName)
                     if ext == 'particle' then
                         if onSaveEditionParticle(sLastEditorFileName) then
@@ -840,7 +840,7 @@ void main()
                 max_size = drawSlider(max_size,'Max Size',0.1,iRangeSizeParticle)
                 tParticle:setMaxSize(iStageParticle,max_size)
 
-                tImGui.Text('Range Size')
+                tImGui.Text(tLang.L("range_size"))
                 local label      = '##RangeSize'
                 local step       =  5
                 local step_fast  =  10
@@ -1127,7 +1127,7 @@ function showParticleStatus(delta)
     window_pos     = {x = iW - 150, y = 25}
     local window_pos_pivot = {x = 0, y = 0}
     tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_particle_status, false,tImGui.Flags(flags) )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_status), false, tImGui.Flags(flags))
     if is_opened then
         local indexCurrentStage, iTotalStage = tParticle:getStage()
         iLastStageText            = iLastStageText + delta

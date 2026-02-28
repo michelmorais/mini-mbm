@@ -36,7 +36,7 @@ sqlite3       =     require "lsqlite3"
 
 function onInitScene()
     
-    tWindowsTitle               = {title_asset             = 'Assets', }
+    tWindowsTitle               = {title_asset = "title_asset"}
     tAssets                     = {}
     ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iSelectedItem               = 0
@@ -266,7 +266,7 @@ function showAssets()
         local tPosWin      = {x = 0, y = 0}
         local size         = {x=0,y=0}
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_asset,tPosWin.x,tPosWin.y,width,width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_asset, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_asset), true, ImGuiWindowFlags_NoMove)
         local bUniquePoupUpContext = true
         local right_mouse_pressed = false
         local bRemoved = false

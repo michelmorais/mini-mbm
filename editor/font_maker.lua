@@ -390,9 +390,9 @@ function renderMainMenu(delta)
     local tPosWin      = {x = 0, y = 0}
     local tSizeButton  = {x = 200, y = 0}
     local itemWidth    = 200
-    local title        = 'True Type Font Import Options'
-    tImGui.SetNextWindowSize({x = width, y = height},tImGui.Flags('ImGuiCond_Once'))
-    tImGui.SetNextWindowPos(tPosWin , tImGui.Flags('ImGuiCond_Once'))
+    local title        = tLang.L("title_font_import_options")
+    tImGui.SetNextWindowSize({x = width, y = height}, tImGui.Flags('ImGuiCond_Once'))
+    tImGui.SetNextWindowPos(tPosWin, tImGui.Flags('ImGuiCond_Once'))
     local is_opened, closed_clicked = tImGui.Begin(title, false, tImGui.Flags('ImGuiWindowFlags_NoMove'))
     if is_opened then
         if tImGui.Button(tLang.L("load_font"),tSizeButton) then
@@ -412,7 +412,7 @@ function renderMainMenu(delta)
         local step       =  1
         local step_fast  =  10
         tImGui.PushItemWidth(itemWidth)
-        local clicked, iValue = tImGui.InputInt('Height', iHeightFont, step, step_fast)
+        local clicked, iValue = tImGui.InputInt(tLang.L("height"), iHeightFont, step, step_fast)
         if clicked then
             if iValue > 0 and iValue < 1000 then
                 iHeightFont = iValue
@@ -422,7 +422,7 @@ function renderMainMenu(delta)
             end
         end
 
-        local clicked, iValue = tImGui.InputInt('Space X', iSpace, step, step_fast)
+        local clicked, iValue = tImGui.InputInt(tLang.L("space_x_label"), iSpace, step, step_fast)
         if clicked then
             if iValue > -1000 and iValue < 1000 then
                 iSpace = iValue
@@ -434,7 +434,7 @@ function renderMainMenu(delta)
             end
         end
 
-        local clicked, iValue = tImGui.InputInt('Space Y', iSpaceHeight, step, step_fast)
+        local clicked, iValue = tImGui.InputInt(tLang.L("space_y_label"), iSpaceHeight, step, step_fast)
         if clicked then
             if iValue > -1000 and iValue < 1000 then
                 iSpaceHeight = iValue
@@ -568,7 +568,7 @@ function renderMainMenu(delta)
                                 tText:restartAnim()
                             end
                         else
-                            tImGui.Text('Shader:' .. tostring(sPixel) .. '\nnot supported for edition!')    
+                            tImGui.Text(string.format(tLang.L("shader_not_supported_fmt"), tostring(sPixel)))    
                         end
                         tImGui.TreePop()
                     end

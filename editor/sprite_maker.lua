@@ -39,14 +39,14 @@ end
 
 function onInitScene()
     
-    tWindowsTitle        = {title_image_selector    = 'Image(s) selector', 
-                            title_add_frame         = 'Add Frame',
-                            title_frame_edit        = 'Frame Edit',
-                            title_frame_list        = 'Frame List',
-                            title_frame_preview     = 'Frame Preview',
-                            title_animation         = 'Animation',
-                            title_edit_physics      = 'Edit Physics',
-                            title_advanced_options  = 'Advanced Options For Binary Sprite'}
+    tWindowsTitle        = {title_image_selector    = "title_image_selector",
+                            title_add_frame         = "title_add_frame",
+                            title_frame_edit        = "title_frame_edit",
+                            title_frame_list        = "title_frame_list",
+                            title_frame_preview     = "title_frame_preview",
+                            title_animation         = "title_animation",
+                            title_edit_physics      = "title_edit_physics",
+                            title_advanced_options  = "title_advanced_options"}
 
     camera2d		     = mbm.getCamera("2d")
     tLineSprite          = line:new("2dw",0,0)
@@ -1033,7 +1033,7 @@ function showFrameEdit()
         local x_pos, y_pos = 200, 0
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_frame_edit,x_pos,y_pos,width)
         shouldICollapse(tWindowsTitle.title_frame_edit)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_frame_edit, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_edit), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             local step       =  1.0
             local step_fast  =  100.0
@@ -1050,13 +1050,13 @@ function showFrameEdit()
             tImGui.Text(string.format('Subsets:%d',#tFrame.tSubsetList))
             tImGui.Text(string.format('Type:%s',tFrame.type))
 
-            local result, fValue = tImGui.InputFloat('Width', tFrame.width , step, step_fast, format, flags)
+            local result, fValue = tImGui.InputFloat(tLang.L("width"), tFrame.width, step, step_fast, format, flags)
             if result then
                 if fValue > 0 then
                     tShape = resizeShape(tFrame,fValue,tFrame.height)
                 end
             end
-            local result, fValue = tImGui.InputFloat('Height', tFrame.height , step, step_fast, format, flags)
+            local result, fValue = tImGui.InputFloat(tLang.L("height"), tFrame.height, step, step_fast, format, flags)
             if result then
                 if fValue > 0 then
                     tShape = resizeShape(tFrame,tFrame.width,fValue)
@@ -1064,7 +1064,7 @@ function showFrameEdit()
                 tPivotShape.visible      = false
             end
 
-            bEnableResizeOnScroll = tImGui.Checkbox('Resize using scroll',bEnableResizeOnScroll)
+            bEnableResizeOnScroll = tImGui.Checkbox(tLang.L("resize_using_scroll"), bEnableResizeOnScroll)
             if bEnableResizeOnScroll then
                 
                 local label    = 'speed'
@@ -1078,24 +1078,24 @@ function showFrameEdit()
                     iStep_zoom = iValue
                 end
             end
-            if tImGui.Button('Reset Size', tSizeBtn) then
+            if tImGui.Button(tLang.L("reset_size"), tSizeBtn) then
                 tShape = resizeShape(tFrame,tFrame.tTexture.width,tFrame.tTexture.height)
             end
 
             tImGui.Separator()
-            tImGui.Text('Pivot')
-            tPivotShape.visible  = tImGui.Checkbox('Edit Pivot',tPivotShape.visible)
-            local result, fValue = tImGui.InputFloat('X', tFrame.tPivot.x,step, step_fast, format, flags)
+            tImGui.Text(tLang.L("pivot"))
+            tPivotShape.visible  = tImGui.Checkbox(tLang.L("edit_pivot"), tPivotShape.visible)
+            local result, fValue = tImGui.InputFloat(tLang.L("axis_x"), tFrame.tPivot.x, step, step_fast, format, flags)
             if result then
                 tFrame.tPivot.x = fValue
                 tPivotShape.visible = true
             end
-            local result, fValue = tImGui.InputFloat('Y', tFrame.tPivot.y,step, step_fast, format, flags)
+            local result, fValue = tImGui.InputFloat(tLang.L("axis_y"), tFrame.tPivot.y, step, step_fast, format, flags)
             if result then
                 tFrame.tPivot.y = fValue
                 tPivotShape.visible = true
             end
-            if tImGui.Button('Reset Pivot', tSizeBtn) then
+            if tImGui.Button(tLang.L("reset_pivot"), tSizeBtn) then
                 tFrame.tPivot.x = 0
                 tFrame.tPivot.y = 0
             end
@@ -1104,8 +1104,8 @@ function showFrameEdit()
             tPivotShape:setPos(tFrame.tPivot.x,tFrame.tPivot.y)
             tPivotShape.z = tShape.z - 2
 
-            tImGui.Text('UV map')
-            if tImGui.Button('Invert U', tSizeBtn) then
+            tImGui.Text(tLang.L("uv_map"))
+            if tImGui.Button(tLang.L("invert_u"), tSizeBtn) then
                 if tShape.uv then
                     local uv = tShape.uv
                     local uMin, vMin, uMax, vMax = getRangeUV(uv)
@@ -1119,7 +1119,7 @@ function showFrameEdit()
                 end
             end
 
-            if tImGui.Button('Invert V', tSizeBtn) then
+            if tImGui.Button(tLang.L("invert_v"), tSizeBtn) then
                 if tShape.uv then
                     local uv = tShape.uv
                     local uMin, vMin, uMax, vMax = getRangeUV(uv)
@@ -1132,7 +1132,7 @@ function showFrameEdit()
                     end
                 end
             end
-            if tImGui.Button('Invert UV', tSizeBtn) then
+            if tImGui.Button(tLang.L("invert_uv"), tSizeBtn) then
                 if tShape.uv then
                     local uv = tShape.uv
                     local uMin, vMin, uMax, vMax = getRangeUV(uv)
@@ -1151,7 +1151,7 @@ function showFrameEdit()
                 end
             end
 
-            if tImGui.Button('Reset UV', tSizeBtn) then
+            if tImGui.Button(tLang.L("reset_uv"), tSizeBtn) then
                 if tShape.uv then
                     local uv     = tShape.uv
                     local uv_bkp = tShape.uv_bkp
@@ -1244,11 +1244,11 @@ function showFrameEdit()
             end
 
             tImGui.Separator()
-            tImGui.Text('Index Buffer Options')
+            tImGui.Text(tLang.L("index_buffer_options"))
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_advanced_index_buffer"))
             if tImGui.TreeNodeEx(tLang.L("advanced_size"), flag_node, '##AdvancedIndexBufferTree') then
-                tImGui.Text('Resize')
+                tImGui.Text(tLang.L("resize_label"))
                 tPivotShape.visible      = false
                 if clicked then
                     if iValue >= 3 and iValue <= 99999999 then
@@ -1261,7 +1261,7 @@ function showFrameEdit()
                     end
                 end
                 
-                if tImGui.Button('Reset Index Buffer', {x=0,y=0}) then
+                if tImGui.Button(tLang.L("reset_index_buffer"), {x=0,y=0}) then
                     tShape.index_buffer_edit = {}
                     for i=1, #tShape.index_read_only do
                         tShape.index_buffer_edit[i] = tShape.index_read_only[i]
@@ -1320,7 +1320,7 @@ function showFrameList()
         end
     end
     shouldICollapse(tWindowsTitle.title_frame_list)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_frame_list, true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_list), true, ImGuiWindowFlags_NoMove)
     if is_opened then
         if tFrameList.indexSelectedFrameNode ~= 0 and #tFrameList > 0 then
             if tImGui.IsWindowFocused(0) then
@@ -1459,7 +1459,7 @@ function showFramePreview()
     tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = 200, y= 200})
 
     shouldICollapse(tWindowsTitle.title_frame_preview)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_frame_preview, true,tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_frame_preview), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
     if is_opened and tFrameAddOptions.tSelectedTexture then
         local padding        = tImGui.GetStyle('DisplayWindowPadding')
         local sy_visible     = select(2,tImGui.IsScrollVisible())
@@ -1720,12 +1720,12 @@ function showFrameAdd()
     tUtil.setInitialWindowPositionRight(tWindowsTitle.title_add_frame,x_pos,y_pos,width,max_width)
 
     shouldICollapse(tWindowsTitle.title_add_frame)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_add_frame, true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_add_frame), true, ImGuiWindowFlags_NoMove)
     if is_opened then
-        tImGui.Text('Primitive type')
-        local indexPrimitive = tImGui.RadioButton('Rectangle', tFrameAddOptions.iIndexPrimitiveType, 1)
-        indexPrimitive       = tImGui.RadioButton('Circle',    indexPrimitive, 2)
-        indexPrimitive       = tImGui.RadioButton('Triangle',  indexPrimitive, 3)
+        tImGui.Text(tLang.L("primitive_type"))
+        local indexPrimitive = tImGui.RadioButton(tLang.L("rectangle"), tFrameAddOptions.iIndexPrimitiveType, 1)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("circle"), indexPrimitive, 2)
+        indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 3)
         local tSizeBtn       = {x=width - 20,y=0} -- size button
         
         local color             = {r=1,g=1,b=0.4,a=1}
@@ -1776,7 +1776,7 @@ function showFrameAdd()
         
         winPos.y = winPos.y + 100
         tImGui.SetCursorScreenPos(winPos)
-        tImGui.Text('Number of Elements')
+        tImGui.Text(tLang.L("number_of_elements"))
         local result, iValue = tImGui.InputInt('##NumberElements', tFrameAddOptions.iNumElements, step, step_fast)
         if result then
             if indexPrimitive == 1 then -- only even for rectangles
@@ -1795,7 +1795,7 @@ function showFrameAdd()
             tFrameAddOptions.tShapeEdit   = nil
         end
 
-        tFrameAddOptions.bEditVertex = tImGui.Checkbox('Edit Primitive',tFrameAddOptions.bEditVertex)
+        tFrameAddOptions.bEditVertex = tImGui.Checkbox(tLang.L("edit_primitive"), tFrameAddOptions.bEditVertex)
 
         if tFrameAddOptions.bEditVertex then
             if tFrameAddOptions.tSelectedTexture then
@@ -1897,7 +1897,7 @@ function showFrameAdd()
                         tImGui.TreePop()
                     end
                     if tFrameAddOptions.bAddAsSubset then
-                        if tImGui.Button('Add Subset Edited', tSizeBtn) then
+                        if tImGui.Button(tLang.L("add_subset_edited"), tSizeBtn) then
                             tFrameList.indexSelectedFrameNodeToExpand = tFrameList.indexSelectedFrameNode
                             local tFrame   = tFrameList[tFrameList.indexSelectedFrameNode]
                             local tTexture = tFrameAddOptions.tSelectedTexture
@@ -1908,7 +1908,7 @@ function showFrameAdd()
                             tUtil.showMessage('Edited Subset Added!',3)
                         end
                     else
-                        if tImGui.Button('Add Frame Edited', tSizeBtn) then
+                        if tImGui.Button(tLang.L("add_frame_edited"), tSizeBtn) then
                             local tTexture = tFrameAddOptions.tSelectedTexture
                             local tFrame   = newPrimitiveFrameFromFrameAddOptions(tTexture,tTexture.width,tTexture.height)
                             bShowFrameList = true
@@ -1978,13 +1978,13 @@ function showFrameAdd()
 
         tImGui.Separator()
 
-        tImGui.Text('Subset Options')
-        tFrameAddOptions.bAddAsSubset = tImGui.Checkbox('Add as Subset',tFrameAddOptions.bAddAsSubset,tImGui.Flags('ImGuiSelectableFlags_Disabled') )
+        tImGui.Text(tLang.L("subset_options"))
+        tFrameAddOptions.bAddAsSubset = tImGui.Checkbox(tLang.L("add_as_subset"), tFrameAddOptions.bAddAsSubset, tImGui.Flags('ImGuiSelectableFlags_Disabled'))
         tImGui.Separator()
-        tImGui.Text('Single Frame Options')
+        tImGui.Text(tLang.L("single_frame_options"))
         if tFrameAddOptions.bAddAsSubset then
             if tFrameList.indexSelectedFrameNode and tFrameList.indexSelectedFrameNode <= #tFrameList and tFrameList.indexSelectedFrameNode > 0 then
-                if tImGui.Button('Add Subset', tSizeBtn) then
+                if tImGui.Button(tLang.L("add_subset"), tSizeBtn) then
                     if tFrameAddOptions.tSelectedTexture then
                         tFrameList.indexSelectedFrameNodeToExpand = tFrameList.indexSelectedFrameNode
                         local tFrame =  tFrameList[tFrameList.indexSelectedFrameNode]
@@ -2002,7 +2002,7 @@ function showFrameAdd()
                 tUtil.showMessageWarn('There is no frame selected on frame list!',2.5)
             end
         else
-            if tImGui.Button('Add Selected', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_selected"), tSizeBtn) then
                 if tFrameAddOptions.tSelectedTexture then
                     local tFrame = newFrameFromFrameAddOptions(tFrameAddOptions.tSelectedTexture)
                     table.insert(tFrameList,tFrame)
@@ -2014,7 +2014,7 @@ function showFrameAdd()
                     tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
                 end
             end
-            if tImGui.Button('Add all', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_all"), tSizeBtn) then
                 if hasTextureSelected(tTexturesToEditor) then
                     local tTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
                     for i=1, #tTextures do
@@ -2032,8 +2032,8 @@ function showFrameAdd()
 
         tImGui.Separator()
         tImGui.Text('UV Map Options')
-        tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox('Invert U',tFrameAddOptions.bInvertUFrameOptions)
-        tFrameAddOptions.bInvertVFrameOptions = tImGui.Checkbox('Invert V',tFrameAddOptions.bInvertVFrameOptions)
+tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFrameAddOptions.bInvertUFrameOptions)
+            tFrameAddOptions.bInvertVFrameOptions = tImGui.Checkbox(tLang.L("invert_v"), tFrameAddOptions.bInvertVFrameOptions)
         
         tImGui.Separator()
 
@@ -2043,45 +2043,45 @@ function showFrameAdd()
             local format     = "%.3f"
             local flags      =  0
 
-            tImGui.Text('Sprite Sheet Mode')
+            tImGui.Text(tLang.L("sprite_sheet_mode"))
 
-            local result, iValue = tImGui.InputFloat('Column', tFrameAddOptions.iNumColumn, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("column"), tFrameAddOptions.iNumColumn, step, step_fast, format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iNumColumn = iValue
                 tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
                 tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
-            local result, iValue = tImGui.InputFloat('Lines', tFrameAddOptions.iNumLines, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("lines"), tFrameAddOptions.iNumLines, step, step_fast, format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iNumLines = iValue
                 tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
                 tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
 
-            local result, iValue = tImGui.InputFloat('Marg. X', tFrameAddOptions.iMarginX, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("marg_x"), tFrameAddOptions.iMarginX, step, step_fast, format, flags)
             if result and iValue >= 0 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iMarginX = iValue
             end
-            local result, iValue = tImGui.InputFloat('Marg. Y', tFrameAddOptions.iMarginY, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("marg_y"), tFrameAddOptions.iMarginY, step, step_fast, format, flags)
             if result and iValue >= 0 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iMarginY = iValue
             end
 
-            local result, iValue = tImGui.InputFloat('Space X', tFrameAddOptions.iSpacingx, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("space_x_label"), tFrameAddOptions.iSpacingx, step, step_fast, format, flags)
             if result and iValue >= 0 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iSpacingx = iValue
             end
-            local result, iValue = tImGui.InputFloat('Space Y', tFrameAddOptions.iSpacingy, step, step_fast,format, flags)
+            local result, iValue = tImGui.InputFloat(tLang.L("space_y_label"), tFrameAddOptions.iSpacingy, step, step_fast, format, flags)
             if result and iValue >= 0 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iSpacingy = iValue
             end
-            tImGui.Text('Expected Size of Frame')
+            tImGui.Text(tLang.L("expected_size_of_frame"))
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_rectangle_not_square"))
 
-            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on X",sFrameSubset), tFrameAddOptions.iRatioSelection, 1)
-            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on Y",sFrameSubset), tFrameAddOptions.iRatioSelection, 2)
-            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio disabled",sFrameSubset), tFrameAddOptions.iRatioSelection, 3)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(tLang.L("lock_ratio_on_x"), tFrameAddOptions.iRatioSelection, 1)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(tLang.L("lock_ratio_on_y"), tFrameAddOptions.iRatioSelection, 2)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(tLang.L("lock_ratio_disabled"), tFrameAddOptions.iRatioSelection, 3)
 
             local bRatioOnXTextureLocked = (tFrameAddOptions.iRatioSelection == 1)
             local bRatioOnYTextureLocked = (tFrameAddOptions.iRatioSelection == 2)
@@ -2091,7 +2091,7 @@ function showFrameAdd()
             local step_fast  =  10
             local format     = "%.3f"
             if bNoLock or bRatioOnXTextureLocked then
-                local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
+                local result, iValue = tImGui.InputFloat(tLang.L("width"), tFrameAddOptions.iSizeFrameWidth, step, step_fast, format, flags)
                 if result and iValue > 0 then
                     tFrameAddOptions.iSizeFrameWidth = iValue
                     if bRatioOnXTextureLocked then
@@ -2106,7 +2106,7 @@ function showFrameAdd()
             end
 
             if bNoLock or bRatioOnYTextureLocked then
-                local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
+                local result, iValue = tImGui.InputFloat(tLang.L("height"), tFrameAddOptions.iSizeFrameHeight, step, step_fast, format, flags)
                 if result and iValue > 0 then
                     tFrameAddOptions.iSizeFrameHeight = iValue
                     if bRatioOnYTextureLocked then
@@ -2148,7 +2148,7 @@ function showFrameAdd()
                 if tFrameAddOptions.bAddAsSubset then
                     sFrameSubset   = 'Subsets'
                 end
-                local sSelectedFrames  = string.format('Add (%d/%d) %s',iTotalSelected,#tFrameAddOptions.tFramesEnableSpriteSheet,sFrameSubset)
+                local sSelectedFrames  = string.format('%s (%d/%d) %s', tLang.L("add_label"), iTotalSelected, #tFrameAddOptions.tFramesEnableSpriteSheet, sFrameSubset)
                 
                 if tFrameAddOptions.bAddAsSubset then
                     if tImGui.Button(sSelectedFrames, tSizeBtn) then
@@ -2255,26 +2255,26 @@ function showFrameAdd()
                     end
                 end
 
-                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by X",sFrameSubset), tFrameAddOptions.iSortBySelection, 1)
-                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by Y",sFrameSubset), tFrameAddOptions.iSortBySelection, 2)
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format(tLang.L("add_sorted_by_x_fmt"), sFrameSubset), tFrameAddOptions.iSortBySelection, 1)
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format(tLang.L("add_sorted_by_y_fmt"), sFrameSubset), tFrameAddOptions.iSortBySelection, 2)
 
                 if tImGui.TreeNode('##select_frames_from_sprite_sheet', string.format('%s Options', sFrameSubset)) then
                     tFrameAddOptions.iFramesEnableSpriteSheetHover = 0
-                    if tImGui.Button('Include All',tSizeBtn) then
+                    if tImGui.Button(tLang.L("include_all"), tSizeBtn) then
                         for i=1, #tFrameAddOptions.tFramesEnableSpriteSheet do
                             tFrameAddOptions.tFramesEnableSpriteSheet[i] = true
                         end
                         tFrameAddOptions.bShowFramePreview        = true
                         unCollapse(tWindowsTitle.title_frame_preview)
                     end
-                    if tImGui.Button('Exclude All',tSizeBtn) then
+                    if tImGui.Button(tLang.L("exclude_all"), tSizeBtn) then
                         for i=1, #tFrameAddOptions.tFramesEnableSpriteSheet do
                             tFrameAddOptions.tFramesEnableSpriteSheet[i] = false
                         end
                         tFrameAddOptions.bShowFramePreview        = true
                         unCollapse(tWindowsTitle.title_frame_preview)
                     end
-                    if tImGui.Button('Invert Selection',tSizeBtn) then
+                    if tImGui.Button(tLang.L("invert_selection"), tSizeBtn) then
                         for i=1, #tFrameAddOptions.tFramesEnableSpriteSheet do
                             tFrameAddOptions.tFramesEnableSpriteSheet[i] = not tFrameAddOptions.tFramesEnableSpriteSheet[i]
                         end
@@ -2430,7 +2430,7 @@ function showAnimationAdd(delta)
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_animation,x_pos,y_pos,width)
         shouldICollapse(tWindowsTitle.title_animation)
         tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = width, y= width})
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_animation, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, ImGuiWindowFlags_NoMove)
         if tAnimationOptions.iFrameStart <= 0 then
             tAnimationOptions.iFrameStart = 1
         end
@@ -2444,7 +2444,7 @@ function showAnimationAdd(delta)
             tAnimationOptions.iFrameStop = #tFrameList
         end
         if is_opened then
-            tImGui.Text('Add Animation')
+            tImGui.Text(tLang.L("add_animation_label"))
             local v_min     = 1
             local v_max     = #tFrameList
             local winSize   = tImGui.GetWindowSize()
@@ -2482,17 +2482,17 @@ function showAnimationAdd(delta)
             addDynamicTextureToImGuiImage(tFrameStop,winSize,padding,2)
             tImGui.PushItemWidth(200)
             tImGui.Separator()
-            tImGui.Text('Current Frame:' .. tostring(indexFrame))
+            tImGui.Text(string.format(tLang.L("current_frame_fmt"), tostring(indexFrame)))
             tImGui.Text(string.format('Current Time: %.3f', tAnimationOptions.iTimeAnimSimulation))
             
             tImGui.Separator()
-            tImGui.Text('Type Of Animation:')
+            tImGui.Text(tLang.L("type_of_animation"))
             local ret, current_item, item = tImGui.Combo('##ComboAnim' , tAnimationOptions.iTypeAnim, tAnimationOptions.tAnimTypes)
             if ret then
                 tAnimationOptions.iTypeAnim = current_item
             end
             
-            if tImGui.Button('Restart Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("restart_animation_btn2"), tSizeBtn) then
                 tAnimationOptions:restartAnim()
             end
 
@@ -2520,7 +2520,7 @@ function showAnimationAdd(delta)
             tShapeAnimations:setScale(tAnimationOptions.tScaleAnim.sx,tAnimationOptions.tScaleAnim.sy)
 
             tImGui.Separator()
-            tImGui.Text('Scale of Preview:')
+            tImGui.Text(tLang.L("scale_of_preview"))
             local result, fValue = tImGui.InputFloat('##ScaleAnimPreview', tAnimationOptions.tScaleAnim.sx, step, step_fast,format,flags)
             if result then
                 if fValue >=0 and fValue <= 10 then
@@ -2530,7 +2530,7 @@ function showAnimationAdd(delta)
             end
 
             tImGui.Separator()
-            tImGui.Text('Name:')
+            tImGui.Text(tLang.L("name_colon"))
             local label      = '##NameAnim'
             local hint       = '<Max 32 Characters>'
             local flags      = 0
@@ -2545,7 +2545,7 @@ function showAnimationAdd(delta)
 
             tImGui.Separator()
 
-            if tImGui.Button('Add Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_animation_btn"), tSizeBtn) then
                 local tAnim = {}
                 tAnim.sNameAnim    = tAnimationOptions.sNameAnim
                 tAnim.fTimeFrame   = tAnimationOptions.fTimeFrame
@@ -2588,13 +2588,13 @@ function showAnimationAdd(delta)
                             tImGui.TextColored(color, text)
                             tImGui.SameLine()
                             tImGui.HelpMarker(tLang.L("help_animation_invalid"))
-                            if tImGui.Button('Delete', tSizeBtn) then
+                            if tImGui.Button(tLang.L("delete_btn"), tSizeBtn) then
                                 table.remove(tAnimationList,i)
                                 tImGui.TreePop()
                                 break
                             end
                         end
-                        if tImGui.Button('Select this animation', tSizeBtn) then
+                        if tImGui.Button(tLang.L("select_this_animation"), tSizeBtn) then
                             tAnimationOptions.sNameAnim   = tAnim.sNameAnim
                             tAnimationOptions.fTimeFrame  = tAnim.fTimeFrame
                             tAnimationOptions.iTypeAnim   = tAnim.iTypeAnim
@@ -2602,7 +2602,7 @@ function showAnimationAdd(delta)
                             tAnimationOptions.iFrameStop  = tAnim.iFrameStop
                             tAnimationOptions:restartAnim()
                         end
-                        if tImGui.Button('Apply current options', tSizeBtn) then
+                        if tImGui.Button(tLang.L("apply_current_options"), tSizeBtn) then
                             tAnim.sNameAnim   = tAnimationOptions.sNameAnim
                             tAnim.fTimeFrame  = tAnimationOptions.fTimeFrame
                             tAnim.iTypeAnim   = tAnimationOptions.iTypeAnim
@@ -2643,29 +2643,29 @@ function showAdvancedOptions()
 
     shouldICollapse(tWindowsTitle.title_advanced_options)
     tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = width, y= height})
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_advanced_options, true, ImGuiWindowFlags_NoMove)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_advanced_options), true, ImGuiWindowFlags_NoMove)
     if is_opened then
 
         tImGui.PushItemWidth(270)
-        tImGui.Text('Mode draw')
+        tImGui.Text(tLang.L("mode_draw"))
         local ret, current_item, item = tImGui.Combo('##ModeDraw', tSaveBinaryOptions.indexModeDraw, tSaveBinaryOptions.tModeDrawList)
         if ret then
             tSaveBinaryOptions.indexModeDraw = current_item
         end
         
-        tImGui.Text('Cull Face')
+        tImGui.Text(tLang.L("cull_face"))
         local ret, current_item, item = tImGui.Combo('##CullFace', tSaveBinaryOptions.indexCullFace, tSaveBinaryOptions.tCullFaceList)
         if ret then
             tSaveBinaryOptions.indexCullFace = current_item
         end
 
-        tImGui.Text('Front Face')
+        tImGui.Text(tLang.L("front_face"))
         local ret, current_item, item = tImGui.Combo('##FrontFace', tSaveBinaryOptions.indexFrontFace, tSaveBinaryOptions.tFrontFaceList)
         if ret then
             tSaveBinaryOptions.indexFrontFace = current_item
         end
 
-        tImGui.Text('Stride')
+        tImGui.Text(tLang.L("stride"))
         local ret, current_item, item = tImGui.Combo('##Stride', tSaveBinaryOptions.indexStride, {'2 (x,y)', '3 (x,y,z)'})
         if ret then
             if current_item == 1 then
@@ -2680,7 +2680,7 @@ function showAdvancedOptions()
 
         tImGui.Separator()
 
-        if tImGui.Button('Reset to Default Options', {x=270,y=0}) then
+        if tImGui.Button(tLang.L("reset_to_default_options"), {x=270,y=0}) then
             tSaveBinaryOptions.indexFrontFace       = 1
             tSaveBinaryOptions.indexModeDraw        = 1
             tSaveBinaryOptions.indexCullFace        = 2
@@ -2935,7 +2935,7 @@ function showEditPhysics()
         bShowFrameList           = false
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_edit_physics,x_pos,y_pos,width,max_width)
         shouldICollapse(tWindowsTitle.title_edit_physics)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_edit_physics, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_edit_physics), true, ImGuiWindowFlags_NoMove)
         local tFrame = tFrameList[1]
         tFrame.tShape.visible = true
         tFrame.tShape:setScale(tPhysicsOptions.tScalePhysics.sx,tPhysicsOptions.tScalePhysics.sy)
@@ -2950,10 +2950,10 @@ function showEditPhysics()
 
         if is_opened then
             
-            tImGui.Text('Primitive type')
-            local indexPrimitive = tImGui.RadioButton('Rectangle', tPhysicsOptions.iIndexPrimitiveType, 1)
-            indexPrimitive       = tImGui.RadioButton('Circle',    indexPrimitive, 2)
-            indexPrimitive       = tImGui.RadioButton('Triangle',  indexPrimitive, 3)
+            tImGui.Text(tLang.L("primitive_type"))
+            local indexPrimitive = tImGui.RadioButton(tLang.L("rectangle"), tPhysicsOptions.iIndexPrimitiveType, 1)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("circle"), indexPrimitive, 2)
+            indexPrimitive       = tImGui.RadioButton(tLang.L("triangle"), indexPrimitive, 3)
             local tSizeBtn       = {x=width - 20,y=0} -- size button
             
             local color             = {r=1,g=1,b=0.4,a=1}
@@ -2984,7 +2984,7 @@ function showEditPhysics()
             winPos.y = winPos.y + 100
             tImGui.SetCursorScreenPos(winPos)
             
-            if tImGui.Button('Add Physic', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_physic_btn"), tSizeBtn) then
                 local tFakeShape = {tVertexEdited = false}
                 tFakeShape.setScale = function(self,x,y) end
 
@@ -3204,9 +3204,9 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
                         elseif tPhysic.type == 'complex' then
-                            tImGui.Text('Not implemented')
+                            tImGui.Text(tLang.L("not_implemented"))
                         end
-                        if tImGui.Button('Delete Physic', {x=0,y=0}) then
+                        if tImGui.Button(tLang.L("delete_physic"), {x=0,y=0}) then
                             local tLinesPhysics = tPhysicsOptions.tLinesPhysics[i]
                             tLinesPhysics:destroy()
                             table.remove(tPhysicsOptions.tLinesPhysics,i)

@@ -58,11 +58,11 @@ function onInitScene()
     tShader                   = nil
     sDefaultText              = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:012345678\nabcdefghijklmnopqrstuvxz\nABCDEFGHIJKLMNOPQRSTUVXZ\nTime:"
     tWindowsTitle = {
-            title_shaders_options   = 'Shader Options',
-            title_image_selector    = 'Image(s) selector', 
-            title_status            = 'Shader Status',
-            title_example_shader    = 'Example Of Shader File',
-            title_animation         = 'Add Animation' 
+            title_shaders_options   = "title_shaders_options",
+            title_image_selector    = "title_image_selector",
+            title_status            = "title_status",
+            title_example_shader    = "title_example_shader",
+            title_animation         = "title_animation_add" 
     }
     tAnimationOptions = {
                             sNameAnim     = 'No Name',
@@ -152,10 +152,10 @@ function showAnimationAdd()
         local window_pos       = {x = 220, y = 20}
         local window_pos_pivot = {x = 0, y = 0}
         tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_animation, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             tImGui.PushItemWidth(180)
-            tImGui.Text('Add Animation')
+            tImGui.Text(tLang.L("add_animation_label"))
             local v_min     = 1
             local v_max     = tMesh:getTotalFrame()
             local result, iValue = tImGui.SliderInt('##StartAddAnimFrame', tAnimationOptions.iFrameStart, v_min, v_max, "Start Frame %d")
@@ -174,13 +174,13 @@ function showAnimationAdd()
                 end
             end
 
-            tImGui.Text('Type Of Animation:')
+            tImGui.Text(tLang.L("type_of_animation"))
             local ret, current_item, item = tImGui.Combo('##ComboAnimAdd' , tAnimationOptions.iTypeAnim, tAnimationOptions.tAnimTypes)
             if ret then
                 tAnimationOptions.iTypeAnim = current_item
             end
 
-            tImGui.Text('Time Between Frames:')
+            tImGui.Text(tLang.L("time_between_frames"))
             local step       =  0.01
             local step_fast  =  0.1
             local format     = "%.3f"
@@ -192,7 +192,7 @@ function showAnimationAdd()
                 end
             end
 
-            tImGui.Text('Name:')
+            tImGui.Text(tLang.L("name_colon"))
             local label      = '##NameAnimAdd'
             local hint       = '<Max 32 Characters>'
             local flags      = 0
@@ -207,7 +207,7 @@ function showAnimationAdd()
 
             tImGui.Separator()
             tImGui.PopItemWidth()
-            if tImGui.Button('Add Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_animation_btn"), tSizeBtn) then
                 if tMesh:addAnim(tAnimationOptions.sNameAnim,tAnimationOptions.iTypeAnim-1,tAnimationOptions.iFrameStart,tAnimationOptions.iFrameStop,tAnimationOptions.fTimeFrame) then
                     tUtil.showMessage(tLang.L("animation_added_ok"))
                 else
@@ -344,7 +344,7 @@ function drawStrength(title,x,y,z)
     local step_fast  =  10.0
     local format     = "%.2f"
     local flags      =  0
-    tImGui.Text('Strength')
+    tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
@@ -356,7 +356,7 @@ function drawStrength(title,x,y,z)
     tImGui.PopItemWidth()
 
     local label      = '##ZDir' .. title
-    tImGui.Text('Z       ')
+    tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
@@ -532,12 +532,12 @@ function showShaderOptions()
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_shaders_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_shaders_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_shaders_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
 
             local sAnim, indexCurrentAnim = tMesh:getAnim()
             tImGui.PushItemWidth(150)
-            tImGui.Text('Animation')
+            tImGui.Text(tLang.L("animation_label"))
             tImGui.TextDisabled(sAnim)
             local label      = '##Number of animation'
             local step       =  1
@@ -553,11 +553,11 @@ function showShaderOptions()
             end
 
             tImGui.SameLine()
-            if tImGui.Button('Add', tSizeBtnAddSet) then
+            if tImGui.Button(tLang.L("add_btn"), tSizeBtnAddSet) then
                 bShowAnimation = true
             end
             
-            if tImGui.Button('Restart Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("restart_animation_btn2"), tSizeBtn) then
                 tMesh:restartAnim()
                 indexCurrentStage = 1
             end
@@ -583,7 +583,7 @@ function showShaderOptions()
                                         "MIN",
                                         "MAX"}
 
-                tImGui.Text('Blend Function')
+                tImGui.Text(tLang.L("blend_function"))
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L("help_blend_function_anim"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
@@ -592,7 +592,7 @@ function showShaderOptions()
                     tMesh:setBlend(iBlendIndex)
                 end
 
-                tImGui.Text('Blend Operation')
+                tImGui.Text(tLang.L("blend_operation"))
                 tImGui.SameLine()
                 tImGui.HelpMarker(tLang.L("help_blend_operation_anim"))
                 local iBlendOpIndex = 1
@@ -654,7 +654,7 @@ function showShaderOptions()
                     end
                 end
                 if psName then
-                    tImGui.Text('Type')
+                    tImGui.Text(tLang.L("type_label"))
                     local sType,iTypePs       = tShader:getPStype()
                     local ret, current_item, item = tImGui.Combo('##ComboAnimPS' , iTypePs + 1, tAnimationOptions.tAnimTypes)
                     if ret then
@@ -663,7 +663,7 @@ function showShaderOptions()
                         tMesh:restartAnim()
                     end
 
-                    tImGui.Text('Time')
+                    tImGui.Text(tLang.L("time_short"))
                     tImGui.SameLine()
                     tImGui.TextDisabled(string.format(' default(%.3g)',tShader:getPStime(true)))
                     local iTimePs = tShader:getPStime()
@@ -764,7 +764,7 @@ function showShaderOptions()
                     end
                 end
                 if vsName then
-                    tImGui.Text('Type')
+                    tImGui.Text(tLang.L("type_label"))
                     local sType,iTypeVs       = tShader:getVStype()
                     local ret, current_item, item = tImGui.Combo('##ComboAnimVS' , iTypeVs + 1, tAnimationOptions.tAnimTypes)
                     if ret then
@@ -773,7 +773,7 @@ function showShaderOptions()
                         tMesh:restartAnim()
                     end
 
-                    tImGui.Text('Time')
+                    tImGui.Text(tLang.L("time_short"))
                     tImGui.SameLine()
                     tImGui.TextDisabled(string.format(' default(%.3g)',tShader:getVStime(true)))
                     local iTimeVs = tShader:getVStime()
@@ -841,7 +841,7 @@ function showShaderOptions()
                     tImGui.TextDisabled('No Texture')
                 end
                 local tSizeBtnTex = {x = tSizeBtn.x - 50, y = tSizeBtn.y}
-                if tImGui.Button('Set Texture Stage 2', tSizeBtnTex) then
+                if tImGui.Button(tLang.L("set_texture_stage_2"), tSizeBtnTex) then
                     local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
                     if #tSelectedTextures == 0 then
                         bTextureViewOpened = true
@@ -1118,7 +1118,7 @@ end
 
 function showExampleShader()
     tImGui.SetNextWindowSize({x = 600, y = 560 },tImGui.Flags('ImGuiCond_Appearing'))
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_example_shader, true, 0 )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_example_shader), true, 0)
     if is_opened then
         tImGui.TextDisabled('Shader:pie.ps')
 
@@ -1186,7 +1186,7 @@ function showMeshStatus(delta)
     local window_pos = {x = iW - 150, y = 25}
     local window_pos_pivot = {x = 0, y = 0}
     tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_status, false,tImGui.Flags(flags) )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_status), false, tImGui.Flags(flags))
     if is_opened then
         local sAnimName, indexAnim = tMesh:getAnim()
         local iFrame               = tMesh:getIndexFrame()
