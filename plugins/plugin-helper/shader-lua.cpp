@@ -36,6 +36,11 @@ extern "C"
 
 namespace mbm
 {
+    static FVF_PROVIDE_BY_ENGINE getFvfForRenderizable(RENDERIZABLE* renderizable)
+    {
+        return renderizable->getFvfFromBuffer();
+    }
+
 	int onLoadNewShaderLua(lua_State *lua)
     {
         const int top = lua_gettop(lua);
@@ -74,7 +79,7 @@ namespace mbm
                     return lua_error_debug(lua, "vertex shader not found: %s", vertexShaderFileName);
                 }
             }
-			const bool ret = fx->loadNewShader(pShaderCfg, vShaderCfg, typePs, timePs, typeVs, timeVs);
+			const bool ret = fx->loadNewShader(pShaderCfg, vShaderCfg, typePs, timePs, typeVs, timeVs, getFvfForRenderizable(renderizable));
             if (ret)
                 lua_pushboolean(lua, 1);
             else

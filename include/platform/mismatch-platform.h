@@ -20,9 +20,13 @@
 #ifndef MISMATCH_PLATFORM_H
 #define MISMATCH_PLATFORM_H
 
-    #if defined _WIN32 
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         #include <string.h>
         #include <Windows.h>
+        #include <io.h>            // <-- needed for _access
+        #ifndef access
+            #define access _access // map POSIX name to MSVC
+        #endif
         #ifndef M_PI
             #define M_PI 3.14159265358979323846f
         #endif
@@ -44,9 +48,12 @@
         #define access_file access
 
     #elif defined ANDROID
-        //do nothing
-
-    #elif defined(__linux__)
+        int access_file(const char *fileName, int);
+    #elif defined(__linux__) // __APPLE__ bellow untested
+        #include <unistd.h>
+        #include <strings.h>
+        #define access_file access
+    #elif defined(__APPLE__)
         #include <unistd.h>
         #define access_file access
     #else

@@ -20,8 +20,6 @@
 #if defined _WIN32
 // libraries necessary
 #pragma comment(lib, "core_mbm.lib")
-#pragma comment(lib, "libEGL.dll.lib")
-#pragma comment(lib, "libGLESv2.dll.lib")
 //#pragma comment(lib, "box2d.lib")      // optional (if you include it, you might have to change the dependency of lib to core_mbm instead of mini-mbm (windows only))
 //#pragma comment(lib, "bullet2.84.lib") // optional (if you include it, you might have to change the dependency of lib to core_mbm instead of mini-mbm (windows only)) 
 #endif
@@ -31,8 +29,12 @@
 int main()
 {
     GAME game;
-    if(game.initGl("Hello-world"))
-        return game.loop();
+	// this is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
+    game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);
+    constexpr bool singleLoop    = false;
+    constexpr bool doSwapBuffers = true;
+    if(game.initGraphics("Hello-world", 800, 600, 100, 100, true, true))
+        return game.loop(singleLoop, doSwapBuffers);
     return -1;
 }
 

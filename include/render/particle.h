@@ -26,6 +26,8 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <core_mbm/shader.h>
+#include <core_mbm/particle-control.h>
 
 namespace util
 {
@@ -34,10 +36,7 @@ namespace util
 
 namespace mbm
 {
-    struct ATT_PARTICLE;
-    struct VERTEX_PARTICLE;
-    
-    class PARTICLE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
@@ -60,16 +59,12 @@ namespace mbm
         API_IMPL const char* getTextureFileName()const;
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         API_IMPL bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
     
       private:
-        bool _addParticle(const uint32_t numParticles);
-        void onResuscitate(const util::STAGE_PARTICLE* sPart, const uint32_t total_To_Resuscitate);
-        void restartParticle(const util::STAGE_PARTICLE* sPart, mbm::ATT_PARTICLE *particle, VERTEX_PARTICLE pPartBuffer[4], const VEC2 *dist);
         bool isOnFrustum() override;
         bool render() override;
-        void updateAnimationParticle();
-        void onStop() override;
         bool releaseOnFail();
         bool onRestoreDevice() override;
         bool renderParticle(const util::STAGE_PARTICLE * sPart);
@@ -78,19 +73,10 @@ namespace mbm
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
-        uint32_t vboIndexBuffer;
-    
-        uint32_t     lenArrayParticlesData;
-        uint32_t     totalAlive;
-        uint32_t     indexStage;
-        float           currentTimeArise;
-        std::vector<util::STAGE_PARTICLE*> lsParticleStage;
+        static void onEndAnimationParticleControl(void * that, const char* nameAnimation);
+        mbm::BUFFER_GL bufferGl;
+        PARTICLE_CONTROL control;
         mbm::TEXTURE *   texture;
-        float            wTexture, hTexture;
-        VEC2             minv;
-        VEC2             maxv;
-        ATT_PARTICLE *   particles;
-        VERTEX_PARTICLE *buffer;
         std::string      _newCodeLine;          // onRestore
         char             _operatorShader;       // onRestore
     };

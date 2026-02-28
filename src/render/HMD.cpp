@@ -20,6 +20,7 @@
 #include <HMD.h>
 #include <util-interface.h>
 #include <texture-manager.h>
+#include <core_mbm/scene.h>
 
 
 namespace mbm
@@ -43,11 +44,12 @@ namespace mbm
     
     bool HMD::load()
     {
-        static int         num         = 0;
-        const auto widthFrame  = static_cast<const unsigned int>(this->device->getScaleBackBufferWidth() * 0.5f);
-        const auto heightFrame = static_cast<const unsigned int>(this->device->getScaleBackBufferHeight());
-        const auto _widthTexture  = static_cast<const unsigned int>(this->device->getBackBufferWidth() * 0.5f);
-        const auto _heightTexture = static_cast<const unsigned int>(this->device->getBackBufferHeight());
+        static int         num     = 0;
+        mbm::DEVICE* device        = mbm::DEVICE::getInstance();
+        const auto widthFrame      = static_cast<const unsigned int>(device->getScaleBackBufferWidth() * 0.5f);
+        const auto heightFrame     = static_cast<const unsigned int>(device->getScaleBackBufferHeight());
+        const auto _widthTexture   = static_cast<const unsigned int>(device->getBackBufferWidth() * 0.5f);
+        const auto _heightTexture  = static_cast<const unsigned int>(device->getBackBufferHeight());
         char               nickName[255]  = "";
         const bool         hasAlpha       = false;
         sprintf(nickName, "texture_dynamic_%d", ++num);
@@ -76,8 +78,8 @@ namespace mbm
                 PRINT_IF_DEBUG("nickName == nullptr || widthTexture == 0 || heightTexture == 0");
                 return false;
             }
-            if (_widthTexture > this->device->getBackBufferWidth() ||
-                _heightTexture > this->device->getBackBufferHeight())
+            if (_widthTexture > device->getBackBufferWidth() ||
+                _heightTexture > device->getBackBufferHeight())
             {
                 #if defined _WIN32
                     PRINT_IF_DEBUG(messageError);
@@ -92,24 +94,22 @@ namespace mbm
                 int                indexStart = 0;
                 int                indexCount = 6;
                 VEC3            _position[4];
-                VEC3            normal[4];
+                VEC3*            normal = nullptr;
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 2, 1, 2, 3, 1};
                 this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
                 if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.idTexture0[0] = this->texture->idTexture;
-                    this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
                     return false;
                 }
 
-                if (!this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                if (this->bufferGLRight.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGLRight.idTexture0[0] = this->texture->idTexture;
-                    this->bufferGLRight.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGLRight.setTextureByStage(this->texture, 0, 0);
                 }
                 else
                 {
@@ -131,27 +131,29 @@ namespace mbm
 
     bool HMD::isOnFrustum()
     {
-        this->camera2d.position.x = this->device->camera.position2d.x;
-        this->camera2d.position.y = this->device->camera.position2d.y;
-        this->camera3d.position   = this->device->camera.position;
-        this->camera3d.focus      = this->device->camera.focus;
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        this->camera2d.position.x = device->camera.position2d.x;
+        this->camera2d.position.y = device->camera.position2d.y;
+        this->camera3d.position   = device->camera.position;
+        this->camera3d.focus      = device->camera.focus;
         return RENDER_2_TEXTURE::isOnFrustum();
     }
     
     bool HMD::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (this->alwaysRenderize)
         {
-            this->camera2d.position.x = this->device->camera.position2d.x;
-            this->camera2d.position.y = this->device->camera.position2d.y;
-            this->camera3d.position   = this->device->camera.position;
-            this->camera3d.focus      = this->device->camera.focus;
+            this->camera2d.position.x = device->camera.position2d.x;
+            this->camera2d.position.y = device->camera.position2d.y;
+            this->camera3d.position   = device->camera.position;
+            this->camera3d.focus      = device->camera.focus;
         }
-        this->position.x = this->device->getScaleBackBufferWidth() * 0.25f;
-        this->position.y = this->device->getScaleBackBufferHeight() * 0.5f;
+        this->position.x = device->getScaleBackBufferWidth() * 0.25f;
+        this->position.y = device->getScaleBackBufferHeight() * 0.5f;
         if (!this->renderVR(&this->bufferGL)) // left
             return false;
-        this->position.x = this->device->getScaleBackBufferWidth() * 0.75f;
+        this->position.x = device->getScaleBackBufferWidth() * 0.75f;
         if (!this->renderVR(&this->bufferGLRight)) // right
             return false;
         return true;
@@ -163,33 +165,34 @@ namespace mbm
         {
             if (this->modeTextureOnly)
                 return true;
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             ANIMATION *anim = this->getAnimation();
             if (anim)
             {
                 this->blend.set(anim->blendState);
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    bufferSide->idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                    bufferSide->setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(bufferSide))
                     return false;
                 return true;

@@ -1,6 +1,7 @@
 // dllmain-box-2d.cpp : Defines the entry point for the DLL application.
 #include <Windows.h>
 
+#pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "lua5.4.lib")
 #pragma comment(lib, "plugin-helper.lib")

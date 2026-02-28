@@ -42,8 +42,9 @@ void MY_SCENE::endLoading()
 
 void MY_SCENE::init() 
 {
-    this->device->camera.position = mbm::VEC3(0, 280, -900);
-    this->device->camera.focus    = mbm::VEC3(0, 280, 0);
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    device->camera.position = mbm::VEC3(0, 280, -900);
+    device->camera.focus    = mbm::VEC3(0, 280, 0);
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
 }
 

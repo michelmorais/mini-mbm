@@ -24,13 +24,41 @@
 #include <render/texture-view.h>
 #include <core_mbm/core-manager.h>
 #include <render/gif-view.h>
-
+#include <render/sprite.h>
+#include <render/mesh.h>
+#include <render/shape-mesh.h>
+#include <render/line-mesh.h>
+#include <render/particle.h>
+#include <render/render-2-texture.h>
+#include <render/steered_particle.h>
+#include <render/background.h>
+#include <render/font.h>
+#include <render/HMD.h>
+#include <core_mbm/mesh-manager.h> // mesh debug
+#include <render/tile.h>
 
 class MY_SCENE : public mbm::SCENE
 {
   public:
     mbm::TEXTURE_VIEW * texBox;
     mbm::GIF_VIEW* gif;
+    mbm::SPRITE* sprite;
+	mbm::BACKGROUND* background;
+    mbm::MESH* mesh;
+    mbm::SHAPE_MESH* shape;
+    mbm::LINE_MESH* line;
+    mbm::PARTICLE* particle;
+    mbm::RENDER_2_TEXTURE* render2Texture;
+    mbm::RENDERIZABLE* toTrack;
+	mbm::STEERED_PARTICLE* steeredParticle;
+    mbm::FONT_DRAW* fontDraw;
+	mbm::MESH_MBM_DEBUG meshDebug;
+	mbm::HMD* hmd;
+	mbm::TILE* tile;
+    mbm::TEXTURE_VIEW* texture;
+    bool randomizeParticleEachLoop;
+
+	void randomSteeredParticlePositions();
     MY_SCENE();
     virtual ~MY_SCENE();
 	void startLoading();
@@ -55,7 +83,7 @@ class GAME : public mbm::CORE_MANAGER
 {
 public:
     MY_SCENE myScene;
-	bool existScene(const int idScene)override;
+    bool existScene(const int idScene)override;
     GAME();
     virtual ~GAME();
 };

@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 #ifndef DEFAULT_THEME_WINPLUS_H
 #define DEFAULT_THEME_WINPLUS_H
 
@@ -53,44 +54,44 @@ class THEME_WINPLUS_PEN_COLORS
     static HPEN hPen_color_text_hover;
     static HPEN hPen_noPen;
     static bool enablePenBorder;
-    static void init();
-    static void release();
+    API_IMPL static void init();
+    API_IMPL static void release();
 };
 
 class THEME_WINPLUS_BRUSH_RELEASE
 {
   public:
     HBRUSH release_brush;
-    THEME_WINPLUS_BRUSH_RELEASE();
-    void initRelease(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
-    virtual ~THEME_WINPLUS_BRUSH_RELEASE();
+    API_IMPL THEME_WINPLUS_BRUSH_RELEASE();
+    API_IMPL void initRelease(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
+    API_IMPL virtual ~THEME_WINPLUS_BRUSH_RELEASE();
 };
 
 class THEME_WINPLUS_BRUSH_HOVER
 {
   public:
     HBRUSH hover_brush;
-    THEME_WINPLUS_BRUSH_HOVER();
-    void initHover(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
-    virtual ~THEME_WINPLUS_BRUSH_HOVER();
+    API_IMPL THEME_WINPLUS_BRUSH_HOVER();
+    API_IMPL void initHover(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
+    API_IMPL virtual ~THEME_WINPLUS_BRUSH_HOVER();
 };
 
 class THEME_WINPLUS_BRUSH_PRESS
 {
   public:
     HBRUSH press_brush;
-    THEME_WINPLUS_BRUSH_PRESS();
-    void initPress(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
-    virtual ~THEME_WINPLUS_BRUSH_PRESS();
+    API_IMPL THEME_WINPLUS_BRUSH_PRESS();
+    API_IMPL void initPress(mbm::DRAW *draw, const bool horizontal = true, const bool power2 = true);
+    API_IMPL virtual ~THEME_WINPLUS_BRUSH_PRESS();
 };
 
 class THEME_WINPLUS_DRAW_BASIC_OPERATIONS : public mbm::DRAW, public THEME_WINPLUS_COLORS
 {
   public:
-    THEME_WINPLUS_DRAW_BASIC_OPERATIONS(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_BASIC_OPERATIONS();
-    virtual void drawBrush(mbm::COMPONENT_INFO &component, HBRUSH hbrush);
-    virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
+    API_IMPL THEME_WINPLUS_DRAW_BASIC_OPERATIONS(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_BASIC_OPERATIONS();
+    API_IMPL virtual void drawBrush(mbm::COMPONENT_INFO &component, HBRUSH hbrush);
+    API_IMPL virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
     virtual bool eraseBackGround(mbm::COMPONENT_INFO* )
     {
         return false;
@@ -101,8 +102,8 @@ class THEME_WINPLUS_DRAW_WINDOW : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS, pu
 {
   public:
     THEME_WINPLUS_DRAW_WINDOW(mbm::COMPONENT_INFO &component);
-    virtual void setCtlColor(HDC hdcStatic);
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void setCtlColor(HDC hdcStatic);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_WINDOWNC : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS
@@ -120,17 +121,17 @@ class THEME_WINPLUS_DRAW_WINDOWNC : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS
     THEME_WINPLUS_BRUSH_RELEASE borderRight;
     THEME_WINPLUS_BRUSH_RELEASE borderTop;
     THEME_WINPLUS_BRUSH_RELEASE borderBottom;
-    THEME_WINPLUS_DRAW_WINDOWNC(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_WINDOWNC();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_WINDOWNC(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_WINDOWNC();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 
-    void renderBorder(RECT &rect, THEME_WINPLUS_BRUSH_RELEASE *border);
+    API_IMPL void renderBorder(RECT &rect, THEME_WINPLUS_BRUSH_RELEASE *border);
 
-    void renderBorder(RECT &rect, THEME_WINPLUS_BRUSH_HOVER *border);
-    void moveRect2Origin(mbm::__NC_BORDERS *nc, RECT *rc);
-    void restorePositionButtons(mbm::__NC_BORDERS *nc, RECT *rc, int dist);
-    void drawTextButtons(RECT *rc, bool hover, const char *text);
-    void drawMinMaxButtons(RECT *rc, bool hover);    
+    API_IMPL void renderBorder(RECT &rect, THEME_WINPLUS_BRUSH_HOVER *border);
+    API_IMPL void moveRect2Origin(mbm::__NC_BORDERS *nc, RECT *rc);
+    API_IMPL void restorePositionButtons(mbm::__NC_BORDERS *nc, RECT *rc, int dist);
+    API_IMPL void drawTextButtons(RECT *rc, bool hover, const char *text);
+    API_IMPL void drawMinMaxButtons(RECT *rc, bool hover);    
 };
 
 class THEME_WINPLUS_DRAW_TRACK : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS, public THEME_WINPLUS_BRUSH_RELEASE
@@ -139,13 +140,13 @@ class THEME_WINPLUS_DRAW_TRACK : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS, pub
     HBRUSH hBrushMainBar;
     RECT   rectMainBar;
     int    ray, center, realInterval;
-    THEME_WINPLUS_DRAW_TRACK(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_TRACK();
+    API_IMPL THEME_WINPLUS_DRAW_TRACK(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_TRACK();
 
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    inline RECT getMainBarRect(mbm::COMPONENT_INFO &component);
-    virtual void drawBrush(const RECT & rect, HBRUSH hbrush);
-    virtual void DrawMyText(mbm::COMPONENT_INFO &component, const char *text, const bool isVertical);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL inline RECT getMainBarRect(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void drawBrush(const RECT & rect, HBRUSH hbrush);
+    API_IMPL virtual void DrawMyText(mbm::COMPONENT_INFO &component, const char *text, const bool isVertical);
 };
 
 class THEME_WINPLUS_DRAW_BUTTON : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -154,8 +155,8 @@ class THEME_WINPLUS_DRAW_BUTTON : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                   public THEME_WINPLUS_BRUSH_PRESS
 {
   public:
-    THEME_WINPLUS_DRAW_BUTTON(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
+      API_IMPL THEME_WINPLUS_DRAW_BUTTON(mbm::COMPONENT_INFO& component);
+      API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_LABEL : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -163,9 +164,9 @@ class THEME_WINPLUS_DRAW_LABEL : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                  public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_LABEL(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
+    API_IMPL THEME_WINPLUS_DRAW_LABEL(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
 };
 
 class THEME_WINPLUS_DRAW_SCROLL : // doesnt work
@@ -174,8 +175,8 @@ class THEME_WINPLUS_DRAW_SCROLL : // doesnt work
                                   public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_SCROLL(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_SCROLL(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_IMAGE : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -183,17 +184,17 @@ class THEME_WINPLUS_DRAW_IMAGE : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                  public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_IMAGE(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_IMAGE();
+    API_IMPL THEME_WINPLUS_DRAW_IMAGE(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_IMAGE();
 };
 
 class THEME_WINPLUS_DRAW_TOOL_TIP : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS, public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_TOOL_TIP(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
+    API_IMPL THEME_WINPLUS_DRAW_TOOL_TIP(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void DrawMyText(mbm::COMPONENT_INFO &component, int x, int y);
 };
 
 class THEME_WINPLUS_DRAW_MENU : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -201,8 +202,8 @@ class THEME_WINPLUS_DRAW_MENU : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                 public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_MENU(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_MENU(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_SUB_MENU : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -210,10 +211,10 @@ class THEME_WINPLUS_DRAW_SUB_MENU : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                     public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_SUB_MENU(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_SUB_MENU();
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    virtual void DrawMyTextSubMenu(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_SUB_MENU(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_SUB_MENU();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void DrawMyTextSubMenu(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_SPIN : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
@@ -222,10 +223,10 @@ class THEME_WINPLUS_DRAW_SPIN : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                 public THEME_WINPLUS_BRUSH_PRESS
 {
   public:
-    THEME_WINPLUS_DRAW_SPIN(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_SPIN();
-    bool hasHover();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_SPIN(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_SPIN();
+    API_IMPL bool hasHover();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
     HBRUSH hBrushSolidRelease;
 };
 
@@ -234,11 +235,11 @@ class THEME_WINPLUS_DRAW_TEXT : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                 public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_TEXT(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_TEXT();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_TEXT(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_TEXT();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 
-    void drawSelecteLine(mbm::COMPONENT_INFO &component, const DWORD iStart, const DWORD iEnd, const DWORD indexStartLine,
+    API_IMPL void drawSelecteLine(mbm::COMPONENT_INFO &component, const DWORD iStart, const DWORD iEnd, const DWORD indexStartLine,
                          const DWORD indexEndLine, HBRUSH brushRect);
 };
 
@@ -247,18 +248,18 @@ class THEME_WINPLUS_DRAW_RADIO : public THEME_WINPLUS_DRAW_BUTTON
   public:
     HBRUSH checked_brush;
 
-    THEME_WINPLUS_DRAW_RADIO(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_RADIO();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_RADIO(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_RADIO();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
     int part;
 };
 
 class THEME_WINPLUS_DRAW_CHECK : public THEME_WINPLUS_DRAW_BUTTON
 {
   public:
-    THEME_WINPLUS_DRAW_CHECK(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_CHECK();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_CHECK(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_CHECK();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
     HBRUSH checked_brush;
 };
 
@@ -267,9 +268,9 @@ class THEME_WINPLUS_DRAW_LIST : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS,
                                 public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_LIST(mbm::COMPONENT_INFO &component);
-    virtual HBRUSH getBackgroundBrush();
-    virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_DRAW_LIST(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual HBRUSH getBackgroundBrush();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_DRAW_PROGRESS_BAR : public mbm::DRAW,
@@ -277,10 +278,10 @@ class THEME_WINPLUS_DRAW_PROGRESS_BAR : public mbm::DRAW,
                                         public THEME_WINPLUS_BRUSH_HOVER
 {
   public:
-    THEME_WINPLUS_DRAW_PROGRESS_BAR(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_DRAW_PROGRESS_BAR();
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    virtual void drawBrush(mbm::COMPONENT_INFO &component, HBRUSH hbrush);
+    API_IMPL THEME_WINPLUS_DRAW_PROGRESS_BAR(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_DRAW_PROGRESS_BAR();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual void drawBrush(mbm::COMPONENT_INFO &component, HBRUSH hbrush);
     virtual bool eraseBackGround(mbm::COMPONENT_INFO* )
     {
         return false;
@@ -297,10 +298,10 @@ class THEME_WINPLUS_COMBO : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS
       public:
         DRAW_COMBO(mbm::DRAW *draw);
     };
-    THEME_WINPLUS_COMBO(mbm::COMPONENT_INFO &component);
-    virtual ~THEME_WINPLUS_COMBO();
-    virtual bool render(mbm::COMPONENT_INFO &component);
-    void drawText(mbm::COMPONENT_INFO &component, const char *text);
+    API_IMPL THEME_WINPLUS_COMBO(mbm::COMPONENT_INFO &component);
+    API_IMPL virtual ~THEME_WINPLUS_COMBO();
+    API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL void drawText(mbm::COMPONENT_INFO &component, const char *text);
     HBRUSH      hBrushSolidRelease;
     DRAW_COMBO *inner;
     DRAW_COMBO *out;
@@ -312,8 +313,8 @@ class THEME_WINPLUS_DRAW_STATUS_BAR : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS
 
 {
   public:
-    THEME_WINPLUS_DRAW_STATUS_BAR(mbm::COMPONENT_INFO &component);
-    virtual bool render(mbm::COMPONENT_INFO &component);
+      API_IMPL THEME_WINPLUS_DRAW_STATUS_BAR(mbm::COMPONENT_INFO &component);
+      API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
 };
 
 class THEME_WINPLUS_CUSTOM_RENDER : public mbm::DRAW
@@ -321,18 +322,19 @@ class THEME_WINPLUS_CUSTOM_RENDER : public mbm::DRAW
   public:
     HFONT font;
     std::map<int, DRAW *> lsDrawer;
-    THEME_WINPLUS_CUSTOM_RENDER();
-    virtual ~THEME_WINPLUS_CUSTOM_RENDER();
-    void release();
-    virtual int measureItem(mbm::COM_BETWEEN_WINP *ptr, MEASUREITEMSTRUCT *lpi);
-    void init();
-    bool render(mbm::COMPONENT_INFO &component);
+    API_IMPL THEME_WINPLUS_CUSTOM_RENDER();
+    API_IMPL virtual ~THEME_WINPLUS_CUSTOM_RENDER();
+    API_IMPL void release();
+    API_IMPL virtual int measureItem(mbm::COM_BETWEEN_WINP *ptr, MEASUREITEMSTRUCT *lpi);
+    API_IMPL void init();
+    API_IMPL bool render(mbm::COMPONENT_INFO &component);
     virtual bool eraseBackGround(mbm::COMPONENT_INFO* )
     {
         return false;
     }
-    int static getTotalThemes();
-    void static setTheme(int which, const bool enableBorder = true);
+    API_IMPL int static getTotalThemes();
+    API_IMPL void static setTheme(int which, const bool enableBorder = true);
 };
 
+#endif
 #endif

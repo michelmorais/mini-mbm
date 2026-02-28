@@ -77,16 +77,16 @@ namespace mbm
         }
     };
     
-    class SHAPE_MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class SHAPE_MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
-        typedef void (*OnRenderDynamicBuffer)(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicNormal,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only);
+        typedef void (*OnRenderDynamicBuffer)(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only);
 
         API_IMPL SHAPE_MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
         API_IMPL virtual ~SHAPE_MESH();
         API_IMPL void release();
         API_IMPL bool loadIndexedDynamic(const char *nickName, std::vector<float> &&_dynamicVertex,
-                                       std::vector<float> &&_dynamicNormal, std::vector<float> &&_dynamicUV,
+                                       std::vector<float> &&_dynamicUV,
                                        std::unique_ptr<uint16_t[],DeleteArrayUnShortInt> &&indexArray,
                                        const uint32_t _sizeVertexArray, const uint32_t _sizeIndexArray,const util::INFO_DRAW_MODE * info_draw_mode);
     
@@ -102,11 +102,11 @@ namespace mbm
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager()  noexcept override;
 		API_IMPL void setOnRenderDynamicBuffer(OnRenderDynamicBuffer _onRenderDynamicBuffer) noexcept { onRenderDynamicBuffer = _onRenderDynamicBuffer;}
 		API_IMPL const bool isDynamicBufferMode() const  noexcept { return dynamicVertex.size() > 0 && mesh != nullptr; }
-		
+		FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
+
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics()  const  noexcept override;
         const MESH_MBM *getMesh() const noexcept override;
@@ -114,7 +114,6 @@ namespace mbm
     
         MESH_MBM *               mesh;
         std::vector<float> dynamicVertex;
-        std::vector<float> dynamicNormal;
         std::vector<float> dynamicUV;
         std::vector<uint16_t> dynamicIndex;
 

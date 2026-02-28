@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(${PLUGIN_HELPER_LIBRARY})
 
@@ -17,12 +17,14 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-unused-but-set-variable -Wno-maybe-uninitialized")
 endif()
 
+message(STATUS "CORE_OPENGLES_INCLUDES from plugin-helper ${CORE_OPENGLES_INCLUDES}")
 
 #Bring the headers, such as xxx.h into the project
 include_directories(  ${LUA_INCLUDE}
                       ${THIRD_PARTY}
                       ${CORE_MBM_INCLUDES}
                       ${PLUGIN_HELPER_INC}
+                      ${CORE_OPENGLES_INCLUDES}
                       ${MBM_CORE_INCLUDE})
  
 #However, the file(GLOB...) allows for wildcard additions:

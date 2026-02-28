@@ -22,7 +22,6 @@
 #define FRUSTUM_H
 
 #include "primitives.h"
-#include "scene.h"
 #include "shapes.h"
 #include "core-exports.h"
 
@@ -49,7 +48,7 @@ namespace mbm
         bool updateFrustum(const MATRIX *matrixView, const MATRIX *matrixProj);
     };
 
-    class API_IMPL IS_ON_FRUSTUM : public COMMON_DEVICE
+    class API_IMPL IS_ON_FRUSTUM
     {
       public:
         IS_ON_FRUSTUM(const RENDERIZABLE *_renderizable) noexcept; 

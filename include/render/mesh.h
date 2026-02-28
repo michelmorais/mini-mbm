@@ -32,7 +32,7 @@
 namespace mbm
 {
 
-class MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+class MESH : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
     API_IMPL MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
@@ -42,12 +42,12 @@ class MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
     API_IMPL const char *getFileName() const;
     API_IMPL FX*  getFx() const override;
 	  API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+    FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
     bool                     render() override;
     bool                     onRestoreDevice() override;
     bool                     isOnFrustum() override;
-    void                     onStop() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;

@@ -76,7 +76,7 @@ namespace mbm
 
         void build(const VEC3 new_vertex[4], const VEC2 new_uv[4]);
         void release();
-        bool render(SHADER *shader,const uint32_t idTexStage2);
+        bool render(SHADER *shader,TEXTURE* idTexStage2);
         void setTexture(TEXTURE* _texture);
         void backup();
         void restore_backup();

@@ -28,6 +28,7 @@ extern "C"
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <core_mbm/texture-manager.h>
+#include <core_mbm/scene.h>
 #include <render/texture-view.h>
 #include <platform/mismatch-platform.h>
 

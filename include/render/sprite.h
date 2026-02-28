@@ -26,10 +26,11 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 
+
 namespace mbm
 {
 
-class SPRITE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+class SPRITE : public RENDERIZABLE, public ANIMATION_MANAGER
 {
   public:
     friend class RENDER_2_TEXTURE;
@@ -40,12 +41,12 @@ class SPRITE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAG
     API_IMPL const char *getFileName();
 	API_IMPL FX*  getFx() const override;
 	API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+	FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
   private:
     bool                     isOnFrustum() override;
     bool                     render() override;
     bool                     onRestoreDevice() override;
-    void                     onStop() override;
     const mbm::INFO_PHYSICS *getInfoPhysics() const override;
     const MESH_MBM *         getMesh() const override;
     bool                     isLoaded() const override;

@@ -78,7 +78,8 @@
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\audiere-1.9.4;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\audiere-1.9.4\lib;$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
@@ -96,7 +97,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_OPENGL_ES;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -115,10 +116,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;USE_OPENGL_ES;AUDIO_ENGINE_DIRECT_SOUND_8;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_DEPRECATED_2_MINOR;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -167,44 +167,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\include\joystick-win32\joystick.cpp" />
-    <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
-    <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\blend.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\camera.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\class-identifier.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\core-manager.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\deprecated.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\device.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\dynamic-var.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\file-util.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\frustum.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\gles-debug.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\header-mesh.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\image-resource.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\log-util.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\mesh-manager.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\order-render.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\physics.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\primitives.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\renderizable.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\scene.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-cfg.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-fx.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader-var-cfg.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shader.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\shapes.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\texture-manager.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\time-control.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\uber-image.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\util.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\vigenere.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-android-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-directx-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-dummy-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-linux-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\framework-windows-lua.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\manager-android-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
+    <ClCompile Include="..\..\src\lua-wrap\texture-info-lua.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
@@ -229,30 +199,6 @@
     <ClCompile Include="..\..\src\lua-wrap\timer-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec2-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\vec3-lua.cpp" />
-    <ClCompile Include="..\..\src\render\background.cpp" />
-    <ClCompile Include="..\..\src\render\font.cpp" />
-    <ClCompile Include="..\..\src\render\gif-view.cpp" />
-    <ClCompile Include="..\..\src\render\HMD.cpp" />
-    <ClCompile Include="..\..\src\render\line-mesh.cpp" />
-    <ClCompile Include="..\..\src\render\mesh.cpp" />
-    <ClCompile Include="..\..\src\render\particle.cpp" />
-    <ClCompile Include="..\..\src\render\render-2-texture.cpp" />
-    <ClCompile Include="..\..\src\render\renderizable-clone.cpp" />
-    <ClCompile Include="..\..\src\render\shape-mesh.cpp" />
-    <ClCompile Include="..\..\src\render\sprite.cpp" />
-    <ClCompile Include="..\..\src\render\steered_particle.cpp" />
-    <ClCompile Include="..\..\src\render\texture-view.cpp" />
-    <ClCompile Include="..\..\src\render\tile.cpp" />
-    <ClCompile Include="..\..\third-party\lodepng\lodepng.cpp" />
-    <ClCompile Include="..\..\third-party\lodepng\lodepng_util.cpp" />
-    <ClCompile Include="..\..\third-party\miniz\miniz.c" />
-    <ClCompile Include="..\..\third-party\miniz\miniz_tdef.c" />
-    <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c" />
-    <ClCompile Include="..\..\third-party\miniz\miniz_zip.c" />
-    <ClCompile Include="..\..\third-party\stb\stb.c" />
-    <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
-    <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
-    <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />
     <ClCompile Include="dllmain-mini-mbm-lib.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -267,15 +213,19 @@
     <ClInclude Include="..\..\include\core_mbm\cr-static-local.h" />
     <ClInclude Include="..\..\include\core_mbm\deprecated.h" />
     <ClInclude Include="..\..\include\core_mbm\device.h" />
+    <ClInclude Include="..\..\include\core_mbm\draw-compatibility.h" />
+    <ClInclude Include="..\..\include\core_mbm\dummy-engine.h" />
     <ClInclude Include="..\..\include\core_mbm\dynamic-var.h" />
     <ClInclude Include="..\..\include\core_mbm\file-util.h" />
     <ClInclude Include="..\..\include\core_mbm\frustum.h" />
-    <ClInclude Include="..\..\include\core_mbm\gles-debug.h" />
+    <ClInclude Include="..\..\include\core_mbm\joystick-base.h" />
+    <ClInclude Include="..\..\include\core_mbm\opengl_es-specific.h" />
     <ClInclude Include="..\..\include\core_mbm\header-mesh.h" />
     <ClInclude Include="..\..\include\core_mbm\image-resource.h" />
     <ClInclude Include="..\..\include\core_mbm\log-util.h" />
     <ClInclude Include="..\..\include\core_mbm\mesh-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\order-render.h" />
+    <ClInclude Include="..\..\include\core_mbm\particle-control.h" />
     <ClInclude Include="..\..\include\core_mbm\physics.h" />
     <ClInclude Include="..\..\include\core_mbm\plugin-callback.h" />
     <ClInclude Include="..\..\include\core_mbm\primitives.h" />
@@ -288,6 +238,10 @@
     <ClInclude Include="..\..\include\core_mbm\shader-var-cfg.h" />
     <ClInclude Include="..\..\include\core_mbm\shader.h" />
     <ClInclude Include="..\..\include\core_mbm\shapes.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-dummy.h" />
+    <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
+    <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
     <ClInclude Include="..\..\include\core_mbm\uber-image.h" />
@@ -317,6 +271,7 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\tile-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\render-table\vr-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\require_embedded.h" />
+    <ClInclude Include="..\..\include\lua-interface\lua-wrap\texture-info-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\timer-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\user-data-lua.h" />
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\vec2-lua.h" />
@@ -341,6 +296,11 @@
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.crypt.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\aescrypt.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\sha256.h" />
+    <ClInclude Include="..\..\third-party\AESCrypt\win32\version.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
     <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h" />
@@ -375,6 +335,7 @@
     <ClInclude Include="..\..\third-party\miniz\miniz_tdef.h" />
     <ClInclude Include="..\..\third-party\miniz\miniz_tinfl.h" />
     <ClInclude Include="..\..\third-party\miniz\miniz_zip.h" />
+    <ClInclude Include="..\..\third-party\plusaes\plusaes.hpp" />
     <ClInclude Include="..\..\third-party\stb\stb-interface.h" />
     <ClInclude Include="..\..\third-party\stb\stb_image.h" />
     <ClInclude Include="..\..\third-party\stb\stb_truetype.h" />

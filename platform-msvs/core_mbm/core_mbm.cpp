@@ -1,4 +1,5 @@
 // core_mbm.cpp : Defines the entry point for the DLL application.
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include <Windows.h>
 
 #pragma comment(lib, "libEGL.dll.lib")
@@ -21,3 +22,4 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     return TRUE;
 }
 
+#endif

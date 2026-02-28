@@ -792,7 +792,7 @@ namespace mbm
         */
     }
 
-    void registerClassVec3NoGc(lua_State *lua) // sem GC pois n�o � criado e sim apontado para um vetor existente
+    void registerClassVec3NoGc(lua_State *lua) // No GC since not created but points to existing vector
     {
         luaL_Reg regVec3MMethods[] = {
             {"__newindex", onNewIndexVec3}, {"__index", onIndexVec3}, {"__tostring", onToStringVec3}, {nullptr, nullptr}};

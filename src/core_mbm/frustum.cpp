@@ -188,13 +188,14 @@ FRUSTUM::FRUSTUM() noexcept
     {
         float w = 0;
         float h = 0;
+		mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if (is3d)
         {
             float d = 0;
             this->renderizable->getAABB(&w, &h, &d);
             const mbm::CUBE cube(w, h, d);
             const VEC3 scale(1,1,1);
-            if (this->device->isCubeAtFrustum(renderizable->position, scale, cube))
+            if (device->isCubeAtFrustum(renderizable->position, scale, cube))
                 return true;
             return false;
         }

@@ -32,6 +32,7 @@
 #include <tile.h>
 #include <util-interface.h>
 #include <animation.h>
+#include <core_mbm/scene.h>
 
 namespace mbm
 {

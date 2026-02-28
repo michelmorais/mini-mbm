@@ -20,9 +20,8 @@
 #include <header-mesh.h>
 #include <util-interface.h>
 #include <cstring>
-#include <GLES2/gl2.h>
-
 #include <utility>
+#include <draw-compatibility.h>
 
 namespace mbm
 {
@@ -79,9 +78,9 @@ namespace util
 	}
 
 	INFO_DRAW_MODE::INFO_DRAW_MODE()noexcept:
-            mode_draw(GL_TRIANGLES),
-            mode_cull_face(GL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
-            mode_front_face_direction(GL_CW)// GL_CW, GL_CCW
+            mode_draw(util::MODE_DRAW_TRIANGLES),
+            mode_cull_face(util::CULL_BACK),//GL_FRONT, GL_BACK, GL_FRONT_AND_BACK
+            mode_front_face_direction(util::CW)// GL_CW, GL_CCW
 	{
 	}
 
@@ -119,8 +118,8 @@ namespace util
         posY                   = 0;
         posZ                   = 0;
         deprecated_typePhysics = 0;
-        hasNorText[0]          = 0;
-        hasNorText[1]          = 1;
+        hasNorText[0]          = HAS_NOR_NO;
+        hasNorText[1]          = HAS_TEX_EACH_FRAME;
     }
 
     HEADER_ANIMATION::HEADER_ANIMATION() noexcept

@@ -25,8 +25,6 @@
 namespace mbm
 {
 
-    class DEVICE;
-    
     class API_IMPL CONTROL_SCENE
     {
         friend class LOADING;
@@ -41,15 +39,7 @@ namespace mbm
         int getIdScene() const noexcept;
     };
 
-    class API_IMPL COMMON_DEVICE
-    {
-      public:
-        COMMON_DEVICE();
-        virtual ~COMMON_DEVICE() noexcept = default;
-        static DEVICE *device;
-    };
-
-    class API_IMPL SCENE : public CONTROL_SCENE, public COMMON_DEVICE
+    class API_IMPL SCENE : public CONTROL_SCENE
     {
       public:
         bool   endScene;

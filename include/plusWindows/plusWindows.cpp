@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include "plusWindows.h"
 
 const char*  WINPLUS_DIRSEPARATOR = "\\";
@@ -204,14 +205,14 @@ namespace mbm
         }
     }
 
-    WCHAR *toWchar(const char *str, WCHAR *outText)
+WCHAR *toWchar(const char *str, WCHAR *outText)
 {
     if (str == nullptr)
         return nullptr;
-    int    len      = MultiByteToWideChar(CP_ACP, 0, str, -1, nullptr, 0) + 1;
-    WCHAR *strLocal = new WCHAR[len];
+    int    len = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0) + 1;
+    WCHAR* strLocal = new WCHAR[len];
     memset(strLocal, 0, sizeof(WCHAR) * len);
-    MultiByteToWideChar(CP_ACP, 0, str, -1, (LPWSTR)strLocal, len - 1);
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, (LPWSTR)strLocal, len - 1);
     if (outText)
     {
         wcscpy_s(outText, len, strLocal);
@@ -221,18 +222,18 @@ namespace mbm
     return strLocal;
 }
 
-    char *toChar(const WCHAR *wstr, char *outText)
+char *toChar(const WCHAR *wstr, char *outText)
 {
     if (wstr == nullptr)
         return nullptr;
-    int   len      = wcslen(wstr) + 1;
-    char *strLocal = new char[len];
-    memset(strLocal, 0, sizeof(char) * len);
-    int size_needed = WideCharToMultiByte(CP_ACP, 0, wstr, len - 1, nullptr, 0, nullptr, nullptr);
-    size_needed     = WideCharToMultiByte(CP_ACP, 0, wstr, len, strLocal, size_needed, nullptr, nullptr);
+    int   len = wcslen(wstr) + 1;
+    char* strLocal = new char[len * 3]; // UTF-8 can use up to 3 bytes per character
+    memset(strLocal, 0, sizeof(char) * len * 3);
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr, len - 1, nullptr, 0, nullptr, nullptr);
+    size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr, len, strLocal, size_needed, nullptr, nullptr);
     if (outText)
     {
-        strcpy_s(outText, len, strLocal);
+        strcpy_s(outText, len * 3, strLocal);
         delete[] strLocal;
         return outText;
     }
@@ -266,12 +267,12 @@ namespace mbm
     }
 }
 
-    const char *getLastErrWindows(const char *where, char *outMessage)
+const char *getLastErrWindows(const char *where, char *outMessage)
 {
     DWORD lerr = GetLastError();
     if (lerr)
     {
-        char *message;
+        char *message = nullptr;
         FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, nullptr, lerr, 0, (char *)&message, 0,
                        nullptr);
         if (where)
@@ -288,6 +289,51 @@ namespace mbm
         return outMessage;
     }
     return "Nenhum erro encontrado!";
+}
+
+DWORD Win32FromHResult(HRESULT hr)
+{
+    if ((hr & 0xFFFF0000) == MAKE_HRESULT(SEVERITY_ERROR, FACILITY_WIN32, 0))
+    {
+        return HRESULT_CODE(hr);
+    }
+    if (FACILITY_WINDOWS == HRESULT_FACILITY(hr))
+    {
+        hr = HRESULT_CODE(hr);
+    }
+
+    if (hr == S_OK)
+    {
+        return ERROR_SUCCESS;
+    }
+
+    // Not a Win32 HRESULT so return a generic error code.
+    return ERROR_CAN_NOT_COMPLETE;
+}
+
+const char* getHresultErr(HRESULT hr, const char* where, char* outMessage)
+{
+    char message[4096];
+    if (::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+        nullptr,
+        Win32FromHResult(hr),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
+        message,
+        _countof(message),
+        nullptr))
+    {
+        if (where)
+        {
+            if (outMessage)
+                sprintf(outMessage, "Where:%s \nError:%s", where, message);
+        }
+        else
+        {
+            if (outMessage)
+                sprintf(outMessage, "\n%s", message);
+        }
+    }
+    return outMessage;
 }
 
     bool startUpWindows64(const char *name)
@@ -376,12 +422,14 @@ namespace mbm
         LONG nError = RegOpenKeyExW(hRootKey, strKey, 0, acess, &hKey);
         if (nError == ERROR_FILE_NOT_FOUND)
         {
-            std::cout << "Creating registry key: " << strKey << std::endl;
+            char strKeyout[255];
+            fprintf(stderr,"Creating registry key:%s\n", mbm::toChar(strKey, strKeyout));
             nError = RegCreateKeyExW(hRootKey, strKey, 0, nullptr, REG_OPTION_NON_VOLATILE, acess, nullptr, &hKey, nullptr);
         }
         if (nError)
         {
-            std::cout << "Error: " << nError << " Could not find or create " << strKey << std::endl;
+            char strKeyout[255];
+            fprintf(stderr, "Error:%d %s %s\n", nError, " Could not find or create ", mbm::toChar(strKey, strKeyout));
             char str[255];
             sprintf(str, "Arquivo: %s linha:%d", __FILE__, __LINE__);
             printLastErrWindows(str);
@@ -433,7 +481,7 @@ namespace mbm
         else
         {
             std::cout << "Erro no opened HKEY. use openKey!" << std::endl;
-		}
+        }
     }
 
     DWORD REGEDIT::getVal(LPCTSTR lpValue, DWORD valueNotFound)
@@ -761,7 +809,7 @@ namespace mbm
                     ++zeroByte;
             }
         }
-		unsigned char *img   = new unsigned char[(width * height * 3) + 4];
+        unsigned char *img   = new unsigned char[(width * height * 3) + 4];
         int i = getc(fp);
         while (i != EOF)
         {
@@ -2933,6 +2981,57 @@ namespace mbm
                     ID_RESOURCE_ICON_APP,doubleBuffer);
     }
 
+    // Per-monitor DPI helpers so window size matches requested size on any monitor (e.g. second monitor at 1920x1080).
+    static void enableDpiAwarenessOnce()
+    {
+        static bool once = false;
+        if (once) return;
+        once = true;
+        typedef BOOL(WINAPI* PFN_SetProcessDpiAwarenessContext)(void*);
+        typedef HRESULT(WINAPI* PFN_SetProcessDpiAwareness)(int);
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        HMODULE shcore = LoadLibraryA("shcore.dll");
+        if (user32)
+        {
+            PFN_SetProcessDpiAwarenessContext SetProcessDpiAwarenessContextFn =
+                (PFN_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+            if (SetProcessDpiAwarenessContextFn)
+            {
+                // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = (DPI_AWARENESS_CONTEXT)-4
+                if (SetProcessDpiAwarenessContextFn((void*)-4)) return;
+            }
+        }
+        if (shcore)
+        {
+            PFN_SetProcessDpiAwareness SetProcessDpiAwarenessFn =
+                (PFN_SetProcessDpiAwareness)GetProcAddress(shcore, "SetProcessDpiAwareness");
+            if (SetProcessDpiAwarenessFn && SUCCEEDED(SetProcessDpiAwarenessFn(2))) return; // PROCESS_PER_MONITOR_DPI_AWARE = 2
+        }
+        SetProcessDPIAware();
+    }
+    static UINT getDpiAtPoint(long x, long y)
+    {
+        HMODULE shcore = GetModuleHandleA("shcore.dll");
+        if (!shcore) return 96u;
+        typedef HRESULT(WINAPI* PFN_GetDpiForMonitor)(HMONITOR, int, UINT*, UINT*);
+        PFN_GetDpiForMonitor GetDpiForMonitorFn = (PFN_GetDpiForMonitor)GetProcAddress(shcore, "GetDpiForMonitor");
+        if (!GetDpiForMonitorFn) return 96u;
+        POINT pt = { x, y };
+        HMONITOR mon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        UINT dpiX = 96, dpiY = 96;
+        if (SUCCEEDED(GetDpiForMonitorFn(mon, 0, &dpiX, &dpiY))) return dpiX;
+        return 96u;
+    }
+    static BOOL adjustWindowRectForDpi(RECT* prc, DWORD dwStyle, BOOL bMenu, DWORD dwExStyle, UINT dpi)
+    {
+        typedef BOOL(WINAPI* PFN_AdjustWindowRectExForDpi)(LPRECT, DWORD, BOOL, DWORD, UINT);
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        if (!user32) return AdjustWindowRectEx(prc, dwStyle, bMenu, dwExStyle);
+        PFN_AdjustWindowRectExForDpi fn = (PFN_AdjustWindowRectExForDpi)GetProcAddress(user32, "AdjustWindowRectExForDpi");
+        if (fn) return fn(prc, dwStyle, bMenu, dwExStyle, dpi);
+        return AdjustWindowRectEx(prc, dwStyle, bMenu, dwExStyle);
+    }
+
     bool WINDOW::init(const char *nameApp, const int width, const int height, const long positionX,
                      const long positionY, const bool enableResize, const bool enableMaximizeButton,
                      const bool enableMinimizeButton , const bool maximized,
@@ -2941,6 +3040,7 @@ namespace mbm
     {
         if (isWin32Initialized)
             return true;
+        enableDpiAwarenessOnce();
         if (nameApp)
             strcpy(nameAplication, nameApp);
 #if UNICODE
@@ -3015,15 +3115,25 @@ namespace mbm
         }
         const int widthScreen  = GetSystemMetrics(SM_CXSCREEN);
         const int heightScreen = GetSystemMetrics(SM_CYSCREEN);
-        AdjustWindowRectEx(&WindowRect, dwStyle, 0, dwExStyle);
+        const bool explicitPosition = (positionX != 0 || positionY != 0) && (positionX != 0xffffff && positionY != 0xffffff);
+        if (explicitPosition)
+        {
+            UINT dpi = getDpiAtPoint((long)positionX, (long)positionY);
+            adjustWindowRectForDpi(&WindowRect, dwStyle, 0, dwExStyle, dpi);
+        }
+        else
+            AdjustWindowRectEx(&WindowRect, dwStyle, 0, dwExStyle);
         this->adjustRectLeft = WindowRect.left < 0 ? WindowRect.left * -1 : WindowRect.left;
         this->adjustRectTop  = WindowRect.top < 0 ? WindowRect.top * -1 : WindowRect.top;
         int wWin             = WindowRect.right - WindowRect.left;
         int hWin             = WindowRect.bottom - WindowRect.top;
-        if (wWin > widthScreen)
-            wWin = widthScreen;
-        if (hWin > heightScreen)
-            hWin = heightScreen;
+        if (!explicitPosition)
+        {
+            if (wWin > widthScreen)
+                wWin = widthScreen;
+            if (hWin > heightScreen)
+                hWin = heightScreen;
+        }
 #if UNICODE
         WCHAR *tmp_nameAplication = mbm::toWchar(nameAplication, nullptr);
         this->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, 0, 0, wWin, hWin, nullptr, nullptr,
@@ -3124,23 +3234,29 @@ namespace mbm
             return ptr->graphWin;
         return nullptr;
     }
-    void WINDOW::setCallEventsManager(EVENTS *ptrCallEventsManager)
+
+    void WINDOW::setCallEventsManager(EVENTS_WIN32 *ptrCallEventsManager)
     {
         callEventsManager = ptrCallEventsManager;
     }
-    unsigned int WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const unsigned int index)
+
+    uint32_t WINDOW::addObjectContext(void* YOUR_PTR_OBJECT)
     {
-        if (index != 0xffffffff)
-        {
-            assert(this->lsObjectsContext[index] == nullptr || this->lsObjectsContext[index] == YOUR_PTR_OBJECT);
-            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
-            return index;
-        }
-        const unsigned int newIndex      = this->lsObjectsContext.size();
+        const uint32_t newIndex = this->lsObjectsContext.size();
         this->lsObjectsContext[newIndex] = (YOUR_PTR_OBJECT);
         return newIndex;
     }
-    void * WINDOW::getObjectContext(const unsigned int index)
+
+    uint32_t WINDOW::setObjectContext(void *YOUR_PTR_OBJECT, const uint32_t index)
+    {
+        if (index != 0xffffffff)
+        {
+            this->lsObjectsContext[index] = YOUR_PTR_OBJECT;
+            return index;
+        }
+        return addObjectContext(YOUR_PTR_OBJECT);
+    }
+    void * WINDOW::getObjectContext(const uint32_t index)
     {
         if (index != 0xffffffff)
             return lsObjectsContext[index];
@@ -3383,7 +3499,7 @@ namespace mbm
             {
                 int *pFlag = static_cast<int *>(dialogBox->extraParams);
                 {
-					#define hasBit_On(v, bit) ((v & bit) == bit)
+                    #define hasBit_On(v, bit) ((v & bit) == bit)
                     int   flag  = *pFlag;
                     HICON hIcon = nullptr;
                     if (hasBit_On(flag, MB_ICONINFORMATION) || hasBit_On(flag, MB_ICONASTERISK))
@@ -4451,22 +4567,22 @@ namespace mbm
         tnidw.uVersion         = tnid.uVersion;
         WCHAR  textOut[1024]   = L"";
         WCHAR *szTmp           = toWchar(tnid.szInfo, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfo, szTmp);
-		else
-			memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
+        if(szTmp)
+            wcscpy(tnidw.szInfo, szTmp);
+        else
+            memset(tnidw.szInfo,0,sizeof(tnidw.szInfo));
 
         szTmp = toWchar(tnid.szInfoTitle, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szInfoTitle, szTmp);
-		else
-			memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
+        if(szTmp)
+            wcscpy(tnidw.szInfoTitle, szTmp);
+        else
+            memset(tnidw.szInfoTitle,0,sizeof(tnidw.szInfoTitle));
 
         szTmp = toWchar(tnid.szTip, textOut);
-		if(szTmp)
-			wcscpy(tnidw.szTip, szTmp);
-		else
-			memset(tnidw.szTip,0,sizeof(tnidw.szTip));
+        if(szTmp)
+            wcscpy(tnidw.szTip, szTmp);
+        else
+            memset(tnidw.szTip,0,sizeof(tnidw.szTip));
 
         BOOL bSuccess  = Shell_NotifyIconW(NIM_MODIFY, &tnidw);
         tnid.szInfo[0] = 0;
@@ -5236,8 +5352,8 @@ namespace mbm
                 {
                     COM_BETWEEN_WINP *ptrPrevious = ptr;
                     ptr                           = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5313,8 +5429,8 @@ namespace mbm
                 case WM_NCHITTEST:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC)
                         return CallWindowProc(ptr->_oldProc, windowHandle, message, wParam, lParam);
                     __NC_BORDERS::__NC_BUTTONS *ncButtons = (__NC_BORDERS::__NC_BUTTONS *)ptr->extraParams;
@@ -5371,8 +5487,8 @@ namespace mbm
                 case WM_NCPAINT:
                 {
                     ptr = getComBetweenWinp(ptr->id + 1);
-					if(ptr == nullptr)
-						return 0;
+                    if(ptr == nullptr)
+                        return 0;
                     if (ptr->typeWindowWinPlus != WINPLUS_TYPE_WINDOWNC || ptr->ptrWindow == nullptr ||
                         ptr->ptrWindow->run == false || ptr->ptrWindow->isVisible == false)
                     {
@@ -5410,7 +5526,7 @@ namespace mbm
                     DeleteDC(hdcMem);
                     ReleaseDC(windowHandle, hdc);
                     RedrawWindow(windowHandle, &ncBorder.rcWind, ncBorder.hrgnAll, RDW_UPDATENOW);
-					ptr->graphWin->infoActualComponent = nullptr;
+                    ptr->graphWin->infoActualComponent = nullptr;
                     /*for(unsigned int i=0; i< COM_BETWEEN_WINP::lsComBetweenWinp.size(); ++i)
                     {
                         COM_BETWEEN_WINP* ptrWinChild = COM_BETWEEN_WINP::lsComBetweenWinp[i];
@@ -6756,16 +6872,19 @@ namespace mbm
     }
     bool WINDOW::setOnParserRawInput(OnParseRawInput function)
     {
-        RAWINPUTDEVICE rid[1];
-        rid[0].usUsagePage = 1;
-        rid[0].usUsage     = 4; // Joystick
-        rid[0].dwFlags     = RIDEV_EXINPUTSINK;
-        rid[0].hwndTarget  = this->getHwnd();
+        if (function)
+        {
+            RAWINPUTDEVICE rid[1];
+            rid[0].usUsagePage = 1;
+            rid[0].usUsage = 4; // Joystick
+            rid[0].dwFlags = RIDEV_EXINPUTSINK;
+            rid[0].hwndTarget = this->getHwnd();
 
-        const int index      = 0;
-        const int numDevices = 1;
-        if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
-            return false;
+            const int index = 0;
+            const int numDevices = 1;
+            if (!RegisterRawInputDevices(&rid[index], numDevices, sizeof(RAWINPUTDEVICE)))
+                return false;
+        }
         this->onParseRawInput = function;
         return true;
     }
@@ -7650,7 +7769,7 @@ namespace mbm
             DeleteObject(hbmMem);
             DeleteDC(hdcMem);
             EndPaint(ptr->hwnd, &ps);
-			ptr->graphWin->infoActualComponent = nullptr;
+            ptr->graphWin->infoActualComponent = nullptr;
         }
         return 1;
     }
@@ -7727,6 +7846,7 @@ namespace mbm
                     {
                         ptrWin->run = false;
                         closeAllWindows();
+                        // TODO: check this
                         if (windowHandle && *(int *)windowHandle)
                             DestroyWindow(windowHandle);
                         return true;
@@ -8705,7 +8825,7 @@ namespace mbm
                                     menu->showSubMenu();
                                 }
                             }
-							break;
+                            break;
                             case WINPLUS_TYPE_SUB_MENU:
                             {
                                 if (ptr->onEventWinPlus)
@@ -9016,7 +9136,7 @@ namespace mbm
         bi.lParam         = 0;
         //this does not make any sense however I realize that when folder dialog is supposed to appear, it does not until press ALT in the keyboard...
         keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
-		keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+        keybd_event(VK_LMENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
         //end bizarre behavior
         pidl              = SHBrowseForFolderA(&bi);
         if (pidl)
@@ -9030,7 +9150,7 @@ namespace mbm
         }
         return nullptr;
     }
-std::vector<std::string> &openFileBoxMult(const char *extension_, const char *title,
+void openFileBoxMult(std::vector<std::string>& ret, const char *extension_, const char *title,
                                                  bool enableReturnExtencion , bool enableAllFileType ,
                                                  HWND hwnd, const char *defaultNameInDialog)
 {
@@ -9094,14 +9214,13 @@ std::vector<std::string> &openFileBoxMult(const char *extension_, const char *ti
     {
         strcpy(dialogBox.lpstrFile, defaultNameInDialog);
     }
-    static std::vector<std::string> ret;
     ret.clear();
 
     if (!GetOpenFileNameA(&dialogBox))
-        return ret;
+        return;
 
     if (path[0] == 0)
-        return ret;
+        return;
     char *directory = path;
     int   lenStr    = strlen(directory);
     while (lenStr + 1 < sizeof(path) && path[lenStr + 1])
@@ -9144,7 +9263,6 @@ std::vector<std::string> &openFileBoxMult(const char *extension_, const char *ti
         }
         ret.push_back(directory);
     }
-    return ret;
 }
     WCHAR *openFileBoxW(const WCHAR *extension, const WCHAR *title, bool enableReturnExtencion ,
                            bool enableAllFileType , HWND hwnd, const WCHAR *defaultNameInDialog)
@@ -10353,3 +10471,4 @@ namespace mbm
 }
 
 };
+#endif

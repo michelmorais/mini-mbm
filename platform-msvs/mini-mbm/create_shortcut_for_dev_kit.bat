@@ -21,7 +21,7 @@ rem -> temp file
 set SCRIPT="%TEMP%\%RANDOM%-%RANDOM%-%RANDOM%-%RANDOM%.vbs"
 
 echo Set oWS = WScript.CreateObject("WScript.Shell") >> %SCRIPT%
-echo sLinkFile = "%USERPROFILE%\Desktop\%nickName%.lnk" >> %SCRIPT%
+echo sLinkFile = oWS.SpecialFolders("Desktop") ^& "\MiniMBM-dev-tool-kit.lnk" >> %SCRIPT%
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> %SCRIPT%
 echo oLink.TargetPath = "%minimbm%" >> %SCRIPT%
 echo Arguments="--addpath %devpath%"  >> %SCRIPT%

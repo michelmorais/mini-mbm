@@ -141,7 +141,6 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
             local size          = {x=new_width,y=sy}
             local uv0           = {x=0,y=0}
             local uv1           = {x=1,y=1}
-            local frame_padding = 5
             local pushed_color  = 0
             if tUtil.bEraseOnClick_showTextureAssets then
                 if tTexture.isSelected then
@@ -158,7 +157,7 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
                 pushed_color = 2
             end
 
-            if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
+            if tImGui.ImageButton(string.format('tex_btn_%d', i), tTexture.id, size,uv0,uv1) then
                 if tUtil.bEraseOnClick_showTextureAssets then
                     table.remove(tTexturesToEditor,i)
                     if pushed_color > 0 then
@@ -249,20 +248,20 @@ tUtil.loadInfoImagesToTable = function(tFiles,tTexturesIn)
     if type(tFiles) == 'table' then
         local bSuccess = false
         for i=1, #tFiles do
-            local width,height,id,alpha = mbm.loadTexture(tFiles[i])
-            if id ~= 0 then
+            local texInfo = mbm.loadTexture(tFiles[i])
+            if texInfo:isValid() then
                 bSuccess = true
                 local base_file_name = tUtil.getBaseFileName(tFiles[i])
-                table.insert(tTexturesIn,{file_name = tFiles[i],width = width, height = height, alpha = alpha,id = id , base_file_name = base_file_name})
+                table.insert(tTexturesIn,{file_name = tFiles[i],width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
             else
                 print('Could not load texture:',tFiles[i])
             end
         end
     elseif type(tFiles) == 'string' then
-        local width,height,id,alpha = mbm.loadTexture(tFiles)
-        if id ~= 0 then
-            local base_file_name = tUtil.getBaseFileName(tFiles[i])
-            table.insert(tTexturesIn,{file_name = tFiles,width = width, height = height, alpha = alpha,id = id , base_file_name = base_file_name})
+        local texInfo = mbm.loadTexture(tFiles)
+        if texInfo:isValid() then
+            local base_file_name = tUtil.getBaseFileName(tFiles)
+            table.insert(tTexturesIn,{file_name = tFiles,width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
         else
             print('Could not load texture:',tFiles)
         end
@@ -290,6 +289,44 @@ tUtil.hasSupportedImageExtension = function(file_name)
         end
     end
     return false
+end
+
+tUtil.hasSupportedMeshExtension = function(file_name)
+    local tSupportedTypes = {'.spt', '.msh', '.fnt', '.tile', '.ptl'}
+    file_name = file_name:lower()
+    for i=1, #tSupportedTypes do
+        local supportedType = tSupportedTypes[i]
+        if file_name:match("%g%" .. supportedType .. '$') then
+            return true
+        end
+    end
+    return false
+end
+
+tUtil.getMeshFilesFromFolder = function(dirname)
+    local tFiles = {}
+    dirname = string.gsub(dirname, "\\", "/")
+    if #dirname > 0 and dirname:sub(-1) ~= '/' then
+        dirname = dirname .. '/'
+    end
+    local f = nil
+    if mbm.is("windows") then
+        f = io.popen('dir /b "' .. dirname .. '"')
+    else
+        f = io.popen('ls -1 "' .. dirname .. '"')
+    end
+    if f then
+        local ret = f:read("*a")
+        f:close()
+        local lines = ret:split('\n')
+        for i = 1, #lines do
+            local file_name = lines[i]:match("^%s*(.-)%s*$")
+            if file_name and file_name:len() > 0 and tUtil.hasSupportedMeshExtension(file_name) then
+                table.insert(tFiles, dirname .. file_name)
+            end
+        end
+    end
+    return tFiles
 end
 
 tUtil.loadInfoImagesFromFolderToTable  = function(dirname,tTexturesIn)
@@ -320,7 +357,6 @@ tUtil.loadInfoImagesFromFolderToTable  = function(dirname,tTexturesIn)
                 print(string.format('File [%s] skipped',file_name))
             end
         end
-        f.close()
         return tUtil.loadInfoImagesToTable(tFiles,tTexturesIn)
     end
     return tTexturesIn
@@ -464,11 +500,12 @@ tUtil.showOverlayMessage = function()
     if tUtil.sMessageOverlay then
         local flags = {'ImGuiWindowFlags_NoMove','ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
         local window_pos = {x = 0, y = tImGui.GetMainMenuBarHeight()}
+        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bRightSide then
             local iW, iH       = mbm.getRealSizeScreen()
-            window_pos.x = iW - tUtil.tSizeWindowOverlay.x
+            window_pos.x = iW
+            window_pos_pivot = {x = 1, y = 0}  -- anchor window's right edge to screen right
         end
-        local window_pos_pivot = {x = 0, y = 0}
         if tUtil.bFocusMsgOnce then
             tUtil.bFocusMsgOnce = false
             tImGui.SetNextWindowFocus(tUtil.title_overlay)
@@ -481,7 +518,7 @@ tUtil.showOverlayMessage = function()
         else
             tImGui.SetNextWindowBgAlpha(0.75);
         end
-        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false,tImGui.Flags(flags) )
+        local is_opened, closed_clicked = tImGui.Begin(tUtil.title_overlay, false, tImGui.Flags(flags) )
         if is_opened then
             tImGui.Text(tUtil.sMessageOverlay)
         end

@@ -28,6 +28,7 @@ extern "C"
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <render/sprite.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>

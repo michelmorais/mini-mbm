@@ -1,9 +1,10 @@
 
 // dllmain-mini-mbm-lib
 #include <Windows.h>
+#pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "plugin-helper.lib")
-#pragma comment(lib, "libEGL.dll.lib")
-#pragma comment(lib, "libGLESv2.dll.lib")
+//#pragma comment(lib, "libEGL.dll.lib")
+//#pragma comment(lib, "libGLESv2.dll.lib")
 #pragma comment(lib, "lua5.4.lib")
 
 

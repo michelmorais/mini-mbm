@@ -30,6 +30,8 @@ extern "C"
 #include <render/shape-mesh.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/header-mesh.h>
+#include <core_mbm/scene.h>
+#include <draw-compatibility.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>
@@ -211,14 +213,13 @@ namespace mbm
 		util::INFO_DRAW_MODE info_draw_mode;
 		
         const int   hasTableUV          = top > 2 ? lua_type(lua, 3) : LUA_TNIL;
-        const int   hasTableNormal      = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
-		const char *fileName            = (top > 4 && (lua_type(lua, 5) == LUA_TSTRING)) ? lua_tostring(lua, 5) : getRandomNameMesh();
-		info_draw_mode.mode_draw                 = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? get_mode_draw_from_string(lua_tostring(lua,6),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? get_mode_cull_face_from_string(lua_tostring(lua,7),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? get_mode_front_face_direction_from_string(lua_tostring(lua,8),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+		const char *fileName            = (top > 3 && (lua_type(lua, 4) == LUA_TSTRING)) ? lua_tostring(lua, 4) : getRandomNameMesh();
+		info_draw_mode.mode_draw                 = top > 4 ? (lua_type(lua, 5) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,5))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,6))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,7)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableUV     = (hasTableUV == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;
-        const unsigned int sTableNormal = (hasTableNormal == LUA_TTABLE) ? lua_rawlen(lua, 4) : 0;
 
         AUTO_VERTEX vertex;
         vertex.sizeArray = sTableXYZ;
@@ -242,13 +243,6 @@ namespace mbm
             {
                 return lua_error_debug(lua, "[table XYZ] must has x,y e z (divisible by 3)! size [%d] \n\n options:\n%s", sTableXYZ,options_shape);
             }
-            if (sTableNormal)
-            {
-                if (sTableNormal != sTableXYZ)
-                {
-                    return lua_error_debug(lua, "[table Normal] must has the same size of table XYZ! \n\n options:\n%s", options_shape);
-                }
-            }
             if (sTableUV)
             {
                 if ((sTableXYZ / 3) != (sTableUV / 2))
@@ -263,21 +257,12 @@ namespace mbm
                 vertex.ls_uv = new float[sTableUV];
                 getArrayFloatFromTable(lua, 3, vertex.ls_uv, sTableUV);
             }
-            if (sTableNormal)
-            {
-                vertex.ls_normal = new float[sTableNormal];
-                getArrayFloatFromTable(lua, 4, vertex.ls_normal, sTableNormal);
-            }
         }
         else
         {
             if (sTableXYZ % 2)
             {
                 return lua_error_debug(lua, "[table XY] must contain coordinates x and y (pair)! size [%d]\n\n options:\n%s", sTableXYZ, options_shape);
-            }
-            if (sTableNormal)
-            {
-                return lua_error_debug(lua, "[table Normal] only must exists with table XYZ!\n\n options:\n%s", options_shape);
             }
             if (sTableUV)
             {
@@ -311,21 +296,19 @@ namespace mbm
         const int   hasTableXYZ    = top > 1 ? lua_type(lua, 2) : LUA_TNIL;
         const int   hasTableIndex  = top > 2 ? lua_type(lua, 3) : LUA_TNIL;
         const int   hasTableUV     = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
-        const int   hasTableNormal = top > 4 ? lua_type(lua, 5) : LUA_TNIL;
-        const char *fileName       =(top > 5 && (lua_type(lua, 6) == LUA_TSTRING)) ? luaL_checkstring(lua, 6) : getRandomNameMesh();
-		info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? get_mode_draw_from_string(lua_tostring(lua,7),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? get_mode_cull_face_from_string(lua_tostring(lua,8),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? get_mode_front_face_direction_from_string(lua_tostring(lua,9),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+        const char *fileName       =(top > 4 && (lua_type(lua, 5) == LUA_TSTRING)) ? luaL_checkstring(lua, 5) : getRandomNameMesh();
+
+        info_draw_mode.mode_draw                 = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,6))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,7))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,8)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
 
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableIndex  = (hasTableIndex == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;
         const unsigned int sTableUV     = (hasTableUV == LUA_TTABLE) ? lua_rawlen(lua, 4) : 0;
-        const unsigned int sTableNormal = (hasTableNormal == LUA_TTABLE) ? lua_rawlen(lua, 5) : 0;
 
         unsigned int                          sizeArray = sTableXYZ;
         unsigned int                          sizeIndex = sTableIndex;
         std::vector<float>              ls_xyz;
-        std::vector<float>              ls_normal;
         std::vector<float>              ls_uv;
         std::unique_ptr<unsigned short int[],DeleteArrayUnShortInt> ls_index;
         if (sTableXYZ == 0)
@@ -347,13 +330,6 @@ namespace mbm
             {
                 return lua_error_debug(lua, "[table index] must contain indices for triangle list (1 triang == 3 index)! \n\n options:\n%s", options_shape);
             }
-            if (sTableNormal)
-            {
-                if (sTableNormal != sTableXYZ)
-                {
-                    return lua_error_debug(lua, "[table Normal] It must be the same size as the table XYZ! \n\n options:\n%s", options_shape);
-                }
-            }
             if (sTableUV)
             {
                 if ((sTableXYZ / 3) != (sTableUV / 2))
@@ -369,11 +345,6 @@ namespace mbm
             {
                 ls_uv.resize(sTableUV);
                 getArrayFloatFromTable(lua, 4, ls_uv.data(), sTableUV);
-            }
-            if (sTableNormal)
-            {
-                ls_normal.resize(sTableNormal);
-                getArrayFloatFromTable(lua, 5, ls_normal.data(), sTableNormal);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
             for (unsigned short int i = 0; i < sizeArray; ++i)
@@ -400,10 +371,6 @@ namespace mbm
             if (sTableXYZ % 2)
             {
                 return lua_error_debug(lua, "[table XY] must contain coordinates x and y!\n\n options:\n%s", options_shape);
-            }
-            if (sTableNormal)
-            {
-                return lua_error_debug(lua, "[table Normal] should only exist with table XYZ! \n\n options:\n%s", options_shape);
             }
             if (sTableUV)
             {
@@ -437,7 +404,7 @@ namespace mbm
             }
         }
 
-        if (shape->loadIndexedDynamic(fileName, std::move(ls_xyz), std::move(ls_normal), std::move(ls_uv),std::move(ls_index), sizeArray, sizeIndex,&info_draw_mode))
+        if (shape->loadIndexedDynamic(fileName, std::move(ls_xyz), std::move(ls_uv),std::move(ls_index), sizeArray, sizeIndex,&info_draw_mode))
             lua_pushstring(lua, fileName);
         else
             lua_pushboolean(lua, 0);
@@ -452,17 +419,15 @@ namespace mbm
         const int   hasTableXYZ    = top > 1 ? lua_type(lua, 2) : LUA_TNIL;
         const int   hasTableIndex  = top > 2 ? lua_type(lua, 3) : LUA_TNIL;
         const int   hasTableUV     = top > 3 ? lua_type(lua, 4) : LUA_TNIL;
-        const int   hasTableNormal = top > 4 ? lua_type(lua, 5) : LUA_TNIL;
-        const char *fileName       = (top > 5 && (lua_type(lua, 6) == LUA_TSTRING)) ? luaL_checkstring(lua, 6) : getRandomNameMesh();
+        const char *fileName       = (top > 4 && (lua_type(lua, 5) == LUA_TSTRING)) ? luaL_checkstring(lua, 5) : getRandomNameMesh();
 		
-		info_draw_mode.mode_draw                 = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? get_mode_draw_from_string(lua_tostring(lua,7),info_draw_mode.mode_draw)                                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
-		info_draw_mode.mode_cull_face            = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? get_mode_cull_face_from_string(lua_tostring(lua,8),info_draw_mode.mode_cull_face)                       : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
-		info_draw_mode.mode_front_face_direction = top > 8 ? (lua_type(lua, 9) == LUA_TSTRING ? get_mode_front_face_direction_from_string(lua_tostring(lua,9),info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
+		info_draw_mode.mode_draw                 = top > 5 ? (lua_type(lua, 6) == LUA_TSTRING ? util::get_mode_draw_from_string(lua_tostring(lua,6))                 : info_draw_mode.mode_draw)                 : info_draw_mode.mode_draw;
+		info_draw_mode.mode_cull_face            = top > 6 ? (lua_type(lua, 7) == LUA_TSTRING ? util::get_mode_cull_face_from_string(lua_tostring(lua,7))            : info_draw_mode.mode_cull_face)            : info_draw_mode.mode_cull_face;
+		info_draw_mode.mode_front_face_direction = top > 7 ? (lua_type(lua, 8) == LUA_TSTRING ? util::get_mode_front_face_direction_from_string(lua_tostring(lua,8)) : info_draw_mode.mode_front_face_direction) : info_draw_mode.mode_front_face_direction;
 
         const unsigned int sTableXYZ    = (hasTableXYZ == LUA_TTABLE) ? lua_rawlen(lua, 2) : 0;
         const unsigned int sTableIndex  = (hasTableIndex == LUA_TTABLE) ? lua_rawlen(lua, 3) : 0;
         const unsigned int sTableUV     = (hasTableUV == LUA_TTABLE) ? lua_rawlen(lua, 4) : 0;
-        const unsigned int sTableNormal = (hasTableNormal == LUA_TTABLE) ? lua_rawlen(lua, 5) : 0;
 
         AUTO_VERTEX vertex;
         vertex.sizeArray = sTableXYZ;
@@ -495,13 +460,6 @@ namespace mbm
             {
                 return lua_error_debug(lua, "[table index] must contain indices for triangle list (1 triang == 3 index)! \n\n options:\n%s", options_shape);
             }
-            if (sTableNormal)
-            {
-                if (sTableNormal != sTableXYZ)
-                {
-                    return lua_error_debug(lua, "[table Normal] It must be the same size as the table XYZ! \n\n options:\n%s", options_shape);
-                }
-            }
             if (sTableUV)
             {
                 if ((sTableXYZ / 3) != (sTableUV / 2))
@@ -517,11 +475,6 @@ namespace mbm
             {
                 vertex.ls_uv = new float[sTableUV];
                 getArrayFloatFromTable(lua, 4, vertex.ls_uv, sTableUV);
-            }
-            if (sTableNormal)
-            {
-                vertex.ls_normal = new float[sTableNormal];
-                getArrayFloatFromTable(lua, 5, vertex.ls_normal, sTableNormal);
             }
             const auto maxVertex = (const unsigned short int)(sTableXYZ / 3);
             for (unsigned short int i = 0; i < vertex.sizeIndex; ++i)
@@ -548,10 +501,6 @@ namespace mbm
             if (sTableXYZ % 2)
             {
                 return lua_error_debug(lua, "[table XY] must contain coordinates x and y! \n\n options:\n%s", options_shape);
-            }
-            if (sTableNormal)
-            {
-                return lua_error_debug(lua, "[table Normal] should only exist with table XYZ! \n\n options:\n%s", options_shape);
             }
             if (sTableUV)
             {
@@ -594,22 +543,16 @@ namespace mbm
 
 	/*
 	example LUA code
-	function onRender(tShape,vertex,normal,uv,index_buffer)
+	function onRender(tShape,vertex,uv,index_buffer)
 		tShape.x = 0 -- that is the shape
 		print("--------------------")
 		print(" vertex (" .. #vertex .. ')')
 
 		print(" name table 1: (" .. vertex.name .. ')')
-		print(" name table 2: (" .. normal.name .. ')')
-		print(" name table 3: ("     .. uv.name .. ')')
+		print(" name table 2: (" .. uv.name .. ')')
 
 		for i=1,#vertex do
 			print('x:' .. vertex[i].x .. ' y:' .. vertex[i].y .. ' z:' .. vertex[i].z)
-		end
-    
-		print(" normal (" .. #normal .. ')')
-		for i=1,#normal do
-			print('nx:' .. normal[i].nx .. ' ny:' .. normal[i].ny .. ' nz:' .. normal[i].nz)
 		end
 
 		print(" uv (" .. #uv .. ')')
@@ -619,7 +562,7 @@ namespace mbm
 
 		print("--------------------")
 
-		return vertex,normal,uv --overwrite all
+		return vertex,uv --overwrite all
 		
 		-- return vertex,uv --overwrite only vertex and uv
 
@@ -630,7 +573,7 @@ namespace mbm
 
 	*/
 
-	static void onRenderDynamicBufferCallBackLua(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicNormal,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only)
+	static void onRenderDynamicBufferCallBackLua(SHAPE_MESH * shape, std::vector<float> & dynamicVertex,std::vector<float> & dynamicUV,const std::vector<uint16_t> & index_read_only)
 	{
         auto *userData   = static_cast<USER_DATA_SHAPE_LUA *>(shape->userData);
 		DEVICE * device  = DEVICE::getInstance();
@@ -639,16 +582,12 @@ namespace mbm
         lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_CallBackEditVertexBuffer);
         if (lua_isfunction(lua, -1))
         {
-			constexpr int nargs    = 1 + 4;
-			constexpr int nresults = 3;
+			constexpr int nargs    = 1 + 3;
+			constexpr int nresults = 2;
 			lua_rawgeti(lua, LUA_REGISTRYINDEX, userData->ref_MeAsTable);
 
 			push3VectorArrayToTableWithField(lua,dynamicVertex,"x","y","z");
 			lua_pushstring(lua,"vertex");
-			lua_setfield(lua,-2,"name");
-
-			push3VectorArrayToTableWithField(lua,dynamicNormal,"nx","ny","nz");
-			lua_pushstring(lua,"normal");
 			lua_setfield(lua,-2,"name");
 
 			push2VectorArrayToTableWithField(lua,dynamicUV,"u","v");
@@ -664,8 +603,7 @@ namespace mbm
 				switch(index_iteration)
 				{
 					case 0: return "vertex";
-					case 1: return "normal";
-					case 2: return "uv";
+					case 1: return "uv";
 					default: return "unknown";
 				}
 			};
@@ -682,11 +620,6 @@ namespace mbm
 					if(strcasecmp(name,"vertex") == 0)
 					{
 						get3ArrayFromTableWithField(lua,index,dynamicVertex.data(),dynamicVertex.size(),"x","y","z");
-						++index_iteration;
-					}
-					else if(strcasecmp(name,"normal") == 0)
-					{
-						get3ArrayFromTableWithField(lua,index,dynamicNormal.data(),dynamicNormal.size(),"nx","ny","nz");
 						++index_iteration;
 					}
 					else if(strcasecmp(name,"uv") == 0)

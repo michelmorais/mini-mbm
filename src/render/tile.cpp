@@ -24,6 +24,7 @@
 #include <core_mbm/util-interface.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/header-mesh.h>
+#include <core_mbm/scene.h>
 #include <cmath>
 
 namespace mbm
@@ -35,12 +36,14 @@ namespace mbm
         , backgroundTextureMap(nullptr)
     {
         this->mesh = nullptr;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     TILE::~TILE()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -150,7 +153,6 @@ namespace mbm
         if(backGroundMap.isLoadedBuffer() == false)
         {
             VEC3 vertex[4];
-            VEC3 normal[4];
             VEC2 uv[4];
             int indexStart = 0;
             int indexCount = 6;
@@ -171,12 +173,7 @@ namespace mbm
             vertex[3].x = x;
             vertex[3].y = y;
             vertex[3].z = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
+
             uv[0].x = 0;
             uv[0].y = 1;
             uv[1].x = 0;
@@ -187,14 +184,13 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            if(backGroundMap.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr) == false)
+            if(backGroundMap.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount, nullptr) == false)
             {
                 ERROR_LOG("Error on load buffer for background texture [%s]",backgroundTextureMap ? backgroundTextureMap->getFileNameTexture() : "null");
                 return false;
             }
-            this->backGroundMap.idTexture0[0] = backgroundTextureMap ? backgroundTextureMap->idTexture : 0;
-            this->backGroundMap.idTexture1    = 0;
-            this->backGroundMap.useAlpha[0]   = backgroundTextureMap && backgroundTextureMap->useAlphaChannel ? 1 : 0;
+            this->backGroundMap.setTextureByStage(backgroundTextureMap, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
         }
         return true;
     }
@@ -215,7 +211,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }
@@ -224,12 +221,16 @@ namespace mbm
 
     bool TILE::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
+        
         const auto * ptr_TileInfo = this->getTileInfo();
         if(backgroundTextureMap)
         {
             auto * anim               = this->getAnimation(0);
             if(loadBufferBackGroundTexture() && anim)
             {
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
@@ -245,20 +246,26 @@ namespace mbm
                 }
 
                 MatrixTranslationRotationScale(&SHADER::modelView, &backPos, &this->angle, &backGround_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
-                if(anim->fx.shader.render(&this->backGroundMap) == false)
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+                if (anim->fx.shader.render(&this->backGroundMap) == false)
+                {
+					device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
         for (size_t i = 0; i < ptr_TileInfo->map.layerCount; i++)
         {
             if(lsVisible[i])
             {
-                if(renderLayer(i) == false)
+                if (renderLayer(i) == false)
+                {
+                    device->enableFilteringAfterPixelPerfect();
                     return false;
+                }
             }
         }
-        
+        device->enableFilteringAfterPixelPerfect();
         return true;
     }
 
@@ -281,31 +288,33 @@ namespace mbm
         const float offset_x           = layer->offset[0] * scale.x;
         const float offset_y           = layer->offset[1] * scale.y;
 
-        anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+
+        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.shader.update();
         this->blend.set(anim->blendState);
         anim->fx.setBlendOp();
 
-        const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
+        TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
         VEC3 thePosBrick(this->position);
         const MATRIX *matrixPerspective = nullptr;
         if (this->is3D)
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-            matrixPerspective = &this->device->camera.matrixPerspective;
+            matrixPerspective = &device->camera.matrixPerspective;
         }
         else if(this->is2dS)
         {
-            thePosBrick = VEC3(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-            this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
+            thePosBrick = VEC3(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+            device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
-            matrixPerspective = &this->device->camera.matrixPerspective2d;
+            matrixPerspective = &device->camera.matrixPerspective2d;
         }
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &scale);
-            matrixPerspective = &this->device->camera.matrixPerspective2d;
+            matrixPerspective = &device->camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
@@ -493,7 +502,7 @@ namespace mbm
     inline bool TILE::renderBrick( const util::BTILE_INFO * ptr_TileInfo, 
                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                             const mbm::SHADER * shader,
-                            const unsigned int idTextureOverrideStage2,
+                            TEXTURE* idTextureOverrideStage2,
                             const uint32_t i, 
                             const uint32_t j,
                             const float offset_x,
@@ -516,12 +525,11 @@ namespace mbm
     
     bool TILE::onRestoreDevice()
     {
-        this->releaseAnimation();
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
             #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             for( auto & tileObj : lsTileObjs)
             {
@@ -539,12 +547,6 @@ namespace mbm
         
     }
     
-    void TILE::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
-    
     const mbm::INFO_PHYSICS * TILE::getInfoPhysics() const
     {
         if(this->mesh)
@@ -560,6 +562,17 @@ namespace mbm
     bool TILE::isLoaded() const
     {
         return this->mesh != nullptr;
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE::getFvfFromBuffer() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     const util::BTILE_INFO *	TILE::getTileInfo() const
@@ -592,6 +605,7 @@ namespace mbm
             return std::numeric_limits<uint16_t>::max();
         if(index_layer >= ptr_cTileInfo->map.layerCount)
             return std::numeric_limits<uint16_t>::max();
+        mbm::DEVICE* device     = mbm::DEVICE::getInstance();
         const int total         = ptr_cTileInfo->map.count_width_tile * ptr_cTileInfo->map.count_height_tile;
         const auto * layer      = &ptr_cTileInfo->layers[index_layer];
         VEC2 pos;
@@ -993,6 +1007,17 @@ namespace mbm
         return ptr_Mesh;
     }
 
+    FVF_PROVIDE_BY_ENGINE TILE_OBJ::getFvfFromBuffer() const noexcept
+    {
+        if (ptr_Mesh)
+        {
+            BUFFER_MESH* buf = ptr_Mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     bool TILE_OBJ::isLoaded() const
     {
         return true;
@@ -1027,7 +1052,6 @@ namespace mbm
             this->blend.set(anim->blendState);
             anim->fx.setBlendOp();
             auto * device = DEVICE::getInstance();
-            const unsigned int idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2->idTexture : 0;
             
             if (this->is3D)
             {
@@ -1048,7 +1072,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
 
-            return this->ptr_Mesh->render(brickID, &anim->fx.shader,idTextureOverrideStage2);
+            return this->ptr_Mesh->render(brickID, &anim->fx.shader, anim->fx.textureOverrideStage2);
         }
         return false;
     }
@@ -1058,8 +1082,8 @@ namespace mbm
         return true; //The parent will take care
     }
 
-    void TILE_OBJ::onStop()
-    {
-        //do nothing
-    }
+    //void TILE_OBJ::onStop()
+    //{
+    //    //do nothing
+    //}
 }

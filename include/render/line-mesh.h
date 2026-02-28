@@ -27,13 +27,14 @@
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
 
+
 namespace mbm
 {
     class MY_LINES
     {
+        friend class LINE_MESH;
       public:
-        uint32_t vboVertexUvLine;
-        MY_LINES()noexcept;
+        MY_LINES() noexcept = default;
         virtual ~MY_LINES();
         void release();
         VEC3 *getArray();
@@ -41,11 +42,13 @@ namespace mbm
         bool setLines(std::vector<VEC3> && arrayPoints,const bool invert_Y);
         bool renderLines(SHADER *shader);
         bool onRestore();
-      private:
+    protected:
+        mbm::BUFFER_GL buffer;
+    private:
         std::vector<VEC3> arrayLinesVec3;
     };
 
-    class LINE_MESH : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class LINE_MESH : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         mbm::COLOR color;
@@ -60,11 +63,11 @@ namespace mbm
         API_IMPL void drawBounding(RENDERIZABLE* ptr,const bool useAABB)noexcept;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+		FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
     private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() override;
         bool loadShaderDefault();
         bool createAnimationAndShader2Line();

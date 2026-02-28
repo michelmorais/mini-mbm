@@ -22,6 +22,7 @@
 #include <mesh-manager.h>
 #include <util-interface.h>
 #include <file-util.h>
+#include <core_mbm/scene.h>
 
 
 namespace mbm
@@ -32,12 +33,14 @@ namespace mbm
     {
         this->indexCurrentAnimation = 0;
         this->mesh                  = nullptr;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     MESH::~MESH()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -92,36 +95,37 @@ namespace mbm
         if (this->indexCurrentAnimation < this->lsAnimation.size())
         {
             ANIMATION *anim = this->lsAnimation[this->indexCurrentAnimation];
-            anim->updateAnimation(this->device->delta,this,this->onEndAnimation,this->onEndFx);
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            anim->updateAnimation(device->delta,this,this->onEndAnimation,this->onEndFx);
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             this->blend.set(anim->blendState);
             anim->fx.shader.update();
             anim->fx.setBlendOp();
             if (anim->fx.textureOverrideStage2)
             {
-                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,anim->fx.textureOverrideStage2->idTexture))
+                if (!this->mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, anim->fx.textureOverrideStage2))
                     return false;
             }
             else
             {
-                if (!mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader,0))
+                if (!mesh->render(static_cast<unsigned int>(anim->indexCurrentFrame), &anim->fx.shader, nullptr))
                     return false;
             }
             return true;
@@ -131,15 +135,12 @@ namespace mbm
     
     bool MESH::onRestoreDevice()
     {
-        const unsigned int oldIndexCurrentAnimation = this->indexCurrentAnimation;
-        this->releaseAnimation();
+		this->mesh = nullptr;
         const bool ret = this->load(this->fileName.c_str());
         if (ret)
         {
-            this->indexCurrentAnimation = oldIndexCurrentAnimation;
-            this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
             #if defined DEBUG_RESTORE
-                PRINT_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
+            PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
             #endif
         }
         #if defined DEBUG_RESTORE
@@ -160,18 +161,19 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }
         return false;
     }
     
-    void MESH::onStop()
-    {
-        this->releaseAnimation();
-        this->mesh = nullptr;
-    }
+    //void MESH::onStop()
+    //{
+    //    this->releaseAnimation();
+    //    this->mesh = nullptr;
+    //}
     
     const mbm::INFO_PHYSICS * MESH::getInfoPhysics() const
     {
@@ -185,18 +187,29 @@ namespace mbm
         return this->mesh;
     }
 
-	FX*  MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  MESH::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  MESH::getAnimationManager()
+    {
+        return this;
+    }
+
+    FVF_PROVIDE_BY_ENGINE MESH::getFvfFromBuffer() const noexcept
+    {
+        if (mesh)
+        {
+            BUFFER_MESH* buf = mesh->getBuffer(0);
+            if (buf && buf->pBufferGL && buf->pBufferGL->isLoadedBuffer())
+                return buf->pBufferGL->fvf;
+        }
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
     
     bool MESH::isLoaded() const
     {

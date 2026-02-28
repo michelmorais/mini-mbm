@@ -31,6 +31,7 @@ extern "C"
 #include <lua-wrap/render-table/render-2-texture-lua.h>
 #include <lua-wrap/common-methods-lua.h>
 #include <plugin-helper/user-data-lua.h>
+#include <core_mbm/scene.h>
 #include <render/HMD.h>
 
 #if DEBUG_FREE_LUA

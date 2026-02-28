@@ -357,9 +357,11 @@ function onParseFont(sFontSelected)
                 tUtil.showMessageWarn('Letters not defined in the txt file!')
             else
                 if tFontStructure.scaleW == nil then
-                    local width,height,id, has_alpha = mbm.loadTexture(tFontStructure.sTextureFile)
-                    tFontStructure.scaleW = width
-                    tFontStructure.scaleH = height
+                    local texInfo = mbm.loadTexture(tFontStructure.sTextureFile)
+                    if texInfo:isValid() then
+                        tFontStructure.scaleW = texInfo:getWidth()
+                        tFontStructure.scaleH = texInfo:getHeight()
+                    end
                 end
                 if tFontStructure.scaleW == nil then
                     tUtil.showMessageWarn('Texture size not defined in the txt file and could not load the texture!')

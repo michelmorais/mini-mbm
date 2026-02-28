@@ -85,10 +85,7 @@ namespace mbm
       public:
         std::vector<SHADER_CFG *> lsPs;
         std::vector<SHADER_CFG *> lsVs;
-    //#ifndef ANDROID
-    //    std::string vertexPath;
-    //    std::string pixelPath;
-    //#endif
+        // TODO: implement main shader support
         //std::string mainPS;
         //std::string mainVS;
         //std::string versionPS;
@@ -97,7 +94,6 @@ namespace mbm
         API_IMPL virtual ~SHADER_CFG_LOADER();
         API_IMPL bool parserCFGFromResource();
         API_IMPL void sortShader();
-        //void createCFG(const char *fileName);
         API_IMPL SHADER_CFG *getShader(const char *fileName);
         API_IMPL void consolidatesFileShaderCFG();
         API_IMPL bool readShaderFromFile(const char *fileName, std::string &code);

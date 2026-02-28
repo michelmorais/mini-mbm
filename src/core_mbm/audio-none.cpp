@@ -17,29 +17,28 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+
+#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
+// ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    #ifndef INCLUDE_AUDIO_NONE_CPP
+        #define INCLUDE_AUDIO_NONE_CPP
+        #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+    #endif
+#endif
+
+#if defined(AUDIO_ENGINE_NONE) || defined (INCLUDE_AUDIO_NONE_CPP)
+
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
-
-#if defined(AUDIO_ENGINE_PORT_AUDIO)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_PORT_AUDIO
-#endif
-
-#if defined(AUDIO_ENGINE_AUDIERE)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_AUDIERE
-#endif
-
-#if defined(AUDIO_ENGINE_ANDROID_JNI)
-    #error attempt to NOT use AUDIO and defining AUDIO_ENGINE_ANDROID_JNI
-#endif
-
 
 namespace mbm
 {
 	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
     onEndStreamCallBack(nullptr)
     {
+        #pragma message(REMINDER_TODO "Audio engine NONE is used, all functions are disabled")
         ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
     }
 
@@ -131,3 +130,5 @@ namespace mbm
 		return "Audio engine NULL";
 	}
 }
+
+#endif

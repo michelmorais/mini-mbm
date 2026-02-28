@@ -21,78 +21,29 @@
 #include <shader-cfg.h>
 #include <shader-var-cfg.h>
 #include <animation.h>
-#include <gles-debug.h>
 #include <util-interface.h>
 
-#if defined _WIN32
-	#include <../third-party/gles/GLES3/gl3.h>
-#endif
 
-    namespace mbm
-    {
+namespace mbm
+{
 
     FX::FX() noexcept
-	{
-		fxPS = new EFFECT_SHADER();
-		fxVS = new EFFECT_SHADER();
-		textureOverrideStage2 = nullptr;
-		blendOperation = 1;
-	}
-    
-	FX::~FX()
-	{
-		delete fxPS;
-		delete fxVS;
-	}
-    
-	void FX::setBlendDefaultOp()
     {
-        GLBlendEquation(GL_FUNC_ADD);
+        fxPS = new EFFECT_SHADER();
+        fxVS = new EFFECT_SHADER();
+        textureOverrideStage2 = nullptr;
+        blendOperation = 1;
+    }
+    
+    FX::~FX()
+    {
+        delete fxPS;
+        delete fxVS;
     }
 
-    void FX::setBlendOp()
-    {
-        switch (blendOperation)
-        {
-            case 1: // D3DBLENDOP_ADD              = 1,
-            {
-                GLBlendEquation(GL_FUNC_ADD);
-            }
-            break;
-            case 2: // D3DBLENDOP_SUBTRACT         = 2,
-            {
-                GLBlendEquation(GL_FUNC_SUBTRACT);
-            }
-            break;
-            case 3: // D3DBLENDOP_REVSUBTRACT      = 3,
-            {
-                GLBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-            }
-            break;
-            case 4: // D3DBLENDOP_MIN              = 4,
-            {
-    #if defined(ANDROID) || defined(__linux__)
-                GLBlendEquation(0x8007);
-    #else
-                GLBlendEquation(GL_MIN);
-    #endif
-            }
-            break;
-            case 5: // D3DBLENDOP_MAX              = 5,
-            {
-    #if defined(ANDROID) || defined(__linux__)
-                GLBlendEquation(0x8008);
-    #else
-                GLBlendEquation(GL_MAX);
-    #endif
-            }
-            break;
-        }
-    }
-
-   bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
+    bool FX::loadNewShader(SHADER_CFG *pShaderCfg,
                                     SHADER_CFG *vShaderCfg, const TYPE_ANIMATION typePs, const float timeAnimPs,
-                                    const TYPE_ANIMATION typeVs, const float timeAnimVs)
+                                    const TYPE_ANIMATION typeVs, const float timeAnimVs, FVF_PROVIDE_BY_ENGINE fvf)
     {
         BASE_SHADER *basePixelShader  = nullptr;
         BASE_SHADER *baseVertexShader = nullptr;
@@ -113,7 +64,7 @@
         {
             fxVS->ptrCurrentShader = nullptr;
         }
-        const bool ret = shader.compileShader(basePixelShader, baseVertexShader);
+        const bool ret = shader.compileShader(basePixelShader, baseVertexShader, fvf);
         if (!ret)
             return false;
         if (pShaderCfg)
@@ -122,7 +73,7 @@
             {
                 VAR_CFG *var = pShaderCfg->lsVar[i];
                 if (!fxPS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.programObject))
+                                                               shader.ptrShaderSpecific, true))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),
@@ -147,7 +98,7 @@
             {
                 VAR_CFG *var = vShaderCfg->lsVar[i];
                 if (!fxVS->ptrCurrentShader->addVar(var->name.c_str(), var->type, var->Default, //-V522
-                                                               shader.programObject))
+                                                               shader.ptrShaderSpecific, false))
                 {
 #if defined _DEBUG
                     PRINT_IF_DEBUG( "failed to included variable %s shader %s!", var->name.c_str(),

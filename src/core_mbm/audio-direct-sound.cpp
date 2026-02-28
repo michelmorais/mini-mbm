@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 #include <windows.h>
 #include <audio.h>
 #include <device.h>
@@ -24,10 +25,7 @@
 #include <util-interface.h>
 #include <comdef.h>
 
-#if !defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-    #error attempt to use Direct sound without define AUDIO_ENGINE_DIRECT_SOUND_8
-#endif
-
+    
 #pragma comment(lib, "dsound.lib")
 //#pragma comment(lib, "winmm.lib")
 //#pragma comment(lib,"dxguid.lib")
@@ -590,3 +588,4 @@ namespace mbm
     }
 
 }
+#endif

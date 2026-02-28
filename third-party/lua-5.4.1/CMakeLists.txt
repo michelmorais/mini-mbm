@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(liblua-${LUA_LIB_VERSION})
 

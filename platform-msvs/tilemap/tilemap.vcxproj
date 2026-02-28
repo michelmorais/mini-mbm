@@ -81,7 +81,8 @@
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <IncludePath>..\..\third-party;..\..\third-party\lua-5.4.1;..\..\include;..\..\third-party\gles;..\..\plugins</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>

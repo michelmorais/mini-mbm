@@ -26,29 +26,12 @@
 #include <core_mbm/renderizable.h>
 #include <core_mbm/animation.h>
 #include <core_mbm/physics.h>
+#include <core_mbm/particle-control.h>
 
 namespace mbm
 {
- 
-    struct FLUID_GROUP
-    {
-        uint32_t       size_particle_array;
-        uint32_t       totalParticleToRender;
-        float          aSizeParticle;//
-        float          radiusScale;
-        VEC3 *         particle_positions;
-        VEC3 *         vertex_particle;
-        VEC2 *         uv;
-        bool           segmented;
-
-        API_IMPL FLUID_GROUP(const bool b_segmented,const float _radiusScale);
-        API_IMPL ~FLUID_GROUP();
-        API_IMPL void resizeParticleData(const uint32_t new_size);
-        API_IMPL void setVertex(const VEC3 * const position, VEC3 pVertex[4]);
-        API_IMPL void setUv(VEC2 pUv[4], const VEC2 & pos,const VEC2 & halParticleSizeInUv);
-    };
-    
-    class STEERED_PARTICLE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    // Steered Particle System are particles that can be controlled by forces to move to desired positions.
+    class STEERED_PARTICLE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL STEERED_PARTICLE(const SCENE *scene, const bool _is3d, const bool _is2dScreen,const bool b_segmented,const float* _scale_physics_engine);
@@ -60,13 +43,14 @@ namespace mbm
         API_IMPL uint32_t getTotalParticleByGroup(const uint32_t index) const;
         API_IMPL void setTotalParticleByGroup(const uint32_t index,const uint32_t numParticle);
         API_IMPL FLUID_GROUP* getParticleGroup(const uint32_t index);
-        API_IMPL uint32_t addGroup();
+        API_IMPL uint32_t addGroup(const COLOR* color);
         API_IMPL void removeGroup(const uint32_t index);
         API_IMPL uint32_t getTotalGroup() const;
         API_IMPL void restartAnimationParticle();
         API_IMPL const char* getTextureFileName()const;
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         API_IMPL bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL bool clonePhysics(const mbm::INFO_PHYSICS * const new_info_physics);
         API_IMPL const mbm::INFO_PHYSICS *getInfoPhysics() const override;
@@ -75,13 +59,13 @@ namespace mbm
         API_IMPL inline const float getRadiusScale() const {return this->radiusScale;};
         API_IMPL void setRadiusScale(const float _radiusScale) { radiusScale = _radiusScale;};
         API_IMPL const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
-        API_IMPL const COLOR getColor() const { return this->shader_color; };
-        API_IMPL void setColor(const COLOR &color ) { shader_color = color; };
+        API_IMPL const COLOR getColor(const uint32_t index_group) const noexcept;
+        API_IMPL void setColor(const COLOR &color, const uint32_t index_group) noexcept;
+        API_IMPL const TEXTURE* getTexture() const { return this->texture; };
         
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool releaseOnFail();
         bool onRestoreDevice() override;
         bool renderParticle(FLUID_GROUP * pGroup);
@@ -91,13 +75,13 @@ namespace mbm
         const float* scale_physics_engine;
         mbm::INFO_PHYSICS infoPhysics;
         bool isLoaded() const override;
-        uint32_t vboIndexBuffer;
-    
+        mbm::BUFFER_GL  bufferGl;
+        
         std::vector<FLUID_GROUP*> lsParticleGroup;
         mbm::TEXTURE *   texture;
-        COLOR            shader_color;
         const bool       segmented;
         float            radiusScale;
+        COLOR*           loadedColored;
     };
 }
 

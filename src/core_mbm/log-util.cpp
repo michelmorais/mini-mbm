@@ -22,7 +22,6 @@
 #include <map>
 #include <cstdarg>
 #include <cr-static-local.h>
-#include <GLES2/gl2.h>
 
 #if defined ANDROID
     #include <android/asset_manager.h>
@@ -31,58 +30,9 @@
     #include <unistd.h>
 #endif
 
-OnScriptPrintLine onScriptPrintLine = nullptr;
 
 namespace log_util
 {
-
-void setScriptPrintLine(OnScriptPrintLine onNewScriptPrintLine) noexcept
-{
-	onScriptPrintLine = onNewScriptPrintLine;
-}
-
-const char *getDescriptionError(const unsigned int error)
-{
-	switch (error)
-    {
-        case 0x0500: // GL_INVALID_ENUM:
-        {
-            return ("\nAn unacceptable value is specified for an enumerated argument.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0501: // GL_INVALID_VALUE:
-        {
-            return ("\nA numeric argument is out of range.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0502: // GL_INVALID_OPERATION:
-        {
-            return ("\nThe specified operation is not allowed in the current state.\n"
-                    "The offending command is ignored\n"
-                    "and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0506: // GL_INVALID_FRAMEBUFFER_OPERATION:
-        {
-            return ("\nThe framebuffer object is not complete. The offending command\n"
-                    "is ignored and has no other side effect than to set the error flag.\n");
-        }
-        case 0x0505: // GL_OUT_OF_MEMORY:
-        {
-            return ("\nThere is not enough memory left to execute the command.\n"
-                    "The state of the GL is undefined,\n"
-                    "except for the state of the error flags,\n"
-                    "after this error is recorded.\n");
-        }
-        default:
-        {
-            static char errStr[255];
-            sprintf(errStr, "Unknown error gl: decimal:[%d] hexadecimal [0x%x] ", (int)error, (int)error);
-            return errStr;
-        }
-    }
-}
 
 void replaceString(std::string &source, const std::string &from, const std::string &to)
 {
@@ -115,7 +65,7 @@ void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut)
     if (fileNameIn)
     {
         std::string source(fileNameIn);
-#ifdef _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
         const std::string from("/");
         const std::string to("\\");
 #else
@@ -148,54 +98,6 @@ const char *basename(const char *fileName)
     return "nullptr";
 }
 
-void checkGlError(const char *fileName, const int numLine, const char *message)
-{
-    for (GLenum error = glGetError(); error; error = glGetError())
-    {
-        CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
-        bool mustContinue = false;
-        for (uint32_t lsError : lsErrors)
-        {
-            if (lsError == error)
-            {
-                mustContinue = true;
-                break;
-            }
-        }
-        if (mustContinue)
-            continue;
-        lsErrors.push_back(error);
-        const char *errorAsString = getDescriptionError(error);
-		if(onScriptPrintLine)
-			onScriptPrintLine();
-        INFO_LOG("File [%s] Line[%d] %s()\n%s", basename(fileName), numLine, message ? message : "[message]",errorAsString);
-    }
-}
-
-void checkGlError(const char *fileName, const int numLine)
-{
-    for (GLenum error = glGetError(); error; error = glGetError())
-    {
-        CR_DEFINE_STATIC_LOCAL(std::vector<GLenum>, lsErrors);
-        bool mustContinue = false;
-        for (uint32_t lsError : lsErrors)
-        {
-            if (lsError == error)
-            {
-                mustContinue = true;
-                break;
-            }
-        }
-        if (mustContinue)
-            continue;
-        lsErrors.push_back(error);
-        const char *errorAsString = getDescriptionError(error);
-		if(onScriptPrintLine)
-			onScriptPrintLine();
-        INFO_LOG("\nFile [%s] Line[%d] \n%s", basename(fileName), numLine, errorAsString);
-    }
-}
-
 char *formatNewMessage(const size_t length, const char *message, va_list params)
 {
     auto ret = new char[((length + 1) * sizeof(char))];
@@ -213,12 +115,11 @@ bool fail(const int lineNum, const char *fileName, const char *format, ...)
     va_start(va_args, format);
     char *_buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-#ifdef _WIN32
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     HWND hConsole = GetConsoleWindow();
     ShowWindow(hConsole, SW_SHOWNOACTIVATE);
 #endif
-	if(onScriptPrintLine)
-		onScriptPrintLine();
+    callScriptPrintLine();
     ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, _buffer);
     delete[] _buffer;
     return false;
@@ -233,8 +134,7 @@ bool onFailed(FILE *fp, const char *fileName, const int numLine, const char *for
     va_start(va_args, format);
     char *_buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-	if(onScriptPrintLine)
-		onScriptPrintLine();
+    callScriptPrintLine();
     log_util::log_tag_file_and_line(numLine, fileName,TYPE_LOG_ERROR, _buffer);
     delete[] _buffer;
     if (fp)
@@ -275,17 +175,17 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
             }
             break;
         }
-    #elif defined(__linux__) && !defined(ANDROID)
+    #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
 
         switch(type_log)
         {
             case TYPE_LOG_ERROR:
             {
-				typedef std::map<std::string, bool> mapError;
+                typedef std::map<std::string, bool> mapError;
                 CR_DEFINE_STATIC_LOCAL(mapError, errorList);
                 if (errorList[_buffer] == false)
-					fprintf(stdout, "\033[1;31mERR\033[0m %s\n", _buffer);
-				errorList[_buffer] = true;
+                    fprintf(stdout, "\033[1;31mERR\033[0m %s\n", _buffer);
+                errorList[_buffer] = true;
             }
             break;
             case TYPE_LOG_INFO:
@@ -299,63 +199,63 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
             }
             break;
         }
-    #elif defined _WIN32
-		HWND hConsole = GetConsoleWindow();
-		HANDLE hConsoleSTD = GetStdHandle(STD_OUTPUT_HANDLE);
+    #elif (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+        HWND hConsole = GetConsoleWindow();
+        HANDLE hConsoleSTD = GetStdHandle(STD_OUTPUT_HANDLE);
         ShowWindow(hConsole, SW_SHOWNOACTIVATE);
         switch(type_log)
         {
             case TYPE_LOG_ERROR:
             {
-				typedef std::map<std::string, bool> mapError;
+                typedef std::map<std::string, bool> mapError;
                 CR_DEFINE_STATIC_LOCAL(mapError, errorList);
                 if (errorList[_buffer] == false)
-				{
-					SetConsoleTextAttribute(hConsoleSTD, 12);
-					fprintf(stdout, "ERR");
-					SetConsoleTextAttribute(hConsoleSTD, 15);
-					fprintf(stdout, " %s\n", _buffer);
-				}
-				errorList[_buffer] = true;
+                {
+                    SetConsoleTextAttribute(hConsoleSTD, 12);
+                    fprintf(stdout, "ERR");
+                    SetConsoleTextAttribute(hConsoleSTD, 15);
+                    fprintf(stdout, " %s\n", _buffer);
+                }
+                errorList[_buffer] = true;
             }
             break;
             case TYPE_LOG_INFO:
             {
-				SetConsoleTextAttribute(hConsoleSTD, 10);
-				fprintf(stdout, "INFO");
-				SetConsoleTextAttribute(hConsoleSTD, 15);
+                SetConsoleTextAttribute(hConsoleSTD, 10);
+                fprintf(stdout, "INFO");
+                SetConsoleTextAttribute(hConsoleSTD, 15);
                 fprintf(stdout, " %s\n", _buffer);
             }
             break;
             case TYPE_LOG_WARN:
             {
-				SetConsoleTextAttribute(hConsoleSTD, 14);
-				fprintf(stdout, "WARN");
-				SetConsoleTextAttribute(hConsoleSTD, 15);
+                SetConsoleTextAttribute(hConsoleSTD, 14);
+                fprintf(stdout, "WARN");
+                SetConsoleTextAttribute(hConsoleSTD, 15);
                 fprintf(stdout, " %s\n", _buffer);
             }
             break;
         }
-	#else
-		#error "Platform not defined for LOG"
+    #else
+        #error "Platform not defined for LOG"
     #endif
     delete[] _buffer;
 }
 
 void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_LOG type_log, const char *format, ...)
 {
-	va_list va_args;
+    va_list va_args;
     va_start(va_args, format);
     const auto length = static_cast<size_t>(vsnprintf(nullptr, 0, format, va_args));
     va_end(va_args);
     va_start(va_args, format);
     char * buffer = formatNewMessage(length, format, va_args);
     va_end(va_args);
-	switch(type_log)
+    switch(type_log)
     {
         case TYPE_LOG_ERROR:
         {
-			ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, buffer);
+            ERROR_LOG("File[%s] line[%d]\n%s\n", basename(fileName), lineNum, buffer);
         }
         break;
         case TYPE_LOG_INFO:
@@ -369,9 +269,9 @@ void * log_tag_file_and_line(const int lineNum, const char *fileName,const TYPE_
         }
         break;
     }
-	
-	delete[] buffer;
-	return nullptr;
+    
+    delete[] buffer;
+    return nullptr;
 }
 
 void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format, ...)
@@ -392,7 +292,7 @@ void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format
         else
             INFO_LOG("%s",buffer);
     #else
-        #if defined _WIN32
+        #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 
             if(color_print_terminal == COLOR_TERMINAL_WHITE)
             {
@@ -417,7 +317,7 @@ void print_colored(const COLOR_TERMINAL color_print_terminal, const char *format
                 fprintf(stdout, " %s\n", buffer);
                 SetConsoleTextAttribute(hConsoleSTD, 15);
             }
-        #elif defined(__linux__) && !defined(ANDROID)
+        #elif (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
             static const std::map<COLOR_TERMINAL,std::string> map_color =
             {
                 {COLOR_TERMINAL_WHITE,   ""},

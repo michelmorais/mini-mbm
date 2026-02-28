@@ -39,7 +39,7 @@ namespace mbm
     class TEXT_DRAW;
     typedef bool (*OnRestoreFont)(FONT_DRAW *FONT_DRAW, TEXT_DRAW *TEXT_DRAW_ptr);
 
-    class TEXT_DRAW : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TEXT_DRAW : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         friend class FONT_DRAW;
@@ -55,8 +55,8 @@ namespace mbm
         API_IMPL void release();
         API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, OnRestoreFont ptrOnRestoreFont,FONT_DRAW *_parentFONT_DRAW);
         API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
-        API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText, VEC3 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
-        API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText, VEC2 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
+        API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC3 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
+        API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC2 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
         API_IMPL static uint8_t withoutBOM2Map(uint8_t index, const uint8_t mapBoom) noexcept;
         API_IMPL void setText(const char *format, ...);
         API_IMPL bool getWidthHeight(float *_width, float *_height, const bool consider_scale = true) const override;
@@ -68,6 +68,7 @@ namespace mbm
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
         API_IMPL bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
     private:
         bool isOnFrustum() override;
@@ -75,7 +76,6 @@ namespace mbm
         bool render() override;
         ANIMATION *getNextIndexSpecialAnim(const std::string &textDraw, const uint32_t s, uint32_t *curIndex,uint32_t & indexNewAnim);
         bool onRestoreDevice() override;
-        void onStop() override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;
@@ -87,16 +87,16 @@ namespace mbm
         VEC2      endText;
     };
 
-    class FONT_DRAW : public COMMON_DEVICE
+    class FONT_DRAW
     {
       public:
         std::string fontName; // font's name
         API_IMPL FONT_DRAW(const SCENE *scene);
         API_IMPL virtual ~FONT_DRAW();
         API_IMPL void release();
-        API_IMPL TEXT_DRAW *addText(const char *newText, VEC2 &position, const bool _is2dFont = true,const bool isScreen2d = true);
+        API_IMPL TEXT_DRAW *addText(const char *newText,const VEC2 &position, const bool _is2dFont = true,const bool isScreen2d = true);
         API_IMPL TEXT_DRAW *addText(const char *newText, const bool _is2dFont = true, const bool isScreen2d = true);    
-        API_IMPL TEXT_DRAW *addText(const char *newText, VEC3 &position, const bool _is2dFont = true,const bool isScreen2d = true);
+        API_IMPL TEXT_DRAW *addText(const char *newText,const VEC3 &position, const bool _is2dFont = true,const bool isScreen2d = true);
         API_IMPL uint32_t getTotalText() const;
         API_IMPL TEXT_DRAW *getText(const uint8_t index);
         API_IMPL bool loadFont(const char *fileNameMbmOrTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng);

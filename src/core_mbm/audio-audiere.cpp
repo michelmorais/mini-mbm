@@ -17,14 +17,11 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_AUDIERE)
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
-
-#if !defined(AUDIO_ENGINE_AUDIERE)
-    #error attempt to use AUDIERE without define AUDIO_ENGINE_AUDIERE
-#endif
 
 using namespace audiere;
 namespace mbm
@@ -239,3 +236,4 @@ namespace mbm
 
     audiere::AudioDevicePtr AUDIO_MANAGER::audioDevice = nullptr;
 }
+#endif

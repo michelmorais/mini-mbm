@@ -17,6 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include "defaultThemePlusWindows.h"
 
 COLORREF THEME_WINPLUS_COLORS::color_release_from = RGB(41, 57, 85);
@@ -307,8 +308,8 @@ bool THEME_WINPLUS_PEN_COLORS::enablePenBorder         = true;
             return true;
         }
         mbm::__NC_BORDERS *nc = static_cast<mbm::__NC_BORDERS *>(component.userDrawer->that);
-		if(nc == nullptr)
-			return false;
+        if(nc == nullptr)
+            return false;
         moveRect2Origin(nc, &nc->rectLeft);
         moveRect2Origin(nc, &nc->rectRight);
         moveRect2Origin(nc, &nc->rectTop);
@@ -2157,3 +2158,5 @@ namespace mbm
     THEME_WINPLUS_CUSTOM_RENDER _winplusDefaultThemeDrawRender;
     DRAW *                      _winplusDefaultThemeDraw = (DRAW *)&_winplusDefaultThemeDrawRender;
 };
+
+#endif

@@ -35,7 +35,7 @@ namespace util
 namespace mbm
 {
 
-    class BACKGROUND : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class BACKGROUND : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
     
@@ -69,8 +69,7 @@ namespace mbm
         bool render() override;
         bool onRestoreDevice() override;
         bool setScale(const bool majorScale);
-        void fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,const float height);
-        void onStop() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

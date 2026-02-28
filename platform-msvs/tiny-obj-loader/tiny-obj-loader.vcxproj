@@ -82,7 +82,8 @@
     <IncludePath>../third-party/lua-5.4.1;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>
+    </LinkIncremental>
     <IncludePath>..\..\third-party\lua-5.4.1;..\..\modules;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -132,8 +133,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>
-      </SDLCheck>
+      <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;OBJIMPORTERLUA_EXPORTS;_WINDOWS;_USRDLL;_CRT_SECURE_NO_WARNINGS;LUA_COMPAT_ALL;OBJ_IMP_BUILD_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>

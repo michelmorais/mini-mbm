@@ -25,7 +25,7 @@
 #include <lodepng/lodepng.h>
 #include <algorithm>
 #include <platform/mismatch-platform.h>
-#include <gles-debug.h>
+#include <core_mbm/scene.h>
 
 namespace mbm
 {
@@ -38,10 +38,14 @@ namespace mbm
     
     void CAMERA_TARGET::enableMode2D(mbm::DEVICE *device, const float width, const float height)
     {
+        //TODO: may need adjust this in the future
+        // For 2d, we should not use near 0.1 , if we use the objects bellow that will be hidden
+        constexpr float zNear2d = -100;
+        constexpr float zFar2d = 100;
         const VEC3 posCam(-this->position.x, -this->position.y, 100);
         MatrixIdentity(&this->matrixView);
         MatrixTranslationRotationScale(&SHADER::modelView, &posCam, &this->angle, &this->scale);
-        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear, zFar);
+        MatrixOrthoLH(&this->matrixOrtho, width, height, zNear2d, zFar2d);
         MatrixMultiply(&device->camera.matrixPerspective2d, &this->matrixView, &this->matrixOrtho);
     }
     
@@ -58,16 +62,18 @@ namespace mbm
         RENDERIZABLE_TO_TARGET(scene, TYPE_CLASS_RENDER_2_TEX, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->modeTextureOnly = false;
-        this->device->addRenderizable(this);
-        this->device->addObjectRender2Texture(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
+        device->addObjectRender2Texture(this);
         this->isRender2Texture = false;
         this->texture          = nullptr;
     }
     
     RENDER_2_TEXTURE::~RENDER_2_TEXTURE()
     {
-        this->device->removeObjectRender2Texture(this);
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeObjectRender2Texture(this);
+        device->removeRenderizable(this);
     }
     
     void RENDER_2_TEXTURE::removeFromRender2Texture(RENDERIZABLE *ptr)
@@ -104,7 +110,7 @@ namespace mbm
         this->bufferGL.release();
     }
     
-    bool RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha, int * texture_id_out)
+    TEXTURE* RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha)
     {
         #if defined _WIN32
             const char *messageError =
@@ -129,7 +135,7 @@ namespace mbm
             if (nickName == nullptr || _widthTexture == 0 || _heightTexture == 0)
             {
                 PRINT_IF_DEBUG("nickName == nullptr || widthTexture == 0 || heightTexture == 0");
-                return false;
+                return nullptr;
             }
             this->widthTexture  = _widthTexture;
             this->heightTexture = _heightTexture;
@@ -139,23 +145,23 @@ namespace mbm
                 int             indexStart = 0;
                 int             indexCount = 6;
                 VEC3            _position[4];
-                VEC3            normal[4];
                 VEC2            uv[4];
                 unsigned short int index[6] = {0, 1, 2, 2, 1, 3};
-                this->fillvertexQuad(_position, normal, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
-                if (this->bufferGL.loadBuffer(_position, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
+                this->fillvertexQuad(_position, nullptr, uv, static_cast<const float>(widthFrame), static_cast<const float>(heightFrame));
+                if (this->bufferGL.loadBuffer(_position, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr))
                 {
-                    this->bufferGL.idTexture0[0] = this->texture->idTexture;
-                    if(texture_id_out)
-                        *texture_id_out          = this->texture->idTexture;
-                    this->bufferGL.useAlpha[0]   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
+                    this->bufferGL.setTextureByStage(this->texture, 0, 0 );
                 }
                 else
                 {
-                    return false;
+                    this->texture = nullptr;
+                    return this->texture;
                 }
                 if (!createAnimationAndShader2Render2Texture())
-                    return false;
+                {
+                    this->texture = nullptr;
+                    return this->texture;
+                }
                 char strTemp[255];
                 snprintf(strTemp,sizeof(strTemp) -1, "rende2texture|%s|%u|%u|%u|%u|%s", 
                     nickName, 
@@ -179,7 +185,7 @@ namespace mbm
                 this->updateAABB();
             }
         }
-        return (this->texture != nullptr);
+        return this->texture;
     }
     
     void RENDER_2_TEXTURE::flip_vertically(unsigned char *pixels, const int width, const int height, const int bytes_per_pixel)
@@ -198,65 +204,6 @@ namespace mbm
         delete [] row;
     }
     
-    bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG,
-        const int x,const int y,
-        const int _width,const int _height)
-    {
-        if(newFileOutNamePNG == nullptr)
-            return log_util::fail(__LINE__,__FILE__,"file name to save png is null");
-        if(!this->isLoaded())
-            return log_util::fail(__LINE__,__FILE__,"render to texture is not loaded!");
-        if(this->idTextureDynamic == 0)
-            return log_util::fail(__LINE__,__FILE__,"texture is not created!");
-        if(this->texture == nullptr)
-            return log_util::fail(__LINE__,__FILE__,"texture is not created!");
-        if(strcasecmp(newFileOutNamePNG,this->fileName.c_str()) == 0)
-            return log_util::fail(__LINE__,__FILE__,"file name texture in is the same as render2texture [%s]!",fileName.c_str());
-        if(x < 0 || _width <= 0 || (_width + x) > static_cast<int>(this->widthTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
-        if(y < 0 || _height <= 0 || (_height + y) > static_cast<int>(this->heightTexture))
-            return log_util::fail(__LINE__,__FILE__,"size expected [0-0 %dx%d] got [%d-%d %dx%d]",this->widthTexture,this->heightTexture,x,y,_width,_height);
-        const int channel = this->texture->useAlphaChannel ? 4 : 3;
-        const int sizeImage = _width * _height * channel;
-        auto  image = new unsigned char[sizeImage];
-
-        GLBindFramebuffer(GL_FRAMEBUFFER, this->idFrameBuffer);
-        
-        glReadPixels(x,y,_width,_height,channel == 4 ? GL_RGBA : GL_RGB,GL_UNSIGNED_BYTE,image);
-        const GLenum error = glGetError();
-        if(error)
-        {
-            delete [] image;
-            const char *errorAsString = log_util::getDescriptionError(error);
-            return log_util::fail(__LINE__,__FILE__,"Failed to read pixel [%s]",errorAsString);
-        }
-        
-        //if(this->texture->useAlphaChannel == false)
-        //{
-        //    const int s = w * h;
-        //    const int stride = 3;
-        //    auto  image3x3 = new unsigned char[s * 3];
-        //    for(int i=0,j=0; i< sizeImage; i+=4,j+=3)
-        //    {
-        //        memcpy(&image3x3[j],&image[i],stride);
-        //    }
-        //    delete [] image;
-        //    image = image3x3;
-        //}
-
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        this->flip_vertically(image,_width,_height,channel);
-        std::vector<unsigned char> png;
-        unsigned int errorPNG = lodepng::encode(png,image, static_cast<unsigned int>(_width), static_cast<unsigned int>(_height),channel == 4 ? LCT_RGBA : LCT_RGB);
-        delete [] image;
-        if (errorPNG)
-            return log_util::fail(__LINE__,__FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
-        errorPNG = lodepng::save_file(png, newFileOutNamePNG);
-        if (errorPNG)
-            return log_util::fail(__LINE__,__FILE__, "PNG encoding error  [%s]", lodepng_error_text(errorPNG));
-        return true;
-    }
-
     void RENDER_2_TEXTURE::clear()
     {
         for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
@@ -339,44 +286,40 @@ namespace mbm
         return true;
     }
     
-    void RENDER_2_TEXTURE::onStop()
-    {
-        this->release();
-    }
-    
     bool RENDER_2_TEXTURE::render() // Renderiza a textura
     {
         if (this->bufferGL.isLoadedBuffer())
         {
             if (this->modeTextureOnly)
                 return true;
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             if (anim)
             {
                 this->blend.set(anim->blendState);
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation,this->onEndFx);
+                anim->updateAnimation(device->delta, this, this->onEndAnimation,this->onEndFx);
                 anim->fx.shader.update(); // glUseProgram
                 anim->fx.setBlendOp();
                 if (anim->fx.textureOverrideStage2)
-                    this->bufferGL.idTexture1 = anim->fx.textureOverrideStage2->idTexture;
+                    this->bufferGL.setTextureByStage(anim->fx.textureOverrideStage2, 1, 0);
                 if (!anim->fx.shader.render(&this->bufferGL))
                     return false;
                 return true;
@@ -389,10 +332,11 @@ namespace mbm
     {
         if (this->lsObjects3dRender.size())
         {
+            mbm::DEVICE* device     = mbm::DEVICE::getInstance();
             const CUBE *cube        = this->infoPhysics.lsCube[0];
             const float widthFrame  = cube->halfDim.x * 2.0f;
             const float heightFrame = cube->halfDim.y * 2.0f;
-            this->camera3d.enableMode3D(this->device, widthFrame, heightFrame);
+            this->camera3d.enableMode3D(device, widthFrame, heightFrame);
             for (unsigned int i = 0; i < this->lsObjects3dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr = lsObjects3dRender[i];
@@ -417,7 +361,8 @@ namespace mbm
         }
         if (this->lsObjects2dRender.size())
         {
-            this->camera2d.enableMode2D(this->device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            this->camera2d.enableMode2D(device, static_cast<float>(this->texture->getWidth()), static_cast<float>(this->texture->getHeight()));
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {
                 RENDERIZABLE *ptr   = lsObjects2dRender[i];
@@ -453,7 +398,8 @@ namespace mbm
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
-                anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
             return ret;
         }
@@ -463,27 +409,26 @@ namespace mbm
     bool RENDER_2_TEXTURE::onRestoreDevice()
     {
         std::vector<std::string> result;
+        this->texture = nullptr;
+        this->bufferGL.release();
         util::split(result, this->fileName.c_str(), '|');
-        if (result.size() <= 1)
+        if (result.size() != 7)
             return false;
         if (result[0].compare("rende2texture") == 0)
         {
-            if (result.size() != 7)
-                return false;
             const char *fileNameTexture = result[1].c_str();
             if (result[1].size() == 0)
                 return false;
-            const auto width    = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
-            const auto height   = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
-            bool               hasAlpha = result[6].compare("true") == 0 ? true : false;
-            this->texture               = nullptr;
-            CUBE *      cube            = this->infoPhysics.lsCube[0];
-            const float widthFrame      = cube->halfDim.x * 2.0f;
-            const float heightFrame     = cube->halfDim.y * 2.0f;
-            if (!this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha, nullptr))
+            const auto width  = static_cast<const unsigned int>(std::atoi(result[4].c_str()));
+            const auto height = static_cast<const unsigned int>(std::atoi(result[5].c_str()));
+            bool     hasAlpha = result[6].compare("true") == 0 ? true : false;
+            float widthFrame  = 0;
+            float heightFrame = 0;
+            this->infoPhysics.getBounds(&widthFrame, &heightFrame);
+            if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
 #if defined DEBUG_RESTORE
-            PRINT_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
+            PRINT_INFO_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
 #endif
             return true;
         }
@@ -495,45 +440,25 @@ namespace mbm
     
     void RENDER_2_TEXTURE::fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
     {
-        const float x  = width * 0.5f;
-        const float y  = height * 0.5f;
-        _position[0].x = -x;
-        _position[0].y = -y;
-        _position[0].z = 0;
-
-        _position[1].x = -x;
-        _position[1].y = y; //-V525
-        _position[1].z = 0;
-
-        _position[2].x = x;
-        _position[2].y = -y;
-        _position[2].z = 0;
-
-        _position[3].x = x;
-        _position[3].y = y;
-        _position[3].z = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
-        }
-        uv[0].x = 0;
-        uv[0].y = 0;
-        uv[1].x = 0;
-        uv[1].y = 1;
-        uv[2].x = 1;
-        uv[2].y = 0;
-        uv[3].x = 1;
-        uv[3].y = 1;
+        // OpenGL ES: origin bottom-left. DirectX9: origin top-left (flip V).
+#if defined(USE_DIRECTX9)
+        mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
+#else
+        mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
+#endif
     }
     
+    FVF_PROVIDE_BY_ENGINE RENDER_2_TEXTURE::getFvfFromBuffer() const noexcept
+    {
+        return bufferGL.isLoadedBuffer() ? bufferGL.fvf : FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+    }
+
     bool RENDER_2_TEXTURE::createAnimationAndShader2Render2Texture()
     {
         this->releaseAnimation();
         auto anim = new mbm::ANIMATION();
         this->lsAnimation.push_back(anim);
-        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader))
+        if (!anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer()))
             return false;
         return true;
     }
@@ -548,18 +473,18 @@ namespace mbm
         return nullptr;
     }
 
-	FX*  RENDER_2_TEXTURE::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    FX*  RENDER_2_TEXTURE::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
 
-	ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
-	{
-		return this;
-	}
+    ANIMATION_MANAGER*  RENDER_2_TEXTURE::getAnimationManager()
+    {
+        return this;
+    }
     
     bool RENDER_2_TEXTURE::isLoaded() const
     {

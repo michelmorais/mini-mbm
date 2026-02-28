@@ -24,6 +24,7 @@
 #include <core_mbm/device.h>
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/blend.h>
+#include <core_mbm/scene.h>
 
 extern "C" 
 {
@@ -426,7 +427,7 @@ namespace mbm
                 }
                 else
                 {
-                    anim->blendState = (BLEND_OPENGLES)value;
+                    anim->blendState = (BLEND_STATE)value;
                 }
             }
         }

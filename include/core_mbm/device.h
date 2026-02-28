@@ -29,15 +29,9 @@
 #include "time-control.h"
 
 #if defined ANDROID
-    namespace util
-    {
-        class COMMON_JNI;
-    };
-#elif defined __linux__
+    // Android specific includes
+#elif defined __linux__  || defined(__APPLE__) && !defined ANDROID
     #include <X11/Xlib.h>
-    #include <EGL/egl.h>
-#elif defined _WIN32
-    #include <plusWindows/plusWindows.h>
 #endif
 
 namespace mbm
@@ -47,11 +41,12 @@ namespace mbm
     class CORE_MANAGER;
     class SCENE;
     class AUDIO_INTERFACE;
-	class AUDIO_MANAGER_INTERFACE;
+    class AUDIO_MANAGER_INTERFACE;
     class PHYSICS;
     class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
     struct DYNAMIC_VAR;
+    struct SPECIFIC_AUX_CONTEXT_DEVICE;
 
     
     class DEVICE : public TIME_CONTROL, public FRUSTUM
@@ -59,12 +54,13 @@ namespace mbm
         friend class RENDERIZABLE;
         friend class CORE_MANAGER;
       public:
-		bool   verbose;
+        bool   verbose;
         bool   run;
         bool   bOnErrorStopScript;
         float  backBufferWidth;
         float  backBufferHeight;
-        COLOR  colorClearBackGround;
+        //Using GL_SRC_ALPHA / GL_ONE_MINUS_SRC_ALPHA (or GL_SRC_ALPHA, GL_ONE for additive) makes particle visibility depend on the particle alpha value, not on whatever was previously written into the destination alpha.
+        COLOR  colorClearBackGround; //	Clear the back buffer alpha to 1.0 , this make the ALPHA operation work
         CAMERA camera;
     
         uint32_t      totalObjectsOnFrustum3D;
@@ -74,24 +70,20 @@ namespace mbm
         uint32_t      totalObjects3D;
         uint32_t      totalObjects2D;
         SHADER_CFG_LOADER cfg;                       // CFG files
-    #ifdef _WIN32
-        WINDOW window;
-    #endif
         std::map<std::string, DYNAMIC_VAR *> lsDynamicVarGlobal;
         VEC3                dimFarFrustum3d, dimNearFrustum3d;
         CORE_MANAGER *      ptrManager;
+        SPECIFIC_AUX_CONTEXT_DEVICE* specificContextDevice = nullptr;
         SCENE *             scene;
         bool                clearBackGround;
-		API_IMPL static int	returnCodeApp;
+        
         mbm::ORDER_RENDER   orderRender;
         int                 __swapBackBufferStep;
         API_IMPL static DEVICE *     getInstance();
-
-    #ifdef ANDROID
-        util::COMMON_JNI *jni;
-        void callQuitInJava();
-        void streamStopped(const int indexJNI);
-    #endif
+        API_IMPL void initializeSpecificContext();
+        API_IMPL void destroySpecificContext();
+        API_IMPL void setAppReturnCode(const int returnCode) noexcept;
+        API_IMPL int getAppReturnCode() const noexcept;
         API_IMPL static void quit();
         API_IMPL float getBackBufferWidth() const noexcept;
         API_IMPL float getBackBufferHeight() const noexcept;
@@ -110,6 +102,7 @@ namespace mbm
         API_IMPL void stopRender2Texture2(RENDERIZABLE *ptr);
         API_IMPL void removeRenderizable(RENDERIZABLE *object);
         API_IMPL void setDephtTest(const bool enable);
+        API_IMPL void refreshDevice();
         API_IMPL bool rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const;
         API_IMPL bool transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,const float howFarZFromCamera) const;
         API_IMPL void transformeScreen2dToWorld2d_scaled(const float x, const float y, VEC2 &out) const noexcept;
@@ -131,15 +124,24 @@ namespace mbm
         API_IMPL void getDimFromFrustum(VEC3 *dimNear, VEC3 *dimFar) const noexcept;
         API_IMPL void setBillboard(MATRIX *out, VEC3 *position = nullptr, VEC3 *scale = nullptr);
         API_IMPL bool renderToRestore(RENDERIZABLE * renderizable);
-        #if defined _WIN32 || defined(ANDROID)
-        API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
-        #elif defined(__linux__) && !defined(ANDROID)
-        API_IMPL void setMinMaxSizeWindow(Window win,Display * display,int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
-        #endif
+        API_IMPL void clearDepth();
+        API_IMPL const char* getBackendEngineName()const noexcept;
+        API_IMPL const char* getBackendEngineVersion()const noexcept;
+        API_IMPL void clearDepthColored();
+        API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
+        API_IMPL AUDIO_MANAGER_INTERFACE* getAudioManagerInterface() const noexcept;
+        API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
+        API_IMPL const char* copyFileFromAsset(const char* assetName, const char* mode);// Meant to be used in Android / Iphone (others specific implementations can just return assetName).
+        API_IMPL void disableFilteringForPixelPerfect() noexcept;//backend specific way to disable texture filtering for pixel perfect rendering
+        API_IMPL void enableFilteringAfterPixelPerfect() noexcept;//backend specific way to restore texture filtering
+        API_IMPL bool isPixelPerfectRendering() const noexcept;// true while tile (etc.) is drawing; used to skip UV inset on D3D9
+        API_IMPL bool isGamePaused() const noexcept;
 
-	API_IMPL void setAudioManagerInterface(AUDIO_MANAGER_INTERFACE* _audioInterface);
-	API_IMPL void * get_lua_state();//if we are using lua we should be able to retrieve the current state
-      private:
+        int                                   windowPositionX;
+        int                                   windowPositionY;
+
+    private:
+        int	                                  returnCodeApp;
         static DEVICE *                       instanceDevice;
         std::vector<RENDERIZABLE *>           lsObjectRender3D;
         std::vector<RENDERIZABLE *>           lsObjectRender2DW;
@@ -149,12 +151,15 @@ namespace mbm
         std::vector<RENDERIZABLE_TO_TARGET *> lsObjectRenderToTarget;
         float                                 __percXcam2dScale;
         float                                 __percYcam2dScale;
+        bool                                 _pixelPerfectRenderingActive = false;
+        bool                                 _isGamePaused;
         DEVICE();
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);
     };
     
-#if defined _WIN32
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
+    API_IMPL void setWin32IconToBeUsed(const int ID_ICON);
     API_IMPL void setTheme(int value, bool enableBorder);
     API_IMPL void hideConsoleWindow();
     API_IMPL void showConsoleWindow();

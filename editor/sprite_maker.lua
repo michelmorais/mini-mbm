@@ -102,12 +102,13 @@ function onInitScene()
                             bEditVertex = false,
                             iSizeFrameWidth = 100,
                             iSizeFrameHeight = 100,
+                            iRatioSelection  = 1,
+                            iSortBySelection = 1,
                             tFramesEnableSpriteSheet = {},
                             iFramesEnableSpriteSheetHover = 0,
                             bInvertUFrameOptions = false,
                             bInvertVFrameOptions = false,
                             tSelectedTexture = nil,
-                            bStretch = false,
                             tShapeEdit = nil, --edit vertex
                             bAddAsSubset=false,
                             iIndexSelectedNode = 0}
@@ -144,7 +145,7 @@ function onInitScene()
         self.iSpacingy            = 0
         self.iSizeFrameWidth      = 100
         self.iSizeFrameHeight     = 100
-        self.bStretch             = false
+        self.iRatioSelection      = 1
         self.bInvertUFrameOptions  = false
         self.bInvertVFrameOptions  = false
         self.bEditVertex          = false
@@ -377,17 +378,15 @@ function onSaveUserData(name,value,tOut)
         local index_read_only   = name .. '.index_read_only'
         local uv                = name .. '.uv'
         local uv_bkp            = name .. '.uv_bkp'
-        local normal            = name .. '.normal'
         local index_buffer_edit = name .. '.index_buffer_edit'
         
         tUtil.save(uv,                 value.uv,                tOut, onSaveUserData)
         tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData)
         tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData)
-        tUtil.save(normal,             value.normal,            tOut, onSaveUserData)
         tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData)
         tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData)
         
-        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),nil,%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
+        table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
         local s,e                  = name:match('^().*%]%[()')
         local tFrameListAtIndex    = name:sub(s,e)
         local sCommand             = string.format('return %stTexture"]["file_name"]', tFrameListAtIndex ) -- return tFrameList[1]["tTexture"]["file_name"]
@@ -418,7 +417,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesEditor[i]            = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesEditor[i]            = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
 
@@ -431,7 +430,7 @@ function onSaveEditionSprite(sFileName)
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
                 local sTextureNameCommand  = load(sCommand)
-                tLinesFrameList[i]         = string.format('%s["id"] = select(3,mbm.loadTexture(%q))',sIdTexture,sTextureNameCommand())
+                tLinesFrameList[i]         = string.format('%s["id"] = mbm.loadTexture(%q)',sIdTexture,sTextureNameCommand())
             end
         end
         
@@ -500,12 +499,13 @@ function onSaveSprite(fileName)
 
     local function makeVertex(vertex, normal, uv, pivot, stride)
         local vertex_array = {}
+        local nz = (stride == 3) and 1 or -1  -- default normal when SHAPE_MESH has none
         for i=1, #vertex do
             local single_vertex = { x  = vertex[i].x - pivot.x,
                                     y  = vertex[i].y - pivot.y,
-                                    nx = normal[i].nx,
-                                    ny = normal[i].ny,
-                                    nz = normal[i].nz,
+                                    nx = (normal and normal[i]) and normal[i].nx or 0,
+                                    ny = (normal and normal[i]) and normal[i].ny or 0,
+                                    nz = (normal and normal[i]) and normal[i].nz or nz,
                                     u  = uv[i].u,
                                     v  = uv[i].v,
                                 }
@@ -849,7 +849,7 @@ function getRangeUV(uv)
     return uMin, vMin, uMax, vMax
 end
 
-function onRenderShape(self,vertex,normal,uv,index_read_only)
+function onRenderShape(self,vertex,uv,index_read_only)
     if self.mark_to_remove == true then
         self:destroy()
         --print(string.format('removed shape %s',self ))
@@ -925,9 +925,7 @@ function onRenderShape(self,vertex,normal,uv,index_read_only)
         end
         self.uv_bkp = uv_bkp
     end
-    if self.normal == nil then
-        self.normal = normal
-    end
+    self.normal = nil  -- SHAPE_MESH no longer provides normals
     self.index_read_only = index_read_only
     if self.index_buffer_edit == nil then
         self.index_buffer_edit = {}
@@ -935,7 +933,7 @@ function onRenderShape(self,vertex,normal,uv,index_read_only)
             self.index_buffer_edit[i] = index_read_only[i]
         end
     end
-    return self.vertex, self.normal, self.uv
+    return self.vertex, self.uv
 end
 
 function setShapeToRender(tShape,tFrame)
@@ -1473,12 +1471,12 @@ function showFramePreview()
         local size           = {x=new_width,y=sy}
         local uv0            = {x=0,y=0}
         local uv1            = {x=1,y=1}
-        local bg_col         = {r=1,g=1,b=1,a=1}
-        local line_color     = {r=0,g=0,b=0,a=1}
+        local bg_col         = {r=0,g=0,b=0,a=0}
+        local tint_col       = {r=1,g=1,b=1,a=1}
         local tCursorPos     = tImGui.GetCursorPos()
         local color_rect     = {r=0,g=0,b=0,a=1.0}
         local thickness      = 1.5
-        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,line_color)
+        tImGui.Image(tTexture.id,size,uv0,uv1,bg_col,tint_col)
         local winPos         = tImGui.GetWindowPos()
         local originImg      = {x= winPos.x + tCursorPos.x , y = winPos.y + tCursorPos.y - tImGui.GetScrollY()}
         
@@ -1735,7 +1733,7 @@ function showFrameAdd()
             local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
             local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
             local rounding          =  2.0
-            local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+            local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
             tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             if tFrameAddOptions.iIndexPrimitiveType ~= indexPrimitive then
                 tFrameAddOptions.iNumElements    = 2
@@ -1930,7 +1928,6 @@ function showFrameAdd()
         local label_textures    = string.format('Textures (%d)',#tSelectedTextures)
         tFrameAddOptions.tSelectedTexture = nil
         if tImGui.TreeNode('##textures_for_frame', label_textures) then
-            local frame_padding = 5
             for i=1, #tSelectedTextures do
                 local flag_node      = 0
                 local id_node        = string.format('##tex_%d',i)
@@ -1957,13 +1954,16 @@ function showFrameAdd()
                         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0,g=1,b=0,a=1})
                         pushed_color = 2
                     end
-                    if tImGui.ImageButton(tTexture.id, size,uv0,uv1,frame_padding) then
+                    -- TODO: make this work in any backend engine . e.g.: Directx
+                    if tImGui.ImageButton(string.format('frame_tex_%d', i), tTexture.id, size,uv0,uv1) then
                         tFrameAddOptions.iIndexSelectedNode       = i
                         tFrameAddOptions.bValidFrameSelected      = true
                         tFrameAddOptions.bShowFramePreview        = true
                         tFrameAddOptions.tSelectedTexture         = tTexture
                         tFrameAddOptions.tFramesEnableSpriteSheet = {}
                         unCollapse(tWindowsTitle.title_frame_preview)
+                        tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
                     end
                     if pushed_color > 0 then
                         tImGui.PopStyleColor(pushed_color)
@@ -2046,10 +2046,14 @@ function showFrameAdd()
             local result, iValue = tImGui.InputFloat('Column', tFrameAddOptions.iNumColumn, step, step_fast,format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.width then
                 tFrameAddOptions.iNumColumn = iValue
+                tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
             local result, iValue = tImGui.InputFloat('Lines', tFrameAddOptions.iNumLines, step, step_fast,format, flags)
             if result and iValue >= 1 and iValue < tFrameAddOptions.tSelectedTexture.height then
                 tFrameAddOptions.iNumLines = iValue
+                tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines 
             end
 
             local result, iValue = tImGui.InputFloat('Marg. X', tFrameAddOptions.iMarginX, step, step_fast,format, flags)
@@ -2072,25 +2076,55 @@ function showFrameAdd()
             tImGui.Text('Expected Size of Frame')
             tImGui.SameLine()
             tImGui.HelpMarker('If the rectangle is not square it will be calculated the width/height according to do not stretch!')
+
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on X",sFrameSubset), tFrameAddOptions.iRatioSelection, 1)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on Y",sFrameSubset), tFrameAddOptions.iRatioSelection, 2)
+            tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio disabled",sFrameSubset), tFrameAddOptions.iRatioSelection, 3)
+
+            local bRatioOnXTextureLocked = (tFrameAddOptions.iRatioSelection == 1)
+            local bRatioOnYTextureLocked = (tFrameAddOptions.iRatioSelection == 2)
+            local bNoLock = (tFrameAddOptions.iRatioSelection == 3)
+
             local step       =  1
             local step_fast  =  10
             local format     = "%.3f"
-            local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
-            if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.width then
-                tFrameAddOptions.iSizeFrameWidth = iValue
-            end
-            local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
-            if result and iValue > 0 and iValue < tFrameAddOptions.tSelectedTexture.height then
-                tFrameAddOptions.iSizeFrameHeight = iValue
+            if bNoLock or bRatioOnXTextureLocked then
+                local result, iValue = tImGui.InputFloat('Width', tFrameAddOptions.iSizeFrameWidth, step, step_fast,format, flags)
+                if result and iValue > 0 then
+                    tFrameAddOptions.iSizeFrameWidth = iValue
+                    if bRatioOnXTextureLocked then
+                        local iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        local iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines
+                        local ratio = iSizeFrameHeight / iSizeFrameWidth
+                        tFrameAddOptions.iSizeFrameHeight = tFrameAddOptions.iSizeFrameWidth * ratio
+                    end
+                end
+            else
+                tImGui.Text(string.format('Width: %.3f',tFrameAddOptions.iSizeFrameWidth))
             end
 
-            tFrameAddOptions.bStretch = tImGui.Checkbox('Stretch anyway',tFrameAddOptions.bStretch)
+            if bNoLock or bRatioOnYTextureLocked then
+                local result, iValue = tImGui.InputFloat('Height', tFrameAddOptions.iSizeFrameHeight, step, step_fast,format, flags)
+                if result and iValue > 0 then
+                    tFrameAddOptions.iSizeFrameHeight = iValue
+                    if bRatioOnYTextureLocked then
+                        local iSizeFrameWidth = tFrameAddOptions.tSelectedTexture.width / tFrameAddOptions.iNumColumn
+                        local iSizeFrameHeight = tFrameAddOptions.tSelectedTexture.height / tFrameAddOptions.iNumLines
+                        local ratio = iSizeFrameWidth / iSizeFrameHeight
+                        tFrameAddOptions.iSizeFrameWidth = tFrameAddOptions.iSizeFrameHeight * ratio
+                    end
+                end
+            else
+                tImGui.Text(string.format('Height: %.3f',tFrameAddOptions.iSizeFrameHeight))
+            end
 
+            
             local tRects = calcRectForSpriteSheet(tFrameAddOptions.tSelectedTexture)
             if tRects == nil then
                 tUtil.showMessageWarn('Invalid Rectangles!',2.5)
             else
-
+                -- e.g, 3 x9 = 27 rectangles
+                -- tFrameAddOptions.tFramesEnableSpriteSheet = {true,true,true,...27 times
                 if #tFrameAddOptions.tFramesEnableSpriteSheet ~= #tRects then
                     while #tFrameAddOptions.tFramesEnableSpriteSheet < #tRects do
                         table.insert(tFrameAddOptions.tFramesEnableSpriteSheet,true)
@@ -2105,6 +2139,7 @@ function showFrameAdd()
                     if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
                         iTotalSelected = iTotalSelected + 1
                     end
+                    tRects[i].index = i
                 end
 
                 local sFrameSubset = 'Frames'
@@ -2116,41 +2151,100 @@ function showFrameAdd()
                 if tFrameAddOptions.bAddAsSubset then
                     if tImGui.Button(sSelectedFrames, tSizeBtn) then
                         if tFrameAddOptions.tSelectedTexture then
-                            local bHasFrame = false
+                            local iTotalSubsetAdded = 0
                             local tTexture  = tFrameAddOptions.tSelectedTexture
                             local tFrame    = tFrameList[tFrameList.indexSelectedFrameNode]
                             tFrameList.indexSelectedFrameNodeToExpand = tFrameList.indexSelectedFrameNode
-                            for i=1, #tRects do
-                                if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
-                                    local tSubset = newRectFrameFromFrameAddOptions(tTexture,tRects[i].tMin,tRects[i].tMax)
+
+                            local tRectsSorted = {}
+                            if tFrameAddOptions.iSortBySelection == 1 then
+                                --sort by X and Y
+                                for i=1, #tRects do
+                                    if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                        table.insert(tRectsSorted,tRects[i])
+                                    end
+                                end
+                                table.sort(tRectsSorted, function(a,b) 
+                                    if a.tMin.x == b.tMin.x then
+                                        return a.tMin.y < b.tMin.y
+                                    end
+                                    return a.tMin.x < b.tMin.x 
+                                end)
+                            elseif tFrameAddOptions.iSortBySelection == 2 then
+                                --sort by Y and X
+                                for i=1, #tRects do
+                                    if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                        table.insert(tRectsSorted,tRects[i])
+                                    end
+                                end
+                                table.sort(tRectsSorted, function(a,b)
+                                    if a.tMin.y == b.tMin.y then
+                                        return a.tMin.x < b.tMin.x
+                                    end 
+                                    return a.tMin.y < b.tMin.y
+                                end)
+                            end
+
+                            for i=1, #tRectsSorted do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRectsSorted[i].index] then -- sanity check, already checked while sorting
+                                    local tSubset = newRectFrameFromFrameAddOptions(tTexture,tRectsSorted[i].tMin,tRectsSorted[i].tMax)
                                     table.insert(tFrame.tSubsetList,tSubset)
-                                    bHasFrame = true
+                                    iTotalSubsetAdded = iTotalSubsetAdded + 1
                                 end
                             end
-                            if bHasFrame then
+                            if iTotalSubsetAdded > 0 then
                                 bShowFrameList = true
                                 unCollapse(tWindowsTitle.title_frame_list)
-                                tUtil.showMessage(string.format('Added %d Subset(s)!',#tRects),3)
+                                tUtil.showMessage(string.format('Added %d Subset(s)!',iTotalSubsetAdded),3)
                             else
-                                tUtil.showMessageWarn('There is no frame enabled!',2.5)
+                                tUtil.showMessageWarn('There is no subset enabled!',2.5)
                             end
                         end
                     end
                 elseif tImGui.Button(sSelectedFrames, tSizeBtn) then
                     if tFrameAddOptions.tSelectedTexture then
-                        local bHasFrame = false
+                        local iTotalFrameAdded = 0
                         local tTexture = tFrameAddOptions.tSelectedTexture
-                        for i=1, #tRects do
-                            if tFrameAddOptions.tFramesEnableSpriteSheet[i] then
-                                local tFrame = newRectFrameFromFrameAddOptions(tTexture,tRects[i].tMin,tRects[i].tMax)
+                        local tRectsSorted = {}
+                        if tFrameAddOptions.iSortBySelection == 1 then
+                            --sort by X and Y
+                            for i=1, #tRects do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                    table.insert(tRectsSorted,tRects[i])
+                                end
+                            end
+                            table.sort(tRectsSorted, function(a,b) 
+                                if a.tMin.x == b.tMin.x then
+                                    return a.tMin.y < b.tMin.y
+                                end
+                                return a.tMin.x < b.tMin.x 
+                            end)
+                        elseif tFrameAddOptions.iSortBySelection == 2 then
+                            --sort by Y and X
+                            for i=1, #tRects do
+                                if tFrameAddOptions.tFramesEnableSpriteSheet[tRects[i].index] then
+                                    table.insert(tRectsSorted,tRects[i])
+                                end
+                            end
+                            table.sort(tRectsSorted, function(a,b)
+                                if a.tMin.y == b.tMin.y then
+                                    return a.tMin.x < b.tMin.x
+                                end 
+                                return a.tMin.y < b.tMin.y
+                            end)
+                        end
+
+                        for i=1, #tRectsSorted do
+                            if tFrameAddOptions.tFramesEnableSpriteSheet[tRectsSorted[i].index] then -- sanity check, already checked while sorting
+                                local tFrame = newRectFrameFromFrameAddOptions(tTexture,tRectsSorted[i].tMin,tRectsSorted[i].tMax)
                                 table.insert(tFrameList,tFrame)
-                                bHasFrame = true
+                                iTotalFrameAdded = iTotalFrameAdded + 1
                             end
                         end
-                        if bHasFrame then
+                        if iTotalFrameAdded > 0 then
                             bShowFrameList = true
                             unCollapse(tWindowsTitle.title_frame_list)
-                            tUtil.showMessage(string.format('Added %d Frame(s)!',#tRects),3)
+                            tUtil.showMessage(string.format('Added %d Frame(s)!',iTotalFrameAdded),3)
                         else
                             tUtil.showMessageWarn('There is no frame enabled!',2.5)
                         end
@@ -2158,6 +2252,9 @@ function showFrameAdd()
                         tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
                     end
                 end
+
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by X",sFrameSubset), tFrameAddOptions.iSortBySelection, 1)
+                tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format("Add % sorted by Y",sFrameSubset), tFrameAddOptions.iSortBySelection, 2)
 
                 if tImGui.TreeNode('##select_frames_from_sprite_sheet', string.format('%s Options', sFrameSubset)) then
                     tFrameAddOptions.iFramesEnableSpriteSheetHover = 0
@@ -2207,10 +2304,9 @@ function getShapeViewForAnim(tFrame)
         local x,y      = tFrame.width / 0.5, tFrame.height / 0.5
         local tVertex  = {-x,-y,  -x,y,  x,-y,       x,-y, -x,y, x,y}
         local tUv      = {0,0, 0,1, 1,0, 1,0, 0,1, 1,1} --invert V
-        local tNormal  = nil
         local nickName = getUniqueNickName()
         local tShape   = shape:new('2dw')
-        tShape:create(tVertex,tUv,tNormal,nickName)
+        tShape:create(tVertex,tUv,nickName)
         tAnimationOptions.tShapeAnimations[sTexHash] = tShape
     end
     return tAnimationOptions.tShapeAnimations[sTexHash]
@@ -2221,7 +2317,7 @@ function makeHashStringForAnimImage(tFrame, iNumImage)
     return sTexHash
 end
 
-function getTextureIdForAnimImage(tFrame, iNumImage)
+function getTextureInfoForAnimImage(tFrame, iNumImage)
     local sTexHash = makeHashStringForAnimImage(tFrame, iNumImage)
     local tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
     --it will not render the frame twice, thats why we return the same previous frame
@@ -2229,30 +2325,30 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStart == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 1)
+            return getTextureInfoForAnimImage(tFrame, 1)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     elseif iNumImage == 3 and tAnimationOptions.iFrameStop == tAnimationOptions.iCurrentFrame then
         sTexHash = makeHashStringForAnimImage(tFrame, 2)
         tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
         if tRender == nil then
-            return getTextureIdForAnimImage(tFrame, 2)
+            return getTextureInfoForAnimImage(tFrame, 2)
         end
-        return tRender.texture_id, tRender.nick_name
+        return tRender.tTextureInfo, tRender.nick_name
     end
 
     if tRender == nil then
         tRender = render2texture:new('2dw')
-        local bSuccess,nick_name, id = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
-        if bSuccess and id > 0 then
-            tRender.texture_id = id
+        local bSuccess,nick_name, tTextureInfo = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
+        if bSuccess and tTextureInfo then
+            tRender.tTextureInfo = tTextureInfo
             tRender.nick_name = nick_name
         else
             print('error','Could not create dynamic texture!',sTexHash)
@@ -2274,12 +2370,12 @@ function getTextureIdForAnimImage(tFrame, iNumImage)
         tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y)
         tRender:add(tSubset.tShape)
     end
-    return tRender.texture_id, tRender.nick_name
+    return tRender.tTextureInfo, tRender.nick_name
 end
 
 function applyZoomFrameAnimation()
     local tUvZoom = tAnimationOptions.tUvZoom
-    if tImGui.IsItemHovered(0) then
+    if tImGui.IsItemHovered(0) and keyControlPressed then
         local zoom = tImGui.GetZoom()
         if zoom ~= 0 then
             local inc = (zoom * 0.02)
@@ -2305,17 +2401,17 @@ function applyZoomFrameAnimation()
 end
 
 function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
-    local iW, iH        = mbm.getRealSizeScreen()
-    local bg_col        = {r=1,g=1,b=1,a=1}
-    local line_color    = {r=0,g=0,b=0,a=1}
+    local iW, iH          = mbm.getRealSizeScreen()
+    local bg_col          = {r=0,g=0,b=0,a=0}
+    local tint_col        = {r=1,g=1,b=1,a=1}
     if tFrame == nil then trace() end
-    local new_width     = math.min(tFrame.width, winSize.x - padding.x)
-    local sy            = new_width / tFrame.width  * tFrame.height
-    local size          = {x = math.min(new_width,iW), y = math.min(sy,iH) }
-    local texture_id, _ = getTextureIdForAnimImage(tFrame, iNumImage)
-    tImGui.Image(texture_id,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,line_color)
+    local new_width       = math.min(tFrame.width, winSize.x - padding.x)
+    local sy              = new_width / tFrame.width  * tFrame.height
+    local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
+    local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
+    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
     applyZoomFrameAnimation()
-    tImGui.HelpMarker('Use scroll to zoom it!')
+    tImGui.HelpMarker('Use Control+scroll to zoom it!')
     
 end
 
@@ -2412,7 +2508,7 @@ function showAnimationAdd(delta)
             end
             
             local tFrame             = tFrameList[indexFrame]
-            local id, nick_name      = getTextureIdForAnimImage(tFrame, 3)
+            local id, nick_name      = getTextureInfoForAnimImage(tFrame, 3)
             local alpha              = true
             local stage              = 1
             local tShapeAnimations   = getShapeViewForAnim(tFrame)
@@ -2462,7 +2558,7 @@ function showAnimationAdd(delta)
 
             tImGui.PopItemWidth()
 
-            if tImGui.TreeNode('##Animations', 'Animations') then
+            if tImGui.TreeNode('##Animations', string.format("%s (%d)",'Animations',#tAnimationList)) then
                 local flag_node      = 0
                 local tSizeBtn     = {x=0,y=0}
                 for i=1, #tAnimationList do
@@ -2865,7 +2961,7 @@ function showEditPhysics()
                 local p_min             = {x = winPos.x + 75,  y = winPos.y + 15}
                 local p_max             = {x = winPos.x + 125, y = winPos.y + 65}
                 local rounding          =  2.0
-                local rounding_corners  =  tImGui.Flags('ImDrawCornerFlags_All')
+                local rounding_corners  =  tImGui.Flags('ImDrawFlags_RoundCornersAll')
                 tImGui.AddRect(p_min, p_max, color, rounding, rounding_corners, thickness)
             elseif indexPrimitive == 2 then
                 local center        = {x=winPos.x + 100,y=winPos.y + 25 + 7.5}
@@ -3389,7 +3485,7 @@ function newRectFrameFromFrameAddOptions(tTexture,tMin,tMax)
     tFrame.type         = 'rectangle'
     tFrame.iNumElements = tFrameAddOptions.iNumElements
     tFrame.tTexture     = tTexture
-    if tFrameAddOptions.bStretch then
+    if tFrameAddOptions.iRatioSelection == 3 then --exact size
         tFrame.width        = tFrameAddOptions.iSizeFrameWidth
         tFrame.height       = tFrameAddOptions.iSizeFrameHeight
     else

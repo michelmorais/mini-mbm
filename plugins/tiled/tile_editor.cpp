@@ -24,6 +24,7 @@
 #include <core_mbm/mesh-manager.h>
 #include <core_mbm/shader-var-cfg.h>
 #include <core_mbm/dynamic-var.h>
+#include <core_mbm/scene.h>
 #include <algorithm>
 
 template< typename T >
@@ -81,12 +82,14 @@ namespace mbm
         textureTileSetPreview      = nullptr;
         line_tileSetPreview        = nullptr;
         iLastIndexBrickOver        = std::numeric_limits<uint16_t>::max()-1;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     TILE_EDITOR::~TILE_EDITOR()
     {
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
         this->clearHistory();
     }
@@ -110,6 +113,17 @@ namespace mbm
     const INFO_PHYSICS *TILE_EDITOR::getInfoPhysics() const
     {
         return nullptr;
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE_EDITOR::getFvfFromBuffer() const noexcept
+    {
+        if (emptyBrick.isLoadedBuffer())
+            return emptyBrick.fvf;
+        if (backGroundMap.isLoadedBuffer())
+            return backGroundMap.fvf;
+        if (tileSetPreview.isLoadedBuffer())
+            return tileSetPreview.fvf;
+        return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
     }
 
     const MESH_MBM *    TILE_EDITOR::getMesh() const
@@ -708,8 +722,11 @@ namespace mbm
             
             if(textureTileSetPreview && loadBufferGl(tileSetPreview))
             {
-                if(line_tileSetPreview == nullptr)
-                    line_tileSetPreview = new mbm::LINE_MESH(this->device->scene,false,false);
+                if (line_tileSetPreview == nullptr)
+                {
+                    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                    line_tileSetPreview = new mbm::LINE_MESH(device->scene, false, false);
+                }
 
                 line_tileSetPreview->release();
                 std::vector<VEC3> arrayLines;
@@ -734,9 +751,8 @@ namespace mbm
                     anim->fx.setMaxVarPShader("color", d);
                     anim->fx.setMinVarPShader("color", d);
                 }
-                tileSetPreview.idTexture0[0] = textureTileSetPreview->idTexture;
-                tileSetPreview.idTexture1    = 0;
-                tileSetPreview.useAlpha[0]   = textureTileSetPreview->useAlphaChannel ? 1 : 0;
+                tileSetPreview.setTextureByStage(textureTileSetPreview, 0, 0);
+                tileSetPreview.setTextureByStage(nullptr, 1, 0);
 
                 const uint32_t lines    = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getWidth() / width  ))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
                 const uint32_t column   = std::clamp(static_cast<uint32_t>(static_cast<uint32_t>(std::floor(texture->getHeight() / height))), static_cast<uint32_t>(1), static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()));
@@ -779,6 +795,7 @@ namespace mbm
 
     bool TILE_EDITOR::render()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         ANIMATION *anim = this->getAnimation(0);
         if(anim == nullptr)
         {
@@ -796,12 +813,12 @@ namespace mbm
         }
 
         this->blend.set(anim->blendState);
-        anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+        anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.setBlendOp();
         anim->fx.shader.update();
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
         switch (render_what)
         {
             case RENDER_MAP:
@@ -848,11 +865,6 @@ namespace mbm
         return false;
     }
 
-    void TILE_EDITOR::onStop()
-    {
-        
-    }
-
     bool TILE_EDITOR::renderMap(SHADER *shader)
     {
         if(tileMap.background.a > 0 || tileMap.background_texture)
@@ -873,9 +885,9 @@ namespace mbm
                 ERROR_LOG("Could not create texture from color %s",whatColor);
                 return false;
             }
-            this->backGroundMap.idTexture0[0] = texture->idTexture;
-            this->backGroundMap.idTexture1    = 0;
-            this->backGroundMap.useAlpha[0]   = texture && texture->useAlphaChannel ? 1 : 0;
+
+            this->backGroundMap.setTextureByStage(texture, 0, 0);
+            this->backGroundMap.setTextureByStage(nullptr, 1, 0);
 
             float multiply = 1.0f;
             if(tileMap.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
@@ -897,9 +909,10 @@ namespace mbm
                 backGround_scale.y   += height_tile;
                 backGroundPosition.x += width_tile * 0.25f;
             }
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
             MatrixTranslationRotationScale(&SHADER::modelView, &backGroundPosition, &this->angle, &backGround_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             if(shader->render(&this->backGroundMap) == false)
                 return false;
         }
@@ -923,6 +936,7 @@ namespace mbm
     }
     bool TILE_EDITOR::renderTileSet()
     {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         if(textureTileSetPreview)
         {
             if(line_tileSetPreview)
@@ -940,7 +954,7 @@ namespace mbm
             line_tileSetPreview->scale.x = this->scale_tile.x;
             line_tileSetPreview->scale.y = this->scale_tile.y;
             MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &tex_scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             if(shader->render(&this->tileSetPreview) == false)
                 return false;
             return true;
@@ -1004,7 +1018,7 @@ namespace mbm
 
                         SHADER::modelView._41 = position.x;
                         SHADER::modelView._42 = position.y;
-                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&this->device->camera.matrixPerspective2d);
+                        MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,&device->camera.matrixPerspective2d);
 
                         brick->render(&anim->fx.shader,0);
                         position.x += (brick->width * this->scale.x) + 5;
@@ -1033,6 +1047,7 @@ namespace mbm
     {
         if(index_layer < tileMap.layers.size())
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             auto & layer              = tileMap.layers[index_layer];
             if(layer->visible == false)
                 return true;
@@ -1225,6 +1240,7 @@ namespace mbm
                                      const bool enable_highlights,
                                      const bool transparency)
     {
+        mbm::DEVICE* device       = mbm::DEVICE::getInstance();
         ANIMATION *anim_normal    = lsAnimation[0];
         ANIMATION *anim_selected  = lsAnimation[1];
         ANIMATION *anim_over      = lsAnimation[2];
@@ -1249,15 +1265,14 @@ namespace mbm
         const VEC3 brick_position(x,y,position.z);
         const uint32_t index = j + (i  * tileMap.count_height_tile);
         auto & brick         = layer->bricks[index];
-        const uint32_t idTexStage2 = layer->fx.textureOverrideStage2 ? layer->fx.textureOverrideStage2->idTexture : 0;
-        
+
         if(brick == nullptr)
         {
             if(enable_highlights)
             {
                 const VEC3 empty_scale(width_tile,height_tile,1.0f);
                 MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &empty_scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 if(renderEmptyBrick(&anim_normal->fx.shader,iLastIndexBrickOver == index,selectedBrick[index]) == false)
                     return false;
             }
@@ -1265,16 +1280,16 @@ namespace mbm
         else
         {
             MatrixTranslationRotationScale(&SHADER::modelView, &brick_position, &this->angle, &scale);
-            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+            MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             const bool bSelected  = enable_highlights && selectedBrick[index];
             const bool bOverBrick = enable_highlights && iLastIndexBrickOver == index;
             if(bOverBrick)//only one
             {
                 this->blend.set(anim_over->blendState);
-                anim_over->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                anim_over->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                 anim_over->fx.setBlendOp();
                 anim_over->fx.shader.update();
-                if(brick->render(&anim_over->fx.shader,idTexStage2) == false)
+                if(brick->render(&anim_over->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(bSelected)
@@ -1283,21 +1298,21 @@ namespace mbm
                 if(updatedSelected == false)
                 {
                     updatedSelected = true;
-                    anim_selected->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+                    anim_selected->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
                     anim_selected->fx.setBlendOp();
                     anim_selected->fx.shader.update();
                 }
-                if(brick->render(&anim_selected->fx.shader,idTexStage2) == false)
+                if(brick->render(&anim_selected->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else if(transparency == true)
             {
-                if(brick->render(&transparent->fx.shader,idTexStage2) == false)
+                if(brick->render(&transparent->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             else
             {
-                if(brick->render(&layer->fx.shader,idTexStage2) == false)
+                if(brick->render(&layer->fx.shader,layer->fx.textureOverrideStage2) == false)
                     return false;
             }
             if(render_what == RENDER_LAYER)
@@ -1338,6 +1353,7 @@ namespace mbm
     {
         if((render_what == RENDER_LAYER || render_what == RENDER_MAP) && index_render_what < tileMap.layers.size())
         {
+            mbm::DEVICE* device     = mbm::DEVICE::getInstance();
             const int total         = tileMap.count_width_tile * tileMap.count_height_tile;
             const auto & layer      = tileMap.layers[index_render_what];
             VEC2 pos;
@@ -1792,6 +1808,7 @@ namespace mbm
     bool TILE_EDITOR::createAnim()
     {
         this->releaseAnimation();
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         for (int i=0; i < 3; ++i)
         {
             auto anim = new mbm::ANIMATION();
@@ -1866,7 +1883,6 @@ namespace mbm
         if(whatBuffer.isLoadedBuffer() == false)
         {
             VEC3 vertex[4];
-            VEC3 normal[4];
             VEC2 uv[4];
             int indexStart = 0;
             int indexCount = 6;
@@ -1887,12 +1903,7 @@ namespace mbm
             vertex[3].x = x;
             vertex[3].y = y;
             vertex[3].z = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                normal[i].x = 0;
-                normal[i].y = 0;
-                normal[i].z = 1;
-            }
+
             uv[0].x = 0;
             uv[0].y = 1;
             uv[1].x = 0;
@@ -1903,7 +1914,7 @@ namespace mbm
             uv[3].y = 0;
             
             unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-            return whatBuffer.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+            return whatBuffer.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         }
         return true;
     }
@@ -1913,11 +1924,11 @@ namespace mbm
         if(emptyBrick.isLoadedBuffer() == true)
         {
             if(highlight)
-                emptyBrick.idTexture0[0] = id_texture_highlight_brick;
+                emptyBrick.setTextureByStage(id_texture_highlight_brick, 0, 0);
             else if(selected)
-                emptyBrick.idTexture0[0] = id_texture_selected_brick;
+                emptyBrick.setTextureByStage(id_texture_selected_brick, 0, 0);
             else
-                emptyBrick.idTexture0[0] = id_texture_normal_brick;
+                emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             return shader->render(&emptyBrick);
         }
         else
@@ -1925,20 +1936,14 @@ namespace mbm
             const bool ret  = loadBufferGl(emptyBrick);
             auto texManager = mbm::TEXTURE_MANAGER::getInstance();
             mbm::TEXTURE::enableFilter(false);
-            auto texture    = texManager->load("#aaffffaa",true);
+            id_texture_normal_brick    = texManager->load("#aaffffaa",true);
             mbm::TEXTURE::enableFilter(true);
-            id_texture_normal_brick    = texture ? texture->idTexture : 0;
             if (ret)
             {
-                this->emptyBrick.idTexture0[0] = id_texture_normal_brick;
-                this->emptyBrick.idTexture1    = 0;
-                this->emptyBrick.useAlpha[0]   = texture && texture->useAlphaChannel ? 1 : 0;
+                this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);
             }
-            texture                    = texManager->load("#aaff0000",true);
-            id_texture_highlight_brick = texture ? texture->idTexture : 0;
-
-            texture                    = texManager->load("#aa00ff00",true);
-            id_texture_selected_brick  = texture ? texture->idTexture : 0;
+            id_texture_highlight_brick = texManager->load("#aaff0000",true);
+            id_texture_selected_brick  = texManager->load("#aa00ff00",true);
             return ret;
         }
     }

@@ -47,7 +47,7 @@ namespace mbm
     
     };
     //is not right --- must be investigate
-    class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class RENDER_2_TEXTURE : public RENDERIZABLE_TO_TARGET, public ANIMATION_MANAGER
     {
       public:
         CAMERA_TARGET               camera2d, camera3d;
@@ -58,11 +58,9 @@ namespace mbm
         API_IMPL virtual ~RENDER_2_TEXTURE();
         API_IMPL void removeFromRender2Texture(RENDERIZABLE *ptr) override;
         API_IMPL virtual void release();
-        API_IMPL bool load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha, int * texture_id_out);
+        API_IMPL TEXTURE* load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha);
         API_IMPL void flip_vertically(uint8_t *pixels, const int width, const int height, const int bytes_per_pixel);
-        API_IMPL bool saveAsPNG(const char* newFileOutNamePNG,
-        const int x,const int y,
-        const int _width,const int _height);
+        API_IMPL bool saveAsPNG(const char* newFileOutNamePNG,const int x,const int y,const int _width,const int _height);//specific backend engine
         API_IMPL bool addObject2Render(RENDERIZABLE *ptr);
         API_IMPL bool removeObject2Render(RENDERIZABLE *ptr);
         API_IMPL void clear();
@@ -70,12 +68,12 @@ namespace mbm
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
     
       protected:
-        void onStop() override;
         virtual bool render() override;
         bool render2Texture() override;
         virtual bool isOnFrustum() override;
         bool onRestoreDevice() override;
         void fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height);
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         bool createAnimationAndShader2Render2Texture();
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;

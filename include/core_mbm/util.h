@@ -20,9 +20,7 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
+#include <core-exports.h>
 #include <string>
 #include <vector>
 
@@ -32,7 +30,7 @@ namespace util
 {
 
     API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
-    #if defined   _WIN32
+    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
     API_IMPL char *toChar(const WCHAR *wstr, char *outText);
     #endif
@@ -55,6 +53,11 @@ namespace util
 	API_IMPL void base_64_decode(const std::string & str_encoded, std::string & result);
     API_IMPL void getAABB(const float halfDimInOut[2], const float angleRadian, float *widthOut, float *heightOut) noexcept;
     API_IMPL void split(std::vector<std::string> &result, const char *in, const char delim);
+
+    API_IMPL bool isBackendEngineOpenGlEs() noexcept;
+    API_IMPL bool isBackendEngineDirectx9() noexcept;
+    API_IMPL bool isBackendEngineVulkan() noexcept;
+    API_IMPL bool isBackendEngineMetal() noexcept;
 }
 
 #endif

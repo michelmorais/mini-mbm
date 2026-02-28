@@ -45,9 +45,7 @@ namespace mbm
     int onSetUpCameraRender2TextureLua(lua_State *lua);
     int onSetColorBackgroundRender2TextureLua(lua_State *lua);
     int onEnableFrameRender2TextureLua(lua_State *lua);
-#ifdef USE_OPENGL_ES
     int onSaveRender2Texture(lua_State *lua);
-#endif
     int onGetCameraRender2Texture(lua_State *lua);
     int onNewRender2Texture(lua_State *lua);
     void registerClassRender2TextureTarget(lua_State *lua);

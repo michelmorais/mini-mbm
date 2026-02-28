@@ -18,36 +18,64 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <line-mesh.h>
-#include <shader-var-cfg.h>
-#include <texture-manager.h>
-#include <mesh-manager.h>
+#include <header-mesh.h>
+#include <draw-compatibility.h>
 #include <util-interface.h>
-#include <util.h>
-#include <gles-debug.h>
+#include <core_mbm/scene.h>
+#include <shader-resource.h>
+#include <shader-var-cfg.h>
 
 
 namespace mbm
 {
 
-    MY_LINES::MY_LINES() noexcept
-    {
-        this->vboVertexUvLine = 0;
-    }
-    
     MY_LINES::~MY_LINES()
     {
-        
         this->release();
     }
-    
+
     void MY_LINES::release()
     {
         arrayLinesVec3.clear();
-        if (this->vboVertexUvLine)
+        buffer.release();
+    }
+
+    bool MY_LINES::setLines(std::vector<VEC3>&& arrayPoints, const bool invert_Y)
+    {
+        arrayLinesVec3 = std::move(arrayPoints);
+        const int vertexStartSubset = 0;
+        const int vertexCountSubset = arrayLinesVec3.size();
+        if (buffer.isLoadedBuffer())
         {
-            GLDeleteBuffers(1, &this->vboVertexUvLine);
+            if (buffer.sizeOfArrayVertex != arrayLinesVec3.size())
+            {
+                buffer.release();
+            }
         }
-        vboVertexUvLine = 0;
+
+        if (buffer.isLoadedBuffer() == false)
+        {
+            const uint32_t totalSubsets = 1;
+
+            constexpr bool isDynamic = true;
+            util::INFO_DRAW_MODE infoDraw;
+            infoDraw.mode_cull_face = util::CULL_MODE::CULL_FRONT_AND_BACK;
+            infoDraw.mode_draw = util::MODE_DRAW::MODE_DRAW_LINE_STRIP;
+            infoDraw.mode_front_face_direction = util::FACE_DIRECTION::CCW;
+            if (buffer.loadBuffer(arrayLinesVec3.data(), nullptr, nullptr, arrayLinesVec3.size(), totalSubsets, &vertexStartSubset, &vertexCountSubset, &infoDraw, isDynamic) == false)
+            {
+                arrayLinesVec3.clear();
+                return false;
+            }
+        }
+        if (invert_Y)
+        {
+            for (auto& vec3 : arrayLinesVec3)
+            {
+                vec3.y = -vec3.y;
+            }
+        }
+        return buffer.updateDynamic(arrayLinesVec3.data(), nullptr, nullptr, &vertexStartSubset, &vertexCountSubset);
     }
     
     VEC3 * MY_LINES::getArray()
@@ -60,76 +88,34 @@ namespace mbm
         return arrayLinesVec3.size();
     }
 
+    bool MY_LINES::renderLines(SHADER* shader)
+    {
+        if (buffer.isLoadedBuffer() == false)
+            return false;
+        //TODO: check the need of set GLBlendFunc(GL_SRC_ALPHA, 0x0303); (old way)
+        return shader->render(&buffer);
+    }
+
     bool MY_LINES::onRestore()
     {
-        if (this->vboVertexUvLine)
-        {
-            GLDeleteBuffers(1, &this->vboVertexUvLine);
-        }
-        vboVertexUvLine = 0;
-        GLGenBuffers(1, &this->vboVertexUvLine); // somente para os vertices
-        if (this->vboVertexUvLine == 0)
-            return false;
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * arrayLinesVec3.size(), arrayLinesVec3.data(), GL_DYNAMIC_DRAW);
-        return true;
+        buffer.release();
+        std::vector<VEC3> the_arrayLinesVec3(arrayLinesVec3);
+        return setLines(std::move(the_arrayLinesVec3), false);
     }
-    
-    bool MY_LINES::setLines(std::vector<VEC3> && arrayPoints,const bool invert_Y)
-    {
-        arrayLinesVec3 = std::move(arrayPoints);
-        if (this->vboVertexUvLine == 0)
-        {
-            GLGenBuffers(1, &this->vboVertexUvLine); // somente para os vertices
-            if (this->vboVertexUvLine == 0)
-                return false;
-        }
-        if(invert_Y)
-        {
-            for(auto & vec3 : arrayLinesVec3 )
-            {
-                vec3.y = -vec3.y;
-            }
-        }
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLBufferData(GL_ARRAY_BUFFER, sizeof(mbm::VEC3) * arrayLinesVec3.size(), arrayLinesVec3.data(), GL_DYNAMIC_DRAW);
-        return true;
-    }
-    
-    bool MY_LINES::renderLines(SHADER *shader)
-    {
-        if (!this->vboVertexUvLine)
-            return false;
-		//GLCullFace(pBufferId->mode_cull_face);
-		//GLFrontFace(pBufferId->mode_front_face_direction);
 
-        GLUseProgram(shader->programObject);
-
-        GLBlendFunc(GL_SRC_ALPHA, 0x0303);
-
-        GLBindBuffer(GL_ARRAY_BUFFER, this->vboVertexUvLine);
-        GLEnableVertexAttribArray(shader->positionHandle);
-        GLVertexAttribPointer(shader->positionHandle, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-
-        GLUniformMatrix4fv(shader->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(this->arrayLinesVec3.size()));
-        GLBindBuffer(GL_ARRAY_BUFFER, 0);
-        return true;
-    }
-    
-  
     LINE_MESH::LINE_MESH(const SCENE *scene, const bool _is3d, const bool _is2dScreen)
         : RENDERIZABLE(scene->getIdScene(), TYPE_CLASS_LINE_MESH, _is3d && _is2dScreen == false, _is2dScreen)
     {
         this->enableRender = true;
-        this->device->addRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
     }
     
     LINE_MESH::~LINE_MESH()
     {
         this->enableRender = false;
-        this->device->removeRenderizable(this);
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
         this->release();
     }
     
@@ -157,26 +143,21 @@ namespace mbm
     
     unsigned int LINE_MESH::add(std::vector<VEC3> && arrayLines)
     {
-        
-        if (this->lsLines.size() == 0)
+        auto myLine = new MY_LINES();
+        if (!myLine->setLines(std::move(arrayLines), is2dS))
+        {
+            delete myLine;
+            return 0xffffffff;
+        }
+        this->lsLines.push_back(myLine);
+        if (this->lsLines.size() == 1)
         {
             if (this->createAnimationAndShader2Line() == false)
             {
                 return 0xffffffff;
             }
         }
-        auto myLine = new MY_LINES();
-        if (myLine->setLines(std::move(arrayLines), is2dS))
-        {
-            this->lsLines.push_back(myLine);
-            const auto index = static_cast<unsigned int>(this->lsLines.size() - 1);
-            return index;
-        }
-        else
-        {
-            delete myLine;
-            return 0xffffffff;
-        }
+        return static_cast<unsigned int>(this->lsLines.size() - 1);
     }
     
     unsigned int LINE_MESH::getTotalLines() const
@@ -201,50 +182,50 @@ namespace mbm
         if(ptr == nullptr)
             return;
         float w,h = 0.0f;
-		ptr->updateAABB();
+        ptr->updateAABB();
         if(ptr->is3D)
         {
             /*
-			   f________________g
-			   /               /|
-			  /               / |
-		   b /_______________/c |
-			|   |           |   |
-			|   |           |   |
-			|   |   back    |   |
-			|  e|___________|___|h
-			|  /            |  /
-			| /             | /
-			|/______________|/
-			a   front       d
+               f________________g
+               /               /|
+              /               / |
+           b /_______________/c |
+            |   |           |   |
+            |   |           |   |
+            |   |   back    |   |
+            |  e|___________|___|h
+            |  /            |  /
+            | /             | /
+            |/______________|/
+            a   front       d
 
-	        */
+            */
             float d = 0.0f;
             if(useAABB)
                 ptr->getAABB(&w,&h,&d);
             else
                 ptr->getWidthHeight(&w,&h,&d);
-			std::vector<VEC3> box(16);
+            std::vector<VEC3> box(16);
             w = (w * 0.5f);
-			h = (h * 0.5f);
-			const float z = d > 0.0f ? (d * 0.5f) : 1.0f;
+            h = (h * 0.5f);
+            const float z = d > 0.0f ? (d * 0.5f) : 1.0f;
 
-			box[0 ]  = VEC3(-w,-h,-z);// --a 1
-			box[1 ]  = VEC3(-w, h,-z);// --b 2
-			box[2 ]  = VEC3( w, h,-z);// --c 3 
-			box[3 ]  = VEC3( w,-h,-z);// --d 4
-			box[4 ]  = VEC3(-w,-h,-z);// --a 1
-			box[5 ]  = VEC3(-w,-h, z);// --e 5
-			box[6 ]  = VEC3(-w, h, z);// --f 6
-			box[7 ]  = VEC3(-w, h,-z);// --b 2
-			box[8 ]  = VEC3(-w, h, z);// --f 6
-			box[9 ]  = VEC3( w, h, z);// --g 7
-			box[10]  = VEC3( w,-h, z);// --h 8
-			box[11]  = VEC3( w,-h,-z);// --d 4
-			box[12]  = VEC3( w, h,-z);// --c 3 
-			box[13]  = VEC3( w, h, z);// --g 7
-			box[14]  = VEC3( w,-h, z);// --h 8
-			box[15]  = VEC3(-w,-h, z);// --e 5
+            box[0 ]  = VEC3(-w,-h,-z);// --a 1
+            box[1 ]  = VEC3(-w, h,-z);// --b 2
+            box[2 ]  = VEC3( w, h,-z);// --c 3 
+            box[3 ]  = VEC3( w,-h,-z);// --d 4
+            box[4 ]  = VEC3(-w,-h,-z);// --a 1
+            box[5 ]  = VEC3(-w,-h, z);// --e 5
+            box[6 ]  = VEC3(-w, h, z);// --f 6
+            box[7 ]  = VEC3(-w, h,-z);// --b 2
+            box[8 ]  = VEC3(-w, h, z);// --f 6
+            box[9 ]  = VEC3( w, h, z);// --g 7
+            box[10]  = VEC3( w,-h, z);// --h 8
+            box[11]  = VEC3( w,-h,-z);// --d 4
+            box[12]  = VEC3( w, h,-z);// --c 3 
+            box[13]  = VEC3( w, h, z);// --g 7
+            box[14]  = VEC3( w,-h, z);// --h 8
+            box[15]  = VEC3(-w,-h, z);// --e 5
 
             if(this->lsLines.size() > 0)
                 this->set(std::move(box),0);
@@ -305,27 +286,28 @@ namespace mbm
     {
         if (this->lsLines.size())
         {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             if (this->is3D)
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective);
             }
             else if (this->is2dS)
             {
-                VEC3 positionScreen(this->position.x * this->device->camera.scaleScreen2d.x,
-                                    this->position.y * this->device->camera.scaleScreen2d.y, this->position.z);
-                this->device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
+                VEC3 positionScreen(this->position.x * device->camera.scaleScreen2d.x,
+                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, positionScreen);
                 MatrixTranslationRotationScale(&SHADER::modelView, &positionScreen, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             else
             {
                 MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
-                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &this->device->camera.matrixPerspective2d);
+                MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
             }
             mbm::ANIMATION *anim = this->getAnimation();
             this->blend.set(anim->blendState);
-            anim->updateAnimation(this->device->delta, this, this->onEndAnimation, this->onEndFx);
+            anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             anim->fx.shader.update(); // glUseProgram
             anim->fx.setBlendOp();
             for (auto line : this->lsLines)
@@ -336,18 +318,6 @@ namespace mbm
             return true;
         }
         return false;
-    }
-    
-    void LINE_MESH::onStop()
-    {
-        for (auto line : this->lsLines)
-        {
-            if (line->vboVertexUvLine)
-            {
-                GLDeleteBuffers(1, &line->vboVertexUvLine);
-            }
-            line->vboVertexUvLine = 0;
-        }
     }
     
     bool LINE_MESH::onRestoreDevice()
@@ -377,58 +347,6 @@ namespace mbm
         }
     }
     
-    bool LINE_MESH::loadShaderDefault()
-    {
-		auto * anim = this->getAnimation();
-		if (anim == nullptr)
-			return false;
-        const char *fileNamePs  = "__line_color.ps";
-        const char *fileNameVs  = "__line_color.vs";
-        const char *codePScolor = "precision mediump float;\n"
-                                  "uniform vec4 color;\n"
-                                  "void main()\n"
-                                  "{\n"
-                                  " gl_FragColor =  color;\n"
-                                  "}\n";
-
-        const char *codeVsColor = "attribute vec4 aPosition;\n"
-                                  "uniform mat4 mvpMatrix;\n"
-                                  "void main()\n"
-                                  "{\n"
-                                  "   gl_Position = mvpMatrix * aPosition;\n"
-                                  "}\n";
-
-        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, codePScolor, TYPE_ANIMATION_PAUSED);
-        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, codeVsColor, TYPE_ANIMATION_PAUSED);
-        if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
-            return false;
-        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader);
-        if (!ret)
-        {
-            PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
-            return false;
-        }
-        else
-        {
-            float c[4] = {1, 0, 0, 1};
-            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c,anim->fx.shader.programObject))
-            {
-#if defined _DEBUG
-                PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);
-#endif
-            }
-            for (unsigned int i = 0; i < anim->fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
-            {
-                VAR_SHADER *varShader = anim->fx.fxPS->ptrCurrentShader->getVar(i);
-                if (varShader)
-                {
-                    varShader->set(c, c, 1.0f);
-                }
-            }
-        }
-        return true;
-    }
-    
     bool LINE_MESH::createAnimationAndShader2Line()
     {
         this->releaseAnimation();
@@ -439,18 +357,64 @@ namespace mbm
         return true;
     }
 
-	FX*  LINE_MESH::getFx()const
-	{
-		auto * anim = getAnimation();
-		if (anim)
-			return &anim->fx;
-		return nullptr;
-	}
+    bool LINE_MESH::loadShaderDefault()
+    {
+        auto* anim = this->getAnimation();
+        if (anim == nullptr)
+            return false;
+        const char* fileNamePs = "__line_color.ps";
+        const char* fileNameVs = "__line_color.vs";
 
-	ANIMATION_MANAGER*  LINE_MESH::getAnimationManager()
-	{
-		return this;
-	}
+        anim->fx.fxPS->ptrCurrentShader = anim->fx.fxPS->loadEffect(fileNamePs, getCodePScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
+        anim->fx.fxVS->ptrCurrentShader = anim->fx.fxVS->loadEffect(fileNameVs, getCodeVScolorFor_LINE_MESH(), TYPE_ANIMATION_PAUSED);
+        if (!anim->fx.fxPS->ptrCurrentShader || !anim->fx.fxVS->ptrCurrentShader)
+            return false;
+        const bool ret = anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, getFvfFromBuffer());
+        if (!ret)
+        {
+            PRINT_IF_DEBUG("failed to compile shader:%s", fileNamePs);
+            return false;
+        }
+        else
+        {
+            float c[4] = { 1, 0, 0, 1 };
+            if (!anim->fx.fxPS->ptrCurrentShader->addVar("color", VAR_COLOR_RGBA, c, anim->fx.shader.ptrShaderSpecific, true))
+            {
+#if defined _DEBUG
+                PRINT_IF_DEBUG("failed to included variable %s shader %s!", "color", fileNamePs);
+#endif
+            }
+            for (unsigned int i = 0; i < anim->fx.fxPS->ptrCurrentShader->getTotalVar(); ++i)
+            {
+                VAR_SHADER* varShader = anim->fx.fxPS->ptrCurrentShader->getVar(i);
+                if (varShader)
+                {
+                    varShader->set(c, c, 1.0f);
+                }
+            }
+        }
+        return true;
+    }
+
+    FVF_PROVIDE_BY_ENGINE LINE_MESH::getFvfFromBuffer() const noexcept
+    {
+        if (lsLines.empty() || !lsLines[0]->buffer.isLoadedBuffer())
+            return FVF_PROVIDE_BY_ENGINE::FVF_NONE;
+        return lsLines[0]->buffer.fvf;
+    }
+
+    FX*  LINE_MESH::getFx()const
+    {
+        auto * anim = getAnimation();
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
+
+    ANIMATION_MANAGER*  LINE_MESH::getAnimationManager()
+    {
+        return this;
+    }
     
     const mbm::INFO_PHYSICS * LINE_MESH::getInfoPhysics() const
     {

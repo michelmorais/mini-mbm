@@ -26,11 +26,13 @@ extern "C"
 
 #include <lua-wrap/render-table/render-2-texture-lua.h>
 #include <lua-wrap/common-methods-lua.h>
+#include <lua-wrap/texture-info-lua.h>
 #include <plugin-helper/user-data-lua.h>
 #include <plugin-helper/plugin-helper.h>
 #include <render/render-2-texture.h>
 #include <lua-wrap/vec3-lua.h>
 #include <platform/mismatch-platform.h>
+#include <core_mbm/scene.h>
 
 #if DEBUG_FREE_LUA
 	#include <core_mbm/util-interface.h>
@@ -81,18 +83,18 @@ namespace mbm
         const unsigned int h        = top > 2 ? luaL_checkinteger(lua, 3) : (unsigned int)device->getScaleBackBufferHeight();
         const bool         hasAlpha = top > 3 ? (lua_toboolean(lua, 4) ? true : false) : true;
         const char *       fileName = top > 4 ? luaL_checkstring(lua, 5) : getRandomNameTexture();
-        int texture_id              = 0;
-        if (render2texture->load(w, h, w, h, fileName, hasAlpha,&texture_id))
+        mbm::TEXTURE * texture = render2texture->load(w, h, w, h, fileName, hasAlpha);
+        if (texture)
         {
             lua_pushboolean(lua, 1);
             lua_pushstring(lua, fileName);
-            lua_pushinteger(lua,texture_id);
+            onNewTextureInfoLua(lua, texture);
         }
         else
         {
             lua_pushboolean(lua, 0);
             lua_pushnil(lua);
-            lua_pushinteger(lua,0);
+            lua_pushnil(lua);
         }
         return 3;
     }

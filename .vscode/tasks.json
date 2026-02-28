@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build mini-mbm (Debug)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/p:Configuration=Debug",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
+    }
+  ]
+}

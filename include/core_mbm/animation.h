@@ -59,8 +59,8 @@ namespace mbm
         API_IMPL void restart();
         API_IMPL void updateEffect(const float delta);
         API_IMPL bool endEffect();
-		API_IMPL bool isEndedFx()const;
-		API_IMPL void forceEndFx();
+        API_IMPL bool isEndedFx()const;
+        API_IMPL void forceEndFx();
         API_IMPL bool setNewTimeAnim(const float newTimeAnim);
         API_IMPL bool adjustMinMax(const uint32_t indexVar, const float min[4], const float max[4], const float timeAnim);
       private:
@@ -71,22 +71,20 @@ namespace mbm
     class ANIMATION
     {
         friend class ANIMATION_MANAGER;
+        friend class ANIMATION_BACKUP;
       public:
         char           nameAnimation[32];
         float          intervalChangeFrame;  
         int            indexInitialFrame;    
         int            indexFinalFrame;      
         int            indexCurrentFrame;    
-        BLEND_OPENGLES blendState;           
+        BLEND_STATE    blendState;
         bool           isEndedThisAnimation; 
         bool           currentWayGrowingOfAnimation;
-        TYPE_ANIMATION type; // Tipo_Animacao (TYPE_ANIMATION): 0:Pausa A Anima��o 1:Crescente ->Ex.:Anima��o De 1 a 5 >>Vai
-                             // Na Ordem Crescente De 1 a 5 e Para Na 5, 2:Crescente Com Loop ->Ex.:Anima��o De 1 a 5 >>Vai Na
-                             // Ordem Crescente e Faz Loop De 1 a 5,    3:Decrescente ->Ex.:Anima��o De 5 a 1 >>Vai Na Ordem
-                             // Decrescente De 5 a 1 e Para Na 1, 4:Decrescente Com Loop ->Ex.:Anima��o De 5 a 1 >>Vai Na
-                             // Ordem Decrescente e Faz Loop De 5 a 1, 5:Recursiva:Anima��o Inicial e a Final De Modo
-                             // Crescente e Decrescente , 6:Recursiva Com Loop:Anima��o Inicial e a Final De Modo Crescente e
-                             // Decrescente Com loop
+        TYPE_ANIMATION type; // 0:Pause animation 1:Increasing (e.g. 1 to 5, stops at 5)
+                             // 2:Increasing with loop (e.g. 1 to 5, loops) 3:Decreasing (e.g. 5 to 1, stops at 1)
+                             // 4:Decreasing with loop 5:Recursive (increasing then decreasing)
+                             // 6:Recursive with loop
         FX					fx;//the effect shader to this animations
     
         API_IMPL ANIMATION();
@@ -97,6 +95,99 @@ namespace mbm
                                         OnEndEffect onEndFX);
       private:
         float currentTimeToChangeAnimation; 
+    };
+
+    class ANIMATION_BACKUP
+    {
+    public:
+        ANIMATION_BACKUP() noexcept = default;
+        ~ANIMATION_BACKUP() noexcept;
+        // Prevent copying
+        // Move semantics
+        ANIMATION_BACKUP(ANIMATION_BACKUP&& other) = delete;
+        ANIMATION_BACKUP& operator=(ANIMATION_BACKUP&& other) = delete;
+
+        // Prevent copying
+        ANIMATION_BACKUP(const ANIMATION_BACKUP&) = delete;
+        ANIMATION_BACKUP& operator=(const ANIMATION_BACKUP&) = delete;
+
+        API_IMPL void backup(ANIMATION_MANAGER* animationManager);
+        API_IMPL void restore(ANIMATION_MANAGER* animationManager);
+    private:
+
+        struct VAR_SHADER_BACKUP
+        {
+            const std::string     name;
+            const TYPE_VAR_SHADER typeVar;
+            const bool            isPS;
+            const int             sizeVar;
+            float                 current[4];
+            float                 min[4];
+            float                 max[4];
+            float                 step[4];
+            bool                  control[4];
+            bool                  granThen[4];
+
+            explicit VAR_SHADER_BACKUP(const VAR_SHADER* var) noexcept;
+            ~VAR_SHADER_BACKUP() = default;
+            // Prevent copying
+            // Move semantics
+            VAR_SHADER_BACKUP(VAR_SHADER_BACKUP&& other) = delete;
+            VAR_SHADER_BACKUP& operator=(VAR_SHADER_BACKUP&& other) = delete;
+
+            // Prevent copying
+            VAR_SHADER_BACKUP(const VAR_SHADER_BACKUP&) = delete;
+            VAR_SHADER_BACKUP& operator=(const VAR_SHADER_BACKUP&) = delete;
+        };
+
+        struct FX_BACKUP
+        {
+            const STATUS_FX			statusFxPs;
+            const STATUS_FX			statusFxVs;
+            const TYPE_ANIMATION    typeAnimPs;
+            const TYPE_ANIMATION    typeAnimVs;
+            const float             timeAnimationPs;
+            const float             timeAnimationVs;
+
+            std::vector<VAR_SHADER_BACKUP*> varsPS;
+            std::vector<VAR_SHADER_BACKUP*> varsVS;
+
+            void restoreFX(mbm::ANIMATION& anim) const noexcept;
+            
+            FX_BACKUP(const ANIMATION& anim) noexcept;
+            ~FX_BACKUP() noexcept;
+            // Prevent copying
+            // Move semantics
+            FX_BACKUP(FX_BACKUP&& other) = delete;
+            FX_BACKUP& operator=(FX_BACKUP&& other) = delete;
+            
+            // Prevent copying
+            FX_BACKUP(const FX_BACKUP&) = delete;
+            FX_BACKUP& operator=(const FX_BACKUP&) = delete;
+        };
+
+        struct ANIMATION_STATE
+        {
+            char           nameAnimation[32];
+            float          intervalChangeFrame;
+            int            indexInitialFrame;
+            int            indexFinalFrame;
+            int            indexCurrentFrame;
+            BLEND_STATE    blendState;
+            bool           isEndedThisAnimation;
+            bool           currentWayGrowingOfAnimation;
+            TYPE_ANIMATION type;
+            float          currentTimeToChangeAnimation;
+
+            std::string    fx_textureOverrideStage2; // fx
+            bool           fx_textureOverrideStage2Alpha; // fx
+            int            fx_blendOperation; // fx
+        };
+
+        void clearBackup() noexcept;
+        std::vector<ANIMATION_STATE> lsAnimationState;
+        std::vector<FX_BACKUP*>      lsFxBackup;
+        uint32_t                     indexCurrentAnimation;
     };
 
     class ANIMATION_MANAGER
@@ -119,15 +210,18 @@ namespace mbm
         API_IMPL uint32_t addAnimation();
         API_IMPL bool isEndedAnimation() const noexcept;
         API_IMPL void releaseAnimation();
-        
         API_IMPL virtual bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha);
+        API_IMPL void backupAnimations() noexcept; // called automatically by engine (CORE_MANAGER)
+        API_IMPL void restoreBackupAnimations() noexcept;// called automatically by engine (CORE_MANAGER)
     
-        uint32_t             indexCurrentAnimation;
-        OnEndAnimation           onEndAnimation;
-        OnEndEffect              onEndFx;
-        std::vector<ANIMATION *> lsAnimation;
+        uint32_t                    indexCurrentAnimation;
+        OnEndAnimation              onEndAnimation;
+        OnEndEffect                 onEndFx;
+        std::vector<ANIMATION *>    lsAnimation;
+        ANIMATION_BACKUP            animationBackup;// to be used on restore device
     };
 
+    
 }
 
 #endif

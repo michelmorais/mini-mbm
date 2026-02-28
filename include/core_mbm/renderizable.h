@@ -23,6 +23,7 @@
 #include "core-exports.h"
 #include "primitives.h"
 #include "blend.h"
+#include "shader.h"
 #include <string>
 #include <map>
 
@@ -104,12 +105,15 @@ namespace mbm
         API_IMPL virtual bool                isLoaded() const       = 0;
         API_IMPL virtual FX*                 getFx() const          = 0;
         API_IMPL virtual ANIMATION_MANAGER*  getAnimationManager()  = 0;
+        /** FVF from BUFFER_GL (single source of truth). Must be implemented by every RENDERIZABLE subclass. */
+        API_IMPL virtual FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept = 0;
 
       protected:
         API_IMPL virtual bool isOnFrustum()     = 0;
         API_IMPL virtual bool render()          = 0;
-        API_IMPL virtual bool onRestoreDevice() = 0;
-        API_IMPL virtual void onStop()          = 0;
+        API_IMPL virtual bool onRestoreDevice() = 0;// In this function, make sure that the object is loaded, later the engine will fill in the animation state with onRestoreAnimationsState
+        API_IMPL virtual void onStop() final;
+        API_IMPL virtual void onRestoreAnimationsState() final;
       public:
         API_IMPL virtual void updateAABB();
 
@@ -121,9 +125,8 @@ namespace mbm
     class RENDERIZABLE_TO_TARGET : public RENDERIZABLE
     {
       public:
-        uint32_t idFrameBuffer;
-        uint32_t idDepthRenderbuffer;
-        int          idTextureDynamic;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
+        void* specificConfig; // specific configuration for each graphic API (backend)
         uint32_t widthTexture;
         uint32_t heightTexture;
         COLOR        colorClearBackGround;

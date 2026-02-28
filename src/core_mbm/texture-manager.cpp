@@ -18,7 +18,6 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #include <texture-manager.h>
-#include <gles-debug.h>
 #include <renderizable.h>
 #include <uber-image.h>
 #include <image-resource.h>
@@ -26,26 +25,37 @@
 
 #include <lodepng/lodepng.h>
 #include <stb/stb-interface.h>
+#include <static-resource/resource-particle.h>
 
 #if defined ANDROID
-    #include <platform/common-jni.h>
+    #include <device.h>
+    #if defined     USE_OPENGL_ES
+        #if defined (USE_DUMMY_BACK_END_ENGINE)
+            // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+            #include <dummy-engine.h> // for REMINDER_TODO, you can remove it after implement the functions
+        #else
+            #include <core_mbm/specific-opengl_es.h>
+        #endif
+    #endif
 #endif
 
 #include <platform/mismatch-platform.h>
 #include <cstring>
+#include <cstdio>
 
 #if defined USE_EDITOR_FEATURES
-    #if (defined __linux__ || defined _WIN32) && !defined ANDROID
+    #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
         #include <tinyfiledialogs/tinyfiledialogs.h>
     #endif
 #endif
 
 namespace mbm
 {
-    bool TEXTURE::no_filter = false;
+    bool TEXTURE::pixelPerfectTexture = false;
 
     TEXTURE::TEXTURE() noexcept
     {
+        ptrTexture      = nullptr;
         idTexture       = 0;
         fileName[0]     = 0;
         width           = 0;
@@ -61,18 +71,6 @@ namespace mbm
     TEXTURE::~TEXTURE()
     {
         release();
-    }
-    
-    void TEXTURE::release()
-    {
-        if (idTexture)
-        {
-            GLDeleteTextures(1, &idTexture);
-        }
-        idTexture       = 0;
-        width           = 0;
-        height          = 0;
-        useAlphaChannel = false;
     }
     
     const char * TEXTURE::getFileNameTexture() const noexcept
@@ -198,80 +196,81 @@ namespace mbm
         return false;
     }
 
-	bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
-	{
-		if(colorAsString == nullptr)
-		{
-			PRINT_IF_DEBUG("Color string expected is null");
-			return false;
-		}
-		if(colorAsString[0] != '#')
-		{
-			PRINT_IF_DEBUG("Color string expected is '#'");
-			return false;
-		}
-		this->fileName = colorAsString;
-		COLOR color;
-		colorAsString++;
-		int len = strlen(colorAsString);
-		if (len == 8)
-		{
-			char alpha[3] = {0,0,0};
-			alpha[0] = *colorAsString;
-			colorAsString++;
-			alpha[1] = *colorAsString;
-			colorAsString++;
-			const int n = strtol(colorAsString,nullptr, 16);
-			color = COLOR(n);
-			color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
-		}
-		else if (len == 6)
-		{
-			const int n = strtol(colorAsString, nullptr, 16);
-			color = COLOR(n);
-			color.a = 1.0f;
-		}
-		if(hasColorAlpha)
-		{
-			uint8_t pixel[4 * 4 * 4];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			uint8_t a = 255;
-			color.get(&r,&g,&b,&a);
-			for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-				pixel[i+3] = a;
-			}
-			return this->loadFromData(pixel,4,4,8,4,true);
-		}
-		else
-		{
-			uint8_t pixel[4 * 4 * 3];
-			uint8_t r = 0;
-			uint8_t g = 0;
-			uint8_t b = 0;
-			color.get(&r,&g,&b);
-			for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
-			{
-				pixel[i] = r;
-				pixel[i+1] = g;
-				pixel[i+2] = b;
-			}
-			return this->loadFromData(pixel,4,4,8,3,false);
-		}
-	}
+    bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
+    {
+        if(colorAsString == nullptr)
+        {
+            PRINT_IF_DEBUG("Color string expected is null");
+            return false;
+        }
+        if(colorAsString[0] != '#')
+        {
+            PRINT_IF_DEBUG("Color string expected is '#'");
+            return false;
+        }
+        this->fileName = colorAsString;
+        COLOR color;
+        colorAsString++;
+        int len = strlen(colorAsString);
+        if (len == 8)
+        {
+            char alpha[3] = {0,0,0};
+            alpha[0] = *colorAsString;
+            colorAsString++;
+            alpha[1] = *colorAsString;
+            colorAsString++;
+            const int n = strtol(colorAsString,nullptr, 16);
+            color = COLOR(n);
+            color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
+        }
+        else if (len == 6)
+        {
+            const int n = strtol(colorAsString, nullptr, 16);
+            color = COLOR(n);
+            color.a = 1.0f;
+        }
+        if(hasColorAlpha)
+        {
+            uint8_t pixel[4 * 4 * 4];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            uint8_t a = 255;
+            color.get(&r,&g,&b,&a);
+            for (uint32_t i = 0; i < 4 * 4 * 4; i += 4)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+                pixel[i+3] = a;
+            }
+            return this->loadFromData(pixel,4,4,8,4,true);
+        }
+        else
+        {
+            uint8_t pixel[4 * 4 * 3];
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            color.get(&r,&g,&b);
+            for (uint32_t i = 0; i < 4 * 4 * 3; i += 3)
+            {
+                pixel[i] = r;
+                pixel[i+1] = g;
+                pixel[i+2] = b;
+            }
+            return this->loadFromData(pixel,4,4,8,3,false);
+        }
+    }
     
     bool TEXTURE::load(const char *fileNameTexture, const bool hasColorAlpha)
     {
         if (!fileNameTexture)
             return false;
+        this->release();
         this->useAlphaChannel = true;
-		if(fileNameTexture[0] == '#' )
-			return loadSolidColor(fileNameTexture,hasColorAlpha);
+        if(fileNameTexture[0] == '#' )
+            return loadSolidColor(fileNameTexture,hasColorAlpha);
         std::vector<std::string> result;
         util::split(result, fileNameTexture, '.');
         if (result.size() == 0)
@@ -321,24 +320,36 @@ namespace mbm
                 return true;
             return false;
         }
+        else if (fileNameTexture && strcmp(fileNameTexture, nickNameImageFromResource_particle) == 0) // trick to return particle texture from resource
+        {
+            TEXTURE* resouce = TEXTURE_MANAGER::getInstance()->load(fileNameTexture, true);
+            if (resouce)
+            {
+                this->ptrTexture = resouce->ptrTexture;
+                this->width = resouce->width;
+                this->height = resouce->height;
+                this->fileName = fileNameTexture;
+                this->useAlphaChannel = true;
+            }
+            return resouce != nullptr;
+        }
         else
         {
             int       x    = 0;
             int       y    = 0;
             int       comp = 0;
+            bool    ret_result = false;
             const int n    = hasColorAlpha == true ? 4 : 3;
             stbi_uc * data = stbi_load(fileNameTexture, &x, &y, &comp, n);
             if (data && x && y && comp)
             {
                 this->width  = static_cast<uint32_t>(x);
                 this->height = static_cast<uint32_t>(y);
-                bool ret;
                 if (hasColorAlpha)
-                    ret = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
+                    ret_result = this->loadFromData(data, this->width, this->height, 8, 4, hasColorAlpha);
                 else
-                    ret = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
+                    ret_result = this->loadFromData(data, this->width, this->height, 8, 3, hasColorAlpha);
                 free(data);
-                return ret;
             }
             else
             {
@@ -356,14 +367,14 @@ namespace mbm
                 }
 #endif
                 PRINT_IF_DEBUG("failed to load texture %s .", fileNameTexture);
-                return false;
             }
+            return ret_result;
         }
     }
 
     void TEXTURE::enableFilter(bool value) noexcept
     {
-        TEXTURE::no_filter = !value;
+        TEXTURE::pixelPerfectTexture = !value;
     }
     
     uint32_t TEXTURE::getWidth()const noexcept
@@ -376,13 +387,20 @@ namespace mbm
         return this->height;
     }
     
-#if defined ANDROID
+#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
+    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+    bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha)
+    {
+        return false;
+    }
+#elif defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
     {
-        util::COMMON_JNI *jni   = util::COMMON_JNI::getInstance();
+        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         int              wint   = 0;
         int              hint   = 0;
-        uint8_t *  pixels = jni->getImageDataFromDroid(_fileName, &wint, &hint);
+        uint8_t *  pixels = cJni->getImageDataFromDroid(_fileName, &wint, &hint);
         if (pixels)
         {
             if (wint < 0 && hint < 0)
@@ -410,375 +428,6 @@ namespace mbm
     }
 #endif
     
-    bool TEXTURE::loadFromData(const uint8_t *data, // Bitmap or uber image
-                             const uint32_t w, const uint32_t h, const uint16_t depth,
-                             const uint16_t channel, const bool hasAlpha)
-    {
-        if (!data)
-            return false;
-
-        mbm::UBER_IMG        uberImg;
-        const uint8_t *img = uberImg.getImage8bitsPerPixel(data, w, h, depth, channel);
-        if (!img)
-        {
-            PRINT_IF_DEBUG("failed to load texture ");
-            return false;
-        }
-        this->width  = w;
-        this->height = h;
-        GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
-        if (idTexture == 0)
-        {
-            if (uberImg.getImage() == nullptr)
-                delete[] img;
-            return false;
-        }
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
-        uint8_t *rgba_toDelete = nullptr;
-        if (channel == 4)
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
-        }
-        else if (hasAlpha)
-        {
-            auto     rgba      = new uint8_t[width * height * 4];
-            const uint32_t sizeImage = width * height * 3;
-            rgba_toDelete                = rgba;
-            for (uint32_t i = 0, j = 0; i < sizeImage; i += 3, j += 4)
-            {
-                const uint8_t r = img[i];
-                const uint8_t g = img[i + 1];
-                const uint8_t b = img[i + 2];
-                rgba[j]               = r;
-                rgba[j + 1]           = g;
-                rgba[j + 2]           = b;
-                rgba[j + 3]           = 255; // 255 - opcao totalmente opaco
-            }
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-        }
-        else
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, img);
-        }
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        }
-        else
-        {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-        if (rgba_toDelete)
-            delete[] rgba_toDelete;
-        this->useAlphaChannel = hasAlpha ? true : false;
-        return true;
-    }
-    
-    bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE *image)
-    {
-        if (!image)
-            return false;
-        this->width           = image->width;
-        this->height          = image->height;
-        this->useAlphaChannel = true;
-        GLPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        GLGenTextures(1, &idTexture);
-        if (idTexture == 0)
-            return false;
-        GLBindTexture(GL_TEXTURE_2D, idTexture);
-        GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        }
-        else
-        {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-        return true;
-    }
-
-    TEXTURE_SHARED * TEXTURE_SHARED::getInstance()
-    {
-        if (instanceTextureShared == nullptr)
-            instanceTextureShared = new TEXTURE_SHARED();
-        return instanceTextureShared;
-    }
-    
-    void TEXTURE_SHARED::release()
-    {
-        if (instanceTextureShared != nullptr)
-            delete instanceTextureShared;
-        instanceTextureShared = nullptr;
-    }
-
-    TEXTURE_SHARED::TEXTURE_SHARED()
-    {
-        this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
-    {
-        const char *       fileName = nickName;
-        const uint32_t width    = renderToTarget->widthTexture;
-        const uint32_t height   = renderToTarget->heightTexture;
-        if (fileName == nullptr || fileName[0] == 0)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        GLGenFramebuffers(1, &idFrameBuffer);
-        GLGenRenderbuffers(1, &idRenderBuffer);
-        GLGenTextures(1, &idTexture2d);
-
-        // texture
-        GLBindTexture(GL_TEXTURE_2D, idTexture2d);
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        }
-        else
-        {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-
-        if (enableAlpha)
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        }
-        else
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        }
-        // depth buffer
-        GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
-        // frame buffer
-        GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
-        // attachments
-        GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
-        GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
-        //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE)
-        {
-            return nullptr;
-        }
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        GLBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        pTexture->idTexture                  = idTexture2d;
-        pTexture->width                      = width;
-        pTexture->height                     = height;
-        pTexture->useAlphaChannel            = enableAlpha;
-        pTexture->fileName                   = nickName;
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const IMAGE_RESOURCE *imageResource)
-    {
-        if (!imageResource)
-            return nullptr;
-        if (static_cast<int>(imageResource->width) > this->maxTextureSize || static_cast<int>(imageResource->height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.",imageResource->width > imageResource->height ? imageResource->width : imageResource->height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(imageResource->nickName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromResourceData(imageResource))
-        {
-            pTexture->fileName = imageResource->nickName;
-            return pTexture;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s",imageResource->nickName);
-            return std::shared_ptr<TEXTURE>();
-        }
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, channel == 4))
-        {
-            pTexture->fileName = fileName;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", nickName);
-        }
-        if (channel == 4)
-            pTexture->useAlphaChannel = true;
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const uint32_t width, const uint32_t height, const uint8_t *data,
-                         const char *nickName, const uint16_t depth, const uint16_t channel,
-                         const bool hasAlpha)
-    {
-        const char *fileName = nickName;
-        if (!fileName)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadFromData(data, width, height, depth, channel, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s", nickName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::load(const char *fileName, const bool hasAlpha)
-    {
-        if (!fileName)
-            return nullptr;
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileName);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->load(fileName, hasAlpha))
-        {
-            pTexture->fileName = fileName;
-            pTexture->useAlphaChannel = hasAlpha ? true : false;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
-        }
-        return pTexture;
-    }
-    
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadTTF(const char *fileNameTTF, std::vector<stbtt_aligned_quad *> *lsStbFontOut,
-                     std::vector<VEC2> *lsWidthLetterOut, const float heightLetter)
-    {
-        std::shared_ptr<TEXTURE> pTexture = loadFromCache(fileNameTTF);
-        if (pTexture->isLoaded())
-            return pTexture;
-        if (pTexture->loadTTF(fileNameTTF, lsStbFontOut, lsWidthLetterOut, heightLetter,false))
-        {
-            pTexture->fileName = fileNameTTF;
-            pTexture->useAlphaChannel = true;
-        }
-        else
-        {
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileNameTTF);
-        }
-        return pTexture;
-    }
-    
-    bool TEXTURE_SHARED::existTexture(const char *fileNametexture)
-    {
-        if (fileNametexture == nullptr)
-            return false;
-        std::shared_ptr<TEXTURE> tex = cache[fileNametexture].lock();
-        if (tex && tex->isLoaded())
-            return true;
-        return false;
-    }
-    
-    void TEXTURE_SHARED::setPath(const char *PathSource)
-    {
-        strncpy(pathSource, PathSource,sizeof(pathSource)-1);
-    }
-    
-    bool TEXTURE_SHARED::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
-                              const uint32_t width, const uint32_t height, char *strMessageError)
-    {
-        unsigned  int error = 0;
-        std::vector<uint8_t> png;
-        error = lodepng::encode(png, image, width, height, channel == 3 ? LCT_RGB : LCT_RGBA);
-        if (error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        error = lodepng::save_file(png, fileName);
-        if(error)
-        {
-            if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
-            return false;
-        }
-        return true;
-    }
-    std::shared_ptr<TEXTURE> TEXTURE_SHARED::loadFromCache(const std::string &fileName)
-    {
-        std::shared_ptr<TEXTURE> objPtr = cache[fileName].lock();
-        if(!objPtr)
-        {
-            std::shared_ptr<TEXTURE> tex(new TEXTURE());
-            cache[fileName] = tex;
-            return tex;
-        }
-        return objPtr;
-    }
-
-    TEXTURE_SHARED* TEXTURE_SHARED::instanceTextureShared = nullptr; 
-
     TEXTURE_MANAGER * TEXTURE_MANAGER::getInstance()
     {
         if (instanceTextureManager == nullptr)
@@ -791,89 +440,6 @@ namespace mbm
         if (instanceTextureManager != nullptr)
             delete instanceTextureManager;
         instanceTextureManager = nullptr;
-    }
-    
-    TEXTURE * TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
-                                              const bool enableAlpha)
-    {
-        std::string fileNameBase    = util::getBaseName(nickName);
-        const auto width         = static_cast<GLsizei>(renderToTarget->widthTexture);
-        const auto height        = static_cast<GLsizei>(renderToTarget->heightTexture);
-        if (fileNameBase.size() == 0)
-            return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
-        {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
-            return nullptr;
-        }
-        TEXTURE *texture = lsTextures[fileNameBase];
-        if (texture)
-            return texture;
-        texture = new TEXTURE();
-
-        uint32_t idFrameBuffer  = 0;
-        uint32_t idTexture2d    = 0;
-        uint32_t idRenderBuffer = 0;
-        GLGenFramebuffers(1, &idFrameBuffer);
-        GLGenRenderbuffers(1, &idRenderBuffer);
-        GLGenTextures(1, &idTexture2d);
-
-        // texture
-        GLBindTexture(GL_TEXTURE_2D, idTexture2d);
-
-        if (TEXTURE::no_filter)
-        { // TILE MAP Mode
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        }
-        else
-        {
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        }
-
-        if (enableAlpha)
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        }
-        else
-        {
-            GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-        }
-        // depth buffer
-        GLBindRenderbuffer(GL_RENDERBUFFER, idRenderBuffer);
-        GLRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
-        // frame buffer
-        GLBindFramebuffer(GL_FRAMEBUFFER, idFrameBuffer);
-        // attachments
-        GLFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, idTexture2d, 0);
-        GLFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, idRenderBuffer);
-        //
-        const GLenum status = GLCheckFramebufferStatus(GL_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE)
-        {
-            delete texture;
-            return nullptr;
-        }
-        GLBindTexture(GL_TEXTURE_2D, 0);
-        GLBindFramebuffer(GL_FRAMEBUFFER, 0);
-        GLBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-        renderToTarget->idFrameBuffer       = idFrameBuffer;
-        renderToTarget->idDepthRenderbuffer = idRenderBuffer;
-        renderToTarget->idTextureDynamic    = static_cast<int>(idTexture2d);
-        texture->idTexture                  = idTexture2d;
-        texture->width                      = static_cast<uint32_t>(width);
-        texture->height                     = static_cast<uint32_t>(height);
-        texture->useAlphaChannel            = enableAlpha;
-        texture->fileName                   = std::move(fileNameBase);
-        lsTextures[texture->fileName]       = texture;
-        return texture;
     }
     
     TEXTURE * TEXTURE_MANAGER::load(const IMAGE_RESOURCE *imageResource)
@@ -896,6 +462,7 @@ namespace mbm
         {
             texture->fileName = std::move(fileNameBase);
             lsTextures[texture->fileName] = texture;
+            texture->useAlphaChannel = true;
         }
         else
         {
@@ -990,7 +557,17 @@ namespace mbm
         {
             delete texture;
             texture = nullptr;
-            PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            texture = this->loadNativeEngine(fileName, hasAlpha);// fallback try to load native load method (e.g using Directx, LoadTxtureFromFile)
+            if (texture)
+            {
+                texture->fileName = std::move(fileNameBase);
+                texture->useAlphaChannel = hasAlpha ? true : false;
+                lsTextures[texture->fileName] = texture;
+            }
+            else
+            {
+                PRINT_IF_DEBUG("failed to load texture: %s.", fileName);
+            }
         }
         return texture;
     }
@@ -1162,12 +739,124 @@ namespace mbm
         lodepng::save_file(png, fileName);
         return true;
     }
-    
-    TEXTURE_MANAGER::TEXTURE_MANAGER()
+
+    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    static bool generateImageFromPng(const char* pngPath,
+        std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
+        char* strMessageError)
     {
-        this->maxTextureSize = 0;
-        GLGetIntegerv(GL_MAX_TEXTURE_SIZE, &this->maxTextureSize);
-        memset(pathSource, 0, sizeof(pathSource));
+        if (!pngPath)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "PNG path is null");
+            return false;
+        }
+        std::vector<uint8_t> image;
+        unsigned w = 0, h = 0;
+        unsigned error = lodepng::decode(image, w, h, pngPath, LCT_RGBA, 8);
+        if (error)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "PNG decode error [%s]", lodepng_error_text(error));
+            return false;
+        }
+        const uint32_t width = static_cast<uint32_t>(w);
+        const uint32_t height = static_cast<uint32_t>(h);
+        const size_t pixelCount = static_cast<size_t>(width) * height;
+        outData.resize(pixelCount);
+        // Store as RGBA in memory (R at lowest address) to match OpenGL GL_RGBA and DirectX expectations
+        for (size_t i = 0; i < pixelCount; ++i)
+        {
+            const size_t j = i * 4;
+            const uint8_t r = image[j];
+            const uint8_t g = image[j + 1];
+            const uint8_t b = image[j + 2];
+            const uint8_t a = image[j + 3];
+            outData[i] = r | (static_cast<uint32_t>(g) << 8) | (static_cast<uint32_t>(b) << 16)
+                | (static_cast<uint32_t>(a) << 24);
+        }
+        outWidth = width;
+        outHeight = height;
+        return true;
+    }
+    #endif
+
+    bool TEXTURE_MANAGER::generateImageResourceHeaderFromPng(const char* pngPath,
+        const char* outputHeaderPath, const char* resourceName,
+        char* strMessageError)
+    {
+        #if defined USE_EDITOR_FEATURES && !defined ANDROID
+        std::vector<uint32_t> data;
+        uint32_t width = 0, height = 0;
+        if (!generateImageFromPng(pngPath, data, width, height, strMessageError))
+            return false;
+        if (!outputHeaderPath || !resourceName)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "output path or resource name is null");
+            return false;
+        }
+        FILE* fp = fopen(outputHeaderPath, "w");
+        if (!fp)
+        {
+            if (strMessageError)
+                sprintf(strMessageError, "failed to open output file [%s]", outputHeaderPath);
+            return false;
+        }
+        const uint32_t size = width * height;
+        fprintf(fp, "/*-----------------------------------------------------------------------------------------------------------------------|\n");
+        fprintf(fp, "| MIT License (MIT)                                                                                                      |\n");
+        fprintf(fp, "| Copyright (C) 2026      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |\n");
+        fprintf(fp, "| documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation      |\n");
+        fprintf(fp, "| the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and       |\n");
+        fprintf(fp, "| to permit persons to whom the Software is furnished to do so, subject to the following conditions:                     |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| The above copyright notice and this permission notice shall be included in all copies or substantial portions of       |\n");
+        fprintf(fp, "| the Software.                                                                                                          |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "| THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE |\n");
+        fprintf(fp, "| WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR  |\n");
+        fprintf(fp, "| COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR       |\n");
+        fprintf(fp, "| OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |\n");
+        fprintf(fp, "|                                                                                                                        |\n");
+        fprintf(fp, "|-----------------------------------------------------------------------------------------------------------------------*/\n\n");
+        fprintf(fp, "#ifndef MY_RESOUCE_%s\n", resourceName);
+        fprintf(fp, "#define MY_RESOUCE_%s\n\n", resourceName);
+        fprintf(fp, "    #include <core_mbm/image-resource.h>\n\n");
+        fprintf(fp, "    static const char * nickNameImageFromResource_%s  = \"__%s\\0\";\n", resourceName, resourceName);
+        fprintf(fp, "    static const uint32_t widthImageFromResource_%s  = %u;\n", resourceName, width);
+        fprintf(fp, "    static const uint32_t heightImageFromResource_%s = %u;\n", resourceName, height);
+        fprintf(fp, "    static const uint32_t sizeImageFromResource_%s = %u;\n", resourceName, size);
+        fprintf(fp, "    static const uint32_t alphaImageFromResource_%s = 0xffffffff;\n\n", resourceName);
+        fprintf(fp, "    static const uint32_t imageFromResource_%s [] = {\n", resourceName);
+        constexpr int valuesPerLine = 22;
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            if (i > 0)
+            {
+                fprintf(fp, ",");
+                if (i % valuesPerLine == 0)
+                    fprintf(fp, "\n");
+            }
+            fprintf(fp, "0x%x", data[i]);
+        }
+        fprintf(fp, "\n};\n");
+        fprintf(fp, "namespace mbm\n");
+        fprintf(fp, "{\n");
+        fprintf(fp, "    const IMAGE_RESOURCE resource_%s(widthImageFromResource_%s,heightImageFromResource_%s,sizeImageFromResource_%s,nickNameImageFromResource_%s,imageFromResource_%s,alphaImageFromResource_%s);\n",
+            resourceName, resourceName, resourceName, resourceName, resourceName, resourceName, resourceName);
+        fprintf(fp, "}\n\n");
+        fprintf(fp, "#endif\n");
+        fclose(fp);
+        return true;
+        #else
+        if (strMessageError)
+            sprintf(strMessageError, "editor features are not enabled");
+        INFO_AT(__LINE__,__FILE__,"editor features are not enabled");
+        return false;
+        #endif
     }
     
     TEXTURE_MANAGER::~TEXTURE_MANAGER()
@@ -1183,17 +872,27 @@ namespace mbm
     
     const char * TEXTURE_MANAGER::getFilePathTexture(const char *fileName,const char* fullFileName)
     {
-		if(fileName && fileName[0] == '#')
-			return fileName;
+        if(fileName && fileName[0] == '#')
+            return fileName;
 #if defined (ANDROID)
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
         if (!existPath)
-            return fileName;
-        else
-            return fileName;
+        {
+            // If the file is the particle resource, load it and return the nick name
+            if (strcmp(fileName, nickNameImageFromResource_particle) == 0)
+            {
+                TEXTURE* texture = this->load(&resource_particle);
+                if (texture)
+                {
+                    fullFileName = fileName;
+                    return nickNameImageFromResource_particle;
+                }
+            }
+        }
+        return fileName;
     }
-#elif defined(_WIN32) || defined(__linux__)
+#elif defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
         bool          existPath = false;
         fileName                = util::getFullPath(fileName, &existPath);
         if (!existPath)
@@ -1204,8 +903,18 @@ namespace mbm
             }
             if (!existPath)
             {
-#if defined USE_EDITOR_FEATURES
-        #if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID))
+                // If the file is the particle resource, load it and return the nick name
+                if(strcmp(fileName, nickNameImageFromResource_particle) == 0)
+                {
+                     TEXTURE *texture = this->load(&resource_particle);
+                     if(texture)
+                     {
+                        fullFileName = fileName;
+                        return nickNameImageFromResource_particle;
+                     }
+                }
+    #if defined USE_EDITOR_FEATURES
+        #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
@@ -1217,7 +926,7 @@ namespace mbm
                     fileName = result;
                 }
         #endif
-#endif
+    #endif
             }
         }
         return fileName;
@@ -1277,6 +986,10 @@ namespace mbm
         }
         return fileNameTexture;
     }
+    
+#else
+    #error "platform not suported"
+#endif
 
     void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
     {
@@ -1290,9 +1003,23 @@ namespace mbm
             }
         }
     }
-#else
-    #error "platform not suported"
-#endif
+
+    TEXTURE_MANAGER::TEXTURE_MANAGER()
+    {
+        memset(pathSource, 0, sizeof(pathSource));
+        this->maxTextureSize = 0;
+        this->maxTextureWidth = 0;
+        this->maxTextureHeight = 0;
+        //Remember to implement setTextureCapabilities by engine backend
+    }
+
+    void TEXTURE_MANAGER::setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound)
+    {
+        this->maxTextureSize = maxTextureSizeFound;
+        this->maxTextureWidth = maxTextureWidthFound;
+        this->maxTextureHeight = maxTextureHeightFound;
+    }
+
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
 }
 

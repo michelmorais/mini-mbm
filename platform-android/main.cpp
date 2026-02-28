@@ -16,19 +16,17 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined ANDROID
 
 #include <jni.h>
 #include <stdlib.h>
 
 #include <core_mbm/device.h>
+#include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
-#include <platform/common-jni.h>
+
 
 #include "scene-1.h" // your scene C++
-
-#ifndef ANDROID
-    #error "Target to this main is ANDRIOD"
-#endif
 
 #ifndef PACKAGE_NAME_CLASS
     #define PACKAGE_NAME_CLASS "com/mini/mbm" // how must be (if changed the whole class path at java must be replaced)
@@ -364,8 +362,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
         return JNI_FALSE;
     }
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
-    util::COMMON_JNI *jniInstance = util::COMMON_JNI::getInstance();
+    mbm::DEVICE *device = mbm::DEVICE::getInstance();
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
     jniInstance->jenv            = env;
     jniInstance->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;
 }
+#else
+    #error "Target to this main is ANDRIOD"
+#endif

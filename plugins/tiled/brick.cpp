@@ -42,7 +42,6 @@ namespace mbm
             height = texture->getHeight();
         int             indexStart = 0;
         int             indexCount = 6;
-        VEC3            normal[4];
         if(new_vertex)
         {
             vertex[0].x = new_vertex[0].x;
@@ -81,12 +80,6 @@ namespace mbm
             vertex[3].y = y;
             vertex[3].z = 0;
         }
-        for (int i = 0; i < 4; ++i)
-        {
-            normal[i].x = 0;
-            normal[i].y = 0;
-            normal[i].z = 1;
-        }
         if(new_uv)
         {
             uv[0].x = new_uv[0].x;
@@ -111,26 +104,24 @@ namespace mbm
         }
         
         unsigned short int index[6]      = {0, 1, 2, 2, 1, 3};
-        const bool ret = this->bufferGL.loadBuffer(vertex, normal, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
+        const bool ret = this->bufferGL.loadBuffer(vertex, nullptr, uv, 4, index, 1, &indexStart, &indexCount,nullptr);
         if (ret && texture)
         {
-            this->bufferGL.idTexture0[0] = texture->idTexture;
-            this->bufferGL.idTexture1    = 0;
-            this->bufferGL.useAlpha[0]   = this->texture->useAlphaChannel ? 1 : 0;
+            this->bufferGL.setTextureByStage(texture, 0, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1, 0);
         }
         else
         {
-            this->bufferGL.idTexture0[0] = 0;
-            this->bufferGL.idTexture1    = 0;
-            this->bufferGL.useAlpha[0]   = 0;
+            this->bufferGL.setTextureByStage(nullptr, 0, 0);
+            this->bufferGL.setTextureByStage(nullptr, 1, 0);
         }
     }
 
-    bool BRICK::render(SHADER *shader,const uint32_t idTexStage2)
+    bool BRICK::render(SHADER *shader,TEXTURE* idTexStage2)
     {
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.idTexture1 = idTexStage2;
+            this->bufferGL.setTextureByStage(idTexStage2, 1, 0);
             return shader->render(&this->bufferGL);
         }
         return false;
@@ -140,8 +131,7 @@ namespace mbm
         texture = _texture;
         if(this->bufferGL.isLoadedBuffer())
         {
-            this->bufferGL.idTexture0[0] = texture ? texture->idTexture : 0;
-            this->bufferGL.useAlpha[0]   = texture->useAlphaChannel ? 1 : 0;
+            this->bufferGL.setTextureByStage(texture, 0, 0);
         }
     }
 

@@ -150,11 +150,20 @@ function onInitScene()
     tLineRectTile:add({0,0,0,0})
     tLineRectTile:setColor(0,1,1)
     tLineRectTile.visible = false
+    ImGuiPopupFlags_MouseButtonRight = tImGui.Flags('ImGuiPopupFlags_MouseButtonRight')
 end
 
 function onOpenTileBinary()
     local sFileName = mbm.openFile(sFileNameTile,'*.tile')
     if sFileName then
+        for i = 1, #tMapObjects do
+            local tShape = tMapObjects[i]
+            if tShape and tShape.destroy then
+                tShape:destroy()
+            end
+        end
+        tMapObjects = {}
+        tMovingObjectMap = nil
         if tTile:load(sFileName) then
             sFileNameTile = sFileName
             tUtil.showMessage('Tile Map Loaded Successfully!')
@@ -1022,10 +1031,10 @@ function drawTileSetTab(item_width)
     if tTextureTileSet[tEditorOptions.iSelectedTileSetPreview] then
 
         if tImGui.Button('Set Image Size', {x=item_width,y=0}) then
-            local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
-            if id ~= 0 then
-                tEditorOptions.iDefaultTileSetWidth  = width
-                tEditorOptions.iDefaultTileSetHeight = height
+            local texInfo = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
+            if texInfo:isValid() then
+                tEditorOptions.iDefaultTileSetWidth  = texInfo:getWidth()
+                tEditorOptions.iDefaultTileSetHeight = texInfo:getHeight()
                 anyChange = true
             end
         end
@@ -1080,10 +1089,10 @@ function drawTileSetTab(item_width)
                                         tEditorOptions.iDefaultTileSetSpaceY,
                                         tEditorOptions.iDefaultTileSetMarginX,
                                         tEditorOptions.iDefaultTileSetMarginY)
-                    local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet[1])
-                    tEditorOptions.iWidth  = width
-                    tEditorOptions.iHeight = height
-                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = width,yEnd = height}
+                    local texInfo = mbm.loadTexture(tTextureTileSet[1])
+                    tEditorOptions.iWidth  = texInfo:getWidth()
+                    tEditorOptions.iHeight = texInfo:getHeight()
+                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = texInfo:getWidth(),yEnd = texInfo:getHeight()}
                 else
                     tTile:showTileSetPreview(tTextureTileSet,
                                         tEditorOptions.iDefaultTileSetWidth,
@@ -1092,10 +1101,10 @@ function drawTileSetTab(item_width)
                                         tEditorOptions.iDefaultTileSetSpaceY,
                                         tEditorOptions.iDefaultTileSetMarginX,
                                         tEditorOptions.iDefaultTileSetMarginY)
-                    local width,height,id, has_alpha = mbm.loadTexture(tTextureTileSet)
-                    tEditorOptions.iWidth  = width
-                    tEditorOptions.iHeight = height
-                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = width,yEnd = height}
+                    local texInfo = mbm.loadTexture(tTextureTileSet)
+                    tEditorOptions.iWidth  = texInfo:getWidth()
+                    tEditorOptions.iHeight = texInfo:getHeight()
+                    tEditorOptions.tSubTilesToImport      = {xStart = 0,yStart = 0,xEnd = texInfo:getWidth(),yEnd = texInfo:getHeight()}
                 end
             end
         end
@@ -1870,7 +1879,7 @@ function isOverAnyObjectMap(x,y)
         local scale  = tTile:getScale()
         for i=1, #tMapObjects do
             local tShape = tMapObjects[i]
-            if type(tShape.x) == 'number' then -- it is a shape?
+            if tShape.visible and type(tShape.x) == 'number' then -- it is a visible shape?
                 if tShape:isOver(x,y) then
                     tShape.index  = i
                     return tShape
@@ -1891,8 +1900,22 @@ function updateObjectsOnMap()
     if sRenderWhat == 'map' then
         local scale  = tTile:getScale()
         local iTotal = tTile:getTotalObjectMap()
-        if iTotal == #tMapObjects then
-            for i=1, #tMapObjects do
+        if iTotal < #tMapObjects then
+            for i = #tMapObjects, iTotal + 1, -1 do
+                local tShape = tMapObjects[i]
+                tShape.visible = false
+                tShape.type = 'none'
+                tShape:destroy()
+                table.remove(tMapObjects, i)
+            end
+        elseif iTotal > #tMapObjects then
+            while #tMapObjects < iTotal do
+                local tShape = {destroy = function(self) end, type = 'None', bObjectsVisible = true}
+                table.insert(tMapObjects, tShape)
+            end
+        end
+        if iTotal > 0 then
+            for i=1, iTotal do
                 local tObj    = tTile:getObjectMap(i)
                 local tShape  = tMapObjects[i]
                 tShape.tObj   = tObj
@@ -1964,6 +1987,10 @@ function updateObjectsOnMap()
                         tLine.tTheLine:setColor(1.0,0.0,1.0,0.7)
 
                         tLine.destroy = function(self)
+                            if not self.tShapeCircles then
+                                self.tTheLine:destroy()
+                                return
+                            end
                             for i=1, #self.tShapeCircles do
                                 local tShapeCircles = self.tShapeCircles[i]
                                 if tShapeCircles then
@@ -1975,6 +2002,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.collide = function(self,x,y)
+                            if not self.tShapeCircles then return false end
                             for i=1, #self.tShapeCircles do
                                 local tShapeCircles = self.tShapeCircles[i]
                                 if tShapeCircles then
@@ -1987,6 +2015,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.setPos = function(self,x,y)
+                            if not self.tShapeCircles then return end
                             if self.indexOver ~= 0 and self.indexOver < #self.tShapeCircles then
                                 local tShapePoint = self.tShapeCircles[self.indexOver]
                                 local index = self.indexOver * 2
@@ -1997,6 +2026,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.isOver = function(self,x,y)
+                            if not self.tShapeCircles then return false end
                             for j=1, #self.tShapeCircles do
                                 local tShapePoint = self.tShapeCircles[j]
                                 if tShapePoint.visible and tShapePoint:isOver(x,y) then
@@ -2012,6 +2042,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.setScale = function(self,sx,sy)
+                            if not self.tShapeCircles then return end
                             for j=1, #self.tObj, 2 do
                                 local x = self.tObj[j]
                                 local y = self.tObj[j+1]
@@ -2060,20 +2091,6 @@ function updateObjectsOnMap()
                 tShape.visible = tShape.bObjectsVisible
                 tShape.z = -100
             end
-        elseif iTotal < #tMapObjects then
-            for i= iTotal + 1, #tMapObjects do
-                local tShape = tMapObjects[i]
-                tShape.visible = false
-                tShape.type = 'none'
-                if tShape.tShapeCircles then
-                    tShape:destroy()
-                end
-            end
-        else
-            while #tMapObjects < iTotal do
-                local tShape = {destroy = function(self) end, type = 'None', bObjectsVisible = true}
-                table.insert(tMapObjects,tShape)
-            end
         end
     else
         for i= 1, #tMapObjects do
@@ -2081,8 +2098,8 @@ function updateObjectsOnMap()
             tShape.visible = false
             if tShape.tShapeCircles then
                 tShape.tTheLine.visible = false
-                for i=1, #tShape.tShapeCircles do
-                    tShape.tShapeCircles[i].visible = false
+                for j=1, #tShape.tShapeCircles do
+                    tShape.tShapeCircles[j].visible = false
                 end
             end
         end
@@ -2161,8 +2178,7 @@ end
 
 function menuPopUpOptionToAddBrick()
     if tEditorOptions.iBrickIdSelected ~= 0 then
-        local mouse_button = 1
-        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', mouse_button) then
+        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', ImGuiPopupFlags_MouseButtonRight) then
             if tImGui.Selectable("Fill layer with brick ID: " .. tostring(tEditorOptions.iBrickIdSelected)) then
                 local total = tTile:getMapCountWidth() * tTile:getMapCountHeight()
                 for i=1, total do
@@ -2301,16 +2317,14 @@ function main_menu_tiled()
             if pressed then
                 local sFileName = mbm.openMultiFile(tTextureTileSet[1] or '',"png","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
                 if sFileName then
-                    local IDTexture = 0
+                    local texInfo
                     if type(sFileName) == 'table' then
-                        local width,height,id, has_alpha = mbm.loadTexture(sFileName[1])
-                        IDTexture = id
+                        texInfo = mbm.loadTexture(sFileName[1])
                         sFileName = sFileName[1]
                     else
-                        local width,height,id, has_alpha = mbm.loadTexture(sFileName)
-                        IDTexture = id
+                        texInfo = mbm.loadTexture(sFileName)
                     end
-                    tUtil.showMessage('Path of texture:\n' .. sFileName .. '\nid:'.. tostring(IDTexture) .. '\n\nadded to the engine!\nThe next tile which depends on that path will know where to search.')
+                    tUtil.showMessage('Path of texture:\n' .. sFileName .. '\nid:'.. tostring(texInfo:getId()) .. '\n\nadded to the engine!\nThe next tile which depends on that path will know where to search.')
                 end
             end
             tImGui.EndMenu();
@@ -2396,8 +2410,7 @@ function main_menu_tiled()
             local v_min   = 0.2
             local v_max   = 10
             local format  = "Scale %.1f"
-            local power   = 1.0
-            local result, fValue = tImGui.SliderFloat(label, tTile:getScale().x, v_min, v_max, format,power)
+            local result, fValue = tImGui.SliderFloat(label, tTile:getScale().x, v_min, v_max, format, tImGui.ImGuiSliderFlags_None)
             if result then
                 tTile:setScale({x=fValue,y=fValue})
             end

@@ -722,32 +722,36 @@ namespace mbm
 
     bool SHADER_CFG_LOADER::parserCFGFromResource()
     {
-        for (const char **str = resourceShader; *str; str += 3)
+        for (const char **str = getShaderEngineBuiltIn(); *str; str += 3)
         {
             const char *fileInResource = str[0];
-            const char *code           = str[1];
-            const char *cfgVariable    = str[2];
-            size_t      len            = strlen(fileInResource);
-            if (len > 3 && fileInResource[len - 1] == 's' && fileInResource[len - 2] == 'p')
+
+            //if (strcmp(fileInResource, "pie.ps") == 0)
             {
-                auto varCfg = new SHADER_CFG(fileInResource);
-                varCfg->codeShader = code;
-                this->parserCFGFromMemory(cfgVariable);
-                this->lsPs.push_back(varCfg);
-            }
-            else if (len > 3 && fileInResource[len - 1] == 's' && fileInResource[len - 2] == 'v')
-            {
-                auto varCfg = new SHADER_CFG(fileInResource);
-                varCfg->codeShader = code;
-                this->parserCFGFromMemory(cfgVariable);
-                this->lsVs.push_back(varCfg);
-            }
-            else
-            {
-                PRINT_IF_DEBUG(
-                             "resourceShader error! \ntype of file resource unknown (diferent from *.vs and *.ps). %s",
-                             fileInResource);
-                return false;
+                const char* code = str[1];
+                const char* cfgVariable = str[2];
+                size_t      len = strlen(fileInResource);
+                if (len > 3 && fileInResource[len - 1] == 's' && fileInResource[len - 2] == 'p')
+                {
+                    auto varCfg = new SHADER_CFG(fileInResource);
+                    varCfg->codeShader = code;
+                    this->parserCFGFromMemory(cfgVariable);
+                    this->lsPs.push_back(varCfg);
+                }
+                else if (len > 3 && fileInResource[len - 1] == 's' && fileInResource[len - 2] == 'v')
+                {
+                    auto varCfg = new SHADER_CFG(fileInResource);
+                    varCfg->codeShader = code;
+                    this->parserCFGFromMemory(cfgVariable);
+                    this->lsVs.push_back(varCfg);
+                }
+                else
+                {
+                    PRINT_IF_DEBUG(
+                        "resourceShader error! \ntype of file resource unknown (diferent from *.vs and *.ps). %s",
+                        fileInResource);
+                    return false;
+                }
             }
         }
         this->addVariablesFromContents();
@@ -988,7 +992,7 @@ namespace mbm
         va_start(va_args, format);
         char *_buffer = log_util::formatNewMessage(length, format, va_args);
         va_end(va_args);
-#if defined(__MINGW32__) || defined(ANDROID) || defined(__linux__)
+#if defined(__MINGW32__) || defined(ANDROID) || defined(__linux__) || defined(__APPLE__)
         PRINT_IF_DEBUG( _buffer);
 #else
         MessageBoxA(nullptr, _buffer, "SHADER_CFG_LOADER", MB_OK);

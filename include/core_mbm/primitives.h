@@ -29,9 +29,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#if defined _WIN32
-	#pragma warning(push)
-	#pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(push)
+    #pragma warning(disable : 4201) // nonstandard extension used : nameless struct/union
 #endif
 
 namespace mbm
@@ -228,6 +228,59 @@ struct API_IMPL VEC3
     }
 };
 
+struct API_IMPL VERTEX_NORMAL_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+            float	uv[2];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_NORMAL
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float nx, ny, nz;
+        };
+        struct
+        {
+            float	position[3];
+            float	normal[3];
+        };
+    };
+};
+
+struct API_IMPL VERTEX_UV
+{
+    union
+    {
+        struct
+        {
+            float x, y, z;
+            float u, v;
+        };
+        struct
+        {
+            float	position[3];
+            float	uv[2];
+        };
+    };
+};
+
 struct API_IMPL COLOR
 {
   public:
@@ -262,12 +315,12 @@ struct API_IMPL COLOR
         a                    = prop * UCa;
     }
 
-	static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
-	{
-		snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
-		return out_put_string;
-	}
-	
+    static const char* getStringHexColorFromColor(const COLOR &color,char * out_put_string,const int size_string_out) noexcept
+    {
+        snprintf(out_put_string,size_string_out,"#%x",(uint32_t)color);
+        return out_put_string;
+    }
+    
 
     static COLOR getColorFromHexString(const char *stringAsColor) noexcept
     {
@@ -679,6 +732,57 @@ API_IMPL MATRIX *MatrixReflect(MATRIX *pout, const PLANE *pplane);
 
 API_IMPL VEC3 *vec3TransformCoord(VEC3 *pout, const VEC3 *pv, MATRIX *pm);
 
+/** Fills a textured quad (4 vertices) with positions and UVs. Normal is optional (nullptr = FVF_POS_UV, no normals). */
+inline void fillVertexQuadTexture(VEC3 *position, VEC2 *uv, float width, float height, VEC3 *normal = nullptr,
+                                  bool uvOriginBottomLeft = true)
+{
+    const float x = width * 0.5f;
+    const float y = height * 0.5f;
+    position[0].x = -x;
+    position[0].y = -y;
+    position[0].z = 0;
+    position[1].x = -x;
+    position[1].y = y;
+    position[1].z = 0;
+    position[2].x = x;
+    position[2].y = -y;
+    position[2].z = 0;
+    position[3].x = x;
+    position[3].y = y;
+    position[3].z = 0;
+    if (normal)
+    {
+        for (int i = 0; i < 4; ++i)
+        {
+            normal[i].x = 0;
+            normal[i].y = 0;
+            normal[i].z = 1;
+        }
+    }
+    if (uvOriginBottomLeft)
+    {
+        uv[0].x = 0;
+        uv[0].y = 1;
+        uv[1].x = 0;
+        uv[1].y = 0;
+        uv[2].x = 1;
+        uv[2].y = 1;
+        uv[3].x = 1;
+        uv[3].y = 0;
+    }
+    else
+    {
+        uv[0].x = 0;
+        uv[0].y = 0;
+        uv[1].x = 0;
+        uv[1].y = 1;
+        uv[2].x = 1;
+        uv[2].y = 0;
+        uv[3].x = 1;
+        uv[3].y = 1;
+    }
+}
+
 API_IMPL COLOR colorFromRGB(const uint8_t &r, const uint8_t &g, const uint8_t &b);
 
 API_IMPL uint32_t colorFromD3DXCOLOR(mbm::COLOR &color, uint8_t &r, uint8_t &g, uint8_t &b);
@@ -687,8 +791,8 @@ API_IMPL float calcAzimuth(const float ax, const float ay);
 
 }
 
-#if defined _WIN32
-	#pragma warning(pop) // nonstandard extension used : nameless struct/union
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+    #pragma warning(pop) // nonstandard extension used : nameless struct/union
 #endif
 
 #endif

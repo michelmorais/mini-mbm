@@ -30,6 +30,7 @@ extern "C"
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/header-mesh.h>
 #include <core_mbm/util-interface.h>
+#include <core_mbm/scene.h>
 #include <render/particle.h>
 #include <lua-wrap/vec3-lua.h>
 
@@ -401,7 +402,7 @@ namespace mbm
     {
         const int          top            = lua_gettop(lua);
         PARTICLE *         particle       = getParticleFromRawTable(lua, 1, 1);
-        const char *       fileName       = luaL_checkstring(lua, 2);
+        const char *       fileName       = lua_type(lua, 2) == LUA_TNIL ? nullptr : luaL_checkstring(lua, 2);
         const unsigned int numParticle    = top >= 3 ? luaL_checkinteger(lua, 3) : 0;
         const char *       operatorShader = top >= 4 && lua_type(lua,4) == LUA_TSTRING ? lua_tostring(lua, 4) : "*";
         const char *       newCodeLine    = top >= 5 && lua_type(lua,5) == LUA_TSTRING ? lua_tostring(lua, 5) : nullptr;

@@ -33,6 +33,7 @@ extern "C"
 #include <core_mbm/renderizable.h>
 #include <core_mbm/device.h>
 #include <core_mbm/physics.h>
+#include <core_mbm/scene.h>
 #include <platform/mismatch-platform.h>
 #include <cstring>
 

@@ -31,7 +31,7 @@ namespace mbm
 {
     struct IMAGE_RESOURCE;
 
-    class TEXTURE_VIEW : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TEXTURE_VIEW : public RENDERIZABLE, public ANIMATION_MANAGER
     {
       public:
         API_IMPL TEXTURE_VIEW(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
@@ -49,18 +49,16 @@ namespace mbm
             const MESH_MBM *mesh, // fixa textura para o estagio 0 e 1, mesh == nullptr e stage = 1 para textura de estagio 2
             const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL void setTextureToNull();
-		std::string getFileNameTexture()const;
+        API_IMPL std::string getFileNameTexture()const;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
 		
       private:
         bool isOnFrustum() override;
         bool render() override;
-        void onStop() override;
         bool onRestoreDevice() override;
-        void fillvertexQuadTexture(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width,
-                                          const float height);
         void updateRestoreTexture(const float w, const float h);
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         const mbm::INFO_PHYSICS *getInfoPhysics() const override;
         const MESH_MBM *getMesh() const override;
         bool isLoaded() const override;

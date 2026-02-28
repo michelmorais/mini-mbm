@@ -42,6 +42,7 @@ namespace mbm
     friend class TILE;
     public:
         API_IMPL TILE_OBJ(TILE* tileMap,MESH_MBM * pMesh, const uint32_t tileID,const uint32_t indexLayer);
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
         API_IMPL virtual~TILE_OBJ();
         API_IMPL virtual const INFO_PHYSICS *getInfoPhysics() const override;
         API_IMPL virtual const MESH_MBM *    getMesh() const override;
@@ -56,13 +57,12 @@ namespace mbm
         virtual bool isOnFrustum() override;
         virtual bool render() override;
         virtual bool onRestoreDevice() override;
-        virtual void onStop()override;
         INFO_PHYSICS infoPhysics;
         TILE *      ptr_tileMap;
         MESH_MBM *  ptr_Mesh;
     };
 
-    class TILE : public RENDERIZABLE, public COMMON_DEVICE, public ANIMATION_MANAGER
+    class TILE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
     public:
         friend class RENDER_2_TEXTURE;
@@ -88,20 +88,20 @@ namespace mbm
         API_IMPL void  setZLayer(const uint32_t indexLayer, const float z);
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
     private:
         bool                    isOnFrustum() override;
         bool                    render() override;
         bool                    renderLayer(const uint32_t index_layer);
         bool                    onRestoreDevice() override;
-        void                    onStop() override;
         const INFO_PHYSICS *	getInfoPhysics() const override;
         const MESH_MBM *        getMesh() const override;
         bool                    isLoaded() const override;
         inline bool             renderBrick(const util::BTILE_INFO * ptr_TileInfo, 
                                             const util::BTILE_INDEX_TILE * lsIndexTiles,
                                             const mbm::SHADER * shader,
-                                            const unsigned int idTextureOverrideStage2,
+                                            TEXTURE* idTextureOverrideStage2,
                                             const uint32_t i, 
                                             const uint32_t j,
                                             const float offset_x,

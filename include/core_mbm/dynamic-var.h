@@ -45,6 +45,9 @@ struct DYNAMIC_VAR
 {
     const DYNAMIC_TYPE type;
     void *             var;
+    DYNAMIC_VAR() = delete;
+    DYNAMIC_VAR(const DYNAMIC_VAR &) = delete;
+    DYNAMIC_VAR &operator=(const DYNAMIC_VAR &) = delete;
     API_IMPL DYNAMIC_VAR(const DYNAMIC_TYPE myType, const void *voidVar);
     API_IMPL virtual ~DYNAMIC_VAR();
     API_IMPL void setVoid(const void *value);
