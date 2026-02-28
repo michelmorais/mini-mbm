@@ -846,13 +846,17 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         list(APPEND LS_TARGET_DEPS shortcuts)
     endif()
     find_program(LS ls HINTS /bin)
-    if (LS)
+    find_program(DU du HINTS /usr/bin /bin)
+    if (LS AND DU)
         add_custom_target(show_built ALL
             COMMAND ${LS} -lSh "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/*"
+            COMMAND ${CMAKE_COMMAND} -E echo ""
+            COMMAND ${CMAKE_COMMAND} -E echo "Total:"
+            COMMAND ${DU} -sh "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}"
             DEPENDS ${LS_TARGET_DEPS}
             COMMENT "Built targets in ${FOLDER_BIN}/${FOLDER_ARCHITECTURE}:")
     else()
-        message("NOT found ls command!")
+        message("NOT found ls or du command!")
     endif()
 else()
 
