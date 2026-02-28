@@ -81,13 +81,10 @@ namespace mbm
         BLEND_STATE    blendState;
         bool           isEndedThisAnimation; 
         bool           currentWayGrowingOfAnimation;
-        TYPE_ANIMATION type; // Tipo_Animacao (TYPE_ANIMATION): 0:Pausa A Anima��o 1:Crescente ->Ex.:Anima��o De 1 a 5 >>Vai
-                             // Na Ordem Crescente De 1 a 5 e Para Na 5, 2:Crescente Com Loop ->Ex.:Anima��o De 1 a 5 >>Vai Na
-                             // Ordem Crescente e Faz Loop De 1 a 5,    3:Decrescente ->Ex.:Anima��o De 5 a 1 >>Vai Na Ordem
-                             // Decrescente De 5 a 1 e Para Na 1, 4:Decrescente Com Loop ->Ex.:Anima��o De 5 a 1 >>Vai Na
-                             // Ordem Decrescente e Faz Loop De 5 a 1, 5:Recursiva:Anima��o Inicial e a Final De Modo
-                             // Crescente e Decrescente , 6:Recursiva Com Loop:Anima��o Inicial e a Final De Modo Crescente e
-                             // Decrescente Com loop
+        TYPE_ANIMATION type; // 0:Pause animation 1:Increasing (e.g. 1 to 5, stops at 5)
+                             // 2:Increasing with loop (e.g. 1 to 5, loops) 3:Decreasing (e.g. 5 to 1, stops at 1)
+                             // 4:Decreasing with loop 5:Recursive (increasing then decreasing)
+                             // 6:Recursive with loop
         FX					fx;//the effect shader to this animations
     
         API_IMPL ANIMATION();

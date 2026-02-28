@@ -206,7 +206,7 @@ namespace mbm
         }
     }
     
-    void PHYSICS_BULLET::init(const btVector3& gravity)//Inicia a f�sica indicando a gravidade
+    void PHYSICS_BULLET::init(const btVector3& gravity)//Initialize physics with given gravity
     {
         if(!this->dynamicsWorld)
         {

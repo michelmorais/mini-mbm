@@ -8,6 +8,7 @@
 #include <core_mbm/parse-launcher-args.hpp>
 #include <core_mbm/util-interface.h>
 #include "resource.h"
+#include <core_mbm/strings-pt-br.h>
 
 #pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "plugin-helper.lib")
@@ -60,17 +61,17 @@ int main(const int argc,const char **argv)
     setlocale(LC_ALL, "Portuguese");
 
     mbm::APP_RUN default_applications[] = {
-            {"Asset packager"        ,"Empacotador de ativos",    "asset_packager.lua"},
-            {"Font Maker"            ,"Criador de fontes",        "font_maker.lua"},
-            {"Mesh Editor"           ,"Editor de Mesh",           "mesh_debug.lua"},
-            {"Particle Editor"       ,"Editor de Partículas",     "particle_editor.lua"},
-            {"Physics Editor"        ,"Editor de Física",         "physic_editor.lua"},
-            {"Scene 2D Editor"       ,"Editor de Cena 2D",        "scene_editor2d.lua"},
-            {"Shader Editor"         ,"Editor de Shader",         "shader_editor.lua"},
-            {"Sprite Maker"          ,"Editor de Sprite",         "sprite_maker.lua"},
-            {"Texture Packer"        ,"Empacotador de texturas",  "texture_packer.lua"},
-            {"Tile-Map Editor"       ,"Editor de mapa de blocos", "tilemap_editor.lua"},
-            {"User specified"        ,"Script do usuário",        "user_specified.lua"},
+            {"Asset packager"        , STR_PT_BR_ASSET_PACKAGER,    "asset_packager.lua"},
+            {"Font Maker"            , STR_PT_BR_FONT_MAKER,        "font_maker.lua"},
+            {"Mesh Editor"           , STR_PT_BR_MESH_EDITOR,       "mesh_debug.lua"},
+            {"Particle Editor"       , STR_PT_BR_PARTICLE_EDITOR,    "particle_editor.lua"},
+            {"Physics Editor"        , STR_PT_BR_PHYSICS_EDITOR,    "physic_editor.lua"},
+            {"Scene 2D Editor"       , STR_PT_BR_SCENE_2D_EDITOR,   "scene_editor2d.lua"},
+            {"Shader Editor"         , STR_PT_BR_SHADER_EDITOR,     "shader_editor.lua"},
+            {"Sprite Maker"          , STR_PT_BR_SPRITE_MAKER,       "sprite_maker.lua"},
+            {"Texture Packer"        , STR_PT_BR_TEXTURE_PACKER,    "texture_packer.lua"},
+            {"Tile-Map Editor"       , STR_PT_BR_TILEMAP_EDITOR,    "tilemap_editor.lua"},
+            {"User specified"        , STR_PT_BR_USER_SPECIFIED,   "user_specified.lua"},
     };
     int size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN);
     size_app = size_app - 1; // remove the last one, it is a user specified script

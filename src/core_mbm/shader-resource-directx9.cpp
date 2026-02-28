@@ -24,7 +24,7 @@
 
 namespace mbm
 {
-    static const char* resourceShader[] = {//organizado de 3 em 3. sendo: Nome do arquivo, Codigo shader e configura�es CFG.
+    static const char* resourceShader[] = {// Organized in groups of 3: filename, shader code, and CFG configurations.
 
 
         /* Alpha It -----------------------------------------------------------------------------------------------------*/

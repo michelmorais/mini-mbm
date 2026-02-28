@@ -42,7 +42,7 @@ namespace util
     {
         uint8_t identy[2]; //'BM' - Windows 3.1x, 95, NT, ...
         //'BA' - OS/2 Bitmap Array (matriz Bitmap_True_Color_24_Bits)
-        //'CI' - OS/2 Color Icon (�cone colorido)
+        //'CI' - OS/2 Color Icon (color icon)
         //'CP' - OS/2 Color Pointer (Ponteiro colorido)
         //'IC' - OS/2 Icone
         //'PT' - OS/2 Ponteiro
@@ -54,17 +54,17 @@ namespace util
         uint8_t height[4];
         uint8_t plane[2];
         uint8_t bitsPerPixels[2];
-        // 1 - Bitmap monocrom�tico (preto e COR_BRANCO)
+        // 1 - Monochrome bitmap (black and white)
         // 4 - Bitmap De 16 cores
         // 8 - Bitmap De 256 cores
         // 16 - Bitmap De 16bits (high color)
         // 24 - Bitmap De 24bits (true color)
         // 32 - Bitmap De 32bits (true color)
         uint8_t compressed[4];
-        // 0 - nenhuma (Tamb�m identificada Por BI_RGB)
-        // 1 - RLE 8 bits/Pixel (Tamb�m identificada Por BI_RLE4)
-        // 2 - RLE 4 bits/Pixel (Tamb�m identificada Por BI_RLE8)
-        // 3 - Bitfields (Tamb�m identificada Por BI_BITFIELDS)
+        // 0 - none (Also identified by BI_RGB)
+        // 1 - RLE 8 bits/Pixel (Also identified by BI_RLE4)
+        // 2 - RLE 4 bits/Pixel (Also identified by BI_RLE8)
+        // 3 - Bitfields (Also identified by BI_BITFIELDS)
         uint8_t sizeDataArea[4];
         uint8_t resH[4];
         uint8_t resV[4];
@@ -187,8 +187,8 @@ namespace util
     struct API_IMPL HEADER_MESH // Header principal para objetos 3d MBM
     {
         MATERIAL_GLES material;              // Material aplicado nesta subset
-        int          totalAnimation;         // Total de anima��o na mesh
-        int          totalFrames;            // Total de frames para o arquivo. cada frame � dividido em uma ou mais subsets.
+        int          totalAnimation;         // Total animations in mesh
+        int          totalFrames;            // Total frames for the file. Each frame is divided into one or more subsets.
         int          deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
         int16_t    hasNorText[2];          // hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, HAS_NOR_CALCULATE. hasNorText[1]: HAS_TEX_NO, HAS_TEX_EACH_FRAME, HAS_TEX_FIRST_FRAME
         float angleX, angleY, angleZ; 
@@ -200,11 +200,11 @@ namespace util
 
     struct API_IMPL HEADER_ANIMATION
     {
-        char  nameAnimation[32];        // 32 bytes para o nome da anima��o (31 + null)
-        int   initialFrame;             // Frame inicial para esta anima��o
-        int   finalFrame;               // Frame final para esta anima��o
-        float timeBetweenFrame;         // Tempo entre frames da anima��o
-        int   typeAnimation;            // Tipo da anima��o
+        char  nameAnimation[32];        // 32 bytes for animation name (31 + null)
+        int   initialFrame;             // Initial frame for this animation
+        int   finalFrame;               // Final frame for this animation
+        float timeBetweenFrame;         // Time between animation frames
+        int   typeAnimation;            // Animation type
         uint16_t hasShaderEffect;// 1 if has and 0 if do not has. previously steps shader (old lenMusicFileName mini mbm 1.0), Now must be 1
         uint16_t blendState;  //Blend state for each animation
     
@@ -220,7 +220,7 @@ namespace util
         int16_t sizeArrayVarInBytes;  // Tamanho do array das variaveis do Shader em bytes
         int16_t typeAnimation;        // 0 - 6
         int       blendOperation;       // Tipo de operacao blend nos steps
-        float     timeAnimation;        // Tempo da anima��o
+        float     timeAnimation;        // Animation time
         HEADER_INFO_SHADER_STEP()noexcept;
     };
 
@@ -281,13 +281,13 @@ namespace util
         char nameTexture[64]; // 64 bytes para o nome da textura (63 + null) desta subset
         int  vertexCount;     // Total de vertex no subset
         int  vertexStart;     // Inicio do vertex
-        int  indexStart;      // Inicio do �ndice
+        int  indexStart;      // Index start
         int  indexCount;      // Total de indices
         union {
             struct
             {
-                uint8_t alphaColor[4]; // onde o primeiro byte indica se existe color alpha e os demais s�o as cores.
-                                             // (mantido por compatibilidade mas nao usamos mais colorKeying)
+                uint8_t alphaColor[4]; // First byte indicates if alpha color exists; remaining bytes are the colors.
+                                             // (kept for compatibility but colorKeying no longer used)
             };
             struct
             {
@@ -309,8 +309,8 @@ namespace util
         union {
             struct
             {
-                uint8_t alphaColor[4]; // onde o primeiro byte indica se existe color alpha e os demais s�o as cores
-                                             // (mantido por compatibilidade mas nao usamos mais colorKeying)
+                uint8_t alphaColor[4]; // First byte indicates if alpha color exists; remaining bytes are the colors
+                                             // (kept for compatibility but colorKeying no longer used)
             };
             struct
             {
@@ -349,7 +349,7 @@ namespace util
     {
         mbm::TEXTURE *texture;
         int           vertexStart; // Inicial do vertex
-        int           indexStart;  // Inicio do �ndice
+        int           indexStart;  // Index start
         int           vertexCount; // Total de vertex no subset
         int           indexCount;  // Total de index no subset
         API_IMPL SUBSET()noexcept;
