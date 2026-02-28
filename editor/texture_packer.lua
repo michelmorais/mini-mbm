@@ -1358,7 +1358,7 @@ function showTextureOptions()
 
             local tOutOfBoundsColor = {r=1,g=0.3,b=0.3,a=0.8}
 
-            if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
+            if tImGui.TreeNode('id_OffsetPerTexture', tLang.L("override_adjusts")) then
                 local label  = tLang.L("only_selected_textures") .. '##OverrideAdjustsPerTexture'
                 tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
                 for i=1, #tTexturesToEditor do

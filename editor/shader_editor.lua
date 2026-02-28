@@ -562,7 +562,7 @@ function showShaderOptions()
                 indexCurrentStage = 1
             end
 
-            if tImGui.TreeNode("Blend") then
+            if tImGui.TreeNode(tLang.L("blend_label")) then
                 local sBlendState,iBlendIndex = tMesh:getBlend()
 		        local sOperation              = tShader:getBlendOp()
                 local tBlend = {'DISABLE',
@@ -613,7 +613,7 @@ function showShaderOptions()
             local psName,vsName        = tShader:getNames()
             local tVarPs,tVarVs        = tShader:getVars()
 
-            if tImGui.TreeNode("Pixel Shader") then
+            if tImGui.TreeNode(tLang.L("pixel_shader")) then
                 local tShaderList = mbm.getShaderList(false,'ps')
                 table.insert(tShaderList,'\0')
                 table.sort(tShaderList)
@@ -723,7 +723,7 @@ function showShaderOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Vertex Shader") then
+            if tImGui.TreeNode(tLang.L("vertex_shader")) then
                 local tShaderList = mbm.getShaderList(false,'vs')
                 table.insert(tShaderList,'\0')
                 table.sort(tShaderList)
@@ -833,7 +833,7 @@ function showShaderOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Texture Stage 2") then
+            if tImGui.TreeNode(tLang.L("texture_stage_2")) then
                 local tTextureS2    = tShader:getTextureStage2()
                 if tTextureS2 then
                     tImGui.TextDisabled(tUtil.getShortName(tTextureS2))

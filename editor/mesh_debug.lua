@@ -463,7 +463,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Material (Diffuse + Power)
-    if tImGui.TreeNodeEx('Material', 0, 'material-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("material"), 0, 'material-' .. index) then
         local ok, mat = pcall(function() return meshD:getMaterial() end)
         if ok and mat and mat.Diffuse then
             local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
@@ -502,12 +502,12 @@ function showMeshOptions(tEntry, index)
         tImGui.PopStyleColor(1)
     end
 
-    if tImGui.TreeNodeEx('Mesh Info', 0, 'meshinfo-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
         showMeshInfoTable(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Normals', 0, 'normals-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("normals_label"), 0, 'normals-' .. index) then
         if info and info.hasNormal then
             tImGui.TextDisabled('Has normals')
         else
@@ -545,7 +545,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Transform', 0, 'transform-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("transform"), 0, 'transform-' .. index) then
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             meshD:centralize()
             tEntry.modified = true
@@ -556,7 +556,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local nAnim = info.animation or 0
-    if tImGui.TreeNodeEx('Animations' .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
             if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
                 pcall(function() tPreviewMesh:restartAnim() end)
@@ -606,7 +606,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Shader', 0, 'shader-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
             local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
@@ -624,7 +624,7 @@ function showMeshOptions(tEntry, index)
                 local tBlend = {'DISABLE','ZERO','ONE','SRC COLOR','INV SRC COLOR','SRC ALPHA','INV SRC ALPHA','DEST ALPHA','INV DEST ALPHA','DEST COLOR','INV DEST COLOR'}
                 local tBlendOp = {'ADD','SUBTRACT','REVERSE_SUBTRACT','MIN','MAX'}
                 local function applyShaderToMesh() meshD:copyAnimationsFromMesh(tPreviewMesh) onEdit() end
-                if tImGui.TreeNodeEx('Blend', 0) then
+                if tImGui.TreeNodeEx(tLang.L("blend_label"), 0) then
                     local sBlend, iBlend = tPreviewMesh:getBlend()
                     local r, ci = tImGui.Combo(tLang.L("blend_function") .. '##' .. index, (iBlend or 0) + 1, tBlend)
                     if r and ci then tPreviewMesh:setBlend(ci - 1) applyShaderToMesh() end
@@ -637,7 +637,7 @@ function showMeshOptions(tEntry, index)
                 end
                 local psName, vsName = tShader:getNames()
                 local tVarPs, tVarVs = tShader:getVars()
-                if tImGui.TreeNodeEx('Pixel Shader', 0) then
+                if tImGui.TreeNodeEx(tLang.L("pixel_shader"), 0) then
                     local tList = mbm.getShaderList(false, 'ps')
                     table.insert(tList, '\0')
                     table.sort(tList)
@@ -682,7 +682,7 @@ function showMeshOptions(tEntry, index)
                     end
                     tImGui.TreePop()
                 end
-                if tImGui.TreeNodeEx('Vertex Shader', 0) then
+                if tImGui.TreeNodeEx(tLang.L("vertex_shader"), 0) then
                     local tList = mbm.getShaderList(false, 'vs')
                     table.insert(tList, '\0')
                     table.sort(tList)
@@ -727,7 +727,7 @@ function showMeshOptions(tEntry, index)
                     end
                     tImGui.TreePop()
                 end
-                if tImGui.TreeNodeEx('Texture Stage 2', 0) then
+                if tImGui.TreeNodeEx(tLang.L("texture_stage_2"), 0) then
                     local tex2 = tShader:getTextureStage2()
                     tImGui.TextDisabled(tex2 and tUtil.getShortName(tex2) or 'No Texture')
                     if tImGui.Button(tLang.L("set_texture") .. '##' .. index) then

@@ -1233,7 +1233,7 @@ function showEditPhysics()
         local format     = "%.3f"
         local flags      =  0
         tImGui.PushItemWidth(150)
-        if tImGui.TreeNode('##physics_tree', 'Physics') then
+        if tImGui.TreeNode('##physics_tree', tLang.L("physics")) then
             tInfoPhysics:highLightPoint(nil) --disable high light before each loop
             for i=1, #tInfoPhysics do
                 local tPhysic       = tInfoPhysics[i]

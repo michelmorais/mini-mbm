@@ -1927,7 +1927,7 @@ function showFrameAdd()
         tImGui.Separator()
 
         local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
-        local label_textures    = string.format('Textures (%d)',#tSelectedTextures)
+        local label_textures    = string.format(tLang.L("textures_count_fmt"), #tSelectedTextures)
         tFrameAddOptions.tSelectedTexture = nil
         if tImGui.TreeNode('##textures_for_frame', label_textures) then
             for i=1, #tSelectedTextures do
@@ -2258,7 +2258,7 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
                 tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format(tLang.L("add_sorted_by_x_fmt"), sFrameSubset), tFrameAddOptions.iSortBySelection, 1)
                 tFrameAddOptions.iSortBySelection = tImGui.RadioButton(string.format(tLang.L("add_sorted_by_y_fmt"), sFrameSubset), tFrameAddOptions.iSortBySelection, 2)
 
-                if tImGui.TreeNode('##select_frames_from_sprite_sheet', string.format('%s Options', sFrameSubset)) then
+                if tImGui.TreeNode('##select_frames_from_sprite_sheet', string.format("%s %s", sFrameSubset, tLang.L("options"))) then
                     tFrameAddOptions.iFramesEnableSpriteSheetHover = 0
                     if tImGui.Button(tLang.L("include_all"), tSizeBtn) then
                         for i=1, #tFrameAddOptions.tFramesEnableSpriteSheet do
@@ -2560,7 +2560,7 @@ function showAnimationAdd(delta)
 
             tImGui.PopItemWidth()
 
-            if tImGui.TreeNode('##Animations', string.format("%s (%d)",'Animations',#tAnimationList)) then
+            if tImGui.TreeNode('##Animations', string.format("%s (%d)", tLang.L("animations"), #tAnimationList)) then
                 local flag_node      = 0
                 local tSizeBtn     = {x=0,y=0}
                 for i=1, #tAnimationList do

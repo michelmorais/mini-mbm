@@ -517,7 +517,7 @@ function showParticleOptions()
 
             tParticle:setStage(iStageParticle)
             
-            if tImGui.TreeNode("Arise Time") then
+            if tImGui.TreeNode(tLang.L("arise_time")) then
                 local arise_time = tParticle:getAriseTime(iStageParticle)
                 arise_time       = drawSlider(arise_time,'Time to rise\n(when add particle)',0.1,iRangeAriseTimeParticle)
                 tParticle:setAriseTime(iStageParticle,arise_time)
@@ -542,7 +542,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Blend") then
+            if tImGui.TreeNode(tLang.L("blend_label")) then
                 local sBlendState,iBlendIndex = tParticle:getBlend()
 		        local sOperation              = tShader:getBlendOp()
                 local tBlend = {'DISABLE',
@@ -590,7 +590,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Color") then
+            if tImGui.TreeNode(tLang.L("color_label")) then
                 tImGui.Text(tLang.L("min_color"))
                 local label      = tLang.L("min_color_particle") .. '##Min Color'
                 local flag_color = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel')
@@ -611,7 +611,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Direction") then
+            if tImGui.TreeNode(tLang.L("direction_label")) then
                 local nx,ny,nz = tParticle:getMinDirection(iStageParticle)
                 nx,ny, nz = drawStrength('Min Direction',nx,ny,nz)
                 tParticle:setMinDirection(iStageParticle,nx,ny,nz)
@@ -622,7 +622,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Flags") then
+            if tImGui.TreeNode(tLang.L("flags_label")) then
                 tParticle.alpha      = tImGui.Checkbox(tLang.L("alpha_enable_shader"), tParticle.alpha)
                 tParticle.grow       = tImGui.Checkbox(tLang.L("min_to_max_size"), tParticle.grow)
                 tParticle.segmented  = tImGui.Checkbox(tLang.L("segmented_uv"), tParticle.segmented)
@@ -630,7 +630,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
             
-            if tImGui.TreeNode("Invert Color") then
+            if tImGui.TreeNode(tLang.L("invert_color")) then
                 local r,g,b,a  = tParticle:getInvertedColor(iStageParticle)
                 r              = tImGui.Checkbox(tLang.L("red_color"), r)
                 g              = tImGui.Checkbox(tLang.L("green_color"), g)
@@ -640,7 +640,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Life Time") then
+            if tImGui.TreeNode(tLang.L("life_time")) then
                 local min_life_time = tParticle:getMinLifeTime(iStageParticle)
                 min_life_time = drawSlider(min_life_time,'Min Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMinLifeTime(iStageParticle,min_life_time)
@@ -667,7 +667,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Stage Time") then
+            if tImGui.TreeNode(tLang.L("stage_time")) then
                 local stageTime               = tParticle:getStageTime(iStageParticle)
                 stageTime                     = drawSlider(stageTime,'Stage Time\n(each stage is like an animation)',0.1,iRangeStageTimeParticle)
                 tParticle:setStageTime(iStageParticle,stageTime)
@@ -692,7 +692,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Offset") then
+            if tImGui.TreeNode(tLang.L("offset_label")) then
                 local v_min             = -iRangeOffsetParticle
                 local v_max             = iRangeOffsetParticle
                 local x_min,y_min,z_min = tParticle:getMinOffset(iStageParticle)
@@ -746,7 +746,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Speed") then
+            if tImGui.TreeNode(tLang.L("speed_label")) then
                 local min_speed = tParticle:getMinSpeed(iStageParticle)
                 min_speed = drawSlider(min_speed,'Min Speed',0,iRangeSpeedParticle)
                 tParticle:setMinSpeed(iStageParticle,min_speed)
@@ -772,7 +772,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Shader") then
+            if tImGui.TreeNode(tLang.L("shader_label")) then
                 local indexSelected  = tImGui.RadioButton(tLang.L("operator_plus"), tShaderByOperator.index, 1)
                 indexSelected        = tImGui.RadioButton(tLang.L("operator_minus"), indexSelected, 2)
                 indexSelected        = tImGui.RadioButton(tLang.L("operator_div"), indexSelected, 3)
@@ -832,7 +832,7 @@ void main()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Size") then
+            if tImGui.TreeNode(tLang.L("size_label")) then
                 local min_size = tParticle:getMinSize(iStageParticle)
                 min_size = drawSlider(min_size,'Min Size',0.1,iRangeSizeParticle)
                 tParticle:setMinSize(iStageParticle,min_size)
