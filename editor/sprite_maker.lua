@@ -486,14 +486,14 @@ end
         return true
     else
         print('error',string.format('Could not open the file [%s] for write',sFileName))
-        tUtil.showMessageWarn(string.format('Could not open the file [%s] for write',sFileName))
+        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_write_fmt"), sFileName))
         return false
     end
 end
 
 function onSaveSprite(fileName)
     if #tFrameList == 0 then
-        tUtil.showMessageWarn('There Is No Frame To Save The Sprite!')
+        tUtil.showMessageWarn(tLang.L("no_frame_to_save_sprite"))
         return false
     end
 
@@ -536,7 +536,7 @@ function onSaveSprite(fileName)
         local vertex_array = makeVertex(tShape.vertex,tShape.normal,tShape.uv,tFrame.tPivot,stride)
         if not tMesh:addVertex(indexFrame,indexSubset,vertex_array) then
             print('error', "Error on add vertex buffer",i)
-            tUtil.showMessageWarn("Error on add vertex buffer")
+            tUtil.showMessageWarn(tLang.L("error_add_vertex_buffer"))
             return false
         end
 
@@ -548,7 +548,7 @@ function onSaveSprite(fileName)
             vertex_array       = makeVertex(tShape.vertex,tShape.normal,tShape.uv,tSubSet.tPivot,stride)
             if not tMesh:addVertex(indexFrame,indexSubset,vertex_array) then
                 print('error', "Error on add subset to vertex buffer",i,j)
-                tUtil.showMessageWarn("Error on add subset to vertex buffer")
+                tUtil.showMessageWarn(tLang.L("error_add_subset_vertex_buffer"))
                 return false
             end
         end
@@ -560,14 +560,14 @@ function onSaveSprite(fileName)
         local indexSubset = 1
         if not tMesh:addIndex(indexFrame,indexSubset,tFrame.tShape.index_buffer_edit) then 
             print('error', "Error on add index buffer",i)
-            tUtil.showMessageWarn("Error on add index buffer")
+            tUtil.showMessageWarn(tLang.L("error_add_index_buffer"))
             return false
         end
         local tTexture = tFrame.tTexture
         --apply the texture to frame
         if not tMesh:setTexture(indexFrame,indexSubset,tTexture.base_file_name) then
             print('error', "Error on set texture!")
-            tUtil.showMessageWarn("Error on set texture!")
+            tUtil.showMessageWarn(tLang.L("error_set_texture"))
             return false
         end
 
@@ -578,14 +578,14 @@ function onSaveSprite(fileName)
 
             if not tMesh:addIndex(indexFrame,indexSubset,tSubsetFrame.tShape.index_buffer_edit) then 
                 print('error', "Error on add index buffer",i)
-                tUtil.showMessageWarn("Error on add index buffer")
+                tUtil.showMessageWarn(tLang.L("error_add_index_buffer"))
                 return false
             end
 
             --apply the texture to subset
             if not tMesh:setTexture(indexFrame,indexSubset,tTexture.base_file_name) then
                 print('error', "Error on set texture to subset!",i,j)
-                tUtil.showMessageWarn("Error on set texture to subset!")
+                tUtil.showMessageWarn(tLang.L("error_set_texture_subset"))
                 return false
             end
         end
@@ -628,7 +628,7 @@ function onSaveSprite(fileName)
         return true
     else
         print("Failed to Save Sprite!")
-        tUtil.showMessageWarn("Failed to Save Sprite!")
+        tUtil.showMessageWarn(tLang.L("failed_to_save_sprite"))
         return false
     end
 end
@@ -1041,14 +1041,14 @@ function showFrameEdit()
             local flags      =  0
 
             if tFrameList.iIndexSelectedSubsetNode > 0 then
-                tImGui.Text(string.format('Subset:%d ',tFrameList.iIndexSelectedSubsetNode))
-                tImGui.Text(string.format('Frame:%d/%d',tFrameList.indexSelectedFrameNode,#tFrameList))
+                tImGui.Text(string.format("%s: %d", tLang.L("subset"), tFrameList.iIndexSelectedSubsetNode))
+                tImGui.Text(string.format("%s: %d/%d", tLang.L("frame"), tFrameList.indexSelectedFrameNode, #tFrameList))
             else
-                tImGui.Text(string.format('Frame:%d/%d',tFrameList.indexSelectedFrameNode,#tFrameList))
+                tImGui.Text(string.format("%s: %d/%d", tLang.L("frame"), tFrameList.indexSelectedFrameNode, #tFrameList))
             end
-            tImGui.Text(string.format('Elements:%d',tFrame.iNumElements))
-            tImGui.Text(string.format('Subsets:%d',#tFrame.tSubsetList))
-            tImGui.Text(string.format('Type:%s',tFrame.type))
+            tImGui.Text(string.format("%s: %d", tLang.L("elements"), tFrame.iNumElements))
+            tImGui.Text(string.format("%s: %d", tLang.L("subsets"), #tFrame.tSubsetList))
+            tImGui.Text(string.format("%s: %s", tLang.L("type"), tFrame.type))
 
             local result, fValue = tImGui.InputFloat(tLang.L("width"), tFrame.width, step, step_fast, format, flags)
             if result then
@@ -1290,7 +1290,7 @@ function showFrameEdit()
         tImGui.End()
     else
         bShowFrameEdit = false
-        tUtil.showMessageWarn('There is no frame selected!')
+        tUtil.showMessageWarn(tLang.L("no_frame_selected"))
     end
 end
 
@@ -1803,13 +1803,13 @@ function showFrameAdd()
                 if indexPrimitive == 1 then
                     local tRects = calcRectForSpriteSheet(tFrameAddOptions.tSelectedTexture)
                     if tRects == nil then
-                        tUtil.showMessageWarn('Invalid Primitive!',2.5)
+                        tUtil.showMessageWarn(tLang.L("invalid_primitive"), 2.5)
                         tFrameAddOptions.bEditVertex = false
                     elseif #tRects == 0 then
-                        tUtil.showMessageWarn('Zero primitive selected!',2.5)
+                        tUtil.showMessageWarn(tLang.L("zero_primitive_selected"), 2.5)
                         tFrameAddOptions.bEditVertex = false
                     elseif #tRects > 1 then
-                        tUtil.showMessageWarn('More then 1 primitive selected!\nEdit primitive disabled',2.5)
+                        tUtil.showMessageWarn(tLang.L("more_than_one_primitive_selected"), 2.5)
                         tFrameAddOptions.bEditVertex = false
                     else
                         bValidConf = true
@@ -1853,7 +1853,7 @@ function showFrameAdd()
                             --print('Created shape total_vertex:',total_vertex,#tFrameAddOptions.tShapeEdit.vertex)
                             tMesh = nil
                         else
-                            tUtil.showMessageWarn('Could not get shape from memory',2.5)
+                            tUtil.showMessageWarn(tLang.L("could_not_get_shape_from_memory"), 2.5)
                             tFrameAddOptions.tShapeEdit = nil
                             tFrameAddOptions.bEditVertex = false
                         end
@@ -1919,7 +1919,7 @@ function showFrameAdd()
                     end
                 end
             else
-                tUtil.showMessageWarn('There is no texture selected!\nEdit primitive disabled',2.5)
+                tUtil.showMessageWarn(tLang.L("no_texture_selected_edit_disabled"), 2.5)
                 tFrameAddOptions.bEditVertex = false
             end
         end
@@ -1994,12 +1994,12 @@ function showFrameAdd()
                         unCollapse(tWindowsTitle.title_frame_list)
                         tUtil.showMessage('Subset Added!',3)
                     else
-                        tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
+                        tUtil.showMessageWarn(tLang.L("no_texture_selected_tree"), 2.5)
                     end
                 end
             else
                 tFrameAddOptions.bAddAsSubset = false
-                tUtil.showMessageWarn('There is no frame selected on frame list!',2.5)
+                tUtil.showMessageWarn(tLang.L("no_frame_selected_frame_list"), 2.5)
             end
         else
             if tImGui.Button(tLang.L("add_selected"), tSizeBtn) then
@@ -2011,7 +2011,7 @@ function showFrameAdd()
                     unCollapse(tWindowsTitle.title_frame_list)
                     tUtil.showMessage('Frame Added!',3)
                 else
-                    tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
+                    tUtil.showMessageWarn(tLang.L("no_texture_selected_tree"), 2.5)
                 end
             end
             if tImGui.Button(tLang.L("add_all"), tSizeBtn) then
@@ -2025,7 +2025,7 @@ function showFrameAdd()
                     unCollapse(tWindowsTitle.title_frame_list)
                     tUtil.showMessage(string.format('Added %d Frame(s)!',#tTextures),3)
                 else
-                    tUtil.showMessageWarn('There is no texture selected!',2.5)
+                    tUtil.showMessageWarn(tLang.L("no_texture_selected"), 2.5)
                 end
             end
         end
@@ -2102,7 +2102,7 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
                     end
                 end
             else
-                tImGui.Text(string.format('Width: %.3f',tFrameAddOptions.iSizeFrameWidth))
+                tImGui.Text(string.format("%s: %.3f", tLang.L("width"), tFrameAddOptions.iSizeFrameWidth))
             end
 
             if bNoLock or bRatioOnYTextureLocked then
@@ -2117,13 +2117,13 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
                     end
                 end
             else
-                tImGui.Text(string.format('Height: %.3f',tFrameAddOptions.iSizeFrameHeight))
+                tImGui.Text(string.format("%s: %.3f", tLang.L("height"), tFrameAddOptions.iSizeFrameHeight))
             end
 
             
             local tRects = calcRectForSpriteSheet(tFrameAddOptions.tSelectedTexture)
             if tRects == nil then
-                tUtil.showMessageWarn('Invalid Rectangles!',2.5)
+                tUtil.showMessageWarn(tLang.L("invalid_rectangles"), 2.5)
             else
                 -- e.g, 3 x9 = 27 rectangles
                 -- tFrameAddOptions.tFramesEnableSpriteSheet = {true,true,true,...27 times
@@ -2199,7 +2199,7 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
                                 unCollapse(tWindowsTitle.title_frame_list)
                                 tUtil.showMessage(string.format('Added %d Subset(s)!',iTotalSubsetAdded),3)
                             else
-                                tUtil.showMessageWarn('There is no subset enabled!',2.5)
+                                tUtil.showMessageWarn(tLang.L("no_subset_enabled"), 2.5)
                             end
                         end
                     end
@@ -2248,10 +2248,10 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
                             unCollapse(tWindowsTitle.title_frame_list)
                             tUtil.showMessage(string.format('Added %d Frame(s)!',iTotalFrameAdded),3)
                         else
-                            tUtil.showMessageWarn('There is no frame enabled!',2.5)
+                            tUtil.showMessageWarn(tLang.L("no_frame_enabled"), 2.5)
                         end
                     else
-                        tUtil.showMessageWarn('There is no texture selected on tree node!',2.5)
+                        tUtil.showMessageWarn(tLang.L("no_texture_selected_tree"), 2.5)
                     end
                 end
 
@@ -2354,7 +2354,7 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
             tRender.nick_name = nick_name
         else
             print('error','Could not create dynamic texture!',sTexHash)
-            tUtil.showMessageWarn("Could not create dynamic texture!\n\n" .. sTexHash)
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_create_dynamic_texture_fmt"), sTexHash))
         end
         tRender:enableFrame(false)
         tRender:setColor(0,0,0,0)
@@ -2483,7 +2483,7 @@ function showAnimationAdd(delta)
             tImGui.PushItemWidth(200)
             tImGui.Separator()
             tImGui.Text(string.format(tLang.L("current_frame_fmt"), tostring(indexFrame)))
-            tImGui.Text(string.format('Current Time: %.3f', tAnimationOptions.iTimeAnimSimulation))
+            tImGui.Text(string.format("%s: %.3f", tLang.L("current_time"), tAnimationOptions.iTimeAnimSimulation))
             
             tImGui.Separator()
             tImGui.Text(tLang.L("type_of_animation"))
@@ -2577,10 +2577,10 @@ function showAnimationAdd(delta)
                             end
                             tImGui.EndPopup()
                         end
-                        tImGui.Text(string.format('Start :%d',tAnim.iFrameStart))
-                        tImGui.Text(string.format('Stop  :%d',tAnim.iFrameStop))
-                        tImGui.Text(string.format('Type  :%s',tAnimationOptions.tAnimTypes[tAnim.iTypeAnim]))
-                        tImGui.Text(string.format('Time  :%.3f',tAnim.fTimeFrame))
+                        tImGui.Text(string.format("%s: %d", tLang.L("start_frame"), tAnim.iFrameStart))
+                        tImGui.Text(string.format("%s: %d", tLang.L("stop_frame"), tAnim.iFrameStop))
+                        tImGui.Text(string.format("%s: %s", tLang.L("type"), tAnimationOptions.tAnimTypes[tAnim.iTypeAnim]))
+                        tImGui.Text(string.format("%s: %.3f", tLang.L("time_label"), tAnim.fTimeFrame))
 
                         if isAnimationValid(tAnim) == false then
                             local color         = {r=1,g=0,b=0,a=1}
@@ -2628,7 +2628,7 @@ function showAnimationAdd(delta)
         end
     else
         closeAnimationWindow()
-        tUtil.showMessageWarn('There is no frame to make animation!\n\nAdd Frame first!')
+        tUtil.showMessageWarn(tLang.L("no_frame_for_animation"))
     end
 end
 
@@ -2923,7 +2923,7 @@ end
 function showEditPhysics()
     bShowEditPhysics = false
     if #tFrameList > 0 then
-        tUtil.showMessageWarn('Please use physic_editor instead!')
+        tUtil.showMessageWarn(tLang.L("use_physic_editor_instead"))
         local width = 250
         local x_pos, y_pos = 0, 0
         local max_width = 250
@@ -3225,7 +3225,7 @@ function showEditPhysics()
         end
         tImGui.End()
     else
-        tUtil.showMessageWarn('There is no frame to edit physics!')
+        tUtil.showMessageWarn(tLang.L("no_frame_to_edit_physics"))
         closePhysicsWindow()
     end
 end
@@ -3595,14 +3595,14 @@ function onSaveSpriteEditor()
                 sLastEditorFileName = file_name
                 tUtil.showMessage('Sprite Editor Saved Successfully!!')
             else
-                tUtil.showMessageWarn('Failed to Save Editor of Sprite!')
+                tUtil.showMessageWarn(tLang.L("failed_to_save_editor_sprite"))
             end
         end
     else
         if onSaveEditionSprite(sLastEditorFileName) then
             tUtil.showMessage('Sprite Editor Saved Successfully!!')
         else
-            tUtil.showMessageWarn('Failed to Save Editor of Sprite!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_editor_sprite"))
         end
     end
 end

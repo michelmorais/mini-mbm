@@ -652,7 +652,7 @@ function showMeshOptions(tEntry, index)
                         if tShader:load(newPs, vsName, mbm.GROWING, 1.0, iTypeVs or 0, fTimeVs or 1.0) then
                             applyShaderToMesh()
                         else
-                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_mesh_fmt"), tostring(tList[ci])))
                         end
                     end
                     if psName then
@@ -697,7 +697,7 @@ function showMeshOptions(tEntry, index)
                         if tShader:load(psName, newVs, iTypePs or 0, fTimePs or 1.0, mbm.GROWING, 1.0, 1) then
                             applyShaderToMesh()
                         else
-                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_mesh_fmt"), tostring(tList[ci])))
                         end
                     end
                     if vsName then
@@ -764,12 +764,12 @@ function showMeshOptions(tEntry, index)
                             local ok = meshD:copyAnimationsFromMesh(refMesh)
                             refMesh:destroy()
                             if ok then onEdit() tUtil.showMessage(string.format('Copied shader from %s', tUtil.getShortName(refFile)))
-                            else tUtil.showMessageWarn('Copy failed (mesh may have no shader effect)') end
+                            else tUtil.showMessageWarn(tLang.L("copy_failed_no_shader")) end
                         else
                             if refMesh then refMesh:destroy() end
-                            tUtil.showMessageWarn('Failed to load reference mesh')
+                            tUtil.showMessageWarn(tLang.L("failed_to_load_reference_mesh"))
                         end
-                    else tUtil.showMessageWarn('Could not read mesh info') end
+                    else tUtil.showMessageWarn(tLang.L("could_not_read_mesh_info")) end
                 end
             end
         end
@@ -781,7 +781,7 @@ function showMeshOptions(tEntry, index)
         if ok then
             tUtil.showMessage(string.format('Check OK: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Check failed: %s\n%s', shortName, err or ''))
+            tUtil.showMessageWarn(string.format(tLang.L("check_failed_fmt"), shortName, err or ''))
         end
     end
 
@@ -792,7 +792,7 @@ function showMeshOptions(tEntry, index)
             iLastPreviewedIndex = 0
             tUtil.showMessage(string.format('Saved: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
     if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
@@ -803,7 +803,7 @@ function showMeshOptions(tEntry, index)
             iLastPreviewedIndex = 0
             tUtil.showMessage(string.format('Saved: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
     tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')

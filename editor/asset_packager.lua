@@ -138,7 +138,7 @@ function onSaveAsset()
                 else
                     local msg = db:errmsg(err_id)
                     print('line', msg)
-                    tUtil.showMessageWarn('Error:\n' .. msg)
+                    tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
                 end
 
                 local id = 1
@@ -166,17 +166,17 @@ function onSaveAsset()
                 else
                     local msg = db:errmsg(err_id)
                     print('line', msg)
-                    tUtil.showMessageWarn('Error:\n' .. msg)
+                    tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
                 end
                 db:close()
             else
                 local msg = db:errmsg(result)
                 print('line', msg)
-                tUtil.showMessageWarn('Error:\n' .. msg)
+                tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
             end
         else
             print('error', 'Could not create the database ' .. filename)
-            tUtil.showMessageWarn('Could not create the database ' .. filename)
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_create_database_fmt"), filename))
         end
     end
 end
@@ -200,11 +200,11 @@ function deleteFromDatabase(sFile)
         if result ~= sqlite3.OK then
             local msg = db:errmsg(err_id)
             print('line', msg)
-            tUtil.showMessageWarn('Error:\n' .. msg)
+            tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
         end
         db:close()
     else
-        tUtil.showMessageWarn('Error:\nCould not open the database:\n ' .. tostring(sPackageName))
+        tUtil.showMessageWarn(string.format(tLang.L("error_could_not_open_database_fmt"), tostring(sPackageName)))
     end
 end
 
@@ -220,18 +220,18 @@ function extractFileFromDatabase(sFile,sDestiny)
                 for row in select_stmt:nrows() do
                 end
             else
-                tUtil.showMessageWarn(string.format('Error:\nNo data found for the SQL:\n SELECT writefile("%s",content) FROM assets WHERE name = "%s";',sDestiny,sFile))
+                tUtil.showMessageWarn(string.format(tLang.L("error_sql_no_data_fmt"), sDestiny, sFile))
             end
             select_stmt:finalize()
             db:close()
         else
             local msg = db:errmsg(err_id)
             print('line', msg)
-            tUtil.showMessageWarn('Error:\n' .. msg)
+            tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
         end
         return bRet
     else
-        tUtil.showMessageWarn('Error:\nCould not open the database:\n ' .. tostring(sPackageName))
+        tUtil.showMessageWarn(string.format(tLang.L("error_could_not_open_database_fmt"), tostring(sPackageName)))
         return false
     end
 end
@@ -325,7 +325,7 @@ function showAssets()
                                             if tUtil.copyFile(sOriginalFile,filename) then
                                                 tUtil.showMessage('File Copied Successfully:\n\n' .. filename)
                                             else
-                                                tUtil.showMessageWarn('Failed to Copy File!\n ' .. sOriginalFile .. '\nto:\n' .. filename)
+                                                tUtil.showMessageWarn(string.format(tLang.L("failed_to_copy_file_fmt"), sOriginalFile, filename))
                                             end
                                         end
                                     end
@@ -436,11 +436,11 @@ function onOpenAsset()
             else
                 local msg = db:errmsg(err_id)
                 print('line', msg)
-                tUtil.showMessageWarn('Error:\n' .. msg)
+                tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
             end
             db:close()
         else
-            tUtil.showMessageWarn('Could not open the database ' .. filename)
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_open_database_fmt"), filename))
         end
     end
 end
@@ -633,14 +633,14 @@ function main_menu_asset()
                                 local result = db:exec(string.format('SELECT ADD_ASSET_FOLDER("%s%s%s");',folderPath,sSeparator,'asset'))
                                 if result ~= sqlite3.OK then
                                     print(result,db:errmsg())
-                                    tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                    tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                 else
                                     if tCategory[tCategory.index] == 'all' then
                                         local result = db:exec('SELECT SAVE_ASSET(name,content) FROM assets;')
                                         if result == sqlite3.OK then
                                             tUtil.showMessage('Command Executed Successfully!')
                                         else
-                                            tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                            tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                             print(result,db:errmsg())
                                         end
                                     else
@@ -648,7 +648,7 @@ function main_menu_asset()
                                         if result == sqlite3.OK then
                                             tUtil.showMessage('Command Executed Successfully!')
                                         else
-                                            tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                            tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                             print(result,db:errmsg())
                                         end
                                     end
@@ -657,10 +657,10 @@ function main_menu_asset()
                             db:close()
                         else
                             print('error', 'Could not open the database ' .. sPackageName)
-                            tUtil.showMessageWarn('Could not open the database ' .. sPackageName)
+                            tUtil.showMessageWarn(string.format(tLang.L("could_not_open_database_fmt"), sPackageName))
                         end
                     else
-                        tUtil.showMessageWarn('There is no database loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_database_loaded"))
                     end
                 end
 

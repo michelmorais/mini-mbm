@@ -282,18 +282,18 @@ function createLetterFace(tLetter,width_texture,height_texture)
     
         -- The table expected is : {{x,y,z,u,v},{x,y,z,u,v},{x,y,z,u,v}, ...}
         if not tMesh:addVertex(indexFrame,indexSubset,tVertex) then 
-            tUtil.showMessageWarn("Error on add vertex buffer")
+            tUtil.showMessageWarn(tLang.L("error_add_vertex_buffer"))
             return false
         end
         
         if not tMesh:addIndex(indexFrame,indexSubset,tIndex) then 
-            tUtil.showMessageWarn("Error on add index buffer")
+            tUtil.showMessageWarn(tLang.L("error_add_index_buffer"))
             return false
         end
     
         --apply the texture to frame / subset
         if not tMesh:setTexture(indexFrame,indexSubset,tFontStructure.sTextureFile) then
-            tUtil.showMessageWarn("Error on set texture!")
+            tUtil.showMessageWarn(tLang.L("error_set_texture"))
             return false
         end
     end
@@ -311,7 +311,7 @@ function createLetterFace(tLetter,width_texture,height_texture)
         tUtil.showMessage("Mesh created successfully ")
          return true
      else
-        tUtil.showMessageWarn("Failed to create Mesh!")
+        tUtil.showMessageWarn(tLang.L("failed_to_create_mesh"))
          return false
      end
      
@@ -350,11 +350,11 @@ function onParseFont(sFontSelected)
 
             end
             if tFontStructure.sTextureFile == nil then
-                tUtil.showMessageWarn('Texture not found in the txt file!')
+                tUtil.showMessageWarn(tLang.L("texture_not_found_txt"))
             elseif tFontStructure.iSize == nil then
-                tUtil.showMessageWarn('Size not defined in the txt file!')
+                tUtil.showMessageWarn(tLang.L("size_not_defined_txt"))
             elseif #tFontStructure.tLetters == 0 then
-                tUtil.showMessageWarn('Letters not defined in the txt file!')
+                tUtil.showMessageWarn(tLang.L("letters_not_defined_txt"))
             else
                 if tFontStructure.scaleW == nil then
                     local texInfo = mbm.loadTexture(tFontStructure.sTextureFile)
@@ -364,16 +364,16 @@ function onParseFont(sFontSelected)
                     end
                 end
                 if tFontStructure.scaleW == nil then
-                    tUtil.showMessageWarn('Texture size not defined in the txt file and could not load the texture!')
+                    tUtil.showMessageWarn(tLang.L("texture_size_not_defined_txt"))
                 else
                     tFontStructure.font_name = tUtil.getShortName(tFontStructure.sTextureFile):split('%.')[1]
                     local sFileName          = mbm.saveFile(string.format('%s.fnt',tFontStructure.font_name),'fnt')
                     if sFileName then
                         if createBinaryFont(sFileName,tFontStructure) then
-                            tUtil.showMessageWarn('File [' .. tFontStructure.font_name .. ']  parsed successfully!')
+                            tUtil.showMessageWarn(string.format(tLang.L("file_parsed_successfully_fmt"), tFontStructure.font_name))
                             loadNewFont(sFileName)
                         else
-                            tUtil.showMessageWarn('Failed to parse file [' .. tFontStructure.font_name .. ']!')
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_parse_file_fmt"), tFontStructure.font_name))
                         end
                     end
                 end
@@ -503,7 +503,7 @@ function renderMainMenu(delta)
                             tUtil.showMessageWarn(tLang.L("failed_to_load_shader"))
                          end
                     else
-                        tUtil.showMessageWarn('A name is required to add animation!')
+                        tUtil.showMessageWarn(tLang.L("name_required_for_animation"))
                     end
                 end
                 
@@ -671,8 +671,8 @@ function isBinaryFont(fileName)
         if myType == "font" then
             return true
         else
-            local msg = "File: " ..tUtil.getShortName(fileName,true) .. "\nis not a font!\nType:" .. myType
-            tUtil.showMessageWarn(msg,5)
+            local msg = string.format(tLang.L("file_not_font_fmt"), tUtil.getShortName(fileName, true), myType)
+            tUtil.showMessageWarn(msg, 5)
             return false
         end
     end

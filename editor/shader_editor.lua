@@ -675,7 +675,7 @@ function showShaderOptions()
                     if result then
                         if fValue >= 0 and fValue <= 99999999 then
                             if not tShader:setPStime(fValue) then
-                                tUtil.showMessageWarn('Error on apply time to pixel shader')
+                                tUtil.showMessageWarn(tLang.L("error_apply_time_pixel_shader"))
                             end
                         end
                     end
@@ -785,7 +785,7 @@ function showShaderOptions()
                     if result then
                         if fValue >= 0 and fValue <= 99999999 then
                             if not tShader:setVStime(fValue) then
-                                tUtil.showMessageWarn('Error on apply time to vertex shader')
+                                tUtil.showMessageWarn(tLang.L("error_apply_time_vertex_shader"))
                             end
                         end
                     end
@@ -845,10 +845,10 @@ function showShaderOptions()
                     local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
                     if #tSelectedTextures == 0 then
                         bTextureViewOpened = true
-                        tUtil.showMessageWarn('Please Select a Texture!')
+                        tUtil.showMessageWarn(tLang.L("please_select_texture"))
                     elseif #tSelectedTextures > 1 then
                         bTextureViewOpened = true
-                        tUtil.showMessageWarn('There Is More Then One Texture Selected!\nPlease Select Just One!')
+                        tUtil.showMessageWarn(tLang.L("more_than_one_texture_selected"))
                     else
                         tMesh:setTexture(tSelectedTextures[1].file_name,true,2)
                     end
@@ -887,7 +887,7 @@ function mainMenuShader()
                     if mbm.include(file_name) then
                         tUtil.showMessage('File Added Successfully!')
                     else
-                        tUtil.showMessageWarn('Failed to Add File:' .. file_name)
+                        tUtil.showMessageWarn(string.format(tLang.L("failed_to_add_file_fmt"), file_name))
                     end
                 end
             end
@@ -917,7 +917,7 @@ function mainMenuShader()
             local pressed,checked = tImGui.MenuItem(tLang.L("enable_alpha_pattern_bg"), true, tex_alpha_patern.visible)
             if pressed then
                 if checked and tMesh and tMesh.is3d then
-                    tUtil.showMessageWarn('Not applicable to 3D!')
+                    tUtil.showMessageWarn(tLang.L("not_applicable_3d"))
                 else
                     tex_alpha_patern.visible = checked
                 end
@@ -979,7 +979,7 @@ function mainMenuShader()
                 if tShader then
                     bShowShaderMenu = true
                 else
-                    tUtil.showMessageWarn('There is No Mesh Loaded!\n\nLoad A Mesh First!')
+                    tUtil.showMessageWarn(tLang.L("no_mesh_loaded_load_first"))
                 end
             end
             
