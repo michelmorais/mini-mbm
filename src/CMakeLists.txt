@@ -203,7 +203,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     if(USE_LUA)
         add_custom_target(
         shortcuts ALL
-        DEPENDS shortcuts mini-mbm
+        DEPENDS mini-mbm
         COMMAND cmake -E echo "---------------------------------------------"
         COMMAND cmake -E echo "binaries created at ${PATH_BIN}"
         COMMAND cmake -E echo "---------------------------------------------"
@@ -244,7 +244,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     else()
     add_custom_target(
         shortcuts ALL
-        DEPENDS shortcuts mini-mbm
+        DEPENDS mini-mbm
         COMMAND cmake -E echo "---------------------------------------------"
         COMMAND cmake -E echo "binaries created at ${PATH_BIN}"
         COMMAND cmake -E echo "---------------------------------------------"
