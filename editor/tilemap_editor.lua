@@ -156,6 +156,14 @@ end
 function onOpenTileBinary()
     local sFileName = mbm.openFile(sFileNameTile,'*.tile')
     if sFileName then
+        for i = 1, #tMapObjects do
+            local tShape = tMapObjects[i]
+            if tShape and tShape.destroy then
+                tShape:destroy()
+            end
+        end
+        tMapObjects = {}
+        tMovingObjectMap = nil
         if tTile:load(sFileName) then
             sFileNameTile = sFileName
             tUtil.showMessage('Tile Map Loaded Successfully!')
@@ -1871,7 +1879,7 @@ function isOverAnyObjectMap(x,y)
         local scale  = tTile:getScale()
         for i=1, #tMapObjects do
             local tShape = tMapObjects[i]
-            if type(tShape.x) == 'number' then -- it is a shape?
+            if tShape.visible and type(tShape.x) == 'number' then -- it is a visible shape?
                 if tShape:isOver(x,y) then
                     tShape.index  = i
                     return tShape
@@ -1892,8 +1900,22 @@ function updateObjectsOnMap()
     if sRenderWhat == 'map' then
         local scale  = tTile:getScale()
         local iTotal = tTile:getTotalObjectMap()
-        if iTotal == #tMapObjects then
-            for i=1, #tMapObjects do
+        if iTotal < #tMapObjects then
+            for i = #tMapObjects, iTotal + 1, -1 do
+                local tShape = tMapObjects[i]
+                tShape.visible = false
+                tShape.type = 'none'
+                tShape:destroy()
+                table.remove(tMapObjects, i)
+            end
+        elseif iTotal > #tMapObjects then
+            while #tMapObjects < iTotal do
+                local tShape = {destroy = function(self) end, type = 'None', bObjectsVisible = true}
+                table.insert(tMapObjects, tShape)
+            end
+        end
+        if iTotal > 0 then
+            for i=1, iTotal do
                 local tObj    = tTile:getObjectMap(i)
                 local tShape  = tMapObjects[i]
                 tShape.tObj   = tObj
@@ -1965,6 +1987,10 @@ function updateObjectsOnMap()
                         tLine.tTheLine:setColor(1.0,0.0,1.0,0.7)
 
                         tLine.destroy = function(self)
+                            if not self.tShapeCircles then
+                                self.tTheLine:destroy()
+                                return
+                            end
                             for i=1, #self.tShapeCircles do
                                 local tShapeCircles = self.tShapeCircles[i]
                                 if tShapeCircles then
@@ -1976,6 +2002,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.collide = function(self,x,y)
+                            if not self.tShapeCircles then return false end
                             for i=1, #self.tShapeCircles do
                                 local tShapeCircles = self.tShapeCircles[i]
                                 if tShapeCircles then
@@ -1988,6 +2015,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.setPos = function(self,x,y)
+                            if not self.tShapeCircles then return end
                             if self.indexOver ~= 0 and self.indexOver < #self.tShapeCircles then
                                 local tShapePoint = self.tShapeCircles[self.indexOver]
                                 local index = self.indexOver * 2
@@ -1998,6 +2026,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.isOver = function(self,x,y)
+                            if not self.tShapeCircles then return false end
                             for j=1, #self.tShapeCircles do
                                 local tShapePoint = self.tShapeCircles[j]
                                 if tShapePoint.visible and tShapePoint:isOver(x,y) then
@@ -2013,6 +2042,7 @@ function updateObjectsOnMap()
                         end
 
                         tLine.setScale = function(self,sx,sy)
+                            if not self.tShapeCircles then return end
                             for j=1, #self.tObj, 2 do
                                 local x = self.tObj[j]
                                 local y = self.tObj[j+1]
@@ -2061,20 +2091,6 @@ function updateObjectsOnMap()
                 tShape.visible = tShape.bObjectsVisible
                 tShape.z = -100
             end
-        elseif iTotal < #tMapObjects then
-            for i= iTotal + 1, #tMapObjects do
-                local tShape = tMapObjects[i]
-                tShape.visible = false
-                tShape.type = 'none'
-                if tShape.tShapeCircles then
-                    tShape:destroy()
-                end
-            end
-        else
-            while #tMapObjects < iTotal do
-                local tShape = {destroy = function(self) end, type = 'None', bObjectsVisible = true}
-                table.insert(tMapObjects,tShape)
-            end
         end
     else
         for i= 1, #tMapObjects do
@@ -2082,8 +2098,8 @@ function updateObjectsOnMap()
             tShape.visible = false
             if tShape.tShapeCircles then
                 tShape.tTheLine.visible = false
-                for i=1, #tShape.tShapeCircles do
-                    tShape.tShapeCircles[i].visible = false
+                for j=1, #tShape.tShapeCircles do
+                    tShape.tShapeCircles[j].visible = false
                 end
             end
         end
