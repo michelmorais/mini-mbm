@@ -90,7 +90,7 @@ namespace mbm
         {
             GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGB, GL_UNSIGNED_BYTE, img);
         }
-        if (TEXTURE::no_filter)
+        if (TEXTURE::pixelPerfectTexture)
         { // TILE MAP Mode
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -124,7 +124,7 @@ namespace mbm
             return false;
         GLBindTexture(GL_TEXTURE_2D, idTexture);
         GLTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
-        if (TEXTURE::no_filter)
+        if (TEXTURE::pixelPerfectTexture)
         { // TILE MAP Mode
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -175,7 +175,7 @@ namespace mbm
         // texture
         GLBindTexture(GL_TEXTURE_2D, idTexture2d);
 
-        if (TEXTURE::no_filter)
+        if (TEXTURE::pixelPerfectTexture)
         { // TILE MAP Mode
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             GLTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);

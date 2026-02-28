@@ -116,6 +116,7 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
     {
+        _pixelPerfectRenderingActive = true;
         for (int i = 0; i < 2; ++i)
         {
             REMINDER_TODO
@@ -124,6 +125,7 @@ namespace mbm
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
+        _pixelPerfectRenderingActive = false;
         for (int i = 0; i < 2; ++i)
         {
             REMINDER_TODO

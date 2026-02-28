@@ -58,7 +58,7 @@ namespace mbm
         };
         bool     useAlphaChannel;
       private:
-        static bool no_filter;
+        static bool pixelPerfectTexture;
         std::string  fileName;
         uint32_t width;
         uint32_t height;

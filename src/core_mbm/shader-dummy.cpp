@@ -87,7 +87,7 @@ namespace mbm
                                const int* vertexStartSubset,
                                const int* vertexCountSubset,
                                const util::INFO_DRAW_MODE* info_draw_mode,
-                               const bool isDynamic)// type vertex buffer, must be implemented by specific backend engine
+                               const bool isDynamic)
     {
         this->release();
         if (!vertex || !sizeOfArrayVertex || !totalSubsets || !vertexStartSubset || !vertexCountSubset)

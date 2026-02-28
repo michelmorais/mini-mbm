@@ -138,6 +138,7 @@ namespace mbm
 
     void DEVICE::disableFilteringForPixelPerfect() noexcept//backend specific way to disable texture filtering for pixel perfect rendering
     {
+        _pixelPerfectRenderingActive = true;
 		// Store current texture filtering
 		// In OPENGL this does not seem to be affecting the texture. what is affecting is to set those GLTexParameteri while loading the texture.
         // TODO: maybe investigate??
@@ -161,6 +162,7 @@ namespace mbm
     }
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept//backend specific way to restore texture filtering
     {
+        _pixelPerfectRenderingActive = false;
         constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
         for (int i = 0; i < 2; i++)
         {

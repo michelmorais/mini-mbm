@@ -93,9 +93,9 @@ void MY_SCENE::init()
     device->colorClearBackGround.b = 0.5f;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
-	//this->background = new mbm::BACKGROUND(this, false);
-	//bool majorScale = true;
-    //this->background->load("ground.png", true, majorScale);
+	this->background = new mbm::BACKGROUND(this, false);
+	bool majorScale = true;
+    this->background->load("ground.png", true, majorScale);
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
@@ -158,7 +158,8 @@ void MY_SCENE::init()
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
 
-    sprite->load("pie.spt");
+    //sprite->load("pie.spt");
+    sprite->load("dialog.spt");
     sprite->alwaysRenderize = true;
     sprite->position.z = 1;
 
@@ -343,20 +344,20 @@ void MY_SCENE::logic()
     {
         randomSteeredParticlePositions();
     }
-    if (sprite)
-    {
-        auto fx = sprite->getFx();
-        if (fx)
-        {
-            float data[4] = { 0, 0, 0, 0 };
-            fx->getVarPShader("percent", data);
-            INFO_LOG("data : %g", data[0]);
-            //data[0] += 0.01f;
-            //if (data[0] > 1.0f)
-            //    data[0] = 0.0f;
-            //fx->setVarPShader("percent", data);
-		}
-    }
+    //if (sprite)
+    //{
+    //    auto fx = sprite->getFx();
+    //    if (fx)
+    //    {
+    //        float data[4] = { 0, 0, 0, 0 };
+    //        fx->getVarPShader("percent", data);
+    //        INFO_LOG("data : %g", data[0]);
+    //        //data[0] += 0.01f;
+    //        //if (data[0] > 1.0f)
+    //        //    data[0] = 0.0f;
+    //        //fx->setVarPShader("percent", data);
+	//	}
+    //}
     if (texture)
     {
         auto fx = texture->getFx();

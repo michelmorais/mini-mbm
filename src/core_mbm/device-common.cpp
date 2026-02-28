@@ -166,6 +166,11 @@ namespace mbm
     {
         return _isGamePaused;
     }
+
+    bool DEVICE::isPixelPerfectRendering() const noexcept
+    {
+        return _pixelPerfectRenderingActive;
+    }
     
     void DEVICE::pauseGame()
     {
