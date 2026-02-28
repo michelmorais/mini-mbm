@@ -593,5 +593,8 @@
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\texture-info-lua.h">
       <Filter>Header Files\lua-wrap</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h">
+      <Filter>Header Files\core_mbm</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
