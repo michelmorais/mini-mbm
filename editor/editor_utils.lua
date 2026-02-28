@@ -1,8 +1,10 @@
 tUtil = {}
 tUtil.iCountsetInitialWindowPosition = {}
 
+tLang = require "lang.language"
+
 if tImGui == nil then
-    mbm.messageBox('ImGui missing', 'This module requires tImGui = require "ImGui"')
+    mbm.messageBox(tLang.L("msg_imgui_missing"), tLang.L("msg_requires_imgui"))
     mbm.quit()
 end
 
@@ -78,22 +80,22 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
         
         if tImGui.BeginMenuBar() then
 
-            if tImGui.BeginMenu("Selection") then
-                local pressed,checked = tImGui.MenuItem("Select all", nil)
+            if tImGui.BeginMenu(tLang.L("selection")) then
+                local pressed,checked = tImGui.MenuItem(tLang.L("select_all"), nil)
                 if pressed then
                     for i=1, #tTexturesToEditor do
                         local tTexture      = tTexturesToEditor[i]
                         tTexture.isSelected = true
                     end
                 end
-                local pressed,checked = tImGui.MenuItem("Unselect all", nil)
+                local pressed,checked = tImGui.MenuItem(tLang.L("unselect_all"), nil)
                 if pressed then
                     for i=1, #tTexturesToEditor do
                         local tTexture      = tTexturesToEditor[i]
                         tTexture.isSelected = false
                     end
                 end
-                local pressed,checked = tImGui.MenuItem("Invert selection", nil)
+                local pressed,checked = tImGui.MenuItem(tLang.L("invert_selection"), nil)
                 if pressed then
                     for i=1, #tTexturesToEditor do
                         local tTexture      = tTexturesToEditor[i]
@@ -102,23 +104,23 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
                 end
                 tImGui.EndMenu();
             end
-            if tImGui.BeginMenu("Remove") then
-                local pressed,checked = tImGui.MenuItem("Remove on click", nil, tUtil.bEraseOnClick_showTextureAssets)
+            if tImGui.BeginMenu(tLang.L("remove_menu")) then
+                local pressed,checked = tImGui.MenuItem(tLang.L("remove_on_click"), nil, tUtil.bEraseOnClick_showTextureAssets)
                 if pressed then
                     tUtil.bEraseOnClick_showTextureAssets = checked
                 end
                 tImGui.Separator()
-                local pressed,checked = tImGui.MenuItem("Remove all", nil)
+                local pressed,checked = tImGui.MenuItem(tLang.L("remove_all"), nil)
                 if pressed and #tTexturesToEditor > 0 then
                     tUtil.bModalRemoveImages_showTextureAssets = 'all'
                     tUtil.sTextRemove_showTextureAssets = 'Are you sure do you want to remove all images?'
                 end
-                local pressed,checked = tImGui.MenuItem("Remove all selected", nil)
+                local pressed,checked = tImGui.MenuItem(tLang.L("remove_all_selected"), nil)
                 if pressed then
                     tUtil.bModalRemoveImages_showTextureAssets = 'selected'
                     tUtil.sTextRemove_showTextureAssets = 'Are you sure do you want to remove all selected images?'
                 end
-                local pressed,checked = tImGui.MenuItem("Remove all unselected", nil)
+                local pressed,checked = tImGui.MenuItem(tLang.L("remove_all_unselected"), nil)
                 if pressed then
                     tUtil.bModalRemoveImages_showTextureAssets = 'unselected'
                     tUtil.sTextRemove_showTextureAssets = 'Are you sure do you want to remove all unselected images?'
@@ -179,13 +181,13 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
     end
     if tUtil.bModalRemoveImages_showTextureAssets then
         local flags       = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
-        local title_popup = 'Remove all images ?'
+        local title_popup = tLang.L("remove_all_images")
         tImGui.OpenPopup(title_popup);
         local is_opened, closed_clicked = tImGui.BeginPopupModal(title_popup, false, flags)
         if is_opened then
             tImGui.Text(tUtil.sTextRemove_showTextureAssets)
             tImGui.Separator();
-            if tImGui.Button("OK", {x=120, y= 0}) then
+            if tImGui.Button(tLang.L("ok"), {x=120, y= 0}) then
                 local function remove_from_table(tTexturesToEditor,value)
                     for i=1, #tTexturesToEditor do
                         if value then
@@ -224,7 +226,7 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
             end
             tImGui.SetItemDefaultFocus();
             tImGui.SameLine();
-            if tImGui.Button("Cancel", {x=120, y= 0}) then
+            if tImGui.Button(tLang.L("cancel"), {x=120, y= 0}) then
                 tImGui.CloseCurrentPopup()
                 tUtil.bModalRemoveImages_showTextureAssets = nil
             end
@@ -766,7 +768,7 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
     end
     local command        = string.format('%s -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene %q --name %q',exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
     mbm.executeInThread(command)
-    tUtil.showMessage('Command executed.. ')
+    tUtil.showMessage(tLang.L("command_executed"))
 end
 
 tUtil.deepCopyTable = function(orig)

@@ -32,7 +32,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -129,9 +129,9 @@ function onSaveTexture()
     if sFileName then
         if tRender:save(sFileName) then
             sFileNameTexture = sFileName
-            tUtil.showMessage('Texture Saved Successfully!')
+            tUtil.showMessage(tLang.L("texture_saved_ok"))
         else
-            tUtil.showMessageWarn('Failed to Save Texture File!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_texture"))
         end
     end
 end
@@ -166,9 +166,9 @@ function onLoadTextureConfiguration()
             end
             bTextureViewOpened = true
             bViewTextureOptions = true
-            tUtil.showMessage('Texture Configuration Editor Loaded Successfully!')
+            tUtil.showMessage(tLang.L("texture_config_loaded_ok"))
         else
-            tUtil.showMessageWarn('Failed to Load Texture Configuration Editor File!')
+            tUtil.showMessageWarn(tLang.L("failed_to_load_texture_config"))
         end
     end
 end
@@ -181,7 +181,7 @@ function onSaveTextureConfiguration()
     if sFileName then
         local fp = io.open(sFileName,"w")
         if fp == nil then
-            tUtil.showMessageWarn(string.format('Failed to Save Texture Configuration Editor File\n %s',sFileName))
+            tUtil.showMessageWarn(string.format(tLang.L("failed_to_save_config_fmt"), sFileName))
         else
             fp:write(string.format("tTextureOptions = {}\n"))
             fp:write(string.format("tTextureOptions.fWidth = %d\n",  tTextureOptions.fWidth))
@@ -237,7 +237,7 @@ function onSaveTextureConfiguration()
             end
             fp:close()
             sFileNameTextureCfg = sFileName
-            tUtil.showMessage('Texture Configuration Editor Saved Successfully!')
+            tUtil.showMessage(tLang.L("texture_config_saved_ok"))
         end
     end
 end
@@ -333,7 +333,7 @@ function adjustTextureSize()
             tLine:setScale(scale,scale)
             tLine:setColor(1,1,0)
         else
-            tUtil.showMessageWarn('Failed to create dynamic texture\nTry to reduce the size of texture!')
+            tUtil.showMessageWarn(tLang.L("failed_to_create_dynamic_texture"))
         end
     end
 end
@@ -1505,37 +1505,37 @@ end
 
 function main_menu_texture_packer()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
 
             if mbm.is('Windows') then
-                local pressed,checked = tImGui.MenuItem("Load Texture (Max 32 files)", "Ctrl+I", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_max32"), "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
             else
-                local pressed,checked = tImGui.MenuItem("Load Texture", "Ctrl+I", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("load_texture"), "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Texture From Folder", nil , false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_from_folder"), nil , false)
             if pressed then
                 onOpenTexturesFromFolder()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture (png)", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_png"), nil, false)
             if pressed then
                 if tRender:isLoaded() then
                     --TODO: 
                     onSaveTexture()
                 else
-                    tUtil.showMessageWarn('There is no texture loaded!')
+                    tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Generate Image Resource Header From Image (Png)", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("generate_image_header"), nil, false)
             if pressed then
                 if #tTexturesToEditor > 0 then
                     for i=1, #tTexturesToEditor do
@@ -1544,9 +1544,9 @@ function main_menu_texture_packer()
                             local sFileName = mbm.saveFile(tUtil.getShortName(sFileNameTexture):split('%.')[1] .. '.h','*.h')
                             if sFileName then
                                 if not mbm.generateImageResourceHeaderFromPng(sFileNameTexture, sFileName) then
-                                    tUtil.showMessageWarn('Failed to Generate Image Resource Header!')
+                                    tUtil.showMessageWarn(tLang.L("failed_to_generate_image_header"))
                                 else
-                                    tUtil.showMessage(string.format('Image Resource Header Generated Successfully! %s', sFileName))
+                                    tUtil.showMessage(string.format(tLang.L("image_header_generated_fmt"), sFileName))
                                 end
                             end
                         end
@@ -1555,16 +1555,16 @@ function main_menu_texture_packer()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture configuration", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_config"), "Ctrl+S", false)
             if pressed then
                 if tRender:isLoaded() then
                     onSaveTextureConfiguration()
                 else
-                    tUtil.showMessageWarn('There is no texture loaded!')
+                    tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Texture configuration", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_config"), "Ctrl+O", false)
             if pressed then 
                 onLoadTextureConfiguration()
             end
@@ -1589,20 +1589,20 @@ function main_menu_texture_packer()
                                     if (x + fx) <= tTextureOptions.fWidth and (y + fy) <= tTextureOptions.fHeight then
                                         local sFullFileName = string.format('%s%s_%d.png',sFolder,sShortName,iCount)
                                         if not tRender:save(sFullFileName, x, y, fx, fy) then
-                                            tUtil.showMessageWarn('Failed to Save Texture Rectangle!')
+                                            tUtil.showMessageWarn(tLang.L("failed_to_save_texture_rect"))
                                         end
                                         iCount = iCount + 1
                                     end
                                 end
                             end
                             if iCount > 0 then
-                                tUtil.showMessage(string.format('%d textures saved successfully!',iCount-1))
+                                tUtil.showMessage(string.format(tLang.L("textures_saved_fmt"), iCount-1))
                             else
-                                tUtil.showMessageWarn('No one texture was saved!')
+                                tUtil.showMessageWarn(tLang.L("no_texture_was_saved"))
                             end
                         end
                     else
-                        tUtil.showMessageWarn('There is no texture loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                     end
                 end
 
@@ -1623,26 +1623,26 @@ function main_menu_texture_packer()
                                     if (x + fx) <= tTextureOptions.fWidth and (y + fy) <= tTextureOptions.fHeight then
                                         local sFullFileName = string.format('%s%s_%d.png',sFolder,sShortName,iCount)
                                         if not tRender:save(sFullFileName, x, y, fx, fy) then
-                                            tUtil.showMessageWarn('Failed to Save Texture Rectangle!')
+                                            tUtil.showMessageWarn(tLang.L("failed_to_save_texture_rect"))
                                         end
                                         iCount = iCount + 1
                                     end
                                 end
                             end
                             if iCount > 0 then
-                                tUtil.showMessage(string.format('%d textures saved successfully!',iCount-1))
+                                tUtil.showMessage(string.format(tLang.L("textures_saved_fmt"), iCount-1))
                             else
-                                tUtil.showMessageWarn('No one texture was saved!')
+                                tUtil.showMessageWarn(tLang.L("no_texture_was_saved"))
                             end
                         end
                     else
-                        tUtil.showMessageWarn('There is no texture loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                     end
                 end
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -1650,26 +1650,26 @@ function main_menu_texture_packer()
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("General Options") then
+        if tImGui.BeginMenu(tLang.L("general_options")) then
 
-            local pressed,checked = tImGui.MenuItem("View Image List", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_image_list"), nil, false)
             if pressed then
                 bTextureViewOpened = checked
             end
             tImGui.Separator()
 
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Pre load texture (enable filter)", true, tTextureOptions.bFilter)
+            local pressed,checked = tImGui.MenuItem(tLang.L("pre_load_texture_filter"), true, tTextureOptions.bFilter)
             if pressed then
                 tTextureOptions.bFilter = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -1679,27 +1679,29 @@ function main_menu_texture_packer()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -1716,7 +1718,7 @@ function main_menu_texture_packer()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -1727,9 +1729,9 @@ function main_menu_texture_packer()
                 scale = fValue
                 tShape:setScale(scale,scale)
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 scale = 1
                 tShape:setScale(scale,scale)
             end
@@ -1737,8 +1739,8 @@ function main_menu_texture_packer()
         end
 
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Texture Packer Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("texture_packer_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
@@ -1746,7 +1748,7 @@ function main_menu_texture_packer()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1755,7 +1757,7 @@ function main_menu_texture_packer()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end

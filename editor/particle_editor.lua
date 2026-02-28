@@ -32,7 +32,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -120,9 +120,9 @@ function onOpenParticle(sFileName)
 		local ext = tUtil.getExtension(fileName)
 		if ext ~= 'particle' and ext ~= "ptl" then
 			if ext == 'png' or ext == 'bmp' or ext == 'jpg' or ext == 'jpge' or ext == 'tif' then
-				tUtil.showMessage("Texture found \n["..tUtil.getShortName(fileName,true) .. "]\nadded path...")
+				tUtil.showMessage(string.format(tLang.L("texture_found_added_fmt"), tUtil.getShortName(fileName, true)))
 			else
-				tUtil.showMessage("File found \n["..tUtil.getShortName(fileName,true) .. "]\nadded path...")
+				tUtil.showMessage(string.format(tLang.L("file_found_added_fmt"), tUtil.getShortName(fileName, true)))
 			end
 			mbm.addPath(fileName)
 			return
@@ -134,11 +134,11 @@ function onOpenParticle(sFileName)
             dofile(fileName)
             if tParticle then
                 bShowParticleMenu = true
-                tUtil.showMessage("Particle Successfully Loaded")
+                tUtil.showMessage(tLang.L("particle_loaded_ok"))
                 sLastEditorFileName = fileName
                 mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
             else
-                tUtil.showMessageWarn("Failed to Load Particle!")
+                tUtil.showMessageWarn(tLang.L("failed_to_load_particle"))
             end
         elseif ext == "ptl" then
             if tParticle then
@@ -150,11 +150,11 @@ function onOpenParticle(sFileName)
                 bShowParticleMenu = true
                 tShader = tParticle:getShader()
                 sLastEditorFileName = fileName
-                tUtil.showMessage("Particle Successfully Loaded")
+                tUtil.showMessage(tLang.L("particle_loaded_ok"))
                 mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
             else
                 tParticle = nil
-                tUtil.showMessageWarn("Failed to Load Particle!")
+                tUtil.showMessageWarn(tLang.L("failed_to_load_particle"))
             end
 		end
 	end
@@ -278,7 +278,7 @@ function onSaveEditionParticle(sFileName)
         return true
     else
         print('error',string.format('Could not open the file [%s] for write',sFileName))
-        tUtil.showMessageWarn(string.format('Could not open the file [%s] for write',sFileName))
+        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_write_fmt"), sFileName))
         return false
     end
 end
@@ -289,17 +289,17 @@ function onSaveParticleEditor()
         if file_name then
             if onSaveEditionParticle(file_name) then
                 sLastEditorFileName = file_name
-                tUtil.showMessage('Particle Editor Saved Successfully!!')
+                tUtil.showMessage(tLang.L("particle_editor_saved_ok"))
             else
-                tUtil.showMessageWarn('Failed to Save Editor of Particle!')
+                tUtil.showMessageWarn(tLang.L("failed_to_save_particle_editor"))
             end
         end
     else
         if onSaveEditionParticle(sLastEditorFileName) then
             mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
-            tUtil.showMessage(string.format('Particle Editor\n %s\n Saved Successfully!!',tUtil.getShortName(sLastEditorFileName)))
+            tUtil.showMessage(string.format(tLang.L("particle_editor_saved_fmt"), tUtil.getShortName(sLastEditorFileName)))
         else
-            tUtil.showMessageWarn('Failed to Save Editor of Particle!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_particle_editor"))
         end
     end
 end
@@ -326,7 +326,7 @@ function onSaveParticleBinary()
 			local totalVertex = 3
 			local nSubset = myMesh:addSubSet(indexFrame)
 			if not myMesh:addVertex(indexFrame,indexSubset,totalVertex) then 
-                tUtil.showMessageWarn("Error on add vertex")
+                tUtil.showMessageWarn(tLang.L("error_on_add_vertex"))
                 return false
 			end
 			if not myMesh:setTexture(indexFrame,indexSubset,tParticle:getTexture()) then
@@ -339,14 +339,14 @@ function onSaveParticleBinary()
 			if myMesh:copyAnimationsFromMesh(tParticle) then --copy animations created include stages
 				local calcNormal,calcUv = false,false --don't wanna normal (neither recalculate it) and recalculate UV at all
 				if myMesh:save(fileName,calcNormal,calcUv) then
-					tUtil.showMessage("Particle Saved Successfully!")
+					tUtil.showMessage(tLang.L("particle_saved_ok"))
 					return true
 				else
-					tUtil.showMessageWarn("Failed To Save Particle!")
+					tUtil.showMessageWarn(tLang.L("failed_to_save_particle"))
 					return true
 				end
 			else
-				tUtil.showMessageWarn("Failed To Copy Animations - stages, Shaders...")
+				tUtil.showMessageWarn(tLang.L("failed_to_copy_animations"))
 				return true
 			end
 		end
@@ -362,7 +362,7 @@ function onOpenImage()
             tParticle:setTexture(file_name)
         end
     else
-        tUtil.showMessageWarn('There is no particle to apply texture!\n\nAdd a particle first!')
+        tUtil.showMessageWarn(tLang.L("no_particle_for_texture"))
     end
 end
 
@@ -822,9 +822,9 @@ void main()
                             onOpenParticle(sLastEditorFileName)
                         end
                     elseif ext ~= "ptl" then
-                        tUtil.showMessageWarn(string.format('Not possible apply code to binary type \n%s\n\nYou must apply in your code!',sLastEditorFileName))
+                        tUtil.showMessageWarn(string.format(tLang.L("not_possible_apply_binary_fmt"), sLastEditorFileName))
                     else
-                        tUtil.showMessageWarn(string.format('Invalid file\n%s',sLastEditorFileName))
+                        tUtil.showMessageWarn(string.format(tLang.L("invalid_file_fmt"), sLastEditorFileName))
                     end
                 end
                 tImGui.SameLine()
@@ -873,56 +873,56 @@ end
 
 function main_menu_particle()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("New Particle", "Ctrl+N", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("new_particle"), "Ctrl+N", false)
             if pressed then
                 onNewParticle()
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Particle", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_particle"), "Ctrl+O", false)
             if pressed then
                 onOpenParticle()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Editor", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_editor"), "Ctrl+S", false)
             if pressed then
                 onSaveParticleEditor()
             end
 
-            local pressed,checked = tImGui.MenuItem("Save Particle", "Ctrl+B", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_particle"), "Ctrl+B", false)
             if pressed then
                 onSaveParticleBinary()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("Image") then
-            local pressed,checked = tImGui.MenuItem("Add image(s)", "Ctrl+I", false)
+        if tImGui.BeginMenu(tLang.L("menu_image")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_images"), "Ctrl+I", false)
             if pressed then
                 onOpenImage()
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Enable Alpha Pattern Background", true, tex_alpha_pattern.visible)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_alpha_pattern_bg"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
             end
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -932,27 +932,29 @@ function main_menu_particle()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -966,19 +968,19 @@ function main_menu_particle()
                 tImGui.EndMenu()
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Particle Options", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_particle_options"), false)
             if pressed then
                 if tParticle then
                     bShowParticleMenu = true
                 else
-                    tUtil.showMessageWarn('There is no particle to show particle options!\n\nAdd a particle first!')
+                    tUtil.showMessageWarn(tLang.L("no_particle_for_options"))
                 end
             end
             
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -988,16 +990,16 @@ function main_menu_particle()
             if result then
                 fScaleParticle = fValue
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 fScaleParticle = 1
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Particle Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("particle_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
@@ -1005,7 +1007,7 @@ function main_menu_particle()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1013,7 +1015,7 @@ function main_menu_particle()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end

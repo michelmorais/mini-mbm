@@ -194,6 +194,10 @@ get_filename_component(PATH_LUA
 get_filename_component(PATH_LUA_EDITOR
                        "${ROOT_FOLDER}/editor"
                        ABSOLUTE)
+# Editor language module (required by all editors for EN/PT-BR support)
+if(NOT EXISTS "${PATH_LUA_EDITOR}/lang/language.lua")
+    message(WARNING "editor/lang/language.lua not found - editor language support will fail")
+endif()
 
 
 

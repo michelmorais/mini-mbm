@@ -33,7 +33,7 @@ tUtil         =     require "editor_utils"
 require "box2d"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -110,18 +110,18 @@ function onSaveMesh()
             if tMeshDebug:load(sLastEditorFileName) then
                 tMeshDebug:setPhysics(tInfoPhysics)
                 if tMeshDebug:save(sLastEditorFileName) then
-                    tUtil.showMessage('Successfully saved physics!')
+                    tUtil.showMessage(tLang.L("physics_saved_ok"))
                 else
-                    tUtil.showMessageWarn('Failed to save mesh to file \n[' ..  sLastEditorFileName .. ']!')
+                    tUtil.showMessageWarn(string.format(tLang.L("failed_to_save_mesh_fmt"), sLastEditorFileName))
                 end
             else
-                tUtil.showMessageWarn('Failed to load \n[' ..  sLastEditorFileName .. ']\nto edit it!')
+                tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_edit_fmt"), sLastEditorFileName))
             end
         else
-            tUtil.showMessageWarn('There is not Physic for this mesh!\nAdd one first!')
+            tUtil.showMessageWarn(tLang.L("no_physic_for_mesh"))
         end
     else
-        tUtil.showMessageWarn('There is not Physics!\nLoad a mesh first')
+        tUtil.showMessageWarn(tLang.L("no_physics_load_first"))
     end
 end
 
@@ -814,59 +814,59 @@ function onLoadMesh()
                     setupPhysics(tInfoPhysics[i])
                 end
             end
-            tUtil.showMessage('Mesh Loaded Successfully!!')
+            tUtil.showMessage(tLang.L("mesh_loaded_ok"))
         else
-            tUtil.showMessageWarn('Failed to Load file:\n' .. file_name)
+            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_file_fmt"), file_name))
         end
     end
 end
 
 function main_menu_physic_editor()
     if (tImGui.BeginMainMenuBar()) then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("Load Mesh", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_mesh"), "Ctrl+O", false)
             if pressed then
                 onLoadMesh()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Mesh", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_mesh"), "Ctrl+S", false)
             if pressed then
                 onSaveMesh()
             end
 
             tImGui.Separator()
 
-            local pressed,checked = tImGui.MenuItem("Add Shader", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_shader"), nil, false)
             if pressed then
                 local file_name = mbm.openFile(nil,"lua")
                 if file_name then
                     if mbm.include(file_name) then
-                        tUtil.showMessage('File Added Successfully!')
+                        tUtil.showMessage(tLang.L("file_added_ok"))
                     else
-                        tUtil.showMessageWarn('Failed to Add File:' .. file_name)
+                        tUtil.showMessageWarn(string.format(tLang.L("failed_to_add_file_fmt"), file_name))
                     end
                 end
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
             tImGui.EndMenu();
         end
         
-        if tImGui.BeginMenu("Physics") then
-            local pressed,checked = tImGui.MenuItem("Show Physics Options", 'Ctrl+P', false)
+        if tImGui.BeginMenu(tLang.L("menu_physics")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_physics_options"), 'Ctrl+P', false)
             if pressed then
                 bShowEditPhysics = true
             end
 
-            if tImGui.BeginMenu("Simulate") then
+            if tImGui.BeginMenu(tLang.L("simulate")) then
                 local xCam = 100000
                 if tInfoPhysics and #tInfoPhysics > 0 then
-                    local pressed,checked = tImGui.MenuItem("Add Mesh", nil, false)
+                    local pressed,checked = tImGui.MenuItem(tLang.L("add_mesh"), nil, false)
                     if pressed and sLastEditorFileName then
                         camera2d:setPos(xCam,0)
 
@@ -902,30 +902,30 @@ function main_menu_physic_editor()
                                 table.insert(tSimulate,spt)
                                 tPhysicSimulate:addDynamicBody(spt)
                             else
-                                tUtil.showMessageWarn('Failed to save mesh to file \n[' ..  tmpname .. ']!')
+                                tUtil.showMessageWarn(string.format(tLang.L("failed_to_save_mesh_fmt"), tmpname))
                             end
                         else
-                            tUtil.showMessageWarn('Failed to load \n[' ..  sLastEditorFileName .. ']\nto edit it!')
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_edit_fmt"), sLastEditorFileName))
                         end
                     end
                     if #tSimulate > 0 then
                         local yCam       = select(2,mbm.to2dw(0,0))
                         tImGui.Separator()
-                        if select(1,tImGui.MenuItem("Add Rectangle", nil, false)) then
+                        if select(1,tImGui.MenuItem(tLang.L("add_rectangle"), nil, false)) then
                             local tShape = shape:new('2dw',xCam,yCam)
                             tShape:create('Rectangle',100,100)
                             tShape:setColor(1,1,1,0.3)
                             table.insert(tSimulate,tShape)
                             tPhysicSimulate:addDynamicBody(tShape)
                         end
-                        if select(1,tImGui.MenuItem("Add Circle", nil, false)) then
+                        if select(1,tImGui.MenuItem(tLang.L("add_circle"), nil, false)) then
                             local tShape = shape:new('2dw',xCam,yCam)
                             tShape:create('Circle',100,100)
                             tShape:setColor(1,1,0,0.3)
                             table.insert(tSimulate,tShape)
                             tPhysicSimulate:addDynamicBody(tShape)
                         end
-                        if select(1,tImGui.MenuItem("Add Triangle", nil, false)) then
+                        if select(1,tImGui.MenuItem(tLang.L("add_triangle"), nil, false)) then
                             local tShape = shape:new('2dw',xCam,yCam)
                             tShape:create('Triangle',100,100)
                             tShape:setColor(0,1,1,0.3)
@@ -933,7 +933,7 @@ function main_menu_physic_editor()
                             tPhysicSimulate:addDynamicBody(tShape)
                         end
                         tImGui.Separator()
-                        if select(1,tImGui.MenuItem("Stop Simulation", nil, false)) then
+                        if select(1,tImGui.MenuItem(tLang.L("stop_simulation"), nil, false)) then
                             camera2d:setPos(0,0)
                             for i=1, #tSimulate do
                                 tPhysicSimulate:destroyBody(tSimulate[i])
@@ -946,15 +946,15 @@ function main_menu_physic_editor()
                         end
                     end
                 else
-                    tImGui.MenuItem("No physics available", nil, false)
+                    tImGui.MenuItem(tLang.L("no_physics_available"), nil, false)
                 end
                 tImGui.EndMenu()
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -964,7 +964,7 @@ function main_menu_physic_editor()
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Alpha Pattern", true, tex_alpha_pattern.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
                 bUseSolidColorBackGround = not checked
@@ -988,11 +988,13 @@ function main_menu_physic_editor()
                 tex_alpha_pattern.visible = true
             end
 
+            tLang.renderLanguageSubmenu()
+
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Physic Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("physic_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#physic-editor"')
@@ -1000,7 +1002,7 @@ function main_menu_physic_editor()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#physic-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then        
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1009,7 +1011,7 @@ function main_menu_physic_editor()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s\nBox2d:%s', mbm.get('version'),tImGui.GetVersion(),box2d:getVersion()))
                 tImGui.EndMenu()
             end
@@ -1024,7 +1026,7 @@ end
 
 function showEditPhysics()
     if tMesh == nil then
-        tUtil.showMessageWarn('There is no Mesh Loaded to Edit Physics!')
+        tUtil.showMessageWarn(tLang.L("no_mesh_to_edit_physics"))
         bShowEditPhysics = false
         return
     end

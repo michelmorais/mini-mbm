@@ -157,7 +157,7 @@ function onAddMesh()
 				bShowMeshList = true
                 sLastMeshAdd = fileName
 			else
-                tUtil.showMessageWarn('Failed to add mesh!')
+                tUtil.showMessageWarn(tLang.L("failed_to_add_mesh"))
             end
 		elseif type(fileName) == 'table' then
 			local width = 0
@@ -171,7 +171,7 @@ function onAddMesh()
 					sLastMeshAdd = fileName
                     bShowMeshList = true
                 else
-                    tUtil.showMessageWarn('Failed to add mesh!!!')
+                    tUtil.showMessageWarn(tLang.L("failed_to_add_mesh_alt"))
 				end
 			end
 		end
@@ -255,9 +255,9 @@ function onDuplicated()
 			end
         end
         if #tSelectedObjs > 1 then
-            tUtil.showMessage(string.format('%d Meshes duplicated!',#tSelectedObjs))
+            tUtil.showMessage(string.format(tLang.L("meshes_duplicated_fmt"), #tSelectedObjs))
         else
-            tUtil.showMessage('Mesh duplicated!')
+            tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
     elseif tLastMeshAdded then
         local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName,true,"2dw",tLastMeshAdded.sText)
@@ -269,10 +269,10 @@ function onDuplicated()
             tMeshTmp.is2ds          = tLastMeshAdded.is2ds
             tMeshTmp.isRelative2ds  = tLastMeshAdded.isRelative2ds
             initialSetUpForAddedMesh(tMeshTmp)
-            tUtil.showMessage('Mesh duplicated!')
+            tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
     else
-        tUtil.showMessageWarn('There is no Mesh to Duplicate!')
+        tUtil.showMessageWarn(tLang.L("no_mesh_to_duplicate"))
     end
 end
 
@@ -293,7 +293,7 @@ end
 
 function treeNodePosition(tObj)
     local flags  = 0
-    if tImGui.TreeNodeEx('Position',flags, string.format("Position-%d",tObj.iIndex)) then
+    if tImGui.TreeNodeEx(tLang.L("position"),flags, string.format("Position-%d",tObj.iIndex)) then
         local step       =  1.0
         local step_fast  =  10.0
         local format     = "%.3f"
@@ -301,7 +301,7 @@ function treeNodePosition(tObj)
         tImGui.PushItemWidth(150)
 
         if tObj.is2ds then
-            tObj.isRelative2ds = tImGui.Checkbox('Relative 2D Screen', tObj.isRelative2ds)
+            tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
             tImGui.SameLine()
             tImGui.HelpMarker('This flag is only available for mesh 2D screen!\nIt forces to calc considering the size of mesh and how far it is from the border (closest border)\n\nIt is good when you want to make sure that the displacement of mesh regarding the aspect ratio.')
         end
@@ -333,7 +333,7 @@ end
 
 function treeNodeScale(tObj)
     local flags  = 0
-    if tImGui.TreeNodeEx('Scale',flags, string.format("Scale-%d",tObj.iIndex)) then
+    if tImGui.TreeNodeEx(tLang.L("scale"),flags, string.format("Scale-%d",tObj.iIndex)) then
         local step       =  0.02
         local step_fast  =  0.1
         local format     = "%.3f"
@@ -375,7 +375,7 @@ end
 
 function treeNodeAngle(tObj)
     local flags  = 0
-    if tImGui.TreeNodeEx('Angle',flags, string.format("Angle-%d",tObj.iIndex)) then
+    if tImGui.TreeNodeEx(tLang.L("angle"),flags, string.format("Angle-%d",tObj.iIndex)) then
         local step       =  1.0
         local step_fast  =  5.0
         local format     = "%.2f"
@@ -439,7 +439,7 @@ function showPropertiesForMesh(tObj)
             end
         end
     
-        local bSelected = tImGui.Checkbox('Selected',tObj.isSelected)
+        local bSelected = tImGui.Checkbox(tLang.L("selected"),tObj.isSelected)
 
         if bSelected ~= tObj.isSelected then
             setSelectedObj(tObj,bSelected)
@@ -455,7 +455,7 @@ function showPropertiesForMesh(tObj)
         tImGui.PushStyleColor(idx, color)
     end
     
-    local bBlocked  = tImGui.Checkbox('Blocked',isBlocked)
+    local bBlocked  = tImGui.Checkbox(tLang.L("blocked"),isBlocked)
     if bBlocked ~= isBlocked then
         tObj.isBlocked = bBlocked
         if bBlocked then
@@ -479,8 +479,8 @@ function treeNodeText(tObj)
     local sText = tObj.sText
     if sText then
         local flags  = 0
-        if tImGui.TreeNodeEx('Text',flags, string.format("Text-%d",tObj.iIndex)) then
-            tImGui.Text('Text')
+        if tImGui.TreeNodeEx(tLang.L("text_label"),flags, string.format("Text-%d",tObj.iIndex)) then
+            tImGui.Text(tLang.L("text_label"))
             local label      = string.format("##Font-Text-%d",tObj.iIndex)
             local size       = {x=-1,y=100}
             local flags      = 0
@@ -500,9 +500,9 @@ end
 
 function treeNodePhysics(tObj)
     local flags  = 0
-    if tImGui.TreeNodeEx('Physics',flags, string.format("Physics-%d",tObj.iIndex)) then
+    if tImGui.TreeNodeEx(tLang.L("physics"),flags, string.format("Physics-%d",tObj.iIndex)) then
         local height_in_items  =  -1
-        tImGui.Text('Type')
+        tImGui.Text(tLang.L("type"))
 
         local tPhysicInfo  = tObj.tPhysicInfo or {type = 'None'}
         
@@ -528,9 +528,9 @@ function treeNodePhysics(tObj)
             local step       =  1.0
             local step_fast  =  2.0
             local format     = "%.3f"
-            tImGui.Text('Density')
+            tImGui.Text(tLang.L("density"))
             tImGui.SameLine()
-            tImGui.TextDisabled(' (kg/m^2)')
+            tImGui.TextDisabled(tLang.L("unit_kg_m2"))
             local result, fValue = tImGui.InputFloat(string.format('##density-%d',tObj.iIndex), tPhysicInfo.density, step, step_fast, format, flags)
             if result and fValue >= 0 then
                 tPhysicInfo.density = fValue
@@ -541,9 +541,9 @@ function treeNodePhysics(tObj)
             local step       =  0.002
             local step_fast  =  0.02
             local format     = "%.7f"
-            tImGui.Text('Friction')
+            tImGui.Text(tLang.L("friction"))
             tImGui.SameLine()
-            tImGui.TextDisabled(' (Coefficient [0,1])')
+            tImGui.TextDisabled(tLang.L("unit_coefficient"))
             local result, fValue = tImGui.InputFloat(string.format('##Friction-%d',tObj.iIndex), tPhysicInfo.friction, step, step_fast, format, flags)
             if result and fValue >= 0 and fValue <= 1 then
                 tPhysicInfo.friction = fValue
@@ -554,9 +554,9 @@ function treeNodePhysics(tObj)
             local step       =  0.002
             local step_fast  =  0.02
             local format     = "%.7f"
-            tImGui.Text('Restitution')
+            tImGui.Text(tLang.L("restitution"))
             tImGui.SameLine()
-            tImGui.TextDisabled(' (Elasticity [0,1])')
+            tImGui.TextDisabled(tLang.L("unit_elasticity"))
             local result, fValue = tImGui.InputFloat(string.format('##Restitution-%d',tObj.iIndex), tPhysicInfo.restitution, step, step_fast, format, flags)
             if result and fValue >= 0 and fValue <= 1 then
                 tPhysicInfo.restitution = fValue
@@ -567,9 +567,9 @@ function treeNodePhysics(tObj)
             local step       =  0.02
             local step_fast  =  0.2
             local format     = "%.2f"
-            tImGui.Text('Scale X')
+            tImGui.Text(tLang.L("scale_x"))
             tImGui.SameLine()
-            tImGui.TextDisabled(' (Scale of physics on X axis)')
+            tImGui.TextDisabled(tLang.L("unit_scale_x"))
             local result, fValue = tImGui.InputFloat(string.format('##Scale X-%d',tObj.iIndex), tPhysicInfo.scaleX, step, step_fast, format, flags)
             if result and fValue > 0 and fValue <= 1000 then
                 tPhysicInfo.scaleX = fValue
@@ -580,9 +580,9 @@ function treeNodePhysics(tObj)
             local step       =  0.02
             local step_fast  =  0.2
             local format     = "%.2f"
-            tImGui.Text('Scale Y')
+            tImGui.Text(tLang.L("scale_y"))
             tImGui.SameLine()
-            tImGui.TextDisabled(' (Scale of physics on Y axis)')
+            tImGui.TextDisabled(tLang.L("unit_scale_y"))
             local result, fValue = tImGui.InputFloat(string.format('##Scale Y-%d',tObj.iIndex), tPhysicInfo.scaleY, step, step_fast, format, flags)
             if result and fValue > 0 and fValue <= 1000 then
                 tPhysicInfo.scaleY = fValue
@@ -590,11 +590,11 @@ function treeNodePhysics(tObj)
         end
 
         if type(tPhysicInfo.sensor) == 'boolean' then
-            tPhysicInfo.sensor = tImGui.Checkbox(string.format('Sensor##%d',tObj.iIndex),tPhysicInfo.sensor)
+            tPhysicInfo.sensor = tImGui.Checkbox(string.format(tLang.L("sensor") .. '##%d',tObj.iIndex),tPhysicInfo.sensor)
         end
 
         if type(tPhysicInfo.bullet) == 'boolean' then
-            tPhysicInfo.bullet = tImGui.Checkbox(string.format('Bullet##%d',tObj.iIndex),tPhysicInfo.bullet)
+            tPhysicInfo.bullet = tImGui.Checkbox(string.format(tLang.L("bullet") .. '##%d',tObj.iIndex),tPhysicInfo.bullet)
         end
 
         tImGui.TreePop()
@@ -603,7 +603,7 @@ end
 
 function treeNodeAnimation(tObj)
     local flags  = 0
-    if tImGui.TreeNodeEx('Animation',flags, string.format("Animation-%d",tObj.iIndex)) then
+    if tImGui.TreeNodeEx(tLang.L("animation"),flags, string.format("Animation-%d",tObj.iIndex)) then
         local label            = '##Animation' .. tostring(tObj.iIndex)
         local tAnimations      = {}
         for i=1, tObj:getTotalAnim() do
@@ -657,10 +657,10 @@ function showAddingMeshOptions()
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_adding_mesh,tPosWin.x,tPosWin.y,width,width + 50)
         local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_adding_mesh, true, ImGuiWindowFlags_NoMove)
         if is_opened then
-            tOptionsEditor.bAddObjAs2dw = tImGui.Checkbox('Add Mesh as 2D world',tOptionsEditor.bAddObjAs2dw)
+            tOptionsEditor.bAddObjAs2dw = tImGui.Checkbox(tLang.L("add_mesh_as_2dw"),tOptionsEditor.bAddObjAs2dw)
             tImGui.SameLine()
             tImGui.HelpMarker('Disabled is 2D screen.')
-            tOptionsEditor.bCenterOfScreen = tImGui.Checkbox('Add Mesh at center of screen',tOptionsEditor.bCenterOfScreen)
+            tOptionsEditor.bCenterOfScreen = tImGui.Checkbox(tLang.L("add_mesh_at_center"),tOptionsEditor.bCenterOfScreen)
             tImGui.SameLine()
             tImGui.HelpMarker('Disabled means that the Mesh will have options for the initial position.')
             if not tOptionsEditor.bCenterOfScreen then
@@ -680,16 +680,16 @@ function showAddingMeshOptions()
                 end
                 tImGui.PopItemWidth()
 
-                tOptionsEditor.tIncrementOnNewMesh.x = tImGui.Checkbox('Increment width on X',tOptionsEditor.tIncrementOnNewMesh.x)
+                tOptionsEditor.tIncrementOnNewMesh.x = tImGui.Checkbox(tLang.L("increment_width_x"),tOptionsEditor.tIncrementOnNewMesh.x)
                 tImGui.SameLine()
                 tImGui.HelpMarker('The initial position (X) will be set by the width of the last mesh added. Ctrl+R')
-                tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = tImGui.Checkbox('To the Right on X',tOptionsEditor.tDirectionIncrementOnNewMesh.bRight)
-                tOptionsEditor.tIncrementOnNewMesh.y = tImGui.Checkbox('Increment height on Y',tOptionsEditor.tIncrementOnNewMesh.y)
+                tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = tImGui.Checkbox(tLang.L("to_right_on_x"),tOptionsEditor.tDirectionIncrementOnNewMesh.bRight)
+                tOptionsEditor.tIncrementOnNewMesh.y = tImGui.Checkbox(tLang.L("increment_height_y"),tOptionsEditor.tIncrementOnNewMesh.y)
                 tImGui.SameLine()
                 tImGui.HelpMarker('The initial position (Y) will be set by the height of the last mesh added.')
-                tOptionsEditor.tDirectionIncrementOnNewMesh.bUp = tImGui.Checkbox('To Up on Y',tOptionsEditor.tDirectionIncrementOnNewMesh.bUp)
+                tOptionsEditor.tDirectionIncrementOnNewMesh.bUp = tImGui.Checkbox(tLang.L("to_up_on_y"),tOptionsEditor.tDirectionIncrementOnNewMesh.bUp)
 
-                if tImGui.Button('Get Mesh Size', {x=200,y=0}) then
+                if tImGui.Button(tLang.L("get_mesh_size"), {x=200,y=0}) then
                     if tLastMeshAdded then
                         tOptionsEditor.initialDisplacement.x, tOptionsEditor.initialDisplacement.y = tLastMeshAdded:getSize()
                     else
@@ -736,22 +736,22 @@ function showMeshList()
         local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_meshes, true, ImGuiWindowFlags_NoMove)
         if is_opened then
             local flags  = 0
-            if tImGui.TreeNodeEx(string.format("Filter",#tAllMesh),flags,'##FilterMesh') then
+            if tImGui.TreeNodeEx(string.format(tLang.L("filter"),#tAllMesh),flags,'##FilterMesh') then
                 local bAnyChange = false
-                tImGui.Text('World')
+                tImGui.Text(tLang.L("world"))
                 local ret, current_item, item = tImGui.Combo('##WorldMeshFilter' , tOptionsEditor.iIndexWorldMesh, tFilter.tWorld)
                 if ret then
                     tOptionsEditor.iIndexWorldMesh = current_item
                     bAnyChange = true
                 end
-                tImGui.Text('Mesh Type')
+                tImGui.Text(tLang.L("mesh_type"))
                 local ret, current_item, item = tImGui.Combo('##TypeMeshFilter' , tOptionsEditor.iIndexTypeMeshFilter, tFilter.tType)
                 if ret then
                     tOptionsEditor.iIndexTypeMeshFilter = current_item
                     bAnyChange = true
                 end
 
-                tImGui.Text('Mesh Physics')
+                tImGui.Text(tLang.L("mesh_physics"))
                 local ret, current_item, item = tImGui.Combo('##TypePhysicsFilter' , tOptionsEditor.iIndexTypePhysicsFilter, tFilter.tPhysicType)
                 if ret then
                     tOptionsEditor.iIndexTypePhysicsFilter = current_item
@@ -763,7 +763,7 @@ function showMeshList()
                 end
                 tImGui.TreePop()
             end
-            if tImGui.TreeNodeEx(string.format("Objects (%d/%d)",iFiltered,#tAllMesh),flags,'##allMeshes') then
+            if tImGui.TreeNodeEx(string.format(tLang.L("objects") .. " (%d/%d)",iFiltered,#tAllMesh),flags,'##allMeshes') then
                 iFiltered = 0
                 local iNodeClicked = 0
                 for i=1, #tAllMesh do
@@ -798,7 +798,7 @@ function showMeshList()
                     local tObj = tAllMesh[iNodeClicked]
                     if keyControlPressed then
                         if tObj.isBlocked then
-                            tUtil.showMessageWarn('Object is Blocked!\nCan not be selected!')
+                            tUtil.showMessageWarn(tLang.L("object_blocked"))
                         else
                             if tObj.isSelected then
                                 tFollowCam = nil
@@ -844,7 +844,7 @@ function showMeshList()
                         end
 
                         if bAnyBlocked then
-                            tUtil.showMessageWarn('Object(s):\n' .. sText .. '\nare Blocked!\nCan not be selected!')
+                            tUtil.showMessageWarn(string.format(tLang.L("objects_blocked_fmt"), sText))
                         end
                     end
                 end
@@ -1078,9 +1078,9 @@ function onKeyDown(key)
         elseif key == mbm.getKeyCode('R') then -- Ctrl+R
             tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = not tOptionsEditor.tDirectionIncrementOnNewMesh.bRight
             if tOptionsEditor.tDirectionIncrementOnNewMesh.bRight then
-                tUtil.showMessage('Duplicate Mesh to the Right on X ')
+                tUtil.showMessage(tLang.L("duplicate_mesh_right_x"))
             else
-                tUtil.showMessage('Duplicate Mesh to the Left on X ')
+                tUtil.showMessage(tLang.L("duplicate_mesh_left_x"))
             end
         elseif key == mbm.getKeyCode('delete') then -- Delete
             onDeleteSelected()
@@ -1600,7 +1600,7 @@ function onSaveScene(sFileName)
         return true
     else
         print('error',string.format('Could not open the file [%s] for write',sFileName))
-        tUtil.showMessageWarn(string.format('Could not open the file [%s] for write',sFileName))
+        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), sFileName))
         return false
     end
 end
@@ -1609,7 +1609,7 @@ function onSetScript()
     local fileName = mbm.openFile(tOptionsEditor.sExtraScript,"*.lua")
     if fileName then
         dofile(fileName)
-        tUtil.showMessage('Script executed!')
+        tUtil.showMessage(tLang.L("script_executed"))
         tOptionsEditor.sExtraScript = fileName
     end
 end
@@ -1624,12 +1624,12 @@ function onLoadScene()
             mbm.setColor(tOptionsEditor.tColorBackground.r,tOptionsEditor.tColorBackground.g,tOptionsEditor.tColorBackground.b)
             updateRectangleLine()
         else
-            tUtil.showMessageWarn('Not found getOptionsEditor function!')
+            tUtil.showMessageWarn(tLang.L("not_found_get_options_editor"))
         end
         if tScene and type(tScene.getOptionsLaunch) == 'function' then
             tOptionsLaunch = tScene:getOptionsLaunch()
         else
-            tUtil.showMessageWarn('Not found getOptionsLaunch function!')
+            tUtil.showMessageWarn(tLang.L("not_found_get_options_launch"))
         end
         if tScene and type(tScene.tAllMeshInfo) == 'table' then
             cCoroutineLoadScene = coroutine.create(
@@ -1668,7 +1668,7 @@ function onLoadScene()
                 updateVisibilityByFilter()
             end)
         else
-            tUtil.showMessageWarn('Not found tScene or table!')
+            tUtil.showMessageWarn(tLang.L("not_found_scene_table"))
         end
     end
 end
@@ -1679,16 +1679,16 @@ function onSaveSceneEditor()
         if fileName then
             if onSaveScene(fileName) then
                 sLastEditorFileName = fileName
-                tUtil.showMessage('Scene \n' .. sLastEditorFileName .. '\nSaved Successfully!!')
+                tUtil.showMessage(string.format(tLang.L("scene_saved_ok_fmt"), sLastEditorFileName))
             else
-                tUtil.showMessageWarn('Failed to Save Scene!')
+                tUtil.showMessageWarn(tLang.L("failed_to_save_scene"))
             end
         end
     else
         if onSaveScene(sLastEditorFileName) then
-            tUtil.showMessage('Scene \n' .. sLastEditorFileName .. '\nSaved Successfully!!')
+            tUtil.showMessage(string.format(tLang.L("scene_saved_ok_fmt"), sLastEditorFileName))
         else
-            tUtil.showMessageWarn('Failed to Save Scene!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_scene"))
         end
     end
 end
@@ -1721,20 +1721,20 @@ end
 
 function main_menu_scene_editor_2d()
    if (tImGui.BeginMainMenuBar()) then
-       if tImGui.BeginMenu("File") then
+       if tImGui.BeginMenu(tLang.L("menu_file")) then
            
-           local pressed,checked = tImGui.MenuItem("New Scene", "Ctrl+N", false)
+           local pressed,checked = tImGui.MenuItem(tLang.L("new_scene"), "Ctrl+N", false)
            if pressed then
                onNewScene()
            end
 
-           local pressed,checked = tImGui.MenuItem("Load Scene", "Ctrl+O", false)
+           local pressed,checked = tImGui.MenuItem(tLang.L("load_scene"), "Ctrl+O", false)
            if pressed then
                onLoadScene()
            end
 
            tImGui.Separator()
-           local pressed,checked = tImGui.MenuItem("Set Extra Script ", 'Extension', false)
+           local pressed,checked = tImGui.MenuItem(tLang.L("set_extra_script"), 'Extension', false)
            if pressed then
                onSetScript()
            end
@@ -1742,7 +1742,7 @@ function main_menu_scene_editor_2d()
            tImGui.HelpMarker('This script will be part of scene (even when loading). \nThis is useful when for example we have some extra shaders to specific mesh which is not part of the engine!\n\nThe script will be executed when load the scene!\n\nCurrent:' .. tostring(tOptionsEditor.sExtraScript))
 
            tImGui.Separator()
-           local pressed,checked = tImGui.MenuItem("Save Scene", "Ctrl+S", false)
+           local pressed,checked = tImGui.MenuItem(tLang.L("save_scene"), "Ctrl+S", false)
            if pressed then
                onSaveSceneEditor()
            end
@@ -1752,7 +1752,7 @@ function main_menu_scene_editor_2d()
                 tImGui.HelpMarker(sLastEditorFileName)
            end
 
-           local pressed,checked = tImGui.MenuItem("Save Scene As ...", nil, false)
+           local pressed,checked = tImGui.MenuItem(tLang.L("save_scene_as"), nil, false)
            if pressed then
                 local sEditorFileName = sLastEditorFileName
                 sLastEditorFileName =  ''
@@ -1763,7 +1763,7 @@ function main_menu_scene_editor_2d()
            end
 
            tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -1771,55 +1771,55 @@ function main_menu_scene_editor_2d()
            tWindowsArea:addThisWindow()
            tImGui.EndMenu();
        end
-        if tImGui.BeginMenu("Mesh") then
-            local pressed,checked = tImGui.MenuItem("Add Mesh", 'Ctrl+M', false)
+        if tImGui.BeginMenu(tLang.L("menu_mesh")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_mesh"), 'Ctrl+M', false)
             if pressed then
                onAddMesh()
             end
             tImGui.Separator()
-            local title_duplicated = 'Duplicate Last Mesh Added'
+            local title_duplicated = tLang.L("duplicate_last_mesh")
             if #tSelectedObjs > 0 then
-                title_duplicated = 'Duplicate All Mesh Selected'
+                title_duplicated = tLang.L("duplicate_all_mesh_selected")
             end
             local pressed,checked = tImGui.MenuItem(title_duplicated, 'Ctrl+D', false)
             if pressed then
                onDuplicated()
             end
-            local pressed,checked = tImGui.MenuItem('Select All Mesh (Considers filter)', 'Ctrl+A', false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("select_all_mesh"), 'Ctrl+A', false)
             if pressed then
                 onSelectAll()
             end
 
-            local pressed,checked = tImGui.MenuItem('Invert Selected Mesh (Considers filter)', 'Ctrl+I', false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("invert_selected_mesh"), 'Ctrl+I', false)
             if pressed then
                 onInvertSelection()
             end
 
-            local pressed,checked = tImGui.MenuItem('Unselect All Mesh', 'Ctrl+U', false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("unselect_all_mesh"), 'Ctrl+U', false)
             if pressed then
                onUnSelectAll()
             end
 
-            local pressed,checked = tImGui.MenuItem('Delete Selected Mesh', 'Ctrl+Delete', false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("delete_selected_mesh"), 'Ctrl+Delete', false)
             if pressed then
                 onDeleteSelected()
             end
             
             tImGui.Separator()
            
-            local pressed,checked = tImGui.MenuItem("View Mesh List", 'Ctrl+L', false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_mesh_list"), 'Ctrl+L', false)
             if pressed then
                bShowMeshList  = true
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("View Options When Adding Mesh", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_options_adding_mesh"), nil, false)
             if pressed then
                 bShowAddingMesh  = true
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("View Detail Of Selected Mesh", true, bShowDetailOfMesh)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_detail_selected_mesh"), true, bShowDetailOfMesh)
             if pressed then
                 bShowDetailOfMesh  = checked
             end
@@ -1828,9 +1828,9 @@ function main_menu_scene_editor_2d()
            tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("World") then
-            tImGui.Text('Resolution Expected')
-            tOptionsEditor.bInvertResolution = tImGui.Checkbox('Invert Width / Height',tOptionsEditor.bInvertResolution)
+        if tImGui.BeginMenu(tLang.L("menu_world")) then
+            tImGui.Text(tLang.L("resolution_expected"))
+            tOptionsEditor.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"),tOptionsEditor.bInvertResolution)
             local tResolutionString = {}
             for i=1 , #tResolution do
                 if tOptionsEditor.bInvertResolution then
@@ -1844,7 +1844,7 @@ function main_menu_scene_editor_2d()
                 tOptionsEditor.iIndexResolution = current_item
             end
 
-            tImGui.Text('Axis of camera scale')
+            tImGui.Text(tLang.L("axis_camera_scale"))
             local indexAxis
             if tOptionsEditor.sScaleAxis == 'x' then
                 indexAxis  = 1
@@ -1870,11 +1870,11 @@ function main_menu_scene_editor_2d()
                 tOptionsEditor.sScaleAxis = 'xy'
             end
 
-            tOptionsEditor.bDrawResolution = tImGui.Checkbox('Draw Resolution Rectangle',tOptionsEditor.bDrawResolution)
+            tOptionsEditor.bDrawResolution = tImGui.Checkbox(tLang.L("draw_resolution_rect"),tOptionsEditor.bDrawResolution)
             updateRectangleLine()
             
             tImGui.Separator()
-            tImGui.Text('Camera Position')
+            tImGui.Text(tLang.L("camera_position"))
 
             local step       =  1.0
             local step_fast  =  10.0
@@ -1891,12 +1891,12 @@ function main_menu_scene_editor_2d()
                 camera2d.y = fValue
             end
 
-            if tImGui.Button('Set Initial Camera Position', {x=-1,y=0}) then
+            if tImGui.Button(tLang.L("set_initial_camera_pos"), {x=-1,y=0}) then
                 tOptionsEditor.fSceneCamPos.x = camera2d.x
                 tOptionsEditor.fSceneCamPos.y = camera2d.y
             end
 
-            tImGui.Text('Initial Scene Position')
+            tImGui.Text(tLang.L("initial_scene_position"))
             tImGui.TextDisabled(string.format('X:%.2f',tOptionsEditor.fSceneCamPos.x))
             tImGui.TextDisabled(string.format('Y:%.2f',tOptionsEditor.fSceneCamPos.y))
 
@@ -1904,8 +1904,8 @@ function main_menu_scene_editor_2d()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                bEnableMoveWindow = checked
                if bEnableMoveWindow then
@@ -1915,33 +1915,35 @@ function main_menu_scene_editor_2d()
                end
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Alpha Pattern", true, tex_alpha_pattern.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then
                tex_alpha_pattern.visible = checked
             end
 
+            tLang.renderLanguageSubmenu()
+
             tImGui.Separator()
-            if tImGui.BeginMenu("Background Color") then
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                        {'White',      {r=1,g=1,b=1,a=1}},
-                                        {'Black',      {r=0,g=0,b=0,a=1}},
-                                        {'Red',        {r=1,g=0,b=0,a=1}},
-                                        {'Green',      {r=0,g=1,b=0,a=1}},
-                                        {'Blue',       {r=0,g=0,b=1,a=1}},
-                                        {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                        {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                        {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                        {'white',      {r=1,g=1,b=1,a=1}},
+                                        {'black',      {r=0,g=0,b=0,a=1}},
+                                        {'red',        {r=1,g=0,b=0,a=1}},
+                                        {'green',      {r=0,g=1,b=0,a=1}},
+                                        {'blue',       {r=0,g=0,b=1,a=1}},
+                                        {'cyan',       {r=0,g=1,b=1,a=1}},
+                                        {'yellow',     {r=1,g=1,b=0,a=1}},
+                                        {'magenta',    {r=1,g=0,b=1,a=1}}
                                     }
 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -1958,9 +1960,9 @@ function main_menu_scene_editor_2d()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Run") then
-            tImGui.Text('Resolution')
-            tOptionsLaunch.bInvertResolution = tImGui.Checkbox('Invert Width / Height',tOptionsLaunch.bInvertResolution)
+        if tImGui.BeginMenu(tLang.L("menu_run")) then
+            tImGui.Text(tLang.L("resolution"))
+            tOptionsLaunch.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"),tOptionsLaunch.bInvertResolution)
             local tResolutionString = {}
             for i=1 , #tResolution do
                 if tOptionsLaunch.bInvertResolution then
@@ -1974,13 +1976,13 @@ function main_menu_scene_editor_2d()
                 tOptionsLaunch.iIndexResolution = current_item
             end
 
-            if tImGui.Button('Play', {x=200,y=0}) then
+            if tImGui.Button(tLang.L("play"), {x=200,y=0}) then
                 onPlay()
             end
             tImGui.SameLine()
             tImGui.TextDisabled('F5')
 
-            tImGui.Text('Execute this script')
+            tImGui.Text(tLang.L("execute_script"))
             tImGui.SameLine()
             tImGui.HelpMarker('Will execute the script instead of the current scene!\nThis is a way to test the logic of your scene \n(loading from the script)')
             if tImGui.Button('...', {x=30,y=0}) then
@@ -1992,13 +1994,13 @@ function main_menu_scene_editor_2d()
 
             if tOptionsEditor.sCurrentScriptExecution:len() == 0 then
                 tImGui.SameLine()
-                if tImGui.Button('Create it for me', {x=160,y=0}) then
+                if tImGui.Button(tLang.L("create_it_for_me"), {x=160,y=0}) then
                     if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
                         createBasicScriptForScene(tOptionsEditor.sCurrentScriptExecution)
                     elseif sLastEditorFileName and sLastEditorFileName:len() > 0 then
                         createBasicScriptForScene(sLastEditorFileName)
                     else
-                        tUtil.showMessageWarn('There is no scene loaded to create a script!')
+                        tUtil.showMessageWarn(tLang.L("no_scene_loaded_for_script"))
                     end
                 end
             end
@@ -2016,7 +2018,7 @@ function main_menu_scene_editor_2d()
                 tImGui.PopStyleColor(2)
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text('Clear the script')
+                    tImGui.Text(tLang.L("clear_script"))
                     tImGui.EndTooltip()
                 end
 
@@ -2025,8 +2027,8 @@ function main_menu_scene_editor_2d()
             tWindowsArea:addThisWindow()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem(string.format("Scene Editor 2D"), nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("scene_editor_2d"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
@@ -2034,7 +2036,7 @@ function main_menu_scene_editor_2d()
                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -2043,7 +2045,7 @@ function main_menu_scene_editor_2d()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -2192,10 +2194,10 @@ return tLogicScene
             fp:write(tDefaultScene)
             fp:close()
             tOptionsEditor.sCurrentScriptExecution = sFileToSave
-            tUtil.showMessage('File created successfully!')
+            tUtil.showMessage(tLang.L("file_created_ok"))
         else
             print('error',string.format('Could not open the file [%s] for write',sFileToSave))
-            tUtil.showMessageWarn(string.format('Could not open the file [%s] for write',sFileToSave))
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), sFileToSave))
         end
     end
 end

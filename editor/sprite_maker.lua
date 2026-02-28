@@ -636,47 +636,47 @@ end
 
 function main_menu_sprite()
     if (tImGui.BeginMainMenuBar()) then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("New Sprite", "Ctrl+N", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("new_sprite"), "Ctrl+N", false)
             if pressed then
                 onNewSpriteEditor()
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Sprite", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_sprite"), "Ctrl+O", false)
             if pressed then
                 onOpenSprite()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Editor", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_editor"), "Ctrl+S", false)
             if pressed then
                 onSaveSpriteEditor()
             end
 
-            local pressed,checked = tImGui.MenuItem("Save Editor As", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_editor_as"), nil, false)
             if pressed then
                 sLastEditorFileName = ''
                 onSaveSpriteEditor()
             end
 
-            local pressed,checked = tImGui.MenuItem("Save Sprite", "Ctrl+B", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_sprite"), "Ctrl+B", false)
             if pressed then
                 onSaveSpriteBinary()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
             tImGui.EndMenu();
         end
-        if tImGui.BeginMenu("Image") then
-            local pressed,checked = tImGui.MenuItem("Add image(s)", "Ctrl+I", false)
+        if tImGui.BeginMenu(tLang.L("menu_image")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_images"), "Ctrl+I", false)
             if pressed then
                 onOpenImage()
             end
-            local pressed,checked = tImGui.MenuItem("Add images from folder", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_images_from_folder"), nil, false)
             if pressed then
                 tPivotShape.visible = false
                 local file_name = mbm.openFolder(sLastTextureOpenned)
@@ -692,7 +692,7 @@ function main_menu_sprite()
                 end
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("View Image List", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_image_list"), nil, false)
             if pressed then
                 bTextureViewOpened = checked
                 tPivotShape.visible = false
@@ -700,20 +700,20 @@ function main_menu_sprite()
             end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu("Frame") then
-            local pressed,checked = tImGui.MenuItem("Add frame", 'Ctrl+F', false)
+        if tImGui.BeginMenu(tLang.L("menu_frame")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_frame"), 'Ctrl+F', false)
             if pressed then
                 onShowAddFrame()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("View Frame List", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_frame_list"), nil, false)
             if pressed then
                 closePhysicsWindow()
                 bShowFrameList = true
                 unCollapse(tWindowsTitle.title_frame_list)
             end
 
-            local pressed,checked = tImGui.MenuItem("View Frame Edit", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_frame_edit"), nil, false)
             if pressed then
                 closeAnimationWindow()
                 bShowFrameEdit     = true
@@ -726,21 +726,21 @@ function main_menu_sprite()
                 end
             end
             tImGui.Separator()
-            if tImGui.BeginMenu("Frame Preview Background Color") then
+            if tImGui.BeginMenu(tLang.L("frame_preview_bg_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}},
-                                    {'Transparent',{r=0,g=0,b=0,a=0}},
+                local colors    = { {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}},
+                                    {'transparent',{r=0,g=0,b=0,a=0}},
                                   }
 
                 
@@ -748,7 +748,7 @@ function main_menu_sprite()
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -764,24 +764,24 @@ function main_menu_sprite()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Animation") then
-            local pressed,checked = tImGui.MenuItem("Edit Animations", 'Ctrl+A', false)
+        if tImGui.BeginMenu(tLang.L("menu_animation")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("edit_animations"), 'Ctrl+A', false)
             if pressed then
                 onEditAnimations()
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Physics") then
-            local pressed,checked = tImGui.MenuItem("Edit Physics", 'Ctrl+P', false)
+        if tImGui.BeginMenu(tLang.L("menu_physics")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("edit_physics"), 'Ctrl+P', false)
             if pressed then
                 onEditPhysics()
             end
             tImGui.EndMenu()
         end
         
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -791,21 +791,23 @@ function main_menu_sprite()
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Alpha Pattern", true, tex_alpha_pattern.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
             end
 
+            tLang.renderLanguageSubmenu()
+
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Advanced Options For Binary Sprite", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("advanced_options_binary_sprite"), nil, false)
             if pressed then
                 bShowAdvancedOptions = true
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Sprite Maker", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("sprite_maker"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker"')
@@ -813,7 +815,7 @@ function main_menu_sprite()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -822,7 +824,7 @@ function main_menu_sprite()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end

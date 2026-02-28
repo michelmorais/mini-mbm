@@ -585,31 +585,31 @@ end
 
 function main_menu_asset()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("New Asset (From Folder)", "Ctrl+N", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("new_asset_from_folder"), "Ctrl+N", false)
             if pressed then
                 onNewAsset()
             end
 
-            local pressed,checked = tImGui.MenuItem("Add Asset (From Folder)", "Ctrl+A", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_asset_from_folder"), "Ctrl+A", false)
             if pressed then
                 onAddAsset()
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Asset (From Database)", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_asset_from_database"), "Ctrl+O", false)
             if pressed then
                 onOpenAsset()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Asset (To Database)", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_asset_to_database"), "Ctrl+S", false)
             if pressed then
                 onSaveAsset()
             end
 
-            if tImGui.BeginMenu("Extract Asset (To Folder)") then
+            if tImGui.BeginMenu(tLang.L("extract_asset_to_folder")) then
                 
-                tImGui.Text('Category')
+                tImGui.Text(tLang.L("category"))
                 local label            = '##Category'
                 local height_in_items  =  -1
 
@@ -618,7 +618,7 @@ function main_menu_asset()
                     tCategory.index = current_item
                 end
                 local size   =  {x=-1,y=0}
-                if tImGui.Button('Extract', size) then
+                if tImGui.Button(tLang.L("extract"), size) then
                     if sPackageName:len() > 0 then
                         local db = sqlite3.open(sPackageName,sqlite3.OPEN_READWRITE)
                         if db then
@@ -668,7 +668,7 @@ function main_menu_asset()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -676,8 +676,13 @@ function main_menu_asset()
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Asset Packager", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            tLang.renderLanguageSubmenu()
+            tImGui.EndMenu()
+        end
+
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("asset_packager"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#asset-packager"')
@@ -685,7 +690,7 @@ function main_menu_asset()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#asset-packager"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -694,7 +699,7 @@ function main_menu_asset()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nSQLITE: %s \nIMGUI: %s', mbm.get('version'),sqlite3.version(),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end

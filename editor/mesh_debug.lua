@@ -31,7 +31,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-    mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR_FEATURES to run this editor','ok','error',0)
+    mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
     mbm.quit()
 end
 
@@ -73,7 +73,7 @@ function onLoadMeshFromFile()
         if #tFiles > 0 then
             sLastMeshPath = tFiles[1]
             bShowMeshTree = true
-            tUtil.showMessage(string.format('Loaded %d mesh(es)', #tFiles))
+            tUtil.showMessage(string.format(tLang.L("loaded_meshes_fmt"), #tFiles))
         end
     end
 end
@@ -91,7 +91,7 @@ function onLoadMeshFromFolder()
             end
         end
         bShowMeshTree = true
-        tUtil.showMessage(string.format('Loaded %d mesh(es) from folder (%d total)', iAdded, #tFiles))
+        tUtil.showMessage(string.format(tLang.L("loaded_meshes_folder_fmt"), iAdded, #tFiles))
     end
 end
 
@@ -865,21 +865,21 @@ function applyToAll(operation)
 end
 
 function showApplyToAllMenu()
-    if tImGui.BeginMenu('Apply to All') then
+    if tImGui.BeginMenu(tLang.L("apply_to_all")) then
         local enabled = (#tLoadedMeshes > 0)
-        if tImGui.MenuItem('Remove Normals', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("remove_normals"), nil, false, enabled) then
             applyToAll('removeNormals')
         end
-        if tImGui.MenuItem('Add Normals', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("add_normals"), nil, false, enabled) then
             applyToAll('addNormals')
         end
-        if tImGui.MenuItem('Centralize', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("centralize"), nil, false, enabled) then
             applyToAll('centralize')
         end
-        if tImGui.MenuItem('Save All (overwrite)', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("save_all_overwrite"), nil, false, enabled) then
             applyToAll('save')
         end
-        if tImGui.MenuItem('Save All (with calculated normals)', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("save_all_calc_normals"), nil, false, enabled) then
             applyToAll('saveRecalcNormals')
         end
         tImGui.EndMenu()
@@ -888,38 +888,42 @@ end
 
 function main_menu_mesh_debug()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu('File') then
-            if tImGui.MenuItem('Load Mesh(s)') then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
+            if tImGui.MenuItem(tLang.L("load_meshes")) then
                 onLoadMeshFromFile()
             end
-            if tImGui.MenuItem('Load from Folder') then
+            if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
             end
             tImGui.Separator()
             showApplyToAllMenu()
             tImGui.Separator()
-            if tImGui.MenuItem('Clear All') then
+            if tImGui.MenuItem(tLang.L("clear_all")) then
                 tLoadedMeshes = {}
                 iSelectedMeshIndex = 0
                 iLastPreviewedIndex = 0
                 destroyPreviewMesh()
-                tUtil.showMessage('Cleared all meshes')
+                tUtil.showMessage(tLang.L("cleared_all_meshes"))
             end
             tImGui.Separator()
-            if tImGui.MenuItem('Quit') then
+            if tImGui.MenuItem(tLang.L("menu_quit")) then
                 mbm.quit()
             end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu('View') then
-            local pressed, checked = tImGui.MenuItem('Show Mesh Tree', nil, bShowMeshTree)
+        if tImGui.BeginMenu(tLang.L("menu_view")) then
+            local pressed, checked = tImGui.MenuItem(tLang.L("show_mesh_tree"), nil, bShowMeshTree)
             if pressed then
                 bShowMeshTree = not bShowMeshTree
             end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu('About') then
-            local pressed = tImGui.MenuItem('Mesh Debug Editor', nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            tLang.renderLanguageSubmenu()
+            tImGui.EndMenu()
+        end
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed = tImGui.MenuItem(tLang.L("mesh_debug_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
@@ -927,7 +931,7 @@ function main_menu_mesh_debug()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
                 end
             end
-            pressed = tImGui.MenuItem('Mbm Engine', nil, false)
+            pressed = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -935,7 +939,7 @@ function main_menu_mesh_debug()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
-            if tImGui.BeginMenu('Version') then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -957,7 +961,7 @@ function showMeshTreeWindow()
             if tImGui.MenuItem('Load Mesh(s)') then
                 onLoadMeshFromFile()
             end
-            if tImGui.MenuItem('Load from Folder') then
+            if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
             end
             showApplyToAllMenu()
@@ -967,7 +971,7 @@ function showMeshTreeWindow()
         tImGui.TextDisabled(string.format('%d mesh(es) loaded', #tLoadedMeshes))
 
         if #tLoadedMeshes == 0 then
-            tImGui.TextWrapped('Use File menu or Load from Folder to add meshes.')
+            tImGui.TextWrapped(tLang.L("use_file_menu_or_load"))
         else
             local tToRemove = {}
             for i = 1, #tLoadedMeshes do

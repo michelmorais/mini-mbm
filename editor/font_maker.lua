@@ -32,7 +32,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -98,7 +98,7 @@ function copyShader(tSource,tDest)
         tDest:setAnim(index)
         local tShader = tDest:getShader()
         if not tShader:load('font.ps',nil,mbm.GROWING,1.0,mbm.PAUSED,0.0) then
-            tUtil.showMessageWarn('Failed to load shader ...')
+            tUtil.showMessageWarn(tLang.L("failed_to_load_shader"))
         end
     end
     local indexAnim = select(2,tSource:getAnim())
@@ -183,7 +183,7 @@ function loadNewFont(sNewFileName)
         if isBinaryFont(fileName) then
             local tNewFont        = font:new(fileName)
             setInitialParameters(fileName,tNewFont)
-            tUtil.showMessage("Font Successfully Loaded!",5)
+            tUtil.showMessage(tLang.L("font_loaded_ok"), 5)
         else
             local saveAsPng       = true
             local tNewFont        = font:new(fileName,iHeightFont,iSpace,iSpaceHeight,saveAsPng)
@@ -196,7 +196,7 @@ function loadNewFont(sNewFileName)
                 os.execute(string.format('MOVE %q %q',tNewFont.sTextureName, tNewFont.sTmpFile))
             end
             if sNewFileName == nil then
-                tUtil.showMessage("Font Successfully Loaded!",5)
+                tUtil.showMessage(tLang.L("font_loaded_ok"), 5)
             end
         end
         tex_alpha_pattern.visible = true
@@ -211,7 +211,7 @@ function onSaveFont()
         if meshD:load(tGlobalFont.tText) then
             if meshD:copyAnimationsFromMesh(tGlobalFont.tText) then --copy animations created
                 if meshD:save(fileName) then
-                    tUtil.showMessage("Successfully saved!")
+                    tUtil.showMessage(tLang.L("font_saved_ok"))
                     if mbm.is('linux') then
                         local tDestTexture = fileName:split('/')
                         tDestTexture[#tDestTexture] = nil
@@ -224,13 +224,13 @@ function onSaveFont()
                         os.execute(string.format('MOVE %q %q',tGlobalFont.sTmpFile,sTextureName))
                     end
                 else
-                    tUtil.showMessageWarn("Failed to save font!")
+                    tUtil.showMessageWarn(tLang.L("failed_to_save_font"))
                 end
             else
-                tUtil.showMessageWarn("Failed to apply shader!")
+                tUtil.showMessageWarn(tLang.L("failed_to_apply_shader"))
             end
         else
-            tUtil.showMessageWarn("Failed to load font!")
+            tUtil.showMessageWarn(tLang.L("failed_to_load_font"))
         end
     end
 end
@@ -395,19 +395,19 @@ function renderMainMenu(delta)
     tImGui.SetNextWindowPos(tPosWin , tImGui.Flags('ImGuiCond_Once'))
     local is_opened, closed_clicked = tImGui.Begin(title, false, tImGui.Flags('ImGuiWindowFlags_NoMove'))
     if is_opened then
-        if tImGui.Button('Load Font...',tSizeButton) then
+        if tImGui.Button(tLang.L("load_font"),tSizeButton) then
             loadNewFont(nil)
         end
-        if tImGui.Button('Parse Font ... ',tSizeButton) then
+        if tImGui.Button(tLang.L("parse_font"),tSizeButton) then
             onParseFont()
         end
         if sFontSelected and tGlobalFont then
             tImGui.Text(tUtil.getShortName(sFontSelected))
-            if tImGui.Button('Save Binary Font...',tSizeButton) then
+            if tImGui.Button(tLang.L("save_binary_font"),tSizeButton) then
                 onSaveFont()
             end
         else
-            tImGui.Text('No font loaded')
+            tImGui.Text(tLang.L("no_font_loaded"))
         end
         local step       =  1
         local step_fast  =  10
@@ -447,15 +447,23 @@ function renderMainMenu(delta)
 
         local size       = {x = itemWidth, y =50}
         local flags      = 0
-        local modified , sNewText = tImGui.InputTextMultiline('Your Text',sAdditionalText,size,flags)
+        local modified , sNewText = tImGui.InputTextMultiline(tLang.L("your_text"),sAdditionalText,size,flags)
         if modified then
             sAdditionalText = sNewText
         end
 
-        bShowOrigin = tImGui.Checkbox('Show Origin',bShowOrigin)
+        bShowOrigin = tImGui.Checkbox(tLang.L("show_origin"),bShowOrigin)
         tLineCenterX.visible = bShowOrigin
         tLineCenterY.visible = bShowOrigin
-        bUseSolidColorBackGround = tImGui.Checkbox('Background solid color',bUseSolidColorBackGround)
+        bUseSolidColorBackGround = tImGui.Checkbox(tLang.L("background_solid_color"),bUseSolidColorBackGround)
+
+        tImGui.Text(tLang.L("menu_language"))
+        local langItems = { tLang.L("lang_english"), tLang.L("lang_portuguese_br") }
+        local langIdx = (tLang.getLanguage() == "pt_br") and 2 or 1
+        local ret, newIdx = tImGui.Combo("##Lang", langIdx, langItems, -1)
+        if ret then
+            tLang.setLanguage((newIdx == 2) and "pt_br" or "en")
+        end
 
         if bUseSolidColorBackGround then
             tex_alpha_pattern.visible = false
@@ -470,13 +478,13 @@ function renderMainMenu(delta)
             tex_alpha_pattern.visible = true
         end
 
-        if tImGui.TreeNode('id_master_anim',"Animation") then
+        if tImGui.TreeNode('id_master_anim',tLang.L("animation")) then
             if tGlobalFont then
                 local tText      = tGlobalFont.tText
                 local label      = '##AddAnim'
                 local hint       = '<name>'
                 local flags      = 0
-                tImGui.Text('Add:')
+                tImGui.Text(tLang.L("add_label"))
                 tImGui.SameLine()
                 tImGui.PushItemWidth(itemWidth-40)
                 local modified , sNewText = tImGui.InputTextWithHint(label,sAnimationName,hint,flags)
@@ -492,7 +500,7 @@ function renderMainMenu(delta)
                         tText:setAnim(index)
                         local tShader = tText:getShader()
                         if not tShader:load('font.ps',nil,mbm.GROWING,1.0,mbm.PAUSED,0.0) then
-                            tUtil.showMessageWarn('Failed to load shader ...')
+                            tUtil.showMessageWarn(tLang.L("failed_to_load_shader"))
                          end
                     else
                         tUtil.showMessageWarn('A name is required to add animation!')
@@ -518,7 +526,7 @@ function renderMainMenu(delta)
                             local is_open  = true
                             tText:setAnim(i)
                         end
-                        tImGui.Text('Type:')
+                        tImGui.Text(tLang.L("type_label"))
                         local tShader        = tText:getShader()
                         local sPixel,sVertex = tShader:getNames()
                         if sPixel and sPixel == 'font.ps' then
@@ -530,14 +538,14 @@ function renderMainMenu(delta)
                                 tText:restartAnim()
                             end
                             local r,g,b = tShader:getPSmin('colorFont')
-                            tImGui.Text('Color Min:')
+                            tImGui.Text(tLang.L("color_min"))
                             local clicked, tRgb = tImGui.ColorEdit3('##color_min' .. tostring(1), {r=r,g=g,b=b}, flags)
                             if clicked then
                                 tShader:setPSmin('colorFont',tRgb.r,tRgb.g,tRgb.b)
                                 tText:restartAnim()
                             end
                             local r,g,b = tShader:getPSmax('colorFont')
-                            tImGui.Text('Color Max:')
+                            tImGui.Text(tLang.L("color_max"))
                             local clicked, tRgb = tImGui.ColorEdit3('##color_max' .. tostring(1), {r=r,g=g,b=b}, flags)
                             if clicked then
                                 tShader:setPSmax('colorFont',tRgb.r,tRgb.g,tRgb.b)
@@ -556,7 +564,7 @@ function renderMainMenu(delta)
                                     tShader:setPStime(fValue)
                                 end
                             end
-                            if tImGui.Button('Restart Animation',tSizeButton) then
+                            if tImGui.Button(tLang.L("restart_animation"),tSizeButton) then
                                 tText:restartAnim()
                             end
                         else
@@ -569,7 +577,7 @@ function renderMainMenu(delta)
             tImGui.TreePop()
 
         end
-        if tImGui.TreeNode('id_adjust_letters',"Letters Position") then
+        if tImGui.TreeNode('id_adjust_letters',tLang.L("letters_position")) then
             if tGlobalFont then
                 
                 local step           =  0.5
@@ -609,7 +617,7 @@ function renderMainMenu(delta)
                             end
                             if selected then
                                 tImGui.PushItemWidth(150)
-                                tImGui.Text('Change Position')
+                                tImGui.Text(tLang.L("change_position"))
                                 local iValue   = tGlobalFont:getLetterXDiff(sLetter)
                                 local result, fValue = tImGui.InputFloat('X##LetterAdjust_x', iValue, step, step_fast,format,flags)
                                 if result then
@@ -624,7 +632,7 @@ function renderMainMenu(delta)
                                         tGlobalFont:setLetterYDiff(sLetter,fValue)
                                     end
                                 end
-                                tImGui.Text('Change Size')
+                                tImGui.Text(tLang.L("change_size"))
                                 local iWidth,iHeight   = tGlobalFont:getSizeLetter(sLetter)
                                 local result, fValue = tImGui.InputInt('X##LetterSize_x', iWidth, step_int, step_int_fast)
                                 if result then
