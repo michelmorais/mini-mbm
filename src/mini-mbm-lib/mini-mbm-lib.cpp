@@ -24,6 +24,7 @@
 #include <device.h>
 #include <version/version.h>
 #include <core_mbm/usage-help.h>
+#include <core_mbm/strings-pt-br.h>
 #if defined (WIN32)
 #include <defaultThemePlusWindows.h>
 #elif defined (__linux__) || defined(__APPLE__)
@@ -508,11 +509,11 @@ namespace mbm
         const char * temp_play_lbl        = "START";
         if (isPTbr)
         {
-            temp_app_name        = "Opções de Tela";
-            temp_monitor_lbl     = "Selecione um monitor:";
-            temp_resol_name      = "Selecione uma Resolução:";
-            temp_full_screen_lbl = "Tela cheia";
-            temp_play_lbl        = "INICIAR";
+            temp_app_name        = STR_PT_BR_SCREEN_OPTIONS;
+            temp_monitor_lbl     = STR_PT_BR_MONITOR_SELECT;
+            temp_resol_name      = STR_PT_BR_RESOLUTION_SELECT;
+            temp_full_screen_lbl = STR_PT_BR_FULL_SCREEN;
+            temp_play_lbl        = STR_PT_BR_START;
         }
         w.init(my_app_name.length() > 0 ? my_app_name.c_str() : temp_app_name, width_screen_option, height_screen_option, x_las_pos, y_las_pos, false, false, false, false, __AUX_MONITOR_SELECT::__0_onProcess, false,external_ID_ICON);
         w.addLabel(temp_monitor_lbl, 10, 10, 380, 25);
@@ -538,9 +539,7 @@ namespace mbm
             {
                 if (isPTbr)
                 {
-                    // Format string must not have u8 prefix for sprintf
-                    const char* format = "%d: %ld x %ld, frequência:%lu, posição:%ld x %ld";
-                    sprintf(str, format, (int)i + 1, temp.width, temp.height,
+                    sprintf(str, STR_PT_BR_MONITOR_FORMAT, (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 else
@@ -701,8 +700,8 @@ namespace mbm
             int adjusted_custom = 90;
             if (isPTbr)
             {
-                temp_app_label = "Aplicativo:";
-                temp_app_custom = "Aplicativo Personalizado...";
+                temp_app_label = STR_PT_BR_APPLICATION;
+                temp_app_custom = STR_PT_BR_CUSTOM_SCRIPT;
                 adjusted_custom = 150;
             }
             w.addLabel(temp_app_label, 10, 180, 380, 25);
@@ -726,7 +725,7 @@ namespace mbm
                 }
                 else if (isPTbr)
                 {
-                    w.addText(idAppSelection, app_run[i].name_pt_br ? app_run[i].name_pt_br : "Sem nome");
+                    w.addText(idAppSelection, app_run[i].name_pt_br ? app_run[i].name_pt_br : STR_PT_BR_NO_NAME);
                 }
                 else
                 {

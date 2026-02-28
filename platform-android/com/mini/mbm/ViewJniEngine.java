@@ -61,9 +61,9 @@ public class ViewJniEngine extends GLSurfaceView
 		 */
 		/*
 		 
-    First, you need to edit your emulator image, go down to the hardware section, and add �GPU Emulation� and set it to true.
-    Second, there�s a bug with the emulator such that this line: �final boolean supportsEs2 = configurationInfo.reqGlEsVersion >= 0�20000;� does not work. It will always return false. You can add �|| Build.FINGERPRINT.startsWith(�generic�)� or simply comment out these checks and assume that OpenGL ES 2 is supported, when running on the emulator.
-    Finally, if it crashes with �no config found�, try adding this line before the call to �setRenderer(�)�: �glSurfaceView.setEGLConfigChooser(8 , 8, 8, 8, 16, 0);�
+    First, you need to edit your emulator image, go down to the hardware section, and add "GPU Emulation" and set it to true.
+    Second, there's a bug with the emulator such that this line: "final boolean supportsEs2 = configurationInfo.reqGlEsVersion >= 0x20000;" does not work. It will always return false. You can add "|| Build.FINGERPRINT.startsWith(\"generic\")" or simply comment out these checks and assume that OpenGL ES 2 is supported, when running on the emulator.
+    Finally, if it crashes with "no config found", try adding this line before the call to "setRenderer()": "glSurfaceView.setEGLConfigChooser(8 , 8, 8, 8, 16, 0);"
 
 		 */
 		//Emulator

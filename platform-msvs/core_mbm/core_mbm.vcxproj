@@ -222,6 +222,7 @@
     <ClInclude Include="..\..\include\core_mbm\specific-directx9.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-dummy.h" />
     <ClInclude Include="..\..\include\core_mbm\specific-opengl_es.h" />
+    <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h" />
     <ClInclude Include="..\..\include\core_mbm\texture-manager.h" />
     <ClInclude Include="..\..\include\core_mbm\time-control.h" />
     <ClInclude Include="..\..\include\core_mbm\uber-image.h" />

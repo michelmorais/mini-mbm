@@ -158,6 +158,7 @@ Call  "$(MSBuildProjectDirectory)\..\mini-mbm\create_shortcut_for_dev_kit.bat"</
     <ClCompile Include="mini-mbm-dev.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\core_mbm\strings-pt-br.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
     <ClInclude Include="..\mini-mbm-launcher\framework.h" />
     <ClInclude Include="..\mini-mbm-launcher\mini-mbm-launcher.h" />

@@ -783,7 +783,7 @@ namespace mbm
         }
 
     #if !defined     ANDROID
-        void SCENE_SCRIPT::onDoubleClick(float x, float y,int key)  // Double click do mouse. key ==0 bot�o esquerdo; key == 1 bot�o direito.
+        void SCENE_SCRIPT::onDoubleClick(float x, float y,int key)  // Double click of mouse. key ==0 left button; key == 1 right button.
         {
             if (this->lua)
             {
