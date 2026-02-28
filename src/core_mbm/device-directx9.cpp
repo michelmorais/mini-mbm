@@ -138,6 +138,8 @@ namespace mbm
             pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, D3DTEXF_POINT);
             pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
             pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
         }
     }
 
@@ -149,6 +151,8 @@ namespace mbm
             pd3dDevice->SetSamplerState(i, D3DSAMP_MINFILTER, this->specificContextDevice->DWORD_D3DSAMP_MINFILTER[i]);
             pd3dDevice->SetSamplerState(i, D3DSAMP_MAGFILTER, this->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[i]);
             pd3dDevice->SetSamplerState(i, D3DSAMP_MIPFILTER, this->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[i]);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+            pd3dDevice->SetSamplerState(i, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
 		}
     }
 

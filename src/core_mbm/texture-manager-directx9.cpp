@@ -158,26 +158,20 @@ namespace mbm
         {
             data = pixels_from_3_depth_to_4.get(width, height, data);
         }
-        //Mipmap levels (mipMap) — affects rendering quality but not the sampling method
-        //Sampler states — controls how texels are interpolated during rendering (controled by DEVICE::disableFilteringForPixelPerfect)
-        UINT mipMap = no_filter ? 1U : 0U; // 0 -> full mip chain
-        DWORD usage = mipMap == 0 ? D3DUSAGE_AUTOGENMIPMAP : D3DUSAGE_DYNAMIC;
-        if (width <= 128 && height <= 128)
-        {
-            usage = D3DUSAGE_DYNAMIC;
-            mipMap = 1;
-        }
+        //Mipmap levels (mipMap) ? affects rendering quality but not the sampling method
+        //Sampler states ? controls how texels are interpolated during rendering (controled by DEVICE::disableFilteringForPixelPerfect)
+        // Match OpenGL ES: single mip level to avoid edge bleeding (OpenGL uses no mip chain for 2D).
+        const UINT mipMap = 1U;
+        const DWORD usage = D3DUSAGE_DYNAMIC;
 
         if (FAILED(pd3dDevice->CreateTexture(width,
             height,
             mipMap,
             usage,
             requested_format,
-            D3DPOOL_DEFAULT,//,
+            D3DPOOL_DEFAULT,
             pp3DTexture9, nullptr)))
         {
-            mipMap = 1;
-            usage = D3DUSAGE_DYNAMIC;
             if (FAILED(pd3dDevice->CreateTexture(width,
                 height,
                 mipMap,
@@ -186,7 +180,7 @@ namespace mbm
                 D3DPOOL_DEFAULT,
                 pp3DTexture9, nullptr)))
             {
-                // Always upload as A8R8G8B8 and set alpha to 0xFF when source has no alpha — avoids unsupported 24 - bit format.
+                // Always upload as A8R8G8B8 and set alpha to 0xFF when source has no alpha ? avoids unsupported 24 - bit format.
                 if (channel == 3 && hasAlpha == false && requested_format == D3DFMT_R8G8B8) // we will force 24 bit format
                 {
                     data = pixels_from_3_depth_to_4.get(width, height, data);
@@ -241,7 +235,7 @@ namespace mbm
         {
             surfaceDest->Release();
             surfaceDest = nullptr;
-            // LockRect failed on GPU surface — try system-memory fallback:
+            // LockRect failed on GPU surface ? try system-memory fallback:
             IDirect3DTexture9* texSys = nullptr;
             HRESULT hrCreateSys = pd3dDevice->CreateTexture(
                 width, height,                          // width, height
@@ -304,7 +298,7 @@ namespace mbm
             surfSys->Release();
             texSys->Release();
 
-            // GPU surface not locked but top-level has been updated — continue without LockRect.
+            // GPU surface not locked but top-level has been updated ? continue without LockRect.
         }
         else
         {
@@ -313,14 +307,6 @@ namespace mbm
             surfaceDest->Release();
         }
         surfaceDest = nullptr;
-        // If we created a full mip chain, generate the mipmaps from level 0.
-        if (mipMap == 0)
-        {
-            // Try to autogenerate using the texture method if supported.
-            // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
-            // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
-            p3DTexture9->GenerateMipSubLevels();
-        }
         return true;
     }
 
@@ -388,7 +374,7 @@ namespace mbm
         {
             tex->width = infoTexture.Width;
             tex->height = infoTexture.Height;
-            UINT MipLevels = TEXTURE::no_filter ? 1U : 0U; // 0 -> full mip chain
+            UINT MipLevels = 1U; // Match OpenGL ES: no mip chain for 2D textures (avoids edge bleeding)
             D3DFORMAT tFormat = forceAlpha ? D3DFMT_A8R8G8B8 : D3DFMT_UNKNOWN;
             IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&tex->ptrTexture);
             
@@ -409,28 +395,20 @@ namespace mbm
                 fileName,
                 tex->width,
                 tex->height,
-                MipLevels,//Número De miplevels Que desejamos Que a funçao crie>>>0 para Uma completa
+                MipLevels,//N?mero De miplevels Que desejamos Que a fun?ao crie>>>0 para Uma completa
                 Usage,//D3DUSAGE_RENDERTARGET D3DUSAGE_DYNAMIC 
                 tFormat,//D3DFORMAT Formato Do Pixel
-                D3DPOOL_MANAGED,//Maneira qu a Textura sera armazenada Na memória
+                D3DPOOL_MANAGED,//Maneira qu a Textura sera armazenada Na mem?ria
                 Filter,//filtro No carregamento Da Textura pode inverter U e V
                 MipFilter,//Mip Filter
                 0,//Color Key recorte De pixels
-                &infoTexture,//Informação Da imagen 
+                &infoTexture,//Informa??o Da imagen 
                 nullptr,//Paleta_Bitmap_True_Color_24_Bits Da imagem
                 pp3DTexture9)))
             {
                 delete tex;
                 PRINT_IF_DEBUG("failed to load texture from file [%s] ", fileName);
                 return nullptr;
-            }
-            if (MipLevels == 0)
-            {
-                IDirect3DTexture9* p3DTexture9 = *pp3DTexture9;
-                // Try to autogenerate using the texture method if supported.
-                // If CreateTexture was called with D3DUSAGE_AUTOGENMIPMAP this will work.
-                // fallback: GenerateMipSubLevels or use D3DXFilterTexture if available
-                p3DTexture9->GenerateMipSubLevels();
             }
             tex->useAlphaChannel = forceAlpha;
             tex->fileName = fileName;

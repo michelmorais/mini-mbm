@@ -274,10 +274,12 @@ namespace mbm
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MAGFILTER %d", Anisotropy);
             }
-            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR)))
+            if (FAILED(this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_MIPFILTER, D3DTEXF_NONE)))
             {
                 ERROR_AT(__LINE__, __FILE__, "failed to SetSamplerState D3DSAMP_MIPFILTER %d", Anisotropy);
             }
+            this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+            this->device->specificContextDevice->pd3dDevice->SetSamplerState(stage, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
             this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MINFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MINFILTER[stage]);
             this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MAGFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MAGFILTER[stage]);
             this->device->specificContextDevice->pd3dDevice->GetSamplerState(stage, D3DSAMP_MIPFILTER, &this->device->specificContextDevice->DWORD_D3DSAMP_MIPFILTER[stage]);
