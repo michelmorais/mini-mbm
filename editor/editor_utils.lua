@@ -175,8 +175,8 @@ tUtil.showTextureAssets = function(title,tTexturesToEditor,x_pos,y_pos,bEnableMo
             if pushed_color > 0 then
                 tImGui.PopStyleColor(pushed_color)
             end
-            local str_desc = string.format('info (?) texture %d/%d',i,#tTexturesToEditor)
-            tImGui.HelpMarker(string.format('%s\nwidth:%d\nheight:%d',tTexture.file_name,tTexture.width,tTexture.height),str_desc)
+            local str_desc = string.format(tLang.L("help_texture_info_desc_fmt"), i, #tTexturesToEditor)
+            tImGui.HelpMarker(string.format(tLang.L("help_texture_info_fmt"), tTexture.file_name, tTexture.width, tTexture.height), str_desc)
         end
     end
     if tUtil.bModalRemoveImages_showTextureAssets then

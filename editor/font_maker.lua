@@ -605,7 +605,7 @@ function renderMainMenu(delta)
                             local sLetter   = tLetter.letters:sub(j,j)
                             local label     = string.format('%s##letter_%s_%d',sLetter,sLetter,j)
                             if sLetter == ' ' then
-                                label       = string.format('space##letter_%s_%d',sLetter,j)
+                                label       = tLang.L("letter_space") .. string.format('##letter_%s_%d', sLetter, j)
                             end
                             
                             local selected  = selectedLetter == sLetter
@@ -619,14 +619,14 @@ function renderMainMenu(delta)
                                 tImGui.PushItemWidth(150)
                                 tImGui.Text(tLang.L("change_position"))
                                 local iValue   = tGlobalFont:getLetterXDiff(sLetter)
-                                local result, fValue = tImGui.InputFloat('X##LetterAdjust_x', iValue, step, step_fast,format,flags)
+                                local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##LetterAdjust_x', iValue, step, step_fast, format, flags)
                                 if result then
                                     if fValue > -1000 and fValue < 1000 then
                                         tGlobalFont:setLetterXDiff(sLetter,fValue)
                                     end
                                 end
                                 local iValue   = tGlobalFont:getLetterYDiff(sLetter)
-                                local result, fValue = tImGui.InputFloat('Y##LetterAdjust_y', iValue, step, step_fast,format,flags)
+                                local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##LetterAdjust_y', iValue, step, step_fast, format, flags)
                                 if result then
                                     if fValue > -1000 and fValue < 1000 then
                                         tGlobalFont:setLetterYDiff(sLetter,fValue)
@@ -634,14 +634,14 @@ function renderMainMenu(delta)
                                 end
                                 tImGui.Text(tLang.L("change_size"))
                                 local iWidth,iHeight   = tGlobalFont:getSizeLetter(sLetter)
-                                local result, fValue = tImGui.InputInt('X##LetterSize_x', iWidth, step_int, step_int_fast)
+                                local result, fValue = tImGui.InputInt(tLang.L("axis_x") .. '##LetterSize_x', iWidth, step_int, step_int_fast)
                                 if result then
                                     if fValue >= 0 and fValue < 1000 then
                                         iWidth = fValue
                                         tGlobalFont:setSizeLetter(sLetter,iWidth,iHeight)
                                     end
                                 end
-                                local result, fValue = tImGui.InputInt('Y##LetterSize_y', iHeight, step_int, step_int_fast)
+                                local result, fValue = tImGui.InputInt(tLang.L("axis_y") .. '##LetterSize_y', iHeight, step_int, step_int_fast)
                                 if result then
                                     if fValue >= 0 and fValue < 1000 then
                                         iHeight = fValue

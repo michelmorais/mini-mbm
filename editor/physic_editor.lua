@@ -1241,10 +1241,10 @@ function showEditPhysics()
                 local flag_node     = 0
                 
                 if tImGui.TreeNodeEx(tPhysic.type_info .. string.format('[%d]',i),flag_node,id_node) then
-                    tPhysic.selectable = tImGui.Checkbox('Selectable##ESelectable' .. tostring(i),tPhysic.selectable)
+                    tPhysic.selectable = tImGui.Checkbox(tLang.L("selectable") .. '##ESelectable' .. tostring(i), tPhysic.selectable)
 
                     if tPhysic.type_info == 'rectangle' then
-                        local label    = string.format('X##rectangle_%d_x',i)
+                        local label    = tLang.L("axis_x") .. string.format('##rectangle_%d_x', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                         if result then
                             tPhysic.x = fValue
@@ -1254,7 +1254,7 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i)
                         end
 
-                        local label    = string.format('Y##rectangle_%d_y',i)
+                        local label    = tLang.L("axis_y") .. string.format('##rectangle_%d_y', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                         if result then
                             tPhysic.y = fValue
@@ -1264,7 +1264,7 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i)
                         end
 
-                        local label    = string.format('Width##rectangle_%d_width',i)
+                        local label    = tLang.L("width") .. string.format('##rectangle_%d_width', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.width, step, step_fast, format, flags)
                         if result then
                             if fValue > 0 then
@@ -1273,7 +1273,7 @@ function showEditPhysics()
                             end
                         end
                         
-                        local label    = string.format('Height##rectangle_%d_height',i)
+                        local label    = tLang.L("height") .. string.format('##rectangle_%d_height', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.height, step, step_fast, format, flags)
                         if result then
                             if fValue > 0 then
@@ -1283,21 +1283,21 @@ function showEditPhysics()
                         end
                         
                     elseif tPhysic.type_info == 'cube' then
-                            local label    = string.format('X##cube_%d_x',i)
+                            local label    = tLang.L("axis_x") .. string.format('##cube_%d_x', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                             if result then
                                 tPhysic.x = fValue
                                 updatePhysics(tPhysic)
                             end
                             
-                            local label    = string.format('Y##cube_%d_y',i)
+                            local label    = tLang.L("axis_y") .. string.format('##cube_%d_y', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                             if result then
                                 tPhysic.y = fValue
                                 updatePhysics(tPhysic)
                             end
                             
-                            local label    = string.format('Width##cube_%d_width',i)
+                            local label    = tLang.L("width") .. string.format('##cube_%d_width', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.width, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
@@ -1306,7 +1306,7 @@ function showEditPhysics()
                                 end
                             end
                             
-                            local label    = string.format('Height##cube_%d_height',i)
+                            local label    = tLang.L("height") .. string.format('##cube_%d_height', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.height, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
@@ -1318,7 +1318,7 @@ function showEditPhysics()
                             --    tLinesPhysics:setColor(1,0,1)
                             --end
                     elseif tPhysic.type == 'sphere' then
-                        local label    = string.format('X##sphere_%d_x',i)
+                        local label    = tLang.L("axis_x") .. string.format('##sphere_%d_x', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                         if result then
                             tPhysic.x = fValue
@@ -1328,7 +1328,7 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i)
                         end
 
-                        local label    = string.format('Y##sphere_%d_y',i)
+                        local label    = tLang.L("axis_y") .. string.format('##sphere_%d_y', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                         if result then
                             tPhysic.y = fValue
@@ -1338,7 +1338,7 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i)
                         end
 
-                        local label    = string.format('Ray##sphere_%d_ray',i)
+                        local label    = tLang.L("ray") .. string.format('##sphere_%d_ray', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.ray, step, step_fast, format, flags)
                         if result then
                             if fValue > 0 then
@@ -1351,7 +1351,7 @@ function showEditPhysics()
                         end
 
                     elseif tPhysic.type == 'triangle' then
-                        local label    = string.format('X##triangle_%d_x',i)
+                        local label    = tLang.L("axis_x") .. string.format('##triangle_%d_x', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                         if result then
                             tPhysic.x = fValue
@@ -1361,7 +1361,7 @@ function showEditPhysics()
                             tInfoPhysics:highLightPoint(i,0)
                         end
 
-                        local label    = string.format('Y##triangle_%d_y',i)
+                        local label    = tLang.L("axis_y") .. string.format('##triangle_%d_y', i)
                         local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                         if result then
                             tPhysic.y = fValue

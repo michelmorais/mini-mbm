@@ -389,7 +389,7 @@ function showMeshInfoTable(tEntry, index)
     tImGui.Spacing()
     tImGui.Text('Draw mode')
     tImGui.SameLine()
-    tImGui.HelpMarker('An error may occur at runtime if the engine does not implement the selected draw mode.')
+    tImGui.HelpMarker(tLang.L("help_draw_mode_error"))
     do
         local ok, curMode = pcall(function() return meshD:getModeDraw() end)
         if ok and curMode then
@@ -467,14 +467,14 @@ function showMeshInfoTable(tEntry, index)
         local ok, mat = pcall(function() return meshD:getMaterial() end)
         if ok and mat and mat.Diffuse then
             local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
-            local clicked, newD = tImGui.ColorEdit3('Diffuse##mat-' .. index, d, flags)
+            local clicked, newD = tImGui.ColorEdit3(tLang.L("diffuse") .. '##mat-' .. index, d, flags)
             if clicked and newD then
                 local newMat = { Diffuse = {r=newD.r,g=newD.g,b=newD.b,a=1}, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = mat.Power or 1 }
                 local okSet = pcall(function() meshD:setMaterial(newMat) end)
                 if okSet then onEdit() end
             end
             local pw = mat.Power or 1
-            local rp, np = tImGui.InputFloat('Power##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
+            local rp, np = tImGui.InputFloat(tLang.L("power") .. '##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
             if rp then
                 local newMat = { Diffuse = mat.Diffuse, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = np }
                 local okSet = pcall(function() meshD:setMaterial(newMat) end)
@@ -513,7 +513,7 @@ function showMeshOptions(tEntry, index)
         else
             tImGui.TextDisabled('No normals')
         end
-        if tImGui.Button('Remove Normals##' .. index) then
+        if tImGui.Button(tLang.L("remove_normals") .. '##' .. index) then
             local nVertices = 0
             if info and info.hasNormal then
                 nVertices = getMeshTotalVertices(meshD)
@@ -530,7 +530,7 @@ function showMeshOptions(tEntry, index)
             end
         end
         tImGui.SameLine()
-        if tImGui.Button('Add Normals##' .. index) then
+        if tImGui.Button(tLang.L("add_normals") .. '##' .. index) then
             local nVertices = getMeshTotalVertices(meshD)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
@@ -546,7 +546,7 @@ function showMeshOptions(tEntry, index)
     end
 
     if tImGui.TreeNodeEx('Transform', 0, 'transform-' .. index) then
-        if tImGui.Button('Centralize##' .. index) then
+        if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             meshD:centralize()
             tEntry.modified = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
@@ -558,7 +558,7 @@ function showMeshOptions(tEntry, index)
     local nAnim = info.animation or 0
     if tImGui.TreeNodeEx('Animations' .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
-            if tImGui.Button('Restart animation##' .. index) then
+            if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
                 pcall(function() tPreviewMesh:restartAnim() end)
             end
         end
@@ -626,12 +626,12 @@ function showMeshOptions(tEntry, index)
                 local function applyShaderToMesh() meshD:copyAnimationsFromMesh(tPreviewMesh) onEdit() end
                 if tImGui.TreeNodeEx('Blend', 0) then
                     local sBlend, iBlend = tPreviewMesh:getBlend()
-                    local r, ci = tImGui.Combo('Blend Function##' .. index, (iBlend or 0) + 1, tBlend)
+                    local r, ci = tImGui.Combo(tLang.L("blend_function") .. '##' .. index, (iBlend or 0) + 1, tBlend)
                     if r and ci then tPreviewMesh:setBlend(ci - 1) applyShaderToMesh() end
                     local sOp = tShader:getBlendOp()
                     local iOpIdx = 1
                     for k = 1, #tBlendOp do if tBlendOp[k] == sOp then iOpIdx = k break end end
-                    r, ci = tImGui.Combo('Blend Operation##' .. index, iOpIdx, tBlendOp)
+                    r, ci = tImGui.Combo(tLang.L("blend_operation") .. '##' .. index, iOpIdx, tBlendOp)
                     if r and ci then tShader:setBlendOp(tBlendOp[ci]) applyShaderToMesh() end
                     tImGui.TreePop()
                 end
@@ -730,7 +730,7 @@ function showMeshOptions(tEntry, index)
                 if tImGui.TreeNodeEx('Texture Stage 2', 0) then
                     local tex2 = tShader:getTextureStage2()
                     tImGui.TextDisabled(tex2 and tUtil.getShortName(tex2) or 'No Texture')
-                    if tImGui.Button('Set Texture##' .. index) then
+                    if tImGui.Button(tLang.L("set_texture") .. '##' .. index) then
                         local f = mbm.openFile(sLastMeshPath, table.unpack(tUtil.supported_images or {'png','jpg'}))
                         if f then
                             if type(f) == 'table' then f = f[1] end
@@ -746,7 +746,7 @@ function showMeshOptions(tEntry, index)
             end
         else
             tImGui.TextDisabled('Copy shader from another mesh file.')
-            if tImGui.Button('Copy from file##' .. index) then
+            if tImGui.Button(tLang.L("copy_from_file") .. '##' .. index) then
                 local refFile = mbm.openMultiFile(sLastMeshPath, 'spt', 'msh', 'fnt', 'tile', 'ptl')
                 if refFile then
                     if type(refFile) == 'table' then refFile = refFile[1] end
@@ -776,7 +776,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.Button('Check##' .. index) then
+    if tImGui.Button(tLang.L("check") .. '##' .. index) then
         local ok, err = meshD:check()
         if ok then
             tUtil.showMessage(string.format('Check OK: %s', shortName))
@@ -785,7 +785,7 @@ function showMeshOptions(tEntry, index)
         end
     end
 
-    if tImGui.Button('Save (overwrite)##' .. index) then
+    if tImGui.Button(tLang.L("save_all_overwrite") .. '##' .. index) then
         local ok = meshD:save(tEntry.fileName, false, false)
         if ok then
             tEntry.modified = false
@@ -795,7 +795,7 @@ function showMeshOptions(tEntry, index)
             tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
         end
     end
-    if tImGui.Button('Save (with calculated normals)##' .. index) then
+    if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
         local ok = meshD:save(tEntry.fileName, true, false)
         if ok then
             tEntry.modified = false
@@ -987,7 +987,7 @@ function showMeshTreeWindow()
                 if tImGui.TreeNodeEx(label, flags, 'mesh-' .. i) then
                     iSelectedMeshIndex = i
                     showMeshOptions(tEntry, i)
-                    if tImGui.Button('Remove from list##' .. i) then
+                    if tImGui.Button(tLang.L("remove_from_list") .. '##' .. i) then
                         table.insert(tToRemove, i)
                     end
                     tImGui.TreePop()

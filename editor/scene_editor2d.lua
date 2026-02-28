@@ -281,9 +281,9 @@ function drawBlockButton(isBlocked,axis)
     tImGui.SameLine()
     local label
     if isBlocked then
-        label = 'Blocked##' .. axis
+        label = tLang.L("blocked") .. '##' .. axis
     else
-        label = 'Free##' .. axis
+        label = tLang.L("free") .. '##' .. axis
     end
     if tImGui.SmallButton(label) then
         return not isBlocked
@@ -303,23 +303,23 @@ function treeNodePosition(tObj)
         if tObj.is2ds then
             tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
             tImGui.SameLine()
-            tImGui.HelpMarker('This flag is only available for mesh 2D screen!\nIt forces to calc considering the size of mesh and how far it is from the border (closest border)\n\nIt is good when you want to make sure that the displacement of mesh regarding the aspect ratio.')
+            tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
         end
-        local result, fValue = tImGui.InputFloat('X##Mesh(s)', tObj.x, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, flags)
         tObj.isBlockedX      = drawBlockButton(tObj.isBlockedX,'X')
         if result and not tObj.isBlockedX then
             tObj.x = fValue
             tObj.tShape.x = fValue
         end
 
-        local result, fValue = tImGui.InputFloat('Y##Mesh(s)', tObj.y, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##Mesh(s)', tObj.y, step, step_fast, format, flags)
         tObj.isBlockedY      = drawBlockButton(tObj.isBlockedY, 'Y')
         if result and not tObj.isBlockedY then
             tObj.y = fValue
             tObj.tShape.y = fValue
         end
 
-        local result, fValue = tImGui.InputFloat('Z##Mesh(s)', tObj.z, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("axis_z") .. '##Mesh(s)', tObj.z, step, step_fast, format, flags)
         tObj.isBlockedZ      = drawBlockButton(tObj.isBlockedZ,'Z')
         if result and not tObj.isBlockedZ then
             tObj.z = fValue
@@ -339,7 +339,7 @@ function treeNodeScale(tObj)
         local format     = "%.3f"
         local flags      =  0
         tImGui.PushItemWidth(150)
-        local result, fValue = tImGui.InputFloat('SX##Mesh(s)', tObj.sx, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, flags)
         if result then
             if fValue > 0 then
                 tObj.sx = fValue
@@ -348,7 +348,7 @@ function treeNodeScale(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat('SY##Mesh(s)', tObj.sy, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, flags)
         if result then
             if fValue > 0 then
                 tObj.sy = fValue
@@ -357,7 +357,7 @@ function treeNodeScale(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat('SZ##Mesh(s)', tObj.sz, step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("scale_sz") .. '##Mesh(s)', tObj.sz, step, step_fast, format, flags)
         if result then
             if fValue > 0 then
                 tObj.sz = fValue
@@ -381,7 +381,7 @@ function treeNodeAngle(tObj)
         local format     = "%.2f"
         local flags      =  0
         tImGui.PushItemWidth(150)
-        local result, fValue = tImGui.InputFloat('AX##Mesh(s)', math.deg(tObj.ax), step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("angle_ax") .. '##Mesh(s)', math.deg(tObj.ax), step, step_fast, format, flags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -390,7 +390,7 @@ function treeNodeAngle(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat('AY##Mesh(s)', math.deg(tObj.ay), step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("angle_ay") .. '##Mesh(s)', math.deg(tObj.ay), step, step_fast, format, flags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -399,7 +399,7 @@ function treeNodeAngle(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat('AZ##Mesh(s)', math.deg(tObj.az), step, step_fast, format, flags)
+        local result, fValue = tImGui.InputFloat(tLang.L("angle_az") .. '##Mesh(s)', math.deg(tObj.az), step, step_fast, format, flags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -659,10 +659,10 @@ function showAddingMeshOptions()
         if is_opened then
             tOptionsEditor.bAddObjAs2dw = tImGui.Checkbox(tLang.L("add_mesh_as_2dw"),tOptionsEditor.bAddObjAs2dw)
             tImGui.SameLine()
-            tImGui.HelpMarker('Disabled is 2D screen.')
+            tImGui.HelpMarker(tLang.L("help_disabled_2d_screen"))
             tOptionsEditor.bCenterOfScreen = tImGui.Checkbox(tLang.L("add_mesh_at_center"),tOptionsEditor.bCenterOfScreen)
             tImGui.SameLine()
-            tImGui.HelpMarker('Disabled means that the Mesh will have options for the initial position.')
+            tImGui.HelpMarker(tLang.L("help_disabled_initial_pos"))
             if not tOptionsEditor.bCenterOfScreen then
                 local step       =  1.0
                 local step_fast  =  10.0
@@ -670,11 +670,11 @@ function showAddingMeshOptions()
                 local flags      =  0
 
                 tImGui.PushItemWidth(200)
-                local result, fValue = tImGui.InputFloat('X##InitialDisplacementX', tOptionsEditor.initialDisplacement.x, step, step_fast, format, flags)
+                local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##InitialDisplacementX', tOptionsEditor.initialDisplacement.x, step, step_fast, format, flags)
                 if result and fValue >= 0 then
                     tOptionsEditor.initialDisplacement.x = fValue
                 end
-                local result, fValue = tImGui.InputFloat('Y##InitialDisplacementY', tOptionsEditor.initialDisplacement.y, step, step_fast, format, flags)
+                local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##InitialDisplacementY', tOptionsEditor.initialDisplacement.y, step, step_fast, format, flags)
                 if result and fValue >= 0 then
                     tOptionsEditor.initialDisplacement.y = fValue
                 end
@@ -682,11 +682,11 @@ function showAddingMeshOptions()
 
                 tOptionsEditor.tIncrementOnNewMesh.x = tImGui.Checkbox(tLang.L("increment_width_x"),tOptionsEditor.tIncrementOnNewMesh.x)
                 tImGui.SameLine()
-                tImGui.HelpMarker('The initial position (X) will be set by the width of the last mesh added. Ctrl+R')
+                tImGui.HelpMarker(tLang.L("help_initial_pos_x_width"))
                 tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = tImGui.Checkbox(tLang.L("to_right_on_x"),tOptionsEditor.tDirectionIncrementOnNewMesh.bRight)
                 tOptionsEditor.tIncrementOnNewMesh.y = tImGui.Checkbox(tLang.L("increment_height_y"),tOptionsEditor.tIncrementOnNewMesh.y)
                 tImGui.SameLine()
-                tImGui.HelpMarker('The initial position (Y) will be set by the height of the last mesh added.')
+                tImGui.HelpMarker(tLang.L("help_initial_pos_y_height"))
                 tOptionsEditor.tDirectionIncrementOnNewMesh.bUp = tImGui.Checkbox(tLang.L("to_up_on_y"),tOptionsEditor.tDirectionIncrementOnNewMesh.bUp)
 
                 if tImGui.Button(tLang.L("get_mesh_size"), {x=200,y=0}) then
@@ -1739,7 +1739,7 @@ function main_menu_scene_editor_2d()
                onSetScript()
            end
            tImGui.SameLine()
-           tImGui.HelpMarker('This script will be part of scene (even when loading). \nThis is useful when for example we have some extra shaders to specific mesh which is not part of the engine!\n\nThe script will be executed when load the scene!\n\nCurrent:' .. tostring(tOptionsEditor.sExtraScript))
+           tImGui.HelpMarker(tLang.L("help_script_extra") .. tostring(tOptionsEditor.sExtraScript))
 
            tImGui.Separator()
            local pressed,checked = tImGui.MenuItem(tLang.L("save_scene"), "Ctrl+S", false)
@@ -1860,7 +1860,7 @@ function main_menu_scene_editor_2d()
             tImGui.SameLine()
             index_activated       = tImGui.RadioButton('Stretched', index_activated, 3)
             tImGui.SameLine()
-            tImGui.HelpMarker('Default value is Y. See "scaleToScreen"')
+            tImGui.HelpMarker(tLang.L("help_default_scale"))
 
             if index_activated == 1 then
                 tOptionsEditor.sScaleAxis = 'x'
@@ -1881,12 +1881,12 @@ function main_menu_scene_editor_2d()
             local format     = "%.2f"
             local flags      =  0
 
-            local result, fValue = tImGui.InputFloat('X##XCamera', camera2d.x, step, step_fast, format, flags)
+            local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##XCamera', camera2d.x, step, step_fast, format, flags)
             if result then
                 camera2d.x = fValue
             end
 
-            local result, fValue = tImGui.InputFloat('Y##YCamera', camera2d.y, step, step_fast, format, flags)
+            local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##YCamera', camera2d.y, step, step_fast, format, flags)
             if result then
                 camera2d.y = fValue
             end
@@ -1984,7 +1984,7 @@ function main_menu_scene_editor_2d()
 
             tImGui.Text(tLang.L("execute_script"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Will execute the script instead of the current scene!\nThis is a way to test the logic of your scene \n(loading from the script)')
+            tImGui.HelpMarker(tLang.L("help_execute_script_test"))
             if tImGui.Button('...', {x=30,y=0}) then
                 local fileName = mbm.openFile(tOptionsEditor.sCurrentScriptExecution,"*.lua")
                 if fileName then

@@ -585,7 +585,7 @@ function showShaderOptions()
 
                 tImGui.Text('Blend Function')
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Function is the same for all animations')
+                tImGui.HelpMarker(tLang.L("help_blend_function_anim"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
                 if ret then
                     iBlendIndex = current_item - 1
@@ -594,7 +594,7 @@ function showShaderOptions()
 
                 tImGui.Text('Blend Operation')
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Operation is the same for all animations however it is per shader')
+                tImGui.HelpMarker(tLang.L("help_blend_operation_anim"))
                 local iBlendOpIndex = 1
                 for i=1, #tBlendOperation do
                     if tBlendOperation[i] == sOperation then

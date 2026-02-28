@@ -1140,7 +1140,7 @@ function showTextureOptions()
                 tTextureOptions.fHeight = iValue
             end
 
-            tTextureOptions.bPowerOf2 = tImGui.Checkbox('Power Of 2##P2',tTextureOptions.bPowerOf2)
+            tTextureOptions.bPowerOf2 = tImGui.Checkbox(tLang.L("power_of_2") .. '##P2', tTextureOptions.bPowerOf2)
 
             tImGui.Text('Space X')
             local result, iValue = tImGui.InputInt('##SpaceXTexture', tTextureOptions.iSpaceX, step, step_fast, flags)
@@ -1168,7 +1168,7 @@ function showTextureOptions()
 
             tImGui.Text('Max Tile Count')
             tImGui.SameLine()
-            tImGui.HelpMarker('Zero means automatic')
+            tImGui.HelpMarker(tLang.L("help_zero_automatic"))
             local result, iValue = tImGui.InputInt('##MaxTileCount', tTextureOptions.iMaxTileCount, step, step_fast, flags)
             if result and iValue >= 0 then
                 tTextureOptions.iMaxTileCount = iValue
@@ -1181,7 +1181,7 @@ function showTextureOptions()
 
             tImGui.Text(string.format('Grid X %dpx',cell_w))
             tImGui.SameLine()
-            tImGui.HelpMarker('Visual grid on X axis to help to preview the sprite sheet')
+            tImGui.HelpMarker(tLang.L("help_visual_grid_x"))
             tImGui.SameLine()
             tImGui.SetCursorPosX(130)
             tTextureOptions.bGridVisibleX = tImGui.Checkbox('##ShowGridX',tTextureOptions.bGridVisibleX)
@@ -1192,7 +1192,7 @@ function showTextureOptions()
             
             tImGui.Text(string.format('Grid Y %dpx',cell_h)    )
             tImGui.SameLine()
-            tImGui.HelpMarker('Visual grid on Y axis to help to preview the sprite sheet')
+            tImGui.HelpMarker(tLang.L("help_visual_grid_y"))
             tImGui.SameLine()
             tImGui.SetCursorPosX(130)
             tTextureOptions.bGridVisibleY = tImGui.Checkbox('##ShowGridY',tTextureOptions.bGridVisibleY)
@@ -1248,8 +1248,8 @@ function showTextureOptions()
                 tRender:setColor(tRgba.r,tRgba.g,tRgba.b,tRgba.a)
             end
 
-            tTextureOptions.bAxisY    = tImGui.Checkbox('Axis Y## Axis Y',tTextureOptions.bAxisY)
-            tTextureOptions.bAlpha    = tImGui.Checkbox('Enable Alpha##AlphaTex',tTextureOptions.bAlpha)
+            tTextureOptions.bAxisY    = tImGui.Checkbox(tLang.L("axis_y_label") .. '## Axis Y', tTextureOptions.bAxisY)
+            tTextureOptions.bAlpha    = tImGui.Checkbox(tLang.L("enable_alpha") .. '##AlphaTex', tTextureOptions.bAlpha)
 
             tImGui.NewLine()
             tImGui.Text('Algorithm')
@@ -1319,7 +1319,7 @@ function showTextureOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Grid-based placement'
                 showSortOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'MaxRects algorithm'
-                tTextureOptions.bGridForceFitScale = tImGui.Checkbox('Auto scale to fit##GridForceFitScale',tTextureOptions.bGridForceFitScale)
+                tTextureOptions.bGridForceFitScale = tImGui.Checkbox(tLang.L("auto_scale_to_fit") .. '##GridForceFitScale', tTextureOptions.bGridForceFitScale)
                 if tTextureOptions.bGridForceFitScale == false and tTextureOptions.bLastGridForceFitScaleWasEnabled then
                     tTextureOptions.scaleImage = 1.0
                 end
@@ -1359,7 +1359,7 @@ function showTextureOptions()
             local tOutOfBoundsColor = {r=1,g=0.3,b=0.3,a=0.8}
 
             if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
-                local label  = 'Only Selected Textures##OverrideAdjustsPerTexture'
+                local label  = tLang.L("only_selected_textures") .. '##OverrideAdjustsPerTexture'
                 tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
                 for i=1, #tTexturesToEditor do
                     if tTextureOptions.bOnlySelectedTextures then
@@ -1377,12 +1377,12 @@ function showTextureOptions()
                         end
                         showTextureHoverImage(i)
                         tImGui.Text('Offset Per Texture')
-                        local result, iValue = tImGui.InputInt('X##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("axis_x") .. '##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureX = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('Y##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("axis_y") .. '##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
                         end
@@ -1422,7 +1422,7 @@ function showTextureOptions()
                         
                             tImGui.Text('Scale Per Texture')
 
-                            local result, fValue = tImGui.InputFloat('SX##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
+                            local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
@@ -1438,7 +1438,7 @@ function showTextureOptions()
                                 tTexturesToEditor[i].fScalePerTextureSX = fValue
                             end
 
-                            local result, fValue = tImGui.InputFloat('SY##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
+                            local result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
@@ -1572,7 +1572,7 @@ function main_menu_texture_packer()
             tImGui.Separator()
             if (tTextureOptions.bGridVisibleX or tTextureOptions.bGridVisibleY) and (tTextureOptions.iGridX > 1 or tTextureOptions.iGridY) then
 
-                local pressed,checked = tImGui.MenuItem("Save Texture (png) Rectangles##SaveXRectangle", "X axis orientation ", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_rectangles") .. "##SaveXRectangle", tLang.L("x_axis_orientation"), false)
                 if pressed then
                     if tRender:isLoaded() then
                         local iCount       = 1
@@ -1606,7 +1606,7 @@ function main_menu_texture_packer()
                     end
                 end
 
-                local pressed,checked = tImGui.MenuItem("Save Texture (png) Rectangles##SaveYRectangle", "Y axis orientation ", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_rectangles") .. "##SaveYRectangle", tLang.L("y_axis_orientation"), false)
                 if pressed then
                     if tRender:isLoaded() then
                         local iCount       = 1

@@ -1276,7 +1276,7 @@ function drawTileSetTab(item_width)
 
             tImGui.Text(tLang.L("tile_width"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Will affect all bricks which belong to this TileSet')
+            tImGui.HelpMarker(tLang.L("help_tileset_affects_bricks"))
             local result, iValue = tImGui.InputInt('##TileSetWidth-' .. tostring(i), tTile:getTileSetWidth(i), step, step_fast, flags)
             if result and iValue > 1 and iValue <= 4096 then
                 tTile:setTileSetWidth(i,iValue)
@@ -1284,7 +1284,7 @@ function drawTileSetTab(item_width)
 
             tImGui.Text(tLang.L("tile_height"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Will affect all bricks which belong to this TileSet')
+            tImGui.HelpMarker(tLang.L("help_tileset_affects_bricks"))
             local result, iValue = tImGui.InputInt('##TileSetHeight-' .. tostring(i), tTile:getTileSetHeight(i), step, step_fast, flags)
             if result and iValue > 1 and iValue <= 4096 then
                 tTile:setTileSetHeight(i,iValue)
@@ -1351,7 +1351,7 @@ function drawMapTab(item_width)
 
     tImGui.Text(tLang.L("max_tile_to_render"))
     tImGui.SameLine()
-    tImGui.HelpMarker('This is only for debug purpose\n set it to 0 to render all!')
+    tImGui.HelpMarker(tLang.L("help_debug_max_tile_render"))
     local result, iValue = tImGui.InputInt('##MaxTile2Render', tTile:getMaxTileToRender(), step, 1, flags)
     if result and iValue > -1 and iValue <= (tTile:getMapCountWidth() * tTile:getMapCountHeight()) then
         tTile:setMaxTileToRender(iValue)
@@ -1409,7 +1409,7 @@ function drawMapTab(item_width)
 
     tImGui.Text(tLang.L("background_color_label"))
     tImGui.SameLine()
-    tImGui.HelpMarker('Use alpha > 0 otherwise won\'t be visible')
+    tImGui.HelpMarker(tLang.L("help_alpha_visible"))
     local clicked, tRgba = tImGui.ColorEdit4('##MapBackGroundColor', tTile:getMapBackgroundColor(), flags)
     if clicked then
         tTile:setMapBackgroundColor(tRgba)
@@ -1581,7 +1581,7 @@ function drawMapTab(item_width)
 
     local iTotalObjectMap     = tTile:getTotalObjectMap()
     tImGui.Text(tLang.L("object_options"))
-    local bValue = tImGui.Checkbox("All Objects Visible##Objects",bObjectsVisible)
+    local bValue = tImGui.Checkbox(tLang.L("all_objects_visible") .. "##Objects", bObjectsVisible)
     if bValue ~= bObjectsVisible then
         for i= 1, #tMapObjects do
             local tShape = tMapObjects[i]
@@ -1611,7 +1611,7 @@ function drawMapTab(item_width)
             local height_in_items  =  -1
 
             if j <= #tMapObjects then
-                tMapObjects[j].bObjectsVisible = tImGui.Checkbox("Visible##Obj-" .. tostring(j),tMapObjects[j].bObjectsVisible)
+                tMapObjects[j].bObjectsVisible = tImGui.Checkbox(tLang.L("visible") .. "##Obj-" .. tostring(j), tMapObjects[j].bObjectsVisible)
             end
 
             tImGui.Text(tLang.L("change_type"))
@@ -1714,7 +1714,7 @@ function drawMapTab(item_width)
             --        end
             --    end
             elseif tObj.type == 'line' then
-                if tImGui.Button('Add Point', {x=item_width - 40,y=0}) then
+                if tImGui.Button(tLang.L("add_point"), {x=item_width - 40,y=0}) then
                     
                     local x = tObj[#tObj -1]
                     local y = tObj[#tObj -0]
@@ -1804,7 +1804,7 @@ function showTileTools()
                 tImGui.Text('Total Selected (1)')
             end
             tImGui.SameLine()
-            tImGui.HelpMarker('Tile ID selected:\n' .. table.concat(tSelectedTileIDs,','))
+            tImGui.HelpMarker(string.format(tLang.L("help_tile_id_selected_fmt"), table.concat(tSelectedTileIDs, ',')))
             if tImGui.Button('Rotate Right', {x=item_width,y=0}) then
                 local id = tTile:rotate('right')
                 setSelectedBrickOnLayerMenuByBrickId(id)

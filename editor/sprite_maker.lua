@@ -1166,7 +1166,7 @@ function showFrameEdit()
             local flag_node      = 0
             tUVShape.visible = false
             tUvLine.visible = false
-            if tImGui.TreeNodeEx('Individual UVs',flag_node,'##Uvs') then
+            if tImGui.TreeNodeEx(tLang.L("individual_uvs"), flag_node, '##Uvs') then
                 local step       =  0.01
                 local step_fast  =  0.1
                 local format     = "%.3f"
@@ -1246,8 +1246,8 @@ function showFrameEdit()
             tImGui.Separator()
             tImGui.Text('Index Buffer Options')
             tImGui.SameLine()
-            tImGui.HelpMarker('Advanced options for index buffer\n\nChange the index buffer here will not reflect in the preview.\n\nOnly when the sprite is saved as  binary that the new indexes will be replaced.')
-            if tImGui.TreeNodeEx('Advanced (Size)',flag_node,'##AdvancedIndexBufferTree') then
+            tImGui.HelpMarker(tLang.L("help_advanced_index_buffer"))
+            if tImGui.TreeNodeEx(tLang.L("advanced_size"), flag_node, '##AdvancedIndexBufferTree') then
                 tImGui.Text('Resize')
                 tPivotShape.visible      = false
                 if clicked then
@@ -1270,7 +1270,7 @@ function showFrameEdit()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNodeEx('Advanced (Edit Index)',flag_node,'##IndexBufferTree') then
+            if tImGui.TreeNodeEx(tLang.L("advanced_edit_index"), flag_node, '##IndexBufferTree') then
                 for i=1, #tShape.index_buffer_edit do
                     local sId = string.format('%d##indexBuffer_%d',i,i)
                     local clicked, iValue = tImGui.InputInt(sId, tShape.index_buffer_edit[i], 1, 1)
@@ -1863,7 +1863,7 @@ function showFrameAdd()
                     local format     = "%.3f"
                     local flags      =  0
                     tFrameAddOptions.tShapeEdit.index_over_vertex_input = 0
-                    if tImGui.TreeNode('##vertex_for_frame', 'Vertex Edit') then
+                    if tImGui.TreeNode('##vertex_for_frame', tLang.L("vertex_edit")) then
                         for i=1, #tFrameAddOptions.tShapeEdit.vertex do
                             local vertex  = tFrameAddOptions.tShapeEdit.vertex[i] 
                             local label_x    = string.format('X%d',i)
@@ -2077,7 +2077,7 @@ function showFrameAdd()
             end
             tImGui.Text('Expected Size of Frame')
             tImGui.SameLine()
-            tImGui.HelpMarker('If the rectangle is not square it will be calculated the width/height according to do not stretch!')
+            tImGui.HelpMarker(tLang.L("help_rectangle_not_square"))
 
             tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on X",sFrameSubset), tFrameAddOptions.iRatioSelection, 1)
             tFrameAddOptions.iRatioSelection = tImGui.RadioButton(string.format("Lock Ratio on Y",sFrameSubset), tFrameAddOptions.iRatioSelection, 2)
@@ -2413,7 +2413,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
     tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
     applyZoomFrameAnimation()
-    tImGui.HelpMarker('Use Control+scroll to zoom it!')
+    tImGui.HelpMarker(tLang.L("help_control_scroll_zoom"))
     
 end
 
@@ -2459,7 +2459,7 @@ function showAnimationAdd(delta)
                 padding.x = padding.x + tImGui.GetStyle('ScrollbarSize')
             end
             tImGui.PushItemWidth(animWidth)
-            local result, iValue = tImGui.SliderInt('##Start', tAnimationOptions.iFrameStart, v_min, v_max, "Start Frame %d")
+            local result, iValue = tImGui.SliderInt(tLang.L("start_frame") .. '##Start', tAnimationOptions.iFrameStart, v_min, v_max, "Start Frame %d")
             tImGui.PopItemWidth()
             if result then
                 tAnimationOptions.iFrameStart = iValue
@@ -2471,7 +2471,7 @@ function showAnimationAdd(delta)
             addDynamicTextureToImGuiImage(tFrameStart,winSize,padding,1)
 
             tImGui.PushItemWidth(animWidth)
-            local result, iValue = tImGui.SliderInt('##Stop', tAnimationOptions.iFrameStop, v_min, v_max, "Stop Frame %d")
+            local result, iValue = tImGui.SliderInt(tLang.L("stop_frame") .. '##Stop', tAnimationOptions.iFrameStop, v_min, v_max, "Stop Frame %d")
             tImGui.PopItemWidth()
             if result then
                 tAnimationOptions.iFrameStop  = iValue
@@ -2587,7 +2587,7 @@ function showAnimationAdd(delta)
                             local text          = 'Invalid!'
                             tImGui.TextColored(color, text)
                             tImGui.SameLine()
-                            tImGui.HelpMarker('This animation is invalid and will not be added to the final sprite!')
+                            tImGui.HelpMarker(tLang.L("help_animation_invalid"))
                             if tImGui.Button('Delete', tSizeBtn) then
                                 table.remove(tAnimationList,i)
                                 tImGui.TreePop()
@@ -3031,7 +3031,7 @@ function showEditPhysics()
             local format     = "%.3f"
             local flags      =  0
             tImGui.PushItemWidth(150)
-            if tImGui.TreeNode('##physics_tree', 'Physics') then
+            if tImGui.TreeNode('##physics_tree', tLang.L("physics")) then
                 for i=1, #tPhysicsOptions.tLinesPhysics do
                     local tLinesPhysics = tPhysicsOptions.tLinesPhysics[i]
                     local tPhysic       = tLinesPhysics.tPhysic
@@ -3046,7 +3046,7 @@ function showEditPhysics()
                     tLinesPhysics:setColor(0,0,1)
                     if tImGui.TreeNodeEx(name,flag_node,id_node) then
                         if tPhysic.type == 'cube' then
-                            local label    = string.format('X##cube_%d_x',i)
+                            local label    = tLang.L("axis_x") .. string.format('##cube_%d_x', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                             if result then
                                 tPhysic.x = fValue
@@ -3056,7 +3056,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Y##cube_%d_y',i)
+                            local label    = tLang.L("axis_y") .. string.format('##cube_%d_y', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                             if result then
                                 tPhysic.y = fValue
@@ -3066,7 +3066,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Width##cube_%d_width',i)
+                            local label    = tLang.L("width") .. string.format('##cube_%d_width', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.width, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
@@ -3078,7 +3078,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Height##cube_%d_height',i)
+                            local label    = tLang.L("height") .. string.format('##cube_%d_height', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.height, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
@@ -3091,7 +3091,7 @@ function showEditPhysics()
                             end
 
                         elseif tPhysic.type == 'sphere' then
-                            local label    = string.format('X##sphere_%d_x',i)
+                            local label    = tLang.L("axis_x") .. string.format('##sphere_%d_x', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                             if result then
                                 tPhysic.x = fValue
@@ -3101,7 +3101,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Y##sphere_%d_y',i)
+                            local label    = tLang.L("axis_y") .. string.format('##sphere_%d_y', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                             if result then
                                 tPhysic.y = fValue
@@ -3111,7 +3111,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Ray##sphere_%d_ray',i)
+                            local label    = tLang.L("ray") .. string.format('##sphere_%d_ray', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.ray, step, step_fast, format, flags)
                             if result then
                                 if fValue > 0 then
@@ -3124,7 +3124,7 @@ function showEditPhysics()
                             end
 
                         elseif tPhysic.type == 'triangle' then
-                            local label    = string.format('X##triangle_%d_x',i)
+                            local label    = tLang.L("axis_x") .. string.format('##triangle_%d_x', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.x, step, step_fast, format, flags)
                             if result then
                                 tPhysic.x = fValue
@@ -3134,7 +3134,7 @@ function showEditPhysics()
                                 tLinesPhysics:setColor(1,0,1)
                             end
 
-                            local label    = string.format('Y##triangle_%d_y',i)
+                            local label    = tLang.L("axis_y") .. string.format('##triangle_%d_y', i)
                             local result, fValue = tImGui.InputFloat(label, tPhysic.y, step, step_fast, format, flags)
                             if result then
                                 tPhysic.y = fValue

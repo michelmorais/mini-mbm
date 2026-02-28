@@ -565,7 +565,7 @@ function showParticleOptions()
 
                 tImGui.Text('Blend Function')
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Function is the same for all stages')
+                tImGui.HelpMarker(tLang.L("help_blend_function_stages"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
                 if ret then
                     iBlendIndex = current_item - 1
@@ -574,7 +574,7 @@ function showParticleOptions()
 
                 tImGui.Text('Blend Operation')
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Operation is the same for all stages however it is per shader')
+                tImGui.HelpMarker(tLang.L("help_blend_operation_stages"))
                 local iBlendOpIndex = 1
                 for i=1, #tBlendOperation do
                     if tBlendOperation[i] == sOperation then
@@ -592,7 +592,7 @@ function showParticleOptions()
 
             if tImGui.TreeNode("Color") then
                 tImGui.Text('Min Color')
-                local label      = 'Select the minimum color for the particle##Min Color'
+                local label      = tLang.L("min_color_particle") .. '##Min Color'
                 local flag_color = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel')
                 local tColor  = {}
                 tColor.r, tColor.g, tColor.b = tParticle:getMinColor(iStageParticle)
@@ -602,7 +602,7 @@ function showParticleOptions()
                 end
 
                 tImGui.Text('Max Color')
-                local label     = 'Select the maximum color for the particle##Max Color'
+                local label     = tLang.L("max_color_particle") .. '##Max Color'
                 tColor.r, tColor.g, tColor.b = tParticle:getMaxColor(iStageParticle)
                 local clicked, tRgb = tImGui.ColorEdit3(label, tColor, flag_color)
                 if clicked then
@@ -784,7 +784,7 @@ function showParticleOptions()
 
                 tImGui.Text('Additional Code Shader')
                 tImGui.SameLine()
-                tImGui.HelpMarker('It is not saved in the binary file!')
+                tImGui.HelpMarker(tLang.L("help_not_saved_binary"))
                 local modified , sNewText = tImGui.InputTextMultiline('##AdditionalCode',tShaderByOperator.sAdditionalCode,{x=-1,y=0},flags)
                 if modified then
                     tShaderByOperator.sAdditionalCode = sNewText
@@ -828,7 +828,7 @@ void main()
                     end
                 end
                 tImGui.SameLine()
-                tImGui.HelpMarker('A wrong shader will cause crash to the program!')
+                tImGui.HelpMarker(tLang.L("help_wrong_shader_crash"))
                 tImGui.TreePop()
             end
 
