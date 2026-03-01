@@ -141,6 +141,13 @@ add_library(core_mbm SHARED
     ${PORT_AUDIO_SOURCES}
     ${WAVE_SOURCES})
 
+if(USE_DEPRECATED_2_MINOR)
+    target_compile_definitions(core_mbm PRIVATE USE_DEPRECATED_2_MINOR)
+endif()
+if(MBM_ENABLE_MESH_LEGACY_V7)
+    target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
+endif()
+
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})

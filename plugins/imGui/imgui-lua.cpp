@@ -1379,19 +1379,19 @@ public:
 
     void onSubscribe(int width,int height, void * _context, void * _renderDevice)
     {
-        #if defined DEBUG || defined _DEBUG
-            // Debug: Print struct sizes to identify mismatch
-            printf("Subscribing to ImGui with context: %p\n", _context);
-            printf("=== ImGui Struct Size Debug ===\n");
-            printf("sizeof(ImGuiIO):    %zu\n", sizeof(ImGuiIO));
-            printf("sizeof(ImGuiStyle): %zu\n", sizeof(ImGuiStyle));
-            printf("sizeof(ImVec2):     %zu\n", sizeof(ImVec2));
-            printf("sizeof(ImVec4):     %zu\n", sizeof(ImVec4));
-            printf("sizeof(ImDrawVert): %zu\n", sizeof(ImDrawVert));
-            printf("sizeof(ImDrawIdx):  %zu\n", sizeof(ImDrawIdx));
-            printf("IMGUI_VERSION:      %s\n", IMGUI_VERSION);
-            printf("==============================\n");
-        #endif  
+        //#if defined DEBUG || defined _DEBUG
+        //    // Debug: Print struct sizes to identify mismatch
+        //    printf("Subscribing to ImGui with context: %p\n", _context);
+        //    printf("=== ImGui Struct Size Debug ===\n");
+        //    printf("sizeof(ImGuiIO):    %zu\n", sizeof(ImGuiIO));
+        //    printf("sizeof(ImGuiStyle): %zu\n", sizeof(ImGuiStyle));
+        //    printf("sizeof(ImVec2):     %zu\n", sizeof(ImVec2));
+        //    printf("sizeof(ImVec4):     %zu\n", sizeof(ImVec4));
+        //    printf("sizeof(ImDrawVert): %zu\n", sizeof(ImDrawVert));
+        //    printf("sizeof(ImDrawIdx):  %zu\n", sizeof(ImDrawIdx));
+        //    printf("IMGUI_VERSION:      %s\n", IMGUI_VERSION);
+        //    printf("==============================\n");
+        //#endif  
         
         IMGUI_CHECKVERSION();
         imGuiContext = ImGui::CreateContext();

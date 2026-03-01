@@ -653,5 +653,8 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="..\mbm-backend.props" />
+    <None Include="mbm-core-flags.props">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
