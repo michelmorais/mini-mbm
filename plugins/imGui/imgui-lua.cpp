@@ -5056,6 +5056,29 @@ int onSetNextItemOpenImGuiLua(lua_State *lua)
     return 0;
 }
 
+int onSetNextItemShortcutImGuiLua(lua_State *lua)
+{
+    int index_input          = 1;
+    const int top            = lua_gettop(lua);
+    ImGuiKeyChord shortcut   = ImGuiKey_None;
+    if (lua_type(lua, index_input) == LUA_TNUMBER)
+    {
+        shortcut = (ImGuiKeyChord)luaL_checkinteger(lua, index_input++);
+    }
+    else
+    {
+        const char *name = luaL_checkstring(lua, index_input++);
+        const auto it    = enumKeyMap.find(name);
+        if (it != enumKeyMap.end())
+            shortcut = (ImGuiKeyChord)it->second;
+        else
+            lua_log_error(lua, "Invalid key chord name. Pass ImGuiKeyChord as integer or known key name.");
+    }
+    ImGuiInputFlags flags    = top >= index_input ? (ImGuiInputFlags)luaL_checkinteger(lua, index_input++) : ImGuiInputFlags_None;
+    ImGui::SetNextItemShortcut(shortcut, flags);
+    return 0;
+}
+
 int onSelectableImGuiLua(lua_State *lua)
 {
     //  "bool selected" carry the selection state (read-only). Selectable() is clicked is returns true so you can modify your selection state. size.x==0.0: use remaining width, size.x>0.0: specify width. size.y==0.0: use label height, size.y>0.0: specify height
@@ -5911,6 +5934,30 @@ int onIsKeyPressedImGuiLua(lua_State *lua)
     const bool repeat         = top >= index_input ? lua_toboolean(lua,index_input++) :  true;
     const bool ret_bool       = ImGui::IsKeyPressed(imgui_key,repeat);
     lua_pushboolean(lua,ret_bool);
+    return 1;
+}
+
+int onShortcutImGuiLua(lua_State *lua)
+{
+    int index_input          = 1;
+    const int top            = lua_gettop(lua);
+    ImGuiKeyChord shortcut   = ImGuiKey_None;
+    if (lua_type(lua, index_input) == LUA_TNUMBER)
+    {
+        shortcut = (ImGuiKeyChord)luaL_checkinteger(lua, index_input++);
+    }
+    else
+    {
+        const char *name = luaL_checkstring(lua, index_input++);
+        const auto it    = enumKeyMap.find(name);
+        if (it != enumKeyMap.end())
+            shortcut = (ImGuiKeyChord)it->second;
+        else
+            lua_log_error(lua, "Invalid key chord name. Pass ImGuiKeyChord as integer or known key name.");
+    }
+    ImGuiInputFlags flags    = top >= index_input ? (ImGuiInputFlags)luaL_checkinteger(lua, index_input++) : ImGuiInputFlags_None;
+    const bool ret_bool      = ImGui::Shortcut(shortcut, flags);
+    lua_pushboolean(lua, ret_bool);
     return 1;
 }
 
@@ -6820,6 +6867,8 @@ int onNewimguiLua(lua_State *lua)
         {"SetCursorPosY",                                       onSetCursorPosYImGuiLua },
         {"SetCursorScreenPos",                             onSetCursorScreenPosImGuiLua },
         {"SetNextItemAllowOverlap",                       onSetNextItemAllowOverlapImGuiLua }, // Not Tested, Window
+        {"SetNextItemShortcut",                            onSetNextItemShortcutImGuiLua },
+        {"SetShortcut",                                    onShortcutImGuiLua },
         {"SetItemDefaultFocus",                           onSetItemDefaultFocusImGuiLua },
         {"SetKeyboardFocusHere",                         onSetKeyboardFocusHereImGuiLua }, // Not Tested, Keyboard/Mouse
         {"SetMouseCursor",                                     onSetMouseCursorImGuiLua }, // Not Tested, Keyboard/Mouse

@@ -399,6 +399,20 @@ function onSaveUserData(name,value,tOut)
 
         table.insert(tOut,string.format('%s:setTexture(%q)', name,sTextureNameCommand()))
         table.insert(tOut,string.format('%s:onRender(onRenderShape)',name))
+    elseif name:match('tTexturesToEditor%[%d+%]%["id"%]') or name:match('tFrameList%[%d+%]%["tTexture"%]%["id"%]') then
+        -- Recreate texture userdata from its file name
+        local baseName = name:match('^(.*)%["id"%]$')
+        local getter = load(string.format('return %s["file_name"]', baseName))
+        if getter then
+            local fileName = getter()
+            if fileName then
+                table.insert(tOut,string.format('%s = mbm.loadTexture(%q)', name, fileName))
+            else
+                print('warn', 'Could not resolve texture file name', name)
+            end
+        else
+            print('warn', 'Could not resolve texture loader', name)
+        end
     else
         print('warn', 'Userdata not expected',name)
     end
@@ -499,13 +513,9 @@ function onSaveSprite(fileName)
 
     local function makeVertex(vertex, normal, uv, pivot, stride)
         local vertex_array = {}
-        local nz = (stride == 3) and 1 or -1  -- default normal when SHAPE_MESH has none
         for i=1, #vertex do
             local single_vertex = { x  = vertex[i].x - pivot.x,
                                     y  = vertex[i].y - pivot.y,
-                                    nx = (normal and normal[i]) and normal[i].nx or 0,
-                                    ny = (normal and normal[i]) and normal[i].ny or 0,
-                                    nz = (normal and normal[i]) and normal[i].nz or nz,
                                     u  = uv[i].u,
                                     v  = uv[i].v,
                                 }
@@ -519,8 +529,11 @@ function onSaveSprite(fileName)
 
     --meshDebug is used to create dynamically mesh in the engine.
     --For sprite it has to have at least one frame to be able to generate the sprite
-    local stride      = tSaveBinaryOptions.stride --stride only can be 3 or 2. it means (x,y,z) or (x,y)
+    -- Force 2D stride so normals are not written to the binary
+    local stride      = 2
     local tMesh       = meshDebug:new() --new mesh debug to store the information about our sprite
+    tMesh:enableNormal(false) -- do not store normals in the binary
+    tMesh:setStride(stride)   -- ensure frames use stride 2
     
     --First we must add the frames
     for i = 1, #tFrameList do
@@ -533,6 +546,7 @@ function onSaveSprite(fileName)
         --we are adding vertex to frame (next)
         --this vertex list has to have at least 3 vertex (one triangle) to be valid
         -- The table expected is : {{x,y,z,u,v,nx,ny,nz},{x,y,z,u,v,nx,ny,nz},{x,y,z,u,v,nx,ny,nz}, ...}
+        -- If you want normal, include it in the vertex table and set stride to 3, if not set stride to 2 and do not include normal in the vertex table
         local vertex_array = makeVertex(tShape.vertex,tShape.normal,tShape.uv,tFrame.tPivot,stride)
         if not tMesh:addVertex(indexFrame,indexSubset,vertex_array) then
             print('error', "Error on add vertex buffer",i)
@@ -554,6 +568,9 @@ function onSaveSprite(fileName)
         end
     end
     
+    --Strip any normals that might still be attached
+    tMesh:removeNormals()
+
     --Then we add the index buffer and set the texture
     for indexFrame = 1, #tFrameList do
         local tFrame = tFrameList[indexFrame]
@@ -1956,7 +1973,6 @@ function showFrameAdd()
                         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0,g=1,b=0,a=1})
                         pushed_color = 2
                     end
-                    -- TODO: make this work in any backend engine . e.g.: Directx
                     if tImGui.ImageButton(string.format('frame_tex_%d', i), tTexture.id, size,uv0,uv1) then
                         tFrameAddOptions.iIndexSelectedNode       = i
                         tFrameAddOptions.bValidFrameSelected      = true

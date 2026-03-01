@@ -1,4 +1,4 @@
-// dear imgui, v1.92.6 WIP
+// dear imgui, v1.92.7 WIP
 // (main code and documentation)
 
 // Help:
@@ -20,7 +20,7 @@
 //   - Software using Dear ImGui  https://github.com/ocornut/imgui/wiki/Software-using-dear-imgui
 // - Issues & support ........... https://github.com/ocornut/imgui/issues
 // - Test Engine & Automation ... https://github.com/ocornut/imgui_test_engine (test suite, test engine to automate your apps)
-// - Web version of the Demo .... https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html (w/ source code browser)
+// - Web version of the Demo .... https://pthom.github.io/imgui_manual (w/ source code browser)
 
 // For FIRST-TIME users having issues compiling/linking/running:
 // please post in https://github.com/ocornut/imgui/discussions if you cannot find a solution in resources above.
@@ -207,7 +207,7 @@ CODE
    The UI can be highly dynamic, there are no construction or destruction steps, less superfluous
    data retention on your side, less state duplication, less state synchronization, fewer bugs.
  - Call and read ImGui::ShowDemoWindow() for demo code demonstrating most features.
-   Or browse https://pthom.github.io/imgui_manual_online/manual/imgui_manual.html for interactive web version.
+   Or browse https://pthom.github.io/imgui_manual for a web version w/ source code browser.
  - The library is designed to be built from sources. Avoid pre-compiled binaries and packaged versions. See imconfig.h to configure your build.
  - Dear ImGui is an implementation of the IMGUI paradigm (immediate-mode graphical user interface, a term coined by Casey Muratori).
    You can learn about IMGUI principles at http://www.johno.se/book/imgui.html, http://mollyrocket.com/861 & more links in Wiki.
@@ -394,6 +394,19 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
  When you are not sure about an old symbol or function name, try using the Search/Find function of your IDE to look for comments or references in all imgui files.
  You can read releases logs https://github.com/ocornut/imgui/releases for more details.
 
+ - 2026/02/26 (1.92.7) - Separator: fixed a legacy quirk where Separator() was submitting a zero-height item for layout purpose, even though it draws a 1-pixel separator.
+                         The fix could affect code e.g. computing height from multiple widgets in order to allocate vertical space for a footer or multi-line status bar. (#2657, #9263)
+                         The "Console" example had such a bug:
+                            float footer_height = style.ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+                            BeginChild("ScrollingRegion", { 0, -footer_height });
+                         Should be:
+                            float footer_height = style.ItemSpacing.y + style.SeparatorSize + ImGui::GetFrameHeightWithSpacing();
+                            BeginChild("ScrollingRegion", { 0, -footer_height });
+   When such idiom was used and assuming zero-height Separator, it is likely that
+   in 1.92.7 the resulting window will have unexpected 1 pixel scrolling range.
+ - 2026/02/23 (1.92.7) - Commented out legacy signature for Combo(), ListBox(), signatures which were obsoleted in 1.90 (Nov 2023), when the getter callback type was changed.
+                         - Old getter type:   bool (*getter)(void* user_data, int idx, const char** out_text)   // Set label + return bool. False replaced label with placeholder.
+                         - New getter type:   const char* (*getter)(void* user_data, int idx)                   // Return label or NULL/empty label if missing
  - 2026/01/08 (1.92.6) - Commented out legacy names obsoleted in 1.90 (Sept 2023): 'BeginChildFrame()' --> 'BeginChild()' with 'ImGuiChildFlags_FrameStyle'. 'EndChildFrame()' --> 'EndChild()'. 'ShowStackToolWindow()' --> 'ShowIDStackToolWindow()'. 'IM_OFFSETOF()' --> 'offsetof()'.
  - 2026/01/07 (1.92.6) - Popups: changed compile-time 'ImGuiPopupFlags popup_flags = 1' default value to be '= 0' for BeginPopupContextItem(), BeginPopupContextWindow(), BeginPopupContextVoid(), OpenPopupOnItemClick(). Default value has same meaning before and after.
                          - Refer to GitHub topic #9157 if you have any question.
@@ -413,13 +426,14 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
                          - BeginPopupContextItem("foo", 1);                                      // Behavior unchanged (as a courtesy we legacy interpret 1 as ImGuiPopupFlags_MouseButtonRight, will assert if disabling legacy behaviors.
                          - BeginPopupContextItem("foo", 0);                                      // !! Behavior changed !! Was Left button. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft.
                          - BeginPopupContextItem("foo", ImGuiPopupFlags_NoReopen);               // !! Behavior changed !! Was Left button + flags. Now will defaults to Right button! --> Use ImGuiPopupFlags_MouseButtonLeft | xxx.
- - 2025/12/23 (1.92.6) - Fonts:AddFontDefault() now automatically selects an embedded font between the new scalable AddFontDefaultVector() and the classic pixel-clean AddFontDefaultBitmap().
-                         The default selection is based on (style.FontSizeBase * FontScaleMain * FontScaleDpi) reaching a small threshold. Prefer calling either based on your own logic. You can call AddFontDefaultBitmap() to ensure legacy behavior.
+ - 2025/12/23 (1.92.6) - Fonts: AddFontDefault() now automatically selects an embedded font between the new scalable AddFontDefaultVector() and the classic pixel-clean AddFontDefaultBitmap().
+                         The default selection is based on (style.FontSizeBase * FontScaleMain * FontScaleDpi) reaching a small threshold, but old codebases may not set any of them properly. As as a result, it is likely that old codebase may still default to AddFontDefaultBitmap().
+                         Prefer calling either based on your own logic. You can call AddFontDefaultBitmap() to ensure legacy behavior.
  - 2025/12/23 (1.92.6) - Fonts: removed ImFontConfig::PixelSnapV added in 1.92 which turns out is unnecessary (and misdocumented). Post-rescale GlyphOffset is always rounded.
  - 2025/12/17 (1.92.6) - Renamed helper macro IM_ARRAYSIZE() -> IM_COUNTOF(). Kept redirection/legacy name for now.
  - 2025/12/11 (1.92.6) - Hashing: handling of "###" operator to reset to seed within a string identifier doesn't include the "###" characters in the output hash anymore.
-                         - Before: GetID("Hello###World") == GetID("###World") != GetID("World");
-                         - Now:    GetID("Hello###World") == GetID("###World") == GetID("World");
+                         - Before: GetID("Hello###World") == GetID("###World") != GetID("World")
+                         - After:  GetID("Hello###World") == GetID("###World") == GetID("World")
                          - This has the property of facilitating concatenating and manipulating identifiers using "###", and will allow fixing other dangling issues.
                          - This will invalidate hashes (stored in .ini data) for Tables and Windows that are using the "###" operators. (#713, #1698)
  - 2025/11/24 (1.92.6) - Fonts: Fixed handling of `ImFontConfig::FontDataOwnedByAtlas = false` which did erroneously make a copy of the font data, essentially defeating the purpose of this flag and wasting memory.
@@ -1097,6 +1111,8 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
     - Run the examples/ applications and explore them.
     - Read Getting Started (https://github.com/ocornut/imgui/wiki/Getting-Started) guide.
     - See demo code in imgui_demo.cpp and particularly the ImGui::ShowDemoWindow() function.
+    - See pthom's online imgui_manual (https://pthom.github.io/imgui_manual) which is a web
+      version of the demo with a source code browser.
     - The demo covers most features of Dear ImGui, so you can read the code and see its output.
     - See documentation and comments at the top of imgui.cpp + effectively imgui.h.
     - 20+ standalone example applications using e.g. OpenGL/DirectX are provided in the
@@ -1493,7 +1509,8 @@ ImGuiStyle::ImGuiStyle()
     ColorButtonPosition         = ImGuiDir_Right;   // Side of the color button in the ColorEdit4 widget (left/right). Defaults to ImGuiDir_Right.
     ButtonTextAlign             = ImVec2(0.5f,0.5f);// Alignment of button text when button is larger than text.
     SelectableTextAlign         = ImVec2(0.0f,0.0f);// Alignment of selectable text. Defaults to (0.0f, 0.0f) (top-left aligned). It's generally important to keep this left-aligned if you want to lay multiple items on a same line.
-    SeparatorTextBorderSize     = 3.0f;             // Thickness of border in SeparatorText()
+    SeparatorSize               = 1.0f;             // Thickness of border in Separator().
+    SeparatorTextBorderSize     = 3.0f;             // Thickness of border in SeparatorText().
     SeparatorTextAlign          = ImVec2(0.0f,0.5f);// Alignment of text within the separator. Defaults to (0.0f, 0.5f) (left aligned, center).
     SeparatorTextPadding        = ImVec2(20.0f,3.f);// Horizontal offset of text from each edge of the separator + spacing on other axis. Generally small values. .y is recommended to be == FramePadding.y.
     DisplayWindowPadding        = ImVec2(19,19);    // Window position are clamped to be visible within the display area or monitors by at least this amount. Only applies to regular windows.
@@ -1528,11 +1545,15 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
     _MainScale *= scale_factor;
     WindowPadding = ImTrunc(WindowPadding * scale_factor);
     WindowRounding = ImTrunc(WindowRounding * scale_factor);
+    WindowBorderSize = ImTrunc(WindowBorderSize * scale_factor);
     WindowMinSize = ImTrunc(WindowMinSize * scale_factor);
     WindowBorderHoverPadding = ImTrunc(WindowBorderHoverPadding * scale_factor);
     ChildRounding = ImTrunc(ChildRounding * scale_factor);
+    ChildBorderSize = ImTrunc(ChildBorderSize * scale_factor);
     PopupRounding = ImTrunc(PopupRounding * scale_factor);
+    PopupBorderSize = ImTrunc(PopupBorderSize * scale_factor);
     FramePadding = ImTrunc(FramePadding * scale_factor);
+    FrameBorderSize = ImTrunc(FrameBorderSize * scale_factor);
     FrameRounding = ImTrunc(FrameRounding * scale_factor);
     ItemSpacing = ImTrunc(ItemSpacing * scale_factor);
     ItemInnerSpacing = ImTrunc(ItemInnerSpacing * scale_factor);
@@ -1549,16 +1570,21 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
     ImageRounding = ImTrunc(ImageRounding * scale_factor);
     ImageBorderSize = ImTrunc(ImageBorderSize * scale_factor);
     TabRounding = ImTrunc(TabRounding * scale_factor);
+    TabBorderSize = ImTrunc(TabBorderSize * scale_factor);
     TabMinWidthBase = ImTrunc(TabMinWidthBase * scale_factor);
     TabMinWidthShrink = ImTrunc(TabMinWidthShrink * scale_factor);
     TabCloseButtonMinWidthSelected = (TabCloseButtonMinWidthSelected > 0.0f && TabCloseButtonMinWidthSelected != FLT_MAX) ? ImTrunc(TabCloseButtonMinWidthSelected * scale_factor) : TabCloseButtonMinWidthSelected;
     TabCloseButtonMinWidthUnselected = (TabCloseButtonMinWidthUnselected > 0.0f && TabCloseButtonMinWidthUnselected != FLT_MAX) ? ImTrunc(TabCloseButtonMinWidthUnselected * scale_factor) : TabCloseButtonMinWidthUnselected;
+    TabBarBorderSize = ImTrunc(TabBarBorderSize * scale_factor);
     TabBarOverlineSize = ImTrunc(TabBarOverlineSize * scale_factor);
+    TreeLinesSize = ImTrunc(TreeLinesSize * scale_factor);
     TreeLinesRounding = ImTrunc(TreeLinesRounding * scale_factor);
     DragDropTargetRounding = ImTrunc(DragDropTargetRounding * scale_factor);
     DragDropTargetBorderSize = ImTrunc(DragDropTargetBorderSize * scale_factor);
     DragDropTargetPadding = ImTrunc(DragDropTargetPadding * scale_factor);
     ColorMarkerSize = ImTrunc(ColorMarkerSize * scale_factor);
+    SeparatorSize = ImTrunc(SeparatorSize * scale_factor);
+    SeparatorTextBorderSize = ImTrunc(SeparatorTextBorderSize * scale_factor);
     SeparatorTextPadding = ImTrunc(SeparatorTextPadding * scale_factor);
     DisplayWindowPadding = ImTrunc(DisplayWindowPadding * scale_factor);
     DisplaySafeAreaPadding = ImTrunc(DisplaySafeAreaPadding * scale_factor);
@@ -1568,7 +1594,7 @@ void ImGuiStyle::ScaleAllSizes(float scale_factor)
 ImGuiIO::ImGuiIO()
 {
     // Most fields are initialized with zero
-    memset(this, 0, sizeof(*this));
+    memset((void*)this, 0, sizeof(*this));
     IM_STATIC_ASSERT(IM_COUNTOF(ImGuiIO::MouseDown) == ImGuiMouseButton_COUNT && IM_COUNTOF(ImGuiIO::MouseClicked) == ImGuiMouseButton_COUNT);
 
     // Settings
@@ -1974,7 +2000,7 @@ void ImGuiIO::AddFocusEvent(bool focused)
 ImGuiPlatformIO::ImGuiPlatformIO()
 {
     // Most fields are initialized with zero
-    memset(this, 0, sizeof(*this));
+    memset((void*)this, 0, sizeof(*this));
     Platform_LocaleDecimalPoint = '.';
 }
 
@@ -3231,7 +3257,7 @@ static void ImGuiListClipper_SeekCursorAndSetupPrevLine(ImGuiListClipper* clippe
 
 ImGuiListClipper::ImGuiListClipper()
 {
-    memset(this, 0, sizeof(*this));
+    memset((void*)this, 0, sizeof(*this));
 }
 
 ImGuiListClipper::~ImGuiListClipper()
@@ -3288,6 +3314,7 @@ void ImGuiListClipper::End()
         }
         TempData = NULL;
     }
+    DisplayStart = DisplayEnd = ItemsCount; // Clear this so code which may be reused past last Step() won't trip on a non-empty range.
     ItemsCount = -1;
 }
 
@@ -3621,6 +3648,7 @@ static const ImGuiStyleVarInfo GStyleVarsInfo[] =
     { 1, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, TreeLinesRounding)},          // ImGuiStyleVar_TreeLinesRounding
     { 2, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, ButtonTextAlign) },           // ImGuiStyleVar_ButtonTextAlign
     { 2, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, SelectableTextAlign) },       // ImGuiStyleVar_SelectableTextAlign
+    { 1, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, SeparatorSize)},              // ImGuiStyleVar_SeparatorSize
     { 1, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, SeparatorTextBorderSize)},    // ImGuiStyleVar_SeparatorTextBorderSize
     { 2, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, SeparatorTextAlign) },        // ImGuiStyleVar_SeparatorTextAlign
     { 2, ImGuiDataType_Float, (ImU32)offsetof(ImGuiStyle, SeparatorTextPadding) },      // ImGuiStyleVar_SeparatorTextPadding
@@ -4280,6 +4308,7 @@ ImGuiContext::ImGuiContext(ImFontAtlas* shared_font_atlas)
     SettingsLoaded = false;
     SettingsDirtyTimer = 0.0f;
     HookIdNext = 0;
+    DemoMarkerCallback = NULL;
 
     memset(LocalizationTable, 0, sizeof(LocalizationTable));
 
@@ -4525,7 +4554,7 @@ void ImGui::CallContextHooks(ImGuiContext* ctx, ImGuiContextHookType hook_type)
 // ImGuiWindow is mostly a dumb struct. It merely has a constructor and a few helper methods
 ImGuiWindow::ImGuiWindow(ImGuiContext* ctx, const char* name) : DrawListInst(NULL)
 {
-    memset(this, 0, sizeof(*this));
+    memset((void*)this, 0, sizeof(*this));
     Ctx = ctx;
     Name = ImStrdup(name);
     NameBufLen = (int)ImStrlen(name) + 1;
@@ -5047,6 +5076,13 @@ void ImGui::MemFree(void* ptr)
             DebugAllocHook(&ctx->DebugAllocInfo, ctx->FrameCount, ptr, (size_t)-1);
 #endif
     return (*GImAllocatorFreeFunc)(ptr, GImAllocatorUserData);
+}
+
+void ImGui::DemoMarker(const char* file, int line, const char* section)
+{
+    ImGuiContext& g = *GImGui;
+    if (g.DemoMarkerCallback != NULL)
+        g.DemoMarkerCallback(file, line, section);
 }
 
 // We record the number of allocation in recent frames, as a way to audit/sanitize our guiding principles of "no allocations on idle/repeating frames"
