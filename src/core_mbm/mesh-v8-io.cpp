@@ -411,8 +411,19 @@ namespace util
                writeBytes(fp, in.alphaColor, sizeof(in.alphaColor));
     }
 
+    namespace
+    {
+        constexpr int32_t kMaxExtraHeaderSize = 64 * 1024; // paths should never be bigger than this
+
+        inline bool isValidExtraSize(const int32_t size)
+        {
+            return size >= 0 && size <= kMaxExtraHeaderSize;
+        }
+    }
+
     bool readExtraHeaderV8(FILE *fp, util::EXTRA_HEADER &out)
     {
+        const auto startPos = std::ftell(fp);
         int32_t sizeExtraHeader = 0;
         if (!readBytes(fp, &out.type, sizeof(out.type)) ||
             !readI32LE(fp, sizeExtraHeader))
@@ -420,6 +431,27 @@ namespace util
             return false;
         }
         out.sizeExtraHeader = static_cast<int>(sizeExtraHeader);
+
+        // Guard against garbage sizes (observed on Windows when reading old assets)
+        if (!isValidExtraSize(sizeExtraHeader))
+        {
+            // Try legacy layout: type stored as 32 bits (struct write with padding)
+            if (startPos >= 0 && std::fseek(fp, static_cast<long>(startPos), SEEK_SET) == 0)
+            {
+                int32_t legacyType = 0;
+                if (!readI32LE(fp, legacyType) || !readI32LE(fp, sizeExtraHeader))
+                {
+                    return false;
+                }
+                out.type = static_cast<char>(legacyType & 0xFF);
+                out.sizeExtraHeader = static_cast<int>(sizeExtraHeader);
+            }
+        }
+
+        if (!isValidExtraSize(out.sizeExtraHeader))
+        {
+            return false;
+        }
         return true;
     }
 

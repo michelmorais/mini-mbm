@@ -257,6 +257,8 @@
     <ClInclude Include="..\..\include\render\tile.h" />
     <ClInclude Include="..\..\include\static-resource\resource-particle.h" />
     <ClInclude Include="..\..\include\version\version.h" />
+    <ClInclude Include="..\..\src\core_mbm\mesh-manager-legacy-internal.h" />
+    <ClInclude Include="..\..\src\core_mbm\mesh-v8-io.h" />
     <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
@@ -286,6 +288,8 @@
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-manager-legacy.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp" />
     <ClCompile Include="..\..\src\core_mbm\miniz\miniz-wrap.cpp" />
     <ClCompile Include="..\..\src\core_mbm\animation.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp" />
