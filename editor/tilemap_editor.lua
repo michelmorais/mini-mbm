@@ -33,15 +33,15 @@ tUtil         =     require "editor_utils"
 tTile         =     require "tilemap"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
 function onInitScene()
     
-    tWindowsTitle        = {title_image_selector    = 'Image(s) selector', 
-                            title_tile_map          = 'Tile Map Options',
-                            title_layer_brick_option= 'Brick selector'}
+    tWindowsTitle        = {title_image_selector    = "title_image_selector",
+                            title_tile_map          = "title_tile_map",
+                            title_layer_brick_option= "title_layer_brick_option"}
 
     camera2d		     = mbm.getCamera("2d")
     tLineCenterX         = line:new("2dw",0,0,50)
@@ -54,7 +54,7 @@ function onInitScene()
     ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     sFileNameTile               = ''
     tUtil.bRightSide            = true
-    tUtil.sMessageOverlay       = 'Welcome to Tile Map Editor!'
+    tUtil.sMessageOverlay       = tLang.L("welcome_tilemap")
     tTextureTileSet             = {}
     ImGuiTabItemFlags           = {}
     tPropertyTypes              = {'Text','Number', 'Boolean'}
@@ -166,12 +166,12 @@ function onOpenTileBinary()
         tMovingObjectMap = nil
         if tTile:load(sFileName) then
             sFileNameTile = sFileName
-            tUtil.showMessage('Tile Map Loaded Successfully!')
+            tUtil.showMessage(tLang.L("tile_map_loaded_ok"))
             tTile:clearHistory()
             tTile:addHistoric()
             ImGuiTabItemFlags = {map = tImGui.Flags('ImGuiTabItemFlags_SetSelected') }
         else
-            tUtil.showMessageWarn('Failed to Load Tile Map File!')
+            tUtil.showMessageWarn(tLang.L("tile_map_load_failed"))
         end
     end
 end
@@ -182,9 +182,9 @@ function onSaveAsTileBinary()
     if sFileName then
         if tTile:save(sFileName) then
             sFileNameTile = sFileName
-            tUtil.showMessage('Tile Map Saved Successfully!')
+            tUtil.showMessage(tLang.L("tile_map_saved_ok"))
         else
-            tUtil.showMessageWarn('Failed to Save Tile Map File!')
+            tUtil.showMessageWarn(tLang.L("tile_map_save_failed"))
         end
     end
 end
@@ -192,9 +192,9 @@ end
 function onSaveTileBinary()
     if sFileNameTile and sFileNameTile:len() > 0 then
         if tTile:save(sFileNameTile) then
-            tUtil.showMessage('Tile Map Saved Successfully!')
+            tUtil.showMessage(tLang.L("tile_map_saved_ok"))
         else
-            tUtil.showMessageWarn('Failed to Save Tile Map File!')
+            tUtil.showMessageWarn(tLang.L("tile_map_save_failed"))
         end
     else
         onSaveAsTileBinary()
@@ -215,9 +215,9 @@ end
 
 function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnAddProperty)
     local flags = 0
-    if tImGui.TreeNodeEx("Properties",flags,sTreeId) then
+    if tImGui.TreeNodeEx(tLang.L("properties"),flags,sTreeId) then
         tImGui.PushItemWidth(item_width - 20)
-        tImGui.Text('New Property')
+        tImGui.Text(tLang.L("new_property"))
         local label            = '##' .. sTreeId .. 'Combo'
         local height_in_items  =  -1
 
@@ -226,14 +226,14 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             tPropertyOptions.iSelectedCombo = current_item
         end
 
-        tImGui.Text('Name')
+        tImGui.Text(tLang.L("name"))
         local label            = '##' .. sTreeId .. 'InputTextPropertyName'
         local modified , sNewText = tImGui.InputText(label,tPropertyOptions.name,flags)
         if modified then
             tPropertyOptions.name = sNewText
         end
         
-        tImGui.Text('Value')
+        tImGui.Text(tLang.L("value"))
         local sTextAdd
         if tPropertyOptions.iSelectedCombo == 1 then
             local label            = '##' .. sTreeId .. 'InputText'
@@ -241,7 +241,7 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             if modified then
                 tPropertyOptions.sText = sNewText
             end
-            sTextAdd = 'Add Text'
+            sTextAdd = tLang.L("add_text")
         elseif tPropertyOptions.iSelectedCombo == 2 then
             local label      = '##' .. sTreeId .. 'InputFloat'
             local step       =  1.0
@@ -252,15 +252,15 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             if result then
                 tPropertyOptions.fValue = fValue
             end
-            sTextAdd = 'Add Number'
+            sTextAdd = tLang.L("add_number")
         else
-            tPropertyOptions.bValue = tImGui.Checkbox('Value', tPropertyOptions.bValue)
-            sTextAdd = 'Add Boolean'
+            tPropertyOptions.bValue = tImGui.Checkbox(tLang.L("value"), tPropertyOptions.bValue)
+            sTextAdd = tLang.L("add_boolean")
         end
 
         if tImGui.Button(sTextAdd,{x=item_width - 20 ,y=0}) then
             if tPropertyOptions.name:len() == 0 then
-                tUtil.showMessageWarn('Property Name Is Empty!')
+                tUtil.showMessageWarn(tLang.L("property_name_empty"))
             else
                 local bFound = false
                 for i=1, #tProperties do
@@ -273,7 +273,7 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
                 if bFound == false then
                     fOnAddProperty(tPropertyOptions)
                 else
-                    tUtil.showMessageWarn(string.format('Property [%s] exists!',tPropertyOptions.name))
+                    tUtil.showMessageWarn(string.format(tLang.L("property_exists_fmt"), tPropertyOptions.name))
                 end
             end
         end
@@ -287,9 +287,9 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
             local tProperty = tProperties[i]
             local sNewId    = sTreeId .. tostring(i) .. 'property'
             if tImGui.TreeNodeEx(tProperty.name,flags,sNewId) then
-                tImGui.Text('Type:' ..  tProperty.type)
+                tImGui.Text(tLang.L("property_type_label") .. tProperty.type)
 
-                if tProperty.type == 'Text' then
+                if tProperty.type == "Text" then
                     local label            = '##' .. sNewId .. 'InputTextEdit'
                     local modified , sNewText = tImGui.InputText(label,tProperty.value,flags)
                     if modified then
@@ -311,7 +311,7 @@ function propertiesTreeView(tProperties,sTreeId,item_width,tPropertyOptions,fOnA
                     end
                     
                 elseif tProperty.type == 'Boolean' then
-                    local bValue = tImGui.Checkbox('Value', tProperty.value)
+                    local bValue = tImGui.Checkbox(tLang.L("value"), tProperty.value)
                     if tProperty.value ~= bValue then
                         tProperty.value = bValue
                         tProperty.isUpdate = true
@@ -337,7 +337,7 @@ function drawLayerTab(item_width)
     updatePhysicsLine({})
     tEditorOptions.iIndexDrawLayer = tTile:setRenderMode('layer',tEditorOptions.iIndexDrawLayer)
     
-    if tImGui.Button('New Layer', {x=item_width,y=0}) then
+    if tImGui.Button(tLang.L("new_layer"), {x=item_width,y=0}) then
         tTile:newLayer()
         addHistoric()
     end
@@ -356,7 +356,7 @@ function drawLayerTab(item_width)
                 tEditorOptions.iIndexDrawLayer = tTile:setRenderMode('layer',i)
             end
             if i > 1 then
-                tImGui.Text('Bring Layer Up')
+                tImGui.Text(tLang.L("bring_layer_up"))
                 tImGui.SameLine()
                 tImGui.SetCursorPosX(item_width-10)
                 if tImGui.ArrowButton('Layer UP',tImGui.Flags('ImGuiDir_Up')) then
@@ -367,7 +367,7 @@ function drawLayerTab(item_width)
                 end
             end
             if i < iTotalLayer then
-                tImGui.Text('Bring Layer Down')
+                tImGui.Text(tLang.L("bring_layer_down"))
                 tImGui.SameLine()
                 tImGui.SetCursorPosX(item_width-10)
                 if tImGui.ArrowButton('Layer Down',tImGui.Flags('ImGuiDir_Down')) then
@@ -378,33 +378,33 @@ function drawLayerTab(item_width)
                 end
             end
             tImGui.PushItemWidth(item_width - 20)
-            local bVisible = tImGui.Checkbox('Visible',tLayer.visible)
+            local bVisible = tImGui.Checkbox(tLang.L("visible"), tLayer.visible)
             if tLayer.visible ~= bVisible then
                 tLayer.visible = bVisible
                 if tTile:updateLayer(i,tLayer) == false then
-                    tUtil.showMessageWarn('Could not update the layer!')
+                    tUtil.showMessageWarn(tLang.L("could_not_update_layer"))
                 end
             end
 
-            tImGui.Text('OffSet (X)')
+            tImGui.Text(tLang.L("offset_x"))
             local step       =  1
             local step_fast  =  10
             local result, iValue = tImGui.InputInt('##LayerOffSetX'.. id, tLayer.offset.x, step, step_fast, flags)
             if result and iValue > -999999999 and iValue < 999999999 then
                 tLayer.offset.x = iValue
                 if tTile:updateLayer(i,tLayer) == false then
-                    tUtil.showMessageWarn('Could not update offset on the layer!')
+                    tUtil.showMessageWarn(tLang.L("could_not_update_offset_on_layer"))
                 else
                     addHistoric()
                 end
             end
 
-            tImGui.Text('OffSet (Y)')
+            tImGui.Text(tLang.L("offset_y"))
             local result, iValue = tImGui.InputInt('##LayerOffSetY' .. id , tLayer.offset.y, step, step_fast, flags)
             if result and iValue > -999999999 and iValue < 999999999 then
                 tLayer.offset.y = iValue
                 if tTile:updateLayer(i,tLayer) == false then
-                    tUtil.showMessageWarn('Could not update offset in the layer!')
+                    tUtil.showMessageWarn(tLang.L("could_not_update_offset_in_layer"))
                 else
                     addHistoric()
                 end
@@ -412,37 +412,37 @@ function drawLayerTab(item_width)
 
             local sShaderName = tTile:getNameShaderLayer(i)
             if  sShaderName == 'tint.ps' then
-                if tImGui.TreeNodeEx('Tint options',flag_selected_node,id .. '-tint') then
+                if tImGui.TreeNodeEx(tLang.L("tint_options"), flag_selected_node, id .. '-tint') then
 
                     tImGui.PushItemWidth(item_width - 40)
-                    tImGui.Text('Min Tint Color')
+                    tImGui.Text(tLang.L("min_tint_color"))
                     local clicked, tRgba = tImGui.ColorEdit3('##LayerMinTint' .. id, tLayer.minTint, flags)
                     if clicked then
                         tLayer.minTint = tRgba
                         if tTile:updateLayer(i,tLayer) == false then
-                            tUtil.showMessageWarn('Could not update min tint in the layer!')
+                            tUtil.showMessageWarn(tLang.L("could_not_update_min_tint"))
                         else
                             addHistoric()
                         end
                     end
 
-                    tImGui.Text('Max Tint Color')
+                    tImGui.Text(tLang.L("max_tint_color"))
                     local clicked, tRgba = tImGui.ColorEdit3('##LayerMaxTint' .. id, tLayer.maxTint, flags)
                     if clicked then
                         tLayer.maxTint = tRgba
                         if tTile:updateLayer(i,tLayer) == false then
-                            tUtil.showMessageWarn('Could not update max tint in the layer!')
+                            tUtil.showMessageWarn(tLang.L("could_not_update_max_tint"))
                         else
                             addHistoric()
                         end
                     end
 
-                    tImGui.Text('Type Animation')
+                    tImGui.Text(tLang.L("type_animation"))
                     local ret, current_item, item = tImGui.Combo('##ComboAnimPSTintLayer' .. id , tLayer.tintAnimType, tAnimTypes)
                     if ret then
                         tLayer.tintAnimType = current_item
                         if tTile:updateLayer(i,tLayer) == false then
-                            tUtil.showMessageWarn('Could not update type animation tint in the layer!')
+                            tUtil.showMessageWarn(tLang.L("could_not_update_type_anim_tint"))
                         else
                             addHistoric()
                         end
@@ -452,18 +452,18 @@ function drawLayerTab(item_width)
                     local step_fast  =  0.1
                     local format     = "%.3f"
 
-                    tImGui.Text('Time Animation')
+                    tImGui.Text(tLang.L("time_animation"))
                     local result, fValue = tImGui.InputFloat('##tintTimeLayer-'.. id, tLayer.tintAnimTime, step, step_fast, format, flags)
                     if result and fValue >=0 then
                         tLayer.tintAnimTime = fValue
                         if tTile:updateLayer(i,tLayer) == false then
-                            tUtil.showMessageWarn('Could not update time animation tint in the layer!')
+                            tUtil.showMessageWarn(tLang.L("could_not_update_time_anim_tint"))
                         else
                             addHistoric()
                         end
                     end
 
-                    if tImGui.Button('Restart animation', {x=item_width - 40,y=0}) then
+                    if tImGui.Button(tLang.L("restart_animation_btn"), {x=item_width - 40,y=0}) then
                         tTile:updateLayer(i,tLayer)
                     end
 
@@ -472,10 +472,10 @@ function drawLayerTab(item_width)
                 end
             else
                 tImGui.TextDisabled('Shader [' .. sShaderName .. ']')
-                tImGui.TextDisabled('not supported')
-                tImGui.TextDisabled('by this editor')
-                tImGui.TextDisabled('Use shader editor')
-                tImGui.TextDisabled('to modify it!')
+                tImGui.TextDisabled(tLang.L("shader_not_supported"))
+                tImGui.TextDisabled(tLang.L("by_this_editor"))
+                tImGui.TextDisabled(tLang.L("use_shader_editor"))
+                tImGui.TextDisabled(tLang.L("to_modify_it"))
             end
 
             tImGui.Separator()
@@ -492,14 +492,14 @@ function drawLayerTab(item_width)
                     elseif tPropertyTypes[tProperty.iSelectedCombo] == 'Boolean' then
                         tTile:setLayerProperty(i, {name = tProperty.name, value = tProperty.bValue})
                     else
-                        tUtil.showMessageWarn('Invalid Property Selected')
+                        tUtil.showMessageWarn(tLang.L("invalid_property_selected"))
                     end
                     addHistoric()
                 end
             )
 
             tImGui.Separator()
-            tImGui.TextDisabled('Delete Layer')
+            tImGui.TextDisabled(tLang.L("delete_layer"))
             tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=0,b=0.3,a=1})
             tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0,g=0,b=0.3,a=0})
             tImGui.SameLine()
@@ -527,17 +527,17 @@ function drawLayerTab(item_width)
     end
 
     if tTile:getTotalLayer() > 0 then
-        bShowBrickBelows = tImGui.Checkbox('Brick selector separated',bShowBrickBelows)
+        bShowBrickBelows = tImGui.Checkbox(tLang.L("brick_selector_separated"), bShowBrickBelows)
         if bShowBrickBelows then
             local iTotalBrick  = tTile:getTotalBricks()
             tImGui.PushItemWidth(item_width - 20)
-            tImGui.Text('Current Brick ID')
+            tImGui.Text(tLang.L("current_brick_id"))
             local result, iValue = tImGui.InputInt('##selectedBrickAtLayer', tEditorOptions.iIndexSelectedBrickMenuLayer, 1, 10, flags)
             if result and iValue > 0 and iValue <= iTotalBrick then
                 tEditorOptions.iIndexSelectedBrickMenuLayer = iValue
             end
 
-            tImGui.Text('Size Brick')
+            tImGui.Text(tLang.L("size_brick"))
             local result, iValue = tImGui.InputInt('##iSizeBrickOnSelector', tEditorOptions.iSizeBrickOnSelector, 1, 10, flags)
             if result and iValue > 30 and iValue <= 300 then
                 tEditorOptions.iSizeBrickOnSelector = iValue
@@ -546,13 +546,13 @@ function drawLayerTab(item_width)
         end
     end
 
-    if bShowBrickBelows == false and tTile:getTotalLayer() > 0 and tImGui.TreeNodeEx('Bricks',flags,'Brick2layer') then
+    if bShowBrickBelows == false and tTile:getTotalLayer() > 0 and tImGui.TreeNodeEx(tLang.L("bricks"), flags, 'Brick2layer') then
 
         local iTotalBrick  = tTile:getTotalBricks()
         local tFilterBrick = {'All'}
         tImGui.PushItemWidth(item_width - 20)
         if iTotalBrick > 0 then
-            tImGui.Text('Filter by TileSet')
+            tImGui.Text(tLang.L("filter_by_tileset"))
 
             for i=1, tTile:getTotalTileSet() do
                 table.insert(tFilterBrick,tTile:getTileSetName(i))
@@ -571,14 +571,14 @@ function drawLayerTab(item_width)
                 end
             end
 
-            tImGui.Text('Filter by Texture Name')
+            tImGui.Text(tLang.L("filter_by_texture_name"))
             local modified , sNewText = tImGui.InputText('##FilterTextureNameTileSet',sFilterTextureNameTileSet,flags)
             if modified then
                 sFilterTextureNameTileSet = sNewText
             end
         end
 
-        tImGui.Text('Current Brick ID')
+        tImGui.Text(tLang.L("current_brick_id"))
         local result, iValue = tImGui.InputInt('##selectedBrickAtLayer', tEditorOptions.iIndexSelectedBrickMenuLayer, 1, 10, flags)
         if result and iValue > 0 and iValue <= iTotalBrick then
             tEditorOptions.iIndexSelectedBrickMenuLayer = iValue
@@ -650,7 +650,7 @@ function drawLayerTab(item_width)
 
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text(string.format('%s\nbrick ID:%d', tBrick.texture,tBrick.id))
+                    tImGui.Text(string.format(tLang.L("brick_id_fmt"), tBrick.texture, tBrick.id))
                     tImGui.EndTooltip()
                 end
             end
@@ -667,13 +667,13 @@ function drawBrickTab(item_width)
     local flags      =  0
     tImGui.PushItemWidth(item_width - 35)
     tEditorOptions.iIndexDrawBrick = tTile:setRenderMode('brick',tEditorOptions.iIndexDrawBrick)
-    tImGui.HelpMarker('Generally bricks do not need \nto be adjusted.\nHowever, it might be necessary. \nIt depends on the quality of \ntexture and division of tile.')
+    tImGui.HelpMarker(tLang.L("help_bricks_general"))
 
     local iTotalBrick = tTile:getTotalBricks()
     local tFilterBrick = {'All'}
 
     if iTotalBrick > 0 then
-        tImGui.Text('Filter by TileSet')
+        tImGui.Text(tLang.L("filter_by_tileset"))
 
         for i=1, tTile:getTotalTileSet() do
             table.insert(tFilterBrick,tTile:getTileSetName(i))
@@ -685,9 +685,9 @@ function drawBrickTab(item_width)
             tEditorOptions.iTileSetFilterBrick = current_item
         end
 
-        tImGui.Text('Fine Adjust UV')
+        tImGui.Text(tLang.L("fine_adjust_uv"))
         tImGui.SameLine()
-        tImGui.HelpMarker('Higher is thinner \nAffects only UV')
+        tImGui.HelpMarker(tLang.L("help_fine_adjust_uv"))
         local result, iValue = tImGui.InputInt('##fineAdjustUVBrick', tEditorOptions.iFineAdjust, step, step_fast, flags)
         if result and iValue > 1 and iValue <= 1000 then
             tEditorOptions.iFineAdjust = iValue
@@ -717,7 +717,7 @@ function drawBrickTab(item_width)
             if tImGui.IsItemHovered(0) then
                 tEditorOptions.iIndexDrawBrick = tTile:setRenderMode('brick',tBrick.id)
             end
-            tImGui.Text('Width')
+            tImGui.Text(tLang.L("width"))
             local result, iValue = tImGui.InputInt('##' .. sBrickId .. 'width', tBrick.width, step, step_fast, flags)
             if result and iValue > 1 and iValue <= 9999999 then
                 tBrick.width = iValue
@@ -725,7 +725,7 @@ function drawBrickTab(item_width)
                 addHistoric()
             end
 
-            tImGui.Text('Height')
+            tImGui.Text(tLang.L("height"))
             local result, iValue = tImGui.InputInt('##' .. sBrickId .. 'height', tBrick.height, step, step_fast, flags)
             if result and iValue > 1 and iValue <= 9999999 then
                 tBrick.height = iValue
@@ -733,7 +733,7 @@ function drawBrickTab(item_width)
                 addHistoric()
             end
 
-            tImGui.Text('Texture')
+            tImGui.Text(tLang.L("texture"))
             if tBrick.texture and tBrick.texture:len() > 0 then
                 local sTextureTemp = tUtil.getShortName(tBrick.texture)
                 if sTextureTemp:len() > 12 then
@@ -757,11 +757,11 @@ function drawBrickTab(item_width)
                 tImGui.PopStyleColor(2)
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text('Change Texture')
+                    tImGui.Text(tLang.L("change_texture"))
                     tImGui.EndTooltip()
                 end
             else
-                tImGui.TextDisabled('None')
+                tImGui.TextDisabled(tLang.L("none"))
             end
             
             tImGui.Separator()
@@ -777,7 +777,7 @@ function drawBrickTab(item_width)
             local step_fast_v =  step_u * 5
             local bOneUvOver  = false
             local format      = "%.7f"
-            tImGui.Text('UV')
+            tImGui.Text(tLang.L("uv"))
             for j=1, #tBrick.uv do
                 local uv = tBrick.uv[j]
                 local labelU     = string.format('U%d##U%d-%d',j,n,j)
@@ -805,40 +805,40 @@ function drawBrickTab(item_width)
                     bOneUvOver = j
                 end
             end
-            tImGui.Text('Expand UV')
+            tImGui.Text(tLang.L("expand_uv"))
             local sExpandUv = string.format('##ExpandUV-%s',sBrickId)
             local result, fValue = tImGui.InputFloat(sExpandUv, tEditorOptions.iExpandValue, 0.0001, 0.0001, format, flags)
             if result and fValue > 0 then
                 tEditorOptions.iExpandValue = fValue
             end
-            if tImGui.Button('Inside##UV', {x=(item_width - 45) / 2 - 2,y=0}) then
+            if tImGui.Button(tLang.L("inside") .. '##UV', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandBrick(tBrick.id,true,tEditorOptions.iExpandValue)
                 addHistoric()
             end
             tImGui.SameLine()
-            if tImGui.Button('Outside##UV', {x=(item_width - 45) / 2 - 2,y=0}) then
+            if tImGui.Button(tLang.L("outside") .. '##UV', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandBrick(tBrick.id,false,tEditorOptions.iExpandValue)
                 addHistoric()
             end
 
-            tImGui.Text('Expand U')
-            if tImGui.Button('Inside##H', {x=(item_width - 45) / 2 - 2,y=0}) then
+            tImGui.Text(tLang.L("expand_u"))
+            if tImGui.Button(tLang.L("inside") .. '##H', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandHBrick(tBrick.id,true,tEditorOptions.iExpandValue)
                 addHistoric()
             end
             tImGui.SameLine()
-            if tImGui.Button('Outside##H', {x=(item_width - 45) / 2 - 2,y=0}) then
+            if tImGui.Button(tLang.L("outside") .. '##H', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandHBrick(tBrick.id,false,tEditorOptions.iExpandValue)
                 addHistoric()
             end
 
-            tImGui.Text('Expand V')
-            if tImGui.Button('Inside##V', {x=(item_width - 45) / 2 - 2,y=0}) then
+            tImGui.Text(tLang.L("expand_v"))
+            if tImGui.Button(tLang.L("inside") .. '##V', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandVBrick(tBrick.id,true,tEditorOptions.iExpandValue)
                 addHistoric()
             end
             tImGui.SameLine()
-            if tImGui.Button('Outside##V', {x=(item_width - 45) / 2 - 2,y=0}) then
+            if tImGui.Button(tLang.L("outside") .. '##V', {x=(item_width - 45) / 2 - 2,y=0}) then
                 tTile:expandVBrick(tBrick.id,false,tEditorOptions.iExpandValue)
                 addHistoric()
             end
@@ -859,14 +859,14 @@ function drawBrickTab(item_width)
             end
 
             tImGui.Separator()
-            if tImGui.Button(string.format('Restore Default##RestBrick%d',n), {x=item_width - 40,y=0}) then
+            if tImGui.Button(tLang.L("restore_default") .. string.format('##RestBrick%d', n), {x=item_width - 40,y=0}) then
                 tTile:undoChangesBrick(tBrick.id)
                 addHistoric()
             end
             tImGui.Separator()
             local tPhysics     = tTile:getPhysicsBrick(tBrick.id)
-            tImGui.Text('Physics')
-            if tImGui.Button('Add Physic##PhysicBrickN'.. tostring(n), {x=item_width - 40,y=0}) then
+            tImGui.Text(tLang.L("physics"))
+            if tImGui.Button(tLang.L("add_physic") .. '##PhysicBrickN' .. tostring(n), {x=item_width - 40,y=0}) then
                 table.insert(tPhysics,{type = 'rectangle', x = 0, y = 0, width = tBrick.width, height = tBrick.height })
                 tTile:setPhysicsBrick(tBrick.id,tPhysics)
                 addHistoric()
@@ -905,7 +905,7 @@ function drawBrickTab(item_width)
                 local format     = "%.3f"
                 if tPhysic.type == 'rectangle' or tPhysic.type == 'circle' then
                     
-                    tImGui.Text('X')
+                    tImGui.Text(tLang.L("axis_x"))
                     local result, fValue = tImGui.InputFloat(string.format('##Brick%sPosX%d-%d',tPhysic.type,n,j), tPhysic.x, step, step_fast, format, flags)
                     if result then
                         tPhysic.x = fValue
@@ -913,7 +913,7 @@ function drawBrickTab(item_width)
                         addHistoric()
                     end
 
-                    tImGui.Text('Y')
+                    tImGui.Text(tLang.L("axis_y"))
                     local result, fValue = tImGui.InputFloat(string.format('##Brick%sPosY%d-%d',tPhysic.type,n,j), tPhysic.y, step, step_fast, format, flags)
                     if result then
                         tPhysic.y = fValue
@@ -923,7 +923,7 @@ function drawBrickTab(item_width)
                 end
 
                 if tPhysic.type == 'rectangle' then
-                    tImGui.Text('Width')
+                    tImGui.Text(tLang.L("width"))
                     local result, fValue = tImGui.InputFloat(string.format('##BrickRectPosWidth%d-%d',n,j), tPhysic.width, step, step_fast, format, flags)
                     if result then
                         tPhysic.width = fValue
@@ -931,7 +931,7 @@ function drawBrickTab(item_width)
                         addHistoric()
                     end
 
-                    tImGui.Text('Height')
+                    tImGui.Text(tLang.L("height"))
                     local result, fValue = tImGui.InputFloat(string.format('##BrickRectPosHeight%d-%d',n,j), tPhysic.height, step, step_fast, format, flags)
                     if result then
                         tPhysic.height = fValue
@@ -939,7 +939,7 @@ function drawBrickTab(item_width)
                         addHistoric()
                     end
                 elseif tPhysic.type == 'circle' then
-                    tImGui.Text('Ray')
+                    tImGui.Text(tLang.L("ray"))
                     local result, fValue = tImGui.InputFloat(string.format('##BrickCircleRay%d-%d',n,j), tPhysic.ray, step, step_fast, format, flags)
                     if result then
                         tPhysic.ray = fValue
@@ -981,7 +981,7 @@ function drawBrickTab(item_width)
                     elseif tPropertyTypes[tProperty.iSelectedCombo] == 'Boolean' then
                         tTile:setBrickProperty(tBrick.id,{name = tProperty.name, value = tProperty.bValue})
                     else
-                        tUtil.showMessageWarn('Invalid Property Selected')
+                        tUtil.showMessageWarn(tLang.L("invalid_property_selected"))
                     end
                     addHistoric()
                 end
@@ -1005,7 +1005,7 @@ function drawTileSetTab(item_width)
     local flags      = 0
     tEditorOptions.iIndexDrawTileSet = tTile:setRenderMode('tileset',tEditorOptions.iIndexDrawTileSet)
     tImGui.PushItemWidth(item_width)
-    tImGui.Text('Name')
+    tImGui.Text(tLang.L("name"))
 
     local modified , sNewText = tImGui.InputText('##TileSetNew',tEditorOptions.sDefaultTileSetName,flags)
     if modified then
@@ -1014,14 +1014,14 @@ function drawTileSetTab(item_width)
 
     local anyChange = false
 
-    tImGui.Text('Tile Width')
+    tImGui.Text(tLang.L("tile_width"))
     local result, iValue = tImGui.InputInt('##NewTileSetWidth', tEditorOptions.iDefaultTileSetWidth , step, step_fast, flags)
     if result and iValue > 1 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetWidth = iValue
         anyChange = true
     end
 
-    tImGui.Text('Tile Height')
+    tImGui.Text(tLang.L("tile_height"))
     local result, iValue = tImGui.InputInt('##NewTileSetHeight', tEditorOptions.iDefaultTileSetHeight, step, step_fast, flags)
     if result and iValue > 1 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetHeight = iValue
@@ -1030,7 +1030,7 @@ function drawTileSetTab(item_width)
 
     if tTextureTileSet[tEditorOptions.iSelectedTileSetPreview] then
 
-        if tImGui.Button('Set Image Size', {x=item_width,y=0}) then
+        if tImGui.Button(tLang.L("set_image_size"), {x=item_width,y=0}) then
             local texInfo = mbm.loadTexture(tTextureTileSet[tEditorOptions.iSelectedTileSetPreview])
             if texInfo:isValid() then
                 tEditorOptions.iDefaultTileSetWidth  = texInfo:getWidth()
@@ -1040,37 +1040,37 @@ function drawTileSetTab(item_width)
         end
     end
 
-    tImGui.Text('Tile Space X')
+    tImGui.Text(tLang.L("tile_space_x"))
     local result, iValue = tImGui.InputInt('##NewTileSetSpaceX', tEditorOptions.iDefaultTileSetSpaceX, step, step_fast, flags)
     if result and iValue >= -4096 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetSpaceX = iValue
         anyChange = true
     end
 
-    tImGui.Text('Tile Space Y')
+    tImGui.Text(tLang.L("tile_space_y"))
     local result, iValue = tImGui.InputInt('##NewTileSetSpaceY', tEditorOptions.iDefaultTileSetSpaceY, step, step_fast, flags)
     if result and iValue >= -4096 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetSpaceY = iValue
         anyChange = true
     end
 
-    tImGui.Text('Tile Margin X')
+    tImGui.Text(tLang.L("tile_margin_x"))
     local result, iValue = tImGui.InputInt('##NewTileSetMarginX', tEditorOptions.iDefaultTileSetMarginX, step, step_fast, flags)
     if result and iValue >= -4096 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetMarginX = iValue
         anyChange = true
     end
 
-    tImGui.Text('Tile Margin Y')
+    tImGui.Text(tLang.L("tile_margin_y"))
     local result, iValue = tImGui.InputInt('##NewTileSetMarginY', tEditorOptions.iDefaultTileSetMarginY, step, step_fast, flags)
     if result and iValue >= -4096 and iValue <= 4096 then
         tEditorOptions.iDefaultTileSetMarginY = iValue
         anyChange = true
     end
 
-    if tImGui.Button('Load Image(s)', {x=item_width,y=0}) then
+    if tImGui.Button(tLang.L("load_images_btn"), {x=item_width,y=0}) then
         if tTile:existTileSet(tEditorOptions.sDefaultTileSetName) then
-            tUtil.showMessageWarn(string.format('TileSet \n[%s]\nalready exists!\nPlease give another name!',tEditorOptions.sDefaultTileSetName))
+            tUtil.showMessageWarn(string.format(tLang.L("tileset_exists_fmt"), tEditorOptions.sDefaultTileSetName))
         else
             local sFileName
             if type(tTextureTileSet) == 'table' then
@@ -1111,7 +1111,7 @@ function drawTileSetTab(item_width)
     end
 
     if #tTextureTileSet > 0 then
-        tImGui.Text('Texture(s) preview')
+        tImGui.Text(tLang.L("texture_preview"))
         for i=1, #tTextureTileSet do
             tImGui.Selectable(tUtil.getShortName(tTextureTileSet[i]), tEditorOptions.iSelectedTileSetPreview == i,0, {x=item_width,y=0} )
             if tImGui.IsItemClicked(0) then
@@ -1130,7 +1130,7 @@ function drawTileSetTab(item_width)
         end
         tImGui.Text('')
 
-        tEditorOptions.bMakeSubTiles = tImGui.Checkbox("Create sub tile set",tEditorOptions.bMakeSubTiles)
+        tEditorOptions.bMakeSubTiles = tImGui.Checkbox(tLang.L("create_sub_tile_set"), tEditorOptions.bMakeSubTiles)
         tLineRectTile.visible = tEditorOptions.bMakeSubTiles
 
         tImGui.NewLine()
@@ -1140,32 +1140,32 @@ function drawTileSetTab(item_width)
 
         if tEditorOptions.bMakeSubTiles then
             local step,step_fast,flags = 1, 10, 0
-            tImGui.Text('Min X')
+            tImGui.Text(tLang.L("min_x"))
             local result, iValue = tImGui.InputInt('##tMinBound.x', tEditorOptions.tSubTilesToImport.xStart, step, step_fast, flags)
             if result then
                 tEditorOptions.tSubTilesToImport.xStart = iValue
             end
 
-            tImGui.Text('Min Y')
+            tImGui.Text(tLang.L("min_y"))
             local result, iValue = tImGui.InputInt('##tMinBound.y', tEditorOptions.tSubTilesToImport.yStart, step, step_fast, flags)
             if result then
                 tEditorOptions.tSubTilesToImport.yStart = iValue
             end
 
-            tImGui.Text('Max X')
+            tImGui.Text(tLang.L("max_x"))
             local result, iValue = tImGui.InputInt('##tMaxBound.x', tEditorOptions.tSubTilesToImport.xEnd, step, step_fast, flags)
             if result then
                 tEditorOptions.tSubTilesToImport.xEnd = iValue
             end
 
-            tImGui.Text('Max Y')
+            tImGui.Text(tLang.L("max_y"))
             local result, iValue = tImGui.InputInt('##tMaxBound.y', tEditorOptions.tSubTilesToImport.yEnd, step, step_fast, flags)
             if result then
                 tEditorOptions.tSubTilesToImport.yEnd = iValue
             end
 
             local size   =  {x=0,y=0}
-            tImGui.Text('Move X')
+            tImGui.Text(tLang.L("move_x"))
             tImGui.SameLine()
             tImGui.SetNextItemWidth(20)
             local result, iValue = tImGui.InputInt('##XMinustLineRectTile', 0, step, step_fast, flags)
@@ -1173,7 +1173,7 @@ function drawTileSetTab(item_width)
                 tEditorOptions.tSubTilesToImport.xStart = tEditorOptions.tSubTilesToImport.xStart + iValue
                 tEditorOptions.tSubTilesToImport.xEnd   = tEditorOptions.tSubTilesToImport.xEnd   + iValue
             end
-            tImGui.Text('Move Y')
+            tImGui.Text(tLang.L("move_y"))
             tImGui.SameLine()
             tImGui.SetNextItemWidth(20)
             local result, iValue = tImGui.InputInt('##YMinustLineRectTile', 0, step, step_fast, flags)
@@ -1195,10 +1195,10 @@ function drawTileSetTab(item_width)
             tLineRectTile:setScale(scale.x,scale.y)
         end
         
-        if tImGui.Button('Create Tile Set', {x=item_width,y=0}) then
+        if tImGui.Button(tLang.L("create_tile_set"), {x=item_width,y=0}) then
 
             if tTile:existTileSet(tEditorOptions.sDefaultTileSetName) then
-                tUtil.showMessageWarn(string.format('TileSet \n[%s]\nalready exists!\nPlease give another name!',tEditorOptions.sDefaultTileSetName))
+                tUtil.showMessageWarn(string.format(tLang.L("tileset_exists_fmt"), tEditorOptions.sDefaultTileSetName))
             else
                 
                 local bResult = false
@@ -1228,16 +1228,16 @@ function drawTileSetTab(item_width)
 
                 if tEditorOptions.bMakeSubTiles then
                     if bResult then
-                        tUtil.showMessage('Sub Tile created!')
+                        tUtil.showMessage(tLang.L("sub_tile_created"))
                     else
-                        tUtil.showMessageWarn('An error occurred!')
+                        tUtil.showMessageWarn(tLang.L("an_error_occurred"))
                     end
                 else
                     if bResult then
                         tTextureTileSet = {}
                     else
                         tTextureTileSet = {}
-                        tUtil.showMessageWarn('An error occurred!')
+                        tUtil.showMessageWarn(tLang.L("an_error_occurred"))
                     end
                 end
             end
@@ -1268,23 +1268,23 @@ function drawTileSetTab(item_width)
             if tImGui.IsItemHovered(0) then
                 tEditorOptions.iIndexDrawTileSet = tTile:setRenderMode('tileset',i)
             end
-            tImGui.Text('Name')
+            tImGui.Text(tLang.L("name"))
             local modified , sNewText = tImGui.InputText('##tileName' .. tostring(i),sTileSetName,flags)
             if modified then
                 tTile:setTileSetName(i,sNewText)
             end
 
-            tImGui.Text('Tile Width')
+            tImGui.Text(tLang.L("tile_width"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Will affect all bricks which belong to this TileSet')
+            tImGui.HelpMarker(tLang.L("help_tileset_affects_bricks"))
             local result, iValue = tImGui.InputInt('##TileSetWidth-' .. tostring(i), tTile:getTileSetWidth(i), step, step_fast, flags)
             if result and iValue > 1 and iValue <= 4096 then
                 tTile:setTileSetWidth(i,iValue)
             end
 
-            tImGui.Text('Tile Height')
+            tImGui.Text(tLang.L("tile_height"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Will affect all bricks which belong to this TileSet')
+            tImGui.HelpMarker(tLang.L("help_tileset_affects_bricks"))
             local result, iValue = tImGui.InputInt('##TileSetHeight-' .. tostring(i), tTile:getTileSetHeight(i), step, step_fast, flags)
             if result and iValue > 1 and iValue <= 4096 then
                 tTile:setTileSetHeight(i,iValue)
@@ -1305,10 +1305,10 @@ function drawMapTab(item_width)
     tTile:setRenderMode('map')
     local flags = 0
     local sMapName = tUtil.getShortName(sFileNameTile)
-    tImGui.Text('File')
+    tImGui.Text(tLang.L("file"))
     tImGui.TextDisabled(sMapName)
 
-    tImGui.Text('Type')
+    tImGui.Text(tLang.L("type_label"))
 
     local ret, current_item, item_as_string = tImGui.Combo('##MapType', tComboMapTypeIndex[tTile:getMapType()],tComboMapType, -1)
     if ret then
@@ -1323,7 +1323,7 @@ function drawMapTab(item_width)
         indexRender = 2
     end
 
-    tImGui.Text('Render Direction')
+    tImGui.Text(tLang.L("render_direction"))
 
     local ret, current_item, item_as_string = tImGui.Combo('##MapRenderLeftRight', indexRender, tComboOrderRenderLeftRight, -1)
     if ret then
@@ -1349,15 +1349,15 @@ function drawMapTab(item_width)
     local step_fast  =  1
     local flags      =  0
 
-    tImGui.Text('Max Tile To Render')
+    tImGui.Text(tLang.L("max_tile_to_render"))
     tImGui.SameLine()
-    tImGui.HelpMarker('This is only for debug purpose\n set it to 0 to render all!')
+    tImGui.HelpMarker(tLang.L("help_debug_max_tile_render"))
     local result, iValue = tImGui.InputInt('##MaxTile2Render', tTile:getMaxTileToRender(), step, 1, flags)
     if result and iValue > -1 and iValue <= (tTile:getMapCountWidth() * tTile:getMapCountHeight()) then
         tTile:setMaxTileToRender(iValue)
     end
     
-    tImGui.Text('Width (count tiles)')
+    tImGui.Text(tLang.L("width_count_tiles"))
     local step       =  2
     local step_fast  =  2
     local result, iValue = tImGui.InputInt('##MapCountWidth', tTile:getMapCountWidth(), step, step_fast, flags)
@@ -1376,7 +1376,7 @@ function drawMapTab(item_width)
         tTile:setMaxTileToRender(0)
     end
 
-    tImGui.Text('Height (count tiles)')
+    tImGui.Text(tLang.L("height_count_tiles"))
     local result, iValue = tImGui.InputInt('##MapCountHeight', tTile:getMapCountHeight(), step, step_fast, flags)
     if result and iValue > 1 and iValue < 999999999 then
         if iValue > tTile:getMapCountHeight() then
@@ -1395,27 +1395,27 @@ function drawMapTab(item_width)
 
     local step       =  1
     step_fast        =  1
-    tImGui.Text('Tile Width (pixel)')
+    tImGui.Text(tLang.L("tile_width_pixel"))
     local result, iValue = tImGui.InputInt('##MapTileWidth', tTile:getMapTileWidth(), step, step_fast, flags)
     if result and iValue > 1 and iValue < 999999999 then
         tTile:setMapTileWidth(iValue)
     end
 
-    tImGui.Text('Tile Height (pixel)')
+    tImGui.Text(tLang.L("tile_height_pixel"))
     local result, iValue = tImGui.InputInt('##MapTileHeight', tTile:getMapTileHeight(), step, step_fast, flags)
     if result and iValue > 1 and iValue < 999999999 then
         tTile:setMapTileHeight(iValue)
     end
 
-    tImGui.Text('Background Color')
+    tImGui.Text(tLang.L("background_color_label"))
     tImGui.SameLine()
-    tImGui.HelpMarker('Use alpha > 0 otherwise won\'t be visible')
+    tImGui.HelpMarker(tLang.L("help_alpha_visible"))
     local clicked, tRgba = tImGui.ColorEdit4('##MapBackGroundColor', tTile:getMapBackgroundColor(), flags)
     if clicked then
         tTile:setMapBackgroundColor(tRgba)
     end
 
-    tImGui.Text('Background Texture')
+    tImGui.Text(tLang.L("background_texture"))
     tImGui.SameLine()
     tImGui.SetCursorPosX(item_width-20)
     local sTextureBackground = tTile:getMapBackgroundTexture()
@@ -1444,7 +1444,7 @@ function drawMapTab(item_width)
         tImGui.PopStyleColor(2)
         if tImGui.IsItemHovered(0) then
             tImGui.BeginTooltip()
-            tImGui.Text('Remove Background image.')
+            tImGui.Text(tLang.L("remove_background_image"))
             tImGui.EndTooltip()
         end
 
@@ -1453,7 +1453,7 @@ function drawMapTab(item_width)
     tImGui.Separator()
     local flags = 0
     local bMoveLayerOpened = false
-    if tImGui.TreeNodeEx("Move Layers",flags) then
+    if tImGui.TreeNodeEx(tLang.L("move_layers"), flags) then
         bMoveLayerOpened = true
     
         local winPos  = tImGui.GetCursorScreenPos()
@@ -1546,7 +1546,7 @@ function drawMapTab(item_width)
         local step_fast  =  100
         local flags      =  0
 
-        tImGui.Text('Blocks to move')
+        tImGui.Text(tLang.L("blocks_to_move"))
         local result, iValue = tImGui.InputInt(label, tEditorOptions.iBlockToMoveLayer, step, step_fast, flags)
         if result then
             tEditorOptions.iBlockToMoveLayer = iValue
@@ -1569,18 +1569,19 @@ function drawMapTab(item_width)
                 elseif tPropertyTypes[tProperty.iSelectedCombo] == 'Boolean' then
                     tTile:setMapProperty({name = tProperty.name, value = tProperty.bValue})
                 else
-                    tUtil.showMessageWarn('Invalid Property Selected')
+                    tUtil.showMessageWarn(tLang.L("invalid_property_selected"))
                 end
             end
         )
+        tImGui.TreePop()
     end
 
 
     tImGui.Separator()
 
     local iTotalObjectMap     = tTile:getTotalObjectMap()
-    tImGui.Text('Object Options')
-    local bValue = tImGui.Checkbox("All Objects Visible##Objects",bObjectsVisible)
+    tImGui.Text(tLang.L("object_options"))
+    local bValue = tImGui.Checkbox(tLang.L("all_objects_visible") .. "##Objects", bObjectsVisible)
     if bValue ~= bObjectsVisible then
         for i= 1, #tMapObjects do
             local tShape = tMapObjects[i]
@@ -1589,7 +1590,7 @@ function drawMapTab(item_width)
         bObjectsVisible = bValue
     end
 
-    if tImGui.Button('Add Object', {x=item_width - 40,y=0}) then
+    if tImGui.Button(tLang.L("add_object"), {x=item_width - 40,y=0}) then
         local tObj = {type = 'rectangle',name = 'no_name' , x = 0, y = 0, width = tTile:getMapTileWidth(), height = tTile:getMapTileHeight() }
         tTile:addObjectMap(tObj)
     end
@@ -1610,10 +1611,10 @@ function drawMapTab(item_width)
             local height_in_items  =  -1
 
             if j <= #tMapObjects then
-                tMapObjects[j].bObjectsVisible = tImGui.Checkbox("Visible##Obj-" .. tostring(j),tMapObjects[j].bObjectsVisible)
+                tMapObjects[j].bObjectsVisible = tImGui.Checkbox(tLang.L("visible") .. "##Obj-" .. tostring(j), tMapObjects[j].bObjectsVisible)
             end
 
-            tImGui.Text('Change Type:')
+            tImGui.Text(tLang.L("change_type"))
             local ret, current_item, item_as_string = tImGui.Combo(label, tComboType[tObj.type], tObjectCombo, height_in_items)
             if ret then
                 if item_as_string ==  'none' then
@@ -1646,7 +1647,7 @@ function drawMapTab(item_width)
                 end
             end
 
-            tImGui.Text('Name')
+            tImGui.Text(tLang.L("name"))
             local flags      = 0
             local modified , sNewText = tImGui.InputText(string.format('##Obj-%d-Name',j) ,tObj.name or 'nop',flags)
             if modified then
@@ -1659,14 +1660,14 @@ function drawMapTab(item_width)
             local format     = "%.3f"
             if tObj.type == 'rectangle' or tObj.type == 'circle' or tObj.type == 'point'  or tObj.type == 'triangle'  then
                 
-                tImGui.Text('X')
+                tImGui.Text(tLang.L("axis_x"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMap%sPosX-%d',tObj.type,j), tObj.x, step, step_fast, format, flags)
                 if result then
                     tObj.x = fValue
                     tTile:setObjectMap(j,tObj)
                 end
 
-                tImGui.Text('Y')
+                tImGui.Text(tLang.L("axis_y"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMap%sPosY-%d',tObj.type,j), tObj.y, step, step_fast, format, flags)
                 if result then
                     tObj.y = fValue
@@ -1675,21 +1676,21 @@ function drawMapTab(item_width)
             end
 
             if tObj.type == 'rectangle' then
-                tImGui.Text('Width')
+                tImGui.Text(tLang.L("width"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMapRectPosWidth-%d',j), tObj.width, step, step_fast, format, flags)
                 if result then
                     tObj.width = fValue
                     tTile:setObjectMap(j,tObj)
                 end
 
-                tImGui.Text('Height')
+                tImGui.Text(tLang.L("height"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMapRectPosHeight-%d',j), tObj.height, step, step_fast, format, flags)
                 if result then
                     tObj.height = fValue
                     tTile:setObjectMap(j,tObj)
                 end
             elseif tObj.type == 'circle' then
-                tImGui.Text('Ray')
+                tImGui.Text(tLang.L("ray"))
                 local result, fValue = tImGui.InputFloat(string.format('##ObjectMapCircleRay-%d',j), tObj.ray, step, step_fast, format, flags)
                 if result then
                     tObj.ray = fValue
@@ -1713,7 +1714,7 @@ function drawMapTab(item_width)
             --        end
             --    end
             elseif tObj.type == 'line' then
-                if tImGui.Button('Add Point', {x=item_width - 40,y=0}) then
+                if tImGui.Button(tLang.L("add_point"), {x=item_width - 40,y=0}) then
                     
                     local x = tObj[#tObj -1]
                     local y = tObj[#tObj -0]
@@ -1800,23 +1801,23 @@ function showTileTools()
             if #tSelectedTileIDs > 1 then
                 tImGui.Text(string.format('Total Selected (%d)',#tSelectedTileIDs))
             else
-                tImGui.Text('Total Selected (1)')
+                tImGui.Text(tLang.L("total_selected_1"))
             end
             tImGui.SameLine()
-            tImGui.HelpMarker('Tile ID selected:\n' .. table.concat(tSelectedTileIDs,','))
-            if tImGui.Button('Rotate Right', {x=item_width,y=0}) then
+            tImGui.HelpMarker(string.format(tLang.L("help_tile_id_selected_fmt"), table.concat(tSelectedTileIDs, ',')))
+            if tImGui.Button(tLang.L("rotate_right"), {x=item_width,y=0}) then
                 local id = tTile:rotate('right')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Rotate Left', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("rotate_left"), {x=item_width,y=0}) then
                 local id = tTile:rotate('left')
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Flip', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("flip_btn"), {x=item_width,y=0}) then
                 local id = tTile:flip()
                 setSelectedBrickOnLayerMenuByBrickId(id)
             end
-            if tImGui.Button('Delete', {x=item_width,y=0}) then
+            if tImGui.Button(tLang.L("delete_btn"), {x=item_width,y=0}) then
                 tTile:deleteSelectedBricks()
             end
         end
@@ -2111,7 +2112,7 @@ function drawBrickSelector(xStart)
     local YPercentage  = 0.3
     local xRight       = 180 -- toolTip
     tUtil.setInitialWindowPositionDown(tWindowsTitle.title_layer_brick_option,xStart+25,YPercentage,xRight)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_layer_brick_option, true, 0)--
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_layer_brick_option), true, 0)
     if is_opened then
         local iTotalBrick = tTile:getTotalBricks()
         local xWinLastPos = tImGui.GetCursorPosX()
@@ -2161,7 +2162,7 @@ function drawBrickSelector(xStart)
 
                 if tImGui.IsItemHovered(0) then
                     tImGui.BeginTooltip()
-                    tImGui.Text(string.format('%s\nbrick ID:%d', tBrick.texture,tBrick.id))
+                    tImGui.Text(string.format(tLang.L("brick_id_fmt"), tBrick.texture, tBrick.id))
                     tImGui.EndTooltip()
                 end
                 if (xWinLastPos + (size.x * 2.2)) < windowSize.x then
@@ -2178,7 +2179,7 @@ end
 
 function menuPopUpOptionToAddBrick()
     if tEditorOptions.iBrickIdSelected ~= 0 then
-        if tImGui.BeginPopupContextVoid('##Options to add brick to layer :)', ImGuiPopupFlags_MouseButtonRight) then
+        if tImGui.BeginPopupContextVoid('##' .. tLang.L("options_to_add_brick"), ImGuiPopupFlags_MouseButtonRight) then
             if tImGui.Selectable("Fill layer with brick ID: " .. tostring(tEditorOptions.iBrickIdSelected)) then
                 local total = tTile:getMapCountWidth() * tTile:getMapCountHeight()
                 for i=1, total do
@@ -2200,8 +2201,8 @@ function main_tab_bar()
     local x_pos, y_pos = 0, 0
     local width        = 230
     local item_width   = 200
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_tile_map,x_pos,y_pos,width,width)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_tile_map, true, ImGuiWindowFlags_NoMove)
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_tile_map, x_pos, y_pos, width, width)
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_tile_map), true, ImGuiWindowFlags_NoMove)
     bIsOverSizeBrickSelector = false
     if is_opened then
         tImGui.PushItemWidth(item_width)
@@ -2257,25 +2258,25 @@ end
 
 function main_menu_tiled()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
 
-            local pressed,checked = tImGui.MenuItem("Load Tile Map", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_tile_map"), "Ctrl+O", false)
             if pressed then
                 onOpenTileBinary()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Tile Map", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_tile_map"), "Ctrl+S", false)
             if pressed then
                 onSaveTileBinary()
             end
 
-            local pressed,checked = tImGui.MenuItem("Save Tile Map as", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_tile_map_as"), nil, false)
             if pressed then
                 onSaveAsTileBinary()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -2283,37 +2284,37 @@ function main_menu_tiled()
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("Layer Options") then
+        if tImGui.BeginMenu(tLang.L("layer_options")) then
             if sRenderWhat == 'layer' then
-                local pressed,checked = tImGui.MenuItem("Select All Bricks", "Ctrl+A", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("select_all_bricks"), "Ctrl+A", false)
                 if pressed then
                     tTile:selectAllBricks()
                 end
 
-                local pressed,checked = tImGui.MenuItem("Invert Selected Bricks", "Ctrl+I", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("invert_selected_bricks"), "Ctrl+I", false)
                 if pressed then
                     tTile:invertSelectedBricks()
                 end
 
-                local pressed,checked = tImGui.MenuItem("Unselect All Bricks", "Ctrl+U / Esc", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("unselect_all_bricks"), "Ctrl+U / Esc", false)
                 if pressed then
                     tTile:unselectAllBricks()
                 end
 
-                local pressed,checked = tImGui.MenuItem("Delete Selected Bricks", "Delete", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("delete_selected_bricks"), "Delete", false)
                 if pressed then
                     tTile:deleteSelectedBricks()
                 end
 
             else
-                tImGui.TextDisabled('Please select a layer!')
+                tImGui.TextDisabled(tLang.L("please_select_layer"))
             end
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("Image") then
+        if tImGui.BeginMenu(tLang.L("menu_image")) then
 
-            local pressed,checked = tImGui.MenuItem("Set Texture Path", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("set_texture_path"), nil, false)
             if pressed then
                 local sFileName = mbm.openMultiFile(tTextureTileSet[1] or '',"png","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
                 if sFileName then
@@ -2324,40 +2325,40 @@ function main_menu_tiled()
                     else
                         texInfo = mbm.loadTexture(sFileName)
                     end
-                    tUtil.showMessage('Path of texture:\n' .. sFileName .. '\nid:'.. tostring(texInfo:getId()) .. '\n\nadded to the engine!\nThe next tile which depends on that path will know where to search.')
+                    tUtil.showMessage(string.format(tLang.L("path_of_texture_added"), sFileName, tostring(texInfo:getId())))
                 end
             end
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("General Options") then
+        if tImGui.BeginMenu(tLang.L("general_options")) then
 
-            local pressed,checked = tImGui.MenuItem("Undo", "Ctrl+Z", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("undo"), "Ctrl+Z", false)
             if pressed then
                 onUndo()
             end
 
-            local pressed,checked = tImGui.MenuItem("Re-do", "Ctrl+Y", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("redo"), "Ctrl+Y", false)
             if pressed then
                 onRedo()
             end
 
             tImGui.Separator()
 
-            local pressed,checked = tImGui.MenuItem("Show Map Options", false, bEnableMainTabBar)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_map_options"), false, bEnableMainTabBar)
             if pressed then
                 bEnableMainTabBar = true
             end
 
             tImGui.Separator()
 
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -2367,27 +2368,29 @@ function main_menu_tiled()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -2404,7 +2407,7 @@ function main_menu_tiled()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -2414,17 +2417,17 @@ function main_menu_tiled()
             if result then
                 tTile:setScale({x=fValue,y=fValue})
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 tTile:setScale({x=1,y=1})
             end
             tImGui.EndMenu()
         end
 
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Tile Map Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("tilemap_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#tile-map-editor"')
@@ -2432,7 +2435,7 @@ function main_menu_tiled()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#tile-map-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -2441,7 +2444,7 @@ function main_menu_tiled()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nTile Map Editor: %s \nIMGUI: %s', mbm.get('version'),tTile.version(),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -2621,7 +2624,7 @@ function onUndo()
         tTimeShowingStatusHistoric:stop()
         tTimeShowingStatusHistoric:start()
     else
-        tUtil.showMessageWarn('There is no more commando to undo!')
+        tUtil.showMessageWarn(tLang.L("no_more_undo"))
     end
 end
 
@@ -2632,7 +2635,7 @@ function onRedo()
         tTimeShowingStatusHistoric:stop()
         tTimeShowingStatusHistoric:start()
     else
-        tUtil.showMessageWarn('There is no more commando to re-do!')
+        tUtil.showMessageWarn(tLang.L("no_more_redo"))
     end
 end
 

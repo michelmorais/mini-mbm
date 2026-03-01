@@ -32,7 +32,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -58,11 +58,11 @@ function onInitScene()
     tShader                   = nil
     sDefaultText              = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:012345678\nabcdefghijklmnopqrstuvxz\nABCDEFGHIJKLMNOPQRSTUVXZ\nTime:"
     tWindowsTitle = {
-            title_shaders_options   = 'Shader Options',
-            title_image_selector    = 'Image(s) selector', 
-            title_status            = 'Shader Status',
-            title_example_shader    = 'Example Of Shader File',
-            title_animation         = 'Add Animation' 
+            title_shaders_options   = "title_shaders_options",
+            title_image_selector    = "title_image_selector",
+            title_status            = "title_status",
+            title_example_shader    = "title_example_shader",
+            title_animation         = "title_animation_add" 
     }
     tAnimationOptions = {
                             sNameAnim     = 'No Name',
@@ -126,7 +126,7 @@ function onOpenMesh()
                 tMesh = tile:new('2dw')
                 tMesh.is3d = false
             else
-                tUtil.showMessageWarn("Failed to load \n[]"..tUtil.getShortName(fileName) .. "\nUnexpected type:" .. myType)
+                tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_unexpected_type_fmt"), tUtil.getShortName(fileName), myType))
             end
 
             if tGlobalFont or (tMesh and tMesh:load(fileName)) then
@@ -134,10 +134,10 @@ function onOpenMesh()
                 tShader         = tMesh:getShader()
                 prepare3d2d(tMesh.is3d)
                 bShowShaderMenu = true
-                tUtil.showMessage("File Opened Successfully!!!")
+                tUtil.showMessage(tLang.L("file_opened_ok"))
             else
                 tMesh = nil
-                tUtil.showMessageWarn("Failed to Load ".. myType.. "\nfile:\n["..tUtil.getShortName(fileName).."]")
+                tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_file_type_fmt"), myType, tUtil.getShortName(fileName)))
             end
         end
 	end
@@ -152,10 +152,10 @@ function showAnimationAdd()
         local window_pos       = {x = 220, y = 20}
         local window_pos_pivot = {x = 0, y = 0}
         tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_animation, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_animation), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             tImGui.PushItemWidth(180)
-            tImGui.Text('Add Animation')
+            tImGui.Text(tLang.L("add_animation_label"))
             local v_min     = 1
             local v_max     = tMesh:getTotalFrame()
             local result, iValue = tImGui.SliderInt('##StartAddAnimFrame', tAnimationOptions.iFrameStart, v_min, v_max, "Start Frame %d")
@@ -174,13 +174,13 @@ function showAnimationAdd()
                 end
             end
 
-            tImGui.Text('Type Of Animation:')
+            tImGui.Text(tLang.L("type_of_animation"))
             local ret, current_item, item = tImGui.Combo('##ComboAnimAdd' , tAnimationOptions.iTypeAnim, tAnimationOptions.tAnimTypes)
             if ret then
                 tAnimationOptions.iTypeAnim = current_item
             end
 
-            tImGui.Text('Time Between Frames:')
+            tImGui.Text(tLang.L("time_between_frames"))
             local step       =  0.01
             local step_fast  =  0.1
             local format     = "%.3f"
@@ -192,7 +192,7 @@ function showAnimationAdd()
                 end
             end
 
-            tImGui.Text('Name:')
+            tImGui.Text(tLang.L("name_colon"))
             local label      = '##NameAnimAdd'
             local hint       = '<Max 32 Characters>'
             local flags      = 0
@@ -207,11 +207,11 @@ function showAnimationAdd()
 
             tImGui.Separator()
             tImGui.PopItemWidth()
-            if tImGui.Button('Add Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("add_animation_btn"), tSizeBtn) then
                 if tMesh:addAnim(tAnimationOptions.sNameAnim,tAnimationOptions.iTypeAnim-1,tAnimationOptions.iFrameStart,tAnimationOptions.iFrameStop,tAnimationOptions.fTimeFrame) then
-                    tUtil.showMessage('Animation Added successfully!')
+                    tUtil.showMessage(tLang.L("animation_added_ok"))
                 else
-                    tUtil.showMessageWarn('Error on Add Animation!')
+                    tUtil.showMessageWarn(tLang.L("error_on_add_animation"))
                 end
             end
         end
@@ -260,19 +260,19 @@ function onSaveMeshBinary()
 			if meshD:load(fileNameCurrent) then
 				if meshD:copyAnimationsFromMesh(tMesh) then
 					if meshD:save(fileName) then
-						tUtil.showMessage("file:\n" .. tUtil.getShortName(fileName) .. "\nSuccessfully Saved!")
+						tUtil.showMessage(string.format(tLang.L("file_saved_ok_fmt"), tUtil.getShortName(fileName)))
 					else
-						tUtil.showMessageWarn("Failed To Save :\n" .. tUtil.getShortName(fileName))
+						tUtil.showMessageWarn(string.format(tLang.L("failed_to_save_file_fmt"), tUtil.getShortName(fileName)))
 					end
 				else
-					tUtil.showMessageWarn("Failed To Apply Shader:\n" .. tUtil.getShortName(fileName))
+					tUtil.showMessageWarn(string.format(tLang.L("failed_to_apply_shader_fmt"), tUtil.getShortName(fileName)))
 				end
 			else
-				tUtil.showMessageWarn("Failed To Load \n[]"..tUtil.getShortName(fileNameCurrent))
+				tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_fmt"), tUtil.getShortName(fileNameCurrent)))
 			end
 		end
     else
-        tUtil.showMessageWarn("There Is No Mesh To Save!")
+        tUtil.showMessageWarn(tLang.L("no_mesh_to_save"))
 	end
 end	
 
@@ -344,7 +344,7 @@ function drawStrength(title,x,y,z)
     local step_fast  =  10.0
     local format     = "%.2f"
     local flags      =  0
-    tImGui.Text('Strength')
+    tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
@@ -356,7 +356,7 @@ function drawStrength(title,x,y,z)
     tImGui.PopItemWidth()
 
     local label      = '##ZDir' .. title
-    tImGui.Text('Z       ')
+    tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
@@ -532,12 +532,12 @@ function showShaderOptions()
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_shaders_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_shaders_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_shaders_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
 
             local sAnim, indexCurrentAnim = tMesh:getAnim()
             tImGui.PushItemWidth(150)
-            tImGui.Text('Animation')
+            tImGui.Text(tLang.L("animation_label"))
             tImGui.TextDisabled(sAnim)
             local label      = '##Number of animation'
             local step       =  1
@@ -553,16 +553,16 @@ function showShaderOptions()
             end
 
             tImGui.SameLine()
-            if tImGui.Button('Add', tSizeBtnAddSet) then
+            if tImGui.Button(tLang.L("add_btn"), tSizeBtnAddSet) then
                 bShowAnimation = true
             end
             
-            if tImGui.Button('Restart Animation', tSizeBtn) then
+            if tImGui.Button(tLang.L("restart_animation_btn2"), tSizeBtn) then
                 tMesh:restartAnim()
                 indexCurrentStage = 1
             end
 
-            if tImGui.TreeNode("Blend") then
+            if tImGui.TreeNode(tLang.L("blend_label")) then
                 local sBlendState,iBlendIndex = tMesh:getBlend()
 		        local sOperation              = tShader:getBlendOp()
                 local tBlend = {'DISABLE',
@@ -583,18 +583,18 @@ function showShaderOptions()
                                         "MIN",
                                         "MAX"}
 
-                tImGui.Text('Blend Function')
+                tImGui.Text(tLang.L("blend_function"))
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Function is the same for all animations')
+                tImGui.HelpMarker(tLang.L("help_blend_function_anim"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
                 if ret then
                     iBlendIndex = current_item - 1
                     tMesh:setBlend(iBlendIndex)
                 end
 
-                tImGui.Text('Blend Operation')
+                tImGui.Text(tLang.L("blend_operation"))
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Operation is the same for all animations however it is per shader')
+                tImGui.HelpMarker(tLang.L("help_blend_operation_anim"))
                 local iBlendOpIndex = 1
                 for i=1, #tBlendOperation do
                     if tBlendOperation[i] == sOperation then
@@ -613,7 +613,7 @@ function showShaderOptions()
             local psName,vsName        = tShader:getNames()
             local tVarPs,tVarVs        = tShader:getVars()
 
-            if tImGui.TreeNode("Pixel Shader") then
+            if tImGui.TreeNode(tLang.L("pixel_shader")) then
                 local tShaderList = mbm.getShaderList(false,'ps')
                 table.insert(tShaderList,'\0')
                 table.sort(tShaderList)
@@ -650,11 +650,11 @@ function showShaderOptions()
                             tMesh:setTexture(tTextureS2,true,2)
                         end
                     else
-                        tUtil.showMessageWarn('Failed To Load Shader:\n' .. tostring(tShaderList[current_item]))
+                        tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_fmt"), tostring(tShaderList[current_item])))
                     end
                 end
                 if psName then
-                    tImGui.Text('Type')
+                    tImGui.Text(tLang.L("type_label"))
                     local sType,iTypePs       = tShader:getPStype()
                     local ret, current_item, item = tImGui.Combo('##ComboAnimPS' , iTypePs + 1, tAnimationOptions.tAnimTypes)
                     if ret then
@@ -663,7 +663,7 @@ function showShaderOptions()
                         tMesh:restartAnim()
                     end
 
-                    tImGui.Text('Time')
+                    tImGui.Text(tLang.L("time_short"))
                     tImGui.SameLine()
                     tImGui.TextDisabled(string.format(' default(%.3g)',tShader:getPStime(true)))
                     local iTimePs = tShader:getPStime()
@@ -675,7 +675,7 @@ function showShaderOptions()
                     if result then
                         if fValue >= 0 and fValue <= 99999999 then
                             if not tShader:setPStime(fValue) then
-                                tUtil.showMessageWarn('Error on apply time to pixel shader')
+                                tUtil.showMessageWarn(tLang.L("error_apply_time_pixel_shader"))
                             end
                         end
                     end
@@ -723,7 +723,7 @@ function showShaderOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Vertex Shader") then
+            if tImGui.TreeNode(tLang.L("vertex_shader")) then
                 local tShaderList = mbm.getShaderList(false,'vs')
                 table.insert(tShaderList,'\0')
                 table.sort(tShaderList)
@@ -760,11 +760,11 @@ function showShaderOptions()
                             tMesh:setTexture(tTextureS2,true,2)
                         end
                     else
-                        tUtil.showMessageWarn('Failed To Load Shader:\n' .. tostring(tShaderList[current_item]))
+                        tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_fmt"), tostring(tShaderList[current_item])))
                     end
                 end
                 if vsName then
-                    tImGui.Text('Type')
+                    tImGui.Text(tLang.L("type_label"))
                     local sType,iTypeVs       = tShader:getVStype()
                     local ret, current_item, item = tImGui.Combo('##ComboAnimVS' , iTypeVs + 1, tAnimationOptions.tAnimTypes)
                     if ret then
@@ -773,7 +773,7 @@ function showShaderOptions()
                         tMesh:restartAnim()
                     end
 
-                    tImGui.Text('Time')
+                    tImGui.Text(tLang.L("time_short"))
                     tImGui.SameLine()
                     tImGui.TextDisabled(string.format(' default(%.3g)',tShader:getVStime(true)))
                     local iTimeVs = tShader:getVStime()
@@ -785,7 +785,7 @@ function showShaderOptions()
                     if result then
                         if fValue >= 0 and fValue <= 99999999 then
                             if not tShader:setVStime(fValue) then
-                                tUtil.showMessageWarn('Error on apply time to vertex shader')
+                                tUtil.showMessageWarn(tLang.L("error_apply_time_vertex_shader"))
                             end
                         end
                     end
@@ -833,7 +833,7 @@ function showShaderOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Texture Stage 2") then
+            if tImGui.TreeNode(tLang.L("texture_stage_2")) then
                 local tTextureS2    = tShader:getTextureStage2()
                 if tTextureS2 then
                     tImGui.TextDisabled(tUtil.getShortName(tTextureS2))
@@ -841,14 +841,14 @@ function showShaderOptions()
                     tImGui.TextDisabled('No Texture')
                 end
                 local tSizeBtnTex = {x = tSizeBtn.x - 50, y = tSizeBtn.y}
-                if tImGui.Button('Set Texture Stage 2', tSizeBtnTex) then
+                if tImGui.Button(tLang.L("set_texture_stage_2"), tSizeBtnTex) then
                     local tSelectedTextures = getSelectedTexturesFromImageSelector(tTexturesToEditor)
                     if #tSelectedTextures == 0 then
                         bTextureViewOpened = true
-                        tUtil.showMessageWarn('Please Select a Texture!')
+                        tUtil.showMessageWarn(tLang.L("please_select_texture"))
                     elseif #tSelectedTextures > 1 then
                         bTextureViewOpened = true
-                        tUtil.showMessageWarn('There Is More Then One Texture Selected!\nPlease Select Just One!')
+                        tUtil.showMessageWarn(tLang.L("more_than_one_texture_selected"))
                     else
                         tMesh:setTexture(tSelectedTextures[1].file_name,true,2)
                     end
@@ -868,67 +868,67 @@ end
 
 function mainMenuShader()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("Load Mesh", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_mesh"), "Ctrl+O", false)
             if pressed then
                 onOpenMesh()
             end
-            local pressed,checked = tImGui.MenuItem("Save Mesh", "Ctrl+B", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_mesh"), "Ctrl+B", false)
             if pressed then
                 onSaveMeshBinary()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Add Shader", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_shader"), nil, false)
             if pressed then
                 local file_name = mbm.openFile(nil,"lua")
                 if file_name then
                     if mbm.include(file_name) then
                         tUtil.showMessage('File Added Successfully!')
                     else
-                        tUtil.showMessageWarn('Failed to Add File:' .. file_name)
+                        tUtil.showMessageWarn(string.format(tLang.L("failed_to_add_file_fmt"), file_name))
                     end
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Example of a Shader File", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("example_shader_file"), nil, false)
             if pressed then
                 bShowExampleShader = true
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("Image") then
-            local pressed,checked = tImGui.MenuItem("Add image(s)", "Ctrl+I", false)
+        if tImGui.BeginMenu(tLang.L("menu_image")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_images"), "Ctrl+I", false)
             if pressed then
                 onOpenImage()
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Enable Alpha Pattern Background", true, tex_alpha_patern.visible)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_alpha_pattern_bg"), true, tex_alpha_patern.visible)
             if pressed then
                 if checked and tMesh and tMesh.is3d then
-                    tUtil.showMessageWarn('Not applicable to 3D!')
+                    tUtil.showMessageWarn(tLang.L("not_applicable_3d"))
                 else
                     tex_alpha_patern.visible = checked
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -938,27 +938,27 @@ function mainMenuShader()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -972,19 +972,21 @@ function mainMenuShader()
                 tImGui.EndMenu()
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Shader Options", false)
+            tLang.renderLanguageSubmenu()
+
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_shader_options"), false)
             if pressed then
                 if tShader then
                     bShowShaderMenu = true
                 else
-                    tUtil.showMessageWarn('There is No Mesh Loaded!\n\nLoad A Mesh First!')
+                    tUtil.showMessageWarn(tLang.L("no_mesh_loaded_load_first"))
                 end
             end
             
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -994,16 +996,16 @@ function mainMenuShader()
             if result then
                 fScaleMesh = fValue
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 fScaleMesh = 1
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Shader Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("shader_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor"')
@@ -1011,7 +1013,7 @@ function mainMenuShader()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1020,7 +1022,7 @@ function mainMenuShader()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -1116,7 +1118,7 @@ end
 
 function showExampleShader()
     tImGui.SetNextWindowSize({x = 600, y = 560 },tImGui.Flags('ImGuiCond_Appearing'))
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_example_shader, true, 0 )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_example_shader), true, 0)
     if is_opened then
         tImGui.TextDisabled('Shader:pie.ps')
 
@@ -1184,7 +1186,7 @@ function showMeshStatus(delta)
     local window_pos = {x = iW - 150, y = 25}
     local window_pos_pivot = {x = 0, y = 0}
     tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_status, false,tImGui.Flags(flags) )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_status), false, tImGui.Flags(flags))
     if is_opened then
         local sAnimName, indexAnim = tMesh:getAnim()
         local iFrame               = tMesh:getIndexFrame()

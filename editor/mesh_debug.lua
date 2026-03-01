@@ -31,7 +31,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-    mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR_FEATURES to run this editor','ok','error',0)
+    mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
     mbm.quit()
 end
 
@@ -45,8 +45,8 @@ function onInitScene()
     sLastFolderPath       = sLastMeshPath
     bShowMeshTree         = true
     tWindowsTitle         = {
-        title_mesh_tree   = 'Mesh Debug - Loaded Meshes',
-        title_apply_all   = 'Apply to All'
+        title_mesh_tree   = "title_mesh_tree",
+        title_apply_all   = "title_apply_all"
     }
     tUtil.sMessageOverlay = 'Welcome to Mesh Debug Editor! Load meshes from File or Folder.'
     tUtil.bRightSide      = true   -- overlay on right so it is not covered by mesh tree on left
@@ -73,7 +73,7 @@ function onLoadMeshFromFile()
         if #tFiles > 0 then
             sLastMeshPath = tFiles[1]
             bShowMeshTree = true
-            tUtil.showMessage(string.format('Loaded %d mesh(es)', #tFiles))
+            tUtil.showMessage(string.format(tLang.L("loaded_meshes_fmt"), #tFiles))
         end
     end
 end
@@ -91,7 +91,7 @@ function onLoadMeshFromFolder()
             end
         end
         bShowMeshTree = true
-        tUtil.showMessage(string.format('Loaded %d mesh(es) from folder (%d total)', iAdded, #tFiles))
+        tUtil.showMessage(string.format(tLang.L("loaded_meshes_folder_fmt"), iAdded, #tFiles))
     end
 end
 
@@ -387,9 +387,9 @@ function showMeshInfoTable(tEntry, index)
 
     -- Editable: Mode draw
     tImGui.Spacing()
-    tImGui.Text('Draw mode')
+    tImGui.Text(tLang.L("draw_mode"))
     tImGui.SameLine()
-    tImGui.HelpMarker('An error may occur at runtime if the engine does not implement the selected draw mode.')
+    tImGui.HelpMarker(tLang.L("help_draw_mode_error"))
     do
         local ok, curMode = pcall(function() return meshD:getModeDraw() end)
         if ok and curMode then
@@ -403,7 +403,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Face culling
-    tImGui.Text('Face culling')
+    tImGui.Text(tLang.L("face_culling"))
     do
         local ok, curMode = pcall(function() return meshD:getModeCullFace() end)
         if ok and curMode then
@@ -417,7 +417,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Front face
-    tImGui.Text('Front face')
+    tImGui.Text(tLang.L("front_face_label"))
     do
         local ok, curMode = pcall(function() return meshD:getModeFrontFace() end)
         if ok and curMode then
@@ -431,7 +431,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Default angle
-    tImGui.Text('Default angle (X, Y, Z)')
+    tImGui.Text(tLang.L("default_angle_xyz"))
     do
         local ok, ang = pcall(function() return meshD:getAngle() end)
         if ok and ang then
@@ -447,7 +447,7 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Default position
-    tImGui.Text('Default position (X, Y, Z)')
+    tImGui.Text(tLang.L("default_position_xyz"))
     do
         local ok, pos = pcall(function() return meshD:getPosition() end)
         if ok and pos then
@@ -463,18 +463,18 @@ function showMeshInfoTable(tEntry, index)
     end
 
     -- Editable: Material (Diffuse + Power)
-    if tImGui.TreeNodeEx('Material', 0, 'material-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("material"), 0, 'material-' .. index) then
         local ok, mat = pcall(function() return meshD:getMaterial() end)
         if ok and mat and mat.Diffuse then
             local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
-            local clicked, newD = tImGui.ColorEdit3('Diffuse##mat-' .. index, d, flags)
+            local clicked, newD = tImGui.ColorEdit3(tLang.L("diffuse") .. '##mat-' .. index, d, flags)
             if clicked and newD then
                 local newMat = { Diffuse = {r=newD.r,g=newD.g,b=newD.b,a=1}, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = mat.Power or 1 }
                 local okSet = pcall(function() meshD:setMaterial(newMat) end)
                 if okSet then onEdit() end
             end
             local pw = mat.Power or 1
-            local rp, np = tImGui.InputFloat('Power##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
+            local rp, np = tImGui.InputFloat(tLang.L("power") .. '##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
             if rp then
                 local newMat = { Diffuse = mat.Diffuse, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = np }
                 local okSet = pcall(function() meshD:setMaterial(newMat) end)
@@ -498,22 +498,22 @@ function showMeshOptions(tEntry, index)
 
     if tEntry.modified then
         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
-        tImGui.Text('Unsaved changes')
+        tImGui.Text(tLang.L("unsaved_changes"))
         tImGui.PopStyleColor(1)
     end
 
-    if tImGui.TreeNodeEx('Mesh Info', 0, 'meshinfo-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
         showMeshInfoTable(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Normals', 0, 'normals-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("normals_label"), 0, 'normals-' .. index) then
         if info and info.hasNormal then
             tImGui.TextDisabled('Has normals')
         else
             tImGui.TextDisabled('No normals')
         end
-        if tImGui.Button('Remove Normals##' .. index) then
+        if tImGui.Button(tLang.L("remove_normals") .. '##' .. index) then
             local nVertices = 0
             if info and info.hasNormal then
                 nVertices = getMeshTotalVertices(meshD)
@@ -530,7 +530,7 @@ function showMeshOptions(tEntry, index)
             end
         end
         tImGui.SameLine()
-        if tImGui.Button('Add Normals##' .. index) then
+        if tImGui.Button(tLang.L("add_normals") .. '##' .. index) then
             local nVertices = getMeshTotalVertices(meshD)
             meshD:addNormals()
             if tEntry.info then tEntry.info.hasNormal = true end
@@ -545,8 +545,8 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Transform', 0, 'transform-' .. index) then
-        if tImGui.Button('Centralize##' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("transform"), 0, 'transform-' .. index) then
+        if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             meshD:centralize()
             tEntry.modified = true
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
@@ -556,9 +556,9 @@ function showMeshOptions(tEntry, index)
     end
 
     local nAnim = info.animation or 0
-    if tImGui.TreeNodeEx('Animations' .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
-            if tImGui.Button('Restart animation##' .. index) then
+            if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
                 pcall(function() tPreviewMesh:restartAnim() end)
             end
         end
@@ -569,15 +569,15 @@ function showMeshOptions(tEntry, index)
                 end)
                 if ok and name then
                     if tImGui.TreeNodeEx(name or ('Anim ' .. i), 0, 'anim-' .. index .. '-' .. i) then
-                        tImGui.Text('Name')
+                        tImGui.Text(tLang.L("name"))
                         local mod, newName = tImGui.InputText('##animName-' .. index .. '-' .. i, name or '', flags)
-                        tImGui.Text('Initial frame')
+                        tImGui.Text(tLang.L("initial_frame"))
                         local ri, ni = tImGui.InputInt('##animInit-' .. index .. '-' .. i, initF or 1, 1, 1, flags)
-                        tImGui.Text('Final frame')
+                        tImGui.Text(tLang.L("final_frame"))
                         local rf, nf = tImGui.InputInt('##animFin-' .. index .. '-' .. i, finF or 1, 1, 1, flags)
-                        tImGui.Text('Time between frames')
+                        tImGui.Text(tLang.L("time_between_frames_anim"))
                         local rt, nt = tImGui.InputFloat('##animTime-' .. index .. '-' .. i, time or 0.1, 0.01, 0.1, '%.3f', flags)
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local typIdx = math.max(1, math.min((typ or 0) + 1, #tAnimTypeOpts))
                         local rty, newTypIdx = tImGui.Combo('##animType-' .. index .. '-' .. i, typIdx, tAnimTypeOpts, -1)
                         local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
@@ -606,7 +606,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx('Shader', 0, 'shader-' .. index) then
+    if tImGui.TreeNodeEx(tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
             local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
@@ -614,7 +614,7 @@ function showMeshOptions(tEntry, index)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
                 local nTotalAnim = (tPreviewMesh.getTotalAnim and tPreviewMesh:getTotalAnim()) or 1
                 if nTotalAnim > 1 then
-                    tImGui.Text('Animation (shader applies to)')
+                    tImGui.Text(tLang.L("animation_shader_applies"))
                     local r, v = tImGui.InputInt('##shaderAnimIdx-' .. index, iCurAnim or 1, 1, 1, 0)
                     if r and v and v >= 1 and v <= nTotalAnim then
                         tPreviewMesh:setAnim(v)
@@ -624,20 +624,20 @@ function showMeshOptions(tEntry, index)
                 local tBlend = {'DISABLE','ZERO','ONE','SRC COLOR','INV SRC COLOR','SRC ALPHA','INV SRC ALPHA','DEST ALPHA','INV DEST ALPHA','DEST COLOR','INV DEST COLOR'}
                 local tBlendOp = {'ADD','SUBTRACT','REVERSE_SUBTRACT','MIN','MAX'}
                 local function applyShaderToMesh() meshD:copyAnimationsFromMesh(tPreviewMesh) onEdit() end
-                if tImGui.TreeNodeEx('Blend', 0) then
+                if tImGui.TreeNodeEx(tLang.L("blend_label"), 0) then
                     local sBlend, iBlend = tPreviewMesh:getBlend()
-                    local r, ci = tImGui.Combo('Blend Function##' .. index, (iBlend or 0) + 1, tBlend)
+                    local r, ci = tImGui.Combo(tLang.L("blend_function") .. '##' .. index, (iBlend or 0) + 1, tBlend)
                     if r and ci then tPreviewMesh:setBlend(ci - 1) applyShaderToMesh() end
                     local sOp = tShader:getBlendOp()
                     local iOpIdx = 1
                     for k = 1, #tBlendOp do if tBlendOp[k] == sOp then iOpIdx = k break end end
-                    r, ci = tImGui.Combo('Blend Operation##' .. index, iOpIdx, tBlendOp)
+                    r, ci = tImGui.Combo(tLang.L("blend_operation") .. '##' .. index, iOpIdx, tBlendOp)
                     if r and ci then tShader:setBlendOp(tBlendOp[ci]) applyShaderToMesh() end
                     tImGui.TreePop()
                 end
                 local psName, vsName = tShader:getNames()
                 local tVarPs, tVarVs = tShader:getVars()
-                if tImGui.TreeNodeEx('Pixel Shader', 0) then
+                if tImGui.TreeNodeEx(tLang.L("pixel_shader"), 0) then
                     local tList = mbm.getShaderList(false, 'ps')
                     table.insert(tList, '\0')
                     table.sort(tList)
@@ -652,15 +652,15 @@ function showMeshOptions(tEntry, index)
                         if tShader:load(newPs, vsName, mbm.GROWING, 1.0, iTypeVs or 0, fTimeVs or 1.0) then
                             applyShaderToMesh()
                         else
-                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_mesh_fmt"), tostring(tList[ci])))
                         end
                     end
                     if psName then
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local _, iTypePs = tShader:getPStype()
                         r, ci = tImGui.Combo('##TypePS-' .. index, (iTypePs or 0) + 1, tAnimTypeOpts)
                         if r and ci then tShader:setPStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
-                        tImGui.Text('Time')
+                        tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getPStime()
                         local rt, ft = tImGui.InputFloat('##TimePS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
                         if rt and ft and ft >= 0 then tShader:setPStime(ft) applyShaderToMesh() end
@@ -682,7 +682,7 @@ function showMeshOptions(tEntry, index)
                     end
                     tImGui.TreePop()
                 end
-                if tImGui.TreeNodeEx('Vertex Shader', 0) then
+                if tImGui.TreeNodeEx(tLang.L("vertex_shader"), 0) then
                     local tList = mbm.getShaderList(false, 'vs')
                     table.insert(tList, '\0')
                     table.sort(tList)
@@ -697,15 +697,15 @@ function showMeshOptions(tEntry, index)
                         if tShader:load(psName, newVs, iTypePs or 0, fTimePs or 1.0, mbm.GROWING, 1.0, 1) then
                             applyShaderToMesh()
                         else
-                            tUtil.showMessageWarn('Failed to load shader: ' .. tostring(tList[ci]))
+                            tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_shader_mesh_fmt"), tostring(tList[ci])))
                         end
                     end
                     if vsName then
-                        tImGui.Text('Type')
+                        tImGui.Text(tLang.L("type_label"))
                         local _, iTypeVs = tShader:getVStype()
                         r, ci = tImGui.Combo('##TypeVS-' .. index, (iTypeVs or 0) + 1, tAnimTypeOpts)
                         if r and ci then tShader:setVStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
-                        tImGui.Text('Time')
+                        tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getVStime()
                         local rt, ft = tImGui.InputFloat('##TimeVS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
                         if rt and ft and ft >= 0 then tShader:setVStime(ft) applyShaderToMesh() end
@@ -727,10 +727,10 @@ function showMeshOptions(tEntry, index)
                     end
                     tImGui.TreePop()
                 end
-                if tImGui.TreeNodeEx('Texture Stage 2', 0) then
+                if tImGui.TreeNodeEx(tLang.L("texture_stage_2"), 0) then
                     local tex2 = tShader:getTextureStage2()
                     tImGui.TextDisabled(tex2 and tUtil.getShortName(tex2) or 'No Texture')
-                    if tImGui.Button('Set Texture##' .. index) then
+                    if tImGui.Button(tLang.L("set_texture") .. '##' .. index) then
                         local f = mbm.openFile(sLastMeshPath, table.unpack(tUtil.supported_images or {'png','jpg'}))
                         if f then
                             if type(f) == 'table' then f = f[1] end
@@ -746,7 +746,7 @@ function showMeshOptions(tEntry, index)
             end
         else
             tImGui.TextDisabled('Copy shader from another mesh file.')
-            if tImGui.Button('Copy from file##' .. index) then
+            if tImGui.Button(tLang.L("copy_from_file") .. '##' .. index) then
                 local refFile = mbm.openMultiFile(sLastMeshPath, 'spt', 'msh', 'fnt', 'tile', 'ptl')
                 if refFile then
                     if type(refFile) == 'table' then refFile = refFile[1] end
@@ -764,38 +764,38 @@ function showMeshOptions(tEntry, index)
                             local ok = meshD:copyAnimationsFromMesh(refMesh)
                             refMesh:destroy()
                             if ok then onEdit() tUtil.showMessage(string.format('Copied shader from %s', tUtil.getShortName(refFile)))
-                            else tUtil.showMessageWarn('Copy failed (mesh may have no shader effect)') end
+                            else tUtil.showMessageWarn(tLang.L("copy_failed_no_shader")) end
                         else
                             if refMesh then refMesh:destroy() end
-                            tUtil.showMessageWarn('Failed to load reference mesh')
+                            tUtil.showMessageWarn(tLang.L("failed_to_load_reference_mesh"))
                         end
-                    else tUtil.showMessageWarn('Could not read mesh info') end
+                    else tUtil.showMessageWarn(tLang.L("could_not_read_mesh_info")) end
                 end
             end
         end
         tImGui.TreePop()
     end
 
-    if tImGui.Button('Check##' .. index) then
+    if tImGui.Button(tLang.L("check") .. '##' .. index) then
         local ok, err = meshD:check()
         if ok then
             tUtil.showMessage(string.format('Check OK: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Check failed: %s\n%s', shortName, err or ''))
+            tUtil.showMessageWarn(string.format(tLang.L("check_failed_fmt"), shortName, err or ''))
         end
     end
 
-    if tImGui.Button('Save (overwrite)##' .. index) then
+    if tImGui.Button(tLang.L("save_all_overwrite") .. '##' .. index) then
         local ok = meshD:save(tEntry.fileName, false, false)
         if ok then
             tEntry.modified = false
             iLastPreviewedIndex = 0
             tUtil.showMessage(string.format('Saved: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
-    if tImGui.Button('Save (with calculated normals)##' .. index) then
+    if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
         local ok = meshD:save(tEntry.fileName, true, false)
         if ok then
             tEntry.modified = false
@@ -803,7 +803,7 @@ function showMeshOptions(tEntry, index)
             iLastPreviewedIndex = 0
             tUtil.showMessage(string.format('Saved: %s', shortName))
         else
-            tUtil.showMessageWarn(string.format('Save failed: %s', shortName))
+            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
     tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
@@ -865,21 +865,21 @@ function applyToAll(operation)
 end
 
 function showApplyToAllMenu()
-    if tImGui.BeginMenu('Apply to All') then
+    if tImGui.BeginMenu(tLang.L("apply_to_all")) then
         local enabled = (#tLoadedMeshes > 0)
-        if tImGui.MenuItem('Remove Normals', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("remove_normals"), nil, false, enabled) then
             applyToAll('removeNormals')
         end
-        if tImGui.MenuItem('Add Normals', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("add_normals"), nil, false, enabled) then
             applyToAll('addNormals')
         end
-        if tImGui.MenuItem('Centralize', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("centralize"), nil, false, enabled) then
             applyToAll('centralize')
         end
-        if tImGui.MenuItem('Save All (overwrite)', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("save_all_overwrite"), nil, false, enabled) then
             applyToAll('save')
         end
-        if tImGui.MenuItem('Save All (with calculated normals)', nil, false, enabled) then
+        if tImGui.MenuItem(tLang.L("save_all_calc_normals"), nil, false, enabled) then
             applyToAll('saveRecalcNormals')
         end
         tImGui.EndMenu()
@@ -888,38 +888,42 @@ end
 
 function main_menu_mesh_debug()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu('File') then
-            if tImGui.MenuItem('Load Mesh(s)') then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
+            if tImGui.MenuItem(tLang.L("load_meshes")) then
                 onLoadMeshFromFile()
             end
-            if tImGui.MenuItem('Load from Folder') then
+            if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
             end
             tImGui.Separator()
             showApplyToAllMenu()
             tImGui.Separator()
-            if tImGui.MenuItem('Clear All') then
+            if tImGui.MenuItem(tLang.L("clear_all")) then
                 tLoadedMeshes = {}
                 iSelectedMeshIndex = 0
                 iLastPreviewedIndex = 0
                 destroyPreviewMesh()
-                tUtil.showMessage('Cleared all meshes')
+                tUtil.showMessage(tLang.L("cleared_all_meshes"))
             end
             tImGui.Separator()
-            if tImGui.MenuItem('Quit') then
+            if tImGui.MenuItem(tLang.L("menu_quit")) then
                 mbm.quit()
             end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu('View') then
-            local pressed, checked = tImGui.MenuItem('Show Mesh Tree', nil, bShowMeshTree)
+        if tImGui.BeginMenu(tLang.L("menu_view")) then
+            local pressed, checked = tImGui.MenuItem(tLang.L("show_mesh_tree"), nil, bShowMeshTree)
             if pressed then
                 bShowMeshTree = not bShowMeshTree
             end
             tImGui.EndMenu()
         end
-        if tImGui.BeginMenu('About') then
-            local pressed = tImGui.MenuItem('Mesh Debug Editor', nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            tLang.renderLanguageSubmenu()
+            tImGui.EndMenu()
+        end
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed = tImGui.MenuItem(tLang.L("mesh_debug_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
@@ -927,7 +931,7 @@ function main_menu_mesh_debug()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#mesh-debug"')
                 end
             end
-            pressed = tImGui.MenuItem('Mbm Engine', nil, false)
+            pressed = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -935,7 +939,7 @@ function main_menu_mesh_debug()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
-            if tImGui.BeginMenu('Version') then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -950,14 +954,14 @@ function showMeshTreeWindow()
 
     local width = 350
     tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100)
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_mesh_tree, true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
 
     if is_opened then
         if tImGui.BeginMenuBar() then
             if tImGui.MenuItem('Load Mesh(s)') then
                 onLoadMeshFromFile()
             end
-            if tImGui.MenuItem('Load from Folder') then
+            if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
             end
             showApplyToAllMenu()
@@ -967,7 +971,7 @@ function showMeshTreeWindow()
         tImGui.TextDisabled(string.format('%d mesh(es) loaded', #tLoadedMeshes))
 
         if #tLoadedMeshes == 0 then
-            tImGui.TextWrapped('Use File menu or Load from Folder to add meshes.')
+            tImGui.TextWrapped(tLang.L("use_file_menu_or_load"))
         else
             local tToRemove = {}
             for i = 1, #tLoadedMeshes do
@@ -983,7 +987,7 @@ function showMeshTreeWindow()
                 if tImGui.TreeNodeEx(label, flags, 'mesh-' .. i) then
                     iSelectedMeshIndex = i
                     showMeshOptions(tEntry, i)
-                    if tImGui.Button('Remove from list##' .. i) then
+                    if tImGui.Button(tLang.L("remove_from_list") .. '##' .. i) then
                         table.insert(tToRemove, i)
                     end
                     tImGui.TreePop()

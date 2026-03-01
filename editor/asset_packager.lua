@@ -36,7 +36,7 @@ sqlite3       =     require "lsqlite3"
 
 function onInitScene()
     
-    tWindowsTitle               = {title_asset             = 'Assets', }
+    tWindowsTitle               = {title_asset = "title_asset"}
     tAssets                     = {}
     ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iSelectedItem               = 0
@@ -138,7 +138,7 @@ function onSaveAsset()
                 else
                     local msg = db:errmsg(err_id)
                     print('line', msg)
-                    tUtil.showMessageWarn('Error:\n' .. msg)
+                    tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
                 end
 
                 local id = 1
@@ -166,17 +166,17 @@ function onSaveAsset()
                 else
                     local msg = db:errmsg(err_id)
                     print('line', msg)
-                    tUtil.showMessageWarn('Error:\n' .. msg)
+                    tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
                 end
                 db:close()
             else
                 local msg = db:errmsg(result)
                 print('line', msg)
-                tUtil.showMessageWarn('Error:\n' .. msg)
+                tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
             end
         else
             print('error', 'Could not create the database ' .. filename)
-            tUtil.showMessageWarn('Could not create the database ' .. filename)
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_create_database_fmt"), filename))
         end
     end
 end
@@ -200,11 +200,11 @@ function deleteFromDatabase(sFile)
         if result ~= sqlite3.OK then
             local msg = db:errmsg(err_id)
             print('line', msg)
-            tUtil.showMessageWarn('Error:\n' .. msg)
+            tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
         end
         db:close()
     else
-        tUtil.showMessageWarn('Error:\nCould not open the database:\n ' .. tostring(sPackageName))
+        tUtil.showMessageWarn(string.format(tLang.L("error_could_not_open_database_fmt"), tostring(sPackageName)))
     end
 end
 
@@ -220,18 +220,18 @@ function extractFileFromDatabase(sFile,sDestiny)
                 for row in select_stmt:nrows() do
                 end
             else
-                tUtil.showMessageWarn(string.format('Error:\nNo data found for the SQL:\n SELECT writefile("%s",content) FROM assets WHERE name = "%s";',sDestiny,sFile))
+                tUtil.showMessageWarn(string.format(tLang.L("error_sql_no_data_fmt"), sDestiny, sFile))
             end
             select_stmt:finalize()
             db:close()
         else
             local msg = db:errmsg(err_id)
             print('line', msg)
-            tUtil.showMessageWarn('Error:\n' .. msg)
+            tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
         end
         return bRet
     else
-        tUtil.showMessageWarn('Error:\nCould not open the database:\n ' .. tostring(sPackageName))
+        tUtil.showMessageWarn(string.format(tLang.L("error_could_not_open_database_fmt"), tostring(sPackageName)))
         return false
     end
 end
@@ -266,7 +266,7 @@ function showAssets()
         local tPosWin      = {x = 0, y = 0}
         local size         = {x=0,y=0}
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_asset,tPosWin.x,tPosWin.y,width,width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_asset, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_asset), true, ImGuiWindowFlags_NoMove)
         local bUniquePoupUpContext = true
         local right_mouse_pressed = false
         local bRemoved = false
@@ -325,7 +325,7 @@ function showAssets()
                                             if tUtil.copyFile(sOriginalFile,filename) then
                                                 tUtil.showMessage('File Copied Successfully:\n\n' .. filename)
                                             else
-                                                tUtil.showMessageWarn('Failed to Copy File!\n ' .. sOriginalFile .. '\nto:\n' .. filename)
+                                                tUtil.showMessageWarn(string.format(tLang.L("failed_to_copy_file_fmt"), sOriginalFile, filename))
                                             end
                                         end
                                     end
@@ -436,11 +436,11 @@ function onOpenAsset()
             else
                 local msg = db:errmsg(err_id)
                 print('line', msg)
-                tUtil.showMessageWarn('Error:\n' .. msg)
+                tUtil.showMessageWarn(string.format(tLang.L("error_msg_fmt"), msg))
             end
             db:close()
         else
-            tUtil.showMessageWarn('Could not open the database ' .. filename)
+            tUtil.showMessageWarn(string.format(tLang.L("could_not_open_database_fmt"), filename))
         end
     end
 end
@@ -585,31 +585,31 @@ end
 
 function main_menu_asset()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("New Asset (From Folder)", "Ctrl+N", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("new_asset_from_folder"), "Ctrl+N", false)
             if pressed then
                 onNewAsset()
             end
 
-            local pressed,checked = tImGui.MenuItem("Add Asset (From Folder)", "Ctrl+A", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_asset_from_folder"), "Ctrl+A", false)
             if pressed then
                 onAddAsset()
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Asset (From Database)", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_asset_from_database"), "Ctrl+O", false)
             if pressed then
                 onOpenAsset()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Asset (To Database)", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_asset_to_database"), "Ctrl+S", false)
             if pressed then
                 onSaveAsset()
             end
 
-            if tImGui.BeginMenu("Extract Asset (To Folder)") then
+            if tImGui.BeginMenu(tLang.L("extract_asset_to_folder")) then
                 
-                tImGui.Text('Category')
+                tImGui.Text(tLang.L("category"))
                 local label            = '##Category'
                 local height_in_items  =  -1
 
@@ -618,7 +618,7 @@ function main_menu_asset()
                     tCategory.index = current_item
                 end
                 local size   =  {x=-1,y=0}
-                if tImGui.Button('Extract', size) then
+                if tImGui.Button(tLang.L("extract"), size) then
                     if sPackageName:len() > 0 then
                         local db = sqlite3.open(sPackageName,sqlite3.OPEN_READWRITE)
                         if db then
@@ -633,14 +633,14 @@ function main_menu_asset()
                                 local result = db:exec(string.format('SELECT ADD_ASSET_FOLDER("%s%s%s");',folderPath,sSeparator,'asset'))
                                 if result ~= sqlite3.OK then
                                     print(result,db:errmsg())
-                                    tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                    tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                 else
                                     if tCategory[tCategory.index] == 'all' then
                                         local result = db:exec('SELECT SAVE_ASSET(name,content) FROM assets;')
                                         if result == sqlite3.OK then
                                             tUtil.showMessage('Command Executed Successfully!')
                                         else
-                                            tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                            tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                             print(result,db:errmsg())
                                         end
                                     else
@@ -648,7 +648,7 @@ function main_menu_asset()
                                         if result == sqlite3.OK then
                                             tUtil.showMessage('Command Executed Successfully!')
                                         else
-                                            tUtil.showMessageWarn('Error:\n' .. db:errmsg())
+                                            tUtil.showMessageWarn(string.format(tLang.L("error_db_fmt"), db:errmsg()))
                                             print(result,db:errmsg())
                                         end
                                     end
@@ -657,10 +657,10 @@ function main_menu_asset()
                             db:close()
                         else
                             print('error', 'Could not open the database ' .. sPackageName)
-                            tUtil.showMessageWarn('Could not open the database ' .. sPackageName)
+                            tUtil.showMessageWarn(string.format(tLang.L("could_not_open_database_fmt"), sPackageName))
                         end
                     else
-                        tUtil.showMessageWarn('There is no database loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_database_loaded"))
                     end
                 end
 
@@ -668,7 +668,7 @@ function main_menu_asset()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -676,8 +676,13 @@ function main_menu_asset()
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Asset Packager", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            tLang.renderLanguageSubmenu()
+            tImGui.EndMenu()
+        end
+
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("asset_packager"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#asset-packager"')
@@ -685,7 +690,7 @@ function main_menu_asset()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#asset-packager"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -694,7 +699,7 @@ function main_menu_asset()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nSQLITE: %s \nIMGUI: %s', mbm.get('version'),sqlite3.version(),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end

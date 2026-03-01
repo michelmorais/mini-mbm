@@ -32,7 +32,7 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
@@ -67,8 +67,8 @@ function onInitScene()
     addShaderParticle()
 
     tWindowsTitle = {
-            title_particle_options = 'Particle Options',
-            title_particle_status  = 'Particle Status'
+            title_particle_options = "title_particle_options",
+            title_particle_status  = "title_particle_status"
     }
     bEnableMoveWindow       = false
     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
@@ -120,9 +120,9 @@ function onOpenParticle(sFileName)
 		local ext = tUtil.getExtension(fileName)
 		if ext ~= 'particle' and ext ~= "ptl" then
 			if ext == 'png' or ext == 'bmp' or ext == 'jpg' or ext == 'jpge' or ext == 'tif' then
-				tUtil.showMessage("Texture found \n["..tUtil.getShortName(fileName,true) .. "]\nadded path...")
+				tUtil.showMessage(string.format(tLang.L("texture_found_added_fmt"), tUtil.getShortName(fileName, true)))
 			else
-				tUtil.showMessage("File found \n["..tUtil.getShortName(fileName,true) .. "]\nadded path...")
+				tUtil.showMessage(string.format(tLang.L("file_found_added_fmt"), tUtil.getShortName(fileName, true)))
 			end
 			mbm.addPath(fileName)
 			return
@@ -134,11 +134,11 @@ function onOpenParticle(sFileName)
             dofile(fileName)
             if tParticle then
                 bShowParticleMenu = true
-                tUtil.showMessage("Particle Successfully Loaded")
+                tUtil.showMessage(tLang.L("particle_loaded_ok"))
                 sLastEditorFileName = fileName
                 mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
             else
-                tUtil.showMessageWarn("Failed to Load Particle!")
+                tUtil.showMessageWarn(tLang.L("failed_to_load_particle"))
             end
         elseif ext == "ptl" then
             if tParticle then
@@ -150,11 +150,11 @@ function onOpenParticle(sFileName)
                 bShowParticleMenu = true
                 tShader = tParticle:getShader()
                 sLastEditorFileName = fileName
-                tUtil.showMessage("Particle Successfully Loaded")
+                tUtil.showMessage(tLang.L("particle_loaded_ok"))
                 mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
             else
                 tParticle = nil
-                tUtil.showMessageWarn("Failed to Load Particle!")
+                tUtil.showMessageWarn(tLang.L("failed_to_load_particle"))
             end
 		end
 	end
@@ -278,7 +278,7 @@ function onSaveEditionParticle(sFileName)
         return true
     else
         print('error',string.format('Could not open the file [%s] for write',sFileName))
-        tUtil.showMessageWarn(string.format('Could not open the file [%s] for write',sFileName))
+        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_write_fmt"), sFileName))
         return false
     end
 end
@@ -289,17 +289,17 @@ function onSaveParticleEditor()
         if file_name then
             if onSaveEditionParticle(file_name) then
                 sLastEditorFileName = file_name
-                tUtil.showMessage('Particle Editor Saved Successfully!!')
+                tUtil.showMessage(tLang.L("particle_editor_saved_ok"))
             else
-                tUtil.showMessageWarn('Failed to Save Editor of Particle!')
+                tUtil.showMessageWarn(tLang.L("failed_to_save_particle_editor"))
             end
         end
     else
         if onSaveEditionParticle(sLastEditorFileName) then
             mbm.setGlobal('sLastEditorFileName',sLastEditorFileName)
-            tUtil.showMessage(string.format('Particle Editor\n %s\n Saved Successfully!!',tUtil.getShortName(sLastEditorFileName)))
+            tUtil.showMessage(string.format(tLang.L("particle_editor_saved_fmt"), tUtil.getShortName(sLastEditorFileName)))
         else
-            tUtil.showMessageWarn('Failed to Save Editor of Particle!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_particle_editor"))
         end
     end
 end
@@ -326,7 +326,7 @@ function onSaveParticleBinary()
 			local totalVertex = 3
 			local nSubset = myMesh:addSubSet(indexFrame)
 			if not myMesh:addVertex(indexFrame,indexSubset,totalVertex) then 
-                tUtil.showMessageWarn("Error on add vertex")
+                tUtil.showMessageWarn(tLang.L("error_on_add_vertex"))
                 return false
 			end
 			if not myMesh:setTexture(indexFrame,indexSubset,tParticle:getTexture()) then
@@ -339,14 +339,14 @@ function onSaveParticleBinary()
 			if myMesh:copyAnimationsFromMesh(tParticle) then --copy animations created include stages
 				local calcNormal,calcUv = false,false --don't wanna normal (neither recalculate it) and recalculate UV at all
 				if myMesh:save(fileName,calcNormal,calcUv) then
-					tUtil.showMessage("Particle Saved Successfully!")
+					tUtil.showMessage(tLang.L("particle_saved_ok"))
 					return true
 				else
-					tUtil.showMessageWarn("Failed To Save Particle!")
+					tUtil.showMessageWarn(tLang.L("failed_to_save_particle"))
 					return true
 				end
 			else
-				tUtil.showMessageWarn("Failed To Copy Animations - stages, Shaders...")
+				tUtil.showMessageWarn(tLang.L("failed_to_copy_animations"))
 				return true
 			end
 		end
@@ -362,7 +362,7 @@ function onOpenImage()
             tParticle:setTexture(file_name)
         end
     else
-        tUtil.showMessageWarn('There is no particle to apply texture!\n\nAdd a particle first!')
+        tUtil.showMessageWarn(tLang.L("no_particle_for_texture"))
     end
 end
 
@@ -421,7 +421,7 @@ function drawStrength(title,x,y,z)
     local step_fast  =  10.0
     local format     = "%.2f"
     local flags      =  0
-    tImGui.Text('Strength')
+    tImGui.Text(tLang.L("strength"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, length, step, step_fast, format, flags)
@@ -433,7 +433,7 @@ function drawStrength(title,x,y,z)
     tImGui.PopItemWidth()
 
     local label      = '##ZDir' .. title
-    tImGui.Text('Z       ')
+    tImGui.Text(tLang.L("z_dir"))
     tImGui.SameLine()
     tImGui.PushItemWidth(100)
     local result, fValue = tImGui.InputFloat(label, z, step, step_fast, format, flags)
@@ -470,12 +470,12 @@ function showParticleOptions()
         local tSizeBtn   = {x=width - 20,y=0} -- size button
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_particle_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_particle_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
 
             local indexCurrentStage, iTotalStage = tParticle:getStage()
             tImGui.PushItemWidth(150)
-            tImGui.Text('Number Of Particles')
+            tImGui.Text(tLang.L("number_of_particles"))
             local label      = '##Number of particles'
             local step       =  1
             local step_fast  =  10
@@ -489,11 +489,11 @@ function showParticleOptions()
             end
 
             tImGui.SameLine()
-            if tImGui.Button('Set', tSizeBtnAddSet) then
+            if tImGui.Button(tLang.L("set_btn"), tSizeBtnAddSet) then
                 tParticle:setTotalParticle(iStageParticle,iNumberOfParticleByStageSet)
             end
 
-            tImGui.Text('Stage')
+            tImGui.Text(tLang.L("stage_label"))
             local label      = '##Number of stage'
             local step_fast  =  1
             
@@ -510,19 +510,19 @@ function showParticleOptions()
                 tParticle:setTotalParticle(iStageParticle,iNumberOfParticleByStageSet)
             end
             
-            if tImGui.Button('Restart Stage(s)', tSizeBtn) then
+            if tImGui.Button(tLang.L("restart_stages"), tSizeBtn) then
                 tParticle:restartAnim()
                 indexCurrentStage = 1
             end
 
             tParticle:setStage(iStageParticle)
             
-            if tImGui.TreeNode("Arise Time") then
+            if tImGui.TreeNode(tLang.L("arise_time")) then
                 local arise_time = tParticle:getAriseTime(iStageParticle)
                 arise_time       = drawSlider(arise_time,'Time to rise\n(when add particle)',0.1,iRangeAriseTimeParticle)
                 tParticle:setAriseTime(iStageParticle,arise_time)
 
-                tImGui.Text('Range Arise Time')
+                tImGui.Text(tLang.L("range_arise_time"))
                 local label      = '##RangeAriseTime'
                 local step       =  0.001
                 local step_fast  =  1.0
@@ -542,7 +542,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Blend") then
+            if tImGui.TreeNode(tLang.L("blend_label")) then
                 local sBlendState,iBlendIndex = tParticle:getBlend()
 		        local sOperation              = tShader:getBlendOp()
                 local tBlend = {'DISABLE',
@@ -563,18 +563,18 @@ function showParticleOptions()
                                         "MIN",
                                         "MAX"}
 
-                tImGui.Text('Blend Function')
+                tImGui.Text(tLang.L("blend_function"))
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Function is the same for all stages')
+                tImGui.HelpMarker(tLang.L("help_blend_function_stages"))
                 local ret, current_item, item = tImGui.Combo('##ComboBlendFunction' , iBlendIndex + 1, tBlend)
                 if ret then
                     iBlendIndex = current_item - 1
                     tParticle:setBlend(iBlendIndex)
                 end
 
-                tImGui.Text('Blend Operation')
+                tImGui.Text(tLang.L("blend_operation"))
                 tImGui.SameLine()
-                tImGui.HelpMarker('Blend Operation is the same for all stages however it is per shader')
+                tImGui.HelpMarker(tLang.L("help_blend_operation_stages"))
                 local iBlendOpIndex = 1
                 for i=1, #tBlendOperation do
                     if tBlendOperation[i] == sOperation then
@@ -590,9 +590,9 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Color") then
-                tImGui.Text('Min Color')
-                local label      = 'Select the minimum color for the particle##Min Color'
+            if tImGui.TreeNode(tLang.L("color_label")) then
+                tImGui.Text(tLang.L("min_color"))
+                local label      = tLang.L("min_color_particle") .. '##Min Color'
                 local flag_color = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel')
                 local tColor  = {}
                 tColor.r, tColor.g, tColor.b = tParticle:getMinColor(iStageParticle)
@@ -601,8 +601,8 @@ function showParticleOptions()
                     tParticle:setMinColor(iStageParticle,tRgb.r,tRgb.g,tRgb.b)
                 end
 
-                tImGui.Text('Max Color')
-                local label     = 'Select the maximum color for the particle##Max Color'
+                tImGui.Text(tLang.L("max_color"))
+                local label     = tLang.L("max_color_particle") .. '##Max Color'
                 tColor.r, tColor.g, tColor.b = tParticle:getMaxColor(iStageParticle)
                 local clicked, tRgb = tImGui.ColorEdit3(label, tColor, flag_color)
                 if clicked then
@@ -611,7 +611,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Direction") then
+            if tImGui.TreeNode(tLang.L("direction_label")) then
                 local nx,ny,nz = tParticle:getMinDirection(iStageParticle)
                 nx,ny, nz = drawStrength('Min Direction',nx,ny,nz)
                 tParticle:setMinDirection(iStageParticle,nx,ny,nz)
@@ -622,25 +622,25 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Flags") then
-                tParticle.alpha      = tImGui.Checkbox('Alpha (Enable on Shader)',tParticle.alpha)
-                tParticle.grow       = tImGui.Checkbox('Min Size to Max Size',tParticle.grow)
-                tParticle.segmented  = tImGui.Checkbox('Segmented (UV)',tParticle.segmented)
-                tParticle.revive     = tImGui.Checkbox('Revive',tParticle.revive)
+            if tImGui.TreeNode(tLang.L("flags_label")) then
+                tParticle.alpha      = tImGui.Checkbox(tLang.L("alpha_enable_shader"), tParticle.alpha)
+                tParticle.grow       = tImGui.Checkbox(tLang.L("min_to_max_size"), tParticle.grow)
+                tParticle.segmented  = tImGui.Checkbox(tLang.L("segmented_uv"), tParticle.segmented)
+                tParticle.revive     = tImGui.Checkbox(tLang.L("revive"), tParticle.revive)
                 tImGui.TreePop()
             end
             
-            if tImGui.TreeNode("Invert Color") then
+            if tImGui.TreeNode(tLang.L("invert_color")) then
                 local r,g,b,a  = tParticle:getInvertedColor(iStageParticle)
-                r              = tImGui.Checkbox('Red color',r)
-                g              = tImGui.Checkbox('Green color',g)
-                b              = tImGui.Checkbox('Blue color',b)
-                a              = tImGui.Checkbox('Alpha color',a)
+                r              = tImGui.Checkbox(tLang.L("red_color"), r)
+                g              = tImGui.Checkbox(tLang.L("green_color"), g)
+                b              = tImGui.Checkbox(tLang.L("blue_color"), b)
+                a              = tImGui.Checkbox(tLang.L("alpha_color"), a)
                 tParticle:setInvertedColor(iStageParticle,r,g,b,a)
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Life Time") then
+            if tImGui.TreeNode(tLang.L("life_time")) then
                 local min_life_time = tParticle:getMinLifeTime(iStageParticle)
                 min_life_time = drawSlider(min_life_time,'Min Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMinLifeTime(iStageParticle,min_life_time)
@@ -648,7 +648,7 @@ function showParticleOptions()
                 max_life_time = drawSlider(max_life_time,'Max Life Time',0.1,iRangeLifeTimeParticle)
                 tParticle:setMaxLifeTime(iStageParticle,max_life_time)
 
-                tImGui.Text('Range Life Time')
+                tImGui.Text(tLang.L("range_life_time"))
                 local label      = '##RangeLifeTime'
                 local step       =  0.02
                 local step_fast  =  1.0
@@ -667,12 +667,12 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Stage Time") then
+            if tImGui.TreeNode(tLang.L("stage_time")) then
                 local stageTime               = tParticle:getStageTime(iStageParticle)
                 stageTime                     = drawSlider(stageTime,'Stage Time\n(each stage is like an animation)',0.1,iRangeStageTimeParticle)
                 tParticle:setStageTime(iStageParticle,stageTime)
 
-                tImGui.Text('Range Stage Time')
+                tImGui.Text(tLang.L("range_stage_time"))
                 local label      = '##RangeStageTime'
                 local step       =  0.001
                 local step_fast  =  1.0
@@ -692,7 +692,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Offset") then
+            if tImGui.TreeNode(tLang.L("offset_label")) then
                 local v_min             = -iRangeOffsetParticle
                 local v_max             = iRangeOffsetParticle
                 local x_min,y_min,z_min = tParticle:getMinOffset(iStageParticle)
@@ -708,7 +708,7 @@ function showParticleOptions()
                 tParticle:setMaxOffset(iStageParticle,x_max,y_max,z_max)
                 
 
-                tImGui.Text('Range Offset')
+                tImGui.Text(tLang.L("range_offset"))
                 local label      = '##RangeOffset'
                 local step       =  1
                 local step_fast  =  5
@@ -746,7 +746,7 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Speed") then
+            if tImGui.TreeNode(tLang.L("speed_label")) then
                 local min_speed = tParticle:getMinSpeed(iStageParticle)
                 min_speed = drawSlider(min_speed,'Min Speed',0,iRangeSpeedParticle)
                 tParticle:setMinSpeed(iStageParticle,min_speed)
@@ -754,7 +754,7 @@ function showParticleOptions()
                 max_speed = drawSlider(max_speed,'Max Speed',0,iRangeSpeedParticle)
                 tParticle:setMaxSpeed(iStageParticle,max_speed)
 
-                tImGui.Text('Range Speed')
+                tImGui.Text(tLang.L("range_speed"))
                 local label      = '##RangeSpeedparticles'
                 local step       =  1
                 local step_fast  =  10
@@ -772,19 +772,19 @@ function showParticleOptions()
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Shader") then
-                local indexSelected  = tImGui.RadioButton('Operator \'+\'', tShaderByOperator.index,  1)
-                indexSelected        = tImGui.RadioButton('Operator \'-\'', indexSelected, 2)
-                indexSelected        = tImGui.RadioButton('Operator \'/\'', indexSelected, 3)
-                indexSelected        = tImGui.RadioButton('Operator \'*\'', indexSelected, 4)
+            if tImGui.TreeNode(tLang.L("shader_label")) then
+                local indexSelected  = tImGui.RadioButton(tLang.L("operator_plus"), tShaderByOperator.index, 1)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_minus"), indexSelected, 2)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_div"), indexSelected, 3)
+                indexSelected        = tImGui.RadioButton(tLang.L("operator_mul"), indexSelected, 4)
                 if indexSelected ~= tShaderByOperator.index then
                     tShaderByOperator.index = indexSelected
                     tShader:load(tShaderByOperator[tShaderByOperator.index].name,nil,mbm.GROWING,1.0,mbm.GROWING_LOOP,1.0)
                 end
 
-                tImGui.Text('Additional Code Shader')
+                tImGui.Text(tLang.L("additional_code_shader"))
                 tImGui.SameLine()
-                tImGui.HelpMarker('It is not saved in the binary file!')
+                tImGui.HelpMarker(tLang.L("help_not_saved_binary"))
                 local modified , sNewText = tImGui.InputTextMultiline('##AdditionalCode',tShaderByOperator.sAdditionalCode,{x=-1,y=0},flags)
                 if modified then
                     tShaderByOperator.sAdditionalCode = sNewText
@@ -793,7 +793,7 @@ function showParticleOptions()
                 if tShaderByOperator.sAdditionalCode:len() > 0 then
                     sAddCode = '\n // YOUR CODE ********** \n' ..  tShaderByOperator.sAdditionalCode .. '\n//END YOUR CODE ********** \n'
                 end
-                tImGui.Text('Code')
+                tImGui.Text(tLang.L("code_label"))
                 local sCodeShader = 
 [[precision mediump float;
 uniform vec4 color;
@@ -815,24 +815,24 @@ void main()
 }
 ]]
                 tImGui.TextDisabled(sCodeShader)
-                if tImGui.Button('Apply') then
+                if tImGui.Button(tLang.L("apply_btn")) then
                     local ext = tUtil.getExtension(sLastEditorFileName)
                     if ext == 'particle' then
                         if onSaveEditionParticle(sLastEditorFileName) then
                             onOpenParticle(sLastEditorFileName)
                         end
                     elseif ext ~= "ptl" then
-                        tUtil.showMessageWarn(string.format('Not possible apply code to binary type \n%s\n\nYou must apply in your code!',sLastEditorFileName))
+                        tUtil.showMessageWarn(string.format(tLang.L("not_possible_apply_binary_fmt"), sLastEditorFileName))
                     else
-                        tUtil.showMessageWarn(string.format('Invalid file\n%s',sLastEditorFileName))
+                        tUtil.showMessageWarn(string.format(tLang.L("invalid_file_fmt"), sLastEditorFileName))
                     end
                 end
                 tImGui.SameLine()
-                tImGui.HelpMarker('A wrong shader will cause crash to the program!')
+                tImGui.HelpMarker(tLang.L("help_wrong_shader_crash"))
                 tImGui.TreePop()
             end
 
-            if tImGui.TreeNode("Size") then
+            if tImGui.TreeNode(tLang.L("size_label")) then
                 local min_size = tParticle:getMinSize(iStageParticle)
                 min_size = drawSlider(min_size,'Min Size',0.1,iRangeSizeParticle)
                 tParticle:setMinSize(iStageParticle,min_size)
@@ -840,7 +840,7 @@ void main()
                 max_size = drawSlider(max_size,'Max Size',0.1,iRangeSizeParticle)
                 tParticle:setMaxSize(iStageParticle,max_size)
 
-                tImGui.Text('Range Size')
+                tImGui.Text(tLang.L("range_size"))
                 local label      = '##RangeSize'
                 local step       =  5
                 local step_fast  =  10
@@ -873,56 +873,56 @@ end
 
 function main_menu_particle()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
             
-            local pressed,checked = tImGui.MenuItem("New Particle", "Ctrl+N", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("new_particle"), "Ctrl+N", false)
             if pressed then
                 onNewParticle()
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Particle", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_particle"), "Ctrl+O", false)
             if pressed then
                 onOpenParticle()
             end
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Editor", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_editor"), "Ctrl+S", false)
             if pressed then
                 onSaveParticleEditor()
             end
 
-            local pressed,checked = tImGui.MenuItem("Save Particle", "Ctrl+B", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_particle"), "Ctrl+B", false)
             if pressed then
                 onSaveParticleBinary()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("Image") then
-            local pressed,checked = tImGui.MenuItem("Add image(s)", "Ctrl+I", false)
+        if tImGui.BeginMenu(tLang.L("menu_image")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("add_images"), "Ctrl+I", false)
             if pressed then
                 onOpenImage()
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Options") then
-            local pressed,checked = tImGui.MenuItem("Enable Alpha Pattern Background", true, tex_alpha_pattern.visible)
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_alpha_pattern_bg"), true, tex_alpha_pattern.visible)
             if pressed then
                 tex_alpha_pattern.visible = checked
             end
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -932,27 +932,29 @@ function main_menu_particle()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -966,19 +968,19 @@ function main_menu_particle()
                 tImGui.EndMenu()
             end
 
-            local pressed,checked = tImGui.MenuItem("Show Particle Options", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("show_particle_options"), false)
             if pressed then
                 if tParticle then
                     bShowParticleMenu = true
                 else
-                    tUtil.showMessageWarn('There is no particle to show particle options!\n\nAdd a particle first!')
+                    tUtil.showMessageWarn(tLang.L("no_particle_for_options"))
                 end
             end
             
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -988,16 +990,16 @@ function main_menu_particle()
             if result then
                 fScaleParticle = fValue
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 fScaleParticle = 1
             end
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Particle Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("particle_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
@@ -1005,7 +1007,7 @@ function main_menu_particle()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1013,7 +1015,7 @@ function main_menu_particle()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
@@ -1125,7 +1127,7 @@ function showParticleStatus(delta)
     window_pos     = {x = iW - 150, y = 25}
     local window_pos_pivot = {x = 0, y = 0}
     tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-    local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_particle_status, false,tImGui.Flags(flags) )
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_particle_status), false, tImGui.Flags(flags))
     if is_opened then
         local indexCurrentStage, iTotalStage = tParticle:getStage()
         iLastStageText            = iLastStageText + delta

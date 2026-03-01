@@ -47,6 +47,10 @@ COPY "!libEGLv2_source!" "!destinationFolder!"
 echo "COPY !libEGLv2_dll! !destinationFolder!"
 COPY "!libEGLv2_dll!" "!destinationFolder!"
 
+    set editor_source=%mypath%\editor
+    echo "XCOPY !editor_source! !destinationFolder!"
+    XCOPY "!editor_source!" "!destinationFolder!" /E /I /Y
+
 ) else (
     echo "32 bits build"
     echo "Copying needed 32 bits DLLs (for Windows) to  %destinationFolder%"

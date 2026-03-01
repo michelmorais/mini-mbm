@@ -32,14 +32,14 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
 if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
+	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
 	mbm.quit()
 end
 
 function onInitScene()
     
-    tWindowsTitle        = {title_image_selector    = 'Image(s) selector',
-                            title_texture_options   = 'Texture options'}
+    tWindowsTitle        = {title_image_selector    = "title_image_selector",
+                            title_texture_options   = "title_texture_options"}
 
     camera2d		     = mbm.getCamera("2d")
     tLineCenterX         = line:new("2dw",0,0,50)
@@ -129,9 +129,9 @@ function onSaveTexture()
     if sFileName then
         if tRender:save(sFileName) then
             sFileNameTexture = sFileName
-            tUtil.showMessage('Texture Saved Successfully!')
+            tUtil.showMessage(tLang.L("texture_saved_ok"))
         else
-            tUtil.showMessageWarn('Failed to Save Texture File!')
+            tUtil.showMessageWarn(tLang.L("failed_to_save_texture"))
         end
     end
 end
@@ -166,9 +166,9 @@ function onLoadTextureConfiguration()
             end
             bTextureViewOpened = true
             bViewTextureOptions = true
-            tUtil.showMessage('Texture Configuration Editor Loaded Successfully!')
+            tUtil.showMessage(tLang.L("texture_config_loaded_ok"))
         else
-            tUtil.showMessageWarn('Failed to Load Texture Configuration Editor File!')
+            tUtil.showMessageWarn(tLang.L("failed_to_load_texture_config"))
         end
     end
 end
@@ -181,7 +181,7 @@ function onSaveTextureConfiguration()
     if sFileName then
         local fp = io.open(sFileName,"w")
         if fp == nil then
-            tUtil.showMessageWarn(string.format('Failed to Save Texture Configuration Editor File\n %s',sFileName))
+            tUtil.showMessageWarn(string.format(tLang.L("failed_to_save_config_fmt"), sFileName))
         else
             fp:write(string.format("tTextureOptions = {}\n"))
             fp:write(string.format("tTextureOptions.fWidth = %d\n",  tTextureOptions.fWidth))
@@ -237,7 +237,7 @@ function onSaveTextureConfiguration()
             end
             fp:close()
             sFileNameTextureCfg = sFileName
-            tUtil.showMessage('Texture Configuration Editor Saved Successfully!')
+            tUtil.showMessage(tLang.L("texture_config_saved_ok"))
         end
     end
 end
@@ -333,7 +333,7 @@ function adjustTextureSize()
             tLine:setScale(scale,scale)
             tLine:setColor(1,1,0)
         else
-            tUtil.showMessageWarn('Failed to create dynamic texture\nTry to reduce the size of texture!')
+            tUtil.showMessageWarn(tLang.L("failed_to_create_dynamic_texture"))
         end
     end
 end
@@ -1069,10 +1069,10 @@ end
 
 
 function showSortOptions()
-    tImGui.Text('Sort Textures By:')
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by name', tTextureOptions.iIndexSortOption, 1)
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Ascending', tTextureOptions.iIndexSortOption, 2)
-    tTextureOptions.iIndexSortOption = tImGui.RadioButton('Sort by size Descending', tTextureOptions.iIndexSortOption, 3)
+    tImGui.Text(tLang.L("sort_textures_by"))
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_name"), tTextureOptions.iIndexSortOption, 1)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_size_asc"), tTextureOptions.iIndexSortOption, 2)
+    tTextureOptions.iIndexSortOption = tImGui.RadioButton(tLang.L("sort_by_size_desc"), tTextureOptions.iIndexSortOption, 3)
 
     tTextureOptions.bSortByName = false
     tTextureOptions.bSortBySizeAscending = false
@@ -1093,7 +1093,7 @@ function showTextureOptions()
         local max_width = 220
         local tSizeBtnAddSet   = {x=43,y=0} 
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_texture_options,x_pos,y_pos,width,max_width)
-        local is_opened, closed_clicked = tImGui.Begin(tWindowsTitle.title_texture_options, true, ImGuiWindowFlags_NoMove)
+        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_texture_options), true, ImGuiWindowFlags_NoMove)
         if is_opened then
             
             local step       =  1
@@ -1114,7 +1114,7 @@ function showTextureOptions()
                 return  math.ceil(result)
             end
 
-            tImGui.Text('Width')
+            tImGui.Text(tLang.L("width"))
             local result, iValue = tImGui.InputInt('##WidthTexture', tTextureOptions.fWidth, step, step_fast, flags)
             if result and iValue > 0 then
                 if tTextureOptions.bPowerOf2 then
@@ -1127,7 +1127,7 @@ function showTextureOptions()
                 tTextureOptions.fWidth = iValue
             end
 
-            tImGui.Text('Height')
+            tImGui.Text(tLang.L("height"))
             local result, iValue = tImGui.InputInt('##HeightTexture', tTextureOptions.fHeight, step, step_fast, flags)
             if result and iValue > 0 then
                 if tTextureOptions.bPowerOf2 then
@@ -1140,35 +1140,35 @@ function showTextureOptions()
                 tTextureOptions.fHeight = iValue
             end
 
-            tTextureOptions.bPowerOf2 = tImGui.Checkbox('Power Of 2##P2',tTextureOptions.bPowerOf2)
+            tTextureOptions.bPowerOf2 = tImGui.Checkbox(tLang.L("power_of_2") .. '##P2', tTextureOptions.bPowerOf2)
 
-            tImGui.Text('Space X')
+            tImGui.Text(tLang.L("space_x_label"))
             local result, iValue = tImGui.InputInt('##SpaceXTexture', tTextureOptions.iSpaceX, step, step_fast, flags)
             if result then
                 tTextureOptions.iSpaceX = iValue
             end
 
-            tImGui.Text('Space Y')
+            tImGui.Text(tLang.L("space_y_label"))
             local result, iValue = tImGui.InputInt('##SpaceYTexture', tTextureOptions.iSpaceY, step, step_fast, flags)
             if result then
                 tTextureOptions.iSpaceY = iValue
             end
 
-            tImGui.Text('Offset X')
+            tImGui.Text(tLang.L("offset_x_label"))
             local result, iValue = tImGui.InputInt('##OffsetXTexture', tTextureOptions.iOffsetX, step, step_fast, flags)
             if result then
                 tTextureOptions.iOffsetX = iValue
             end
 
-            tImGui.Text('Offset Y')
+            tImGui.Text(tLang.L("offset_y_label"))
             local result, iValue = tImGui.InputInt('##OffsetYTexture', tTextureOptions.iOffsetY, step, step_fast, flags)
             if result then
                 tTextureOptions.iOffsetY = iValue
             end
 
-            tImGui.Text('Max Tile Count')
+            tImGui.Text(tLang.L("max_tile_count"))
             tImGui.SameLine()
-            tImGui.HelpMarker('Zero means automatic')
+            tImGui.HelpMarker(tLang.L("help_zero_automatic"))
             local result, iValue = tImGui.InputInt('##MaxTileCount', tTextureOptions.iMaxTileCount, step, step_fast, flags)
             if result and iValue >= 0 then
                 tTextureOptions.iMaxTileCount = iValue
@@ -1181,7 +1181,7 @@ function showTextureOptions()
 
             tImGui.Text(string.format('Grid X %dpx',cell_w))
             tImGui.SameLine()
-            tImGui.HelpMarker('Visual grid on X axis to help to preview the sprite sheet')
+            tImGui.HelpMarker(tLang.L("help_visual_grid_x"))
             tImGui.SameLine()
             tImGui.SetCursorPosX(130)
             tTextureOptions.bGridVisibleX = tImGui.Checkbox('##ShowGridX',tTextureOptions.bGridVisibleX)
@@ -1192,7 +1192,7 @@ function showTextureOptions()
             
             tImGui.Text(string.format('Grid Y %dpx',cell_h)    )
             tImGui.SameLine()
-            tImGui.HelpMarker('Visual grid on Y axis to help to preview the sprite sheet')
+            tImGui.HelpMarker(tLang.L("help_visual_grid_y"))
             tImGui.SameLine()
             tImGui.SetCursorPosX(130)
             tTextureOptions.bGridVisibleY = tImGui.Checkbox('##ShowGridY',tTextureOptions.bGridVisibleY)
@@ -1201,7 +1201,7 @@ function showTextureOptions()
                 tTextureOptions.iGridY = iValue
             end
 
-            tImGui.Text('Scale Image')
+            tImGui.Text(tLang.L("scale_image"))
             local step       =  0.01
             local step_fast  =  0.02
             local format     = "%.3f"
@@ -1211,7 +1211,7 @@ function showTextureOptions()
                 tTextureOptions.bGridForceFitScale = false
             end
 
-            tImGui.Text('Adjust scale on X')
+            tImGui.Text(tLang.L("adjust_scale_on_x"))
             local step       =  0.001
             local step_fast  =  0.002
             local format     = "%.3f"
@@ -1226,7 +1226,7 @@ function showTextureOptions()
                 end
             end
 
-            tImGui.Text('Adjust scale on Y')
+            tImGui.Text(tLang.L("adjust_scale_on_y"))
             local step       =  0.001
             local step_fast  =  0.002
             local format     = "%.3f"
@@ -1241,21 +1241,21 @@ function showTextureOptions()
                 end
             end
 
-            tImGui.Text('Background Color')
+            tImGui.Text(tLang.L("background_color_text"))
             local clicked, tRgba = tImGui.ColorEdit4('Select your color', tTextureOptions.tRgba, tImGui.Flags('ImGuiColorEditFlags_NoLabel'))
             if clicked then
                 tTextureOptions.tRgba = tRgba
                 tRender:setColor(tRgba.r,tRgba.g,tRgba.b,tRgba.a)
             end
 
-            tTextureOptions.bAxisY    = tImGui.Checkbox('Axis Y## Axis Y',tTextureOptions.bAxisY)
-            tTextureOptions.bAlpha    = tImGui.Checkbox('Enable Alpha##AlphaTex',tTextureOptions.bAlpha)
+            tTextureOptions.bAxisY    = tImGui.Checkbox(tLang.L("axis_y_label") .. '## Axis Y', tTextureOptions.bAxisY)
+            tTextureOptions.bAlpha    = tImGui.Checkbox(tLang.L("enable_alpha") .. '##AlphaTex', tTextureOptions.bAlpha)
 
             tImGui.NewLine()
-            tImGui.Text('Algorithm')
+            tImGui.Text(tLang.L("algorithm"))
             if tImGui.IsItemHovered(0) then
                 tImGui.BeginTooltip()
-                tImGui.Text('Select the algorithm to arrange the textures inside the sprite sheet.\nFirst Fit algorithm is more complex and try to fit more textures inside the sprite sheet.')
+                tImGui.Text(tLang.L("select_algorithm_note"))
                 tImGui.EndTooltip()
             end
             local height_in_items  =  -1
@@ -1283,13 +1283,13 @@ function showTextureOptions()
                 if tTextureOptions.iCurrentAlgorithm == 1 then -- 'Follow bigger or lower Texture'
                     tImGui.Text(string.format('Note: Textures are arranged following the size of the %s texture.',sDirection))
                 elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'First Fit algorithm'
-                    tImGui.Text('Note: Textures are arranged using First Fit algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_first_fit"))
                 elseif tTextureOptions.iCurrentAlgorithm == 3 then
-                    tImGui.Text('Note: Textures are arranged using Best Fit algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_best_fit"))
                 elseif tTextureOptions.iCurrentAlgorithm == 4 then
-                    tImGui.Text('Note: Textures are arranged Grid (x) (Y) -based placement (for uniform distribution).')
+                    tImGui.Text(tLang.L("note_grid"))
                 elseif tTextureOptions.iCurrentAlgorithm == 5 then
-                    tImGui.Text('Note: Textures are arranged using MaxRects algorithm to try to fit more textures inside the sprite sheet.')
+                    tImGui.Text(tLang.L("note_maxrects"))
                 end
                 tImGui.EndTooltip()
             end
@@ -1297,10 +1297,10 @@ function showTextureOptions()
             tImGui.NewLine()
 
             if tTextureOptions.iCurrentAlgorithm ~= 5 then
-                tImGui.Text('Reference Texture Size')
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Bigger texture reference', tTextureOptions.indexReferenceTexture or 1, 1)
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Lower texture reference', tTextureOptions.indexReferenceTexture, 2)
-                tTextureOptions.indexReferenceTexture = tImGui.RadioButton('Texture size reference', tTextureOptions.indexReferenceTexture, 3)
+                tImGui.Text(tLang.L("reference_texture_size"))
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("bigger_texture_reference"), tTextureOptions.indexReferenceTexture or 1, 1)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("lower_texture_reference"), tTextureOptions.indexReferenceTexture, 2)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("texture_size_reference"), tTextureOptions.indexReferenceTexture, 3)
                 if tTextureOptions.indexReferenceTexture < 1 then
                     tTextureOptions.indexReferenceTexture = 1
                 elseif tTextureOptions.indexReferenceTexture > 3 then
@@ -1319,7 +1319,7 @@ function showTextureOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Grid-based placement'
                 showSortOptions()
             elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'MaxRects algorithm'
-                tTextureOptions.bGridForceFitScale = tImGui.Checkbox('Auto scale to fit##GridForceFitScale',tTextureOptions.bGridForceFitScale)
+                tTextureOptions.bGridForceFitScale = tImGui.Checkbox(tLang.L("auto_scale_to_fit") .. '##GridForceFitScale', tTextureOptions.bGridForceFitScale)
                 if tTextureOptions.bGridForceFitScale == false and tTextureOptions.bLastGridForceFitScaleWasEnabled then
                     tTextureOptions.scaleImage = 1.0
                 end
@@ -1358,8 +1358,8 @@ function showTextureOptions()
 
             local tOutOfBoundsColor = {r=1,g=0.3,b=0.3,a=0.8}
 
-            if tImGui.TreeNode('id_OffsetPerTexture',"Override adjusts(offset/Angle)") then
-                local label  = 'Only Selected Textures##OverrideAdjustsPerTexture'
+            if tImGui.TreeNode('id_OffsetPerTexture', tLang.L("override_adjusts")) then
+                local label  = tLang.L("only_selected_textures") .. '##OverrideAdjustsPerTexture'
                 tTextureOptions.bOnlySelectedTextures = tImGui.Checkbox(label,tTextureOptions.bOnlySelectedTextures)
                 for i=1, #tTexturesToEditor do
                     if tTextureOptions.bOnlySelectedTextures then
@@ -1376,19 +1376,19 @@ function showTextureOptions()
                             tImGui.PopStyleColor(1)
                         end
                         showTextureHoverImage(i)
-                        tImGui.Text('Offset Per Texture')
-                        local result, iValue = tImGui.InputInt('X##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
+                        tImGui.Text(tLang.L("offset_per_texture"))
+                        local result, iValue = tImGui.InputInt(tLang.L("axis_x") .. '##OffsetPerTextureX' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureX or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureX = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('Y##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("axis_y") .. '##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
                         end
 
-                        tImGui.Text('Rotation Per Texture')
-                        local result, iValue = tImGui.InputInt('RX##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
+                        tImGui.Text(tLang.L("rotation_per_texture"))
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_rx") .. '##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1398,7 +1398,7 @@ function showTextureOptions()
                             tTexturesToEditor[i].iAnglePerTextureRX = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('RY##RotationPerTextureY' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRY or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_ry") .. '##RotationPerTextureY' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRY or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1408,7 +1408,7 @@ function showTextureOptions()
                             tTexturesToEditor[i].iAnglePerTextureRY = iValue
                         end
 
-                        local result, iValue = tImGui.InputInt('RZ##RotationPerTextureZ' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRZ or 0, step, step_fast, flags)
+                        local result, iValue = tImGui.InputInt(tLang.L("rotation_rz") .. '##RotationPerTextureZ' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRZ or 0, step, step_fast, flags)
                         if result then
                             if iValue >= 360 then
                                 iValue = 360
@@ -1420,13 +1420,13 @@ function showTextureOptions()
 
                         if tTextureOptions.iCurrentAlgorithm ~= 5 or tTextureOptions.bGridForceFitScale == false then
                         
-                            tImGui.Text('Scale Per Texture')
+                            tImGui.Text(tLang.L("scale_per_texture"))
 
-                            local result, fValue = tImGui.InputFloat('SX##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
+                            local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##ScalePerTextureX_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSX or 0, step_f, step_fast_f, format_f, flags)
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
-                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.Text(tLang.L("scale_per_texture_disabled"))
                                     tImGui.EndTooltip()
                                 end
                             elseif result then
@@ -1438,11 +1438,11 @@ function showTextureOptions()
                                 tTexturesToEditor[i].fScalePerTextureSX = fValue
                             end
 
-                            local result, fValue = tImGui.InputFloat('SY##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
+                            local result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##ScalePerTextureY_' .. tostring(i), tTexturesToEditor[i].fScalePerTextureSY or 0, step_f, step_fast_f, format_f, flags)
                             if tTextureOptions.iIndexSortOption ~= 1 then
                                 if tImGui.IsItemHovered(0) then
                                     tImGui.BeginTooltip()
-                                    tImGui.Text('Scale per texture is disabled when sorting by size.')
+                                    tImGui.Text(tLang.L("scale_per_texture_disabled"))
                                     tImGui.EndTooltip()
                                 end
                             elseif result then
@@ -1505,37 +1505,37 @@ end
 
 function main_menu_texture_packer()
     if tImGui.BeginMainMenuBar() then
-        if tImGui.BeginMenu("File") then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
 
             if mbm.is('Windows') then
-                local pressed,checked = tImGui.MenuItem("Load Texture (Max 32 files)", "Ctrl+I", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_max32"), "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
             else
-                local pressed,checked = tImGui.MenuItem("Load Texture", "Ctrl+I", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("load_texture"), "Ctrl+I", false)
                 if pressed then
                     onOpenTextures()
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Texture From Folder", nil , false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_from_folder"), nil , false)
             if pressed then
                 onOpenTexturesFromFolder()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture (png)", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_png"), nil, false)
             if pressed then
                 if tRender:isLoaded() then
                     --TODO: 
                     onSaveTexture()
                 else
-                    tUtil.showMessageWarn('There is no texture loaded!')
+                    tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Generate Image Resource Header From Image (Png)", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("generate_image_header"), nil, false)
             if pressed then
                 if #tTexturesToEditor > 0 then
                     for i=1, #tTexturesToEditor do
@@ -1544,9 +1544,9 @@ function main_menu_texture_packer()
                             local sFileName = mbm.saveFile(tUtil.getShortName(sFileNameTexture):split('%.')[1] .. '.h','*.h')
                             if sFileName then
                                 if not mbm.generateImageResourceHeaderFromPng(sFileNameTexture, sFileName) then
-                                    tUtil.showMessageWarn('Failed to Generate Image Resource Header!')
+                                    tUtil.showMessageWarn(tLang.L("failed_to_generate_image_header"))
                                 else
-                                    tUtil.showMessage(string.format('Image Resource Header Generated Successfully! %s', sFileName))
+                                    tUtil.showMessage(string.format(tLang.L("image_header_generated_fmt"), sFileName))
                                 end
                             end
                         end
@@ -1555,16 +1555,16 @@ function main_menu_texture_packer()
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Save Texture configuration", "Ctrl+S", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_config"), "Ctrl+S", false)
             if pressed then
                 if tRender:isLoaded() then
                     onSaveTextureConfiguration()
                 else
-                    tUtil.showMessageWarn('There is no texture loaded!')
+                    tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                 end
             end
 
-            local pressed,checked = tImGui.MenuItem("Load Texture configuration", "Ctrl+O", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("load_texture_config"), "Ctrl+O", false)
             if pressed then 
                 onLoadTextureConfiguration()
             end
@@ -1572,7 +1572,7 @@ function main_menu_texture_packer()
             tImGui.Separator()
             if (tTextureOptions.bGridVisibleX or tTextureOptions.bGridVisibleY) and (tTextureOptions.iGridX > 1 or tTextureOptions.iGridY) then
 
-                local pressed,checked = tImGui.MenuItem("Save Texture (png) Rectangles##SaveXRectangle", "X axis orientation ", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_rectangles") .. "##SaveXRectangle", tLang.L("x_axis_orientation"), false)
                 if pressed then
                     if tRender:isLoaded() then
                         local iCount       = 1
@@ -1589,24 +1589,24 @@ function main_menu_texture_packer()
                                     if (x + fx) <= tTextureOptions.fWidth and (y + fy) <= tTextureOptions.fHeight then
                                         local sFullFileName = string.format('%s%s_%d.png',sFolder,sShortName,iCount)
                                         if not tRender:save(sFullFileName, x, y, fx, fy) then
-                                            tUtil.showMessageWarn('Failed to Save Texture Rectangle!')
+                                            tUtil.showMessageWarn(tLang.L("failed_to_save_texture_rect"))
                                         end
                                         iCount = iCount + 1
                                     end
                                 end
                             end
                             if iCount > 0 then
-                                tUtil.showMessage(string.format('%d textures saved successfully!',iCount-1))
+                                tUtil.showMessage(string.format(tLang.L("textures_saved_fmt"), iCount-1))
                             else
-                                tUtil.showMessageWarn('No one texture was saved!')
+                                tUtil.showMessageWarn(tLang.L("no_texture_was_saved"))
                             end
                         end
                     else
-                        tUtil.showMessageWarn('There is no texture loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                     end
                 end
 
-                local pressed,checked = tImGui.MenuItem("Save Texture (png) Rectangles##SaveYRectangle", "Y axis orientation ", false)
+                local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_rectangles") .. "##SaveYRectangle", tLang.L("y_axis_orientation"), false)
                 if pressed then
                     if tRender:isLoaded() then
                         local iCount       = 1
@@ -1623,26 +1623,26 @@ function main_menu_texture_packer()
                                     if (x + fx) <= tTextureOptions.fWidth and (y + fy) <= tTextureOptions.fHeight then
                                         local sFullFileName = string.format('%s%s_%d.png',sFolder,sShortName,iCount)
                                         if not tRender:save(sFullFileName, x, y, fx, fy) then
-                                            tUtil.showMessageWarn('Failed to Save Texture Rectangle!')
+                                            tUtil.showMessageWarn(tLang.L("failed_to_save_texture_rect"))
                                         end
                                         iCount = iCount + 1
                                     end
                                 end
                             end
                             if iCount > 0 then
-                                tUtil.showMessage(string.format('%d textures saved successfully!',iCount-1))
+                                tUtil.showMessage(string.format(tLang.L("textures_saved_fmt"), iCount-1))
                             else
-                                tUtil.showMessageWarn('No one texture was saved!')
+                                tUtil.showMessageWarn(tLang.L("no_texture_was_saved"))
                             end
                         end
                     else
-                        tUtil.showMessageWarn('There is no texture loaded!')
+                        tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
                     end
                 end
             end
 
             tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem("Quit", "Alt+F4", false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
             end
@@ -1650,26 +1650,26 @@ function main_menu_texture_packer()
             tImGui.EndMenu();
         end
 
-        if tImGui.BeginMenu("General Options") then
+        if tImGui.BeginMenu(tLang.L("general_options")) then
 
-            local pressed,checked = tImGui.MenuItem("View Image List", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("view_image_list"), nil, false)
             if pressed then
                 bTextureViewOpened = checked
             end
             tImGui.Separator()
 
-            local pressed,checked = tImGui.MenuItem("Enable Origin Lines", true, tLineCenterX.visible)
+            local pressed,checked = tImGui.MenuItem(tLang.L("enable_origin_lines"), true, tLineCenterX.visible)
             if pressed then
                 tLineCenterX.visible = checked
                 tLineCenterY.visible = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Pre load texture (enable filter)", true, tTextureOptions.bFilter)
+            local pressed,checked = tImGui.MenuItem(tLang.L("pre_load_texture_filter"), true, tTextureOptions.bFilter)
             if pressed then
                 tTextureOptions.bFilter = checked
             end
 
-            local pressed,checked = tImGui.MenuItem("Move Windows", true, bEnableMoveWindow)
+            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
             if pressed then
                 bEnableMoveWindow = checked
                 if bEnableMoveWindow then
@@ -1679,27 +1679,29 @@ function main_menu_texture_packer()
                 end
             end
 
-            if tImGui.BeginMenu("Background Color") then
+            tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
                 local rounding  =  0
                 local flags     =  0
 
-                local colors    = { {'Default',    tUtil.tColorBackground},
-                                    {'White',      {r=1,g=1,b=1,a=1}},
-                                    {'Black',      {r=0,g=0,b=0,a=1}},
-                                    {'Red',        {r=1,g=0,b=0,a=1}},
-                                    {'Green',      {r=0,g=1,b=0,a=1}},
-                                    {'Blue',       {r=0,g=0,b=1,a=1}},
-                                    {'Cyan',       {r=0,g=1,b=1,a=1}},
-                                    {'Yellow',     {r=1,g=1,b=0,a=1}},
-                                    {'Magenta',    {r=1,g=0,b=1,a=1}}
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
                                   }
                 
                 for i=1, #colors do
                     local winPos  = tImGui.GetCursorScreenPos()
                     local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = colors[i][1]
+                    local name    = tLang.L(colors[i][1])
                     local color   = colors[i][2]
                     tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
                     tImGui.Dummy({x =sz, y = sz})
@@ -1716,7 +1718,7 @@ function main_menu_texture_packer()
             tImGui.EndMenu()
         end
 
-        if tImGui.BeginMenu("Zoom") then
+        if tImGui.BeginMenu(tLang.L("zoom")) then
 
             local label   = '##Scale'
             local v_min   = 0.2
@@ -1727,9 +1729,9 @@ function main_menu_texture_packer()
                 scale = fValue
                 tShape:setScale(scale,scale)
             end
-            tImGui.TextDisabled("Or use Scroll")
+            tImGui.TextDisabled(tLang.L("or_use_scroll"))
             tImGui.SameLine()
-            if tImGui.SmallButton("Default") then
+            if tImGui.SmallButton(tLang.L("default")) then
                 scale = 1
                 tShape:setScale(scale,scale)
             end
@@ -1737,8 +1739,8 @@ function main_menu_texture_packer()
         end
 
 
-        if tImGui.BeginMenu("About") then
-            local pressed,checked = tImGui.MenuItem("Texture Packer Editor", nil, false)
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed,checked = tImGui.MenuItem(tLang.L("texture_packer_editor"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
@@ -1746,7 +1748,7 @@ function main_menu_texture_packer()
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#texture-packer-editor"')
                 end
             end
-            local pressed,checked = tImGui.MenuItem("Mbm Engine", nil, false)
+            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
             if pressed then
                 if mbm.is('windows') then
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
@@ -1755,7 +1757,7 @@ function main_menu_texture_packer()
                 end
             end
 
-            if tImGui.BeginMenu("Version") then
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
                 tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
                 tImGui.EndMenu()
             end
