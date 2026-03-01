@@ -61,6 +61,7 @@ namespace mbm
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
+        renderTargetTexture = false;
     }
 
     bool TEXTURE::isLoaded()const
@@ -91,6 +92,7 @@ namespace mbm
     {
         if (!fileNameTTF)
             return false;
+        this->renderTargetTexture = false;
         this->useAlphaChannel = true;
         FILE *fp              = util::openFile(fileNameTTF, "rb");
         size_t   sFile        = 0;
@@ -198,6 +200,7 @@ namespace mbm
 
     bool TEXTURE::loadSolidColor(const char* colorAsString, const bool hasColorAlpha)
     {
+        this->renderTargetTexture = false;
         if(colorAsString == nullptr)
         {
             PRINT_IF_DEBUG("Color string expected is null");
@@ -268,6 +271,7 @@ namespace mbm
         if (!fileNameTexture)
             return false;
         this->release();
+        this->renderTargetTexture = false;
         this->useAlphaChannel = true;
         if(fileNameTexture[0] == '#' )
             return loadSolidColor(fileNameTexture,hasColorAlpha);
@@ -385,6 +389,11 @@ namespace mbm
     uint32_t TEXTURE::getHeight()const noexcept
     {
         return this->height;
+    }
+
+    bool TEXTURE::isRenderTargetTexture() const noexcept
+    {
+        return this->renderTargetTexture;
     }
     
 #if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
@@ -1002,6 +1011,20 @@ namespace mbm
                 result.push_back(fullPathTexture);
             }
         }
+    }
+
+    bool TEXTURE_MANAGER::isRenderTargetTexture(const void* nativeTextureHandle) const
+    {
+        if (nativeTextureHandle == nullptr)
+            return false;
+
+        for (const auto& entry : lsTextures)
+        {
+            const TEXTURE* texture = entry.second;
+            if (texture && texture->ptrTexture == nativeTextureHandle)
+                return texture->isRenderTargetTexture();
+        }
+        return false;
     }
 
     TEXTURE_MANAGER::TEXTURE_MANAGER()

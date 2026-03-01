@@ -2427,7 +2427,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local sy              = new_width / tFrame.width  * tFrame.height
     local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
     local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
-    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
+    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col,true)
     applyZoomFrameAnimation()
     tImGui.HelpMarker(tLang.L("help_control_scroll_zoom"))
     
