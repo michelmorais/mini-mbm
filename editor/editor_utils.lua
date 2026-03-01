@@ -429,10 +429,16 @@ tUtil.save = function(name, value, tOut, onSaveUserData, saved)
 
     local function basicSerialize(o,precision)
         if type(o) == 'number' then
+            local normalize_number = function(s)
+                if type(s) ~= 'string' then
+                    return s
+                end
+                return (s:gsub(',', '.'))
+            end
             if precision then
-                return string.format("%a",o) -- same bits as the original number
+                return normalize_number(string.format("%a",o)) -- same bits as the original number
             else
-                return tostring(o)
+                return normalize_number(tostring(o))
             end
         elseif type(o) == 'boolean' then
             return tostring(o)

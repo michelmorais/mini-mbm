@@ -565,20 +565,15 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
 
 static inline bool should_flip_uv_for_backend(const bool flip_v_requested)
 {
-#if defined(USE_DIRECTX9)
 #if defined(_DEBUG)
-    static bool s_logged_dx9_uv_normalization = false;
-    if (flip_v_requested && !s_logged_dx9_uv_normalization)
+    static bool s_logged_explicit_uv_flip = false;
+    if (flip_v_requested && !s_logged_explicit_uv_flip)
     {
-        s_logged_dx9_uv_normalization = true;
-        INFO_LOG("ImGui-Lua: DirectX9 UV normalization is enabled by per-draw request.");
+        s_logged_explicit_uv_flip = true;
+        INFO_LOG("ImGui-Lua: Explicit per-draw UV flip is enabled by request.");
     }
 #endif
     return flip_v_requested;
-#else
-    (void)flip_v_requested;
-    return false;
-#endif
 }
 
 static inline ImVec2 normalize_uv_for_backend(const bool flip_v_requested, const ImVec2& uv)

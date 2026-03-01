@@ -2318,13 +2318,25 @@ end
 
 function getShapeViewForAnim(tFrame)
     local sTexHash = string.format('%dx%d', math.floor(tFrame.width),math.floor(tFrame.height))
+    local cached = tAnimationOptions.tShapeAnimations[sTexHash]
+    if cached and cached.bRender2TexturePreview ~= true then
+        cached:destroy()
+        tAnimationOptions.tShapeAnimations[sTexHash] = nil
+    end
     if tAnimationOptions.tShapeAnimations[sTexHash] == nil then
         local x,y      = tFrame.width / 0.5, tFrame.height / 0.5
-        local tVertex  = {-x,-y,  -x,y,  x,-y,       x,-y, -x,y, x,y}
-        local tUv      = {0,0, 0,1, 1,0, 1,0, 0,1, 1,1} --invert V
+        local tVertex  = {-x,-y,  -x,y,  x,-y,  x,y}
+        local tIndex   = {1,2,3, 3,2,4}
+        local tUv
+        if mbm.get('USE_DIRECTX9') then
+            tUv = {0,1, 0,0, 1,1, 1,0}
+        else
+            tUv = {0,0, 0,1, 1,0, 1,1}
+        end
         local nickName = getUniqueNickName()
         local tShape   = shape:new('2dw')
-        tShape:create(tVertex,tUv,nickName)
+        tShape:createIndexed(tVertex,tIndex,tUv,nickName)
+        tShape.bRender2TexturePreview = true
         tAnimationOptions.tShapeAnimations[sTexHash] = tShape
     end
     return tAnimationOptions.tShapeAnimations[sTexHash]
@@ -2427,7 +2439,8 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local sy              = new_width / tFrame.width  * tFrame.height
     local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
     local tTextureInfo, _ = getTextureInfoForAnimImage(tFrame, iNumImage)
-    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col)
+    local bFlipV          = mbm.get('USE_DIRECTX9')
+    tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col,bFlipV)
     applyZoomFrameAnimation()
     tImGui.HelpMarker(tLang.L("help_control_scroll_zoom"))
     
@@ -3596,7 +3609,28 @@ function onOpenSprite()
     local file_name = mbm.openFile(sLastEditorFileName,'*.sprite')
     if file_name then
         onNewSprite()
-        dofile(file_name)
+        local ok, err = pcall(dofile, file_name)
+        if not ok then
+        	--print("Error on load file, trying workaround")
+            local fp = io.open(file_name, 'rb')
+            local content = fp and fp:read('*a') or nil
+            if fp then fp:close() end
+
+            if content and type(err) == 'string' and err:match('malformed number') then
+                local fixed = content:gsub('0x([0-9a-fA-F]+),([0-9a-fA-F]+)p([%+%-]?%d+)', '0x%1.%2p%3')
+                local chunk, load_err = load(fixed, '@' .. file_name)
+                if chunk then
+                    local ok2, err2 = pcall(chunk)
+                    if not ok2 then
+                        error(err2)
+                    end
+                else
+                    error(load_err)
+                end
+            else
+                error(err)
+            end
+        end
         sLastEditorFileName = file_name
         bShowAddFrameOnceWhenSelectedTexture = true
         tUtil.showMessage('Sprite Editor Loaded!')

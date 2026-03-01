@@ -1511,6 +1511,8 @@ end
 
 function onSaveScene(sFileName)
 
+    local oldLocaleNumeric = os.setlocale(nil, 'numeric')
+    os.setlocale('C', 'numeric')
     local fp = io.open(sFileName,"w")
     if fp then
         local tOptionsOut = {}
@@ -1597,8 +1599,10 @@ function onSaveScene(sFileName)
         fp:write('tScene.tMeshesLoadedDictionary = {}\n\n')
         fp:write(getSceneLoaderCode(tOptionsEditor.fSceneCamPos.x,tOptionsEditor.fSceneCamPos.y,tOptionsEditor.sScaleAxis))
         fp:close()
+        os.setlocale(oldLocaleNumeric, 'numeric')
         return true
     else
+        os.setlocale(oldLocaleNumeric, 'numeric')
         print('error',string.format('Could not open the file [%s] for write',sFileName))
         tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), sFileName))
         return false
