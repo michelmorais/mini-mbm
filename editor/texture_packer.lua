@@ -174,6 +174,11 @@ function onLoadTextureConfiguration()
 end
 
 function onSaveTextureConfiguration()
+    local prevNumericLocale = nil
+    if os and os.setlocale then
+        prevNumericLocale = os.setlocale(nil, 'numeric')
+        os.setlocale('C', 'numeric')
+    end
     local sFileName =sFileNameTextureCfg
     if sFileNameTextureCfg == nil then
         sFileName = mbm.saveFile(sFileNameTextureCfg,'*.texturecfg')
@@ -239,6 +244,9 @@ function onSaveTextureConfiguration()
             sFileNameTextureCfg = sFileName
             tUtil.showMessage(tLang.L("texture_config_saved_ok"))
         end
+    end
+    if os and os.setlocale and prevNumericLocale then
+        os.setlocale(prevNumericLocale, 'numeric')
     end
 end
 
@@ -321,7 +329,12 @@ function adjustTextureSize()
             local half_width  = tTextureOptions.fWidth  * 0.5
             local half_height = tTextureOptions.fHeight * 0.5
             local tVertex     = {-half_width ,-half_height,  -half_width,half_height,  half_width,-half_height,  half_width,half_height}
-            local tUv         = {0,0,           0,1,      1,0,       1,1  }
+            local tUv
+            if mbm.get('USE_DIRECTX9') then
+                tUv = {0,1, 0,0, 1,1, 1,0}
+            else
+                tUv = {0,0, 0,1, 1,0, 1,1}
+            end
             local tIndex      = {1,2,3, 3,2,4 }
             
             tShape:createIndexed(tVertex,tIndex,tUv,getNextNickName())

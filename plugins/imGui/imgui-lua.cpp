@@ -563,6 +563,30 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
     return (ImTextureID)(0);
 }
 
+static inline bool should_flip_uv_for_backend(const bool flip_v_requested)
+{
+#if defined(_DEBUG)
+    static bool s_logged_explicit_uv_flip = false;
+    if (flip_v_requested && !s_logged_explicit_uv_flip)
+    {
+        s_logged_explicit_uv_flip = true;
+        INFO_LOG("ImGui-Lua: Explicit per-draw UV flip is enabled by request.");
+    }
+#endif
+    return flip_v_requested;
+}
+
+static inline ImVec2 normalize_uv_for_backend(const bool flip_v_requested, const ImVec2& uv)
+{
+    return should_flip_uv_for_backend(flip_v_requested) ? ImVec2(uv.x, 1.0f - uv.y) : uv;
+}
+
+static inline void normalize_uv_pair_for_backend(const bool flip_v_requested, const ImVec2& uv0_in, const ImVec2& uv1_in, ImVec2& uv0_out, ImVec2& uv1_out)
+{
+    uv0_out = normalize_uv_for_backend(flip_v_requested, uv0_in);
+    uv1_out = normalize_uv_for_backend(flip_v_requested, uv1_in);
+}
+
 void assert_imgui_lua(bool value,const char* file_name,const int line)
 {
     if(value == false)
@@ -4207,16 +4231,25 @@ int onImageImGuiLua(lua_State *lua)
     index_input++;
     const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
+    ImVec2 uv0_backend;
+    ImVec2 uv1_backend;
+    bool flip_v_requested               = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    normalize_uv_pair_for_backend(flip_v_requested, uv0, uv1, uv0_backend, uv1_backend);
     // Use ImageWithBg if tint/bg colors are provided, otherwise use basic Image
     if (top >= index_input)
     {
         const ImVec4 bg_col           = lua_get_rgba_to_ImVec4_fromTable(lua, index_input++);
         const ImVec4 tint_col         = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-        ImGui::ImageWithBg(user_texture_id, size, uv0, uv1, bg_col, tint_col);
+        ImGui::ImageWithBg(user_texture_id, size, uv0_backend, uv1_backend, bg_col, tint_col);
     }
     else
     {
-        ImGui::Image(user_texture_id, size, uv0, uv1);
+        ImGui::Image(user_texture_id, size, uv0_backend, uv1_backend);
     }
     return 0;
 }
@@ -4237,6 +4270,16 @@ int onImageQuadImGuiLua(lua_State *lua)
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,0);
     const ImVec2 uv2                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
     const ImVec2 uv3                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,1);
+    bool flip_v_requested               = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    const ImVec2 uv0_backend            = normalize_uv_for_backend(flip_v_requested, uv0);
+    const ImVec2 uv1_backend            = normalize_uv_for_backend(flip_v_requested, uv1);
+    const ImVec2 uv2_backend            = normalize_uv_for_backend(flip_v_requested, uv2);
+    const ImVec2 uv3_backend            = normalize_uv_for_backend(flip_v_requested, uv3);
     const ImVec4 tint_col               = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
     // Note: ImageQuad is not a standard ImGui function - using draw list instead
     ImDrawList* draw_list               = ImGui::GetWindowDrawList();
@@ -4245,7 +4288,7 @@ int onImageQuadImGuiLua(lua_State *lua)
     ImVec2 p2(cursor_pos.x + size.x, cursor_pos.y);
     ImVec2 p3(cursor_pos.x + size.x, cursor_pos.y + size.y);
     ImVec2 p4(cursor_pos.x, cursor_pos.y + size.y);
-    draw_list->AddImageQuad(user_texture_id, p1, p2, p3, p4, uv0, uv1, uv2, uv3, ImGui::GetColorU32(tint_col));
+    draw_list->AddImageQuad(user_texture_id, p1, p2, p3, p4, uv0_backend, uv1_backend, uv2_backend, uv3_backend, ImGui::GetColorU32(tint_col));
     ImGui::Dummy(size); // Reserve space
     return 0;
 }
@@ -4265,9 +4308,18 @@ int onImageButtonImGuiLua(lua_State *lua)
     index_input++;
     const ImVec2 uv0                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0,0);
     const ImVec2 uv1                    = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1,1);
+    ImVec2 uv0_backend;
+    ImVec2 uv1_backend;
+    bool flip_v_requested               = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    normalize_uv_pair_for_backend(flip_v_requested, uv0, uv1, uv0_backend, uv1_backend);
     const ImVec4 bg_col                 = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(0,0,0,0);
     const ImVec4 tint_col               = top >= index_input ? lua_get_rgba_to_ImVec4_fromTable(lua, index_input++) : ImVec4(1,1,1,1);
-    const bool result                   = ImGui::ImageButton(str_id, user_texture_id, size, uv0, uv1, bg_col, tint_col);
+    const bool result                   = ImGui::ImageButton(str_id, user_texture_id, size, uv0_backend, uv1_backend, bg_col, tint_col);
     lua_pushboolean(lua, result);
     return 1;
 }
@@ -6607,8 +6659,17 @@ int onAddImageImDrawListLua(lua_State *lua)
     const ImU32 col                 = top >= index_input ? ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua,index_input++)) :  IM_COL32_WHITE;
     const ImVec2 uv_min             = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0, 0);
     const ImVec2 uv_max             = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(1, 1);
+    ImVec2 uv_min_backend;
+    ImVec2 uv_max_backend;
+    bool flip_v_requested           = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    normalize_uv_pair_for_backend(flip_v_requested, uv_min, uv_max, uv_min_backend, uv_max_backend);
     ImDrawList* draw_list           = GetImDrawListLua();
-    draw_list->AddImage(user_texture_id,p_min,p_max,uv_min,uv_max,col);
+    draw_list->AddImage(user_texture_id,p_min,p_max,uv_min_backend,uv_max_backend,col);
     return 0;
 }
 
@@ -6628,8 +6689,18 @@ int onAddImageQuadImDrawListLua(lua_State *lua)
     const ImVec2 uv2                = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(1, 0);
     const ImVec2 uv3                = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(1, 1);
     const ImVec2 uv4                = top >= index_input ? lua_pop_ImVec2(lua, index_input++) :  ImVec2(0, 1);
+    bool flip_v_requested           = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    const ImVec2 uv1_backend        = normalize_uv_for_backend(flip_v_requested, uv1);
+    const ImVec2 uv2_backend        = normalize_uv_for_backend(flip_v_requested, uv2);
+    const ImVec2 uv3_backend        = normalize_uv_for_backend(flip_v_requested, uv3);
+    const ImVec2 uv4_backend        = normalize_uv_for_backend(flip_v_requested, uv4);
     ImDrawList* draw_list           = GetImDrawListLua();
-    draw_list->AddImageQuad(user_texture_id,p1,p2,p3,p4,uv1,uv2,uv3,uv4,color);
+    draw_list->AddImageQuad(user_texture_id,p1,p2,p3,p4,uv1_backend,uv2_backend,uv3_backend,uv4_backend,color);
     return 0;
 }
     
@@ -6645,10 +6716,19 @@ int onAddImageRoundedImDrawListLua(lua_State* lua)
     const ImU32 color = ImGui::GetColorU32(lua_get_rgba_to_ImVec4_fromTable(lua, index_input++));
     const ImVec2 uv_min = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(0, 0);
     const ImVec2 uv_max = top >= index_input ? lua_pop_ImVec2(lua, index_input++) : ImVec2(1, 1);
+    ImVec2 uv_min_backend;
+    ImVec2 uv_max_backend;
+    bool flip_v_requested = false;
+    if (top >= index_input)
+    {
+        if (lua_type(lua, top) == LUA_TBOOLEAN)
+            flip_v_requested = lua_toboolean(lua, top) ? true : false;
+    }
+    normalize_uv_pair_for_backend(flip_v_requested, uv_min, uv_max, uv_min_backend, uv_max_backend);
     const float rounding = top >= index_input ? luaL_checknumber(lua, index_input++) : 0.0f;
     ImDrawFlags rounding_corners = lua_opt_flags(lua, top, index_input, ImDrawFlags_RoundCornersAll, drawFlagsMap);
     ImDrawList* draw_list = GetImDrawListLua();
-    draw_list->AddImageRounded(user_texture_id, p_min, p_max, uv_min, uv_max, color, rounding, rounding_corners);
+    draw_list->AddImageRounded(user_texture_id, p_min, p_max, uv_min_backend, uv_max_backend, color, rounding, rounding_corners);
     return 0;
 }
    

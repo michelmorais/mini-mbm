@@ -139,11 +139,11 @@ void MY_SCENE::init()
     //}
 
 	////TODO: check why gif is resizing wrong when load with width and height on lost device
-    //gif = new mbm::GIF_VIEW(this,false,false);
-    //gif->load("Lion-King.gif",600,400);
+    gif = new mbm::GIF_VIEW(this,false,false);
+    gif->load("Lion-King.gif",600,400);
 
-    //this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
-    //this->texBox->load("wooden-box.jpg", 200, 200);
+    this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
+    this->texBox->load("wooden-box.jpg", 200, 200);
     
     //TODO: Needs to be investgated
     //hmd = new mbm::HMD(this);
@@ -240,15 +240,15 @@ void MY_SCENE::init()
     //}
     
     
-    //render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
-    //if (render2Texture->load(512, 512, 512, 512, "my-render", true))
-    //{
-    //    render2Texture->addObject2Render(gif);
-    //    render2Texture->addObject2Render(this->texBox);
-    //    //render2Texture->addObject2Render(sprite);
-    //    //render2Texture->addObject2Render(shape);
-    //    //render2Texture->addObject2Render(line);
-    //}
+    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
+    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
+    {
+        render2Texture->addObject2Render(gif);
+        render2Texture->addObject2Render(this->texBox);
+        //render2Texture->addObject2Render(sprite);
+        //render2Texture->addObject2Render(shape);
+        //render2Texture->addObject2Render(line);
+    }
 
     this->toTrack = texBox;
     
