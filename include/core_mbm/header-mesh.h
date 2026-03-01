@@ -111,8 +111,9 @@ namespace util
     #define MODE_DRAW_VERSION_MBM_HEADER   5
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
     #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
+    #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
 
-    #define CURRENT_VERSION_MBM_HEADER     7
+    #define CURRENT_VERSION_MBM_HEADER     STRONG_TYPES_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -123,6 +124,194 @@ namespace util
     #define HAS_TEX_NO           0  /* no texture */
     #define HAS_TEX_EACH_FRAME   1  /* texture in each frame */
     #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
+
+    struct API_IMPL HEADER_DISK_V8
+    {
+        char name[16];
+        char typeApp[16];
+        int32_t version;
+        uint32_t magic;
+        int32_t reserved;
+        int32_t backBufferWidth;
+        int32_t backBufferHeight;
+        int32_t extraHeader;
+    };
+
+    struct API_IMPL HEADER_MESH_DISK_V8
+    {
+        MATERIAL_GLES material;
+        int32_t totalAnimation;
+        int32_t totalFrames;
+        int32_t deprecated_typePhysics;
+        int16_t hasNorText[2];
+        float angleX, angleY, angleZ;
+        float posX, posY, posZ;
+    };
+
+    struct API_IMPL HEADER_ANIMATION_DISK_V8
+    {
+        char nameAnimation[32];
+        int32_t initialFrame;
+        int32_t finalFrame;
+        float timeBetweenFrame;
+        int32_t typeAnimation;
+        uint16_t hasShaderEffect;
+        uint16_t blendState;
+    };
+
+    struct API_IMPL HEADER_INFO_SHADER_STEP_DISK_V8
+    {
+        int16_t lenNameShader;
+        int16_t lenTextureStage2;
+        int16_t sizeArrayVarInBytes;
+        int16_t typeAnimation;
+        int32_t blendOperation;
+        float timeAnimation;
+    };
+
+    struct API_IMPL HEADER_FRAME_DISK_V8
+    {
+        int32_t totalSubset;
+        int32_t sizeIndexBuffer;
+        int32_t sizeVertexBuffer;
+        int32_t stride;
+        char typeBuffer[4];
+    };
+
+    struct API_IMPL HEADER_DESC_SUBSET_DISK_V8
+    {
+        char nameTexture[64];
+        int32_t vertexCount;
+        int32_t vertexStart;
+        int32_t indexStart;
+        int32_t indexCount;
+        uint8_t alphaColor[4];
+    };
+
+    struct API_IMPL HEADER_IMG_DISK_V8
+    {
+        uint32_t width;
+        uint32_t height;
+        uint16_t depth;
+        uint16_t channel;
+        uint32_t lenght;
+        uint8_t alphaColor[4];
+    };
+
+    struct API_IMPL EXTRA_HEADER_DISK_V8
+    {
+        char type;
+        int32_t sizeExtraHeader;
+    };
+
+    struct API_IMPL INFO_DRAW_MODE_DISK_V8
+    {
+        uint32_t mode_draw;
+        uint32_t mode_cull_face;
+        uint32_t mode_front_face_direction;
+    };
+
+    struct API_IMPL DETAIL_MESH_DISK_V8
+    {
+        int32_t type;
+        int32_t totalBounding;
+    };
+
+    struct API_IMPL DETAIL_HEADER_FONT_DISK_V8
+    {
+        uint16_t sizeNameFonte;
+        uint16_t totalDetailFont;
+        int16_t spaceXCharacter;
+        int16_t spaceYCharacter;
+        uint16_t heightLetter;
+    };
+
+    struct API_IMPL DETAIL_LETTER_DISK_V8
+    {
+        uint8_t letter;
+        uint8_t indexFrame;
+        uint16_t widthLetter;
+        uint16_t heightLetter;
+    };
+
+    struct API_IMPL BTILE_BRICK_INFO_DISK_V8
+    {
+        uint16_t index;
+        uint16_t original_index;
+        uint16_t rotation;
+        uint16_t flipped;
+    };
+
+    struct API_IMPL BTILE_HEADER_MAP_DISK_V8
+    {
+        uint32_t count_width_tile;
+        uint32_t count_height_tile;
+        uint32_t size_width_tile;
+        uint32_t size_height_tile;
+        uint32_t layerCount;
+        uint32_t countRawTiles;
+        uint32_t objectCount;
+        uint32_t propertyCount;
+        uint32_t typeMap;
+        uint32_t background;
+        char background_texture[62];
+        char renderDirection[2];
+    };
+
+    struct API_IMPL BTILE_INDEX_TILE_DISK_V8
+    {
+        uint32_t index;
+        float x;
+        float y;
+    };
+
+    struct API_IMPL BTILE_DETAIL_HEADER_DISK_V8
+    {
+        uint32_t totalObj;
+        uint32_t totalProperties;
+    };
+
+    struct API_IMPL BTILE_OBJ_HEADER_DISK_V8
+    {
+        uint16_t sizeName;
+        uint16_t type;
+        uint16_t sizePoints;
+    };
+
+    struct API_IMPL BTILE_PROPERTY_HEADER_DISK_V8
+    {
+        uint16_t type;
+        uint16_t nameLength;
+        uint16_t valueLength;
+        uint16_t ownerLength;
+    };
+
+    struct API_IMPL STAGE_PARTICLE_DISK_V8
+    {
+        float minOffsetPosition[3];
+        float maxOffsetPosition[3];
+        float minDirection[3];
+        float maxDirection[3];
+        float minColor[3];
+        float maxColor[3];
+        float minSpeed;
+        float maxSpeed;
+        float minTimeLife;
+        float maxTimeLife;
+        float minSizeParticle;
+        float maxSizeParticle;
+        float ariseTime;
+        float stageTime;
+        uint32_t totalParticle;
+        uint8_t segmented;
+        uint8_t sizeMin2Max;
+        uint8_t revive;
+        uint8_t _operator;
+        uint8_t invert_red;
+        uint8_t invert_green;
+        uint8_t invert_blue;
+        uint8_t invert_alpha;
+    };
 
     // step 1:
     struct API_IMPL HEADER

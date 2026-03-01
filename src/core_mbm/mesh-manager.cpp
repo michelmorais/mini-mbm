@@ -29,6 +29,8 @@
 #include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
+#include "mesh-manager-legacy-internal.h"
+#include "mesh-v8-io.h"
 
 #include <cfloat>
 #include <string>
@@ -221,7 +223,7 @@ namespace mbm
                     return ext;
                 if(newExt.compare("TILE") == 0)
                     return ext;
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                 if(newExt.compare("MBM") == 0)
                     return ext;
 #endif
@@ -266,7 +268,7 @@ namespace mbm
         FILE *           fp = util::openFile(fileNamePath, "rb");
         if (!fp)
             return log_util::onFailed(fp,__FILE__, __LINE__, "Failed to open file [%s]", fileNamePath ? fileNamePath : "nullptr");
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
         fclose(fp);
@@ -282,7 +284,7 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!fread(&headerMbmOut, sizeof(util::HEADER), 1, fp))
+        if (!util::readHeaderV8(fp, headerMbmOut))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
         if (strncmp(headerMbmOut.name, "mbm", 3) == 0 &&
             (strncmp(headerMbmOut.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
@@ -319,7 +321,7 @@ namespace mbm
         for (int i = 0; i < headerMbmOut.extraHeader; i++)
         {
             util::EXTRA_HEADER extra;
-            if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+            if (!util::readExtraHeaderV8(fp, extra))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
             if (extra.type == 1)// paths
             {
@@ -335,7 +337,7 @@ namespace mbm
 
         if(headerMbmOut.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
-            if (!fread(&info_mode, sizeof(util::INFO_DRAW_MODE), 1, fp))
+            if (!util::readInfoDrawModeV8(fp, info_mode))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
         }
         // step 2: --------------------------------------------------------------------------------------------------
@@ -345,7 +347,7 @@ namespace mbm
             if (headerMbmOut.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
                 /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detailInfo))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
                 if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
                     return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
@@ -363,7 +365,7 @@ namespace mbm
                 /* ************* End - old just here to compatibility ***************** */
             }
             
-            if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+            if (!util::readDetailMeshV8(fp, detailInfo))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
             if (headerMbmOut.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
@@ -378,7 +380,7 @@ namespace mbm
             for (int i = 0; i < detailInfo.totalBounding; )
             {
                 util::DETAIL_MESH detail;
-                if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detail))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
@@ -387,7 +389,7 @@ namespace mbm
                         for(int j=0; j< detail.totalBounding; j++)
                         {
                             CUBE cube;
-                            if (!fread(&cube, sizeof(CUBE), 1, fp))
+                            if (!util::readCubeV8(fp, cube))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -398,7 +400,7 @@ namespace mbm
                         for(int j=0; j< detail.totalBounding; j++)
                         {
                             SPHERE base;
-                            if (!fread(&base, sizeof(SPHERE), 1, fp))
+                            if (!util::readSphereV8(fp, base))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -409,7 +411,7 @@ namespace mbm
                         for(int j=0; j< detail.totalBounding; j++)
                         {
                             CUBE_COMPLEX complex;
-                            if (!fread(&complex, sizeof(CUBE_COMPLEX), 1, fp))
+                            if (!util::readCubeComplexV8(fp, complex))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -423,7 +425,7 @@ namespace mbm
                             for(int j=0; j< detail.totalBounding; j++)
                             {
                                 TRIANGLE triangle;
-                                if (!fread(&triangle, sizeof(TRIANGLE), 1, fp))
+                                if (!util::readTriangleV8(fp, triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -432,7 +434,7 @@ namespace mbm
                             for(int j=0; j< detail.totalBounding; j++)
                             {
                                 TRIANGLE triangle;
-                                if (!fread(&triangle, sizeof(TRIANGLE) - sizeof(VEC2), 1, fp))
+                                if (!util::readTriangleLegacyNoPosV8(fp, triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -442,7 +444,7 @@ namespace mbm
                     case 5:
                     {
                         util::DETAIL_HEADER_FONT headerFont;
-                        if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                        if (!util::readDetailHeaderFontV8(fp, headerFont))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]",
                                                      fileNamePath);
                         auto strNameFont = new char[headerFont.sizeNameFonte];
@@ -459,7 +461,7 @@ namespace mbm
                         for (int j = 0; j < headerFont.totalDetailFont; ++j)
                         {
                             auto detailFont = new util::DETAIL_LETTER();
-                            if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                            if (!util::readDetailLetterV8(fp, *detailFont))
                             {
                                 delete detailFont;
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -479,7 +481,7 @@ namespace mbm
                         for (int j = 0; j< detail.totalBounding; j++)
                         {
                             util::STAGE_PARTICLE stage;
-                            if (!fread(&stage, sizeof(util::STAGE_PARTICLE), 1, fp))
+                            if (!util::readStageParticleV8(fp, stage))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
                             lsStageParticle.push_back(stage);
                         }
@@ -490,7 +492,7 @@ namespace mbm
                     {
                         util::BTILE_INFO infoTileMap;
                         
-                        if (!fread(&infoTileMap.map,  sizeof(util::BTILE_HEADER_MAP),1,fp))
+                        if (!util::readBtileHeaderMapV8(fp, infoTileMap.map))
                         {
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
                         }
@@ -500,7 +502,7 @@ namespace mbm
 
 
                         infoTileMap.infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap.map.countRawTiles];
-                        if (!fread(infoTileMap.infoBrickEditor,  sizeof(util::BTILE_BRICK_INFO) * infoTileMap.map.countRawTiles,1,fp))
+                        if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap.infoBrickEditor, infoTileMap.map.countRawTiles))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick info editor tile from  detail tile!");
 
                         const uint32_t tileCount = infoTileMap.map.count_height_tile * infoTileMap.map.count_width_tile;
@@ -508,23 +510,23 @@ namespace mbm
 
                         for (uint32_t  j = 0; j < infoTileMap.map.layerCount; ++j)
                         {
-                            if (!fread(infoTileMap.layers[j].offset,  sizeof(infoTileMap.layers[j].offset),1,fp))
+                            if (!util::readFloat3ArrayV8(fp, infoTileMap.layers[j].offset))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
 
                             infoTileMap.layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
 
-                            if (!fread(infoTileMap.layers[j].lsIndexTiles,  sizeof(util::BTILE_INDEX_TILE) * tileCount,1,fp))
+                            if (!util::readBtileIndexTileArrayV8(fp, infoTileMap.layers[j].lsIndexTiles, tileCount))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
                         }
 
                         util::BTILE_DETAIL_HEADER detailObjsProperty;
-                        if (!fread(&detailObjsProperty, sizeof(util::BTILE_DETAIL_HEADER),1,fp))
+                        if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
 
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
                         {
                             util::BTILE_OBJ_HEADER objHeader;
-                            if (!fread(&objHeader, sizeof(util::BTILE_OBJ_HEADER), 1,fp))
+                            if (!util::readBtileObjHeaderV8(fp, objHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
                             infoTileMap.lsObj.push_back(obj);
@@ -539,7 +541,7 @@ namespace mbm
                             {
                                 auto* point = new mbm::VEC2();
                                 obj->lsPoints.push_back(point);
-                                if (!fread(point, sizeof(mbm::VEC2),1, fp))
+                                if (!util::readVec2V8(fp, *point))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             }
                         }
@@ -547,7 +549,7 @@ namespace mbm
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
                         {
                             util::BTILE_PROPERTY_HEADER propertyHeader;
-                            if (!fread(&propertyHeader, sizeof(util::BTILE_PROPERTY_HEADER),1, fp))
+                            if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
                             auto* property = new util::BTILE_PROPERTY();
                             infoTileMap.lsProperty.push_back(property);
@@ -584,7 +586,7 @@ namespace mbm
                 }
             }
         }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
         {
             // step 2: --------------------------------------------------------------------------------------------------
@@ -595,7 +597,7 @@ namespace mbm
                     util::DETAIL_MESH detail;
                     // 2.1 Cubos -- Todos os boundings
                     // --------------------------------------------------------------------
-                    if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                    if (!util::readDetailMeshV8(fp, detail))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
                     if (detail.totalBounding)
                     {
@@ -606,7 +608,7 @@ namespace mbm
                                 for (int i = 0; i < detail.totalBounding; ++i)
                                 {
                                     CUBE base;
-                                    if (!fread(&base, sizeof(CUBE), 1, fp))
+                                    if (!util::readCubeV8(fp, base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -618,7 +620,7 @@ namespace mbm
                                 for (int i = 0; i < detail.totalBounding; ++i)
                                 {
                                     SPHERE base;
-                                    if (!fread(&base, sizeof(SPHERE), 1, fp))
+                                    if (!util::readSphereV8(fp, base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                 }
@@ -629,7 +631,7 @@ namespace mbm
                                 for (int i = 0; i < detail.totalBounding; ++i)
                                 {
                                     CUBE_COMPLEX complex;
-                                    if (!fread(&complex, sizeof(CUBE_COMPLEX), 1, fp))
+                                    if (!util::readCubeComplexV8(fp, complex))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -657,7 +659,7 @@ namespace mbm
                 case util::TYPE_MESH_FONT:
                 {
                     util::DETAIL_HEADER_FONT headerFont;
-                    if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                    if (!util::readDetailHeaderFontV8(fp, headerFont))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
                     auto strNameFont = new char[headerFont.sizeNameFonte];
                     if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
@@ -673,7 +675,7 @@ namespace mbm
                     for (int i = 0; i < headerFont.totalDetailFont; ++i)
                     {
                         auto detailFont = new util::DETAIL_LETTER();
-                        if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                        if (!util::readDetailLetterV8(fp, *detailFont))
                         {
                             delete detailFont;
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -699,7 +701,7 @@ namespace mbm
         }
 #endif
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!fread(&headerMeshMbmOut, sizeof(headerMeshMbmOut), 1, fp))
+        if (!util::readHeaderMeshV8(fp, headerMeshMbmOut))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
         fclose(fp);
         fp = nullptr;
@@ -764,7 +766,7 @@ namespace mbm
                        : typeOut;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!fread(&headerMbmOut, sizeof(util::HEADER), 1, fp))
+        if (!util::readHeaderV8(fp, headerMbmOut))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath) == false
                        ? util::TYPE_MESH_UNKNOWN
                        : typeOut;
@@ -1040,7 +1042,10 @@ namespace mbm
         // 1 header MBM -------------------------------------------------------------------------------
         std::vector<std::string> ls_paths = this->getKnowPathsToExtraHeader();
         headerMain.extraHeader = static_cast<int>(ls_paths.size());
-        if (!util::saveToFileBinary(fileOut, &this->headerMain, sizeof(util::HEADER), nullptr, 0, &file))
+        file = util::openFile(fileOut, "wb");
+        if (!file)
+            return log_util::onFailed(file,__FILE__, __LINE__, "Failed to open file [%s]", fileOut);
+        if (!util::writeHeaderV8(file, this->headerMain))
             return log_util::onFailed(file,__FILE__, __LINE__, "Failed to save file [%s]", fileOut);
 
 
@@ -1051,13 +1056,13 @@ namespace mbm
             const std::string& path = ls_paths[i];
             extra.type = 1;
             extra.sizeExtraHeader = path.size();
-            if (!util::addToFileBinary(fileOut, &extra, sizeof(util::EXTRA_HEADER), &file))
+            if (!util::writeExtraHeaderV8(file, extra))
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to save EXTRA_HEADER [%s]", fileOut);
             if (!util::addToFileBinary(fileOut, path.data(), path.size(), &file))
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to save path for EXTRA_HEADER [%s]", fileOut);
         }
 
-        if (!util::addToFileBinary(fileOut,&this->info_mode, sizeof(util::INFO_DRAW_MODE),&file))
+        if (!util::writeInfoDrawModeV8(file, this->info_mode))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail INFO_DRAW_MODE [%s]", fileOut);
 
         int totalBounding = ((typeMe == util::TYPE_MESH_FONT) || (typeMe == util::TYPE_MESH_PARTICLE) || (typeMe == util::TYPE_MESH_TILE_MAP)) ? 1 : 0;
@@ -1073,7 +1078,7 @@ namespace mbm
         util::DETAIL_MESH detailHeader;
         detailHeader.totalBounding = totalBounding;
         detailHeader.type          = 'P'; //Physics
-        if (!util::addToFileBinary(fileOut, &detailHeader, sizeof(util::DETAIL_MESH), &file))
+        if (!util::writeDetailMeshV8(file, detailHeader))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail header bounding box!!");
 
         if (this->infoPhysics.lsCube.size())
@@ -1081,12 +1086,12 @@ namespace mbm
             util::DETAIL_MESH detail;
             detail.totalBounding = static_cast<int>(this->infoPhysics.lsCube.size());
             detail.type          = 1;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
                 CUBE *cube = this->infoPhysics.lsCube[static_cast<std::vector<CUBE*>::size_type>(i)];
-                if (!util::addToFileBinary(fileOut, cube, sizeof(CUBE), &file))
+                if (!util::writeCubeV8(file, *cube))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
@@ -1095,12 +1100,12 @@ namespace mbm
             util::DETAIL_MESH detail;
             detail.totalBounding = static_cast<int>(this->infoPhysics.lsSphere.size());
             detail.type          = 2;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
                 SPHERE *sphere = this->infoPhysics.lsSphere[static_cast<std::vector<SPHERE*>::size_type>(i)];
-                if (!util::addToFileBinary(fileOut, sphere, sizeof(SPHERE), &file))
+                if (!util::writeSphereV8(file, *sphere))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
@@ -1109,12 +1114,12 @@ namespace mbm
             util::DETAIL_MESH detail;
             detail.totalBounding = static_cast<int>(this->infoPhysics.lsCubeComplex.size());
             detail.type          = 3;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
                 CUBE_COMPLEX *complex = this->infoPhysics.lsCubeComplex[static_cast<std::vector<CUBE_COMPLEX*>::size_type>(i)];
-                if (!util::addToFileBinary(fileOut, complex, sizeof(CUBE_COMPLEX), &file))
+                if (!util::writeCubeComplexV8(file, *complex))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
@@ -1123,12 +1128,12 @@ namespace mbm
             util::DETAIL_MESH detail;
             detail.totalBounding = static_cast<int>(this->infoPhysics.lsTriangle.size());
             detail.type          = 4;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail bounding box!!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
                 TRIANGLE *triangle = this->infoPhysics.lsTriangle[static_cast<std::vector<TRIANGLE*>::size_type>(i)];
-                if (!util::addToFileBinary(fileOut, triangle, sizeof(TRIANGLE), &file))
+                if (!util::writeTriangleV8(file, *triangle))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save bounding box!");
             }
         }
@@ -1140,7 +1145,7 @@ namespace mbm
               return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail font, infoFont is null!");
             detail.totalBounding = 1;
             detail.type          = 5;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail font!");
             util::DETAIL_HEADER_FONT headerFont;
             headerFont.totalDetailFont = 0;
@@ -1156,7 +1161,7 @@ namespace mbm
             headerFont.spaceXCharacter = static_cast<char>(infoFont->spaceXCharacter);
             headerFont.spaceYCharacter = static_cast<char>(infoFont->spaceYCharacter);
             headerFont.heightLetter    = static_cast<uint16_t>(infoFont->heightLetter);
-            if (!util::addToFileBinary(fileOut, &headerFont, sizeof(util::DETAIL_HEADER_FONT), &file))
+            if (!util::writeDetailHeaderFontV8(file, headerFont))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to add header DETAIL_HEADER_FONT!!");
 
             if (!util::addToFileBinary(fileOut,infoFont->fontName.c_str(), infoFont->fontName.size() + 1, &file))
@@ -1169,7 +1174,7 @@ namespace mbm
                 if (letter->detail)
                 {
                     util::DETAIL_LETTER *detailFont = letter->detail;
-                    if (!util::addToFileBinary(fileOut, detailFont, sizeof(util::DETAIL_LETTER), &file))
+                    if (!util::writeDetailLetterV8(file, *detailFont))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to include detail DETAIL_LETTER!!");
                     totalLetters++;
                 }
@@ -1186,12 +1191,12 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to include detail particle!!");
             detail.totalBounding = static_cast<int>(lsParticleInfo->size());
             detail.type = 6;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail particle!");
             for (int i = 0; i < detail.totalBounding; ++i)
             {
                 util::STAGE_PARTICLE* stage = lsParticleInfo->at(static_cast<std::vector<util::STAGE_PARTICLE*>::size_type>(i));
-                if (!util::addToFileBinary(fileOut, stage, sizeof(util::STAGE_PARTICLE), &file))
+                if (!util::writeStageParticleV8(file, *stage))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to include detail particle!!");
             }
         }
@@ -1204,13 +1209,13 @@ namespace mbm
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile!");
             detail.totalBounding = infoTileMap->map.layerCount;
             detail.type = 7;
-            if (!util::addToFileBinary(fileOut, &detail, sizeof(util::DETAIL_MESH), &file))
+            if (!util::writeDetailMeshV8(file, detail))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile!");
 
-            if (!util::addToFileBinary(fileOut, &infoTileMap->map , sizeof(util::BTILE_HEADER_MAP), &file))
+            if (!util::writeBtileHeaderMapV8(file, infoTileMap->map))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile!");
 
-            if (!util::addToFileBinary(fileOut, infoTileMap->infoBrickEditor, sizeof(util::BTILE_BRICK_INFO) * infoTileMap->map.countRawTiles, &file))
+            if (!util::writeBtileBrickInfoArrayV8(file, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to include brick editor info tile!!");
 
             const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
@@ -1219,24 +1224,24 @@ namespace mbm
             {
                 const util::BTILE_INDEX_TILE* lsIndexTiles = infoTileMap->layers[i].lsIndexTiles;
                 
-                if (!util::addToFileBinary(fileOut, infoTileMap->layers[i].offset, sizeof(infoTileMap->layers[i].offset), &file))
+                if (!util::writeFloat3ArrayV8(file, infoTileMap->layers[i].offset))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to include offset of layer detail tile!!");
 
-                if (!util::addToFileBinary(fileOut, lsIndexTiles, sizeof(util::BTILE_INDEX_TILE) * tileCount, &file))
+                if (!util::writeBtileIndexTileArrayV8(file, lsIndexTiles, tileCount))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to include index detail tile!!");
             }
 
             util::BTILE_DETAIL_HEADER detailObjsProperty;
             detailObjsProperty.totalObj			= static_cast<uint32_t>(infoTileMap->lsObj.size());
             detailObjsProperty.totalProperties	= static_cast<uint32_t>(infoTileMap->lsProperty.size());
-            if (!util::addToFileBinary(fileOut, &detailObjsProperty, sizeof(util::BTILE_DETAIL_HEADER), &file))
+            if (!util::writeBtileDetailHeaderV8(file, detailObjsProperty))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile header!");
 
             for(uint32_t i= 0 ; i < detailObjsProperty.totalObj; ++i)
             {
                 util::BTILE_OBJ* obj = infoTileMap->lsObj[i];
                 util::BTILE_OBJ_HEADER objHeader(obj);
-                if (!util::addToFileBinary(fileOut, &objHeader, sizeof(util::BTILE_OBJ_HEADER), &file))
+                if (!util::writeBtileObjHeaderV8(file, objHeader))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile header!");
                 if(obj->name.size() > 0)
                 {
@@ -1245,7 +1250,7 @@ namespace mbm
                 }
                 for(auto & lsPoint : obj->lsPoints)
                 {
-                    if (!util::addToFileBinary(fileOut, lsPoint, sizeof(VEC2), &file))
+                    if (!util::writeVec2V8(file, *lsPoint))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail tile header!");
                 }
             }
@@ -1254,7 +1259,7 @@ namespace mbm
             {
                 util::BTILE_PROPERTY* property = infoTileMap->lsProperty[i];
                 util::BTILE_PROPERTY_HEADER propertyHeader(property);
-                if (!util::addToFileBinary(fileOut, &propertyHeader, sizeof(util::BTILE_PROPERTY_HEADER), &file))
+                if (!util::writeBtilePropertyHeaderV8(file, propertyHeader))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to save detail property tile header!");
                 if(property->name.size() > 0)
                 {
@@ -1284,7 +1289,7 @@ namespace mbm
         }
 
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!util::addToFileBinary(fileOut, &headerMesh, sizeof(util::HEADER_MESH), &file))
+        if (!util::writeHeaderMeshV8(file, headerMesh))
             return log_util::onFailed(file,__FILE__, __LINE__, "failed to save header of file!!");
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
@@ -1328,7 +1333,7 @@ namespace mbm
             }
             headerFrame->totalSubset      = static_cast<int>(totalSubset);
             headerFrame->sizeVertexBuffer = static_cast<int>(sVertex);
-            if (!util::addToFileBinary(fileOut, headerFrame, sizeof(util::HEADER_FRAME), &file))
+            if (!util::writeHeaderFrameV8(file, *headerFrame))
                 return log_util::onFailed(file,__FILE__, __LINE__, "failed to add header of frame!");
             // 6 Todos os headers subset deste frame
             // -------------------------------------------------------------------------------
@@ -1378,15 +1383,16 @@ namespace mbm
                 headerDescSubset.indexCount  = pSubset->indexCount;
                 headerDescSubset.hasAlphaColor  = 1;
 
-                if (!util::addToFileBinary(fileOut, &headerDescSubset, sizeof(util::HEADER_DESC_SUBSET), &file))
+                if (!util::writeHeaderDescSubsetV8(file, headerDescSubset))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to add header of subset!");
             }
 
             // 6 index buffer se houver -----------------------------------------------------------------------------
             if (headerFrame->sizeIndexBuffer && strcmp(headerFrame->typeBuffer, "IB") == 0)
             {
-                if (!util::addToFileBinary(fileOut, currentFrameBuffer->indexBuffer,
-                                           static_cast<size_t>(headerFrame->sizeIndexBuffer) * sizeof(int16_t), &file))
+                if (!util::writeU16ArrayV8(file,
+                                           currentFrameBuffer->indexBuffer,
+                                           static_cast<uint32_t>(headerFrame->sizeIndexBuffer)))
                     return log_util::onFailed(file,__FILE__, __LINE__, "failed to add index buffer!!! !!");
             }
             // 6 Vertex buffer -----------------------------------------------------------------------------
@@ -1401,7 +1407,7 @@ namespace mbm
                         pPosition[i].x = position[i].x;
                         pPosition[i].y = position[i].y;
                     }
-                    if (!util::addToFileBinary(fileOut, pPosition, static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC2), &file))
+                    if (!util::writeVec2ArrayV8(file, pPosition, static_cast<uint32_t>(headerFrame->sizeVertexBuffer)))
                     {
                         delete[] pPosition;
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
@@ -1410,14 +1416,16 @@ namespace mbm
                 }
                 else
                 {
-                    if (!util::addToFileBinary(fileOut, currentFrameBuffer->position,
-                                               static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC3), &file))
+                    if (!util::writeVec3ArrayV8(file,
+                                                reinterpret_cast<VEC3*>(currentFrameBuffer->position),
+                                                static_cast<uint32_t>(headerFrame->sizeVertexBuffer)))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
                 if (headerMesh.hasNorText[0] != HAS_NOR_NO)
                 {
-                    if (!util::addToFileBinary(fileOut, currentFrameBuffer->normal,
-                                               static_cast<size_t>(headerFrame->sizeVertexBuffer) * sizeof(VEC3), &file))
+                    if (!util::writeVec3ArrayV8(file,
+                                                reinterpret_cast<VEC3*>(currentFrameBuffer->normal),
+                                                static_cast<uint32_t>(headerFrame->sizeVertexBuffer)))
                         return log_util::onFailed(file,__FILE__, __LINE__, "failed to add vertex buffer");
                 }
                 if (headerMesh.hasNorText[1] == HAS_TEX_EACH_FRAME)
@@ -1449,7 +1457,7 @@ namespace mbm
         if (!fp)
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
         MINIZ minz;
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
         fclose(fp);
@@ -1466,7 +1474,7 @@ namespace mbm
         fileName = fileNamePath;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!fread(&headerMain, sizeof(util::HEADER), 1, fp))
+        if (!util::readHeaderV8(fp, headerMain))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
         if (strncmp(headerMain.name, "mbm", 3) == 0 &&
             (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
@@ -1500,13 +1508,25 @@ namespace mbm
         }
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
+        if (headerMain.version < CURRENT_VERSION_MBM_HEADER &&
+            !legacy_mesh_internal::g_skipLegacyDispatchMeshDebug)
+        {
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
+            if (fp)
+                fclose(fp);
+            fp = nullptr;
+            return this->loadDebugLegacyCompat(fileNamePath);
+#else
+            return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", headerMain.version);
+#endif
+        }
 
         if (headerMain.version >= EXTRA_MBM_HEADER_PATH_TEXTURE)
         {
             for (int i = 0; i < headerMain.extraHeader; i++)
             {
                 util::EXTRA_HEADER extra;
-                if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+                if (!util::readExtraHeaderV8(fp, extra))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
                 if (extra.type == 1)// paths
                 {
@@ -1525,7 +1545,7 @@ namespace mbm
         }
         if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
-            if (!fread(&info_mode, sizeof(util::INFO_DRAW_MODE), 1, fp))
+            if (!util::readInfoDrawModeV8(fp, info_mode))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
         }
         if(typeMe == util::TYPE_MESH_TILE_MAP)
@@ -1543,7 +1563,7 @@ namespace mbm
             if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
                 /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detailInfo))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
                 if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
                     return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
@@ -1561,7 +1581,7 @@ namespace mbm
                 /* ************* End - old just here to compatibility ***************** */
             }
             
-            if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+            if (!util::readDetailMeshV8(fp, detailInfo))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
             if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
@@ -1576,7 +1596,7 @@ namespace mbm
             for (int i = 0; i < detailInfo.totalBounding; )
             {
                 util::DETAIL_MESH detail;
-                if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detail))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
@@ -1586,7 +1606,7 @@ namespace mbm
                         {
                             auto cube = new CUBE();
                             this->infoPhysics.lsCube.push_back(cube);
-                            if (!fread(cube, sizeof(CUBE), 1, fp))
+                            if (!util::readCubeV8(fp, *cube))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -1598,7 +1618,7 @@ namespace mbm
                         {
                             auto base = new SPHERE();
                             this->infoPhysics.lsSphere.push_back(base);
-                            if (!fread(base, sizeof(SPHERE), 1, fp))
+                            if (!util::readSphereV8(fp, *base))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -1610,7 +1630,7 @@ namespace mbm
                         {
                             auto complex = new CUBE_COMPLEX();
                             this->infoPhysics.lsCubeComplex.push_back(complex);
-                            if (!fread(complex, sizeof(CUBE_COMPLEX), 1, fp))
+                            if (!util::readCubeComplexV8(fp, *complex))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -1625,7 +1645,7 @@ namespace mbm
                             {
                                 auto triangle = new TRIANGLE();
                                 this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!fread(triangle, sizeof(TRIANGLE), 1, fp))
+                                if (!util::readTriangleV8(fp, *triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -1635,7 +1655,7 @@ namespace mbm
                             {
                                 auto triangle = new TRIANGLE();
                                 this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!fread(triangle, sizeof(TRIANGLE) - sizeof(VEC2) , 1, fp))
+                                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -1647,7 +1667,7 @@ namespace mbm
                         auto *infoFont = new INFO_BOUND_FONT();
                         this->extraInfo = infoFont;
                         util::DETAIL_HEADER_FONT headerFont;
-                        if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                        if (!util::readDetailHeaderFontV8(fp, headerFont))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]",
                                                      fileNamePath);
                         auto strNameFont = new char[headerFont.sizeNameFonte];
@@ -1664,7 +1684,7 @@ namespace mbm
                         for (int j = 0; j < headerFont.totalDetailFont; ++j)
                         {
                             auto detailFont = new util::DETAIL_LETTER();
-                            if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                            if (!util::readDetailLetterV8(fp, *detailFont))
                             {
                                 delete detailFont;
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -1687,7 +1707,7 @@ namespace mbm
                         {
                             auto stage = new util::STAGE_PARTICLE();
                             lsParticleInfo->push_back(stage);
-                            if (!fread(stage, sizeof(util::STAGE_PARTICLE), 1, fp))
+                            if (!util::readStageParticleV8(fp, *stage))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
                         }
                         i += 1;
@@ -1698,7 +1718,7 @@ namespace mbm
                         auto* infoTileMap = new util::BTILE_INFO();
                         this->extraInfo = infoTileMap;
 
-                        if (!fread(&infoTileMap->map,  sizeof(util::BTILE_HEADER_MAP),1,fp))
+                        if (!util::readBtileHeaderMapV8(fp, infoTileMap->map))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
 
                         if(infoTileMap->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
@@ -1706,7 +1726,7 @@ namespace mbm
 
 
                         infoTileMap->infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap->map.countRawTiles];
-                        if (!fread(infoTileMap->infoBrickEditor,  sizeof(util::BTILE_BRICK_INFO) * infoTileMap->map.countRawTiles,1,fp))
+                        if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick info editor tile from  detail tile!");
 
                         const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
@@ -1714,22 +1734,22 @@ namespace mbm
 
                         for (uint32_t  j = 0; j < infoTileMap->map.layerCount; ++j)
                         {
-                            if (!fread(infoTileMap->layers[j].offset,  sizeof(infoTileMap->layers[j].offset),1,fp))
+                            if (!util::readFloat3ArrayV8(fp, infoTileMap->layers[j].offset))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
 
                             infoTileMap->layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
-                            if (!fread(infoTileMap->layers[j].lsIndexTiles,  sizeof(util::BTILE_INDEX_TILE) * tileCount,1,fp))
+                            if (!util::readBtileIndexTileArrayV8(fp, infoTileMap->layers[j].lsIndexTiles, tileCount))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
                         }
 
                         util::BTILE_DETAIL_HEADER detailObjsProperty;
-                        if (!fread(&detailObjsProperty, sizeof(util::BTILE_DETAIL_HEADER),1,fp))
+                        if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
 
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
                         {
                             util::BTILE_OBJ_HEADER objHeader;
-                            if (!fread(&objHeader, sizeof(util::BTILE_OBJ_HEADER), 1,fp))
+                            if (!util::readBtileObjHeaderV8(fp, objHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
                             infoTileMap->lsObj.push_back(obj);
@@ -1744,7 +1764,7 @@ namespace mbm
                             {
                                 auto* point = new VEC2();
                                 obj->lsPoints.push_back(point);
-                                if (!fread(point, sizeof(VEC2),1, fp))
+                                if (!util::readVec2V8(fp, *point))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             }
                         }
@@ -1752,7 +1772,7 @@ namespace mbm
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
                         {
                             util::BTILE_PROPERTY_HEADER propertyHeader;
-                            if (!fread(&propertyHeader, sizeof(util::BTILE_PROPERTY_HEADER),1, fp))
+                            if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
                             auto* property = new util::BTILE_PROPERTY(static_cast<util::BTILE_PROPERTY_TYPE>(propertyHeader.type));
                             infoTileMap->lsProperty.push_back(property);
@@ -1790,7 +1810,7 @@ namespace mbm
                 }
             }
         }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
         {
             // step 2: --------------------------------------------------------------------------------------------------
@@ -1801,7 +1821,7 @@ namespace mbm
                     util::DETAIL_MESH detail;
                     // 2.1 Cubos -- Todos os boundings
                     // --------------------------------------------------------------------
-                    if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                    if (!util::readDetailMeshV8(fp, detail))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
                     if (detail.totalBounding)
                     {
@@ -1813,7 +1833,7 @@ namespace mbm
                                 {
                                     auto base = new CUBE();
                                     this->infoPhysics.lsCube.push_back(base);
-                                    if (!fread(base, sizeof(CUBE), 1, fp))
+                                    if (!util::readCubeV8(fp, *base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -1826,7 +1846,7 @@ namespace mbm
                                 {
                                     auto base = new SPHERE();
                                     this->infoPhysics.lsSphere.push_back(base);
-                                    if (!fread(base, sizeof(SPHERE), 1, fp))
+                                    if (!util::readSphereV8(fp, *base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                 }
@@ -1838,7 +1858,7 @@ namespace mbm
                                 {
                                     auto complex = new CUBE_COMPLEX();
                                     this->infoPhysics.lsCubeComplex.push_back(complex);
-                                    if (!fread(complex, sizeof(CUBE_COMPLEX), 1, fp))
+                                    if (!util::readCubeComplexV8(fp, *complex))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -1868,7 +1888,7 @@ namespace mbm
                     auto *   infoFont = new INFO_BOUND_FONT();
                     this->extraInfo = infoFont;
                     util::DETAIL_HEADER_FONT headerFont;
-                    if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                    if (!util::readDetailHeaderFontV8(fp, headerFont))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
                     auto strNameFont = new char[headerFont.sizeNameFonte];
                     if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
@@ -1884,7 +1904,7 @@ namespace mbm
                     for (int i = 0; i < headerFont.totalDetailFont; ++i)
                     {
                         auto detailFont = new util::DETAIL_LETTER();
-                        if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                        if (!util::readDetailLetterV8(fp, *detailFont))
                         {
                             delete detailFont;
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -1910,7 +1930,7 @@ namespace mbm
         }
 #endif
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!fread(&headerMesh, sizeof(util::HEADER_MESH), 1, fp))
+        if (!util::readHeaderMeshV8(fp, headerMesh))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
         if (headerMesh.totalAnimation == 0)
             return log_util::onFailed(fp,__FILE__, __LINE__, "there is no animation [%s]", fileNamePath);
@@ -1918,7 +1938,7 @@ namespace mbm
         // 4 header anim -- Todas as animações -----------------------------------------------------------
         if (headerMain.version == INITIAL_VERSION_MBM_HEADER)
         {
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (!deprecated_mbm::fillAnimation_1(fileNamePath, fp, &headerMesh, &this->infoAnimation))
                 return false;
 #else
@@ -1936,7 +1956,7 @@ namespace mbm
         }
         if (this->headerMain.version == INITIAL_VERSION_MBM_HEADER)
             this->headerMain.version = SPRITE_INFO_VERSION_MBM_HEADER;
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         if (this->headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
         {
             deprectedInfoSprite.fillOldPhysicsSprite_2(this->typeMe, this->infoAnimation, this->headerMesh.totalFrames);
@@ -1951,7 +1971,7 @@ namespace mbm
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
             util::HEADER_FRAME *headerFrame = &pBuffer->headerFrame;
-            if (!fread(headerFrame, sizeof(util::HEADER_FRAME), 1, fp))
+            if (!util::readHeaderFrameV8(fp, *headerFrame))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of frame [%s]", fileNamePath);
 
             // 6 Todos os headers subset deste frame
@@ -1961,7 +1981,7 @@ namespace mbm
             {
                 auto pSubset = new util::SUBSET_DEBUG();
                 pBuffer->subset.push_back(pSubset);
-                if (!fread(&headerDescSubset, sizeof(util::HEADER_DESC_SUBSET), 1, fp))
+                if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
                 pSubset->vertexStart = headerDescSubset.vertexStart;
                 pSubset->indexStart  = headerDescSubset.indexStart;
@@ -1975,7 +1995,7 @@ namespace mbm
                         pch[0] = 0;
                         util::HEADER_IMG headerImg;
                         headerImg.lenght = 0;
-                        if (!fread(&headerImg, sizeof(util::HEADER_IMG), 1, fp))
+                        if (!util::readHeaderImgV8(fp, headerImg))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
                         if (headerImg.lenght == 0)
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
@@ -2172,7 +2192,7 @@ namespace mbm
             if (headerFrame->sizeIndexBuffer && strcmp(headerFrame->typeBuffer, "IB") == 0)
             {
                 auto indexArray = new uint16_t[headerFrame->sizeIndexBuffer];
-                if (!fread(indexArray, sizeof(uint16_t) * static_cast<size_t>(headerFrame->sizeIndexBuffer), 1, fp))
+                if (!util::readU16ArrayV8(fp, indexArray, static_cast<uint32_t>(headerFrame->sizeIndexBuffer)))
                 {
                     delete[] indexArray;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read index buffer of frame [%s]", fileNamePath);
@@ -2191,7 +2211,7 @@ namespace mbm
                 pBuffer->normal      = reinterpret_cast<float *>(pNormal);
                 pBuffer->uv          = reinterpret_cast<float *>(pTexture);
                 pBuffer->indexBuffer = indexArray;
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                 if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
                     deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), pBuffer->subset, this->typeMe,
                                                           this->infoPhysics.lsCube, this->infoPhysics.lsSphere,
@@ -2214,7 +2234,7 @@ namespace mbm
                 pBuffer->position = reinterpret_cast<float *>(pPosition);
                 pBuffer->normal   = reinterpret_cast<float *>(pNormal);
                 pBuffer->uv       = reinterpret_cast<float *>(pTexture);
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                 if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
                     deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), pBuffer->subset, this->typeMe,
                                                           this->infoPhysics.lsCube, this->infoPhysics.lsSphere,
@@ -2989,7 +3009,7 @@ namespace mbm
         for (int i = 0; i < headerMesh.totalAnimation; ++i)
         {
             auto headerAnim = new util::HEADER_ANIMATION();
-            if (!fread(headerAnim, sizeof(util::HEADER_ANIMATION), 1, fp))
+            if (!util::readHeaderAnimationV8(fp, *headerAnim))
             {
                 delete headerAnim;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
@@ -3002,7 +3022,7 @@ namespace mbm
             {
                 infoHead->effetcShader = new util::INFO_FX();
                 util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                if (!fread(&headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), 1, fp))
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
                 if(headerPS_VS.blendOperation != 0)
                     infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
@@ -3029,15 +3049,17 @@ namespace mbm
                     {
                         if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->min, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->max, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }
-                if (!fread(&headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), 1, fp))
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
                 if (headerPS_VS.lenNameShader) // temos vertex shader
                 {
@@ -3060,11 +3082,13 @@ namespace mbm
                     {
                         if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->min, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->max, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }
@@ -3091,7 +3115,7 @@ namespace mbm
         *textureOut             = pTexture;
         if (stride == 3)
         {
-            if (!fread(pPosition, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+            if (!util::readVec3ArrayV8(fp, pPosition, static_cast<uint32_t>(sizeVertexBuffer)))
             {
                 delete[] pPosition;
                 if (pNormal) delete[] pNormal;
@@ -3100,7 +3124,7 @@ namespace mbm
             }
             if (hasNormalsFromFile)
             {
-                if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -3147,7 +3171,7 @@ namespace mbm
             }
             if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
-                if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -3168,7 +3192,7 @@ namespace mbm
                 {
                     this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
                     this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                     {
                         delete[] pPosition;
                         delete[] pNormal;
@@ -3211,7 +3235,7 @@ namespace mbm
         else if (stride == 2)
         {
             auto pStridePosition = new VEC2[sizeVertexBuffer];
-            if (!fread(pStridePosition, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+            if (!util::readVec2ArrayV8(fp, pStridePosition, static_cast<uint32_t>(sizeVertexBuffer)))
             {
                 delete[] pPosition;
                 if (pNormal) delete[] pNormal;
@@ -3229,7 +3253,7 @@ namespace mbm
             pStridePosition = nullptr;
             if (hasNormalsFromFile)
             {
-                if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -3276,7 +3300,7 @@ namespace mbm
             }
             if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
-                if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -3297,7 +3321,7 @@ namespace mbm
                 {
                     this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
                     this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                     {
                         delete[] pPosition;
                         delete[] pNormal;
@@ -3352,7 +3376,7 @@ namespace mbm
             util::HEADER_ANIMATION       headerAnim = *infoHead->headerAnim;
             if (headerAnim.hasShaderEffect == 0)
                 headerAnim.hasShaderEffect = 1;
-            if (!util::addToFileBinary(fileOut, &headerAnim, sizeof(util::HEADER_ANIMATION), file))
+            if (!util::writeHeaderAnimationV8(*file, headerAnim))
                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add animation header", *file);
             if(infoHead->effetcShader)
             {
@@ -3374,7 +3398,7 @@ namespace mbm
                     headerPS_VS.typeAnimation        = static_cast<short>(infoShader->typeAnimation);
                     headerPS_VS.blendOperation       = infoShaderStep->blendOperation;
                     headerPS_VS.timeAnimation        = infoShader->timeAnimation;
-                    if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))
+                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
                         return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
                     if (headerPS_VS.lenNameShader)
                     {
@@ -3402,14 +3426,14 @@ namespace mbm
                         {
                             float d[4];
                             memcpy(d,&infoShader->min[j*4],sizeof(d));
-                            if (!util::addToFileBinary(fileOut, d, sizeof(float) * 4, file))
+                            if (!util::writeFloatArrayV8(*file, d, 4))
                                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
                         }
                         for (int j = 0; j < infoShader->lenVars; ++j)
                         {
                             float d[4];
                             memcpy(d,&infoShader->max[j*4],sizeof(d));
-                            if (!util::addToFileBinary(fileOut, d, sizeof(float) * 4, file))
+                            if (!util::writeFloatArrayV8(*file, d, 4))
                                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
                         }
                     }
@@ -3418,7 +3442,7 @@ namespace mbm
                 {
                     util::HEADER_INFO_SHADER_STEP headerPS_VS;
                     headerPS_VS.blendOperation           = infoHead->effetcShader->blendOperation;
-                    if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))
+                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
                         return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
                 }
                 // Vertex Shader
@@ -3439,7 +3463,7 @@ namespace mbm
                     headerPS_VS.typeAnimation        = static_cast<short>(infoShader->typeAnimation);
                     headerPS_VS.blendOperation           = infoShaderStep->blendOperation;
                     headerPS_VS.timeAnimation        = infoShader->timeAnimation;
-                    if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))
+                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
                         return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
                     if (headerPS_VS.lenNameShader)
                     {
@@ -3467,14 +3491,14 @@ namespace mbm
                         {
                             float d[4];
                             memcpy(d,&infoShader->min[j*4],sizeof(d));
-                            if (!util::addToFileBinary(fileOut, d, sizeof(float) * 4, file))
+                            if (!util::writeFloatArrayV8(*file, d, 4))
                                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
                         }
                         for (int j = 0; j < infoShader->lenVars; ++j)
                         {
                             float d[4];
                             memcpy(d,&infoShader->max[j*4],sizeof(d));
-                            if (!util::addToFileBinary(fileOut, d, sizeof(float) * 4, file))
+                            if (!util::writeFloatArrayV8(*file, d, 4))
                                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
                         }
                     }
@@ -3483,7 +3507,7 @@ namespace mbm
                 {
                     util::HEADER_INFO_SHADER_STEP headerPS_VS;
                     headerPS_VS.blendOperation           = infoHead->effetcShader->blendOperation;
-                    if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))
+                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
                         return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
                 }
             }
@@ -3492,9 +3516,9 @@ namespace mbm
                 util::HEADER_INFO_SHADER_STEP headerPS_VS;
                 if(i < static_cast<int>(lsBlendOperation.size()) && lsBlendOperation[i] != 0)
                     headerPS_VS.blendOperation           = lsBlendOperation[i];
-                if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))//pixel
+                if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))//pixel
                     return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                if (!util::addToFileBinary(fileOut, &headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), file))//vertex
+                if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))//vertex
                         return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
             }
         }
@@ -3755,7 +3779,7 @@ namespace mbm
         util::HEADER       headerMain;
         util::HEADER_MESH  headerMesh;
         FILE *                 fp             = util::openFile(fileNamePath, "rb");
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
         if (!fp)
@@ -3774,7 +3798,7 @@ namespace mbm
         this->fileName = fileNamePath;
         // step 1: Verificação do header  principal
         // -------------------------------------------------------------------------------
-        if (!fread(&headerMain, sizeof(util::HEADER), 1, fp))
+        if (!util::readHeaderV8(fp, headerMain))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
         if (strncmp(headerMain.name, "mbm", 3) == 0 &&
             (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
@@ -3808,11 +3832,23 @@ namespace mbm
         }
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
+        if (headerMain.version < CURRENT_VERSION_MBM_HEADER &&
+            !legacy_mesh_internal::g_skipLegacyDispatchMesh)
+        {
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
+            if (fp)
+                fclose(fp);
+            fp = nullptr;
+            return this->loadLegacyCompat(fileNamePath);
+#else
+            return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", headerMain.version);
+#endif
+        }
 
         for (int i = 0; i < headerMain.extraHeader; i++)
         {
             util::EXTRA_HEADER extra;
-            if (!fread(&extra, sizeof(util::EXTRA_HEADER), 1, fp))
+            if (!util::readExtraHeaderV8(fp, extra))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
             if (extra.type == 1)// paths
             {
@@ -3831,7 +3867,7 @@ namespace mbm
 
         if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
         {
-            if (!fread(&info_mode, sizeof(util::INFO_DRAW_MODE), 1, fp))
+            if (!util::readInfoDrawModeV8(fp, info_mode))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
 
             std::string which_mode;
@@ -3855,7 +3891,7 @@ namespace mbm
             if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
                 /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detailInfo))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
                 if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
                     return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
@@ -3873,7 +3909,7 @@ namespace mbm
                 /* ************* End - old just here to compatibility ***************** */
             }
 
-            if (!fread(&detailInfo, sizeof(util::DETAIL_MESH), 1, fp))
+            if (!util::readDetailMeshV8(fp, detailInfo))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
             if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
             {
@@ -3888,7 +3924,7 @@ namespace mbm
             for (int i = 0; i < detailInfo.totalBounding; )
             {
                 util::DETAIL_MESH detail;
-                if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                if (!util::readDetailMeshV8(fp, detail))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
@@ -3898,7 +3934,7 @@ namespace mbm
                         {
                             auto cube = new CUBE();
                             this->infoPhysics.lsCube.push_back(cube);
-                            if (!fread(cube, sizeof(CUBE), 1, fp))
+                            if (!util::readCubeV8(fp, *cube))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -3910,7 +3946,7 @@ namespace mbm
                         {
                             auto base = new SPHERE();
                             this->infoPhysics.lsSphere.push_back(base);
-                            if (!fread(base, sizeof(SPHERE), 1, fp))
+                            if (!util::readSphereV8(fp, *base))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -3922,7 +3958,7 @@ namespace mbm
                         {
                             auto complex = new CUBE_COMPLEX();
                             this->infoPhysics.lsCubeComplex.push_back(complex);
-                            if (!fread(complex, sizeof(CUBE_COMPLEX), 1, fp))
+                            if (!util::readCubeComplexV8(fp, *complex))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
@@ -3937,7 +3973,7 @@ namespace mbm
                             {
                                 auto triangle = new TRIANGLE();
                                 this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!fread(triangle, sizeof(TRIANGLE), 1, fp))
+                                if (!util::readTriangleV8(fp, *triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -3947,7 +3983,7 @@ namespace mbm
                             {
                                 auto triangle = new TRIANGLE();
                                 this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!fread(triangle, sizeof(TRIANGLE) - sizeof(VEC2) , 1, fp))
+                                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                             }
                         }
@@ -3959,7 +3995,7 @@ namespace mbm
                         auto *   infoFont = new INFO_BOUND_FONT();
                         this->extraInfo = infoFont;
                         util::DETAIL_HEADER_FONT headerFont;
-                        if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                        if (!util::readDetailHeaderFontV8(fp, headerFont))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]",
                                                      fileNamePath);
                         auto strNameFont = new char[headerFont.sizeNameFonte];
@@ -3976,7 +4012,7 @@ namespace mbm
                         for (int j = 0; j < headerFont.totalDetailFont; ++j)
                         {
                             auto detailFont = new util::DETAIL_LETTER();
-                            if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                            if (!util::readDetailLetterV8(fp, *detailFont))
                             {
                                 delete detailFont;
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -4000,7 +4036,7 @@ namespace mbm
                         {
                             auto stage = new util::STAGE_PARTICLE();
                             lsParticleInfo->push_back(stage);
-                            if (!fread(stage, sizeof(util::STAGE_PARTICLE), 1, fp))
+                            if (!util::readStageParticleV8(fp, *stage))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
                         }
                         i += 1;
@@ -4011,14 +4047,14 @@ namespace mbm
                         auto* infoTileMap = new util::BTILE_INFO();
                         this->extraInfo = infoTileMap;
 
-                        if (!fread(&infoTileMap->map,  sizeof(util::BTILE_HEADER_MAP),1,fp))
+                        if (!util::readBtileHeaderMapV8(fp, infoTileMap->map))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
 
                         if(infoTileMap->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "expected layerCount == totalBounding. [%d]!=[%d]",infoTileMap->map.layerCount,detail.totalBounding);
 
                         infoTileMap->infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap->map.countRawTiles];
-                        if (!fread(infoTileMap->infoBrickEditor,  sizeof(util::BTILE_BRICK_INFO) * infoTileMap->map.countRawTiles,1,fp))
+                        if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick infor editor tile from  detail tile!");
 
                         const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
@@ -4026,23 +4062,23 @@ namespace mbm
                         
                         for (uint32_t  j = 0; j < infoTileMap->map.layerCount; ++j)
                         {
-                            if (!fread(infoTileMap->layers[j].offset,  sizeof(infoTileMap->layers[j].offset),1,fp))
+                            if (!util::readFloat3ArrayV8(fp, infoTileMap->layers[j].offset))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
 
                             infoTileMap->layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
 
-                            if (!fread(infoTileMap->layers[j].lsIndexTiles,  sizeof(util::BTILE_INDEX_TILE) * tileCount,1,fp))
+                            if (!util::readBtileIndexTileArrayV8(fp, infoTileMap->layers[j].lsIndexTiles, tileCount))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
                         }
 
                         util::BTILE_DETAIL_HEADER detailObjsProperty;
-                        if (!fread(&detailObjsProperty, sizeof(util::BTILE_DETAIL_HEADER),1,fp))
+                        if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
 
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
                         {
                             util::BTILE_OBJ_HEADER objHeader;
-                            if (!fread(&objHeader, sizeof(util::BTILE_OBJ_HEADER), 1,fp))
+                            if (!util::readBtileObjHeaderV8(fp, objHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
                             infoTileMap->lsObj.push_back(obj);
@@ -4057,7 +4093,7 @@ namespace mbm
                             {
                                 auto* point = new VEC2();
                                 obj->lsPoints.push_back(point);
-                                if (!fread(point, sizeof(VEC2),1, fp))
+                                if (!util::readVec2V8(fp, *point))
                                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
                             }
                         }
@@ -4065,7 +4101,7 @@ namespace mbm
                         for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
                         {
                             util::BTILE_PROPERTY_HEADER propertyHeader;
-                            if (!fread(&propertyHeader, sizeof(util::BTILE_PROPERTY_HEADER),1, fp))
+                            if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
                                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
                             auto* property = new util::BTILE_PROPERTY(static_cast<const util::BTILE_PROPERTY_TYPE>(propertyHeader.type));
                             infoTileMap->lsProperty.push_back(property);
@@ -4103,7 +4139,7 @@ namespace mbm
                 }
             }
         }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
         {
             // step 2: --------------------------------------------------------------------------------------------------
@@ -4114,7 +4150,7 @@ namespace mbm
                     util::DETAIL_MESH detail;
                     // 2.1 Cubos -- Todos os boundings
                     // --------------------------------------------------------------------
-                    if (!fread(&detail, sizeof(util::DETAIL_MESH), 1, fp))
+                    if (!util::readDetailMeshV8(fp, detail))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
                     if (detail.totalBounding)
                     {
@@ -4126,7 +4162,7 @@ namespace mbm
                                 {
                                     auto base = new CUBE();
                                     this->infoPhysics.lsCube.push_back(base);
-                                    if (!fread(base, sizeof(CUBE), 1, fp))
+                                    if (!util::readCubeV8(fp, *base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -4139,7 +4175,7 @@ namespace mbm
                                 {
                                     auto base = new SPHERE();
                                     this->infoPhysics.lsSphere.push_back(base);
-                                    if (!fread(base, sizeof(SPHERE), 1, fp))
+                                    if (!util::readSphereV8(fp, *base))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                 }
@@ -4151,7 +4187,7 @@ namespace mbm
                                 {
                                     auto complex = new CUBE_COMPLEX();
                                     this->infoPhysics.lsCubeComplex.push_back(complex);
-                                    if (!fread(complex, sizeof(CUBE_COMPLEX), 1, fp))
+                                    if (!util::readCubeComplexV8(fp, *complex))
                                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
                                                                  fileNamePath);
                                     ;
@@ -4181,7 +4217,7 @@ namespace mbm
                     auto *   infoFont = new INFO_BOUND_FONT();
                     this->extraInfo = infoFont;
                     util::DETAIL_HEADER_FONT headerFont;
-                    if (!fread(&headerFont, sizeof(util::DETAIL_HEADER_FONT), 1, fp))
+                    if (!util::readDetailHeaderFontV8(fp, headerFont))
                         return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
                     auto strNameFont = new char[headerFont.sizeNameFonte];
                     if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
@@ -4197,7 +4233,7 @@ namespace mbm
                     for (int i = 0; i < headerFont.totalDetailFont; ++i)
                     {
                         auto detailFont = new util::DETAIL_LETTER();
-                        if (!fread(detailFont, sizeof(util::DETAIL_LETTER), 1, fp))
+                        if (!util::readDetailLetterV8(fp, *detailFont))
                         {
                             delete detailFont;
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
@@ -4224,7 +4260,7 @@ namespace mbm
 #endif
 
         // 3 headerMesh MBM -------------------------------------------------------------------------------
-        if (!fread(&headerMesh, sizeof(util::HEADER_MESH), 1, fp))
+        if (!util::readHeaderMeshV8(fp, headerMesh))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
         this->hasNormTex[0]     = headerMesh.hasNorText[0];
         this->hasNormTex[1]     = headerMesh.hasNorText[1];
@@ -4239,7 +4275,7 @@ namespace mbm
         // 4 header anim -- Todas as animações -----------------------------------------------------------
         if (headerMain.version == INITIAL_VERSION_MBM_HEADER)
         {
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (!deprecated_mbm::fillAnimation_1(fileNamePath, fp, &headerMesh, &this->infoAnimation))
                 return false;
 #else
@@ -4251,7 +4287,7 @@ namespace mbm
             if (!this->fillAnimation_2(headerMesh, fileNamePath, fp))
                 return false;
         }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
         if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
         {
             deprectedInfoSprite.fillOldPhysicsSprite_2(this->typeMe, this->infoAnimation, headerMesh.totalFrames);
@@ -4269,7 +4305,7 @@ namespace mbm
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
             util::HEADER_FRAME headerFrame;
-            if (!fread(&headerFrame, sizeof(util::HEADER_FRAME), 1, fp))
+            if (!util::readHeaderFrameV8(fp, headerFrame))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of frame [%s]", fileNamePath);
 
             // 6 Todos os headers subset deste frame
@@ -4279,7 +4315,7 @@ namespace mbm
             buffer[currentFrame].totalSubset = static_cast<uint32_t>(headerFrame.totalSubset);
             for (int i = 0; i < headerFrame.totalSubset; ++i)
             {
-                if (!fread(&headerDescSubset, sizeof(util::HEADER_DESC_SUBSET), 1, fp))
+                if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
                 buffer[currentFrame].subset[i].vertexStart = headerDescSubset.vertexStart;
                 buffer[currentFrame].subset[i].indexStart  = headerDescSubset.indexStart;
@@ -4293,7 +4329,7 @@ namespace mbm
                         pch[0] = 0;
                         util::HEADER_IMG headerImg;
                         headerImg.lenght = 0;
-                        if (!fread(&headerImg, sizeof(util::HEADER_IMG), 1, fp))
+                        if (!util::readHeaderImgV8(fp, headerImg))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
                         if (headerImg.lenght == 0)
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
@@ -4479,7 +4515,7 @@ namespace mbm
                             else
                             {
                                 buffer[currentFrame].subset[i].texture = textureManager->load(
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                                     headerDescSubset.nameTexture, true);
                                     headerDescSubset.hasAlphaColor = 1;
 #else
@@ -4522,7 +4558,7 @@ namespace mbm
             if (headerFrame.sizeIndexBuffer && strcmp(headerFrame.typeBuffer, "IB") == 0)
             {
                 auto indexArray = new uint16_t[headerFrame.sizeIndexBuffer];
-                if (!fread(indexArray, sizeof(uint16_t) * static_cast<size_t>(headerFrame.sizeIndexBuffer), 1, fp))
+                if (!util::readU16ArrayV8(fp, indexArray, static_cast<uint32_t>(headerFrame.sizeIndexBuffer)))
                 {
                     delete[] indexArray;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read index buffer of frame [%s]", fileNamePath);
@@ -4563,7 +4599,7 @@ namespace mbm
                     delete[] indexCount;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
                 }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                 if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
                     deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset,
                                                           this->typeMe, this->infoPhysics.lsCube,
@@ -4606,7 +4642,7 @@ namespace mbm
                     delete[] pTexture;
                     return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
                 }
-#if defined USE_DEPRECATED_2_MINOR
+#if defined(MBM_ENABLE_MESH_LEGACY_V7)
                 if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
                     deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset,
                                                           this->typeMe, this->infoPhysics.lsCube,
@@ -4694,7 +4730,7 @@ namespace mbm
         *textureOut             = pTexture;
         if (stride == 3)
         {
-            if (!fread(pPosition, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+            if (!util::readVec3ArrayV8(fp, pPosition, static_cast<uint32_t>(sizeVertexBuffer)))
             {
                 delete[] pPosition;
                 if (pNormal) delete[] pNormal;
@@ -4703,7 +4739,7 @@ namespace mbm
             }
             if (hasNormalsFromFile)
             {
-                if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -4750,7 +4786,7 @@ namespace mbm
             }
             if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
-                if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -4771,7 +4807,7 @@ namespace mbm
                 {
                     this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
                     this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                     {
                         delete[] pPosition;
                         delete[] pNormal;
@@ -4814,7 +4850,7 @@ namespace mbm
         else if (stride == 2)
         {
             auto pStridePosition = new VEC2[sizeVertexBuffer];
-            if (!fread(pStridePosition, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+            if (!util::readVec2ArrayV8(fp, pStridePosition, static_cast<uint32_t>(sizeVertexBuffer)))
             {
                 delete[] pPosition;
                 if (pNormal) delete[] pNormal;
@@ -4832,7 +4868,7 @@ namespace mbm
             pStridePosition = nullptr;
             if (hasNormalsFromFile)
             {
-                if (!fread(pNormal, sizeof(VEC3) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -4879,7 +4915,7 @@ namespace mbm
             }
             if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
             {
-                if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                 {
                     delete[] pPosition;
                     delete[] pNormal;
@@ -4900,7 +4936,7 @@ namespace mbm
                 {
                     this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
                     this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!fread(pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer), 1, fp))
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
                     {
                         delete[] pPosition;
                         delete[] pNormal;
@@ -4951,7 +4987,7 @@ namespace mbm
         for (int i = 0; i < headerMesh.totalAnimation; ++i)
         {
             auto headerAnim = new util::HEADER_ANIMATION();
-            if (!fread(headerAnim, sizeof(util::HEADER_ANIMATION), 1, fp))
+            if (!util::readHeaderAnimationV8(fp, *headerAnim))
             {
                 delete headerAnim;
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
@@ -4964,7 +5000,7 @@ namespace mbm
             {
                 infoHead->effetcShader = new util::INFO_FX();
                 util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                if (!fread(&headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), 1, fp))
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
                 if(headerPS_VS.blendOperation != 0)
                     infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
@@ -4989,15 +5025,17 @@ namespace mbm
                     {
                         if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->min, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->max, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }
-                if (!fread(&headerPS_VS, sizeof(util::HEADER_INFO_SHADER_STEP), 1, fp))
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
                 if (headerPS_VS.lenNameShader) // temos vertex shader
                 {
@@ -5018,11 +5056,13 @@ namespace mbm
                     {
                         if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->min, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!fread(dataInfo->max, sizeof(float) * static_cast<size_t>(dataInfo->lenVars) * 4, 1,
-                                   fp)) // sempre lemos de 4 em 4 floats
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
                             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
                     }
                 }

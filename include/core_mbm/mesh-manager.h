@@ -118,6 +118,7 @@ namespace mbm
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
+        bool loadDebugLegacyCompat(const char *fileNamePath);
     
         bool saveAnimationHeaders(const char *fileOut, FILE **file);
         bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
@@ -165,6 +166,7 @@ namespace mbm
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
+        bool loadLegacyCompat(const char *fileNamePath);
 
         BUFFER_MESH *               buffer;
         std::string                 fileName;
