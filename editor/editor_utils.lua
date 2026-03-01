@@ -427,6 +427,17 @@ end
 
 tUtil.save = function(name, value, tOut, onSaveUserData, saved)
 
+    --[[
+        Locale note (important for editor save/load files):
+        - Lua editors save data as Lua source code, so numeric literals must use '.' as decimal separator.
+        - Number formatting in Lua follows C locale rules (LC_NUMERIC).
+        - In locales such as pt_BR/de_DE, formatted numbers may use ',' and produce invalid Lua numbers.
+        - Locale-sensitive numeric formats include: %f, %e/%E, %g/%G, %a/%A.
+        - Integer/string formats (%d, %i, %u, %x/%X, %o, %s, %q) are not affected.
+        - Save paths should force os.setlocale('C','numeric') while writing, then restore previous locale.
+        - Serializer also normalizes ',' -> '.' as a defensive fallback.
+    ]]--
+
     local function basicSerialize(o,precision)
         if type(o) == 'number' then
             local normalize_number = function(s)
