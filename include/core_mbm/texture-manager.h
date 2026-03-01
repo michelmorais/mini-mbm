@@ -50,7 +50,6 @@ namespace mbm
 		API_IMPL bool loadSolidColor(const char* colorAsString, const bool hasColorAlpha);
         API_IMPL uint32_t getWidth()const noexcept;
         API_IMPL uint32_t getHeight()const noexcept;
-        API_IMPL bool isRenderTargetTexture() const noexcept;
         API_IMPL static void enableFilter(bool value) noexcept;
         
         union {
@@ -58,7 +57,6 @@ namespace mbm
 			void*    ptrTexture;
         };
         bool     useAlphaChannel;
-                bool     renderTargetTexture;
       private:
         static bool pixelPerfectTexture;
         std::string  fileName;
@@ -105,7 +103,6 @@ namespace mbm
         API_IMPL void setPath(const char *PathSource);
         API_IMPL bool saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
                                   const uint32_t width, const uint32_t height, char *strMessageError);
-        API_IMPL bool isRenderTargetTexture(const void* nativeTextureHandle) const;
 
         // Generate .h header file from PNG in IMAGE_RESOURCE format (e.g. mini-mbm-logo.h).
         // Uses alpha channel from PNG; no color keying.

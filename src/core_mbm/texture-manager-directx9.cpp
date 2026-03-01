@@ -468,7 +468,6 @@ namespace mbm
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;
-        texture->renderTargetTexture        = true;
         texture->fileName                   = std::move(fileNameBase);
         lsTextures[texture->fileName]       = texture;
         return texture;
