@@ -56,7 +56,7 @@ namespace util
         backBufferHeight = 0;
     }
     
-    HEADER::HEADER(const char *nameApp, const int versionNumber)noexcept
+    HEADER::HEADER(const char *nameApp, const int32_t versionNumber)noexcept
     {
         strncpy(name, "mbm",sizeof(name)-1);
         if (nameApp)

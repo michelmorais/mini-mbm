@@ -25,6 +25,7 @@
 #include "primitives.h"
 #include <vector>
 #include <stdio.h>
+#include <stdint.h>
 
 
 namespace util 
@@ -44,6 +45,32 @@ namespace mbm
 
 namespace deprecated_mbm
 {
+    namespace legacy_v1
+    {
+        struct HEADER_ANIMATION_MBM
+        {
+            char  nameAnimation[32];
+            int32_t   initialFrame;
+            int32_t   finalFrame;
+            float timeBetweenFrame;
+            int32_t   typeAnimation;
+            int32_t   lenMusicFileName;
+            int32_t   loopMusic;
+            int32_t   lenPS;
+            int32_t   lenVS;
+            HEADER_ANIMATION_MBM() noexcept;
+        };
+
+        struct HEADER_DATA_SHADER_INFO
+        {
+            int32_t sizeArrayVar;
+            float timeAnimation;
+            int16_t typeAnimation;
+            int16_t lenTextureStage2;
+            HEADER_DATA_SHADER_INFO() noexcept;
+        };
+    }
+
     enum TYPE_SUBSET_BOUNDING_SPRITE
     {
         FRAME_RECTANGLE = 1,
@@ -55,14 +82,14 @@ namespace deprecated_mbm
     // 2.2.1: HEADER.typeApp == "Sprite mbm"
     struct DETAIL_HEADER_SPRITE // Header detalhes do sprite
     {
-        int   totalDetail;   // informa o total de detail deste sprite
+        int32_t   totalDetail;   // informa o total de detail deste sprite
         float zoomEditor[2]; // Zoom x e y do editor
         DETAIL_HEADER_SPRITE() noexcept;
     };
     // 2.2.2
     struct DETAIL_SPRITE // detalhes do sprite
     {
-        int   totalSubset;       // Total de subset para este frame
+        int32_t   totalSubset;       // Total de subset para este frame
         float offSetPosition[2]; // Offset do frame
         DETAIL_SPRITE() noexcept;
     };
@@ -70,10 +97,10 @@ namespace deprecated_mbm
     // 2.2.3
     struct DETAIL_SPRITE_SUBSET // detalhes do subset
     {
-        short type;    // Tipo do subset. 1: retangulo, 2 circulo, 3 Triângulo.
-        short isBreak; // Indica se a forma esta livre para modificações, por exmplo o circulo ja foi esticado deixando de ser
+        int16_t type;    // Tipo do subset. 1: retangulo, 2 circulo, 3 Triângulo.
+        int16_t isBreak; // Indica se a forma esta livre para modificações, por exmplo o circulo ja foi esticado deixando de ser
                        // um circulo.
-        int lenBounding; // Quantidade de indices das fronteiras
+        int32_t lenBounding; // Quantidade de indices das fronteiras
         DETAIL_SPRITE_SUBSET() noexcept;
     };
 

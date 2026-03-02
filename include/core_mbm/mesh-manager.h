@@ -32,6 +32,11 @@ namespace util
     struct SUBSET;
 }
 
+namespace deprecated_mbm
+{
+  struct INFO_SPRITE;
+}
+
 
 namespace mbm
 {
@@ -105,6 +110,7 @@ namespace mbm
         API_IMPL void deleteExtraInfo();
         void *       extraInfo;
       private:
+        bool loadDebugImpl(const char *fileNamePath, const bool allowLegacyDispatch);
         void fillAtLeastOneBound();
         bool fillInSubsetDebug(const MESH_MBM* meshMemory, 
                                const int currentFrame,
@@ -114,11 +120,22 @@ namespace mbm
                                util::BUFFER_MESH_DEBUG* pBuffer);//need to be implemented by specific backend engine 
         std::vector<std::string> getKnowPathsToExtraHeader();
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
+        bool readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool loadDebugLegacyCompat(const char *fileNamePath);
+      #if defined(MBM_ENABLE_MESH_LEGACY_V7)
+        bool loadDebugLegacyDetailStep(FILE *fp, const char *fileNamePath, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
+        bool loadDebugLegacyAnimationStep(FILE *fp, const char *fileNamePath, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
+        static bool getInfoLegacyCompat(FILE *fp, const char *fileNamePath, const util::HEADER &headerMbmOut,
+                                        util::HEADER_MESH &headerMeshMbmOut, util::INFO_DRAW_MODE &info_mode,
+                                        util::TYPE_MESH &typeOut, INFO_BOUND_FONT &datailFontOut,
+                                        std::vector<util::STAGE_PARTICLE> &lsStageParticle, int *versionOut);
+        void fillDebugLegacyPhysicsIfNeeded(const int fileVersion, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite,
+                    VEC3 *position, const uint32_t currentFrame, std::vector<util::SUBSET_DEBUG *> &subsetArray);
+      #endif
     
         bool saveAnimationHeaders(const char *fileOut, FILE **file);
         bool compressFile(const char *fileNameIn, char *stringStatus,const int lenStatus);
@@ -160,13 +177,23 @@ namespace mbm
       private:
         MESH_MBM() noexcept;
         bool load(const char *fileNamePath);
+        bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch);
         void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
+        bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
         bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
         bool loadLegacyCompat(const char *fileNamePath);
+      #if defined(MBM_ENABLE_MESH_LEGACY_V7)
+        bool loadLegacyDetailStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
+                deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
+        bool loadLegacyAnimationStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
+                   util::HEADER_MESH &headerMesh, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
+        void fillLegacyPhysicsIfNeeded(const int fileVersion, deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite,
+                     VEC3 *position, const uint32_t currentFrame, util::SUBSET *subsetArray);
+      #endif
 
         BUFFER_MESH *               buffer;
         std::string                 fileName;

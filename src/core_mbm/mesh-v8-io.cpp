@@ -210,12 +210,12 @@ namespace util
         {
             return false;
         }
-        out.version = static_cast<int>(version);
-        out.magic = static_cast<int>(magic);
-        out.reserved = static_cast<int>(reserved);
-        out.backBufferWidth = static_cast<int>(backBufferWidth);
-        out.backBufferHeight = static_cast<int>(backBufferHeight);
-        out.extraHeader = static_cast<int>(extraHeader);
+        out.version = version;
+        out.magic = magic;
+        out.reserved = reserved;
+        out.backBufferWidth = backBufferWidth;
+        out.backBufferHeight = backBufferHeight;
+        out.extraHeader = extraHeader;
         return true;
     }
 
@@ -223,12 +223,12 @@ namespace util
     {
         return writeBytes(fp, in.name, sizeof(in.name)) &&
                writeBytes(fp, in.typeApp, sizeof(in.typeApp)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.version)) &&
-               writeU32LE(fp, static_cast<uint32_t>(in.magic)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.reserved)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.backBufferWidth)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.backBufferHeight)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.extraHeader));
+             writeI32LE(fp, in.version) &&
+             writeU32LE(fp, in.magic) &&
+             writeI32LE(fp, in.reserved) &&
+             writeI32LE(fp, in.backBufferWidth) &&
+             writeI32LE(fp, in.backBufferHeight) &&
+             writeI32LE(fp, in.extraHeader);
     }
 
     bool readHeaderMeshV8(FILE *fp, util::HEADER_MESH &out)
@@ -250,9 +250,9 @@ namespace util
                readF32LE(fp, out.posX) &&
                readF32LE(fp, out.posY) &&
                readF32LE(fp, out.posZ) &&
-               ((out.totalAnimation = static_cast<int>(totalAnimation)),
-                (out.totalFrames = static_cast<int>(totalFrames)),
-                (out.deprecated_typePhysics = static_cast<int>(deprecatedTypePhysics)),
+               ((out.totalAnimation = totalAnimation),
+                (out.totalFrames = totalFrames),
+                (out.deprecated_typePhysics = deprecatedTypePhysics),
                 (out.hasNorText[0] = hasNorText0),
                 (out.hasNorText[1] = hasNorText1),
                 true);
@@ -261,9 +261,9 @@ namespace util
     bool writeHeaderMeshV8(FILE *fp, const util::HEADER_MESH &in)
     {
         return writeMaterial(fp, in.material) &&
-               writeI32LE(fp, static_cast<int32_t>(in.totalAnimation)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.totalFrames)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.deprecated_typePhysics)) &&
+             writeI32LE(fp, in.totalAnimation) &&
+             writeI32LE(fp, in.totalFrames) &&
+             writeI32LE(fp, in.deprecated_typePhysics) &&
                writeI16LE(fp, in.hasNorText[0]) &&
                writeI16LE(fp, in.hasNorText[1]) &&
                writeF32LE(fp, in.angleX) &&
@@ -286,19 +286,19 @@ namespace util
                readI32LE(fp, typeAnimation) &&
                readU16LE(fp, out.hasShaderEffect) &&
                readU16LE(fp, out.blendState) &&
-               ((out.initialFrame = static_cast<int>(initialFrame)),
-                (out.finalFrame = static_cast<int>(finalFrame)),
-                (out.typeAnimation = static_cast<int>(typeAnimation)),
+               ((out.initialFrame = initialFrame),
+                (out.finalFrame = finalFrame),
+                (out.typeAnimation = typeAnimation),
                 true);
     }
 
     bool writeHeaderAnimationV8(FILE *fp, const util::HEADER_ANIMATION &in)
     {
         return writeBytes(fp, in.nameAnimation, sizeof(in.nameAnimation)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.initialFrame)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.finalFrame)) &&
+             writeI32LE(fp, in.initialFrame) &&
+             writeI32LE(fp, in.finalFrame) &&
                writeF32LE(fp, in.timeBetweenFrame) &&
-               writeI32LE(fp, static_cast<int32_t>(in.typeAnimation)) &&
+             writeI32LE(fp, in.typeAnimation) &&
                writeU16LE(fp, in.hasShaderEffect) &&
                writeU16LE(fp, in.blendState);
     }
@@ -312,7 +312,7 @@ namespace util
                readI16LE(fp, out.typeAnimation) &&
                readI32LE(fp, blendOperation) &&
                readF32LE(fp, out.timeAnimation) &&
-               ((out.blendOperation = static_cast<int>(blendOperation)), true);
+               ((out.blendOperation = blendOperation), true);
     }
 
     bool writeHeaderInfoShaderStepV8(FILE *fp, const util::HEADER_INFO_SHADER_STEP &in)
@@ -321,7 +321,7 @@ namespace util
                writeI16LE(fp, in.lenTextureStage2) &&
                writeI16LE(fp, in.sizeArrayVarInBytes) &&
                writeI16LE(fp, in.typeAnimation) &&
-               writeI32LE(fp, static_cast<int32_t>(in.blendOperation)) &&
+             writeI32LE(fp, in.blendOperation) &&
                writeF32LE(fp, in.timeAnimation);
     }
 
@@ -339,19 +339,19 @@ namespace util
         {
             return false;
         }
-        out.totalSubset = static_cast<int>(totalSubset);
-        out.sizeIndexBuffer = static_cast<int>(sizeIndexBuffer);
-        out.sizeVertexBuffer = static_cast<int>(sizeVertexBuffer);
-        out.stride = static_cast<int>(stride);
+        out.totalSubset = totalSubset;
+        out.sizeIndexBuffer = sizeIndexBuffer;
+        out.sizeVertexBuffer = sizeVertexBuffer;
+        out.stride = stride;
         return true;
     }
 
     bool writeHeaderFrameV8(FILE *fp, const util::HEADER_FRAME &in)
     {
-        return writeI32LE(fp, static_cast<int32_t>(in.totalSubset)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.sizeIndexBuffer)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.sizeVertexBuffer)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.stride)) &&
+         return writeI32LE(fp, in.totalSubset) &&
+             writeI32LE(fp, in.sizeIndexBuffer) &&
+             writeI32LE(fp, in.sizeVertexBuffer) &&
+             writeI32LE(fp, in.stride) &&
                writeBytes(fp, in.typeBuffer, sizeof(in.typeBuffer));
     }
 
@@ -370,20 +370,20 @@ namespace util
         {
             return false;
         }
-        out.vertexCount = static_cast<int>(vertexCount);
-        out.vertexStart = static_cast<int>(vertexStart);
-        out.indexStart = static_cast<int>(indexStart);
-        out.indexCount = static_cast<int>(indexCount);
+        out.vertexCount = vertexCount;
+        out.vertexStart = vertexStart;
+        out.indexStart = indexStart;
+        out.indexCount = indexCount;
         return true;
     }
 
     bool writeHeaderDescSubsetV8(FILE *fp, const util::HEADER_DESC_SUBSET &in)
     {
         return writeBytes(fp, in.nameTexture, sizeof(in.nameTexture)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.vertexCount)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.vertexStart)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.indexStart)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.indexCount)) &&
+             writeI32LE(fp, in.vertexCount) &&
+             writeI32LE(fp, in.vertexStart) &&
+             writeI32LE(fp, in.indexStart) &&
+             writeI32LE(fp, in.indexCount) &&
                writeBytes(fp, in.alphaColor, sizeof(in.alphaColor));
     }
 
@@ -430,7 +430,7 @@ namespace util
         {
             return false;
         }
-        out.sizeExtraHeader = static_cast<int>(sizeExtraHeader);
+        out.sizeExtraHeader = sizeExtraHeader;
 
         // Guard against garbage sizes (observed on Windows when reading old assets)
         if (!isValidExtraSize(sizeExtraHeader))
@@ -444,7 +444,7 @@ namespace util
                     return false;
                 }
                 out.type = static_cast<char>(legacyType & 0xFF);
-                out.sizeExtraHeader = static_cast<int>(sizeExtraHeader);
+                out.sizeExtraHeader = sizeExtraHeader;
             }
         }
 
@@ -458,7 +458,7 @@ namespace util
     bool writeExtraHeaderV8(FILE *fp, const util::EXTRA_HEADER &in)
     {
         return writeBytes(fp, &in.type, sizeof(in.type)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.sizeExtraHeader));
+               writeI32LE(fp, in.sizeExtraHeader);
     }
 
     bool readInfoDrawModeV8(FILE *fp, util::INFO_DRAW_MODE &out)
@@ -484,15 +484,15 @@ namespace util
         {
             return false;
         }
-        out.type = static_cast<int>(type);
-        out.totalBounding = static_cast<int>(totalBounding);
+        out.type = type;
+        out.totalBounding = totalBounding;
         return true;
     }
 
     bool writeDetailMeshV8(FILE *fp, const util::DETAIL_MESH &in)
     {
-        return writeI32LE(fp, static_cast<int32_t>(in.type)) &&
-               writeI32LE(fp, static_cast<int32_t>(in.totalBounding));
+        return writeI32LE(fp, in.type) &&
+               writeI32LE(fp, in.totalBounding);
     }
 
     bool readDetailHeaderFontV8(FILE *fp, util::DETAIL_HEADER_FONT &out)

@@ -29,7 +29,6 @@
 #include <cr-static-local.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <header-mesh.h>
-#include "mesh-manager-legacy-internal.h"
 #include "mesh-v8-io.h"
 
 #include <cfloat>
@@ -268,9 +267,6 @@ namespace mbm
         FILE *           fp = util::openFile(fileNamePath, "rb");
         if (!fp)
             return log_util::onFailed(fp,__FILE__, __LINE__, "Failed to open file [%s]", fileNamePath ? fileNamePath : "nullptr");
-#if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
-#endif
         fclose(fp);
         fp = nullptr;
         MINIZ minz;
@@ -318,6 +314,16 @@ namespace mbm
         if (headerMbmOut.version < INITIAL_VERSION_MBM_HEADER || headerMbmOut.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__,"incompatible version [%s]\ncurrent version [%d] \nversion in file [%d]",fileNamePath, CURRENT_VERSION_MBM_HEADER, headerMbmOut.version);
 
+        if (headerMbmOut.version < STRONG_TYPES_VERSION_MBM_HEADER)
+        {
+    #if defined(MBM_ENABLE_MESH_LEGACY_V7)
+            return MESH_MBM_DEBUG::getInfoLegacyCompat(fp, fileNamePath, headerMbmOut, headerMeshMbmOut, info_mode,
+                                   typeOut, datailFontOut, lsStageParticle, versionOut);
+    #else
+            return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", headerMbmOut.version);
+    #endif
+        }
+
         for (int i = 0; i < headerMbmOut.extraHeader; i++)
         {
             util::EXTRA_HEADER extra;
@@ -335,48 +341,17 @@ namespace mbm
             }
         }
 
-        if(headerMbmOut.version >= MODE_DRAW_VERSION_MBM_HEADER)
-        {
-            if (!util::readInfoDrawModeV8(fp, info_mode))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
-        }
+        if (!util::readInfoDrawModeV8(fp, info_mode))
+            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
+
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMbmOut.version >= DETAIL_MESH_VERSION_MBM_HEADER)
         {
             util::DETAIL_MESH detailInfo;
-            if (headerMbmOut.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!util::readDetailMeshV8(fp, detailInfo))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-                if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
-                    return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
-                if (detailInfo.totalBounding)
-                {
-                    const int extraISize = detailInfo.totalBounding;
-                    auto     _extraInfo    = new char[extraISize];
-                    if (!fread(_extraInfo, static_cast<size_t>(extraISize), 1, fp))
-                    {
-                        delete[] _extraInfo;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read extra info [%s]", fileNamePath);
-                    }
-                    delete[] _extraInfo;
-                }
-                /* ************* End - old just here to compatibility ***************** */
-            }
-            
             if (!util::readDetailMeshV8(fp, detailInfo))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-            if (headerMbmOut.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                if (detailInfo.type != 'H')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
-            }
-            else
-            {
-                if (detailInfo.type != 'P')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
-            }
+            if (detailInfo.type != 'P')
+                return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
             for (int i = 0; i < detailInfo.totalBounding; )
             {
                 util::DETAIL_MESH detail;
@@ -419,24 +394,11 @@ namespace mbm
                     break;
                     case 4:
                     {
-                        //Introduced position to the triangle
-                        if(headerMbmOut.version >= MODE_DRAW_VERSION_MBM_HEADER)
+                        for(int j=0; j< detail.totalBounding; j++)
                         {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                TRIANGLE triangle;
-                                if (!util::readTriangleV8(fp, triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
-                        }
-                        else
-                        {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                TRIANGLE triangle;
-                                if (!util::readTriangleLegacyNoPosV8(fp, triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
+                            TRIANGLE triangle;
+                            if (!util::readTriangleV8(fp, triangle))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
                         }
                         i += detail.totalBounding;
                     }
@@ -586,120 +548,10 @@ namespace mbm
                 }
             }
         }
-#if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        else
-        {
-            // step 2: --------------------------------------------------------------------------------------------------
-            switch (typeOut)
-            {
-                case util::TYPE_MESH_3D:
-                {
-                    util::DETAIL_MESH detail;
-                    // 2.1 Cubos -- Todos os boundings
-                    // --------------------------------------------------------------------
-                    if (!util::readDetailMeshV8(fp, detail))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
-                    if (detail.totalBounding)
-                    {
-                        switch (detail.type) // 1: Bounding box. 2: Esferico. 3: Cube poligono .
-                        {
-                            case 1:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    CUBE base;
-                                    if (!util::readCubeV8(fp, base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            case 2:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    SPHERE base;
-                                    if (!util::readSphereV8(fp, base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                }
-                            }
-                            break;
-                            case 3:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    CUBE_COMPLEX complex;
-                                    if (!util::readCubeComplexV8(fp, complex))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            default: { return log_util::onFailed(fp,__FILE__, __LINE__, "bounding unknown [%s]", fileNamePath);
-                            }
-                        }
-                    }
-                }
-                break;
-                case util::TYPE_MESH_SPRITE:
-                {
-                    float zx, zy;
-                    if (!deprectedInfoSprite.readBoundingSprite(fp, fileNamePath, &zx, &zy))
-                        return false;
-                }
-                break;
-                case util::TYPE_MESH_USER:
-                {
-                    // special -- user
-                }
-                break;
-                case util::TYPE_MESH_FONT:
-                {
-                    util::DETAIL_HEADER_FONT headerFont;
-                    if (!util::readDetailHeaderFontV8(fp, headerFont))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
-                    auto strNameFont = new char[headerFont.sizeNameFonte];
-                    if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
-                    {
-                        delete [] strNameFont;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
-                    }
-                    datailFontOut.fontName        = strNameFont;
-                    datailFontOut.heightLetter    = headerFont.heightLetter;
-                    datailFontOut.spaceXCharacter = headerFont.spaceXCharacter;
-                    datailFontOut.spaceYCharacter = headerFont.spaceYCharacter;
-                    delete[] strNameFont;
-                    for (int i = 0; i < headerFont.totalDetailFont; ++i)
-                    {
-                        auto detailFont = new util::DETAIL_LETTER();
-                        if (!util::readDetailLetterV8(fp, *detailFont))
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
-                        }
-                        if (detailFont->indexFrame >= headerFont.totalDetailFont)
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]",
-                                                     fileNamePath);
-                        }
-                        datailFontOut.letter[detailFont->letter].detail = detailFont;
-                    }
-                }
-                break;
-                default: {
-                }
-            }
-        }
-#else
         else
         {
             return log_util::onFailed(fp,__FILE__, __LINE__, "Imcompatible version [%d]", headerMbmOut.version);
         }
-#endif
         // 3 headerMesh MBM -------------------------------------------------------------------------------
         if (!util::readHeaderMeshV8(fp, headerMeshMbmOut))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read HEADER_MESH [%s]", fileNamePath);
@@ -1452,6 +1304,11 @@ namespace mbm
 
     bool MESH_MBM_DEBUG::loadDebug(const char *fileNamePath)
     {
+        return this->loadDebugImpl(fileNamePath, true);
+    }
+
+    bool MESH_MBM_DEBUG::loadDebugImpl(const char *fileNamePath, const bool allowLegacyDispatch)
+    {
         this->release();
         FILE *fp = util::openFile(fileNamePath, "rb");
         if (!fp)
@@ -1508,8 +1365,7 @@ namespace mbm
         }
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
-        if (headerMain.version < CURRENT_VERSION_MBM_HEADER &&
-            !legacy_mesh_internal::g_skipLegacyDispatchMeshDebug)
+        if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (fp)
@@ -1638,27 +1494,8 @@ namespace mbm
                     break;
                     case 4:
                     {
-                        //Introduced position to the triangle
-                        if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
-                        {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                auto triangle = new TRIANGLE();
-                                this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!util::readTriangleV8(fp, *triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
-                        }
-                        else
-                        {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                auto triangle = new TRIANGLE();
-                                this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
-                        }
+                        if (!this->readDebugTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
+                            return false;
                         i += detail.totalBounding;
                     }
                     break;
@@ -1813,115 +1650,8 @@ namespace mbm
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
         {
-            // step 2: --------------------------------------------------------------------------------------------------
-            switch (this->typeMe)
-            {
-                case util::TYPE_MESH_3D:
-                {
-                    util::DETAIL_MESH detail;
-                    // 2.1 Cubos -- Todos os boundings
-                    // --------------------------------------------------------------------
-                    if (!util::readDetailMeshV8(fp, detail))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
-                    if (detail.totalBounding)
-                    {
-                        switch (detail.type) // 1: Bounding box. 2: Esferico. 3: Cube poligono .
-                        {
-                            case 1:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto base = new CUBE();
-                                    this->infoPhysics.lsCube.push_back(base);
-                                    if (!util::readCubeV8(fp, *base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            case 2:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto base = new SPHERE();
-                                    this->infoPhysics.lsSphere.push_back(base);
-                                    if (!util::readSphereV8(fp, *base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                }
-                            }
-                            break;
-                            case 3:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto complex = new CUBE_COMPLEX();
-                                    this->infoPhysics.lsCubeComplex.push_back(complex);
-                                    if (!util::readCubeComplexV8(fp, *complex))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            default: { return log_util::onFailed(fp,__FILE__, __LINE__, "bounding unknown [%s]", fileNamePath);
-                            }
-                        }
-                    }
-                }
-                break;
-                case util::TYPE_MESH_SPRITE:
-                {
-                    if (!deprectedInfoSprite.readBoundingSprite(fp, fileNamePath, &this->zoomEditorSprite.x,
-                                                                &this->zoomEditorSprite.y))
-                        return false;
-                }
-                break;
-                case util::TYPE_MESH_USER:
-                {
-                    // special -- user
-                }
-                break;
-                case util::TYPE_MESH_FONT:
-                {
-                    auto *   infoFont = new INFO_BOUND_FONT();
-                    this->extraInfo = infoFont;
-                    util::DETAIL_HEADER_FONT headerFont;
-                    if (!util::readDetailHeaderFontV8(fp, headerFont))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
-                    auto strNameFont = new char[headerFont.sizeNameFonte];
-                    if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
-                    {
-                        delete [] strNameFont;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
-                    }
-                    infoFont->fontName        = strNameFont;
-                    infoFont->heightLetter    = headerFont.heightLetter;
-                    infoFont->spaceXCharacter = headerFont.spaceXCharacter;
-                    infoFont->spaceYCharacter = headerFont.spaceYCharacter;
-                    delete[] strNameFont;
-                    for (int i = 0; i < headerFont.totalDetailFont; ++i)
-                    {
-                        auto detailFont = new util::DETAIL_LETTER();
-                        if (!util::readDetailLetterV8(fp, *detailFont))
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
-                        }
-                        if (detailFont->indexFrame >= headerFont.totalDetailFont)
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]",
-                                                     fileNamePath);
-                        }
-                        infoFont->letter[detailFont->letter].detail = detailFont;
-                    }
-                }
-                break;
-                default: {
-                }
-            }
+            if (!this->loadDebugLegacyDetailStep(fp, fileNamePath, deprectedInfoSprite))
+                return false;
         }
 #else
         else
@@ -1936,32 +1666,19 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "there is no animation [%s]", fileNamePath);
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
-        if (headerMain.version == INITIAL_VERSION_MBM_HEADER)
+        if (headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-            if (!deprecated_mbm::fillAnimation_1(fileNamePath, fp, &headerMesh, &this->infoAnimation))
+            if (!this->loadDebugLegacyAnimationStep(fp, fileNamePath, deprectedInfoSprite))
                 return false;
 #else
             return log_util::onFailed(fp,__FILE__, __LINE__, "unexpected version [%s] Version [%d]", fileNamePath, headerMain.version);
 #endif
         }
-        else if (headerMain.version >= SPRITE_INFO_VERSION_MBM_HEADER)
+        else if (!this->fillAnimation_2(fileNamePath, fp))
         {
-            if (!this->fillAnimation_2(fileNamePath, fp))
-                return false;
+            return false;
         }
-        else
-        {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "unknown version [%s] Version [%d]", fileNamePath, headerMain.version);
-        }
-        if (this->headerMain.version == INITIAL_VERSION_MBM_HEADER)
-            this->headerMain.version = SPRITE_INFO_VERSION_MBM_HEADER;
-#if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        if (this->headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-        {
-            deprectedInfoSprite.fillOldPhysicsSprite_2(this->typeMe, this->infoAnimation, this->headerMesh.totalFrames);
-        }
-#endif
         // Loop principal atraves de todos os frames deste arquivo -----------------------------------------------
         for (int currentFrame = 0; currentFrame < headerMesh.totalFrames; ++currentFrame)
         {
@@ -2212,10 +1929,8 @@ namespace mbm
                 pBuffer->uv          = reinterpret_cast<float *>(pTexture);
                 pBuffer->indexBuffer = indexArray;
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-                    deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), pBuffer->subset, this->typeMe,
-                                                          this->infoPhysics.lsCube, this->infoPhysics.lsSphere,
-                                                          this->infoPhysics.lsTriangle);
+                this->fillDebugLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
+                                                     static_cast<uint32_t>(currentFrame), pBuffer->subset);
 #endif
             }
             // 6.3 Vertex Buffer somente
@@ -2235,10 +1950,8 @@ namespace mbm
                 pBuffer->normal   = reinterpret_cast<float *>(pNormal);
                 pBuffer->uv       = reinterpret_cast<float *>(pTexture);
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-                    deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), pBuffer->subset, this->typeMe,
-                                                          this->infoPhysics.lsCube, this->infoPhysics.lsSphere,
-                                                          this->infoPhysics.lsTriangle);
+                this->fillDebugLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
+                                                     static_cast<uint32_t>(currentFrame), pBuffer->subset);
 #endif
             }
             else
@@ -3775,6 +3488,11 @@ namespace mbm
     
     bool MESH_MBM::load(const char *fileNamePath)
     {
+        return this->loadImpl(fileNamePath, true);
+    }
+
+    bool MESH_MBM::loadImpl(const char *fileNamePath, const bool allowLegacyDispatch)
+    {
         this->release();
         util::HEADER       headerMain;
         util::HEADER_MESH  headerMesh;
@@ -3832,8 +3550,7 @@ namespace mbm
         }
         if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
             return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
-        if (headerMain.version < CURRENT_VERSION_MBM_HEADER &&
-            !legacy_mesh_internal::g_skipLegacyDispatchMesh)
+        if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
             if (fp)
@@ -3966,27 +3683,8 @@ namespace mbm
                     break;
                     case 4:
                     {
-                        //Introduced position to the triangle
-                        if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
-                        {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                auto triangle = new TRIANGLE();
-                                this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!util::readTriangleV8(fp, *triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
-                        }
-                        else
-                        {
-                            for(int j=0; j< detail.totalBounding; j++)
-                            {
-                                auto triangle = new TRIANGLE();
-                                this->infoPhysics.lsTriangle.push_back(triangle);
-                                if (!util::readTriangleLegacyNoPosV8(fp, *triangle))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                            }
-                        }
+                        if (!this->readTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
+                            return false;
                         i += detail.totalBounding;
                     }
                     break;
@@ -4142,115 +3840,8 @@ namespace mbm
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
         {
-            // step 2: --------------------------------------------------------------------------------------------------
-            switch (this->typeMe)
-            {
-                case util::TYPE_MESH_3D:
-                {
-                    util::DETAIL_MESH detail;
-                    // 2.1 Cubos -- Todos os boundings
-                    // --------------------------------------------------------------------
-                    if (!util::readDetailMeshV8(fp, detail))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load bounding box [%s]", fileNamePath);
-                    if (detail.totalBounding)
-                    {
-                        switch (detail.type) // 1: Bounding box. 2: Esferico. 3: Cube poligono .
-                        {
-                            case 1:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto base = new CUBE();
-                                    this->infoPhysics.lsCube.push_back(base);
-                                    if (!util::readCubeV8(fp, *base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            case 2:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto base = new SPHERE();
-                                    this->infoPhysics.lsSphere.push_back(base);
-                                    if (!util::readSphereV8(fp, *base))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                }
-                            }
-                            break;
-                            case 3:
-                            {
-                                for (int i = 0; i < detail.totalBounding; ++i)
-                                {
-                                    auto complex = new CUBE_COMPLEX();
-                                    this->infoPhysics.lsCubeComplex.push_back(complex);
-                                    if (!util::readCubeComplexV8(fp, *complex))
-                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding [%s]",
-                                                                 fileNamePath);
-                                    ;
-                                }
-                            }
-                            break;
-                            default: { return log_util::onFailed(fp,__FILE__, __LINE__, "bounding unknown [%s]", fileNamePath);
-                            }
-                        }
-                    }
-                }
-                break;
-                case util::TYPE_MESH_SPRITE:
-                {
-                    if (!deprectedInfoSprite.readBoundingSprite(fp, fileNamePath, &this->zoomEditorSprite.x,
-                                                                &this->zoomEditorSprite.y))
-                        return false;
-                }
-                break;
-                case util::TYPE_MESH_USER:
-                {
-                    // special -- user
-                }
-                break;
-                case util::TYPE_MESH_FONT:
-                {
-                    auto *   infoFont = new INFO_BOUND_FONT();
-                    this->extraInfo = infoFont;
-                    util::DETAIL_HEADER_FONT headerFont;
-                    if (!util::readDetailHeaderFontV8(fp, headerFont))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
-                    auto strNameFont = new char[headerFont.sizeNameFonte];
-                    if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
-                    {
-                        delete [] strNameFont;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
-                    }
-                    infoFont->fontName        = strNameFont;
-                    infoFont->heightLetter    = headerFont.heightLetter;
-                    infoFont->spaceXCharacter = headerFont.spaceXCharacter;
-                    infoFont->spaceYCharacter = headerFont.spaceYCharacter;
-                    delete[] strNameFont;
-                    for (int i = 0; i < headerFont.totalDetailFont; ++i)
-                    {
-                        auto detailFont = new util::DETAIL_LETTER();
-                        if (!util::readDetailLetterV8(fp, *detailFont))
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
-                        }
-                        if (detailFont->indexFrame >= headerFont.totalDetailFont)
-                        {
-                            delete detailFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]",
-                                                     fileNamePath);
-                        }
-                        infoFont->letter[detailFont->letter].detail = detailFont;
-                    }
-                }
-                break;
-                default: {
-                }
-            }
+            if (!this->loadLegacyDetailStep(fp, fileNamePath, headerMain, deprectedInfoSprite))
+                return false;
         }
 #else
         else
@@ -4273,26 +3864,19 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "there is no animation [%s]", fileNamePath);
 
         // 4 header anim -- Todas as animações -----------------------------------------------------------
-        if (headerMain.version == INITIAL_VERSION_MBM_HEADER)
+        if (headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
-#if defined(MBM_ENABLE_MESH_LEGACY_V7)
-            if (!deprecated_mbm::fillAnimation_1(fileNamePath, fp, &headerMesh, &this->infoAnimation))
-                return false;
-#else
+    #if defined(MBM_ENABLE_MESH_LEGACY_V7)
+            if (!this->loadLegacyAnimationStep(fp, fileNamePath, headerMain, headerMesh, deprectedInfoSprite))
+            return false;
+    #else
             return log_util::onFailed(fp,__FILE__, __LINE__, "unexpected version [%s] V[%d]", fileNamePath, headerMain.version);
-#endif
+    #endif
         }
-        else
+        else if (!this->fillAnimation_2(headerMesh, fileNamePath, fp))
         {
-            if (!this->fillAnimation_2(headerMesh, fileNamePath, fp))
-                return false;
+            return false;
         }
-#if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-        {
-            deprectedInfoSprite.fillOldPhysicsSprite_2(this->typeMe, this->infoAnimation, headerMesh.totalFrames);
-        }
-#endif
         this->buffer          = new BUFFER_MESH[headerMesh.totalFrames];
         this->totalFramesMesh = static_cast<uint32_t>(headerMesh.totalFrames);
 
@@ -4600,10 +4184,8 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
                 }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-                    deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset,
-                                                          this->typeMe, this->infoPhysics.lsCube,
-                                                          this->infoPhysics.lsSphere, this->infoPhysics.lsTriangle);
+                this->fillLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
+                                                static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset);
 #endif
                 delete[] pPosition;
                 delete[] pNormal;
@@ -4643,10 +4225,8 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
                 }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                if (headerMain.version <= SPRITE_INFO_VERSION_MBM_HEADER)
-                    deprectedInfoSprite.fillPhysicsSprite(pPosition, static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset,
-                                                          this->typeMe, this->infoPhysics.lsCube,
-                                                          this->infoPhysics.lsSphere, this->infoPhysics.lsTriangle);
+                this->fillLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
+                                                static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset);
 #endif
                 delete[] pPosition;
                 delete[] pNormal;
