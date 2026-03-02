@@ -708,12 +708,13 @@ namespace mbm
 #endif
     }
 
-    bool MESH_MBM::loadLegacyCompat(const char *fileNamePath)
+    bool MESH_MBM::loadLegacyCompat(const char *fileNamePath, RENDERIZABLE *renderizable)
     {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-        return this->loadImpl(fileNamePath, false);
+        return this->loadImpl(fileNamePath, false, renderizable);
 #else
         (void)fileNamePath;
+        (void)renderizable;
         return false;
 #endif
     }

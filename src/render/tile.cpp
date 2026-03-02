@@ -70,7 +70,7 @@ namespace mbm
     {
         if (this->mesh != nullptr)
             return true;
-        this->mesh = MESH_MANAGER::getInstance()->load(fileName);
+        this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
         if (this->mesh)
         {
             const util::TYPE_MESH type = this->mesh->getTypeMesh();

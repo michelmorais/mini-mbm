@@ -56,7 +56,7 @@ namespace mbm
         if (this->mesh)
             return true;
         MESH_MANAGER *mehManager = MESH_MANAGER::getInstance();
-        this->mesh               = mehManager->load(fileName);
+        this->mesh               = mehManager->load(fileName, this);
         if (this->mesh)
         {
             // adicionamos as animações

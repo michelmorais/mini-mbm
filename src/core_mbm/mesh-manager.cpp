@@ -3579,10 +3579,15 @@ namespace mbm
     
     bool MESH_MBM::load(const char *fileNamePath)
     {
-        return this->loadImpl(fileNamePath, true);
+        return this->load(fileNamePath, nullptr);
     }
 
-    bool MESH_MBM::loadImpl(const char *fileNamePath, const bool allowLegacyDispatch)
+    bool MESH_MBM::load(const char *fileNamePath, RENDERIZABLE *renderizable)
+    {
+        return this->loadImpl(fileNamePath, true, renderizable);
+    }
+
+    bool MESH_MBM::loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable)
     {
         this->release();
         util::HEADER       headerMain;
@@ -3604,7 +3609,7 @@ namespace mbm
             if (fp)
                 fclose(fp);
             fp = nullptr;
-            return this->loadLegacyCompat(fileNamePath);
+            return this->loadLegacyCompat(fileNamePath, renderizable);
 #else
             return log_util::onFailed(fp,__FILE__, __LINE__, "legacy mesh version [%d] disabled at compile time. Rebuild with MBM_ENABLE_MESH_LEGACY_V7", headerMain.version);
 #endif
@@ -4059,6 +4064,12 @@ namespace mbm
         if (this->coordTexFrame_0)
             delete[] this->coordTexFrame_0;
         this->coordTexFrame_0 = nullptr;
+
+        if (renderizable)
+        {
+            renderizable->position += this->positionOffset;
+            renderizable->angle     = this->angleDefault;
+        }
         return true;
     }
     
@@ -4188,12 +4199,24 @@ namespace mbm
     
     MESH_MBM * MESH_MANAGER::load(const char *fileName)
     {
+        return this->load(fileName, nullptr);
+    }
+
+    MESH_MBM * MESH_MANAGER::load(const char *fileName, RENDERIZABLE *renderizable)
+    {
         std::string fileNameBase = util::getBaseName(fileName);
         auto mesh = this->lsMeshes[fileNameBase];
         if(mesh)
+        {
+            if (renderizable)
+            {
+                renderizable->position += mesh->positionOffset;
+                renderizable->angle     = mesh->angleDefault;
+            }
             return mesh;
+        }
         mesh = new MESH_MBM();
-        if (mesh->load(fileName))
+        if (mesh->load(fileName, renderizable))
         {
             lsMeshes[fileNameBase] = mesh;
             return mesh;

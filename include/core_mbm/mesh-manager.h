@@ -41,6 +41,7 @@ namespace deprecated_mbm
 namespace mbm
 {
     class BUFFER_GL;
+    class RENDERIZABLE;
     class RENDERIZABLE_TO_TARGET;
     class SHADER;
     class MESH_MBM;
@@ -177,7 +178,8 @@ namespace mbm
       private:
         MESH_MBM() noexcept;
         bool load(const char *fileNamePath);
-        bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch);
+        bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
+        bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable);
         void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
         bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
@@ -185,7 +187,7 @@ namespace mbm
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
         bool readTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
         bool fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp);
-        bool loadLegacyCompat(const char *fileNamePath);
+        bool loadLegacyCompat(const char *fileNamePath, RENDERIZABLE *renderizable);
       #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         bool loadLegacyDetailStep(FILE *fp, const char *fileNamePath, const util::HEADER &headerMain,
                 deprecated_mbm::INFO_SPRITE &deprecatedInfoSprite);
@@ -218,6 +220,7 @@ namespace mbm
         API_IMPL static void release();
         API_IMPL void fakeRelease(const char* fileName);
         API_IMPL MESH_MBM *load(const char *fileName);
+        API_IMPL MESH_MBM *load(const char *fileName, RENDERIZABLE *renderizable);
         API_IMPL MESH_MBM *loadTrueTypeFont(const char *fileNameTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng,TEXTURE ** texture_loaded);
         API_IMPL MESH_MBM *load(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer,const util::INFO_DRAW_MODE * info_mode);
         API_IMPL MESH_MBM *loadIndex(const char *nickName, float *pPosition, float *pNormal, float *pTexture,const uint32_t sizeVertexBuffer, uint16_t *index,const uint32_t sizeIndex,const util::INFO_DRAW_MODE * info_draw_mode);
