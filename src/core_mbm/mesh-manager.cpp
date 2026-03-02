@@ -271,7 +271,7 @@ namespace mbm
         fp = nullptr;
         MINIZ minz;
         {
-            char errorDesc[255]="";
+            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
             if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
         }
@@ -282,28 +282,28 @@ namespace mbm
         // -------------------------------------------------------------------------------
         if (!util::readHeaderV8(fp, headerMbmOut))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMbmOut.name, "mbm", 3) == 0 &&
-            (strncmp(headerMbmOut.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
-             strncmp(headerMbmOut.typeApp, "User mbm", 15) == 0 ||    // user
-             strncmp(headerMbmOut.typeApp, "Font mbm", 15) == 0 ||    // Font
-             strncmp(headerMbmOut.typeApp, "Sprite mbm", 15) == 0 ||   // Sprite
-             strncmp(headerMbmOut.typeApp, "Tile mbm", 15) == 0 ||   // binary Tile
-             strncmp(headerMbmOut.typeApp, "Shape mbm", 15) == 0 ||   // shape
-             strncmp(headerMbmOut.typeApp, "Particle mbm", 15) == 0)) // Particle
+        if (strncmp(headerMbmOut.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
+            (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // binary Tile
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // shape
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
         {
-            if (strncmp(headerMbmOut.typeApp, "Mesh 3d mbm", 15) == 0) // Mesh 3d normal
+            if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
                 typeOut = util::TYPE_MESH_3D;
-            else if (strncmp(headerMbmOut.typeApp, "User mbm", 15) == 0) // special -- user
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
                 typeOut = util::TYPE_MESH_USER;
-            else if (strncmp(headerMbmOut.typeApp, "Font mbm", 15) == 0) // Font
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
                 typeOut = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMbmOut.typeApp, "Sprite mbm", 15) == 0) // Sprite mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
                 typeOut = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMbmOut.typeApp, "Tile mbm", 15) == 0) // Tile mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
                 typeOut = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMbmOut.typeApp, "Particle mbm", 15) == 0) // Particle mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
                 typeOut = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMbmOut.typeApp, "Shape mbm", 15) == 0) // Shape mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape mbm
                 typeOut = util::TYPE_MESH_SHAPE;
         }
         else
@@ -329,7 +329,7 @@ namespace mbm
             util::EXTRA_HEADER extra;
             if (!util::readExtraHeaderV8(fp, extra))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-            if (extra.type == 1)// paths
+            if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
             {
                 std::string path(extra.sizeExtraHeader + 1, 0);
                 if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
@@ -359,7 +359,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
-                    case 1:
+                    case MBM_DETAIL_TYPE_CUBE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -370,7 +370,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 2:
+                    case MBM_DETAIL_TYPE_SPHERE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -381,7 +381,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 3:
+                    case MBM_DETAIL_TYPE_CUBE_COMPLEX:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -392,7 +392,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 4:
+                    case MBM_DETAIL_TYPE_TRIANGLE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -403,7 +403,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 5:
+                    case MBM_DETAIL_TYPE_FONT:
                     {
                         util::DETAIL_HEADER_FONT headerFont;
                         if (!util::readDetailHeaderFontV8(fp, headerFont))
@@ -438,7 +438,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 6:
+                    case MBM_DETAIL_TYPE_PARTICLE:
                     {
                         for (int j = 0; j< detail.totalBounding; j++)
                         {
@@ -450,7 +450,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 7:
+                    case MBM_DETAIL_TYPE_TILE:
                     {
                         util::BTILE_INFO infoTileMap;
                         
@@ -604,7 +604,7 @@ namespace mbm
         fp = nullptr;
         MINIZ minz;
         {
-            char errorDesc[255]="";
+            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
             if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc) == false
                        ? util::TYPE_MESH_UNKNOWN
@@ -622,28 +622,28 @@ namespace mbm
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath) == false
                        ? util::TYPE_MESH_UNKNOWN
                        : typeOut;
-        if (strncmp(headerMbmOut.name, "mbm", 3) == 0 &&
-            (strncmp(headerMbmOut.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
-             strncmp(headerMbmOut.typeApp, "User mbm", 15) == 0 ||    // user
-             strncmp(headerMbmOut.typeApp, "Font mbm", 15) == 0 ||    // Font
-             strncmp(headerMbmOut.typeApp, "Sprite mbm", 15) == 0 ||   // Sprite
-             strncmp(headerMbmOut.typeApp, "Tile mbm", 15) == 0 ||   // Tile
-             strncmp(headerMbmOut.typeApp, "Shape mbm", 15) == 0 ||   // Shape
-             strncmp(headerMbmOut.typeApp, "Particle mbm", 15) == 0)) // Particle
+        if (strncmp(headerMbmOut.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
+            (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
+             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
         {
-            if (strncmp(headerMbmOut.typeApp, "Mesh 3d mbm", 15) == 0) // Mesh 3d normal
+            if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
                 typeOut = util::TYPE_MESH_3D;
-            else if (strncmp(headerMbmOut.typeApp, "User mbm", 15) == 0) // special -- user
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
                 typeOut = util::TYPE_MESH_USER;
-            else if (strncmp(headerMbmOut.typeApp, "Font mbm", 15) == 0) // Font
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
                 typeOut = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMbmOut.typeApp, "Sprite mbm", 15) == 0) // Sprite mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
                 typeOut = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMbmOut.typeApp, "Particle mbm", 15) == 0) // Particle mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
                 typeOut = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMbmOut.typeApp, "Tile mbm", 15) == 0) // Tile mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
                 typeOut = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMbmOut.typeApp, "Shape mbm", 15) == 0) // Shape mbm
+            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape mbm
                 typeOut = util::TYPE_MESH_SHAPE;
         }
         else
@@ -811,7 +811,7 @@ namespace mbm
         if (this->buffer.size() == 0)
             return false;
         FILE *file = nullptr;
-        strncpy(headerMain.name, "mbm",sizeof(headerMain.name)-1);
+        strncpy(headerMain.name, MBM_HEADER_NAME_MBM,sizeof(headerMain.name)-1);
         headerMesh.totalFrames  = static_cast<int>(this->buffer.size());
         headerMain.version     = CURRENT_VERSION_MBM_HEADER;
         headerMain.reserved    = 0;
@@ -819,21 +819,21 @@ namespace mbm
         headerMain.magic       = 0x010203ff;
         switch (typeMe)
         {
-            case util::TYPE_MESH_3D:        {strncpy(headerMain.typeApp, "Mesh 3d mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_3D:        {strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_USER:      {strncpy(headerMain.typeApp, "User mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_USER:      {strncpy(headerMain.typeApp, MBM_TYPE_APP_USER,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_SPRITE:    {strncpy(headerMain.typeApp, "Sprite mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_SPRITE:    {strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_TILE_MAP:  {strncpy(headerMain.typeApp, "Tile mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_TILE_MAP:  {strncpy(headerMain.typeApp, MBM_TYPE_APP_TILE,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_FONT:      {strncpy(headerMain.typeApp, "Font mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_FONT:      {strncpy(headerMain.typeApp, MBM_TYPE_APP_FONT,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_TEXTURE:   {strncpy(headerMain.typeApp, "Texture mbm",sizeof(headerMain.typeApp)-1);}
+            case util::TYPE_MESH_TEXTURE:   {strncpy(headerMain.typeApp, MBM_TYPE_APP_TEXTURE,sizeof(headerMain.typeApp)-1);}
             break;
-            case util::TYPE_MESH_PARTICLE:  {strncpy(headerMain.typeApp, "Particle mbm",sizeof(headerMain.typeApp)-1); }
+            case util::TYPE_MESH_PARTICLE:  {strncpy(headerMain.typeApp, MBM_TYPE_APP_PARTICLE,sizeof(headerMain.typeApp)-1); }
             break;
-            case util::TYPE_MESH_SHAPE:     {strncpy(headerMain.typeApp, "Shape mbm",sizeof(headerMain.typeApp)-1); }
+            case util::TYPE_MESH_SHAPE:     {strncpy(headerMain.typeApp, MBM_TYPE_APP_SHAPE,sizeof(headerMain.typeApp)-1); }
             break;
             default:
             {
@@ -849,12 +849,12 @@ namespace mbm
                 if (allstride2)
                 {
                     typeMe = util::TYPE_MESH_SPRITE;
-                    strncpy(headerMain.typeApp, "Sprite mbm",sizeof(headerMain.typeApp)-1);
+                    strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,sizeof(headerMain.typeApp)-1);
                 }
                 else
                 {
                     typeMe = util::TYPE_MESH_3D;
-                    strncpy(headerMain.typeApp, "Mesh 3d mbm",sizeof(headerMain.typeApp)-1);
+                    strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,sizeof(headerMain.typeApp)-1);
                 }
             }
         }
@@ -1320,7 +1320,7 @@ namespace mbm
         fclose(fp);
         fp = nullptr;
         {
-            char errorDesc[255]="";
+            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
             if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
         }
@@ -1333,33 +1333,33 @@ namespace mbm
         // -------------------------------------------------------------------------------
         if (!util::readHeaderV8(fp, headerMain))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMain.name, "mbm", 3) == 0 &&
-            (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
-             strncmp(headerMain.typeApp, "User mbm", 15) == 0 ||
-             strncmp(headerMain.typeApp, "Font mbm", 15) == 0 ||  // Font
-             strncmp(headerMain.typeApp, "Sprite mbm", 15) == 0 ||   // Sprite
-             strncmp(headerMain.typeApp, "Tile mbm", 15) == 0 ||   // Tile
-             strncmp(headerMain.typeApp, "Shape mbm", 15) == 0 ||   // Shape
-             strncmp(headerMain.typeApp, "Particle mbm", 15) == 0)) // Particle
+        if (strncmp(headerMain.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
+            (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||  // Font
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
         {
-            if (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0) // Mesh 3d normal
+            if (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
                 typeMe = util::TYPE_MESH_3D;
-            else if (strncmp(headerMain.typeApp, "User mbm", 15) == 0)
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
                 typeMe = util::TYPE_MESH_USER;
-            else if (strncmp(headerMain.typeApp, "Font mbm", 15) == 0) // Font
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
                 typeMe = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMain.typeApp, "Sprite mbm", 15) == 0) // Sprite mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
                 typeMe = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMain.typeApp, "Tile mbm", 15) == 0) // Tile mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
                 typeMe = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMain.typeApp, "Particle mbm", 15) == 0) // Particle mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
                 typeMe = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMain.typeApp, "Shape mbm", 15) == 0)
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
                 typeMe = util::TYPE_MESH_SHAPE;
         }
         else
         {
-            char strTemp[255];
+            char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
             sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerMain.typeApp);
             return log_util::onFailed(fp,__FILE__, __LINE__, strTemp);
         }
@@ -1384,7 +1384,7 @@ namespace mbm
                 util::EXTRA_HEADER extra;
                 if (!util::readExtraHeaderV8(fp, extra))
                     return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-                if (extra.type == 1)// paths
+                if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
                 {
                     std::string path(extra.sizeExtraHeader + 1, 0);
                     if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
@@ -1421,7 +1421,7 @@ namespace mbm
                 /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
                 if (!util::readDetailMeshV8(fp, detailInfo))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-                if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
+                if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER) // script and shader until now
                     return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
                 if (detailInfo.totalBounding)
                 {
@@ -1456,7 +1456,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
-                    case 1:
+                    case MBM_DETAIL_TYPE_CUBE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -1468,7 +1468,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 2:
+                    case MBM_DETAIL_TYPE_SPHERE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -1480,7 +1480,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 3:
+                    case MBM_DETAIL_TYPE_CUBE_COMPLEX:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -1492,14 +1492,14 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 4:
+                    case MBM_DETAIL_TYPE_TRIANGLE:
                     {
                         if (!this->readDebugTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
                             return false;
                         i += detail.totalBounding;
                     }
                     break;
-                    case 5:
+                    case MBM_DETAIL_TYPE_FONT:
                     {
                         auto *infoFont = new INFO_BOUND_FONT();
                         this->extraInfo = infoFont;
@@ -1536,7 +1536,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 6:
+                    case MBM_DETAIL_TYPE_PARTICLE:
                     {
                         auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
                         this->extraInfo = lsParticleInfo;
@@ -1550,7 +1550,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 7:
+                    case MBM_DETAIL_TYPE_TILE:
                     {
                         auto* infoTileMap = new util::BTILE_INFO();
                         this->extraInfo = infoTileMap;
@@ -3506,7 +3506,7 @@ namespace mbm
         fp = nullptr;
         {
             MINIZ minz;
-            char errorDesc[255]="";
+            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
             if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
         }
@@ -3518,33 +3518,33 @@ namespace mbm
         // -------------------------------------------------------------------------------
         if (!util::readHeaderV8(fp, headerMain))
             return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMain.name, "mbm", 3) == 0 &&
-            (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0 || // Mesh 3d normal
-             strncmp(headerMain.typeApp, "User mbm", 15) == 0 ||    // user
-             strncmp(headerMain.typeApp, "Font mbm", 15) == 0 ||    // Font
-             strncmp(headerMain.typeApp, "Sprite mbm", 15) == 0 ||   // Sprite
-             strncmp(headerMain.typeApp, "Shape mbm", 15) == 0 ||   // Shape
-             strncmp(headerMain.typeApp, "Tile mbm", 15) == 0 ||   // Tile
-             strncmp(headerMain.typeApp, "Particle mbm", 15) == 0 )) // Particle
+        if (strncmp(headerMain.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
+            (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
+             strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 )) // Particle
         {
-            if (strncmp(headerMain.typeApp, "Mesh 3d mbm", 15) == 0) // Mesh 3d normal
+            if (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
                 typeMe = util::TYPE_MESH_3D;
-            else if (strncmp(headerMain.typeApp, "User mbm", 15) == 0) // special -- user
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
                 typeMe = util::TYPE_MESH_USER;
-            else if (strncmp(headerMain.typeApp, "Font mbm", 15) == 0) // Font
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
                 typeMe = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMain.typeApp, "Sprite mbm", 15) == 0) // Sprite mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
                 typeMe = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMain.typeApp, "Tile mbm", 15) == 0) // Tile mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
                 typeMe = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMain.typeApp, "Particle mbm", 15) == 0) // Particle mbm
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
                 typeMe = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMain.typeApp, "Shape mbm", 15) == 0) // Shape
+            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape
                 typeMe = util::TYPE_MESH_SHAPE;
         }
         else
         {
-            char strTemp[255];
+            char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
             sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerMain.typeApp);
             return log_util::onFailed(fp,__FILE__, __LINE__, strTemp);
         }
@@ -3567,7 +3567,7 @@ namespace mbm
             util::EXTRA_HEADER extra;
             if (!util::readExtraHeaderV8(fp, extra))
                 return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-            if (extra.type == 1)// paths
+            if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
             {
                 std::string path(extra.sizeExtraHeader + 1, 0);
                 if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
@@ -3610,7 +3610,7 @@ namespace mbm
                 /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
                 if (!util::readDetailMeshV8(fp, detailInfo))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-                if (detailInfo.type != 100 && detailInfo.type != 101) // script and shader until now
+                if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER) // script and shader until now
                     return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
                 if (detailInfo.totalBounding)
                 {
@@ -3645,7 +3645,7 @@ namespace mbm
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
                 switch (detail.type)
                 {
-                    case 1:
+                    case MBM_DETAIL_TYPE_CUBE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -3657,7 +3657,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 2:
+                    case MBM_DETAIL_TYPE_SPHERE:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -3669,7 +3669,7 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 3:
+                    case MBM_DETAIL_TYPE_CUBE_COMPLEX:
                     {
                         for(int j=0; j< detail.totalBounding; j++)
                         {
@@ -3681,14 +3681,14 @@ namespace mbm
                         i += detail.totalBounding;
                     }
                     break;
-                    case 4:
+                    case MBM_DETAIL_TYPE_TRIANGLE:
                     {
                         if (!this->readTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
                             return false;
                         i += detail.totalBounding;
                     }
                     break;
-                    case 5:
+                    case MBM_DETAIL_TYPE_FONT:
                     {
                         auto *   infoFont = new INFO_BOUND_FONT();
                         this->extraInfo = infoFont;
@@ -3726,7 +3726,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 6:
+                    case MBM_DETAIL_TYPE_PARTICLE:
                     {
                         auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
                         this->extraInfo = lsParticleInfo;
@@ -3740,7 +3740,7 @@ namespace mbm
                         i += 1;
                     }
                     break;
-                    case 7:
+                    case MBM_DETAIL_TYPE_TILE:
                     {
                         auto* infoTileMap = new util::BTILE_INFO();
                         this->extraInfo = infoTileMap;
@@ -5179,18 +5179,18 @@ namespace mbm
         // -------------------------------------------------------------------------------
         switch (meshMemory->getTypeMesh())
         {
-            case util::TYPE_MESH_3D:       strncpy(headerMain.typeApp, "Mesh 3d mbm",  sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_SHAPE:    strncpy(headerMain.typeApp, "Shape mbm",    sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_USER:     strncpy(headerMain.typeApp, "User mbm",     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_SPRITE:   strncpy(headerMain.typeApp, "Sprite mbm",   sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_TILE_MAP: strncpy(headerMain.typeApp, "Tile mbm",     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_FONT:     strncpy(headerMain.typeApp, "Font mbm",     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_PARTICLE: strncpy(headerMain.typeApp, "Particle mbm", sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_3D:       strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,  sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_SHAPE:    strncpy(headerMain.typeApp, MBM_TYPE_APP_SHAPE,    sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_USER:     strncpy(headerMain.typeApp, MBM_TYPE_APP_USER,     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_SPRITE:   strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,   sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_TILE_MAP: strncpy(headerMain.typeApp, MBM_TYPE_APP_TILE,     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_FONT:     strncpy(headerMain.typeApp, MBM_TYPE_APP_FONT,     sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_PARTICLE: strncpy(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, sizeof(headerMain.typeApp) - 1); break;
             default:
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh invalid type");
                 break;
         }
-        strncpy(headerMain.name, "mbm", sizeof(headerMain.name) - 1);
+        strncpy(headerMain.name, MBM_HEADER_NAME_MBM, sizeof(headerMain.name) - 1);
         headerMain.version = CURRENT_VERSION_MBM_HEADER;
         headerMain.magic = 0x010203ff;
         typeMe = meshMemory->getTypeMesh();

@@ -125,6 +125,29 @@ namespace util
     #define HAS_TEX_EACH_FRAME   1  /* texture in each frame */
     #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
 
+    #define MBM_ERROR_DESCRIPTION_BUFFER_SIZE 255
+    #define MBM_HEADER_NAME_COMPARE_LENGTH 3
+    #define MBM_HEADER_TYPE_APP_COMPARE_LENGTH 15
+    #define MBM_HEADER_NAME_MBM "mbm"
+    #define MBM_TYPE_APP_MESH_3D "Mesh 3d mbm"
+    #define MBM_TYPE_APP_USER "User mbm"
+    #define MBM_TYPE_APP_FONT "Font mbm"
+    #define MBM_TYPE_APP_SPRITE "Sprite mbm"
+    #define MBM_TYPE_APP_TILE "Tile mbm"
+    #define MBM_TYPE_APP_SHAPE "Shape mbm"
+    #define MBM_TYPE_APP_PARTICLE "Particle mbm"
+    #define MBM_TYPE_APP_TEXTURE "Texture mbm"
+    #define MBM_EXTRA_HEADER_TYPE_PATHS 1
+    #define MBM_DEPRECATED_DETAIL_TYPE_SCRIPT 100
+    #define MBM_DEPRECATED_DETAIL_TYPE_SHADER 101
+    #define MBM_DETAIL_TYPE_CUBE 1
+    #define MBM_DETAIL_TYPE_SPHERE 2
+    #define MBM_DETAIL_TYPE_CUBE_COMPLEX 3
+    #define MBM_DETAIL_TYPE_TRIANGLE 4
+    #define MBM_DETAIL_TYPE_FONT 5
+    #define MBM_DETAIL_TYPE_PARTICLE 6
+    #define MBM_DETAIL_TYPE_TILE 7
+
     struct API_IMPL HEADER_DISK_V8
     {
         char name[16];
