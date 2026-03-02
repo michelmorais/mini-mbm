@@ -171,11 +171,10 @@
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
-
   <!-- Backend-specific defines/libs based on $(MbmBackend) from mbm-backend.props -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(MbmBackend)'=='OpenGLES'">IMGUI_DISABLE_DEMO_WINDOWS;IMGUI_IMPL_OPENGL_ES2;IMGUI_IMPL_OPENGL_LOADER_CUSTOM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies Condition="'$(MbmBackend)'=='DirectX9'">d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -199,7 +198,6 @@
     <ClCompile Include="..\..\plugins\imGui\imgui-lua.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_demo.cpp" />
-    <ClCompile Include="..\..\plugins\imGui\imgui_demo_stubs.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_impl_dx9.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX9'">true</ExcludedFromBuild>
