@@ -210,7 +210,7 @@ namespace util
     INFO_ANIMATION::INFO_HEADER_ANIM::INFO_HEADER_ANIM() noexcept
     {
         headerAnim = nullptr;
-		effetcShader = nullptr;
+		effectShader = nullptr;
     }
         
     INFO_ANIMATION::INFO_HEADER_ANIM::~INFO_HEADER_ANIM()
@@ -218,8 +218,8 @@ namespace util
         if (headerAnim)
             delete headerAnim;
 
-        if (effetcShader)
-            delete effetcShader;
+        if (effectShader)
+            delete effectShader;
     }
         
     INFO_ANIMATION::INFO_ANIMATION() noexcept

@@ -861,7 +861,7 @@ namespace deprecated_mbm
             {
                 infoStepShader             = new util::INFO_FX();
                 infoStepShader->blendOperation = 1;
-                infoHead->effetcShader = infoStepShader;
+                infoHead->effectShader = infoStepShader;
             }
             // Pixel Shader -------------------------------------------------------------------------------
             if (headerAnim.lenPS)

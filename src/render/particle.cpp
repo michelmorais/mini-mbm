@@ -109,9 +109,9 @@ namespace mbm
             if (anim && mesh->infoAnimation.lsHeaderAnim.size() && infoHead->headerAnim)
             {
                 anim->blendState = static_cast<BLEND_STATE>(infoHead->headerAnim->blendState);
-                if (infoHead->effetcShader)
+                if (infoHead->effectShader)
                 {
-                    anim->fx.blendOperation = infoHead->effetcShader->blendOperation;
+                    anim->fx.blendOperation = infoHead->effectShader->blendOperation;
                 }
             }
         }

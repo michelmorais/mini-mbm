@@ -60,6 +60,922 @@ const bool is_any_mode_valid(const util::INFO_DRAW_MODE & info_mode,std::string 
     return true;
 }
 
+namespace
+{
+    const char* get_type_app_from_mesh_type(const util::TYPE_MESH type) noexcept
+    {
+        switch (type)
+        {
+            case util::TYPE_MESH_3D:       return MBM_TYPE_APP_MESH_3D;
+            case util::TYPE_MESH_USER:     return MBM_TYPE_APP_USER;
+            case util::TYPE_MESH_SPRITE:   return MBM_TYPE_APP_SPRITE;
+            case util::TYPE_MESH_FONT:     return MBM_TYPE_APP_FONT;
+            case util::TYPE_MESH_TEXTURE:  return MBM_TYPE_APP_TEXTURE;
+            case util::TYPE_MESH_SHAPE:    return MBM_TYPE_APP_SHAPE;
+            case util::TYPE_MESH_PARTICLE: return MBM_TYPE_APP_PARTICLE;
+            case util::TYPE_MESH_TILE_MAP: return MBM_TYPE_APP_TILE;
+            default:                       return nullptr;
+        }
+    }
+
+    util::TYPE_MESH get_mesh_type_from_type_app(const char* typeApp) noexcept
+    {
+        if (strncmp(typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_3D;
+        if (strncmp(typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_USER;
+        if (strncmp(typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_FONT;
+        if (strncmp(typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_SPRITE;
+        if (strncmp(typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_TILE_MAP;
+        if (strncmp(typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_PARTICLE;
+        if (strncmp(typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
+            return util::TYPE_MESH_SHAPE;
+        return util::TYPE_MESH_UNKNOWN;
+    }
+
+    bool try_decode_type_from_header(const util::HEADER& header, util::TYPE_MESH& typeOut) noexcept
+    {
+        if (strncmp(header.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) != 0)
+            return false;
+        typeOut = get_mesh_type_from_type_app(header.typeApp);
+        return typeOut != util::TYPE_MESH_UNKNOWN;
+    }
+
+    bool open_decompressed_mesh_file(const char *fileNamePath, FILE *&fp, const char *openErrorFormat)
+    {
+        fp = util::openFile(fileNamePath, "rb");
+        if (!fp)
+            return log_util::onFailed(fp, __FILE__, __LINE__, openErrorFormat, fileNamePath ? fileNamePath : "nullptr");
+        fclose(fp);
+        fp = nullptr;
+
+        mbm::MINIZ minz;
+        char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE] = "";
+        if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(), errorDesc, sizeof(errorDesc) - 1))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath, errorDesc);
+
+        fp = util::openFile(util::getDecompressModelFileName(), "rb");
+        if (!fp)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
+        return true;
+    }
+
+    bool read_main_header_and_type(FILE *fp, const char *fileNamePath, util::HEADER &headerOut, util::TYPE_MESH &typeOut)
+    {
+        if (!util::readHeaderV8(fp, headerOut))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
+        if (!try_decode_type_from_header(headerOut, typeOut))
+        {
+            char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
+            sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerOut.typeApp);
+            return log_util::onFailed(fp, __FILE__, __LINE__, strTemp);
+        }
+        if (headerOut.version < INITIAL_VERSION_MBM_HEADER || headerOut.version > CURRENT_VERSION_MBM_HEADER)
+            return log_util::onFailed(fp, __FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath, headerOut.version);
+        return true;
+    }
+
+    bool read_extra_headers(FILE *fp, const char *fileNamePath, const int extraHeaderCount, const bool registerPaths)
+    {
+        for (int i = 0; i < extraHeaderCount; ++i)
+        {
+            util::EXTRA_HEADER extra;
+            if (!util::readExtraHeaderV8(fp, extra))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
+            if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)
+            {
+                std::string path(extra.sizeExtraHeader + 1, 0);
+                if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
+                    return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
+#ifndef ANDROID
+                if (registerPaths)
+                    util::addPath(path.c_str());
+#endif
+            }
+            else
+            {
+                return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
+            }
+        }
+        return true;
+    }
+
+    bool read_info_mode_if_needed(FILE *fp, const char *fileNamePath, const int version, util::INFO_DRAW_MODE &infoMode,
+                                  const bool validateModes)
+    {
+        if (version < MODE_DRAW_VERSION_MBM_HEADER)
+            return true;
+        if (!util::readInfoDrawModeV8(fp, infoMode))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
+        if (validateModes)
+        {
+            std::string which_mode;
+            if (is_any_mode_valid(infoMode, which_mode) == false)
+                return log_util::onFailed(fp, __FILE__, __LINE__, "Invalid mode %s detected:[%s]", which_mode.c_str(), fileNamePath);
+        }
+        return true;
+    }
+
+    template <typename OnHeaderRead, typename OnSubsetRead>
+    bool read_frame_headers_and_subsets(FILE *fp,
+                                        const char *fileNamePath,
+                                        util::HEADER_FRAME &headerFrame,
+                                        OnHeaderRead onHeaderRead,
+                                        OnSubsetRead onSubsetRead)
+    {
+        if (!util::readHeaderFrameV8(fp, headerFrame))
+            return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read header of frame [%s]", fileNamePath);
+        if (!onHeaderRead(headerFrame))
+            return false;
+
+        util::HEADER_DESC_SUBSET headerDescSubset;
+        for (int i = 0; i < headerFrame.totalSubset; ++i)
+        {
+            if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
+                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
+            if (!onSubsetRead(headerFrame, i, headerDescSubset))
+                return false;
+        }
+        return true;
+    }
+
+    template <typename LoadFromSplitedFn, typename OnIndexedData, typename OnVertexData>
+    bool read_frame_geometry(FILE *fp,
+                             const char *fileNamePath,
+                             const util::HEADER_FRAME &headerFrame,
+                             int16_t hasNorText[2],
+                             const int fileVersion,
+                             LoadFromSplitedFn loadFromSplited,
+                             OnIndexedData onIndexedData,
+                             OnVertexData onVertexData)
+    {
+        if (headerFrame.sizeIndexBuffer && strcmp(headerFrame.typeBuffer, "IB") == 0)
+        {
+            auto indexArray = new uint16_t[headerFrame.sizeIndexBuffer];
+            if (!util::readU16ArrayV8(fp, indexArray, static_cast<uint32_t>(headerFrame.sizeIndexBuffer)))
+            {
+                delete[] indexArray;
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read index buffer of frame [%s]", fileNamePath);
+            }
+            mbm::VEC3 *pPosition = nullptr;
+            mbm::VEC3 *pNormal   = nullptr;
+            mbm::VEC2 *pTexture  = nullptr;
+            if (!loadFromSplited(fp,
+                                 headerFrame.sizeVertexBuffer,
+                                 &pPosition,
+                                 &pNormal,
+                                 &pTexture,
+                                 hasNorText,
+                                 indexArray,
+                                 headerFrame.sizeIndexBuffer,
+                                 headerFrame.stride,
+                                 fileVersion))
+            {
+                delete[] indexArray;
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
+            }
+            if (!onIndexedData(pPosition, pNormal, pTexture, indexArray))
+            {
+                delete[] pPosition;
+                delete[] pNormal;
+                delete[] pTexture;
+                delete[] indexArray;
+                return false;
+            }
+            delete[] pPosition;
+            delete[] pNormal;
+            delete[] pTexture;
+            delete[] indexArray;
+            return true;
+        }
+        if (strcmp(headerFrame.typeBuffer, "VB") == 0)
+        {
+            mbm::VEC3 *pPosition = nullptr;
+            mbm::VEC3 *pNormal   = nullptr;
+            mbm::VEC2 *pTexture  = nullptr;
+            if (!loadFromSplited(fp,
+                                 headerFrame.sizeVertexBuffer,
+                                 &pPosition,
+                                 &pNormal,
+                                 &pTexture,
+                                 hasNorText,
+                                 nullptr,
+                                 0,
+                                 headerFrame.stride,
+                                 fileVersion))
+            {
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
+            }
+            if (!onVertexData(pPosition, pNormal, pTexture))
+            {
+                delete[] pPosition;
+                delete[] pNormal;
+                delete[] pTexture;
+                return false;
+            }
+            delete[] pPosition;
+            delete[] pNormal;
+            delete[] pTexture;
+            return true;
+        }
+        return log_util::onFailed(fp,__FILE__, __LINE__, "unknown buffer type [%s]", fileNamePath);
+    }
+
+    bool load_from_splited_common(FILE *fp,
+                                  const int sizeVertexBuffer,
+                                  mbm::VEC3 **positionOut,
+                                  mbm::VEC3 **normalOut,
+                                  mbm::VEC2 **textureOut,
+                                  int16_t hasNorText[2],
+                                  uint16_t *indexArray,
+                                  const int sizeArrayIndex,
+                                  const int stride,
+                                  const int fileVersion,
+                                  mbm::VEC2 *&coordTexFrame0,
+                                  int &sizeCoordTexFrame0)
+    {
+        (void)fileVersion;
+        const bool noNormals = (hasNorText[0] == HAS_NOR_NO);
+        const bool hasNormalsFromFile = (hasNorText[0] == HAS_NOR_IN_FILE);
+        const bool calculateNormals = (hasNorText[0] == HAS_NOR_CALCULATE);
+
+        auto pPosition = new mbm::VEC3[sizeVertexBuffer];
+        mbm::VEC3* pNormal = noNormals ? nullptr : new mbm::VEC3[sizeVertexBuffer];
+        auto pTexture  = new mbm::VEC2[sizeVertexBuffer];
+        *positionOut            = pPosition;
+        *normalOut              = pNormal;
+        *textureOut             = pTexture;
+        if (stride == 3)
+        {
+            if (!util::readVec3ArrayV8(fp, pPosition, static_cast<uint32_t>(sizeVertexBuffer)))
+            {
+                delete[] pPosition;
+                if (pNormal) delete[] pNormal;
+                delete[] pTexture;
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
+            }
+            if (hasNormalsFromFile)
+            {
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
+                {
+                    delete[] pPosition;
+                    delete[] pNormal;
+                    delete[] pTexture;
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
+                }
+            }
+            else if (calculateNormals)
+            {
+                if (indexArray && sizeArrayIndex)
+                {
+                    for (int i = 0; i < sizeArrayIndex; i += 3)
+                    {
+                        const int index0 = indexArray[i];
+                        const int index1 = indexArray[i + 1];
+                        const int index2 = indexArray[i + 2];
+                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
+                        {
+                            delete[] pPosition;
+                            delete[] pNormal;
+                            delete[] pTexture;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
+                        }
+                        mbm::VEC3 a(pPosition[index1] - pPosition[index0]);
+                        mbm::VEC3 b(pPosition[index2] - pPosition[index1]);
+                        mbm::vec3Cross(&pNormal[index0], &a, &b);
+                        mbm::vec3Normalize(&pNormal[index0], &pNormal[index0]);
+                        pNormal[index1] = pNormal[index0];
+                        pNormal[index2] = pNormal[index0];
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < sizeVertexBuffer; i += 3)
+                    {
+                        mbm::VEC3 a(pPosition[i + 1] - pPosition[i]);
+                        mbm::VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
+                        mbm::vec3Cross(&pNormal[i], &a, &b);
+                        mbm::vec3Normalize(&pNormal[i], &pNormal[i]);
+                        pNormal[i + 1] = pNormal[i];
+                        pNormal[i + 2] = pNormal[i];
+                    }
+                }
+            }
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME)
+            {
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
+                {
+                    delete[] pPosition;
+                    delete[] pNormal;
+                    delete[] pTexture;
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
+                }
+            }
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME)
+            {
+                if (coordTexFrame0)
+                {
+                    if (sizeVertexBuffer != sizeCoordTexFrame0)
+                        memset(static_cast<void*>(pTexture), 0, sizeof(mbm::VEC2) * static_cast<size_t>(sizeVertexBuffer));
+                    int safeCopy = std::min(sizeVertexBuffer, sizeCoordTexFrame0);
+                    memcpy(static_cast<void*>(pTexture), coordTexFrame0, sizeof(mbm::VEC2) * static_cast<size_t>(safeCopy));
+                }
+                else
+                {
+                    coordTexFrame0 = new mbm::VEC2[sizeVertexBuffer];
+                    sizeCoordTexFrame0 = sizeVertexBuffer;
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
+                    {
+                        delete[] pPosition;
+                        delete[] pNormal;
+                        delete[] pTexture;
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
+                    }
+                    memcpy(static_cast<void*>(coordTexFrame0), pTexture, sizeof(mbm::VEC2) * static_cast<size_t>(sizeVertexBuffer));
+                }
+            }
+            else
+            {
+                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
+                {
+                    if (j % 2)
+                    {
+                        pTexture[i].x = 0;
+                        pTexture[i].y = 1;
+
+                        pTexture[i + 1].x = 0;
+                        pTexture[i + 1].y = 0;
+
+                        pTexture[i + 2].x = 1;
+                        pTexture[i + 2].y = 1;
+                    }
+                    else
+                    {
+                        pTexture[i].x = 1;
+                        pTexture[i].y = 1;
+
+                        pTexture[i + 1].x = 0;
+                        pTexture[i + 1].y = 0;
+
+                        pTexture[i + 2].x = 1;
+                        pTexture[i + 2].y = 0;
+                    }
+                }
+            }
+            return true;
+        }
+        if (stride == 2)
+        {
+            auto pStridePosition = new mbm::VEC2[sizeVertexBuffer];
+            if (!util::readVec2ArrayV8(fp, pStridePosition, static_cast<uint32_t>(sizeVertexBuffer)))
+            {
+                delete[] pPosition;
+                if (pNormal) delete[] pNormal;
+                delete[] pTexture;
+                delete[] pStridePosition;
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
+            }
+            for (int i = 0; i < sizeVertexBuffer; ++i)
+            {
+                pPosition[i].x = pStridePosition[i].x;
+                pPosition[i].y = pStridePosition[i].y;
+                pPosition[i].z = 0.0f;
+            }
+            delete[] pStridePosition;
+            pStridePosition = nullptr;
+            if (hasNormalsFromFile)
+            {
+                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
+                {
+                    delete[] pPosition;
+                    delete[] pNormal;
+                    delete[] pTexture;
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
+                }
+            }
+            else if (calculateNormals)
+            {
+                if (indexArray && sizeArrayIndex)
+                {
+                    for (int i = 0; i < sizeArrayIndex; i += 3)
+                    {
+                        const int index0 = indexArray[i];
+                        const int index1 = indexArray[i + 1];
+                        const int index2 = indexArray[i + 2];
+                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
+                        {
+                            delete[] pPosition;
+                            delete[] pNormal;
+                            delete[] pTexture;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
+                        }
+                        mbm::VEC3 a(pPosition[index1] - pPosition[index0]);
+                        mbm::VEC3 b(pPosition[index2] - pPosition[index1]);
+                        mbm::vec3Cross(&pNormal[index0], &a, &b);
+                        mbm::vec3Normalize(&pNormal[index0], &pNormal[index0]);
+                        pNormal[index1] = pNormal[index0];
+                        pNormal[index2] = pNormal[index0];
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < sizeVertexBuffer; i += 3)
+                    {
+                        mbm::VEC3 a(pPosition[i + 1] - pPosition[i]);
+                        mbm::VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
+                        mbm::vec3Cross(&pNormal[i], &a, &b);
+                        mbm::vec3Normalize(&pNormal[i], &pNormal[i]);
+                        pNormal[i + 1] = pNormal[i];
+                        pNormal[i + 2] = pNormal[i];
+                    }
+                }
+            }
+            if (hasNorText[1] == HAS_TEX_EACH_FRAME)
+            {
+                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
+                {
+                    delete[] pPosition;
+                    delete[] pNormal;
+                    delete[] pTexture;
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
+                }
+            }
+            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME)
+            {
+                if (coordTexFrame0)
+                {
+                    if (sizeVertexBuffer != sizeCoordTexFrame0)
+                        memset(static_cast<void*>(pTexture), 0, sizeof(mbm::VEC2) * static_cast<size_t>(sizeVertexBuffer));
+                    int safeCopy = std::min(sizeVertexBuffer, sizeCoordTexFrame0);
+                    memcpy(static_cast<void*>(pTexture), coordTexFrame0, sizeof(mbm::VEC2) * static_cast<size_t>(safeCopy));
+                }
+                else
+                {
+                    coordTexFrame0 = new mbm::VEC2[sizeVertexBuffer];
+                    sizeCoordTexFrame0 = sizeVertexBuffer;
+                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
+                    {
+                        delete[] pPosition;
+                        delete[] pNormal;
+                        delete[] pTexture;
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
+                    }
+                    memcpy(static_cast<void*>(coordTexFrame0), pTexture, sizeof(mbm::VEC2) * static_cast<size_t>(sizeVertexBuffer));
+                }
+            }
+            else
+            {
+                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
+                {
+                    if (j % 2)
+                    {
+                        pTexture[i].x = 0;
+                        pTexture[i].y = 1;
+
+                        pTexture[i + 1].x = 0;
+                        pTexture[i + 1].y = 0;
+
+                        pTexture[i + 2].x = 1;
+                        pTexture[i + 2].y = 1;
+                    }
+                    else
+                    {
+                        pTexture[i].x = 1;
+                        pTexture[i].y = 1;
+
+                        pTexture[i + 1].x = 0;
+                        pTexture[i + 1].y = 0;
+
+                        pTexture[i + 2].x = 1;
+                        pTexture[i + 2].y = 0;
+                    }
+                }
+            }
+            return true;
+        }
+        return log_util::onFailed(fp,__FILE__, __LINE__, "stride unknown. must be 2 or 3");
+    }
+
+    bool fill_animation_headers_common(FILE *fp,
+                                       const char *fileNamePath,
+                                       const int totalAnimation,
+                                       util::INFO_ANIMATION &infoAnimation)
+    {
+        for (int i = 0; i < totalAnimation; ++i)
+        {
+            auto headerAnim = new util::HEADER_ANIMATION();
+            if (!util::readHeaderAnimationV8(fp, *headerAnim))
+            {
+                delete headerAnim;
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
+            }
+            auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
+            infoAnimation.lsHeaderAnim.push_back(infoHead);
+            infoHead->headerAnim = headerAnim;
+
+            if(headerAnim->hasShaderEffect == 1)
+            {
+                infoHead->effectShader = new util::INFO_FX();
+                util::HEADER_INFO_SHADER_STEP headerPS_VS;
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
+                if(headerPS_VS.blendOperation != 0)
+                    infoHead->effectShader->blendOperation = headerPS_VS.blendOperation;
+                else
+                    infoHead->effectShader->blendOperation = 1;
+                if (headerPS_VS.lenNameShader)
+                {
+                    auto dataInfo = new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes,
+                                                               static_cast<short>(headerPS_VS.lenNameShader),
+                                                               static_cast<short>(headerPS_VS.lenTextureStage2));
+                    infoHead->effectShader->blendOperation = headerPS_VS.blendOperation;
+                    infoHead->effectShader->dataPS     = (dataInfo);
+                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
+                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
+                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
+
+                    if (headerPS_VS.lenTextureStage2)
+                    {
+                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
+                    }
+                    if (headerPS_VS.sizeArrayVarInBytes)
+                    {
+                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                    }
+                }
+                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
+                if (headerPS_VS.lenNameShader)
+                {
+                    auto dataInfo = new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes,
+                                                               static_cast<short>(headerPS_VS.lenNameShader),
+                                                               static_cast<short>(headerPS_VS.lenTextureStage2));
+                    infoHead->effectShader->blendOperation = headerPS_VS.blendOperation;
+                    infoHead->effectShader->dataVS     = (dataInfo);
+                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
+                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
+                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
+
+                    if (headerPS_VS.lenTextureStage2)
+                    {
+                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
+                    }
+                    if (headerPS_VS.sizeArrayVarInBytes)
+                    {
+                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->min,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                        if (!util::readFloatArrayV8(fp,
+                                                    dataInfo->max,
+                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    bool write_shader_step_to_file(const char *fileOut,
+                                   FILE **file,
+                                   util::INFO_FX *infoShaderStep,
+                                   util::INFO_SHADER_DATA *infoShader,
+                                   const bool writeTextureStage2,
+                                   const char *shaderNameError)
+    {
+        util::HEADER_INFO_SHADER_STEP headerPS_VS;
+        headerPS_VS.lenNameShader = static_cast<short>(strlen(infoShader->fileNameShader) + 1);
+        if (writeTextureStage2 && infoShader->fileNameTextureStage2)
+            headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(infoShader->fileNameTextureStage2) + 1);
+        else
+            headerPS_VS.lenTextureStage2 = 0;
+        headerPS_VS.sizeArrayVarInBytes  = static_cast<short>(infoShader->lenVars * 4);
+        headerPS_VS.typeAnimation        = static_cast<short>(infoShader->typeAnimation);
+        headerPS_VS.blendOperation       = infoShaderStep->blendOperation;
+        headerPS_VS.timeAnimation        = infoShader->timeAnimation;
+
+        if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
+            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
+
+        if (headerPS_VS.lenNameShader)
+        {
+            if (!util::addToFileBinary(fileOut,
+                                       infoShader->fileNameShader,
+                                       static_cast<size_t>(headerPS_VS.lenNameShader),
+                                       file))
+                return log_util::onFailed(*file,__FILE__, __LINE__, shaderNameError);
+        }
+        if (headerPS_VS.lenTextureStage2)
+        {
+            if (!util::addToFileBinary(fileOut,
+                                       infoShader->fileNameTextureStage2,
+                                       static_cast<size_t>(headerPS_VS.lenTextureStage2),
+                                       file))
+                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add textures name stage 2");
+        }
+        if (headerPS_VS.sizeArrayVarInBytes)
+        {
+            std::vector<char> lsSizeVar;
+            lsSizeVar.reserve(infoShader->lenVars);
+            for (int j = 0; j < infoShader->lenVars; ++j)
+            {
+                lsSizeVar.push_back(static_cast<char>(infoShader->typeVars[j]));
+            }
+            if (!util::addToFileBinary(fileOut, &lsSizeVar[0], lsSizeVar.size(), file))
+                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file!!");
+            for (int j = 0; j < infoShader->lenVars; ++j)
+            {
+                float d[4];
+                memcpy(d, &infoShader->min[j * 4], sizeof(d));
+                if (!util::writeFloatArrayV8(*file, d, 4))
+                    return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
+            }
+            for (int j = 0; j < infoShader->lenVars; ++j)
+            {
+                float d[4];
+                memcpy(d, &infoShader->max[j * 4], sizeof(d));
+                if (!util::writeFloatArrayV8(*file, d, 4))
+                    return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
+            }
+        }
+        return true;
+    }
+
+    bool write_empty_shader_step(FILE **file, const int blendOperation)
+    {
+        util::HEADER_INFO_SHADER_STEP headerPS_VS;
+        headerPS_VS.blendOperation = blendOperation;
+        if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
+            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
+        return true;
+    }
+
+    bool write_empty_shader_steps_pair(FILE **file, const int blendOperation)
+    {
+        if (!write_empty_shader_step(file, blendOperation))
+            return false;
+        if (!write_empty_shader_step(file, blendOperation))
+            return false;
+        return true;
+    }
+
+    template <typename TriangleReader>
+    bool read_detail_mesh_section(FILE *fp,
+                                  const char *fileNamePath,
+                                  const util::HEADER &headerMain,
+                                  mbm::INFO_PHYSICS &infoPhysics,
+                                  void *&extraInfo,
+                                  TriangleReader readTriangleDetail)
+    {
+        util::DETAIL_MESH detailInfo;
+        if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
+        {
+            if (!util::readDetailMeshV8(fp, detailInfo))
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
+            if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER)
+                return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
+            if (detailInfo.totalBounding)
+            {
+                const auto extraInfoSize = static_cast<uint32_t>(detailInfo.totalBounding);
+                auto * extra     = new char[extraInfoSize];
+                if (!fread(extra, static_cast<size_t>(extraInfoSize), 1, fp))
+                {
+                    delete [] extra;
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
+                }
+                delete [] extra;
+            }
+        }
+
+        if (!util::readDetailMeshV8(fp, detailInfo))
+            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
+        if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
+        {
+            if (detailInfo.type != 'H')
+                return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
+        }
+        else
+        {
+            if (detailInfo.type != 'P')
+                return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
+        }
+        for (int i = 0; i < detailInfo.totalBounding; )
+        {
+            util::DETAIL_MESH detail;
+            if (!util::readDetailMeshV8(fp, detail))
+                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
+            switch (detail.type)
+            {
+                case MBM_DETAIL_TYPE_CUBE:
+                {
+                    for(int j=0; j< detail.totalBounding; j++)
+                    {
+                        auto cube = new mbm::CUBE();
+                        infoPhysics.lsCube.push_back(cube);
+                        if (!util::readCubeV8(fp, *cube))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    }
+                    i += detail.totalBounding;
+                }
+                break;
+                case MBM_DETAIL_TYPE_SPHERE:
+                {
+                    for(int j=0; j< detail.totalBounding; j++)
+                    {
+                        auto base = new mbm::SPHERE();
+                        infoPhysics.lsSphere.push_back(base);
+                        if (!util::readSphereV8(fp, *base))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    }
+                    i += detail.totalBounding;
+                }
+                break;
+                case MBM_DETAIL_TYPE_CUBE_COMPLEX:
+                {
+                    for(int j=0; j< detail.totalBounding; j++)
+                    {
+                        auto complex = new mbm::CUBE_COMPLEX();
+                        infoPhysics.lsCubeComplex.push_back(complex);
+                        if (!util::readCubeComplexV8(fp, *complex))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
+                    }
+                    i += detail.totalBounding;
+                }
+                break;
+                case MBM_DETAIL_TYPE_TRIANGLE:
+                {
+                    if (!readTriangleDetail(fp, fileNamePath, detail.totalBounding, headerMain.version))
+                        return false;
+                    i += detail.totalBounding;
+                }
+                break;
+                case MBM_DETAIL_TYPE_FONT:
+                {
+                    auto *infoFont = new mbm::INFO_BOUND_FONT();
+                    extraInfo = infoFont;
+                    util::DETAIL_HEADER_FONT headerFont;
+                    if (!util::readDetailHeaderFontV8(fp, headerFont))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]", fileNamePath);
+                    auto strNameFont = new char[headerFont.sizeNameFonte];
+                    if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
+                    {
+                        delete [] strNameFont;
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
+                    }
+                    infoFont->fontName        = strNameFont;
+                    infoFont->heightLetter    = headerFont.heightLetter;
+                    infoFont->spaceXCharacter = headerFont.spaceXCharacter;
+                    infoFont->spaceYCharacter = headerFont.spaceYCharacter;
+                    delete[] strNameFont;
+                    for (int j = 0; j < headerFont.totalDetailFont; ++j)
+                    {
+                        auto detailFont = new util::DETAIL_LETTER();
+                        if (!util::readDetailLetterV8(fp, *detailFont))
+                        {
+                            delete detailFont;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
+                        }
+                        if (detailFont->indexFrame >= headerFont.totalDetailFont)
+                        {
+                            delete detailFont;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]", fileNamePath);
+                        }
+                        infoFont->letter[detailFont->letter].detail = detailFont;
+                    }
+                    i += 1;
+                }
+                break;
+                case MBM_DETAIL_TYPE_PARTICLE:
+                {
+                    auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
+                    extraInfo = lsParticleInfo;
+                    for (int j = 0; j< detail.totalBounding; j++)
+                    {
+                        auto stage = new util::STAGE_PARTICLE();
+                        lsParticleInfo->push_back(stage);
+                        if (!util::readStageParticleV8(fp, *stage))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
+                    }
+                    i += 1;
+                }
+                break;
+                case MBM_DETAIL_TYPE_TILE:
+                {
+                    auto* infoTileMap = new util::BTILE_INFO();
+                    extraInfo = infoTileMap;
+
+                    if (!util::readBtileHeaderMapV8(fp, infoTileMap->map))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
+
+                    if(infoTileMap->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "expected layerCount == totalBounding. [%d]!=[%d]",infoTileMap->map.layerCount,detail.totalBounding);
+
+                    infoTileMap->infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap->map.countRawTiles];
+                    if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick info editor tile from  detail tile!");
+
+                    const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
+                    infoTileMap->layers      = new util::BTILE_LAYER[infoTileMap->map.layerCount];
+                    for (uint32_t  j = 0; j < infoTileMap->map.layerCount; ++j)
+                    {
+                        if (!util::readFloat3ArrayV8(fp, infoTileMap->layers[j].offset))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
+
+                        infoTileMap->layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
+                        if (!util::readBtileIndexTileArrayV8(fp, infoTileMap->layers[j].lsIndexTiles, tileCount))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
+                    }
+
+                    util::BTILE_DETAIL_HEADER detailObjsProperty;
+                    if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
+                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
+
+                    for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
+                    {
+                        util::BTILE_OBJ_HEADER objHeader;
+                        if (!util::readBtileObjHeaderV8(fp, objHeader))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
+                        auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
+                        infoTileMap->lsObj.push_back(obj);
+                        if(objHeader.sizeName > 0)
+                        {
+                            obj->name.resize(objHeader.sizeName);
+                            auto * name = const_cast<char*>(obj->name.data());
+                            if (!fread(name, objHeader.sizeName,1, fp))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name at detail tile header!");
+                        }
+                        for(uint32_t k= 0 ; k < objHeader.sizePoints; ++k)
+                        {
+                            auto* point = new mbm::VEC2();
+                            obj->lsPoints.push_back(point);
+                            if (!util::readVec2V8(fp, *point))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
+                        }
+                    }
+
+                    for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
+                    {
+                        util::BTILE_PROPERTY_HEADER propertyHeader;
+                        if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
+                        auto* property = new util::BTILE_PROPERTY(static_cast<util::BTILE_PROPERTY_TYPE>(propertyHeader.type));
+                        infoTileMap->lsProperty.push_back(property);
+                        if(propertyHeader.nameLength > 0)
+                        {
+                            property->name.resize(propertyHeader.nameLength);
+                            auto * name = const_cast<char*>(property->name.data());
+                            if (!fread(name,propertyHeader.nameLength,1, fp))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property name at detail tile header!");
+                        }
+                        if(propertyHeader.valueLength > 0)
+                        {
+                            property->value.resize(propertyHeader.valueLength);
+                            auto * value = const_cast<char*>(property->value.data());
+                            if (!fread(value,propertyHeader.valueLength,1, fp))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property value at detail tile header!");
+                        }
+                        if(propertyHeader.ownerLength > 0)
+                        {
+                            property->owner.resize(propertyHeader.ownerLength);
+                            auto * owner = const_cast<char*>(property->owner.data());
+                            if (!fread(owner,propertyHeader.ownerLength,1, fp))
+                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property owner at detail tile header!");
+                        }
+                    }
+
+                    i += 1;
+                }
+                break;
+                default:
+                {
+                    return log_util::onFailed(fp,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type, fileNamePath);
+                }
+            }
+        }
+        return true;
+    }
+}
+
 namespace mbm
 {
     constexpr BUFFER_MESH::BUFFER_MESH() noexcept : pBufferGL(nullptr), subset(nullptr), totalSubset(0)
@@ -264,55 +1180,13 @@ namespace mbm
         if(!isMesh)
             return false;
         util::HEADER headerMbmOut;
-        FILE *           fp = util::openFile(fileNamePath, "rb");
-        if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "Failed to open file [%s]", fileNamePath ? fileNamePath : "nullptr");
-        fclose(fp);
-        fp = nullptr;
-        MINIZ minz;
-        {
-            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
-            if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
-        }
-        fp = util::openFile(util::getDecompressModelFileName(), "rb");
-        if (fp == nullptr)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
+        FILE * fp = nullptr;
+        if (!open_decompressed_mesh_file(fileNamePath, fp, "Failed to open file [%s]"))
+            return false;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!util::readHeaderV8(fp, headerMbmOut))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMbmOut.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
-            (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // binary Tile
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // shape
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
-        {
-            if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
-                typeOut = util::TYPE_MESH_3D;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
-                typeOut = util::TYPE_MESH_USER;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
-                typeOut = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
-                typeOut = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
-                typeOut = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
-                typeOut = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape mbm
-                typeOut = util::TYPE_MESH_SHAPE;
-        }
-        else
-        {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "is not a mbm file!!\ntype of file: %s [%s]", headerMbmOut.typeApp,
-                                     fileNamePath);
-        }
-        if (headerMbmOut.version < INITIAL_VERSION_MBM_HEADER || headerMbmOut.version > CURRENT_VERSION_MBM_HEADER)
-            return log_util::onFailed(fp,__FILE__, __LINE__,"incompatible version [%s]\ncurrent version [%d] \nversion in file [%d]",fileNamePath, CURRENT_VERSION_MBM_HEADER, headerMbmOut.version);
+        if (!read_main_header_and_type(fp, fileNamePath, headerMbmOut, typeOut))
+            return false;
 
         if (headerMbmOut.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
@@ -324,25 +1198,11 @@ namespace mbm
     #endif
         }
 
-        for (int i = 0; i < headerMbmOut.extraHeader; i++)
-        {
-            util::EXTRA_HEADER extra;
-            if (!util::readExtraHeaderV8(fp, extra))
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-            if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
-            {
-                std::string path(extra.sizeExtraHeader + 1, 0);
-                if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
-            }
-            else
-            {
-                return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
-            }
-        }
+        if (!read_extra_headers(fp, fileNamePath, headerMbmOut.extraHeader, false))
+            return false;
 
-        if (!util::readInfoDrawModeV8(fp, info_mode))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
+        if (!read_info_mode_if_needed(fp, fileNamePath, headerMbmOut.version, info_mode, false))
+            return false;
 
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMbmOut.version >= DETAIL_MESH_VERSION_MBM_HEADER)
@@ -594,65 +1454,13 @@ namespace mbm
             return util::TYPE_MESH_TILE_MAP;
         util::TYPE_MESH typeOut = util::TYPE_MESH_UNKNOWN;
         util::HEADER    headerMbmOut;
-        FILE *              fp = util::openFile(fileNamePath, "rb");
-        if (fp == nullptr)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "Failed to open file [%s]", fileNamePath ? fileNamePath : "nullptr") ==
-                           false
-                       ? util::TYPE_MESH_UNKNOWN
-                       : typeOut;
-        fclose(fp);
-        fp = nullptr;
-        MINIZ minz;
-        {
-            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
-            if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc) == false
-                       ? util::TYPE_MESH_UNKNOWN
-                       : typeOut;
-        }
-        
-        fp = util::openFile(util::getDecompressModelFileName(), "rb");
-        if (fp == nullptr)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath) == false
-                       ? util::TYPE_MESH_UNKNOWN
-                       : typeOut;
+        FILE * fp = nullptr;
+        if (!open_decompressed_mesh_file(fileNamePath, fp, "Failed to open file [%s]"))
+            return util::TYPE_MESH_UNKNOWN;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!util::readHeaderV8(fp, headerMbmOut))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath) == false
-                       ? util::TYPE_MESH_UNKNOWN
-                       : typeOut;
-        if (strncmp(headerMbmOut.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
-            (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
-             strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
-        {
-            if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
-                typeOut = util::TYPE_MESH_3D;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
-                typeOut = util::TYPE_MESH_USER;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
-                typeOut = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
-                typeOut = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
-                typeOut = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
-                typeOut = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMbmOut.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape mbm
-                typeOut = util::TYPE_MESH_SHAPE;
-        }
-        else
-        {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "is not a mbm file!!\ntype of file: %s [%s]", headerMbmOut.typeApp,
-                                     fileNamePath) == false
-                       ? util::TYPE_MESH_UNKNOWN
-                       : typeOut;
-        }
+        if (!read_main_header_and_type(fp, fileNamePath, headerMbmOut, typeOut))
+            return util::TYPE_MESH_UNKNOWN;
         fclose(fp);
         fp = nullptr;
         return typeOut;
@@ -817,46 +1625,31 @@ namespace mbm
         headerMain.reserved    = 0;
         headerMain.extraHeader = 0;
         headerMain.magic       = 0x010203ff;
-        switch (typeMe)
+        const char* typeApp = get_type_app_from_mesh_type(typeMe);
+        if (typeApp)
         {
-            case util::TYPE_MESH_3D:        {strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_USER:      {strncpy(headerMain.typeApp, MBM_TYPE_APP_USER,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_SPRITE:    {strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_TILE_MAP:  {strncpy(headerMain.typeApp, MBM_TYPE_APP_TILE,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_FONT:      {strncpy(headerMain.typeApp, MBM_TYPE_APP_FONT,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_TEXTURE:   {strncpy(headerMain.typeApp, MBM_TYPE_APP_TEXTURE,sizeof(headerMain.typeApp)-1);}
-            break;
-            case util::TYPE_MESH_PARTICLE:  {strncpy(headerMain.typeApp, MBM_TYPE_APP_PARTICLE,sizeof(headerMain.typeApp)-1); }
-            break;
-            case util::TYPE_MESH_SHAPE:     {strncpy(headerMain.typeApp, MBM_TYPE_APP_SHAPE,sizeof(headerMain.typeApp)-1); }
-            break;
-            default:
+            strncpy(headerMain.typeApp, typeApp, sizeof(headerMain.typeApp)-1);
+        }
+        else
+        {
+            bool allstride2 = true;
+            for (auto & i : this->buffer)
             {
-                bool allstride2 = true;
-                for (auto & i : this->buffer)
+                if (i->headerFrame.stride != 2)
                 {
-                    if (i->headerFrame.stride != 2)
-                    {
-                        allstride2 = false;
-                        break;
-                    }
-                }
-                if (allstride2)
-                {
-                    typeMe = util::TYPE_MESH_SPRITE;
-                    strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,sizeof(headerMain.typeApp)-1);
-                }
-                else
-                {
-                    typeMe = util::TYPE_MESH_3D;
-                    strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,sizeof(headerMain.typeApp)-1);
+                    allstride2 = false;
+                    break;
                 }
             }
+            if (allstride2)
+            {
+                typeMe = util::TYPE_MESH_SPRITE;
+            }
+            else
+            {
+                typeMe = util::TYPE_MESH_3D;
+            }
+            strncpy(headerMain.typeApp, get_type_app_from_mesh_type(typeMe), sizeof(headerMain.typeApp)-1);
         }
         if (errorOut)
         {
@@ -1310,61 +2103,17 @@ namespace mbm
     bool MESH_MBM_DEBUG::loadDebugImpl(const char *fileNamePath, const bool allowLegacyDispatch)
     {
         this->release();
-        FILE *fp = util::openFile(fileNamePath, "rb");
-        if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
-        MINIZ minz;
+        FILE *fp = nullptr;
+        if (!open_decompressed_mesh_file(fileNamePath, fp, "failed to open file [%s]"))
+            return false;
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
-        fclose(fp);
-        fp = nullptr;
-        {
-            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
-            if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
-        }
-        
-        fp = util::openFile(util::getDecompressModelFileName(), "rb");
-        if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
         fileName = fileNamePath;
         // step 1: Verificação do header  MBM principal
         // -------------------------------------------------------------------------------
-        if (!util::readHeaderV8(fp, headerMain))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMain.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
-            (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||  // Font
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)) // Particle
-        {
-            if (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
-                typeMe = util::TYPE_MESH_3D;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
-                typeMe = util::TYPE_MESH_USER;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
-                typeMe = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
-                typeMe = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
-                typeMe = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
-                typeMe = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0)
-                typeMe = util::TYPE_MESH_SHAPE;
-        }
-        else
-        {
-            char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
-            sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerMain.typeApp);
-            return log_util::onFailed(fp,__FILE__, __LINE__, strTemp);
-        }
-        if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
+        if (!read_main_header_and_type(fp, fileNamePath, headerMain, typeMe))
+            return false;
         if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
@@ -1379,31 +2128,11 @@ namespace mbm
 
         if (headerMain.version >= EXTRA_MBM_HEADER_PATH_TEXTURE)
         {
-            for (int i = 0; i < headerMain.extraHeader; i++)
-            {
-                util::EXTRA_HEADER extra;
-                if (!util::readExtraHeaderV8(fp, extra))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-                if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
-                {
-                    std::string path(extra.sizeExtraHeader + 1, 0);
-                    if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
-                        return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
-                    #ifndef ANDROID
-                    util::addPath(path.c_str());
-                    #endif
-                }
-                else
-                {
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
-                }
-            }
+            if (!read_extra_headers(fp, fileNamePath, headerMain.extraHeader, true))
+                return false;
         }
-        if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
-        {
-            if (!util::readInfoDrawModeV8(fp, info_mode))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
-        }
+        if (!read_info_mode_if_needed(fp, fileNamePath, headerMain.version, info_mode, false))
+            return false;
         if(typeMe == util::TYPE_MESH_TILE_MAP)
         {
             mbm::TEXTURE::enableFilter(false);
@@ -1415,237 +2144,16 @@ namespace mbm
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
         {
-            util::DETAIL_MESH detailInfo;
-            if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!util::readDetailMeshV8(fp, detailInfo))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-                if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER) // script and shader until now
-                    return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
-                if (detailInfo.totalBounding)
-                {
-                    const auto extraInfoSize = static_cast<uint32_t>(detailInfo.totalBounding);
-                    auto * extra     = new char[extraInfoSize];
-                    if (!fread(extra, static_cast<size_t>(extraInfoSize), 1, fp))
-                    {
-                        delete [] extra;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
-                    }
-                    delete [] extra;
-                }
-                /* ************* End - old just here to compatibility ***************** */
-            }
-            
-            if (!util::readDetailMeshV8(fp, detailInfo))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-            if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                if (detailInfo.type != 'H')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
-            }
-            else
-            {
-                if (detailInfo.type != 'P')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
-            }
-            for (int i = 0; i < detailInfo.totalBounding; )
-            {
-                util::DETAIL_MESH detail;
-                if (!util::readDetailMeshV8(fp, detail))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
-                switch (detail.type)
-                {
-                    case MBM_DETAIL_TYPE_CUBE:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto cube = new CUBE();
-                            this->infoPhysics.lsCube.push_back(cube);
-                            if (!util::readCubeV8(fp, *cube))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_SPHERE:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto base = new SPHERE();
-                            this->infoPhysics.lsSphere.push_back(base);
-                            if (!util::readSphereV8(fp, *base))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_CUBE_COMPLEX:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto complex = new CUBE_COMPLEX();
-                            this->infoPhysics.lsCubeComplex.push_back(complex);
-                            if (!util::readCubeComplexV8(fp, *complex))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_TRIANGLE:
-                    {
-                        if (!this->readDebugTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
-                            return false;
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_FONT:
-                    {
-                        auto *infoFont = new INFO_BOUND_FONT();
-                        this->extraInfo = infoFont;
-                        util::DETAIL_HEADER_FONT headerFont;
-                        if (!util::readDetailHeaderFontV8(fp, headerFont))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]",
-                                                     fileNamePath);
-                        auto strNameFont = new char[headerFont.sizeNameFonte];
-                        if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
-                        {
-                            delete [] strNameFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
-                        }
-                        infoFont->fontName        = strNameFont;
-                        infoFont->heightLetter    = headerFont.heightLetter;
-                        infoFont->spaceXCharacter = headerFont.spaceXCharacter;
-                        infoFont->spaceYCharacter = headerFont.spaceYCharacter;
-                        delete[] strNameFont;
-                        for (int j = 0; j < headerFont.totalDetailFont; ++j)
-                        {
-                            auto detailFont = new util::DETAIL_LETTER();
-                            if (!util::readDetailLetterV8(fp, *detailFont))
-                            {
-                                delete detailFont;
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
-                            }
-                            if (detailFont->indexFrame >= headerFont.totalDetailFont)
-                            {
-                                delete detailFont;
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]", fileNamePath);
-                            }
-                            infoFont->letter[detailFont->letter].detail = detailFont;
-                        }
-                        i += 1;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_PARTICLE:
-                    {
-                        auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
-                        this->extraInfo = lsParticleInfo;
-                        for (int j = 0; j< detail.totalBounding; j++)
-                        {
-                            auto stage = new util::STAGE_PARTICLE();
-                            lsParticleInfo->push_back(stage);
-                            if (!util::readStageParticleV8(fp, *stage))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
-                        }
-                        i += 1;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_TILE:
-                    {
-                        auto* infoTileMap = new util::BTILE_INFO();
-                        this->extraInfo = infoTileMap;
-
-                        if (!util::readBtileHeaderMapV8(fp, infoTileMap->map))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
-
-                        if(infoTileMap->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "expected layerCount == totalBounding. [%d]!=[%d]",infoTileMap->map.layerCount,detail.totalBounding);
-
-
-                        infoTileMap->infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap->map.countRawTiles];
-                        if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick info editor tile from  detail tile!");
-
-                        const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
-                        infoTileMap->layers = new util::BTILE_LAYER[infoTileMap->map.layerCount];
-
-                        for (uint32_t  j = 0; j < infoTileMap->map.layerCount; ++j)
-                        {
-                            if (!util::readFloat3ArrayV8(fp, infoTileMap->layers[j].offset))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
-
-                            infoTileMap->layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
-                            if (!util::readBtileIndexTileArrayV8(fp, infoTileMap->layers[j].lsIndexTiles, tileCount))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
-                        }
-
-                        util::BTILE_DETAIL_HEADER detailObjsProperty;
-                        if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-
-                        for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
-                        {
-                            util::BTILE_OBJ_HEADER objHeader;
-                            if (!util::readBtileObjHeaderV8(fp, objHeader))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-                            auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
-                            infoTileMap->lsObj.push_back(obj);
-                            if(objHeader.sizeName > 0)
-                            {
-                                obj->name.resize(objHeader.sizeName);
-                                auto * name = const_cast<char*>(obj->name.data());
-                                if (!fread(name, objHeader.sizeName,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name at detail tile header!");
-                            }
-                            for(uint32_t k= 0 ; k < objHeader.sizePoints; ++k)
-                            {
-                                auto* point = new VEC2();
-                                obj->lsPoints.push_back(point);
-                                if (!util::readVec2V8(fp, *point))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-                            }
-                        }
-
-                        for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
-                        {
-                            util::BTILE_PROPERTY_HEADER propertyHeader;
-                            if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
-                            auto* property = new util::BTILE_PROPERTY(static_cast<util::BTILE_PROPERTY_TYPE>(propertyHeader.type));
-                            infoTileMap->lsProperty.push_back(property);
-                            if(propertyHeader.nameLength > 0)
-                            {
-                                property->name.resize(propertyHeader.nameLength);
-                                auto * name = const_cast<char*>(property->name.data());
-                                if (!fread(name,propertyHeader.nameLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property name at detail tile header!");
-                            }
-                            if(propertyHeader.valueLength > 0)
-                            {
-                                property->value.resize(propertyHeader.valueLength);
-                                auto * value = const_cast<char*>(property->value.data());
-                                if (!fread(value,propertyHeader.valueLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property value at detail tile header!");
-                            }
-                            if(propertyHeader.ownerLength > 0)
-                            {
-                                property->owner.resize(propertyHeader.ownerLength);
-                                auto * owner = const_cast<char*>(property->owner.data());
-                                if (!fread(owner,propertyHeader.ownerLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property owner at detail tile header!");
-                            }
-                        }
-
-                        i += 1;
-                    }
-                    break;
-                    default:
-                    {
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type,
-                                                 fileNamePath);
-                    }
-                }
-            }
+            if (!read_detail_mesh_section(fp,
+                                          fileNamePath,
+                                          headerMain,
+                                          this->infoPhysics,
+                                          this->extraInfo,
+                                          [this](FILE *file, const char *name, const int totalBounding, const int fileVersion)
+                                          {
+                                              return this->readDebugTriangleDetailCompat(file, name, totalBounding, fileVersion);
+                                          }))
+                return false;
         }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
@@ -1688,276 +2196,289 @@ namespace mbm
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
             util::HEADER_FRAME *headerFrame = &pBuffer->headerFrame;
-            if (!util::readHeaderFrameV8(fp, *headerFrame))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of frame [%s]", fileNamePath);
-
-            // 6 Todos os headers subset deste frame
-            // -------------------------------------------------------------------------------
-            util::HEADER_DESC_SUBSET headerDescSubset;
-            for (int i = 0; i < headerFrame->totalSubset; ++i)
-            {
-                auto pSubset = new util::SUBSET_DEBUG();
-                pBuffer->subset.push_back(pSubset);
-                if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
-                pSubset->vertexStart = headerDescSubset.vertexStart;
-                pSubset->indexStart  = headerDescSubset.indexStart;
-                pSubset->indexCount  = headerDescSubset.indexCount;
-                pSubset->vertexCount = headerDescSubset.vertexCount;
-                if (strcmp(headerDescSubset.nameTexture, "default") != 0)
-                {
-                    char *pch = strchr(headerDescSubset.nameTexture, '#');
-                    if (pch && pch[0] == '#' && pch[1] == 'u')
+            if (!read_frame_headers_and_subsets(
+                    fp,
+                    fileNamePath,
+                    *headerFrame,
+                    [](util::HEADER_FRAME &) -> bool
                     {
-                        pch[0] = 0;
-                        util::HEADER_IMG headerImg;
-                        headerImg.lenght = 0;
-                        if (!util::readHeaderImgV8(fp, headerImg))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
-                        if (headerImg.lenght == 0)
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
-                        auto data = new uint8_t[headerImg.lenght];
-                        if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
-                        {
-                            delete [] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
-                        }
-                        uint32_t sizeOfImage = 0;
-                        if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
-                        {
-                            delete [] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image! Channel != [3 || 4] [%s]",
-                                                     fileNamePath);
-                        }
-                        headerImg.channel = headerImg.channel == 4 ? 4 : 3;
-                        switch (headerImg.depth)
-                        {
-                            case 3:
-                            {
-                                sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
-                                while (sizeOfImage % 8)
-                                {
-                                    sizeOfImage++;
-                                }
-                                sizeOfImage = sizeOfImage / 8;
-                            }
-                            break;
-                            case 4:
-                            {
-
-                                sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
-                                while (sizeOfImage % 8)
-                                {
-                                    sizeOfImage++;
-                                }
-                                sizeOfImage = sizeOfImage / 8;
-                            }
-                            break;
-                            case 8: { sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;}
-                            break;
-                            default: {delete [] data; return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);}
-                        }
-                        MINIZ miniz;
-                        if (miniz.decompressStream(data, headerImg.lenght, sizeOfImage))
-                        {
-                            delete[] data;
-                            pSubset->texture = headerDescSubset.nameTexture;
-                            if (!pSubset->texture.size())
-                            {
-#if defined _DEBUG
-                                PRINT_IF_DEBUG( "error on create texture: %s \n Linha %d",
-                                             fileName.c_str());
-#endif
-                            }
-                        }
-                        else
-                        {
-                            delete[] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]", fileNamePath);
-                        }
-                    }
-                    else
+                        return true;
+                    },
+                    [&](const util::HEADER_FRAME &, const int, util::HEADER_DESC_SUBSET &headerDescSubset) -> bool
                     {
-                        pch = strchr(headerDescSubset.nameTexture, '#');
-                        if (pch && pch[0] == '#' && pch[1] == 'M') // Material apenas .. cor como string
+                        auto pSubset = new util::SUBSET_DEBUG();
+                        pBuffer->subset.push_back(pSubset);
+                        pSubset->vertexStart = headerDescSubset.vertexStart;
+                        pSubset->indexStart  = headerDescSubset.indexStart;
+                        pSubset->indexCount  = headerDescSubset.indexCount;
+                        pSubset->vertexCount = headerDescSubset.vertexCount;
+                        if (strcmp(headerDescSubset.nameTexture, "default") != 0)
                         {
-                            pch = &pch[2];
-                            //util::MATERIAL mat;
-                            //memset(&mat, 0, sizeof(mat));
-                            std::vector<std::string> result;
-                            util::split(result, pch, '|');
-
-                            if (result.size() == 5)
+                            char *pch = strchr(headerDescSubset.nameTexture, '#');
+                            if (pch && pch[0] == '#' && pch[1] == 'u')
                             {
-                                COLOR colorAculm(0.0f, 0.0f, 0.0f, 0.0f);
-                                int        totalSum = 0;
-                                for (auto & n : result)
+                                pch[0] = 0;
+                                util::HEADER_IMG headerImg;
+                                headerImg.lenght = 0;
+                                if (!util::readHeaderImgV8(fp, headerImg))
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
+                                if (headerImg.lenght == 0)
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
+                                auto data = new uint8_t[headerImg.lenght];
+                                if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
                                 {
-                                    const char *strTemp   = n.c_str();
-                                    //char        letter    = strTemp[0];
-                                    const char *strNumber = &strTemp[1];
-                                    COLOR  color     = static_cast<uint32_t>(strtol(strNumber, nullptr, 16));
-                                    if (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+                                    delete [] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
+                                }
+                                uint32_t sizeOfImage = 0;
+                                if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
+                                {
+                                    delete [] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image! Channel != [3 || 4] [%s]",
+                                                             fileNamePath);
+                                }
+                                headerImg.channel = headerImg.channel == 4 ? 4 : 3;
+                                switch (headerImg.depth)
+                                {
+                                    case 3:
                                     {
-                                        colorAculm.r += color.r;
-                                        colorAculm.g += color.g;
-                                        colorAculm.b += color.b;
-                                        totalSum++;
+                                        sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
+                                        while (sizeOfImage % 8)
+                                        {
+                                            sizeOfImage++;
+                                        }
+                                        sizeOfImage = sizeOfImage / 8;
                                     }
-                                    //switch (letter)
-                                    //{
-                                    //    case 'A': { mat.Ambient = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'D': { mat.Diffuse = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'E': { mat.Emissive = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'S': { mat.Specular = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'P': { mat.Power = static_cast<float>(atof(strNumber));}
-                                    //    break;
-                                    //    default: break;
-                                    //}
-                                }
-                                if (totalSum)
-                                { // potências de 2 (2,4,8,16,32,64,128,256, 512,1024)...
-                                    /*colorAculm.r  =   colorAculm.r / (float)totalSum;
-                                    colorAculm.g    =   colorAculm.g / (float)totalSum;
-                                    colorAculm.b    =   colorAculm.b / (float)totalSum;
-                                    uint8_t dataARGB[16];
-                                    uint32_t dwR = colorAculm.r >= 1.0f ? 0xff : colorAculm.r <= 0.0f ? 0x00 :
-                                    (uint32_t) (colorAculm.r * 255.0f + 0.5f);
-                                    uint32_t dwG = colorAculm.g >= 1.0f ? 0xff : colorAculm.g <= 0.0f ? 0x00 :
-                                    (uint32_t) (colorAculm.g * 255.0f + 0.5f);
-                                    uint32_t dwB = colorAculm.b >= 1.0f ? 0xff : colorAculm.b <= 0.0f ? 0x00 :
-                                    (uint32_t) (colorAculm.b * 255.0f + 0.5f);
-                                    for(int pixel=0; pixel< 12; pixel+=4)
+                                    break;
+                                    case 4:
                                     {
-                                        dataARGB[pixel]     =   (uint8_t)255;
-                                        dataARGB[pixel+1]   =   (uint8_t)dwR;
-                                        dataARGB[pixel+2]   =   (uint8_t)dwG;
-                                        dataARGB[pixel+3]   =   (uint8_t)dwB;
-                                    }*/
+
+                                        sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
+                                        while (sizeOfImage % 8)
+                                        {
+                                            sizeOfImage++;
+                                        }
+                                        sizeOfImage = sizeOfImage / 8;
+                                    }
+                                    break;
+                                    case 8: { sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;}
+                                    break;
+                                    default: {delete [] data; return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);}
+                                }
+                                MINIZ miniz;
+                                if (miniz.decompressStream(data, headerImg.lenght, sizeOfImage))
+                                {
+                                    delete[] data;
                                     pSubset->texture = headerDescSubset.nameTexture;
+                                    if (!pSubset->texture.size())
+                                    {
+#if defined _DEBUG
+                                        PRINT_IF_DEBUG( "error on create texture: %s \n Linha %d",
+                                                     fileName.c_str());
+#endif
+                                    }
+                                }
+                                else
+                                {
+                                    delete[] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]", fileNamePath);
                                 }
                             }
                             else
                             {
-                                pSubset->texture.clear();
+                                pch = strchr(headerDescSubset.nameTexture, '#');
+                                if (pch && pch[0] == '#' && pch[1] == 'M') // Material apenas .. cor como string
+                                {
+                                    pch = &pch[2];
+                                    //util::MATERIAL mat;
+                                    //memset(&mat, 0, sizeof(mat));
+                                    std::vector<std::string> result;
+                                    util::split(result, pch, '|');
+
+                                    if (result.size() == 5)
+                                    {
+                                        COLOR colorAculm(0.0f, 0.0f, 0.0f, 0.0f);
+                                        int        totalSum = 0;
+                                        for (auto & n : result)
+                                        {
+                                            const char *strTemp   = n.c_str();
+                                            //char        letter    = strTemp[0];
+                                            const char *strNumber = &strTemp[1];
+                                            COLOR  color     = static_cast<uint32_t>(strtol(strNumber, nullptr, 16));
+                                            if (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+                                            {
+                                                colorAculm.r += color.r;
+                                                colorAculm.g += color.g;
+                                                colorAculm.b += color.b;
+                                                totalSum++;
+                                            }
+                                            //switch (letter)
+                                            //{
+                                            //    case 'A': { mat.Ambient = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'D': { mat.Diffuse = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'E': { mat.Emissive = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'S': { mat.Specular = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'P': { mat.Power = static_cast<float>(atof(strNumber));}
+                                            //    break;
+                                            //    default: break;
+                                            //}
+                                        }
+                                        if (totalSum)
+                                        { // potências de 2 (2,4,8,16,32,64,128,256, 512,1024)...
+                                            /*colorAculm.r  =   colorAculm.r / (float)totalSum;
+                                            colorAculm.g    =   colorAculm.g / (float)totalSum;
+                                            colorAculm.b    =   colorAculm.b / (float)totalSum;
+                                            uint8_t dataARGB[16];
+                                            uint32_t dwR = colorAculm.r >= 1.0f ? 0xff : colorAculm.r <= 0.0f ? 0x00 :
+                                            (uint32_t) (colorAculm.r * 255.0f + 0.5f);
+                                            uint32_t dwG = colorAculm.g >= 1.0f ? 0xff : colorAculm.g <= 0.0f ? 0x00 :
+                                            (uint32_t) (colorAculm.g * 255.0f + 0.5f);
+                                            uint32_t dwB = colorAculm.b >= 1.0f ? 0xff : colorAculm.b <= 0.0f ? 0x00 :
+                                            (uint32_t) (colorAculm.b * 255.0f + 0.5f);
+                                            for(int pixel=0; pixel< 12; pixel+=4)
+                                            {
+                                                dataARGB[pixel]     =   (uint8_t)255;
+                                                dataARGB[pixel+1]   =   (uint8_t)dwR;
+                                                dataARGB[pixel+2]   =   (uint8_t)dwG;
+                                                dataARGB[pixel+3]   =   (uint8_t)dwB;
+                                            }*/
+                                            pSubset->texture = headerDescSubset.nameTexture;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        pSubset->texture.clear();
+                                    }
+                                }
+                                else if (pch && pch[0] == '#')//solid color  as texture
+                                {
+                                    const char * nickName = pch;
+                                    mbm::TEXTURE_MANAGER * man = mbm::TEXTURE_MANAGER::getInstance();
+                                    if(man->existTexture(nickName) == false)
+                                    {
+                                        COLOR color;
+                                        const char* sColor = &pch[1];
+                                        int len = strlen(sColor);
+                                        if (len == 8)
+                                        {
+                                            char alpha[3] = {0,0,0};
+                                            alpha[0] = *sColor;
+                                            sColor++;
+                                            alpha[1] = *sColor;
+                                            sColor++;
+                                            const int n = strtol(sColor,nullptr, 16);
+                                            color = COLOR(n);
+                                            color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
+                                        }
+                                        else if (len == 6)
+                                        {
+                                            const int n = strtol(sColor, nullptr, 16);
+                                            color = COLOR(n);
+                                            color.a = 1.0f;
+                                        }
+                                        const uint32_t width = 4;
+                                        const uint32_t height = 4;
+                                        uint8_t pixel[4 * 4* 3];
+                                        uint8_t r = 0;
+                                        uint8_t g = 0;
+                                        uint8_t b = 0;
+                                        color.get(&r,&g,&b);
+                                        for (uint32_t j = 0; j < 4 * 4 * 3; j += 3)
+                                        {
+                                            pixel[j] = r;
+                                            pixel[j+1] = g;
+                                            pixel[j+2] = b;
+                                        }
+
+                                        TEXTURE *solidTexture = man->load(width, height, &pixel[0], nickName, 8,3);
+                                        if(solidTexture == nullptr)
+                                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed on create solid texture [%s][%s]",nickName, fileNamePath);
+                                    }
+                                    pSubset->texture = headerDescSubset.nameTexture;
+                                }
+                                else
+                                {
+                                    pSubset->texture = headerDescSubset.nameTexture;
+                                }
                             }
                         }
-                        else if (pch && pch[0] == '#')//solid color  as texture
-                        {
-                            const char * nickName = pch;
-                            mbm::TEXTURE_MANAGER * man = mbm::TEXTURE_MANAGER::getInstance();
-                            if(man->existTexture(nickName) == false)
-                            {
-                                COLOR color;
-                                const char* sColor = &pch[1]; 
-                                int len = strlen(sColor);
-                                if (len == 8)
-                                {
-                                    char alpha[3] = {0,0,0};
-                                    alpha[0] = *sColor;
-                                    sColor++;
-                                    alpha[1] = *sColor;
-                                    sColor++;
-                                    const int n = strtol(sColor,nullptr, 16);
-                                    color = COLOR(n);
-                                    color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
-                                }
-                                else if (len == 6)
-                                {
-                                    const int n = strtol(sColor, nullptr, 16);
-                                    color = COLOR(n);
-                                    color.a = 1.0f;
-                                }
-                                const uint32_t width = 4;
-                                const uint32_t height = 4;
-                                uint8_t pixel[4 * 4* 3];
-                                uint8_t r = 0;
-                                uint8_t g = 0;
-                                uint8_t b = 0;
-                                color.get(&r,&g,&b);
-                                for (uint32_t j = 0; j < 4 * 4 * 3; j += 3)
-                                {
-                                    pixel[j] = r;
-                                    pixel[j+1] = g;
-                                    pixel[j+2] = b;
-                                }
-                            
-                                TEXTURE *solidTexture = man->load(width, height, &pixel[0], nickName, 8,3);
-                                if(solidTexture == nullptr)
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed on create solid texture [%s][%s]",nickName, fileNamePath);
-                            }
-                            pSubset->texture = headerDescSubset.nameTexture;
-                        }
-                        else
-                        {
-                            pSubset->texture = headerDescSubset.nameTexture;
-                        }
-                    }
-                }
-            }
+                        return true;
+                    }))
+                return false;
 
-            // 6.2 Vertex buffer e index buffer
-            // -----------------------------------------------------------------------------------------
-            if (headerFrame->sizeIndexBuffer && strcmp(headerFrame->typeBuffer, "IB") == 0)
-            {
-                auto indexArray = new uint16_t[headerFrame->sizeIndexBuffer];
-                if (!util::readU16ArrayV8(fp, indexArray, static_cast<uint32_t>(headerFrame->sizeIndexBuffer)))
-                {
-                    delete[] indexArray;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read index buffer of frame [%s]", fileNamePath);
-                }
-                VEC3 *pPosition = nullptr;
-                VEC3 *pNormal   = nullptr;
-                VEC2 *pTexture  = nullptr;
-                if (!this->loadFromSplited(fp, headerFrame->sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, indexArray, headerFrame->sizeIndexBuffer,
-                                           headerFrame->stride, this->headerMain.version))
-                {
-                    delete[] indexArray;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
-                }
-                pBuffer->position    = reinterpret_cast<float *>(pPosition);
-                pBuffer->normal      = reinterpret_cast<float *>(pNormal);
-                pBuffer->uv          = reinterpret_cast<float *>(pTexture);
-                pBuffer->indexBuffer = indexArray;
+            if (!read_frame_geometry(
+                    fp,
+                    fileNamePath,
+                    *headerFrame,
+                    headerMesh.hasNorText,
+                    this->headerMain.version,
+                    [this](FILE *file,
+                           const int sizeVertexBuffer,
+                           VEC3 **positionOut,
+                           VEC3 **normalOut,
+                           VEC2 **textureOut,
+                           int16_t hasNorText[2],
+                           uint16_t *indexArray,
+                           const int sizeArrayIndex,
+                           const int stride,
+                           const int fileVersion) -> bool
+                    {
+                        return this->loadFromSplited(file,
+                                                     sizeVertexBuffer,
+                                                     positionOut,
+                                                     normalOut,
+                                                     textureOut,
+                                                     hasNorText,
+                                                     indexArray,
+                                                     sizeArrayIndex,
+                                                     stride,
+                                                     fileVersion);
+                    },
+                    [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture, uint16_t *&indexArray) -> bool
+                    {
+                        pBuffer->position    = reinterpret_cast<float *>(pPosition);
+                        pBuffer->normal      = reinterpret_cast<float *>(pNormal);
+                        pBuffer->uv          = reinterpret_cast<float *>(pTexture);
+                        pBuffer->indexBuffer = indexArray;
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                this->fillDebugLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
-                                                     static_cast<uint32_t>(currentFrame), pBuffer->subset);
+                        this->fillDebugLegacyPhysicsIfNeeded(headerMain.version,
+                                                             deprectedInfoSprite,
+                                                             pPosition,
+                                                             static_cast<uint32_t>(currentFrame),
+                                                             pBuffer->subset);
 #endif
-            }
-            // 6.3 Vertex Buffer somente
-            // ----------------------------------------------------------------------------------------------
-            else if (strcmp(headerFrame->typeBuffer, "VB") == 0)
-            {
-                VEC3 *pPosition = nullptr;
-                VEC3 *pNormal   = nullptr;
-                VEC2 *pTexture  = nullptr;
-                if (!this->loadFromSplited(fp, headerFrame->sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, nullptr, 0, headerFrame->stride, this->headerMain.version))
-                {
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
-                }
-
-                pBuffer->position = reinterpret_cast<float *>(pPosition);
-                pBuffer->normal   = reinterpret_cast<float *>(pNormal);
-                pBuffer->uv       = reinterpret_cast<float *>(pTexture);
+                        pPosition = nullptr;
+                        pNormal   = nullptr;
+                        pTexture  = nullptr;
+                        indexArray = nullptr;
+                        return true;
+                    },
+                    [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture) -> bool
+                    {
+                        pBuffer->position = reinterpret_cast<float *>(pPosition);
+                        pBuffer->normal   = reinterpret_cast<float *>(pNormal);
+                        pBuffer->uv       = reinterpret_cast<float *>(pTexture);
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                this->fillDebugLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
-                                                     static_cast<uint32_t>(currentFrame), pBuffer->subset);
+                        this->fillDebugLegacyPhysicsIfNeeded(headerMain.version,
+                                                             deprectedInfoSprite,
+                                                             pPosition,
+                                                             static_cast<uint32_t>(currentFrame),
+                                                             pBuffer->subset);
 #endif
-            }
-            else
-            {
-                return log_util::onFailed(fp,__FILE__, __LINE__, "unknown buffer type [%s]", fileNamePath);
-            }
+                        pPosition = nullptr;
+                        pNormal   = nullptr;
+                        pTexture  = nullptr;
+                        return true;
+                    }))
+                return false;
         }
         fclose(fp);
         fp             = nullptr;
@@ -2719,95 +3240,10 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::fillAnimation_2(const char *fileNamePath, FILE *fp)
     {
-        for (int i = 0; i < headerMesh.totalAnimation; ++i)
-        {
-            auto headerAnim = new util::HEADER_ANIMATION();
-            if (!util::readHeaderAnimationV8(fp, *headerAnim))
-            {
-                delete headerAnim;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
-            }
-            auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
-            infoHead->headerAnim = headerAnim;
-
-            if(headerAnim->hasShaderEffect == 1)
-            {
-                infoHead->effetcShader = new util::INFO_FX();
-                util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
-                if(headerPS_VS.blendOperation != 0)
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                else
-                    infoHead->effetcShader->blendOperation = 1;
-                if (headerPS_VS.lenNameShader) // do we have pixel shader?
-                {
-                    auto dataInfo =
-                        new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes, static_cast<short>(headerPS_VS.lenNameShader),
-                                                    static_cast<short>(headerPS_VS.lenTextureStage2));
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                    infoHead->effetcShader->dataPS     = (dataInfo);
-                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
-                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
-                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->min,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->max,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                    }
-                }
-                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
-                if (headerPS_VS.lenNameShader) // temos vertex shader
-                {
-                    auto dataInfo =
-                        new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes, static_cast<short>(headerPS_VS.lenNameShader),
-                                                    static_cast<short>(headerPS_VS.lenTextureStage2));
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                    infoHead->effetcShader->dataVS     = (dataInfo);
-                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
-                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
-                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->min,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->max,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                    }
-                }
-            }
-        }
-        return true;
+        return fill_animation_headers_common(fp,
+                                             fileNamePath,
+                                             this->headerMesh.totalAnimation,
+                                             this->infoAnimation);
     }
     
     bool MESH_MBM_DEBUG::loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
@@ -2815,269 +3251,18 @@ namespace mbm
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        /* hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, or HAS_NOR_CALCULATE */
-        const bool noNormals = (hasNorText[0] == HAS_NOR_NO);
-        const bool hasNormalsFromFile = (hasNorText[0] == HAS_NOR_IN_FILE);
-        const bool calculateNormals = (hasNorText[0] == HAS_NOR_CALCULATE);
-
-        auto pPosition = new VEC3[sizeVertexBuffer];
-        VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
-        auto pTexture  = new VEC2[sizeVertexBuffer];
-        *positionOut            = pPosition;
-        *normalOut              = pNormal;
-        *textureOut             = pTexture;
-        if (stride == 3)
-        {
-            if (!util::readVec3ArrayV8(fp, pPosition, static_cast<uint32_t>(sizeVertexBuffer)))
-            {
-                delete[] pPosition;
-                if (pNormal) delete[] pNormal;
-                delete[] pTexture;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-            }
-            if (hasNormalsFromFile)
-            {
-                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-                }
-            }
-            else if (calculateNormals)
-            {
-                if (indexArray && sizeArrayIndex)
-                {
-                    for (int i = 0; i < sizeArrayIndex; i += 3)
-                    {
-                        const int index0 = indexArray[i];
-                        const int index1 = indexArray[i + 1];
-                        const int index2 = indexArray[i + 2];
-                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
-                        {
-                            delete[] pPosition;
-                            delete[] pNormal;
-                            delete[] pTexture;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
-                        }
-                        VEC3 a(pPosition[index1] - pPosition[index0]);
-                        VEC3 b(pPosition[index2] - pPosition[index1]);
-                        vec3Cross(&pNormal[index0], &a, &b);
-                        vec3Normalize(&pNormal[index0], &pNormal[index0]);
-                        pNormal[index1] = pNormal[index0];
-                        pNormal[index2] = pNormal[index0];
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < sizeVertexBuffer; i += 3)
-                    {
-                        VEC3 a(pPosition[i + 1] - pPosition[i]);
-                        VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
-                        vec3Cross(&pNormal[i], &a, &b);
-                        vec3Normalize(&pNormal[i], &pNormal[i]);
-                        pNormal[i + 1] = pNormal[i];
-                        pNormal[i + 2] = pNormal[i];
-                    }
-                }
-            }
-            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
-            {
-                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                }
-            }
-            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
-            {
-                if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
-                {
-                    if (sizeVertexBuffer != this->sizeCoordTexFrame_0)
-                        memset(static_cast<void*>(pTexture), 0, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                    int safeCopy = std::min(sizeVertexBuffer, this->sizeCoordTexFrame_0);
-                    memcpy(static_cast<void*>(pTexture), this->coordTexFrame_0, sizeof(VEC2) * static_cast<size_t>(safeCopy));
-                }
-                else //É o primeiro frame então guarda as coordenadas
-                {
-                    this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
-                    this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                    {
-                        delete[] pPosition;
-                        delete[] pNormal;
-                        delete[] pTexture;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                    }
-                    memcpy(static_cast<void*>(this->coordTexFrame_0), pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                }
-            }
-            else
-            {
-                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
-                {
-                    if (j % 2)
-                    {
-                        pTexture[i].x = 0;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 1;
-                    }
-                    else
-                    {
-                        pTexture[i].x = 1;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 0;
-                    }
-                }
-            }
-            return true;
-        }
-        else if (stride == 2)
-        {
-            auto pStridePosition = new VEC2[sizeVertexBuffer];
-            if (!util::readVec2ArrayV8(fp, pStridePosition, static_cast<uint32_t>(sizeVertexBuffer)))
-            {
-                delete[] pPosition;
-                if (pNormal) delete[] pNormal;
-                delete[] pTexture;
-                delete[] pStridePosition;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-            }
-            for (int i = 0; i < sizeVertexBuffer; ++i)
-            {
-                pPosition[i].x = pStridePosition[i].x;
-                pPosition[i].y = pStridePosition[i].y;
-                pPosition[i].z = 0.0f;
-            }
-            delete[] pStridePosition;
-            pStridePosition = nullptr;
-            if (hasNormalsFromFile)
-            {
-                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-                }
-            }
-            else if (calculateNormals)
-            {
-                if (indexArray && sizeArrayIndex)
-                {
-                    for (int i = 0; i < sizeArrayIndex; i += 3)
-                    {
-                        const int index0 = indexArray[i];
-                        const int index1 = indexArray[i + 1];
-                        const int index2 = indexArray[i + 2];
-                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
-                        {
-                            delete[] pPosition;
-                            delete[] pNormal;
-                            delete[] pTexture;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
-                        }
-                        VEC3 a(pPosition[index1] - pPosition[index0]);
-                        VEC3 b(pPosition[index2] - pPosition[index1]);
-                        vec3Cross(&pNormal[index0], &a, &b);
-                        vec3Normalize(&pNormal[index0], &pNormal[index0]);
-                        pNormal[index1] = pNormal[index0];
-                        pNormal[index2] = pNormal[index0];
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < sizeVertexBuffer; i += 3)
-                    {
-                        VEC3 a(pPosition[i + 1] - pPosition[i]);
-                        VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
-                        vec3Cross(&pNormal[i], &a, &b);
-                        vec3Normalize(&pNormal[i], &pNormal[i]);
-                        pNormal[i + 1] = pNormal[i];
-                        pNormal[i + 2] = pNormal[i];
-                    }
-                }
-            }
-            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
-            {
-                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                }
-            }
-            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
-            {
-                if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
-                {
-                    if (sizeVertexBuffer != this->sizeCoordTexFrame_0)
-                        memset(static_cast<void*>(pTexture), 0, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                    int safeCopy = std::min(sizeVertexBuffer, this->sizeCoordTexFrame_0);
-                    memcpy(static_cast<void*>(pTexture), this->coordTexFrame_0, sizeof(VEC2) * static_cast<size_t>(safeCopy));
-                }
-                else //First frame, keep the coordinates
-                {
-                    this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
-                    this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                    {
-                        delete[] pPosition;
-                        delete[] pNormal;
-                        delete[] pTexture;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                    }
-                    memcpy(static_cast<void*>(this->coordTexFrame_0), pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                }
-            }
-            else
-            {
-                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
-                {
-                    if (j % 2)
-                    {
-                        pTexture[i].x = 0;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 1;
-                    }
-                    else
-                    {
-                        pTexture[i].x = 1;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 0;
-                    }
-                }
-            }
-            return true;
-        }
-        else
-        {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "stride unknown. must be 2 or 3");
-        }
+        return load_from_splited_common(fp,
+                                        sizeVertexBuffer,
+                                        positionOut,
+                                        normalOut,
+                                        textureOut,
+                                        hasNorText,
+                                        indexArray,
+                                        sizeArrayIndex,
+                                        stride,
+                                        fileVersion,
+                                        this->coordTexFrame_0,
+                                        this->sizeCoordTexFrame_0);
     }
     
     bool MESH_MBM_DEBUG::saveAnimationHeaders(const char *fileOut, FILE **file)
@@ -3091,148 +3276,54 @@ namespace mbm
                 headerAnim.hasShaderEffect = 1;
             if (!util::writeHeaderAnimationV8(*file, headerAnim))
                 return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add animation header", *file);
-            if(infoHead->effetcShader)
-            {
-                bool hasPX = false;
-                // Pixel Shader
-                if (infoHead->effetcShader->dataPS)
-                {
-                    util::INFO_FX *      infoShaderStep = infoHead->effetcShader;
-                    util::INFO_SHADER_DATA *     infoShader     = infoShaderStep->dataPS;
-                    util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                    hasPX                     = true;
-                    headerPS_VS.lenNameShader = static_cast<short>(strlen(infoShader->fileNameShader) + 1);
 
-                    if (infoShader->fileNameTextureStage2)
-                        headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(infoShader->fileNameTextureStage2) + 1);
-                    else
-                        headerPS_VS.lenTextureStage2 = 0;
-                    headerPS_VS.sizeArrayVarInBytes  = static_cast<short>(infoShader->lenVars * 4); //?
-                    headerPS_VS.typeAnimation        = static_cast<short>(infoShader->typeAnimation);
-                    headerPS_VS.blendOperation       = infoShaderStep->blendOperation;
-                    headerPS_VS.timeAnimation        = infoShader->timeAnimation;
-                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
-                        return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                    if (headerPS_VS.lenNameShader)
-                    {
-                        if (!util::addToFileBinary(fileOut,infoShader->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader),
-                                                   file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add name of pixel shader");
-                    }
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!util::addToFileBinary(fileOut,infoShader->fileNameTextureStage2,
-                                                   static_cast<size_t>(headerPS_VS.lenTextureStage2), file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add textures name stage 2");
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        std::vector<char> lsSizeVar;
-                        lsSizeVar.reserve(infoShader->lenVars);
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            lsSizeVar.push_back(static_cast<char>(infoShader->typeVars[j]));
-                        }
-                        if (!util::addToFileBinary(fileOut, &lsSizeVar[0], lsSizeVar.size(), file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file!!");
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            float d[4];
-                            memcpy(d,&infoShader->min[j*4],sizeof(d));
-                            if (!util::writeFloatArrayV8(*file, d, 4))
-                                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
-                        }
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            float d[4];
-                            memcpy(d,&infoShader->max[j*4],sizeof(d));
-                            if (!util::writeFloatArrayV8(*file, d, 4))
-                                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
-                        }
-                    }
-                }
-                else
-                {
-                    util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                    headerPS_VS.blendOperation           = infoHead->effetcShader->blendOperation;
-                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
-                        return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                }
-                // Vertex Shader
-                if (infoHead->effetcShader->dataVS)
-                {
-                    util::INFO_FX *      infoShaderStep = infoHead->effetcShader;
-                    util::INFO_SHADER_DATA *     infoShader     = infoShaderStep->dataVS;
-                    util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                    headerPS_VS.lenNameShader = static_cast<short>(strlen(infoShader->fileNameShader) + 1);
-
-                    if (infoShader->fileNameTextureStage2)
-                        headerPS_VS.lenTextureStage2 = static_cast<short>(strlen(infoShader->fileNameTextureStage2) + 1);
-                    else
-                        headerPS_VS.lenTextureStage2 = 0;
-                    if (headerPS_VS.lenTextureStage2 && hasPX)
-                        headerPS_VS.lenTextureStage2 = 0; // ja foi acrescentada a textura no pixel shader
-                    headerPS_VS.sizeArrayVarInBytes  = static_cast<short>(infoShader->lenVars * 4); //?
-                    headerPS_VS.typeAnimation        = static_cast<short>(infoShader->typeAnimation);
-                    headerPS_VS.blendOperation           = infoShaderStep->blendOperation;
-                    headerPS_VS.timeAnimation        = infoShader->timeAnimation;
-                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
-                        return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                    if (headerPS_VS.lenNameShader)
-                    {
-                        if (!util::addToFileBinary(fileOut,infoShader->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader),
-                                                   file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add name of shader to file");
-                    }
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!util::addToFileBinary(fileOut, infoShader->fileNameTextureStage2,
-                                                   static_cast<size_t>(headerPS_VS.lenTextureStage2), file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add textures name stage 2");
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        std::vector<char> lsSizeVar;
-                        lsSizeVar.reserve(infoShader->lenVars);
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            lsSizeVar.push_back(static_cast<char>(infoShader->typeVars[j]));
-                        }
-                        if (!util::addToFileBinary(fileOut, &lsSizeVar[0], lsSizeVar.size(), file))
-                            return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file!!");
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            float d[4];
-                            memcpy(d,&infoShader->min[j*4],sizeof(d));
-                            if (!util::writeFloatArrayV8(*file, d, 4))
-                                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
-                        }
-                        for (int j = 0; j < infoShader->lenVars; ++j)
-                        {
-                            float d[4];
-                            memcpy(d,&infoShader->max[j*4],sizeof(d));
-                            if (!util::writeFloatArrayV8(*file, d, 4))
-                                return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add var to file");
-                        }
-                    }
-                }
-                else
-                {
-                    util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                    headerPS_VS.blendOperation           = infoHead->effetcShader->blendOperation;
-                    if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))
-                        return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                }
-            }
-            if(infoHead->effetcShader == nullptr)
+            util::INFO_FX *effectShader = infoHead->effectShader;
+            if(effectShader == nullptr)
             {
-                util::HEADER_INFO_SHADER_STEP headerPS_VS;
+                int blendOperation = 0;
                 if(i < static_cast<int>(lsBlendOperation.size()) && lsBlendOperation[i] != 0)
-                    headerPS_VS.blendOperation           = lsBlendOperation[i];
-                if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))//pixel
-                    return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
-                if (!util::writeHeaderInfoShaderStepV8(*file, headerPS_VS))//vertex
-                        return log_util::onFailed(*file,__FILE__, __LINE__, "failed to add header shader to file");
+                    blendOperation = lsBlendOperation[i];
+                if (!write_empty_shader_steps_pair(file, blendOperation))
+                    return false;
+                continue;
+            }
+
+            bool shouldWriteVertexTextureStage2 = true;
+            // Pixel Shader
+            util::INFO_SHADER_DATA *pixelShaderData = effectShader->dataPS;
+            if (pixelShaderData)
+            {
+                shouldWriteVertexTextureStage2 = false;
+                if (!write_shader_step_to_file(fileOut,
+                                               file,
+                                               effectShader,
+                                               pixelShaderData,
+                                               true,
+                                               "failed to add name of pixel shader"))
+                    return false;
+            }
+            else
+            {
+                if (!write_empty_shader_step(file, effectShader->blendOperation))
+                    return false;
+            }
+
+            // Vertex Shader
+            util::INFO_SHADER_DATA *vertexShaderData = effectShader->dataVS;
+            if (vertexShaderData)
+            {
+                if (!write_shader_step_to_file(fileOut,
+                                               file,
+                                               effectShader,
+                                               vertexShaderData,
+                                               shouldWriteVertexTextureStage2,
+                                               "failed to add name of shader to file"))
+                    return false;
+            }
+            else
+            {
+                if (!write_empty_shader_step(file, effectShader->blendOperation))
+                    return false;
             }
         }
         return true;
@@ -3496,60 +3587,17 @@ namespace mbm
         this->release();
         util::HEADER       headerMain;
         util::HEADER_MESH  headerMesh;
-        FILE *                 fp             = util::openFile(fileNamePath, "rb");
+        FILE *                 fp             = nullptr;
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         deprecated_mbm::INFO_SPRITE deprectedInfoSprite; // version <=SPRITE_INFO_VERSION_MBM_HEADER
 #endif
-        if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "Not found or failure to open file [%s]", fileNamePath ? fileNamePath : "null");
-        fclose(fp);
-        fp = nullptr;
-        {
-            MINIZ minz;
-            char errorDesc[MBM_ERROR_DESCRIPTION_BUFFER_SIZE]="";
-            if (!minz.decompressFile(fileNamePath, util::getDecompressModelFileName(),errorDesc,sizeof(errorDesc)-1))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]\n%s", fileNamePath,errorDesc);
-        }
-        fp = util::openFile(util::getDecompressModelFileName(), "rb");
-        if (!fp)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to open file [%s]", fileNamePath);
+        if (!open_decompressed_mesh_file(fileNamePath, fp, "Not found or failure to open file [%s]"))
+            return false;
         this->fileName = fileNamePath;
         // step 1: Verificação do header  principal
         // -------------------------------------------------------------------------------
-        if (!util::readHeaderV8(fp, headerMain))
-            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header file [%s]", fileNamePath);
-        if (strncmp(headerMain.name, MBM_HEADER_NAME_MBM, MBM_HEADER_NAME_COMPARE_LENGTH) == 0 &&
-            (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 || // Mesh 3d normal
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // user
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||    // Font
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Sprite
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Shape
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 ||   // Tile
-             strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0 )) // Particle
-        {
-            if (strncmp(headerMain.typeApp, MBM_TYPE_APP_MESH_3D, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Mesh 3d normal
-                typeMe = util::TYPE_MESH_3D;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_USER, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // special -- user
-                typeMe = util::TYPE_MESH_USER;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_FONT, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Font
-                typeMe = util::TYPE_MESH_FONT;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SPRITE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Sprite mbm
-                typeMe = util::TYPE_MESH_SPRITE;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_TILE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Tile mbm
-                typeMe = util::TYPE_MESH_TILE_MAP;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Particle mbm
-                typeMe = util::TYPE_MESH_PARTICLE;
-            else if (strncmp(headerMain.typeApp, MBM_TYPE_APP_SHAPE, MBM_HEADER_TYPE_APP_COMPARE_LENGTH) == 0) // Shape
-                typeMe = util::TYPE_MESH_SHAPE;
-        }
-        else
-        {
-            char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
-            sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerMain.typeApp);
-            return log_util::onFailed(fp,__FILE__, __LINE__, strTemp);
-        }
-        if (headerMain.version < INITIAL_VERSION_MBM_HEADER || headerMain.version > CURRENT_VERSION_MBM_HEADER)
-            return log_util::onFailed(fp,__FILE__, __LINE__, "incompatible version [%s] version [%d]", fileNamePath,headerMain.version);
+        if (!read_main_header_and_type(fp, fileNamePath, headerMain, typeMe))
+            return false;
         if (allowLegacyDispatch && headerMain.version < STRONG_TYPES_VERSION_MBM_HEADER)
         {
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
@@ -3562,37 +3610,11 @@ namespace mbm
 #endif
         }
 
-        for (int i = 0; i < headerMain.extraHeader; i++)
-        {
-            util::EXTRA_HEADER extra;
-            if (!util::readExtraHeaderV8(fp, extra))
-                return log_util::onFailed(fp, __FILE__, __LINE__, "failed to read info EXTRA_HEADER [%s]", fileNamePath);
-            if (extra.type == MBM_EXTRA_HEADER_TYPE_PATHS)// paths
-            {
-                std::string path(extra.sizeExtraHeader + 1, 0);
-                if (!fread(&path[0], extra.sizeExtraHeader, 1, fp))
-                    return log_util::onFailed(fp, __FILE__, __LINE__, "Failed to read string from EXTRA_HEADER [%s] size -> [%d]", fileNamePath, extra.sizeExtraHeader);
-                #ifndef ANDROID
-                util::addPath(path.c_str());
-                #endif
-            }
-            else
-            {
-                return log_util::onFailed(fp, __FILE__, __LINE__, "Unsuported type of EXTRA_HEADER [%s] -> type [%d]", fileNamePath, extra.type);
-            }
-        }
+        if (!read_extra_headers(fp, fileNamePath, headerMain.extraHeader, true))
+            return false;
 
-        if(headerMain.version >= MODE_DRAW_VERSION_MBM_HEADER)
-        {
-            if (!util::readInfoDrawModeV8(fp, info_mode))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info INFO_DRAW_MODE [%s]", fileNamePath);
-
-            std::string which_mode;
-            if(is_any_mode_valid(this->info_mode,which_mode) == false)
-            {
-                return log_util::onFailed(fp,__FILE__, __LINE__, "Invalid mode %s detected:[%s]",which_mode.c_str(), fileNamePath);
-            }
-        }
+        if (!read_info_mode_if_needed(fp, fileNamePath, headerMain.version, info_mode, true))
+            return false;
         if(typeMe == util::TYPE_MESH_TILE_MAP)
         {
             mbm::TEXTURE::enableFilter(false);
@@ -3604,238 +3626,16 @@ namespace mbm
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
         {
-            util::DETAIL_MESH detailInfo;
-            if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                /* ************* DEPRECATED - Begin - old just here to compatibility ***************** */
-                if (!util::readDetailMeshV8(fp, detailInfo))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-                if (detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SCRIPT && detailInfo.type != MBM_DEPRECATED_DETAIL_TYPE_SHADER) // script and shader until now
-                    return log_util::onFailed(fp,__FILE__, __LINE__,"expected first DETAIL_MESH [%s] as size info extra information at version == DETAIL_MESH_VERSION_MBM_HEADER",fileNamePath);
-                if (detailInfo.totalBounding)
-                {
-                    const auto extraInfoSize = static_cast<uint32_t>(detailInfo.totalBounding);
-                    auto * extra     = new char[extraInfoSize];
-                    if (!fread(extra, static_cast<size_t>(extraInfoSize), 1, fp))
-                    {
-                        delete [] extra;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read old and deprected extra info [%s]", fileNamePath);
-                    }
-                    delete [] extra;
-                }
-                /* ************* End - old just here to compatibility ***************** */
-            }
-
-            if (!util::readDetailMeshV8(fp, detailInfo))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info DETAIL_MESH [%s]", fileNamePath);
-            if (headerMain.version == DETAIL_MESH_VERSION_MBM_HEADER)
-            {
-                if (detailInfo.type != 'H')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'H' at DETAIL_MESH [%s]", fileNamePath);
-            }
-            else
-            {
-                if (detailInfo.type != 'P')
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "expected 'P' from Physics at DETAIL_MESH [%s]", fileNamePath);
-            }
-            for (int i = 0; i < detailInfo.totalBounding; )
-            {
-                util::DETAIL_MESH detail;
-                if (!util::readDetailMeshV8(fp, detail))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read DETAIL_MESH [%s]", fileNamePath);
-                switch (detail.type)
-                {
-                    case MBM_DETAIL_TYPE_CUBE:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto cube = new CUBE();
-                            this->infoPhysics.lsCube.push_back(cube);
-                            if (!util::readCubeV8(fp, *cube))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_SPHERE:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto base = new SPHERE();
-                            this->infoPhysics.lsSphere.push_back(base);
-                            if (!util::readSphereV8(fp, *base))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_CUBE_COMPLEX:
-                    {
-                        for(int j=0; j< detail.totalBounding; j++)
-                        {
-                            auto complex = new CUBE_COMPLEX();
-                            this->infoPhysics.lsCubeComplex.push_back(complex);
-                            if (!util::readCubeComplexV8(fp, *complex))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read bounding box [%s]", fileNamePath);
-                        }
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_TRIANGLE:
-                    {
-                        if (!this->readTriangleDetailCompat(fp, fileNamePath, detail.totalBounding, headerMain.version))
-                            return false;
-                        i += detail.totalBounding;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_FONT:
-                    {
-                        auto *   infoFont = new INFO_BOUND_FONT();
-                        this->extraInfo = infoFont;
-                        util::DETAIL_HEADER_FONT headerFont;
-                        if (!util::readDetailHeaderFontV8(fp, headerFont))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_HEADER_FONT [%s]",
-                                                     fileNamePath);
-                        auto strNameFont = new char[headerFont.sizeNameFonte];
-                        if (!fread(strNameFont, static_cast<size_t>(headerFont.sizeNameFonte), 1, fp))
-                        {
-                            delete [] strNameFont;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load font's name [%s]", fileNamePath);
-                        }
-                        infoFont->fontName        = strNameFont;
-                        infoFont->heightLetter    = headerFont.heightLetter;
-                        infoFont->spaceXCharacter = headerFont.spaceXCharacter;
-                        infoFont->spaceYCharacter = headerFont.spaceYCharacter;
-                        delete[] strNameFont;
-                        for (int j = 0; j < headerFont.totalDetailFont; ++j)
-                        {
-                            auto detailFont = new util::DETAIL_LETTER();
-                            if (!util::readDetailLetterV8(fp, *detailFont))
-                            {
-                                delete detailFont;
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load DETAIL_LETTER [%s]", fileNamePath);
-                            }
-                            if (detailFont->indexFrame >= headerFont.totalDetailFont)
-                            {
-                                delete detailFont;
-                                return log_util::onFailed(
-                                    fp, __FILE__,__LINE__, "failed to load DETAIL_LETTER!! frame out of bound [%s]", fileNamePath);
-                            }
-                            infoFont->letter[detailFont->letter].detail = detailFont;
-                        }
-                        i += 1;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_PARTICLE:
-                    {
-                        auto* lsParticleInfo = new std::vector<util::STAGE_PARTICLE*>();
-                        this->extraInfo = lsParticleInfo;
-                        for (int j = 0; j< detail.totalBounding; j++)
-                        {
-                            auto stage = new util::STAGE_PARTICLE();
-                            lsParticleInfo->push_back(stage);
-                            if (!util::readStageParticleV8(fp, *stage))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read stage particle [%s]", fileNamePath);
-                        }
-                        i += 1;
-                    }
-                    break;
-                    case MBM_DETAIL_TYPE_TILE:
-                    {
-                        auto* infoTileMap = new util::BTILE_INFO();
-                        this->extraInfo = infoTileMap;
-
-                        if (!util::readBtileHeaderMapV8(fp, infoTileMap->map))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read from  detail tile!");
-
-                        if(infoTileMap->map.layerCount != static_cast<uint32_t>(detail.totalBounding))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "expected layerCount == totalBounding. [%d]!=[%d]",infoTileMap->map.layerCount,detail.totalBounding);
-
-                        infoTileMap->infoBrickEditor = new util::BTILE_BRICK_INFO[infoTileMap->map.countRawTiles];
-                        if (!util::readBtileBrickInfoArrayV8(fp, infoTileMap->infoBrickEditor, infoTileMap->map.countRawTiles))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read brick infor editor tile from  detail tile!");
-
-                        const uint32_t tileCount = infoTileMap->map.count_height_tile * infoTileMap->map.count_width_tile;
-                        infoTileMap->layers      = new util::BTILE_LAYER[infoTileMap->map.layerCount];
-                        
-                        for (uint32_t  j = 0; j < infoTileMap->map.layerCount; ++j)
-                        {
-                            if (!util::readFloat3ArrayV8(fp, infoTileMap->layers[j].offset))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read layer offset from tile!");
-
-                            infoTileMap->layers[j].lsIndexTiles = new util::BTILE_INDEX_TILE[tileCount];
-
-                            if (!util::readBtileIndexTileArrayV8(fp, infoTileMap->layers[j].lsIndexTiles, tileCount))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read indexed tile from  detail tile!");
-                        }
-
-                        util::BTILE_DETAIL_HEADER detailObjsProperty;
-                        if (!util::readBtileDetailHeaderV8(fp, detailObjsProperty))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-
-                        for(uint32_t j= 0 ; j < detailObjsProperty.totalObj; ++j)
-                        {
-                            util::BTILE_OBJ_HEADER objHeader;
-                            if (!util::readBtileObjHeaderV8(fp, objHeader))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-                            auto* obj = new util::BTILE_OBJ(static_cast<util::BTILE_OBJ_TYPE>(objHeader.type));
-                            infoTileMap->lsObj.push_back(obj);
-                            if(objHeader.sizeName > 0)
-                            {
-                                obj->name.resize(objHeader.sizeName);
-                                auto * name = const_cast<char*>(obj->name.data());
-                                if (!fread(name, objHeader.sizeName,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name at detail tile header!");
-                            }
-                            for(uint32_t k= 0 ; k < objHeader.sizePoints; ++k)
-                            {
-                                auto* point = new VEC2();
-                                obj->lsPoints.push_back(point);
-                                if (!util::readVec2V8(fp, *point))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail tile header!");
-                            }
-                        }
-
-                        for(uint32_t j= 0 ; j < detailObjsProperty.totalProperties; ++j)
-                        {
-                            util::BTILE_PROPERTY_HEADER propertyHeader;
-                            if (!util::readBtilePropertyHeaderV8(fp, propertyHeader))
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read detail property tile header!");
-                            auto* property = new util::BTILE_PROPERTY(static_cast<const util::BTILE_PROPERTY_TYPE>(propertyHeader.type));
-                            infoTileMap->lsProperty.push_back(property);
-                            if(propertyHeader.nameLength > 0)
-                            {
-                                property->name.resize(propertyHeader.nameLength);
-                                auto * name = const_cast<char*>(property->name.data());
-                                if (!fread(name,propertyHeader.nameLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property name at detail tile header!");
-                            }
-                            if(propertyHeader.valueLength > 0)
-                            {
-                                property->value.resize(propertyHeader.valueLength);
-                                auto * value = const_cast<char*>(property->value.data());
-                                if (!fread(value,propertyHeader.valueLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property value at detail tile header!");
-                            }
-                            if(propertyHeader.ownerLength > 0)
-                            {
-                                property->owner.resize(propertyHeader.ownerLength);
-                                auto * owner = const_cast<char*>(property->owner.data());
-                                if (!fread(owner,propertyHeader.ownerLength,1, fp))
-                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read property owner at detail tile header!");
-                            }
-                        }
-
-                        i += 1;
-                    }
-                    break;
-                    default:
-                    {
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "unknown type bounding box [%d] [%s]", detail.type,
-                                                 fileNamePath);
-                    }
-                }
-            }
+            if (!read_detail_mesh_section(fp,
+                                          fileNamePath,
+                                          headerMain,
+                                          this->infoPhysics,
+                                          this->extraInfo,
+                                          [this](FILE *file, const char *name, const int totalBounding, const int fileVersion)
+                                          {
+                                              return this->readTriangleDetailCompat(file, name, totalBounding, fileVersion);
+                                          }))
+                return false;
         }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
         else
@@ -3889,353 +3689,358 @@ namespace mbm
             // Cada header Frame
             // --------------------------------------------------------------------------------------------------
             util::HEADER_FRAME headerFrame;
-            if (!util::readHeaderFrameV8(fp, headerFrame))
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of frame [%s]", fileNamePath);
-
-            // 6 Todos os headers subset deste frame
-            // -------------------------------------------------------------------------------
-            util::HEADER_DESC_SUBSET headerDescSubset;
-            buffer[currentFrame].subset      = new util::SUBSET[headerFrame.totalSubset];
-            buffer[currentFrame].totalSubset = static_cast<uint32_t>(headerFrame.totalSubset);
-            for (int i = 0; i < headerFrame.totalSubset; ++i)
-            {
-                if (!util::readHeaderDescSubsetV8(fp, headerDescSubset))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header of subset [%s]", fileNamePath);
-                buffer[currentFrame].subset[i].vertexStart = headerDescSubset.vertexStart;
-                buffer[currentFrame].subset[i].indexStart  = headerDescSubset.indexStart;
-                buffer[currentFrame].subset[i].indexCount  = headerDescSubset.indexCount;
-                buffer[currentFrame].subset[i].vertexCount = headerDescSubset.vertexCount;
-                if (strcmp(headerDescSubset.nameTexture, "default") != 0)
-                {
-                    char *pch = strchr(headerDescSubset.nameTexture, '#');
-                    if (pch && pch[0] == '#' && pch[1] == 'u')
+            if (!read_frame_headers_and_subsets(
+                    fp,
+                    fileNamePath,
+                    headerFrame,
+                    [&](util::HEADER_FRAME &header) -> bool
                     {
-                        pch[0] = 0;
-                        util::HEADER_IMG headerImg;
-                        headerImg.lenght = 0;
-                        if (!util::readHeaderImgV8(fp, headerImg))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
-                        if (headerImg.lenght == 0)
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
-                        auto data = new uint8_t[headerImg.lenght];
-                        if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
-                        {
-                            delete [] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
-                        }
-                        uint32_t sizeOfImage = 0;
-                        this->depthUberImage     = static_cast<uint8_t>(headerImg.depth);
-                        if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
-                        {
-                            delete [] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image! Channel != [3 || 4] [%s]",
-                                                     fileNamePath);
-                        }
-                        headerImg.channel = headerImg.channel == 4 ? 4 : 3;
-                        switch (headerImg.depth)
-                        {
-                            case 3:
-                            {
-                                sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
-                                while (sizeOfImage % 8)
-                                {
-                                    sizeOfImage++;
-                                }
-                                sizeOfImage = sizeOfImage / 8;
-                            }
-                            break;
-                            case 4:
-                            {
-
-                                sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
-                                while (sizeOfImage % 8)
-                                {
-                                    sizeOfImage++;
-                                }
-                                sizeOfImage = sizeOfImage / 8;
-                            }
-                            break;
-                            case 8: { sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;}
-                            break;
-                            default: 
-                            { 
-                                delete [] data;
-                                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
-                            }
-                        }
-                        MINIZ miniz;
-                        if (miniz.decompressStream(data, headerImg.lenght, sizeOfImage))
-                        {
-                            delete[] data;
-                            TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                            buffer[currentFrame].subset[i].texture = textureManager->load(
-                                headerImg.width, headerImg.height, miniz.getDataStreamOut(), headerDescSubset.nameTexture,
-                                headerImg.depth, headerImg.channel, headerImg.hasAlpha ? true : false);
-                            if (buffer[currentFrame].subset[i].texture == nullptr)
-                            {
-                                lsIdTexture.push_back(nullptr);
-                                lsHasColorKeying.push_back(0);
-#if defined _DEBUG
-                                PRINT_IF_DEBUG( "error on creating texture: %s", fileName.c_str());
-#endif
-                            }
-                            else
-                            {
-                                lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
-                            }
-                        }
-                        else
-                        {
-                            delete[] data;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]", fileNamePath);
-                        }
-                    }
-                    else
+                        buffer[currentFrame].subset      = new util::SUBSET[header.totalSubset];
+                        buffer[currentFrame].totalSubset = static_cast<uint32_t>(header.totalSubset);
+                        return true;
+                    },
+                    [&](const util::HEADER_FRAME &, const int i, util::HEADER_DESC_SUBSET &headerDescSubset) -> bool
                     {
-                        pch = strchr(headerDescSubset.nameTexture, '#');
-                        if (pch && pch[0] == '#' && pch[1] == 'M') // Material apenas .. cor como string
+                        buffer[currentFrame].subset[i].vertexStart = headerDescSubset.vertexStart;
+                        buffer[currentFrame].subset[i].indexStart  = headerDescSubset.indexStart;
+                        buffer[currentFrame].subset[i].indexCount  = headerDescSubset.indexCount;
+                        buffer[currentFrame].subset[i].vertexCount = headerDescSubset.vertexCount;
+                        if (strcmp(headerDescSubset.nameTexture, "default") != 0)
                         {
-                            pch = &pch[2];
-                            //util::MATERIAL mat;
-                            //memset(&mat, 0, sizeof(mat));
-                            std::vector<std::string> result;
-                            util::split(result, pch, '|');
-
-                            if (result.size() == 5)
+                            char *pch = strchr(headerDescSubset.nameTexture, '#');
+                            if (pch && pch[0] == '#' && pch[1] == 'u')
                             {
-                                COLOR colorAculm(0.0f, 0.0f, 0.0f, 0.0f);
-                                int        totalSum = 0;
-                                for (auto & n : result)
+                                pch[0] = 0;
+                                util::HEADER_IMG headerImg;
+                                headerImg.lenght = 0;
+                                if (!util::readHeaderImgV8(fp, headerImg))
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
+                                if (headerImg.lenght == 0)
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header image [%s]", fileNamePath);
+                                auto data = new uint8_t[headerImg.lenght];
+                                if (!fread(data, static_cast<size_t>(headerImg.lenght), 1, fp))
                                 {
-                                    const char *strTemp   = n.c_str();
-                                    //char        letter    = strTemp[0];
-                                    const char *strNumber = &strTemp[1];
-                                    COLOR  color     = static_cast<uint32_t>(strtol(strNumber, nullptr, 16));
-                                    if (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+                                    delete [] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
+                                }
+                                uint32_t sizeOfImage = 0;
+                                this->depthUberImage     = static_cast<uint8_t>(headerImg.depth);
+                                if (headerImg.channel != 4 && headerImg.channel != 3 && headerImg.channel != 0)
+                                {
+                                    delete [] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image! Channel != [3 || 4] [%s]",
+                                                             fileNamePath);
+                                }
+                                headerImg.channel = headerImg.channel == 4 ? 4 : 3;
+                                switch (headerImg.depth)
+                                {
+                                    case 3:
                                     {
-                                        colorAculm.r += color.r;
-                                        colorAculm.g += color.g;
-                                        colorAculm.b += color.b;
-                                        totalSum++;
+                                        sizeOfImage = 3 * headerImg.channel * headerImg.width * headerImg.height;
+                                        while (sizeOfImage % 8)
+                                        {
+                                            sizeOfImage++;
+                                        }
+                                        sizeOfImage = sizeOfImage / 8;
                                     }
-                                    //switch (letter)
-                                    //{
-                                    //    case 'A': { mat.Ambient = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'D': { mat.Diffuse = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'E': { mat.Emissive = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'S': { mat.Specular = color;
-                                    //    }
-                                    //    break;
-                                    //    case 'P': { mat.Power = static_cast<float>(atof(strNumber));
-                                    //    }
-                                    //    break;
-                                    //    default: break;
-                                    //}
+                                    break;
+                                    case 4:
+                                    {
+
+                                        sizeOfImage = 4 * headerImg.channel * headerImg.width * headerImg.height;
+                                        while (sizeOfImage % 8)
+                                        {
+                                            sizeOfImage++;
+                                        }
+                                        sizeOfImage = sizeOfImage / 8;
+                                    }
+                                    break;
+                                    case 8: { sizeOfImage = headerImg.width * headerImg.height * headerImg.channel;}
+                                    break;
+                                    default:
+                                    {
+                                        delete [] data;
+                                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read image [%s]", fileNamePath);
+                                    }
                                 }
-                                if (totalSum)
-                                { // potências de 2 (2,4,8,16,32,64,128,256, 512,1024)...
+                                MINIZ miniz;
+                                if (miniz.decompressStream(data, headerImg.lenght, sizeOfImage))
+                                {
+                                    delete[] data;
                                     TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                                    colorAculm.r = colorAculm.r / static_cast<float>(totalSum);
-                                    colorAculm.g = colorAculm.g / static_cast<float>(totalSum);
-                                    colorAculm.b = colorAculm.b / static_cast<float>(totalSum);
-                                    uint8_t dataARGB[16];
-                                    uint32_t  dwR =
-                                        colorAculm.r >= 1.0f
-                                            ? 0xff
-                                            : colorAculm.r <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.r * 255.0f + 0.5f);
-                                    uint32_t dwG =
-                                        colorAculm.g >= 1.0f
-                                            ? 0xff
-                                            : colorAculm.g <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.g * 255.0f + 0.5f);
-                                    uint32_t dwB =
-                                        colorAculm.b >= 1.0f
-                                            ? 0xff
-                                            : colorAculm.b <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.b * 255.0f + 0.5f);
-                                    for (int pixel = 0; pixel < 12; pixel += 4)
+                                    buffer[currentFrame].subset[i].texture = textureManager->load(
+                                        headerImg.width, headerImg.height, miniz.getDataStreamOut(), headerDescSubset.nameTexture,
+                                        headerImg.depth, headerImg.channel, headerImg.hasAlpha ? true : false);
+                                    if (buffer[currentFrame].subset[i].texture == nullptr)
                                     {
-                                        dataARGB[pixel]     = static_cast<uint8_t>(255);
-                                        dataARGB[pixel + 1] = static_cast<uint8_t>(dwR);
-                                        dataARGB[pixel + 2] = static_cast<uint8_t>(dwG);
-                                        dataARGB[pixel + 3] = static_cast<uint8_t>(dwB);
-                                    }
-                                    buffer[currentFrame].subset[i].texture =
-                                        textureManager->load(2, 2, dataARGB, headerDescSubset.nameTexture, 8, 4);
-                                    if (buffer[currentFrame].subset[i].texture)
-                                    {
-                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                        lsHasColorKeying.push_back(
-                                            buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1 : 0);
+                                        lsIdTexture.push_back(nullptr);
+                                        lsHasColorKeying.push_back(0);
+#if defined _DEBUG
+                                        PRINT_IF_DEBUG( "error on creating texture: %s", fileName.c_str());
+#endif
                                     }
                                     else
                                     {
+                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                    }
+                                }
+                                else
+                                {
+                                    delete[] data;
+                                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to uncompress file [%s]", fileNamePath);
+                                }
+                            }
+                            else
+                            {
+                                pch = strchr(headerDescSubset.nameTexture, '#');
+                                if (pch && pch[0] == '#' && pch[1] == 'M') // Material apenas .. cor como string
+                                {
+                                    pch = &pch[2];
+                                    //util::MATERIAL mat;
+                                    //memset(&mat, 0, sizeof(mat));
+                                    std::vector<std::string> result;
+                                    util::split(result, pch, '|');
+
+                                    if (result.size() == 5)
+                                    {
+                                        COLOR colorAculm(0.0f, 0.0f, 0.0f, 0.0f);
+                                        int        totalSum = 0;
+                                        for (auto & n : result)
+                                        {
+                                            const char *strTemp   = n.c_str();
+                                            //char        letter    = strTemp[0];
+                                            const char *strNumber = &strTemp[1];
+                                            COLOR  color     = static_cast<uint32_t>(strtol(strNumber, nullptr, 16));
+                                            if (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+                                            {
+                                                colorAculm.r += color.r;
+                                                colorAculm.g += color.g;
+                                                colorAculm.b += color.b;
+                                                totalSum++;
+                                            }
+                                            //switch (letter)
+                                            //{
+                                            //    case 'A': { mat.Ambient = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'D': { mat.Diffuse = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'E': { mat.Emissive = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'S': { mat.Specular = color;
+                                            //    }
+                                            //    break;
+                                            //    case 'P': { mat.Power = static_cast<float>(atof(strNumber));
+                                            //    }
+                                            //    break;
+                                            //    default: break;
+                                            //}
+                                        }
+                                        if (totalSum)
+                                        { // potências de 2 (2,4,8,16,32,64,128,256, 512,1024)...
+                                            TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
+                                            colorAculm.r = colorAculm.r / static_cast<float>(totalSum);
+                                            colorAculm.g = colorAculm.g / static_cast<float>(totalSum);
+                                            colorAculm.b = colorAculm.b / static_cast<float>(totalSum);
+                                            uint8_t dataARGB[16];
+                                            uint32_t  dwR =
+                                                colorAculm.r >= 1.0f
+                                                    ? 0xff
+                                                    : colorAculm.r <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.r * 255.0f + 0.5f);
+                                            uint32_t dwG =
+                                                colorAculm.g >= 1.0f
+                                                    ? 0xff
+                                                    : colorAculm.g <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.g * 255.0f + 0.5f);
+                                            uint32_t dwB =
+                                                colorAculm.b >= 1.0f
+                                                    ? 0xff
+                                                    : colorAculm.b <= 0.0f ? 0x00 : static_cast<uint32_t>(colorAculm.b * 255.0f + 0.5f);
+                                            for (int pixel = 0; pixel < 12; pixel += 4)
+                                            {
+                                                dataARGB[pixel]     = static_cast<uint8_t>(255);
+                                                dataARGB[pixel + 1] = static_cast<uint8_t>(dwR);
+                                                dataARGB[pixel + 2] = static_cast<uint8_t>(dwG);
+                                                dataARGB[pixel + 3] = static_cast<uint8_t>(dwB);
+                                            }
+                                            buffer[currentFrame].subset[i].texture =
+                                                textureManager->load(2, 2, dataARGB, headerDescSubset.nameTexture, 8, 4);
+                                            if (buffer[currentFrame].subset[i].texture)
+                                            {
+                                                lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
+                                                lsHasColorKeying.push_back(
+                                                    buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1 : 0);
+                                            }
+                                            else
+                                            {
+                                                lsIdTexture.push_back(nullptr);
+                                                lsHasColorKeying.push_back(0);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        buffer[currentFrame].subset[i].texture = nullptr;
                                         lsIdTexture.push_back(nullptr);
                                         lsHasColorKeying.push_back(0);
                                     }
                                 }
-                            }
-                            else
-                            {
-                                buffer[currentFrame].subset[i].texture = nullptr;
-                                lsIdTexture.push_back(nullptr);
-                                lsHasColorKeying.push_back(0);
-                            }
-                        }
-                        else if(this->getInfoFont() != nullptr)
-                        {
-                            TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                            const INFO_BOUND_FONT* pInfoFont = this->getInfoFont();
-                            const size_t len = strlen(headerDescSubset.nameTexture);
-                            if(len > 4 && strcasecmp(&headerDescSubset.nameTexture[len-4],".ttf")==0)
-                            {
-                                buffer[currentFrame].subset[i].texture = textureManager->loadTTF(headerDescSubset.nameTexture,nullptr,nullptr,pInfoFont->heightLetter,true);
-                            }
-                            else
-                            {
-                                buffer[currentFrame].subset[i].texture = textureManager->load(
+                                else if(this->getInfoFont() != nullptr)
+                                {
+                                    TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
+                                    const INFO_BOUND_FONT* pInfoFont = this->getInfoFont();
+                                    const size_t len = strlen(headerDescSubset.nameTexture);
+                                    if(len > 4 && strcasecmp(&headerDescSubset.nameTexture[len-4],".ttf")==0)
+                                    {
+                                        buffer[currentFrame].subset[i].texture = textureManager->loadTTF(headerDescSubset.nameTexture,nullptr,nullptr,pInfoFont->heightLetter,true);
+                                    }
+                                    else
+                                    {
+                                        buffer[currentFrame].subset[i].texture = textureManager->load(
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                                    headerDescSubset.nameTexture, true);
-                                    headerDescSubset.hasAlphaColor = 1;
+                                            headerDescSubset.nameTexture, true);
+                                            headerDescSubset.hasAlphaColor = 1;
 #else
-                                    headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
+                                            headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
 #endif
-                            }
-                            if (!buffer[currentFrame].subset[i].texture)
-                            {
-                                lsIdTexture.push_back(0);
-                                lsHasColorKeying.push_back(0);
-                            }
-                            else
-                            {
-                                lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                    }
+                                    if (!buffer[currentFrame].subset[i].texture)
+                                    {
+                                        lsIdTexture.push_back(0);
+                                        lsHasColorKeying.push_back(0);
+                                    }
+                                    else
+                                    {
+                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                    }
+                                }
+                                else
+                                {
+                                    TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
+                                    buffer[currentFrame].subset[i].texture = textureManager->load(
+                                        headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
+                                    if (!buffer[currentFrame].subset[i].texture)
+                                    {
+                                        lsIdTexture.push_back(nullptr);
+                                        lsHasColorKeying.push_back(0);
+                                    }
+                                    else
+                                    {
+                                        lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
+                                        lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
+                                    }
+                                }
                             }
                         }
-                        else
+                        return true;
+                    }))
+                return false;
+
+            if (!read_frame_geometry(
+                    fp,
+                    fileNamePath,
+                    headerFrame,
+                    headerMesh.hasNorText,
+                    headerMain.version,
+                    [this](FILE *file,
+                           const int sizeVertexBuffer,
+                           VEC3 **positionOut,
+                           VEC3 **normalOut,
+                           VEC2 **textureOut,
+                           int16_t hasNorText[2],
+                           uint16_t *indexArray,
+                           const int sizeArrayIndex,
+                           const int stride,
+                           const int fileVersion) -> bool
+                    {
+                        return this->loadFromSplited(file,
+                                                     sizeVertexBuffer,
+                                                     positionOut,
+                                                     normalOut,
+                                                     textureOut,
+                                                     hasNorText,
+                                                     indexArray,
+                                                     sizeArrayIndex,
+                                                     stride,
+                                                     fileVersion);
+                    },
+                    [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture, uint16_t *&indexArray) -> bool
+                    {
+                        buffer[currentFrame].pBufferGL = new BUFFER_GL();
+                        auto indexStart = new int[buffer[currentFrame].totalSubset];
+                        auto indexCount = new int[buffer[currentFrame].totalSubset];
+                        for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
                         {
-                            TEXTURE_MANAGER *textureManager = TEXTURE_MANAGER::getInstance();
-                            buffer[currentFrame].subset[i].texture = textureManager->load(
-                                headerDescSubset.nameTexture, headerDescSubset.hasAlphaColor ? true : false);
-                            if (!buffer[currentFrame].subset[i].texture)
-                            {
-                                lsIdTexture.push_back(nullptr);
-                                lsHasColorKeying.push_back(0);
-                            }
-                            else
-                            {
-                                lsIdTexture.push_back(buffer[currentFrame].subset[i].texture);
-                                lsHasColorKeying.push_back(buffer[currentFrame].subset[i].texture->useAlphaChannel ? 1: 0);
-                            }
+                            indexStart[subIndex] = buffer[currentFrame].subset[subIndex].indexStart;
+                            indexCount[subIndex] = buffer[currentFrame].subset[subIndex].indexCount;
                         }
-                    }
-                }
-            }
+                        if (!buffer[currentFrame].pBufferGL->loadBuffer(pPosition,
+                                                                        pNormal,
+                                                                        pTexture,
+                                                                        static_cast<uint32_t>(headerFrame.sizeVertexBuffer),
+                                                                        indexArray,
+                                                                        buffer[currentFrame].totalSubset,
+                                                                        indexStart,
+                                                                        indexCount,
+                                                                        &this->info_mode))
 
-            // 6.2 Vertex buffer e index buffer
-            // -----------------------------------------------------------------------------------------
-            if (headerFrame.sizeIndexBuffer && strcmp(headerFrame.typeBuffer, "IB") == 0)
-            {
-                auto indexArray = new uint16_t[headerFrame.sizeIndexBuffer];
-                if (!util::readU16ArrayV8(fp, indexArray, static_cast<uint32_t>(headerFrame.sizeIndexBuffer)))
-                {
-                    delete[] indexArray;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read index buffer of frame [%s]", fileNamePath);
-                }
-                VEC3 *pPosition = nullptr;
-                VEC3 *pNormal   = nullptr;
-                VEC2 *pTexture  = nullptr;
-                if (!this->loadFromSplited(fp, headerFrame.sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, indexArray, headerFrame.sizeIndexBuffer,
-                                           headerFrame.stride, headerMain.version))
-                {
-                    delete[] indexArray;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
-                }
-                buffer[currentFrame].pBufferGL = new BUFFER_GL();
-                ////if(this->is3d == false)
-                //{
-                //    //Não precisamos mais utilizar isto pois ja estamos gravando invertido no directx
-                //    this->invertMap(false,true,pTexture,headerFrame.sizeVertexBuffer);
-                //}
-                auto indexStart = new int[buffer[currentFrame].totalSubset];
-                auto indexCount = new int[buffer[currentFrame].totalSubset];
-                for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
-                {
-                    indexStart[subIndex] = buffer[currentFrame].subset[subIndex].indexStart;
-                    indexCount[subIndex] = buffer[currentFrame].subset[subIndex].indexCount;
-                }
-                if (!buffer[currentFrame].pBufferGL->loadBuffer(pPosition, pNormal, pTexture,
-                                                                static_cast<uint32_t>(headerFrame.sizeVertexBuffer), indexArray,
-                                                                buffer[currentFrame].totalSubset, indexStart, indexCount,&this->info_mode))
-
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    delete[] indexArray;
-                    delete[] indexStart;
-                    delete[] indexCount;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
-                }
+                        {
+                            delete[] indexStart;
+                            delete[] indexCount;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
+                        }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                this->fillLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
-                                                static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset);
+                        this->fillLegacyPhysicsIfNeeded(headerMain.version,
+                                                        deprectedInfoSprite,
+                                                        pPosition,
+                                                        static_cast<uint32_t>(currentFrame),
+                                                        buffer[currentFrame].subset);
 #endif
-                delete[] pPosition;
-                delete[] pNormal;
-                delete[] pTexture;
-                delete[] indexArray;
-                delete[] indexStart;
-                delete[] indexCount;
-            }
-            // 6.3 Vertex Buffer somente
-            // ----------------------------------------------------------------------------------------------
-            else if (strcmp(headerFrame.typeBuffer, "VB") == 0)
-            {
-                VEC3 *pPosition = nullptr;
-                VEC3 *pNormal   = nullptr;
-                VEC2 *pTexture  = nullptr;
-                constexpr bool isDynamic = false;
-                if (!this->loadFromSplited(fp, headerFrame.sizeVertexBuffer, &pPosition, &pNormal, &pTexture,
-                                           headerMesh.hasNorText, nullptr, 0, headerFrame.stride, headerMain.version))
-                {
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex buffer of frame [%s]", fileNamePath);
-                }
-                buffer[currentFrame].pBufferGL = new BUFFER_GL();
-                auto vertexStart               = new int[buffer[currentFrame].totalSubset];
-                auto vertexCount               = new int[buffer[currentFrame].totalSubset];
-                for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
-                {
-                    vertexStart[subIndex] = buffer[currentFrame].subset[subIndex].vertexStart;
-                    vertexCount[subIndex] = buffer[currentFrame].subset[subIndex].vertexCount;
-                }
-                if (!buffer[currentFrame].pBufferGL->loadBuffer(
-                        pPosition, pNormal, pTexture, static_cast<uint32_t>(headerFrame.sizeVertexBuffer), buffer[currentFrame].totalSubset,
-                        vertexStart, vertexCount,&this->info_mode, isDynamic))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
-                }
+                        delete[] indexStart;
+                        delete[] indexCount;
+                        return true;
+                    },
+                    [&](VEC3 *&pPosition, VEC3 *&pNormal, VEC2 *&pTexture) -> bool
+                    {
+                        constexpr bool isDynamic = false;
+                        buffer[currentFrame].pBufferGL = new BUFFER_GL();
+                        auto vertexStart               = new int[buffer[currentFrame].totalSubset];
+                        auto vertexCount               = new int[buffer[currentFrame].totalSubset];
+                        for (int subIndex = 0; subIndex < headerFrame.totalSubset; ++subIndex)
+                        {
+                            vertexStart[subIndex] = buffer[currentFrame].subset[subIndex].vertexStart;
+                            vertexCount[subIndex] = buffer[currentFrame].subset[subIndex].vertexCount;
+                        }
+                        if (!buffer[currentFrame].pBufferGL->loadBuffer(
+                                pPosition,
+                                pNormal,
+                                pTexture,
+                                static_cast<uint32_t>(headerFrame.sizeVertexBuffer),
+                                buffer[currentFrame].totalSubset,
+                                vertexStart,
+                                vertexCount,
+                                &this->info_mode,
+                                isDynamic))
+                        {
+                            delete[] vertexStart;
+                            delete[] vertexCount;
+                            return log_util::onFailed(fp,__FILE__, __LINE__, "error on load buffer bufferTriangleList [%s]", fileNamePath);
+                        }
 #if defined(MBM_ENABLE_MESH_LEGACY_V7)
-                this->fillLegacyPhysicsIfNeeded(headerMain.version, deprectedInfoSprite, pPosition,
-                                                static_cast<uint32_t>(currentFrame), buffer[currentFrame].subset);
+                        this->fillLegacyPhysicsIfNeeded(headerMain.version,
+                                                        deprectedInfoSprite,
+                                                        pPosition,
+                                                        static_cast<uint32_t>(currentFrame),
+                                                        buffer[currentFrame].subset);
 #endif
-                delete[] pPosition;
-                delete[] pNormal;
-                delete[] pTexture;
-            }
-            else
-            {
-                return log_util::onFailed(fp,__FILE__, __LINE__, "unknown buffer type [%s]", fileNamePath);
-            }
+                        delete[] vertexStart;
+                        delete[] vertexCount;
+                        return true;
+                    }))
+                return false;
             const std::vector<int>::size_type  totalIdTexture = ((buffer[currentFrame].pBufferGL->totalSubset > lsIdTexture.size())
                                                      ? lsIdTexture.size()
                                                      : buffer[currentFrame].pBufferGL->totalSubset);
@@ -4297,358 +4102,26 @@ namespace mbm
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        /* hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, or HAS_NOR_CALCULATE */
-        const bool noNormals = (hasNorText[0] == HAS_NOR_NO);
-        const bool hasNormalsFromFile = (hasNorText[0] == HAS_NOR_IN_FILE);
-        const bool calculateNormals = (hasNorText[0] == HAS_NOR_CALCULATE);
-
-        auto pPosition = new VEC3[sizeVertexBuffer];
-        VEC3* pNormal = noNormals ? nullptr : new VEC3[sizeVertexBuffer];
-        auto pTexture  = new VEC2[sizeVertexBuffer];
-        *positionOut            = pPosition;
-        *normalOut              = pNormal;
-        *textureOut             = pTexture;
-        if (stride == 3)
-        {
-            if (!util::readVec3ArrayV8(fp, pPosition, static_cast<uint32_t>(sizeVertexBuffer)))
-            {
-                delete[] pPosition;
-                if (pNormal) delete[] pNormal;
-                delete[] pTexture;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-            }
-            if (hasNormalsFromFile)
-            {
-                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-                }
-            }
-            else if (calculateNormals)
-            {
-                if (indexArray && sizeArrayIndex)
-                {
-                    for (int i = 0; i < sizeArrayIndex; i += 3)
-                    {
-                        const int index0 = indexArray[i];
-                        const int index1 = indexArray[i + 1];
-                        const int index2 = indexArray[i + 2];
-                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
-                        {
-                            delete[] pPosition;
-                            delete[] pNormal;
-                            delete[] pTexture;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
-                        }
-                        VEC3 a(pPosition[index1] - pPosition[index0]);
-                        VEC3 b(pPosition[index2] - pPosition[index1]);
-                        vec3Cross(&pNormal[index0], &a, &b);
-                        vec3Normalize(&pNormal[index0], &pNormal[index0]);
-                        pNormal[index1] = pNormal[index0];
-                        pNormal[index2] = pNormal[index0];
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < sizeVertexBuffer; i += 3)
-                    {
-                        VEC3 a(pPosition[i + 1] - pPosition[i]);
-                        VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
-                        vec3Cross(&pNormal[i], &a, &b);
-                        vec3Normalize(&pNormal[i], &pNormal[i]);
-                        pNormal[i + 1] = pNormal[i];
-                        pNormal[i + 2] = pNormal[i];
-                    }
-                }
-            }
-            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
-            {
-                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                }
-            }
-            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
-            {
-                if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
-                {
-                    if (sizeVertexBuffer != this->sizeCoordTexFrame_0)
-                        memset(static_cast<void*>(pTexture), 0, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                    int safeCopy = std::min(sizeVertexBuffer, this->sizeCoordTexFrame_0);
-                    memcpy(static_cast<void*>(pTexture), this->coordTexFrame_0, sizeof(VEC2) * static_cast<size_t>(safeCopy));
-                }
-                else //É o primeiro frame então guarda as coordenadas
-                {
-                    this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
-                    this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                    {
-                        delete[] pPosition;
-                        delete[] pNormal;
-                        delete[] pTexture;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                    }
-                    memcpy(static_cast<void*>(this->coordTexFrame_0), pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                }
-            }
-            else
-            {
-                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
-                {
-                    if (j % 2)
-                    {
-                        pTexture[i].x = 0;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 1;
-                    }
-                    else
-                    {
-                        pTexture[i].x = 1;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 0;
-                    }
-                }
-            }
-            return true;
-        }
-        else if (stride == 2)
-        {
-            auto pStridePosition = new VEC2[sizeVertexBuffer];
-            if (!util::readVec2ArrayV8(fp, pStridePosition, static_cast<uint32_t>(sizeVertexBuffer)))
-            {
-                delete[] pPosition;
-                if (pNormal) delete[] pNormal;
-                delete[] pTexture;
-                delete[] pStridePosition;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-            }
-            for (int i = 0; i < sizeVertexBuffer; ++i)
-            {
-                pPosition[i].x = pStridePosition[i].x;
-                pPosition[i].y = pStridePosition[i].y;
-                pPosition[i].z = 0.0f;
-            }
-            delete[] pStridePosition;
-            pStridePosition = nullptr;
-            if (hasNormalsFromFile)
-            {
-                if (!util::readVec3ArrayV8(fp, pNormal, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read vertex");
-                }
-            }
-            else if (calculateNormals)
-            {
-                if (indexArray && sizeArrayIndex)
-                {
-                    for (int i = 0; i < sizeArrayIndex; i += 3)
-                    {
-                        const int index0 = indexArray[i];
-                        const int index1 = indexArray[i + 1];
-                        const int index2 = indexArray[i + 2];
-                        if (index0 >= sizeVertexBuffer || index1 >= sizeVertexBuffer || index2 >= sizeVertexBuffer)
-                        {
-                            delete[] pPosition;
-                            delete[] pNormal;
-                            delete[] pTexture;
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "inconsistent index to normal");
-                        }
-                        VEC3 a(pPosition[index1] - pPosition[index0]);
-                        VEC3 b(pPosition[index2] - pPosition[index1]);
-                        vec3Cross(&pNormal[index0], &a, &b);
-                        vec3Normalize(&pNormal[index0], &pNormal[index0]);
-                        pNormal[index1] = pNormal[index0];
-                        pNormal[index2] = pNormal[index0];
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < sizeVertexBuffer; i += 3)
-                    {
-                        VEC3 a(pPosition[i + 1] - pPosition[i]);
-                        VEC3 b(pPosition[i + 2] - pPosition[i + 1]);
-                        vec3Cross(&pNormal[i], &a, &b);
-                        vec3Normalize(&pNormal[i], &pNormal[i]);
-                        pNormal[i + 1] = pNormal[i];
-                        pNormal[i + 2] = pNormal[i];
-                    }
-                }
-            }
-            if (hasNorText[1] == HAS_TEX_EACH_FRAME) // As coordenadas estão presentes em cada frame
-            {
-                if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                {
-                    delete[] pPosition;
-                    delete[] pNormal;
-                    delete[] pTexture;
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                }
-            }
-            else if (hasNorText[1] == HAS_TEX_FIRST_FRAME) // As coordenadas só estão presentes no primeiro frame
-            {
-                if (this->coordTexFrame_0) // Ja passou pelo primeiro frame, então só copia
-                {
-                    if (sizeVertexBuffer != this->sizeCoordTexFrame_0) 
-                        memset(static_cast<void*>(pTexture), 0, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                    int safeCopy = std::min(sizeVertexBuffer, this->sizeCoordTexFrame_0);
-                    memcpy(static_cast<void*>(pTexture), this->coordTexFrame_0, sizeof(VEC2) * static_cast<size_t>(safeCopy));
-                }
-                else //É o primeiro frame então guarda as coordenadas
-                {
-                    this->coordTexFrame_0 = new VEC2[sizeVertexBuffer];
-                    this->sizeCoordTexFrame_0 = sizeVertexBuffer;
-                    if (!util::readVec2ArrayV8(fp, pTexture, static_cast<uint32_t>(sizeVertexBuffer)))
-                    {
-                        delete[] pPosition;
-                        delete[] pNormal;
-                        delete[] pTexture;
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data uv");
-                    }
-                    memcpy(static_cast<void*>(this->coordTexFrame_0), pTexture, sizeof(VEC2) * static_cast<size_t>(sizeVertexBuffer));
-                }
-            }
-            else
-            {
-                for (int i = 0, j = 0; i < sizeVertexBuffer; i += 3, ++j)
-                {
-                    if (j % 2)
-                    {
-                        pTexture[i].x = 0;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 1;
-                    }
-                    else
-                    {
-                        pTexture[i].x = 1;
-                        pTexture[i].y = 1;
-
-                        pTexture[i + 1].x = 0;
-                        pTexture[i + 1].y = 0;
-
-                        pTexture[i + 2].x = 1;
-                        pTexture[i + 2].y = 0;
-                    }
-                }
-            }
-            return true;
-        }
-        else
-        {
-            return log_util::onFailed(fp,__FILE__, __LINE__, "stride unknown. must be 2 or 3");
-        }
+        return load_from_splited_common(fp,
+                                        sizeVertexBuffer,
+                                        positionOut,
+                                        normalOut,
+                                        textureOut,
+                                        hasNorText,
+                                        indexArray,
+                                        sizeArrayIndex,
+                                        stride,
+                                        fileVersion,
+                                        this->coordTexFrame_0,
+                                        this->sizeCoordTexFrame_0);
     }
     
     bool MESH_MBM::fillAnimation_2(util::HEADER_MESH &headerMesh, const char *fileNamePath, FILE *fp)
     {
-        for (int i = 0; i < headerMesh.totalAnimation; ++i)
-        {
-            auto headerAnim = new util::HEADER_ANIMATION();
-            if (!util::readHeaderAnimationV8(fp, *headerAnim))
-            {
-                delete headerAnim;
-                return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
-            }
-            auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
-            this->infoAnimation.lsHeaderAnim.push_back(infoHead);
-            infoHead->headerAnim = headerAnim;
-
-            if(headerAnim->hasShaderEffect == 1)
-            {
-                infoHead->effetcShader = new util::INFO_FX();
-                util::HEADER_INFO_SHADER_STEP headerPS_VS;
-                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
-                if(headerPS_VS.blendOperation != 0)
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                else
-                    infoHead->effetcShader->blendOperation = 1;
-                if (headerPS_VS.lenNameShader) // temos pixel shader
-                {
-                    auto dataInfo = new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes, static_cast<short>(headerPS_VS.lenNameShader),static_cast<short>(headerPS_VS.lenTextureStage2));
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                    infoHead->effetcShader->dataPS     = (dataInfo);
-                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
-                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
-                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->min,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->max,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                    }
-                }
-                if (!util::readHeaderInfoShaderStepV8(fp, headerPS_VS))
-                    return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header step [%s]", fileNamePath);
-                if (headerPS_VS.lenNameShader) // temos vertex shader
-                {
-                    auto dataInfo = new util::INFO_SHADER_DATA(headerPS_VS.sizeArrayVarInBytes, static_cast<short>(headerPS_VS.lenNameShader),static_cast<short>(headerPS_VS.lenTextureStage2));
-                    infoHead->effetcShader->blendOperation = headerPS_VS.blendOperation;
-                    infoHead->effetcShader->dataVS     = (dataInfo);
-                    dataInfo->typeAnimation    = headerPS_VS.typeAnimation;
-                    dataInfo->timeAnimation    = headerPS_VS.timeAnimation;
-                    if (!fread(dataInfo->fileNameShader, static_cast<size_t>(headerPS_VS.lenNameShader), 1, fp))
-                        return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-
-                    if (headerPS_VS.lenTextureStage2)
-                    {
-                        if (!fread(dataInfo->fileNameTextureStage2, static_cast<size_t>(headerPS_VS.lenTextureStage2), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read name's texture [%s]", fileNamePath);
-                    }
-                    if (headerPS_VS.sizeArrayVarInBytes)
-                    {
-                        if (!fread(dataInfo->typeVars, static_cast<size_t>(dataInfo->lenVars), 1, fp))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->min,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                        if (!util::readFloatArrayV8(fp,
-                                                    dataInfo->max,
-                                                    static_cast<uint32_t>(dataInfo->lenVars) * 4))
-                            return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read data shader [%s]", fileNamePath);
-                    }
-                }
-            }
-        }
-        return true;
+        return fill_animation_headers_common(fp,
+                                             fileNamePath,
+                                             headerMesh.totalAnimation,
+                                             this->infoAnimation);
     }
 
     const INFO_BOUND_FONT* MESH_MBM::getInfoFont()const
@@ -4950,7 +4423,7 @@ namespace mbm
             mesh->hasNormTex[1] = HAS_TEX_EACH_FRAME;//uv each frame
             strncpy(header->headerAnim->nameAnimation,"font-1",sizeof(header->headerAnim->nameAnimation)-1);
             auto effectFont = new util::INFO_FX();
-            header->effetcShader = effectFont;
+            header->effectShader = effectFont;
             effectFont->dataPS = new util::INFO_SHADER_DATA(4, static_cast<int>(strlen(fontps) + 1), 0);
             strcpy(effectFont->dataPS->fileNameShader, fontps);
             const float mmin[4]               = {1.0f, 1.0f, 0.0f, 0.0f};
@@ -5179,13 +4652,15 @@ namespace mbm
         // -------------------------------------------------------------------------------
         switch (meshMemory->getTypeMesh())
         {
-            case util::TYPE_MESH_3D:       strncpy(headerMain.typeApp, MBM_TYPE_APP_MESH_3D,  sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_SHAPE:    strncpy(headerMain.typeApp, MBM_TYPE_APP_SHAPE,    sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_USER:     strncpy(headerMain.typeApp, MBM_TYPE_APP_USER,     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_SPRITE:   strncpy(headerMain.typeApp, MBM_TYPE_APP_SPRITE,   sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_TILE_MAP: strncpy(headerMain.typeApp, MBM_TYPE_APP_TILE,     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_FONT:     strncpy(headerMain.typeApp, MBM_TYPE_APP_FONT,     sizeof(headerMain.typeApp) - 1); break;
-            case util::TYPE_MESH_PARTICLE: strncpy(headerMain.typeApp, MBM_TYPE_APP_PARTICLE, sizeof(headerMain.typeApp) - 1); break;
+            case util::TYPE_MESH_3D:
+            case util::TYPE_MESH_SHAPE:
+            case util::TYPE_MESH_USER:
+            case util::TYPE_MESH_SPRITE:
+            case util::TYPE_MESH_TILE_MAP:
+            case util::TYPE_MESH_FONT:
+            case util::TYPE_MESH_PARTICLE:
+                strncpy(headerMain.typeApp, get_type_app_from_mesh_type(meshMemory->getTypeMesh()), sizeof(headerMain.typeApp) - 1);
+                break;
             default:
                 return log_util::onFailed(nullptr, __FILE__, __LINE__, "Mesh invalid type");
                 break;
@@ -5280,15 +4755,15 @@ namespace mbm
             headerAnim->timeBetweenFrame = pInfoAnim->headerAnim->timeBetweenFrame;
             headerAnim->typeAnimation = pInfoAnim->headerAnim->typeAnimation;
             strncpy(headerAnim->nameAnimation, pInfoAnim->headerAnim->nameAnimation, sizeof(headerAnim->nameAnimation));
-            headerAnim->hasShaderEffect = (uint16_t)(infoHead->effetcShader ? 1 : 0);
+            headerAnim->hasShaderEffect = (uint16_t)(infoHead->effectShader ? 1 : 0);
             infoHead->headerAnim->blendState = (uint16_t)headerAnim->blendState;
-            //for(auto pInfoStepShader : pInfoAnim->lsStepEffetcShader)
-            if (infoHead->effetcShader)
+            //for(auto pInfoStepShader : pInfoAnim->lsStepEffectShader)
+            if (infoHead->effectShader)
             {
-                auto pInfoStepShader = pInfoAnim->effetcShader;
+                auto pInfoStepShader = pInfoAnim->effectShader;
                 //each step may has two shaders (PS and VS)
                 auto infoStepShader = new util::INFO_FX();
-                infoHead->effetcShader = infoStepShader;
+                infoHead->effectShader = infoStepShader;
                 infoStepShader->blendOperation = pInfoStepShader->blendOperation;
 
                 if (pInfoStepShader->dataPS)

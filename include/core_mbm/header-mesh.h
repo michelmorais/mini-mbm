@@ -466,7 +466,7 @@ namespace util
         struct INFO_HEADER_ANIM
         {
             util::HEADER_ANIMATION *    headerAnim;         
-            INFO_FX *			effetcShader; 
+            INFO_FX *			effectShader; 
             API_IMPL INFO_HEADER_ANIM()noexcept;
             API_IMPL ~INFO_HEADER_ANIM();
         };

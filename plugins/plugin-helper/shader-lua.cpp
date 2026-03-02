@@ -767,17 +767,17 @@ namespace mbm
                 if(index < mesh->infoAnimation.lsHeaderAnim.size())
                 {
                     util::INFO_ANIMATION::INFO_HEADER_ANIM* infoHead = mesh->infoAnimation.lsHeaderAnim[index];
-                    if(infoHead && infoHead->effetcShader)
+                    if(infoHead && infoHead->effectShader)
                     {
                         if(pixelShader)
                         {
-                            const util::INFO_SHADER_DATA* data = infoHead->effetcShader->dataPS;
+                            const util::INFO_SHADER_DATA* data = infoHead->effectShader->dataPS;
                             if(data)
                                 return data->timeAnimation;
                         }
                         else
                         {
-                            const util::INFO_SHADER_DATA* data = infoHead->effetcShader->dataVS;
+                            const util::INFO_SHADER_DATA* data = infoHead->effectShader->dataVS;
                             if(data)
                                 return data->timeAnimation;
                         }

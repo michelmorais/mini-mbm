@@ -2064,7 +2064,7 @@ namespace mbm
                         }
                     }
                     const auto anim = meshDebug.getAnim(i);
-                    if(anim->effetcShader)
+                    if(anim->effectShader)
                     {
                         const char * sPsShaderName = "null";
                         const char * sVsShaderName = "null";
@@ -2074,50 +2074,50 @@ namespace mbm
                         float fTimeVs              = 1.0f;
                         SHADER_CFG * psShaderCfg   = nullptr;
                         SHADER_CFG * vsShaderCfg   = nullptr;
-                        if(anim->effetcShader->dataPS && anim->effetcShader->dataPS->fileNameShader)
+                        if(anim->effectShader->dataPS && anim->effectShader->dataPS->fileNameShader)
                         {
-                            sPsShaderName = anim->effetcShader->dataPS->fileNameShader;
-                            psShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effetcShader->dataPS->fileNameShader);
-                            psTypeAnim    = (TYPE_ANIMATION)anim->effetcShader->dataPS->typeAnimation;
-                            fTimePs       = anim->effetcShader->dataPS->timeAnimation;
-                            if(anim->effetcShader->dataPS->fileNameTextureStage2)
+                            sPsShaderName = anim->effectShader->dataPS->fileNameShader;
+                            psShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataPS->fileNameShader);
+                            psTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataPS->typeAnimation;
+                            fTimePs       = anim->effectShader->dataPS->timeAnimation;
+                            if(anim->effectShader->dataPS->fileNameTextureStage2)
                             {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effetcShader->dataPS->fileNameTextureStage2,true);
+                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataPS->fileNameTextureStage2,true);
                             }
                         }
-                        if(anim->effetcShader->dataVS && anim->effetcShader->dataVS->fileNameShader)
+                        if(anim->effectShader->dataVS && anim->effectShader->dataVS->fileNameShader)
                         {
-                            sVsShaderName = anim->effetcShader->dataVS->fileNameShader;
-                            vsShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effetcShader->dataVS->fileNameShader);
-                            vsTypeAnim    = (TYPE_ANIMATION)anim->effetcShader->dataVS->typeAnimation;
-                            fTimeVs       = anim->effetcShader->dataVS->timeAnimation;
-                            if(anim->effetcShader->dataVS->fileNameTextureStage2)
+                            sVsShaderName = anim->effectShader->dataVS->fileNameShader;
+                            vsShaderCfg   = mbm::DEVICE::getInstance()->cfg.getShader(anim->effectShader->dataVS->fileNameShader);
+                            vsTypeAnim    = (TYPE_ANIMATION)anim->effectShader->dataVS->typeAnimation;
+                            fTimeVs       = anim->effectShader->dataVS->timeAnimation;
+                            if(anim->effectShader->dataVS->fileNameTextureStage2)
                             {
-                                layer->fx.textureOverrideStage2 = tex->load(anim->effetcShader->dataVS->fileNameTextureStage2,true);
+                                layer->fx.textureOverrideStage2 = tex->load(anim->effectShader->dataVS->fileNameTextureStage2,true);
                             }
                         }
                         if(layer->fx.loadNewShader(psShaderCfg, vsShaderCfg, psTypeAnim, fTimePs, vsTypeAnim, fTimeVs) == true)
                         {
                             if(psShaderCfg)
                             {
-                                if(anim->effetcShader->dataPS->lenVars == static_cast<int>(psShaderCfg->lsVar.size()))
+                                if(anim->effectShader->dataPS->lenVars == static_cast<int>(psShaderCfg->lsVar.size()))
                                 {
-                                    if(strcmp(anim->effetcShader->dataPS->fileNameShader,"tint.ps") == 0 )
+                                    if(strcmp(anim->effectShader->dataPS->fileNameShader,"tint.ps") == 0 )
                                     {
                                         layer->typeTint  = psTypeAnim;
                                         layer->fTimeTint = fTimePs;
                                     }
-                                    for(int j=0 ; j < anim->effetcShader->dataPS->lenVars; j++)
+                                    for(int j=0 ; j < anim->effectShader->dataPS->lenVars; j++)
                                     {
                                         const auto * var  = psShaderCfg->lsVar[j];
                                         const int index   = j * 4;
                                         float fmin[4]     = {0,0,0,0};
                                         float fmax[4]     = {0,0,0,0};
-                                        memcpy(fmin, &anim->effetcShader->dataPS->min[index],sizeof(fmin));
-                                        memcpy(fmax, &anim->effetcShader->dataPS->max[index],sizeof(fmax));
+                                        memcpy(fmin, &anim->effectShader->dataPS->min[index],sizeof(fmin));
+                                        memcpy(fmax, &anim->effectShader->dataPS->max[index],sizeof(fmax));
                                         layer->fx.setMinVarPShader(var->name.c_str(),fmin);
                                         layer->fx.setMaxVarPShader(var->name.c_str(),fmax);
-                                        if(strcmp(anim->effetcShader->dataPS->fileNameShader,"tint.ps") == 0 )
+                                        if(strcmp(anim->effectShader->dataPS->fileNameShader,"tint.ps") == 0 )
                                         {
                                             layer->tint_min.r = fmin[0];
                                             layer->tint_min.g = fmin[1];
@@ -2133,28 +2133,28 @@ namespace mbm
                                 }
                                 else
                                 {
-                                    INFO_LOG("Unexpected different size of variable [%d/%d]\nDo not know what to do!\nDid the shader [%s] change?",anim->effetcShader->dataPS->lenVars,psShaderCfg->lsVar.size(),psShaderCfg->fileName.c_str());
+                                    INFO_LOG("Unexpected different size of variable [%d/%d]\nDo not know what to do!\nDid the shader [%s] change?",anim->effectShader->dataPS->lenVars,psShaderCfg->lsVar.size(),psShaderCfg->fileName.c_str());
                                 }
                             }
                             if(vsShaderCfg)
                             {
-                                if(anim->effetcShader->dataVS->lenVars == static_cast<int>(vsShaderCfg->lsVar.size()))
+                                if(anim->effectShader->dataVS->lenVars == static_cast<int>(vsShaderCfg->lsVar.size()))
                                 {
-                                    for(int j=0 ; j < anim->effetcShader->dataVS->lenVars; j++)
+                                    for(int j=0 ; j < anim->effectShader->dataVS->lenVars; j++)
                                     {
                                         const auto * var  = vsShaderCfg->lsVar[j];
                                         const int index   = j * 4;
                                         float fmin[4]     = {0,0,0,0};
                                         float fmax[4]     = {0,0,0,0};
-                                        memcpy(fmin, &anim->effetcShader->dataVS->min[index],sizeof(fmin));
-                                        memcpy(fmax, &anim->effetcShader->dataVS->max[index],sizeof(fmax));
+                                        memcpy(fmin, &anim->effectShader->dataVS->min[index],sizeof(fmin));
+                                        memcpy(fmax, &anim->effectShader->dataVS->max[index],sizeof(fmax));
                                         layer->fx.setMinVarVShader(var->name.c_str(),fmin);
                                         layer->fx.setMaxVarVShader(var->name.c_str(),fmax);
                                     }
                                 }
                                 else
                                 {
-                                    INFO_LOG("Unexpected different size of variable [%d/%d]\nDo not know what to do!\nDid the shader [%s] change?",anim->effetcShader->dataVS->lenVars,vsShaderCfg->lsVar.size(),vsShaderCfg->fileName.c_str());
+                                    INFO_LOG("Unexpected different size of variable [%d/%d]\nDo not know what to do!\nDid the shader [%s] change?",anim->effectShader->dataVS->lenVars,vsShaderCfg->lsVar.size(),vsShaderCfg->fileName.c_str());
                                 }
                             }
                         }
@@ -2520,7 +2520,7 @@ namespace mbm
                 const auto & layer                          = tileMap.layers[k];
                 auto * infoAnim	                            = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
                 infoAnim->headerAnim						= new util::HEADER_ANIMATION();
-                infoAnim->effetcShader						= new util::INFO_FX();
+                infoAnim->effectShader						= new util::INFO_FX();
                 meshDebug.infoAnimation.lsHeaderAnim.push_back(infoAnim);
 
                 snprintf(infoAnim->headerAnim->nameAnimation,sizeof(infoAnim->headerAnim->nameAnimation), "layer-%zu",k+1);
@@ -2529,28 +2529,28 @@ namespace mbm
                     const unsigned int totalVar            = layer->fx.fxPS->ptrCurrentShader->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
                     const unsigned int sizeFileName        = layer->fx.fxPS->ptrCurrentShader->fileName.size();
-                    infoAnim->effetcShader->dataPS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
+                    infoAnim->effectShader->dataPS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effetcShader->dataPS->fileNameShader,layer->fx.fxPS->ptrCurrentShader->fileName.c_str());
+                        strcpy(infoAnim->effectShader->dataPS->fileNameShader,layer->fx.fxPS->ptrCurrentShader->fileName.c_str());
 
                     if(layer->fx.textureOverrideStage2)
                     {
                         const char * textureOverrideStage2 = layer->fx.textureOverrideStage2->getFileNameTexture();
                         const int len                      = strlen(textureOverrideStage2);
-                        infoAnim->effetcShader->dataPS->fileNameTextureStage2 = new char[len + 1];
-                        strncpy(infoAnim->effetcShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
-                        infoAnim->effetcShader->dataPS->fileNameTextureStage2[len] = 0;
+                        infoAnim->effectShader->dataPS->fileNameTextureStage2 = new char[len + 1];
+                        strncpy(infoAnim->effectShader->dataPS->fileNameTextureStage2,textureOverrideStage2,len+1);
+                        infoAnim->effectShader->dataPS->fileNameTextureStage2[len] = 0;
                     }
-                    infoAnim->effetcShader->dataPS->typeAnimation = layer->fx.fxPS->typeAnim;
-                    infoAnim->effetcShader->dataPS->timeAnimation = layer->fx.fxPS->timeAnimation;
+                    infoAnim->effectShader->dataPS->typeAnimation = layer->fx.fxPS->typeAnim;
+                    infoAnim->effectShader->dataPS->timeAnimation = layer->fx.fxPS->timeAnimation;
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
                         VAR_SHADER* var       = layer->fx.fxPS->ptrCurrentShader->getVar(j);
-                        memcpy(&infoAnim->effetcShader->dataPS->min[index],var->min,sizeof(var->min));
-                        memcpy(&infoAnim->effetcShader->dataPS->max[index],var->max,sizeof(var->max));
-                        infoAnim->effetcShader->dataPS->typeVars[j]      = var->typeVar;
+                        memcpy(&infoAnim->effectShader->dataPS->min[index],var->min,sizeof(var->min));
+                        memcpy(&infoAnim->effectShader->dataPS->max[index],var->max,sizeof(var->max));
+                        infoAnim->effectShader->dataPS->typeVars[j]      = var->typeVar;
                     }
                 }
 
@@ -2559,19 +2559,19 @@ namespace mbm
                     const unsigned int totalVar            = layer->fx.fxVS->ptrCurrentShader->getTotalVar();
                     const unsigned int sizeArrayVarInBytes = totalVar * 4;
                     const unsigned int sizeFileName        = layer->fx.fxVS->ptrCurrentShader->fileName.size();
-                    infoAnim->effetcShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
+                    infoAnim->effectShader->dataVS         = new util::INFO_SHADER_DATA(sizeArrayVarInBytes,(short)(sizeFileName ? sizeFileName + 1 : 0),0);
                     if(sizeFileName)
-                        strcpy(infoAnim->effetcShader->dataVS->fileNameShader,layer->fx.fxVS->ptrCurrentShader->fileName.c_str());
-                    infoAnim->effetcShader->dataVS->typeAnimation = layer->fx.fxVS->typeAnim;
-                    infoAnim->effetcShader->dataVS->timeAnimation = layer->fx.fxVS->timeAnimation;
+                        strcpy(infoAnim->effectShader->dataVS->fileNameShader,layer->fx.fxVS->ptrCurrentShader->fileName.c_str());
+                    infoAnim->effectShader->dataVS->typeAnimation = layer->fx.fxVS->typeAnim;
+                    infoAnim->effectShader->dataVS->timeAnimation = layer->fx.fxVS->timeAnimation;
 
                     for(unsigned int j=0; j < totalVar; ++j)
                     {
                         const int index       = j * 4;
                         VAR_SHADER* var       = layer->fx.fxVS->ptrCurrentShader->getVar(j);
-                        memcpy(&infoAnim->effetcShader->dataVS->min[index],var->min,sizeof(var->min));
-                        memcpy(&infoAnim->effetcShader->dataVS->max[index],var->max,sizeof(var->max));
-                        infoAnim->effetcShader->dataVS->typeVars[j]    = var->typeVar;
+                        memcpy(&infoAnim->effectShader->dataVS->min[index],var->min,sizeof(var->min));
+                        memcpy(&infoAnim->effectShader->dataVS->max[index],var->max,sizeof(var->max));
+                        infoAnim->effectShader->dataVS->typeVars[j]    = var->typeVar;
                     }
                 }
             }

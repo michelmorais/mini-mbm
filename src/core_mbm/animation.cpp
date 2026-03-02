@@ -787,9 +787,9 @@ namespace mbm
         for (std::vector<util::INFO_ANIMATION::INFO_HEADER_ANIM *>::size_type i = 0; i < mesh->infoAnimation.lsHeaderAnim.size(); ++i)
         {
             util::INFO_ANIMATION::INFO_HEADER_ANIM * infoHead = mesh->infoAnimation.lsHeaderAnim[i];
-            if(infoHead->effetcShader)
+            if(infoHead->effectShader)
             {
-                util::INFO_SHADER_DATA *infoPS         = infoHead->effetcShader->dataPS;
+                util::INFO_SHADER_DATA *infoPS         = infoHead->effectShader->dataPS;
                 ANIMATION *anim                         = i < this->lsAnimation.size() ? this->lsAnimation[i] : nullptr;
                 if (infoPS && infoPS->fileNameTextureStage2)
                 {
@@ -798,7 +798,7 @@ namespace mbm
                         anim->fx.textureOverrideStage2 = tex;
                 }
 
-                util::INFO_SHADER_DATA *infoVS = infoHead->effetcShader->dataVS;
+                util::INFO_SHADER_DATA *infoVS = infoHead->effectShader->dataVS;
                 if (infoVS && infoVS->fileNameTextureStage2)
                 {
                     TEXTURE *  tex  = texMan->load(infoVS->fileNameTextureStage2, true);
@@ -833,7 +833,7 @@ namespace mbm
         if (index < mesh->infoAnimation.lsHeaderAnim.size()) // animation total 
         {
             util::INFO_ANIMATION::INFO_HEADER_ANIM *infoHead = mesh->infoAnimation.lsHeaderAnim[index];
-            util::INFO_FX *infoShaderStep = infoHead->effetcShader;
+            util::INFO_FX *infoShaderStep = infoHead->effectShader;
             if (infoShaderStep && infoShaderStep->dataPS)
             {
                 util::INFO_SHADER_DATA *data   = infoShaderStep->dataPS;
@@ -888,12 +888,12 @@ namespace mbm
         const FVF_PROVIDE_BY_ENGINE fvf = mesh->getBuffer(0)->pBufferGL->fvf;
         if (anim->fx.shader.compileShader(anim->fx.fxPS->ptrCurrentShader, anim->fx.fxVS->ptrCurrentShader, fvf))
         {
-            if(infoHead->effetcShader && infoHead->effetcShader->blendOperation != 0)
-                anim->fx.blendOperation = infoHead->effetcShader->blendOperation;
+            if(infoHead->effectShader && infoHead->effectShader->blendOperation != 0)
+                anim->fx.blendOperation = infoHead->effectShader->blendOperation;
 
             if (anim->fx.fxPS->ptrCurrentShader)
             {
-                util::INFO_FX *infoShaderStep = infoHead->effetcShader;
+                util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataPS && infoShaderStep->dataPS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataPS;
@@ -943,7 +943,7 @@ namespace mbm
             }
             if (anim->fx.fxVS->ptrCurrentShader)
             {
-                util::INFO_FX *infoShaderStep = infoHead->effetcShader;
+                util::INFO_FX *infoShaderStep = infoHead->effectShader;
                 if (infoShaderStep && infoShaderStep->dataVS && infoShaderStep->dataVS->fileNameShader)
                 {
                     util::INFO_SHADER_DATA *data  = infoShaderStep->dataVS;
