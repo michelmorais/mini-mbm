@@ -138,7 +138,7 @@ namespace mbm
     }
 
     static bool created3dTexture(IDirect3DTexture9** pp3DTexture9, 
-                                const bool pixelPerfectTexture, 
+                                const bool isPixelPerfectTextureEnabled, 
                                 const uint8_t* data,
                                 const uint32_t width, const uint32_t height,
                                 const uint16_t channel, const bool hasAlpha)
@@ -330,7 +330,7 @@ namespace mbm
         this->height = h;
         this->useAlphaChannel = hasAlpha ? true : false;
         return created3dTexture(pp3DTexture9,
-            TEXTURE::pixelPerfectTexture,
+            TEXTURE::isPixelPerfectTextureEnabled,
             data,
             width, height,
             channel, hasAlpha);
@@ -348,7 +348,7 @@ namespace mbm
 
         IDirect3DTexture9** pp3DTexture9 = reinterpret_cast<IDirect3DTexture9**>(&this->ptrTexture);
         return created3dTexture(pp3DTexture9,
-            TEXTURE::pixelPerfectTexture,
+            TEXTURE::isPixelPerfectTextureEnabled,
             reinterpret_cast<const uint8_t*>(image->data),
             image->width, image->height,
             channel, alpha);

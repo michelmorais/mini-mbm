@@ -50,7 +50,7 @@ namespace mbm
 		API_IMPL bool loadSolidColor(const char* colorAsString, const bool hasColorAlpha);
         API_IMPL uint32_t getWidth()const noexcept;
         API_IMPL uint32_t getHeight()const noexcept;
-        API_IMPL static void enableFilter(bool value) noexcept;
+        API_IMPL static void EnablePixelPerfectTexture(bool value) noexcept;
         
         union {
             uint32_t idTexture;
@@ -58,7 +58,7 @@ namespace mbm
         };
         bool     useAlphaChannel;
       private:
-        static bool pixelPerfectTexture;
+        static bool isPixelPerfectTextureEnabled;
         std::string  fileName;
         uint32_t width;
         uint32_t height;

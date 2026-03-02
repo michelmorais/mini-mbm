@@ -122,7 +122,7 @@ namespace mbm
         std::vector<std::string> getKnowPathsToExtraHeader();
         bool fillAnimation_2(const char *fileNamePath, FILE *fp);
         bool readDebugTriangleDetailCompat(FILE *fp, const char *fileNamePath, const int totalBounding, const int fileVersion);
-        bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
+        bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);
@@ -181,7 +181,7 @@ namespace mbm
         bool load(const char *fileNamePath, RENDERIZABLE *renderizable);
         bool loadImpl(const char *fileNamePath, const bool allowLegacyDispatch, RENDERIZABLE *renderizable);
         void invertMap(const bool u, const bool v, VEC2 *pTexture, const uint32_t arraySize);
-        bool loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
+        bool loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                     VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                     uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                     int fileVersion = CURRENT_VERSION_MBM_HEADER);

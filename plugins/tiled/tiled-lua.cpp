@@ -904,9 +904,9 @@ void lua_update_brick(lua_State * lua,std::shared_ptr<mbm::BRICK> & brick,const 
 
     if(texture_name && strlen(texture_name) > 0 )
     {
-        mbm::TEXTURE::enableFilter(false);
+        mbm::TEXTURE::EnablePixelPerfectTexture(true);
         mbm::TEXTURE * texture     = mbm::TEXTURE_MANAGER::getInstance()->load(texture_name,true);
-        mbm::TEXTURE::enableFilter(true);
+        mbm::TEXTURE::EnablePixelPerfectTexture(false);
         if(texture)
         {
             brick->setTexture(texture);

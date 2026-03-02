@@ -51,7 +51,7 @@
 
 namespace mbm
 {
-    bool TEXTURE::pixelPerfectTexture = false;
+    bool TEXTURE::isPixelPerfectTextureEnabled = false;
 
     TEXTURE::TEXTURE() noexcept
     {
@@ -372,9 +372,9 @@ namespace mbm
         }
     }
 
-    void TEXTURE::enableFilter(bool value) noexcept
+    void TEXTURE::EnablePixelPerfectTexture(bool value) noexcept
     {
-        TEXTURE::pixelPerfectTexture = !value;
+        TEXTURE::isPixelPerfectTextureEnabled = value;
     }
     
     uint32_t TEXTURE::getWidth()const noexcept

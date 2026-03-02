@@ -154,7 +154,7 @@ namespace mbm
     void TILE_EDITOR::setBackgroundTexture(const char * name)        
     {   if(name) 
         {
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
             mbm::TEXTURE * texture     = mbm::TEXTURE_MANAGER::getInstance()->load(name,true);
             if(texture)
                 tileMap.background_texture = texture;
@@ -611,13 +611,13 @@ namespace mbm
                                     const VEC2 * min_bound,
                                     const VEC2 * max_bound)
     {
-        mbm::TEXTURE::enableFilter(false);
+        mbm::TEXTURE::EnablePixelPerfectTexture(true);
         auto texManager         = mbm::TEXTURE_MANAGER::getInstance();
         
         std::vector<TEXTURE*>   allTextures;
         if(textures.size() == 0)
         {
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
             ERROR_LOG("%s","There is no Texture\nCould not create tileSet!");
             return false;
         }
@@ -626,14 +626,14 @@ namespace mbm
             auto texture        = texManager->load(texture_file_name.c_str(),true);
             if(texture == nullptr)
             {
-                mbm::TEXTURE::enableFilter(true);
+                mbm::TEXTURE::EnablePixelPerfectTexture(false);
                 ERROR_LOG("Failed to load texture [%s]\nCould not create tileSet!",texture_file_name.c_str());
                 return false;
             }
             allTextures.push_back(texture);
         }
 
-        mbm::TEXTURE::enableFilter(true);
+        mbm::TEXTURE::EnablePixelPerfectTexture(false);
         if(width == 0)
         {
             ERROR_LOG("%s","Failed to create tileSet. Width can not be ZERO!");
@@ -715,10 +715,10 @@ namespace mbm
         if(fileNameTexture)
         {
             auto tex = mbm::TEXTURE_MANAGER::getInstance();
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
             textureTileSetPreview = tex->load(fileNameTexture,true);
             auto texture = textureTileSetPreview;
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
             
             if(textureTileSetPreview && loadBufferGl(tileSetPreview))
             {
@@ -877,9 +877,9 @@ namespace mbm
             auto texManager = mbm::TEXTURE_MANAGER::getInstance();
             char whatColor[20] = "";
             COLOR::getStringHexColorFromColor(tileMap.background,whatColor,sizeof(whatColor));
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
             auto texture                      = tileMap.background_texture ? tileMap.background_texture : texManager->load(whatColor,true);
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
             if(texture == nullptr)
             {
                 ERROR_LOG("Could not create texture from color %s",whatColor);
@@ -1935,9 +1935,9 @@ namespace mbm
         {
             const bool ret  = loadBufferGl(emptyBrick);
             auto texManager = mbm::TEXTURE_MANAGER::getInstance();
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
             id_texture_normal_brick    = texManager->load("#aaffffaa",true);
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
             if (ret)
             {
                 this->emptyBrick.setTextureByStage(id_texture_normal_brick, 0, 0);

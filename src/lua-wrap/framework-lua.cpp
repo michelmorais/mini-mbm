@@ -194,7 +194,7 @@ namespace mbm
 	int enableTextureFilterLua(lua_State *lua)
     {
         bool value = lua_toboolean(lua,1);
-        TEXTURE::enableFilter(value);
+        TEXTURE::EnablePixelPerfectTexture(!value);
         return 0;
     }
 

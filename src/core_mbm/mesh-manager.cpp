@@ -203,13 +203,13 @@ namespace
         return true;
     }
 
-    template <typename LoadFromSplitedFn, typename OnIndexedData, typename OnVertexData>
+    template <typename LoadFromSeparatedBuffersFn, typename OnIndexedData, typename OnVertexData>
     bool read_frame_geometry(FILE *fp,
                              const char *fileNamePath,
                              const util::HEADER_FRAME &headerFrame,
                              int16_t hasNorText[2],
                              const int fileVersion,
-                             LoadFromSplitedFn loadFromSplited,
+                             LoadFromSeparatedBuffersFn loadFromSeparatedBuffers,
                              OnIndexedData onIndexedData,
                              OnVertexData onVertexData)
     {
@@ -224,7 +224,7 @@ namespace
             mbm::VEC3 *pPosition = nullptr;
             mbm::VEC3 *pNormal   = nullptr;
             mbm::VEC2 *pTexture  = nullptr;
-            if (!loadFromSplited(fp,
+            if (!loadFromSeparatedBuffers(fp,
                                  headerFrame.sizeVertexBuffer,
                                  &pPosition,
                                  &pNormal,
@@ -257,7 +257,7 @@ namespace
             mbm::VEC3 *pPosition = nullptr;
             mbm::VEC3 *pNormal   = nullptr;
             mbm::VEC2 *pTexture  = nullptr;
-            if (!loadFromSplited(fp,
+            if (!loadFromSeparatedBuffers(fp,
                                  headerFrame.sizeVertexBuffer,
                                  &pPosition,
                                  &pNormal,
@@ -285,7 +285,7 @@ namespace
         return log_util::onFailed(fp,__FILE__, __LINE__, "unknown buffer type [%s]", fileNamePath);
     }
 
-    bool load_from_splited_common(FILE *fp,
+    bool load_from_separated_buffers_common(FILE *fp,
                                   const int sizeVertexBuffer,
                                   mbm::VEC3 **positionOut,
                                   mbm::VEC3 **normalOut,
@@ -2135,11 +2135,11 @@ namespace mbm
             return false;
         if(typeMe == util::TYPE_MESH_TILE_MAP)
         {
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
         }
         else
         {
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
         }
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
@@ -2431,7 +2431,7 @@ namespace mbm
                            const int stride,
                            const int fileVersion) -> bool
                     {
-                        return this->loadFromSplited(file,
+                        return this->loadFromSeparatedBuffers(file,
                                                      sizeVertexBuffer,
                                                      positionOut,
                                                      normalOut,
@@ -3246,12 +3246,12 @@ namespace mbm
                                              this->infoAnimation);
     }
     
-    bool MESH_MBM_DEBUG::loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
+    bool MESH_MBM_DEBUG::loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                 VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        return load_from_splited_common(fp,
+        return load_from_separated_buffers_common(fp,
                                         sizeVertexBuffer,
                                         positionOut,
                                         normalOut,
@@ -3622,11 +3622,11 @@ namespace mbm
             return false;
         if(typeMe == util::TYPE_MESH_TILE_MAP)
         {
-            mbm::TEXTURE::enableFilter(false);
+            mbm::TEXTURE::EnablePixelPerfectTexture(true);
         }
         else
         {
-            mbm::TEXTURE::enableFilter(true);
+            mbm::TEXTURE::EnablePixelPerfectTexture(false);
         }
         // step 2: --------------------------------------------------------------------------------------------------
         if (headerMain.version >= DETAIL_MESH_VERSION_MBM_HEADER)
@@ -3961,7 +3961,7 @@ namespace mbm
                            const int stride,
                            const int fileVersion) -> bool
                     {
-                        return this->loadFromSplited(file,
+                        return this->loadFromSeparatedBuffers(file,
                                                      sizeVertexBuffer,
                                                      positionOut,
                                                      normalOut,
@@ -4108,12 +4108,12 @@ namespace mbm
         }
     }
     
-    bool MESH_MBM::loadFromSplited(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
+    bool MESH_MBM::loadFromSeparatedBuffers(FILE *fp, const int sizeVertexBuffer, VEC3 **positionOut,
                                 VEC3 **normalOut, VEC2 **textureOut, int16_t hasNorText[2],
                                 uint16_t *indexArray, const int sizeArrayIndex, const int stride,
                                 int fileVersion)
     {
-        return load_from_splited_common(fp,
+        return load_from_separated_buffers_common(fp,
                                         sizeVertexBuffer,
                                         positionOut,
                                         normalOut,
