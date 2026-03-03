@@ -55,12 +55,6 @@ file(GLOB_RECURSE MINI_Z_SOURCES            "${MINIZ_DIR}/*.c")
 file(GLOB_RECURSE STB_SOURCES               "${STB_DIR}/*.c")
 file(GLOB_RECURSE LODE_PNG_SOURCES          "${LODE_PNG_DIR}/*.cpp")
 
-if(NOT MBM_ENABLE_MESH_LEGACY_V7)
-    get_filename_component(MESH_LEGACY_CPP "${CORE_OPENGLES_SRC}/mesh-manager-legacy.cpp" ABSOLUTE)
-    list(REMOVE_ITEM SOURCES ${MESH_LEGACY_CPP})
-endif()
-
-
 if (${AUDIO} STREQUAL "audiere")
     add_definitions(-DAUDIO_ENGINE_AUDIERE)
 elseif (${AUDIO} STREQUAL "jni")

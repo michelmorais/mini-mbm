@@ -534,6 +534,15 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_definitions(-DDEBUG_SET_GET_GLOBAL)
     ENDIF(DEBUG_SET_GET_GLOBAL)
 
+    # Legacy/deprecated compatibility is explicitly opt-in by command line.
+    # Default is OFF when not provided.
+    if(NOT DEFINED USE_DEPRECATED_2_MINOR)
+        set(USE_DEPRECATED_2_MINOR 0)
+    endif()
+    if(NOT DEFINED MBM_ENABLE_MESH_LEGACY_V7)
+        set(MBM_ENABLE_MESH_LEGACY_V7 0)
+    endif()
+
     # Single source of truth for legacy compatibility flags:
     # editor features ON => legacy/deprecated compatibility ON.
     if(USE_EDITOR_FEATURES)
