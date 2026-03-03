@@ -60,9 +60,7 @@
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/font-lua.h>
 #include <lua-wrap/texture-info-lua.h>
-#if defined USE_EDITOR_FEATURES
-    #include <lua-wrap/render-table/mesh-debug-lua.h>
-#endif
+#include <lua-wrap/render-table/mesh-debug-lua.h>
 
 #include <algorithm>
 #include <map>
@@ -124,7 +122,7 @@ namespace mbm
 		return iv;
     }
 
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    #if !defined ANDROID
     int onExecuteInOtherThread(lua_State *lua)
     {
         std::string command              = luaL_checkstring(lua,1);
@@ -763,15 +761,11 @@ namespace mbm
             }
             else if (strcasecmp(what, "USE_EDITOR_FEATURES") == 0)
             {
-                #ifdef USE_EDITOR_FEATURES
-                    lua_pushboolean(lua,1);
-                #else
-                    lua_pushboolean(lua,0);
-                #endif
+                lua_pushboolean(lua,1);
             }
-            else if (strcasecmp(what, "USE_DEPRECATED_2_MINOR") == 0)
+            else if (strcasecmp(what, "MBM_ENABLE_MESH_LEGACY_V7") == 0 || strcasecmp(what, "USE_DEPRECATED_2_MINOR") == 0)
             {
-                #ifdef USE_DEPRECATED_2_MINOR
+                #ifdef MBM_ENABLE_MESH_LEGACY_V7
                     lua_pushboolean(lua,1);
                 #else
                     lua_pushboolean(lua,0);
@@ -2526,7 +2520,7 @@ namespace mbm
             {"setMinMaxWindowSize", onSetMinMaxWindowSizeLua},
             {"pauseAudioOnPauseGame", onPauseAudioOnPauseGame },
             
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    #if !defined ANDROID
             {"executeInThread", onExecuteInOtherThread},
             #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
@@ -2561,9 +2555,7 @@ namespace mbm
         registerClassParticle(lua);
         registerClassRender2TextureTarget(lua);
         registerClassTextureInfo(lua);
-    #if defined USE_EDITOR_FEATURES
         registerClassMeshDebug(lua);
-    #endif
     #if defined USE_VR
         registerClassVR(lua);
     #endif

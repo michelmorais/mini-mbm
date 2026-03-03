@@ -84,9 +84,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/src/cmake-module
 
 if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 	#remove common-jni ANDROID stuff file
-    if(USE_EDITOR_FEATURES)
-        file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
-    endif()    
+    file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
 endif()
 
 
@@ -135,9 +133,6 @@ add_library(core_mbm SHARED
     ${PORT_AUDIO_SOURCES}
     ${WAVE_SOURCES})
 
-if(USE_DEPRECATED_2_MINOR)
-    target_compile_definitions(core_mbm PRIVATE USE_DEPRECATED_2_MINOR)
-endif()
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
 endif()
@@ -145,11 +140,6 @@ endif()
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
-
-    if(USE_EDITOR_FEATURES)
-        message("{EGL_LIBRARY} ${EGL_LIBRARY}")
-        target_link_libraries(core_mbm ${EGL_LIBRARY})
-    endif()
 
     if (${AUDIO} STREQUAL "portaudio" )
         target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})

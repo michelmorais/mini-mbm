@@ -31,11 +31,6 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
-if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox('Missing features','Is necessary to compile using USE_EDITOR FEATURES to run this editor','ok','error',0)
-	mbm.quit()
-end
-
 
 function onInitScene()
     

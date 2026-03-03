@@ -21,6 +21,7 @@
 
 #include "scene-1.h"
 #include <util-interface.h>
+#include <core_mbm/specific-opengl_es.h>
 
 MY_SCENE::MY_SCENE()
 {
@@ -100,7 +101,8 @@ void MY_SCENE::onResizeWindow()
 
 MY_GAME::MY_GAME(JNIEnv *env, jobject obj)
 {
-	this->device->jni->jenv = env;
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = this->device->specificContextDevice;
+	cJni->jenv = env;
     this->setScene(&myScene);
 }
 MY_GAME::~MY_GAME()

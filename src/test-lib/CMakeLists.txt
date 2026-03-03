@@ -19,7 +19,7 @@ set(CORE_MBM_INCLUDES           ${INCLUDE}/core_mbm)
 
  
 #defines
-add_definitions(-DUSE_DEPRECATED_2_MINOR)
+add_definitions(-DMBM_ENABLE_MESH_LEGACY_V7)
 
 #Bring the headers, such as xxx.h into the project
 include_directories(${OPENGLES2_INCLUDE_DIR}

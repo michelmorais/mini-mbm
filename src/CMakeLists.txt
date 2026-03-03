@@ -14,11 +14,11 @@ set(CORE_OPENGLES_INCLUDES      ${INCLUDE}/core_mbm)
 set(LUA_INCLUDE                 ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
 set(LUA_WRAP                    ${INCLUDE}/lua-interface)
 set(TINYFILEDIALOGS_DIR         ${THIRD_PARTY}/tinyfiledialogs)
-set(LIB_MINIMBM_LUA_SRC         ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib.cpp)
 
 
 if (USE_LUA)
 
+    set(LIB_MINIMBM_LUA_SRC         ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib.cpp)
     message(STATUS "Using LUA script...")
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
@@ -116,25 +116,43 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 
-    add_executable(mini-mbm ${MAIN}
-                        ${SOURCES}
-                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
-                        ${BULLET3D_WRAP_SOURCES}
-                        ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP}
-                        ${LIB_MINIMBM_LUA_SRC})
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP}
+                            ${LIB_MINIMBM_LUA_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP})
+    endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm Xrandr)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
-    add_executable(mini-mbm ${MAIN}
-                        ${SOURCES}
-                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
-                        ${BULLET3D_WRAP_SOURCES}
-                        ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP}
-                        ${LIB_MINIMBM_LUA_SRC})
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP}
+                            ${LIB_MINIMBM_LUA_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP})
+    endif()
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     

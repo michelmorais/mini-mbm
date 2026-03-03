@@ -43,10 +43,8 @@
 #include <cstring>
 #include <cstdio>
 
-#if defined USE_EDITOR_FEATURES
-    #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
-        #include <tinyfiledialogs/tinyfiledialogs.h>
-    #endif
+#if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
+    #include <tinyfiledialogs/tinyfiledialogs.h>
 #endif
 
 namespace mbm
@@ -740,7 +738,7 @@ namespace mbm
         return true;
     }
 
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    #if !defined ANDROID
     static bool generateImageFromPng(const char* pngPath,
         std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
         char* strMessageError)
@@ -785,7 +783,7 @@ namespace mbm
         const char* outputHeaderPath, const char* resourceName,
         char* strMessageError)
     {
-        #if defined USE_EDITOR_FEATURES && !defined ANDROID
+        #if !defined ANDROID
         std::vector<uint32_t> data;
         uint32_t width = 0, height = 0;
         if (!generateImageFromPng(pngPath, data, width, height, strMessageError))
@@ -913,8 +911,7 @@ namespace mbm
                         return nickNameImageFromResource_particle;
                      }
                 }
-    #if defined USE_EDITOR_FEATURES
-        #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
+    #if (defined(_WIN32) || ((defined(__linux__) || defined(__APPLE__))) && !defined(ANDROID))
                 const char * filters[] = { "*.png","*.jpeg","*.jpg","*.bmp","*.gif","*.psd","*.pic","*.pnm","*.hdr","*.tga","*.tif"};
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
@@ -926,7 +923,6 @@ namespace mbm
                     fileName = result;
                 }
         #endif
-    #endif
             }
         }
         return fileName;

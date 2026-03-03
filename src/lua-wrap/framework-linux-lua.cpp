@@ -38,9 +38,7 @@
 #endif
 
 
-#if defined USE_EDITOR_FEATURES
-    #include <lua-wrap/render-table/mesh-debug-lua.h>
-#endif
+#include <lua-wrap/render-table/mesh-debug-lua.h>
 
 #include <algorithm>
 #include <vector>

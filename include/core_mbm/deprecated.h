@@ -20,7 +20,7 @@
 #ifndef GLES_DEPRECATED_H
 #define GLES_DEPRECATED_H
 
-#ifdef USE_DEPRECATED_2_MINOR
+#ifdef MBM_ENABLE_MESH_LEGACY_V7
 
 #include "primitives.h"
 #include <vector>

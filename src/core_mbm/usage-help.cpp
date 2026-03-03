@@ -197,16 +197,10 @@ namespace usage
         {
             log_util::print_colored(COLOR_TERMINAL_RED, "    VULKAN.......................: NO\n");
         }
-#ifdef USE_DEPRECATED_2_MINOR
-        log_util::print_colored(COLOR_TERMINAL_GREEN, "    COMPATIBLE DEPRECATED VERSION: YES\n");
+#ifdef MBM_ENABLE_MESH_LEGACY_V7
+        log_util::print_colored(COLOR_TERMINAL_GREEN, "    LEGACY/DEPRECATED SUPPORT....: YES\n");
 #else
-        log_util::print_colored(COLOR_TERMINAL_RED, "    COMPATIBLE DEPRECATED VERSION: NO\n");
-#endif
-
-#ifdef USE_EDITOR_FEATURES
-        log_util::print_colored(COLOR_TERMINAL_GREEN, "    EDITOR FEATURES..............: YES\n");
-#else
-        log_util::print_colored(COLOR_TERMINAL_RED, "    EDITOR FEATURES..............: NO\n");
+        log_util::print_colored(COLOR_TERMINAL_RED, "    LEGACY/DEPRECATED SUPPORT....: NO\n");
 #endif
 
 #ifdef USE_VR

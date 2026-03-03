@@ -20,10 +20,6 @@
 #ifndef TILED_HEADER_H
 #define TILED_HEADER_H
 
-#ifndef USE_EDITOR_FEATURES
-#define USE_EDITOR_FEATURES
-#endif
-
 #include <core_mbm/device.h>
 #include <core_mbm/shader-fx.h>
 #include <core_mbm/renderizable.h>

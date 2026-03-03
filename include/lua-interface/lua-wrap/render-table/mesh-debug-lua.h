@@ -20,8 +20,6 @@
 #ifndef MESH_DEBUG_2_LUA_H
 #define MESH_DEBUG_2_LUA_H
 
-#if defined USE_EDITOR_FEATURES
-
 
 struct lua_State;
 
@@ -75,7 +73,5 @@ namespace mbm
     int onDestroyMeshDebugLua(lua_State *lua);
     void registerClassMeshDebug(lua_State *lua);
 };
-
-#endif
 
 #endif

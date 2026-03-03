@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#ifdef USE_DEPRECATED_2_MINOR
+#ifdef MBM_ENABLE_MESH_LEGACY_V7
 
 #include <deprecated.h>
 #include <renderizable.h>

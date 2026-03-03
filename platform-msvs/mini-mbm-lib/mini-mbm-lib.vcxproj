@@ -97,7 +97,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>
@@ -116,7 +116,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;USE_EDITOR_FEATURES;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>Default</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>

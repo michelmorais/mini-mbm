@@ -31,11 +31,6 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
-if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
-	mbm.quit()
-end
-
 function onInitScene()
     
     tWindowsTitle        = {title_image_selector    = "title_image_selector",
