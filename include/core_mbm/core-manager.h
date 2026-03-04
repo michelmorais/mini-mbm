@@ -209,7 +209,7 @@ namespace mbm
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
         API_IMPL void setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept; // This is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
 
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    #if !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
         API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);

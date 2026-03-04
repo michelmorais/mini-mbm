@@ -31,10 +31,7 @@ extern "C"
 #include <render/font.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/scene.h>
-
-#if defined (DEBUG_FREE_LUA) || defined(USE_EDITOR_FEATURES)
-	#include <core_mbm/util-interface.h>
-#endif
+#include <core_mbm/util-interface.h>
 
 namespace mbm
 {
@@ -361,7 +358,6 @@ namespace mbm
     }
 
 
-    #ifdef USE_EDITOR_FEATURES
     int onGetTextureFromFontLua(lua_State *lua)
     {
         FONT_DRAW *font = getFontFromRawTable(lua, 1, 1);
@@ -433,7 +429,7 @@ namespace mbm
         return 2;
     }
 
-    #endif
+
                 
 
 
@@ -615,7 +611,6 @@ namespace mbm
             {"setSpace", onSetSpaceFontLua}, 
             {"getSpace", onGetSpaceFontLua}, 
             {"getHeight", onGetHeightFontLua},
-#ifdef USE_EDITOR_FEATURES
             {"setLetterYDiff",     onSetLetterYDiff}, 
             {"getLetterYDiff",     onGetLetterYDiff}, 
             {"setLetterXDiff",     onSetLetterXDiff}, 
@@ -623,7 +618,6 @@ namespace mbm
             {"setSizeLetter",      onSetSizeLetter}, 
             {"getSizeLetter",      onGetSizeLetter},
             {"getTexture",         onGetTextureFromFontLua},
-#endif
             {nullptr, nullptr}};
 
         if (!font->loadFont(fileName, heightFont, spaceWidth, spaceHeight,saveTextureAsPng))

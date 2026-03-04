@@ -141,13 +141,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             #if defined USE_VR
 			INFO_LOG("using feature VR");
 			#endif
-			
-            #if defined USE_EDITOR_FEATURES
-			INFO_LOG("using feature EDITOR_FEATURES");
-			#endif
 
-            #if defined USE_DEPRECATED_2_MINOR
-			INFO_LOG("old compatible version enabled USE_DEPRECATED_2_MINOR");
+            #if defined MBM_ENABLE_MESH_LEGACY_V7
+			INFO_LOG("legacy mesh and deprecated features enabled MBM_ENABLE_MESH_LEGACY_V7");
 			#endif
 
             game->device->ptrManager       = game;

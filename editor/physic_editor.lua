@@ -32,11 +32,6 @@ tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 require "box2d"
 
-if not mbm.get('USE_EDITOR_FEATURES') then
-	mbm.messageBox(tLang.L("msg_missing_features"), tLang.L("msg_use_editor_features"), 'ok','error',0)
-	mbm.quit()
-end
-
 
 function onInitScene()
     camera2d		     = mbm.getCamera("2d")

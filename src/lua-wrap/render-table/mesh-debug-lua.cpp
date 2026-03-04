@@ -17,8 +17,6 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined USE_EDITOR_FEATURES
-
 extern "C" 
 {
     #include <lua.h>
@@ -1512,9 +1510,9 @@ namespace mbm
                 }
                 if(infoHead)
                 {
-                    if(infoHead->effetcShader)
-                        delete infoHead->effetcShader;
-                    infoHead->effetcShader = nullptr;
+                    if(infoHead->effectShader)
+                        delete infoHead->effectShader;
+                    infoHead->effectShader = nullptr;
                     util::HEADER_ANIMATION *headerAnim  = infoHead->headerAnim;
 					headerAnim->hasShaderEffect = 1;
                     headerAnim->blendState        = static_cast<unsigned short int>(anim->blendState);
@@ -1522,18 +1520,18 @@ namespace mbm
 
                     if(anim->fx.fxPS->ptrCurrentShader)
                     {
-                        infoHead->effetcShader = new util::INFO_FX();
-                        infoHead->effetcShader->blendOperation = anim->fx.blendOperation;
-                        fillEffect(anim->fx.fxPS,textureStage2,&infoHead->effetcShader->dataPS);
+                        infoHead->effectShader = new util::INFO_FX();
+                        infoHead->effectShader->blendOperation = anim->fx.blendOperation;
+                        fillEffect(anim->fx.fxPS,textureStage2,&infoHead->effectShader->dataPS);
                     }
                     if(anim->fx.fxVS->ptrCurrentShader)
                     {
-                        if(infoHead->effetcShader == nullptr)
+                        if(infoHead->effectShader == nullptr)
                         {
-                            infoHead->effetcShader = new util::INFO_FX();
-                            infoHead->effetcShader->blendOperation = anim->fx.blendOperation;
+                            infoHead->effectShader = new util::INFO_FX();
+                            infoHead->effectShader->blendOperation = anim->fx.blendOperation;
                         }
-                        fillEffect(anim->fx.fxVS,textureStage2,&infoHead->effetcShader->dataVS);
+                        fillEffect(anim->fx.fxVS,textureStage2,&infoHead->effectShader->dataVS);
                     }
                 }
             }
@@ -1803,5 +1801,3 @@ namespace mbm
     }
 
 };
-
-#endif

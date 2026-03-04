@@ -70,7 +70,7 @@ namespace mbm
     {
         if (this->mesh != nullptr)
             return true;
-        this->mesh = MESH_MANAGER::getInstance()->load(fileName);
+        this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
         if (this->mesh)
         {
             const util::TYPE_MESH type = this->mesh->getTypeMesh();
@@ -127,9 +127,9 @@ namespace mbm
                 {
                     char whatColor[20] = "";
                                         COLOR::getStringHexColorFromColor(ptr_TileInfo->map.background,whatColor,sizeof(whatColor));
-                    mbm::TEXTURE::enableFilter(false);
+                    mbm::TEXTURE::EnablePixelPerfectTexture(true);
                     backgroundTextureMap  = TEXTURE_MANAGER::getInstance()->load(whatColor,true);
-                    mbm::TEXTURE::enableFilter(true);
+                    mbm::TEXTURE::EnablePixelPerfectTexture(false);
                 }
                 if(backgroundTextureMap)
                 {

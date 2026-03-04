@@ -102,7 +102,6 @@ namespace mbm
         API_IMPL bool loadFont(const char *fileNameMbmOrTtf, const float heightLetter, const short spaceWidth,const short spaceHeight,const bool saveTextureAsPng);
         API_IMPL const char *getFileName() const;
         API_IMPL MESH_MBM * getMesh();
-        #ifdef USE_EDITOR_FEATURES
         API_IMPL const char *getFileNameTextureLoaded() const;
         API_IMPL void  setLetterXDiff(const char* letter,const float diffX);
         API_IMPL float getLetterXDiff(const char* letter)const;
@@ -111,16 +110,13 @@ namespace mbm
         API_IMPL void  setLetterSize(const char* letter,const uint32_t size_x,const uint32_t size_y);
         API_IMPL bool  getLetterSize(const char* letter,uint32_t & out_size_x,uint32_t & out_size_y)const;
         std::string texture_file_name_created;
-        #endif
         API_IMPL void onStop();
       private:
         void fillAnimation(TEXT_DRAW *text);
         static bool OnRestoreFont(FONT_DRAW *that, TEXT_DRAW *TEXT_DRAW_ptr);
         bool OnRestore(TEXT_DRAW *whatText);
         bool isLoaded() const;
-        #ifdef USE_EDITOR_FEATURES
         uint8_t getIndexFromLetter(const char* letter)const;
-        #endif
     
         MESH_MBM *               mesh;
         std::vector<TEXT_DRAW *> lsText;

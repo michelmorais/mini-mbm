@@ -18,7 +18,7 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 
-#ifdef USE_DEPRECATED_2_MINOR
+#ifdef MBM_ENABLE_MESH_LEGACY_V7
 
 #include <deprecated.h>
 #include <renderizable.h>
@@ -31,6 +31,27 @@
 
 namespace deprecated_mbm
 {
+    legacy_v1::HEADER_ANIMATION_MBM::HEADER_ANIMATION_MBM() noexcept
+    {
+        memset(nameAnimation, 0, sizeof(nameAnimation));
+        initialFrame     = 0;
+        finalFrame       = 0;
+        timeBetweenFrame = 0.0f;
+        typeAnimation    = 0;
+        lenPS            = 0;
+        lenVS            = 0;
+        lenMusicFileName = 0;
+        loopMusic        = 0;
+    }
+
+    legacy_v1::HEADER_DATA_SHADER_INFO::HEADER_DATA_SHADER_INFO() noexcept
+    {
+        sizeArrayVar     = 0;
+        typeAnimation    = 0;
+        lenTextureStage2 = 0;
+        timeAnimation    = 0;
+    }
+
 
     DETAIL_HEADER_SPRITE::DETAIL_HEADER_SPRITE() noexcept
     {
@@ -737,53 +758,10 @@ namespace deprecated_mbm
             
         };
         
-        struct old_HEADER_ANIMATION_MBM // Header das animações. contem os nomes e indicam quando começam e quando terminam
-        {
-            char  nameAnimation[32]; // 32 bytes para o nome da animação (31 + null)
-            int   initialFrame;      // Frame inicial para esta animação
-            int   finalFrame;        // Frame final para esta animação
-            float timeBetweenFrame;  // Tempo entre frames da animação
-            int   typeAnimation;     // Tipo da animação
-            int   lenMusicFileName;  // Comprimento da string do arquivo de musica ou efeito sonoro para a animação.
-            int   loopMusic;         // Flag que indica se esta em loop a musica ou efeito sonoro para a animação.
-            int   lenPS; // Efeito Pixel shader. 0 nenhum. Indica o tamanho da string + nullptr do arquivo Pixel shader.
-            int   lenVS; // Efeito Vertex shader. 0 nenhum. Indica o tamanho da string + nullptr do arquivo Vertex shader.
-            
-            old_HEADER_ANIMATION_MBM() noexcept
-            {
-                memset(nameAnimation, 0, sizeof(nameAnimation));
-                initialFrame     = 0;
-                finalFrame       = 0;
-                timeBetweenFrame = 0.0f;
-                typeAnimation    = 0;
-                lenPS            = 0;
-                lenVS            = 0;
-                lenMusicFileName = 0;
-                loopMusic        = 0;
-            }
-        };
-        
-        struct old_HEADER_DATA_SHADER_INFO
-        {
-            int       sizeArrayVar;  // Tamanho do array das variaveis do Shader
-            float     timeAnimation; // Tempo da animação
-            int16_t typeAnimation; // 0 - 6
-            int16_t
-                lenTextureStage2; // Quando ha textura no segundo estaigio esta variavel informa o tamanho da string + nullptr
-            //--------------------------------------------------------------------------------------------
-            old_HEADER_DATA_SHADER_INFO() noexcept
-            {
-                sizeArrayVar     = 0;
-                typeAnimation    = 0;
-                lenTextureStage2 = 0;
-                timeAnimation    = 0;
-            }
-        };
-        
         struct old_SHADER_INFO
         {
             char *                      fileNameShader;
-            old_HEADER_DATA_SHADER_INFO infoShader;
+            legacy_v1::HEADER_DATA_SHADER_INFO infoShader;
             //--------------------------------------------------------------------------------------------
             old_SHADER_INFO(const uint16_t sizeFileName)
             {
@@ -856,8 +834,8 @@ namespace deprecated_mbm
         // this->infoAnimation.totalAnimation   =   headerMesh->totalAnimation;
         for (int i = 0; i < headerMesh->totalAnimation; ++i)
         {
-            old_HEADER_ANIMATION_MBM headerAnim;
-            if (!fread(&headerAnim, sizeof(old_HEADER_ANIMATION_MBM), 1, fp))
+            legacy_v1::HEADER_ANIMATION_MBM headerAnim;
+            if (!fread(&headerAnim, sizeof(legacy_v1::HEADER_ANIMATION_MBM), 1, fp))
                 return log_util::onFailed(fp,__FILE__, __LINE__, "failed to load animation 's mesh [%s]", fileNamePath);
             auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();
             auto      realAnim = new util::HEADER_ANIMATION();
@@ -883,7 +861,7 @@ namespace deprecated_mbm
             {
                 infoStepShader             = new util::INFO_FX();
                 infoStepShader->blendOperation = 1;
-                infoHead->effetcShader = infoStepShader;
+                infoHead->effectShader = infoStepShader;
             }
             // Pixel Shader -------------------------------------------------------------------------------
             if (headerAnim.lenPS)
@@ -891,7 +869,7 @@ namespace deprecated_mbm
                 old_SHADER_INFO dataInfo(static_cast<unsigned short>(headerAnim.lenPS));
                 if (!fread(dataInfo.fileNameShader, static_cast<std::size_t>(headerAnim.lenPS), 1, fp))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-                if (!fread(&dataInfo.infoShader, sizeof(old_HEADER_DATA_SHADER_INFO), 1, fp))
+                if (!fread(&dataInfo.infoShader, sizeof(legacy_v1::HEADER_DATA_SHADER_INFO), 1, fp))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read info header shader [%s]", fileNamePath);
                 old_INFO_SHADER_PS_VS    dataMinMax(dataInfo.infoShader.sizeArrayVar, dataInfo.infoShader.lenTextureStage2);
                 auto dataInfoNew = new util::INFO_SHADER_DATA(
@@ -936,7 +914,7 @@ namespace deprecated_mbm
                 old_SHADER_INFO dataInfo(static_cast<unsigned short>(headerAnim.lenVS));
                 if (!fread(dataInfo.fileNameShader, static_cast<std::size_t>(headerAnim.lenVS), 1, fp))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read shader's name [%s]", fileNamePath);
-                if (!fread(&dataInfo.infoShader, sizeof(old_HEADER_DATA_SHADER_INFO), 1, fp))
+                if (!fread(&dataInfo.infoShader, sizeof(legacy_v1::HEADER_DATA_SHADER_INFO), 1, fp))
                     return log_util::onFailed(fp,__FILE__, __LINE__, "failed to read header info shader [%s]", fileNamePath);
                 old_INFO_SHADER_PS_VS    dataMinMax(dataInfo.infoShader.sizeArrayVar, dataInfo.infoShader.lenTextureStage2);
                 auto dataInfoNew = new util::INFO_SHADER_DATA(

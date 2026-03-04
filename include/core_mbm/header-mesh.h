@@ -111,8 +111,9 @@ namespace util
     #define MODE_DRAW_VERSION_MBM_HEADER   5
     #define EXTRA_MBM_HEADER_PATH_TEXTURE  6
     #define NORMAL_OPTIONAL_VERSION_MBM_HEADER 7  // since v7: hasNorText[0] semantics changed
+    #define STRONG_TYPES_VERSION_MBM_HEADER 8     // v8: new baseline for current mesh generation
 
-    #define CURRENT_VERSION_MBM_HEADER     7
+    #define CURRENT_VERSION_MBM_HEADER     STRONG_TYPES_VERSION_MBM_HEADER
 
     /* hasNorText[0] (normals) */
     #define HAS_NOR_NO           0  /* no normals */
@@ -124,25 +125,236 @@ namespace util
     #define HAS_TEX_EACH_FRAME   1  /* texture in each frame */
     #define HAS_TEX_FIRST_FRAME  2  /* texture only in first frame, others copy */
 
+    #define MBM_ERROR_DESCRIPTION_BUFFER_SIZE 255
+    #define MBM_HEADER_NAME_COMPARE_LENGTH 3
+    #define MBM_HEADER_TYPE_APP_COMPARE_LENGTH 15
+    #define MBM_HEADER_NAME_MBM "mbm"
+    #define MBM_TYPE_APP_MESH_3D "Mesh 3d mbm"
+    #define MBM_TYPE_APP_USER "User mbm"
+    #define MBM_TYPE_APP_FONT "Font mbm"
+    #define MBM_TYPE_APP_SPRITE "Sprite mbm"
+    #define MBM_TYPE_APP_TILE "Tile mbm"
+    #define MBM_TYPE_APP_SHAPE "Shape mbm"
+    #define MBM_TYPE_APP_PARTICLE "Particle mbm"
+    #define MBM_TYPE_APP_TEXTURE "Texture mbm"
+    #define MBM_EXTRA_HEADER_TYPE_PATHS 1
+    #define MBM_DEPRECATED_DETAIL_TYPE_SCRIPT 100
+    #define MBM_DEPRECATED_DETAIL_TYPE_SHADER 101
+    #define MBM_DETAIL_TYPE_CUBE 1
+    #define MBM_DETAIL_TYPE_SPHERE 2
+    #define MBM_DETAIL_TYPE_CUBE_COMPLEX 3
+    #define MBM_DETAIL_TYPE_TRIANGLE 4
+    #define MBM_DETAIL_TYPE_FONT 5
+    #define MBM_DETAIL_TYPE_PARTICLE 6
+    #define MBM_DETAIL_TYPE_TILE 7
+
+    struct API_IMPL HEADER_DISK_V8
+    {
+        char name[16];
+        char typeApp[16];
+        int32_t version;
+        uint32_t magic;
+        int32_t reserved;
+        int32_t backBufferWidth;
+        int32_t backBufferHeight;
+        int32_t extraHeader;
+    };
+
+    struct API_IMPL HEADER_MESH_DISK_V8
+    {
+        MATERIAL_GLES material;
+        int32_t totalAnimation;
+        int32_t totalFrames;
+        int32_t deprecated_typePhysics;
+        int16_t hasNorText[2];
+        float angleX, angleY, angleZ;
+        float posX, posY, posZ;
+    };
+
+    struct API_IMPL HEADER_ANIMATION_DISK_V8
+    {
+        char nameAnimation[32];
+        int32_t initialFrame;
+        int32_t finalFrame;
+        float timeBetweenFrame;
+        int32_t typeAnimation;
+        uint16_t hasShaderEffect;
+        uint16_t blendState;
+    };
+
+    struct API_IMPL HEADER_INFO_SHADER_STEP_DISK_V8
+    {
+        int16_t lenNameShader;
+        int16_t lenTextureStage2;
+        int16_t sizeArrayVarInBytes;
+        int16_t typeAnimation;
+        int32_t blendOperation;
+        float timeAnimation;
+    };
+
+    struct API_IMPL HEADER_FRAME_DISK_V8
+    {
+        int32_t totalSubset;
+        int32_t sizeIndexBuffer;
+        int32_t sizeVertexBuffer;
+        int32_t stride;
+        char typeBuffer[4];
+    };
+
+    struct API_IMPL HEADER_DESC_SUBSET_DISK_V8
+    {
+        char nameTexture[64];
+        int32_t vertexCount;
+        int32_t vertexStart;
+        int32_t indexStart;
+        int32_t indexCount;
+        uint8_t alphaColor[4];
+    };
+
+    struct API_IMPL HEADER_IMG_DISK_V8
+    {
+        uint32_t width;
+        uint32_t height;
+        uint16_t depth;
+        uint16_t channel;
+        uint32_t lenght;
+        uint8_t alphaColor[4];
+    };
+
+    struct API_IMPL EXTRA_HEADER_DISK_V8
+    {
+        char type;
+        int32_t sizeExtraHeader;
+    };
+
+    struct API_IMPL INFO_DRAW_MODE_DISK_V8
+    {
+        uint32_t mode_draw;
+        uint32_t mode_cull_face;
+        uint32_t mode_front_face_direction;
+    };
+
+    struct API_IMPL DETAIL_MESH_DISK_V8
+    {
+        int32_t type;
+        int32_t totalBounding;
+    };
+
+    struct API_IMPL DETAIL_HEADER_FONT_DISK_V8
+    {
+        uint16_t sizeNameFonte;
+        uint16_t totalDetailFont;
+        int16_t spaceXCharacter;
+        int16_t spaceYCharacter;
+        uint16_t heightLetter;
+    };
+
+    struct API_IMPL DETAIL_LETTER_DISK_V8
+    {
+        uint8_t letter;
+        uint8_t indexFrame;
+        uint16_t widthLetter;
+        uint16_t heightLetter;
+    };
+
+    struct API_IMPL BTILE_BRICK_INFO_DISK_V8
+    {
+        uint16_t index;
+        uint16_t original_index;
+        uint16_t rotation;
+        uint16_t flipped;
+    };
+
+    struct API_IMPL BTILE_HEADER_MAP_DISK_V8
+    {
+        uint32_t count_width_tile;
+        uint32_t count_height_tile;
+        uint32_t size_width_tile;
+        uint32_t size_height_tile;
+        uint32_t layerCount;
+        uint32_t countRawTiles;
+        uint32_t objectCount;
+        uint32_t propertyCount;
+        uint32_t typeMap;
+        uint32_t background;
+        char background_texture[62];
+        char renderDirection[2];
+    };
+
+    struct API_IMPL BTILE_INDEX_TILE_DISK_V8
+    {
+        uint32_t index;
+        float x;
+        float y;
+    };
+
+    struct API_IMPL BTILE_DETAIL_HEADER_DISK_V8
+    {
+        uint32_t totalObj;
+        uint32_t totalProperties;
+    };
+
+    struct API_IMPL BTILE_OBJ_HEADER_DISK_V8
+    {
+        uint16_t sizeName;
+        uint16_t type;
+        uint16_t sizePoints;
+    };
+
+    struct API_IMPL BTILE_PROPERTY_HEADER_DISK_V8
+    {
+        uint16_t type;
+        uint16_t nameLength;
+        uint16_t valueLength;
+        uint16_t ownerLength;
+    };
+
+    struct API_IMPL STAGE_PARTICLE_DISK_V8
+    {
+        float minOffsetPosition[3];
+        float maxOffsetPosition[3];
+        float minDirection[3];
+        float maxDirection[3];
+        float minColor[3];
+        float maxColor[3];
+        float minSpeed;
+        float maxSpeed;
+        float minTimeLife;
+        float maxTimeLife;
+        float minSizeParticle;
+        float maxSizeParticle;
+        float ariseTime;
+        float stageTime;
+        uint32_t totalParticle;
+        uint8_t segmented;
+        uint8_t sizeMin2Max;
+        uint8_t revive;
+        uint8_t _operator;
+        uint8_t invert_red;
+        uint8_t invert_green;
+        uint8_t invert_blue;
+        uint8_t invert_alpha;
+    };
+
     // step 1:
     struct API_IMPL HEADER
     {
         char name[16];          // must be "mbm"
         char typeApp[16];       // "Mesh 3d mbm", "User mbm", "Font", "Particle", "Sprite mbm", "Tile mbm"
-        int version;            // current CURRENT_VERSION_MBM_HEADER
-        int magic;              // must be 0x010203ff.
-        int reserved;           // reserved (Must be 0)
-        int backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
-        int backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
-        int extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
+        int32_t version;            // current CURRENT_VERSION_MBM_HEADER
+        uint32_t magic;             // must be 0x010203ff.
+        int32_t reserved;           // reserved (Must be 0)
+        int32_t backBufferWidth;    // Indica o tamanho da largura do back buffer em que o objeto foi criado
+        int32_t backBufferHeight;   // Indica o tamanho da altura do back buffer em que o objeto foi criado
+        int32_t extraHeader;        // Quando indica quantidade de estrutura EXTRA_HEADER logo apos este frame
         HEADER() noexcept;
-        HEADER(const char *nameApp, const int versionNumber = 3)noexcept;
+        HEADER(const char *nameApp, const int32_t versionNumber = 3)noexcept;
     };
 
     struct API_IMPL EXTRA_HEADER //added since version 6
     {
         char type;           // 0 None, 1 = Paths
-        int sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
+        int32_t sizeExtraHeader; // Tamanho extra (em bytes) logo apos este frame
         EXTRA_HEADER() noexcept;
     };
 
@@ -157,8 +369,8 @@ namespace util
 
     struct API_IMPL DETAIL_MESH
     {
-        int type; // 1 box, 2 sphere, 3 complex-cube, 4 triangle, 5 header-font,6 particle, 7 Tile, (deprecated 100 script generic, 101 shader)
-        int totalBounding;
+        int32_t type; // 1 box, 2 sphere, 3 complex-cube, 4 triangle, 5 header-font,6 particle, 7 Tile, (deprecated 100 script generic, 101 shader)
+        int32_t totalBounding;
         DETAIL_MESH() noexcept;
     };
 
@@ -187,9 +399,9 @@ namespace util
     struct API_IMPL HEADER_MESH // Header principal para objetos 3d MBM
     {
         MATERIAL_GLES material;              // Material aplicado nesta subset
-        int          totalAnimation;         // Total animations in mesh
-        int          totalFrames;            // Total frames for the file. Each frame is divided into one or more subsets.
-        int          deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
+        int32_t      totalAnimation;         // Total animations in mesh
+        int32_t      totalFrames;            // Total frames for the file. Each frame is divided into one or more subsets.
+        int32_t      deprecated_typePhysics; // not used anymore, 'deprecated' (just keep for compatibility,old typePhysics)
         int16_t    hasNorText[2];          // hasNorText[0]: HAS_NOR_NO, HAS_NOR_IN_FILE, HAS_NOR_CALCULATE. hasNorText[1]: HAS_TEX_NO, HAS_TEX_EACH_FRAME, HAS_TEX_FIRST_FRAME
         float angleX, angleY, angleZ; 
         float posX, posY, posZ;       
@@ -201,10 +413,10 @@ namespace util
     struct API_IMPL HEADER_ANIMATION
     {
         char  nameAnimation[32];        // 32 bytes for animation name (31 + null)
-        int   initialFrame;             // Initial frame for this animation
-        int   finalFrame;               // Final frame for this animation
+        int32_t   initialFrame;             // Initial frame for this animation
+        int32_t   finalFrame;               // Final frame for this animation
         float timeBetweenFrame;         // Time between animation frames
-        int   typeAnimation;            // Animation type
+        int32_t   typeAnimation;            // Animation type
         uint16_t hasShaderEffect;// 1 if has and 0 if do not has. previously steps shader (old lenMusicFileName mini mbm 1.0), Now must be 1
         uint16_t blendState;  //Blend state for each animation
     
@@ -219,7 +431,7 @@ namespace util
         int16_t lenTextureStage2;     // Quando ha textura no segundo estagio 2 para este step
         int16_t sizeArrayVarInBytes;  // Tamanho do array das variaveis do Shader em bytes
         int16_t typeAnimation;        // 0 - 6
-        int       blendOperation;       // Tipo de operacao blend nos steps
+        int32_t   blendOperation;       // Tipo de operacao blend nos steps
         float     timeAnimation;        // Animation time
         HEADER_INFO_SHADER_STEP()noexcept;
     };
@@ -254,7 +466,7 @@ namespace util
         struct INFO_HEADER_ANIM
         {
             util::HEADER_ANIMATION *    headerAnim;         
-            INFO_FX *			effetcShader; 
+            INFO_FX *			effectShader; 
             API_IMPL INFO_HEADER_ANIM()noexcept;
             API_IMPL ~INFO_HEADER_ANIM();
         };
@@ -267,10 +479,10 @@ namespace util
 
     struct API_IMPL HEADER_FRAME 
     {
-        int totalSubset;        // Total de subset para este frame
-        int sizeIndexBuffer;    // Tamanho do Index buffer(se houver) deste frame.
-        int sizeVertexBuffer;   // Tamanho do vertex buffer deste frame.
-        int stride;             // 3 para x,y z ou 2 para x e y.
+        int32_t totalSubset;        // Total de subset para este frame
+        int32_t sizeIndexBuffer;    // Tamanho do Index buffer(se houver) deste frame.
+        int32_t sizeVertexBuffer;   // Tamanho do vertex buffer deste frame.
+        int32_t stride;             // 3 para x,y z ou 2 para x e y.
         char typeBuffer[4];     // Tipo do buffer VB par vertex buffer e IB para indexBuffer
         HEADER_FRAME()noexcept;
     };
@@ -279,10 +491,10 @@ namespace util
     struct API_IMPL HEADER_DESC_SUBSET 
     {
         char nameTexture[64]; // 64 bytes para o nome da textura (63 + null) desta subset
-        int  vertexCount;     // Total de vertex no subset
-        int  vertexStart;     // Inicio do vertex
-        int  indexStart;      // Index start
-        int  indexCount;      // Total de indices
+        int32_t  vertexCount;     // Total de vertex no subset
+        int32_t  vertexStart;     // Inicio do vertex
+        int32_t  indexStart;      // Index start
+        int32_t  indexCount;      // Total de indices
         union {
             struct
             {
@@ -372,14 +584,14 @@ namespace util
         float ariseTime;
         float stageTime;
         uint32_t totalParticle;
-        char  segmented;
-        char  sizeMin2Max;
-        char  revive;
-        char  _operator;
-        char  invert_red;
-        char  invert_green;
-        char  invert_blue;
-        char  invert_alpha;
+        uint8_t  segmented;
+        uint8_t  sizeMin2Max;
+        uint8_t  revive;
+        uint8_t  _operator;
+        uint8_t  invert_red;
+        uint8_t  invert_green;
+        uint8_t  invert_blue;
+        uint8_t  invert_alpha;
 
         STAGE_PARTICLE()noexcept;
         STAGE_PARTICLE(const STAGE_PARTICLE* other)noexcept;
@@ -433,7 +645,7 @@ namespace util
         uint32_t        objectCount;
         uint32_t        propertyCount;
         BTILE_TYPE_MAP  typeMap;
-        unsigned int    background;
+        uint32_t        background;
         char            background_texture[62];
         char            renderDirection[2];
     };

@@ -20,6 +20,7 @@
 #include <uber-image.h>
 #include <header-mesh.h>
 #include <util-interface.h>
+#include "mesh-v8-io.h"
 
 inline float fRound(const float value) noexcept
 {
@@ -70,14 +71,14 @@ namespace mbm
         fp = util::openFile(fileName, "rb");
         if (!fp)
             return onFail(fp, "failed to open in file!");
-        if (!fread(&header, sizeof(util::HEADER), 1, fp))
+        if (!util::readHeaderV8(fp, header))
             return onFail(fp, "failed to read in file!");
         if (strncmp(header.name, "mbm", 3) || strncmp(header.typeApp, "img uberimg", 11) || header.magic != 0x010203ff ||
             header.reserved != 0 || header.version != 1)
         {
             return onFail(fp, "is not uberimg!");
         }
-        if (!fread(&headerImage, sizeof(util::HEADER_IMG), 1, fp))
+        if (!util::readHeaderImgV8(fp, headerImage))
             return onFail(fp, "failed to read HEADER_IMG!");
         if (headerImage.width == 0 || headerImage.height == 0)
             return onFail(fp, "size of image unexpected ZERO!");
@@ -177,7 +178,7 @@ namespace mbm
     {
         util::HEADER_IMG headerImage;
         this->release();
-        if (!fread(&headerImage, sizeof(util::HEADER_IMG), 1, fp))
+        if (!util::readHeaderImgV8(fp, headerImage))
             return onFail(fp, "failed to read HEADER_IMG!");
         if (headerImage.width == 0 || headerImage.height == 0)
             return onFail(fp, "size of image unexpected ZERO!");
@@ -620,12 +621,12 @@ namespace mbm
             FILE *fp = util::openFile(fileName, "wb");
             if (!fp)
                 return onFail(fp, "failed to open file de saida!", newData);
-            if (!fwrite(&header, sizeof(util::HEADER), 1, fp))
+            if (!util::writeHeaderV8(fp, header))
                 return onFail(fp, "failed to write to file!", newData);
             headerImage.lenght = miniz.getSizeDataStreamOut();
             if (!headerImage.lenght)
                 return onFail(fp, "size of compressed image is ZERO!", newData);
-            if (!fwrite(&headerImage, sizeof(util::HEADER_IMG), 1, fp))
+            if (!util::writeHeaderImgV8(fp, headerImage))
                 return onFail(fp, "failed to write to file!", newData);
             if (!fwrite(miniz.getDataStreamOut(), miniz.getSizeDataStreamOut(), 1, fp))
                 return onFail(fp, "Falha ao escrever a imagem no arquivo de saida!", newData);

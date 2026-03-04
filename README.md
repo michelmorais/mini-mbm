@@ -18,7 +18,6 @@ What is optional?
 - Lua: LUA is the main interface however is optional. (you can make it using C++)
 - Box2d:   plugin/module for physics simulation with box 2d
 - Bullet:  plugin/module for physics simulation with bullet 3d
-- Editor features: Features which allow to edit your resource files. (use pre defined ** -DUSE_EDITOR_FEATURES ** to include)
 
 Some useful LUA editor:
 

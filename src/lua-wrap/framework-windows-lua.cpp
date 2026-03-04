@@ -62,9 +62,7 @@
 #include <lua-wrap/render-table/sprite-lua.h>
 #include <lua-wrap/render-table/mesh-lua.h>
 #include <lua-wrap/render-table/font-lua.h>
-#if defined USE_EDITOR_FEATURES
-    #include <lua-wrap/render-table/mesh-debug-lua.h>
-#endif
+#include <lua-wrap/render-table/mesh-debug-lua.h>
 
 #include <algorithm>
 #include <map>

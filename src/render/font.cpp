@@ -634,20 +634,16 @@ namespace mbm
                                     if (i == 0)
                                         this->widthFirstLetter = curWidthLetter * 0.5f;
                                     SHADER::modelView._41 += curWidthLetter;
-                                    #ifdef USE_EDITOR_FEATURES
                                     SHADER::modelView._41 += infoFont->letterDiffX[index];
                                     SHADER::modelView._42 += infoFont->letterDiffY[index];
-                                    #endif
                                     if (this->is3D)
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
                                                        &device->camera.matrixPerspective);
                                     else
                                         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView,
                                                        &device->camera.matrixPerspective2d);
-                                    #ifdef USE_EDITOR_FEATURES
                                     SHADER::modelView._41 -= infoFont->letterDiffX[index];
                                     SHADER::modelView._42 -= infoFont->letterDiffY[index];
-                                    #endif
                                     if (doRender)
                                     {
                                         anim->fx.shader.update(); // glUseProgram
@@ -1011,10 +1007,8 @@ namespace mbm
             this->fileName = fileNameMbmOrTtf;
             sprintf(strTemp, "|%f|%d|%d", heightLetter, spaceWidth, spaceHeight);
             this->fileName += strTemp;
-            #ifdef USE_EDITOR_FEATURES
             if(texture_loaded)
                 texture_file_name_created = texture_loaded->getFileNameTexture();
-            #endif
         }
         return this->mesh != nullptr;
     }
@@ -1107,8 +1101,6 @@ namespace mbm
     {
         return this->mesh != nullptr;
     }
-
-    #ifdef USE_EDITOR_FEATURES
 
     const char *FONT_DRAW::getFileNameTextureLoaded() const
     {
@@ -1219,7 +1211,5 @@ namespace mbm
         }
         return false;
     }
-
-    #endif
     
 }

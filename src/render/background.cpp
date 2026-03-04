@@ -140,7 +140,7 @@ namespace mbm
             if ((lsresult[lsresult.size() - 1].compare("mbm") == 0) ||
                 (lsresult[lsresult.size() - 1].compare("MBM") == 0))
             {
-                this->mesh = MESH_MANAGER::getInstance()->load(fileName);
+                this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
                 if (this->mesh == nullptr)
                     return false;
             }
@@ -221,7 +221,7 @@ namespace mbm
             (lsresult[lsresult.size() - 1].compare("spt") == 0) ||
             (lsresult[lsresult.size() - 1].compare("msh") == 0))
         {
-            this->mesh = MESH_MANAGER::getInstance()->load(fileName);
+            this->mesh = MESH_MANAGER::getInstance()->load(fileName, this);
             if (this->mesh == nullptr)
                 return false;
             this->type = this->mesh->getTypeMesh();

@@ -70,8 +70,9 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             game->device->backBufferWidth = static_cast<float>(width);
         if (height > 0)
             game->device->backBufferHeight = static_cast<float>(height);
-        game->device->jni->absPath         = _absPath ? _absPath : "";
-        game->device->jni->apkPath         = _apkPath ? _apkPath : "";
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        cJni->absPath         = _absPath ? _absPath : "";
+        cJni->apkPath         = _apkPath ? _apkPath : "";
     }
     else
     {
@@ -79,13 +80,21 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         if (game)
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);
+            const char *nameAplication = "Hello-world";
 			game->device->ptrManager       = game;
             game->device->backBufferWidth  = static_cast<float>(width);
             game->device->backBufferHeight = static_cast<float>(height);
-            game->device->jni->absPath     = _absPath ? _absPath : "";
-            game->device->jni->apkPath     = _apkPath ? _apkPath : "";
-            if(game->initGl(width, height))
-				game->loop(env, obj);
+            mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+            cJni->jenv        = env;
+            cJni->absPath     = _absPath ? _absPath : "";
+            cJni->apkPath     = _apkPath ? _apkPath : "";
+            cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
+
+            constexpr bool border = false;
+            constexpr bool singleLoop = true;
+            constexpr bool doSwapBuffers = false;
+            if(game->initGraphics(nameAplication, width, height, border))
+				game->loop(singleLoop, doSwapBuffers);
         }
     }
     env->ReleaseStringUTFChars(absPath, _absPath);
@@ -96,8 +105,10 @@ void MiniMbmEngine_loop(JNIEnv *env, jobject obj)
 {
     if (game)
     {
+        constexpr bool singleLoop = true;
+        constexpr bool doSwapBuffers = false;
         game->device->ptrManager = game;
-        game->loop(env, obj);
+        game->loop(singleLoop, doSwapBuffers);
     }
 }
 
@@ -172,20 +183,27 @@ void MiniMbmEngine_streamStopped(JNIEnv *env, jobject obj, int indexJNI)
 {
     if (game && game->device->scene)
     {
-        game->device->streamStopped(indexJNI);
+        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
+        cJni->streamStopped(indexJNI);
     }
 }
 
 bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint height)
 {
+    constexpr bool doSwapBuffers = false;
+    constexpr int  px  = 0;
+    constexpr int  py = 0;
     if (game)
-        return game->onLostDevice(env, obj, static_cast<int>(width), static_cast<int>(height));
+    {
+        return game->onLostDevice(doSwapBuffers, static_cast<int>(width), static_cast<int>(height), px, py);
+    }
     return true;
 }
 
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
 {
-    util::COMMON_JNI *cJni      = util::COMMON_JNI::getInstance();
+    INFO_LOG("OnStop Called.");
+	mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
     JavaVM *         jvm        = nullptr;
     JNIEnv *         oldJenv    = cJni->jenv;
     int              getEnvStat = JNI_OK;
@@ -198,16 +216,15 @@ void MiniMbmEngine_onStop(JNIEnv *env, jobject obj)
     if (env != cJni->jenv)
     {
         getEnvStat = JNI_EDETACHED;
-        status = jvm->AttachCurrentThread(&env, nullptr);
-        if (status != 0)
+        if (jvm->AttachCurrentThread(&env, nullptr) != 0)
         {
-            ERROR_LOG("Failed to attach, status [%d]",status);
+            ERROR_LOG( "Failed to attach");
             return;
         }
         cJni->jenv = env;
     }
     if (game)
-        game->onStop();
+        game->onStopCoreManager();
     if (getEnvStat == JNI_EDETACHED)
     {
         /*
@@ -362,10 +379,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
         return JNI_FALSE;
     }
     env->RegisterNatives(clazz, methodTableJNI, sizeof(methodTableJNI) / sizeof(methodTableJNI[0]));
-    mbm::DEVICE *device = mbm::DEVICE::getInstance();
-    mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = device->specificContextDevice;
-    jniInstance->jenv            = env;
-    jniInstance->cacheJavaClasses(PACKAGE_NAME_CLASS);
     return JNI_VERSION_1_6;
 }
 #else

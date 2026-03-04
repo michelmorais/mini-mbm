@@ -30,9 +30,7 @@
 #include <dynamic-var.h>
 #include <shader-resource.h>
 #include <util-interface.h>
-#if defined USE_EDITOR_FEATURES
 #include <thread>
-#endif
 
 namespace mbm
 {
@@ -779,7 +777,7 @@ namespace mbm
         }
     }
 
-    #if defined USE_EDITOR_FEATURES && !defined ANDROID
+    #if !defined ANDROID
     void CORE_MANAGER::execute_system_cmd_thread(const char* command)//execute system command in other thread
     {
         auto fNextThreadName = []() -> std::string
