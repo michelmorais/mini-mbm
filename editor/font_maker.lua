@@ -48,8 +48,8 @@ function onInitScene()
     iSpaceHeight         = 0
     tFontHeight          = {}
     sAnimationName       = ''
-    --defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space, Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nTime:"
-    defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,\tTab\nTime:"
+    defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nTime:"
+    --defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nTime:"
     sAdditionalText       = ''
     selectedLetter       = ''
     tAnimTypes           = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}
@@ -158,7 +158,7 @@ end
 
 function setInitialParameters(fileName,tNewFont)
     local sHash           = getHashFontName(fileName)
-    local strText         = " Font:" .. tUtil.getShortName(fileName) .. defaultText
+    local strText         = "Font:" .. tUtil.getShortName(fileName) .. defaultText
     local tText           = tNewFont:add(strText,"2dw")
     tNewFont.tText        = tText
     tText.defaultText     = strText
@@ -585,22 +585,32 @@ function renderMainMenu(delta)
                 local sAbcLowerCaseLetters = 'abcdefghijklmnopqrstuvxyz'
                 local sAbcUpperCaseLetters = 'ABCDEFGHIJKLMNOPQRSTUVXYZ'
                 local sDiacriticLetters    = 'àèìòùÀÈÌÒÙáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ'
+                local sDiacriticLettersGui = 'aeiouAEIOUaeiouAEIOUaoAOaeiouAEIOUcC'
                 local sNumberLetters       = '0123456789'
 
                 local tAllLetters = {{ title = 'Number',            letters = sNumberLetters },
                                      { title = 'Lowercase Alphabet',letters = sAbcLowerCaseLetters },
                                      { title = 'Uppercase Alphabet',letters = sAbcUpperCaseLetters },
                                      { title = 'Symbols',           letters = sSymbolsLetters },
-                                     --{ title = 'Diacritic Letters', letters = sDiacriticLetters },
+                                     { title = 'Diacritic Letters', letters = sDiacriticLetters },
                                     }
                 for i=1, #tAllLetters do
                     local tLetter = tAllLetters[i]
                     if tImGui.TreeNode('id_adjust_letters_' .. tostring(i),tLetter.title) then
                         for j=1, tLetter.letters:len() do
                             local sLetter   = tLetter.letters:sub(j,j)
-                            local label     = string.format('%s##letter_%s_%d',sLetter,sLetter,j)
+                            local labelLetter = sLetter
+                            -- Replace diacritic letter with GUI-friendly equivalent if needed
+                            local idx = sDiacriticLetters:find(sLetter, 1, true)
+                            if idx then
+                                labelLetter = sDiacriticLettersGui:sub(idx, idx)
+                            end
+                            local label     = string.format('%s##letter_%s_%d%d', labelLetter, sLetter, j, i)
                             if sLetter == ' ' then
-                                label       = tLang.L("letter_space") .. string.format('##letter_%s_%d', sLetter, j)
+                                label       = tLang.L("letter_space") .. string.format('##letter_%s_%d_%d', sLetter, j, i)
+                            end
+                            if sLetter == '\t' then
+                                label       = string.format('Tab##letter_%s_%d_%d', sLetter, j, i)
                             end
                             
                             local selected  = selectedLetter == sLetter
@@ -628,6 +638,7 @@ function renderMainMenu(delta)
                                     end
                                 end
                                 tImGui.Text(tLang.L("change_size"))
+                                print('Selected letter:', sLetter)
                                 local iWidth,iHeight   = tGlobalFont:getSizeLetter(sLetter)
                                 local result, fValue = tImGui.InputInt(tLang.L("axis_x") .. '##LetterSize_x', iWidth, step_int, step_int_fast)
                                 if result then

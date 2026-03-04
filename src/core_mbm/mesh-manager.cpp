@@ -4285,15 +4285,15 @@ namespace mbm
             *texture_loaded = texture;
         auto tTotalSTB = static_cast<uint32_t>(lsStbFont.size() - 30);
         VEC3         pPosition[4];
-        VEC3         pNormal[4];
+        VEC3*        pNormal = nullptr; // no normal for font, only position and texture
         VEC2         pTexture[4];
 
-        for (auto & i : pNormal)
+        /*for (auto & i : pNormal)
         {
             i.x = 0;
             i.y = 0;
             i.z = 1;
-        }
+        }*/
 
         mesh->buffer                       = new BUFFER_MESH[tTotalSTB];
         mesh->totalFramesMesh              = tTotalSTB;
@@ -4309,6 +4309,14 @@ namespace mbm
         if (p != std::string::npos)
             infoFont->fontName.erase(0, p + 1);
         const float middleHeight = 'M' <= lsWidthLetter.size() ? lsWidthLetter['M'].y : 0;
+        if(lsWidthLetter.size())
+        {
+            lsWidthLetter[' '].x  = lsWidthLetter['M'].x;
+            lsWidthLetter[' '].y  = lsWidthLetter['M'].y;
+
+            lsWidthLetter['\t'].x  = lsWidthLetter['M'].x * 4.0f;
+            lsWidthLetter['\t'].y  = lsWidthLetter['M'].y * 4.0f;
+        }
         for (uint32_t i = 30, index = 0; i < lsStbFont.size(); ++i)
         {
             stbtt_aligned_quad *q = lsStbFont[i];
