@@ -248,7 +248,7 @@ namespace mbm
                     break; //Ô
                     case 155: { index = 219;}
                     break; //Û
-                    default: { return index;}
+                    default: { return static_cast<unsigned char>(index + 64);} // U+00C0-U+00FF: second byte + 64 = Latin-1 codepoint
                 }
             }
             break;

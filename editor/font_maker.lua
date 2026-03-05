@@ -48,8 +48,7 @@ function onInitScene()
     iSpaceHeight         = 0
     tFontHeight          = {}
     sAnimationName       = ''
-    defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nTime:"
-    --defaultText          = "\nSymbols:'\"\\/;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nTime:"
+    defaultText          = "\nSymbols:'\"\\/ ;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nÄÅÆ ËÏ ÐÑ ÖØ ÜÝÞß äåæ ëï ðñ öø üýþ\n¡¢£¥§©® °±²³ ¼½¾¿ ×÷\nTime:"
     sAdditionalText       = ''
     selectedLetter       = ''
     tAnimTypes           = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}
@@ -581,18 +580,37 @@ function renderMainMenu(delta)
                 local step_int_fast  =  5
                 local format         = "%.1f"
 
-                local sSymbolsLetters      = '\"\\/;.,<>|+-_!@#$%¨&*()? \t'
-                local sAbcLowerCaseLetters = 'abcdefghijklmnopqrstuvxyz'
-                local sAbcUpperCaseLetters = 'ABCDEFGHIJKLMNOPQRSTUVXYZ'
-                local sDiacriticLetters    = 'àèìòùÀÈÌÒÙáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ'
-                local sDiacriticLettersGui = 'aeiouAEIOUaeiouAEIOUaoAOaeiouAEIOUcC'
-                local sNumberLetters       = '0123456789'
+                local sSymbolsLetters           = '\"\\/ ;.,<>|+-_!@#$%¨&*()? \t'
+                local sAbcLowerCaseLetters      = 'abcdefghijklmnopqrstuvxyz'
+                local sAbcUpperCaseLetters      = 'ABCDEFGHIJKLMNOPQRSTUVXYZ'
+                local sDiacriticLetters         = 'àèìòùÀÈÌÒÙáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ'
+                local sDiacriticLettersGui      = 'aeiouAEIOUaeiouAEIOUaoAOaeiouAEIOUcC'
+                local sExtendedLatinLetters     = 'ÄÅÆËÏÐÑÖØÜÝÞßäåæëïðñöøüýþ'
+                local sExtendedLatinLettersGui  = 'AAAEIDNOOUYPSaaaeidnoouyp'
+                local sSpecialSymbolsLetters    = '¡¢£¥§©®°±²³¼½¾¿×÷'
+                local sSpecialSymbolsLettersGui = '!cLYSCRo+23fht?x:'
+                local sNumberLetters            = '0123456789'
+
+                -- Build a lookup table for GUI-safe labels (multi-byte UTF-8 char → single ASCII label)
+                local tCharGuiLabel = {}
+                local function buildGuiMap(sUTF8, sAscii)
+                    local pos = 1
+                    for _, cp in utf8.codes(sUTF8) do
+                        tCharGuiLabel[utf8.char(cp)] = sAscii:sub(pos, pos)
+                        pos = pos + 1
+                    end
+                end
+                buildGuiMap(sDiacriticLetters,      sDiacriticLettersGui)
+                buildGuiMap(sExtendedLatinLetters,  sExtendedLatinLettersGui)
+                buildGuiMap(sSpecialSymbolsLetters, sSpecialSymbolsLettersGui)
 
                 local tAllLetters = {{ title = 'Number',            letters = sNumberLetters },
                                      { title = 'Lowercase Alphabet',letters = sAbcLowerCaseLetters },
                                      { title = 'Uppercase Alphabet',letters = sAbcUpperCaseLetters },
                                      { title = 'Symbols',           letters = sSymbolsLetters },
                                      { title = 'Diacritic Letters', letters = sDiacriticLetters },
+                                     { title = 'Extended Latin',    letters = sExtendedLatinLetters },
+                                     { title = 'Special Symbols',   letters = sSpecialSymbolsLetters },
                                     }
                 for i=1, #tAllLetters do
                     local tLetter = tAllLetters[i]
@@ -601,14 +619,7 @@ function renderMainMenu(delta)
                         for _, codepoint in utf8.codes(tLetter.letters) do
                             j = j + 1
                             local sLetter   = utf8.char(codepoint)
-                            local labelLetter = sLetter
-                            -- Replace diacritic letter with GUI-friendly equivalent if needed
-                            local byteIdx = sDiacriticLetters:find(sLetter, 1, true)
-                            if byteIdx then
-                                -- Convert byte position to character index for the ASCII gui string
-                                local charIdx = (byteIdx > 1) and (utf8.len(sDiacriticLetters, 1, byteIdx - 1) + 1) or 1
-                                labelLetter = sDiacriticLettersGui:sub(charIdx, charIdx)
-                            end
+                            local labelLetter = tCharGuiLabel[sLetter] or sLetter
                             local label     = string.format('%s##letter_%s_%d_%d', labelLetter, sLetter, j, i)
                             if sLetter == ' ' then
                                 label       = tLang.L("letter_space") .. string.format('##letter_%s_%d_%d', sLetter, j, i)
