@@ -1119,6 +1119,10 @@ namespace mbm
                     index = static_cast<unsigned char>(letter[1]);
                     index = TEXT_DRAW::withoutBOM2Map(index, 194);
                 }
+                else
+                {
+                    index = static_cast<unsigned char>(letter[0]); // single raw byte, use directly
+                }
             }
             break;
             case 195: // UTF8 - Without BOM
@@ -1127,6 +1131,10 @@ namespace mbm
                 {
                     index = static_cast<unsigned char>(letter[1]);
                     index = TEXT_DRAW::withoutBOM2Map(index, 195);
+                }
+                else
+                {
+                    index = static_cast<unsigned char>(letter[0]); // single raw byte, use directly
                 }
             }
             break;

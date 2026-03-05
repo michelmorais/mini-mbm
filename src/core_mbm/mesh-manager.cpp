@@ -4317,6 +4317,7 @@ namespace mbm
             lsWidthLetter['\t'].x  = lsWidthLetter['M'].x * 4.0f;
             lsWidthLetter['\t'].y  = lsWidthLetter['M'].y * 4.0f;
         }
+        
         for (uint32_t i = 30, index = 0; i < lsStbFont.size(); ++i)
         {
             stbtt_aligned_quad *q = lsStbFont[i];

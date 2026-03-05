@@ -597,13 +597,17 @@ function renderMainMenu(delta)
                 for i=1, #tAllLetters do
                     local tLetter = tAllLetters[i]
                     if tImGui.TreeNode('id_adjust_letters_' .. tostring(i),tLetter.title) then
-                        for j=1, tLetter.letters:len() do
-                            local sLetter   = tLetter.letters:sub(j,j)
+                        local j = 0
+                        for _, codepoint in utf8.codes(tLetter.letters) do
+                            j = j + 1
+                            local sLetter   = utf8.char(codepoint)
                             local labelLetter = sLetter
                             -- Replace diacritic letter with GUI-friendly equivalent if needed
-                            local idx = sDiacriticLetters:find(sLetter, 1, true)
-                            if idx then
-                                labelLetter = sDiacriticLettersGui:sub(idx, idx)
+                            local byteIdx = sDiacriticLetters:find(sLetter, 1, true)
+                            if byteIdx then
+                                -- Convert byte position to character index for the ASCII gui string
+                                local charIdx = (byteIdx > 1) and (utf8.len(sDiacriticLetters, 1, byteIdx - 1) + 1) or 1
+                                labelLetter = sDiacriticLettersGui:sub(charIdx, charIdx)
                             end
                             local label     = string.format('%s##letter_%s_%d_%d', labelLetter, sLetter, j, i)
                             if sLetter == ' ' then
@@ -638,7 +642,6 @@ function renderMainMenu(delta)
                                     end
                                 end
                                 tImGui.Text(tLang.L("change_size"))
-                                print('Selected letter:', sLetter)
                                 local iWidth,iHeight   = tGlobalFont:getSizeLetter(sLetter)
                                 local result, fValue = tImGui.InputInt(tLang.L("axis_x") .. string.format('##LetterSize_x_%d_%d', j, i), iWidth, step_int, step_int_fast)
                                 if result then
@@ -670,9 +673,8 @@ function renderMainMenu(delta)
 end
 
 function isBinaryFont(fileName)
-	local isMbm = fileName:match("%.mbm$")
-    local isFnt = fileName:match("%.fnt$")
-    if isMbm or isFnt then
+	local isFnt = fileName:match("%.fnt$")
+    if isFnt then
         local myType = meshDebug:getType(fileName)
         if myType == "font" then
             return true
@@ -682,7 +684,7 @@ function isBinaryFont(fileName)
             return false
         end
     end
-	return isMbm or isFnt
+	return isFnt
 end
 
 function onTouchDown(key,x,y)
