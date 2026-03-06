@@ -43,12 +43,14 @@ function onInitScene()
     tUtil.bRightSide     = true
     sFontSelected        = nil
     tGlobalFont          = nil
+    iSFontLoadedTTF      = false
     iHeightFont          = 50
+    iNewHeightFont       = 50
     iSpace               = 0
     iSpaceHeight         = 0
     tFontHeight          = {}
     sAnimationName       = ''
-    defaultText          = "\nSymbols:'\"\\/ ;.,<>|+-_!@#$%¨&*()?' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nÄÅÆ ËÏ ÐÑ ÖØ ÜÝÞß äåæ ëï ðñ öø üýþ\n¡¢£¥§©® °±²³ ¼½¾¿ ×÷\nTime:"
+    defaultText          = "\nSymbols:'\"\\/ :;.,<>|+-=_!?@#$€%¨&*()~^`[]{}' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nÄÅÆ ËÏ ÐÑ ÖØ ÜÝÞß äåæ ëï ðñ öø üýþ\n¡¢£¥§©® °±²³ ¼½¾¿ ×÷\nTime:"
     sAdditionalText       = ''
     selectedLetter       = ''
     tAnimTypes           = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}
@@ -173,7 +175,8 @@ end
 
 function loadNewFont(sNewFileName)
     local fileName = sNewFileName or mbm.openFile(sFontSelected,"*.ttf","fnt","true-font")
-    if not loadFromCache(fileName) and fileName then
+    if fileName and not loadFromCache(fileName) then
+        iSFontLoadedTTF = fileName:lower():match("%.ttf$") or fileName:lower():match("%.otf$") or fileName:lower():match("%.true-font$")
         if isBinaryFont(fileName) then
             local tNewFont        = font:new(fileName)
             setInitialParameters(fileName,tNewFont)
@@ -198,34 +201,39 @@ function loadNewFont(sNewFileName)
 end
 
 function onSaveFont()
-    local meshD      = meshDebug:new()
-    local fileName   = tUtil.getShortName(sFontSelected):split('%.')[1]
-    fileName         = mbm.saveFile(string.format('%s-%d.fnt',fileName,iHeightFont),'fnt')
-    if fileName then
-        if meshD:load(tGlobalFont.tText) then
-            if meshD:copyAnimationsFromMesh(tGlobalFont.tText) then --copy animations created
-                if meshD:save(fileName) then
-                    tUtil.showMessage(tLang.L("font_saved_ok"))
-                    if mbm.is('linux') then
-                        local tDestTexture = fileName:split('/')
-                        tDestTexture[#tDestTexture] = nil
-                        local sTextureName = string.format('%s/%s',table.concat(tDestTexture,'/'),tUtil.getShortName(tGlobalFont.sTextureName))
-                        os.execute(string.format('mv %q %q',tGlobalFont.sTmpFile,sTextureName))
-                    elseif mbm.is('windows') then
-                        local tDestTexture = fileName:split('\\')
-                        tDestTexture[#tDestTexture] = nil
-                        local sTextureName = string.format('%s\\%s',table.concat(tDestTexture,'\\'),tUtil.getShortName(tGlobalFont.sTextureName))
-                        os.execute(string.format('MOVE %q %q',tGlobalFont.sTmpFile,sTextureName))
+    if sFontSelected and tGlobalFont then
+
+        local meshD      = meshDebug:new()
+        local fileName   = tUtil.getShortName(sFontSelected):split('%.')[1]
+        fileName         = mbm.saveFile(string.format('%s-%d.fnt',fileName,iHeightFont),'fnt')
+        if fileName then
+            if meshD:load(tGlobalFont.tText) then
+                if meshD:copyAnimationsFromMesh(tGlobalFont.tText) then --copy animations created
+                    if meshD:save(fileName) then
+                        tUtil.showMessage(tLang.L("font_saved_ok"))
+                        if mbm.is('linux') then
+                            local tDestTexture = fileName:split('/')
+                            tDestTexture[#tDestTexture] = nil
+                            local sTextureName = string.format('%s/%s',table.concat(tDestTexture,'/'),tUtil.getShortName(tGlobalFont.sTextureName))
+                            os.execute(string.format('mv %q %q',tGlobalFont.sTmpFile,sTextureName))
+                        elseif mbm.is('windows') then
+                            local tDestTexture = fileName:split('\\')
+                            tDestTexture[#tDestTexture] = nil
+                            local sTextureName = string.format('%s\\%s',table.concat(tDestTexture,'\\'),tUtil.getShortName(tGlobalFont.sTextureName))
+                            os.execute(string.format('MOVE %q %q',tGlobalFont.sTmpFile,sTextureName))
+                        end
+                    else
+                        tUtil.showMessageWarn(tLang.L("failed_to_save_font"))
                     end
                 else
-                    tUtil.showMessageWarn(tLang.L("failed_to_save_font"))
+                    tUtil.showMessageWarn(tLang.L("failed_to_apply_shader"))
                 end
             else
-                tUtil.showMessageWarn(tLang.L("failed_to_apply_shader"))
+                tUtil.showMessageWarn(tLang.L("failed_to_load_font"))
             end
-        else
-            tUtil.showMessageWarn(tLang.L("failed_to_load_font"))
         end
+    else
+        tUtil.showMessageWarn(tLang.L("no_font_to_save"))
     end
 end
 
@@ -391,23 +399,30 @@ function renderMainMenu(delta)
     if is_opened then
         if sFontSelected and tGlobalFont then
             tImGui.Text(tUtil.getShortName(sFontSelected))
-            if tImGui.Button(tLang.L("save_binary_font"),tSizeButton) then
-                onSaveFont()
-            end
         else
             tImGui.Text(tLang.L("no_font_loaded"))
         end
         local step       =  1
         local step_fast  =  10
-        tImGui.PushItemWidth(itemWidth)
-        local clicked, iValue = tImGui.InputInt(tLang.L("height"), iHeightFont, step, step_fast)
-        if clicked then
-            if iValue > 0 and iValue < 1000 then
-                iHeightFont = iValue
-                if tGlobalFont and sFontSelected then
+        if sFontSelected and tGlobalFont and iSFontLoadedTTF then
+            tImGui.PushItemWidth(itemWidth)
+            local clicked, iValue = tImGui.InputInt(tLang.L("height"), iNewHeightFont, step, step_fast)
+            if clicked then
+                if iValue > 0 and iValue < 1000 then
+                    iNewHeightFont = iValue
+                end
+            end
+
+            if iNewHeightFont ~= iHeightFont then
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
+                tImGui.Text(tLang.L("reload_font_with_new_height"))
+                tImGui.PopStyleColor(1)
+                if tImGui.Button(tLang.L("reload_font"),tSizeButton) then
+                    iHeightFont = iNewHeightFont
                     loadNewFont(sFontSelected)
                 end
             end
+            tImGui.PopItemWidth()
         end
 
         local clicked, iValue = tImGui.InputInt(tLang.L("space_x_label"), iSpace, step, step_fast)
@@ -574,7 +589,7 @@ function renderMainMenu(delta)
                 local step_int_fast  =  5
                 local format         = "%.1f"
 
-                local sSymbolsLetters           = '\"\\/ ;.,<>|+-_!@#$%¨&*()? \t'
+                local sSymbolsLetters           = '\"\\/ :;.,<>|+=-_!?@#$€%¨&*()~^`[\t]{}'
                 local sAbcLowerCaseLetters      = 'abcdefghijklmnopqrstuvxyz'
                 local sAbcUpperCaseLetters      = 'ABCDEFGHIJKLMNOPQRSTUVXYZ'
                 local sDiacriticLetters         = 'àèìòùÀÈÌÒÙáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ'
@@ -621,7 +636,7 @@ function renderMainMenu(delta)
                             if sLetter == '\t' then
                                 label       = string.format('Tab##letter_%s_%d_%d', sLetter, j, i)
                             end
-                            
+
                             local selected  = selectedLetter == sLetter
                             local flags     = 0
                             local size      = {x=40,y=0}
@@ -629,6 +644,7 @@ function renderMainMenu(delta)
                             if result then
                                 selectedLetter = sLetter
                             end
+
                             if selected then
                                 tImGui.PushItemWidth(150)
                                 tImGui.Text(tLang.L("change_position"))
@@ -671,8 +687,6 @@ function renderMainMenu(delta)
             end
             tImGui.TreePop()
         end
-        
-        tImGui.PopItemWidth()
     end
     tImGui.End()
 end
@@ -749,6 +763,10 @@ function main_menu_font_maker()
                 onParseFont()
             end
 
+            if tImGui.MenuItem(tLang.L("save_binary_font")) then
+                onSaveFont()
+            end
+
             tImGui.Separator()
             if tImGui.MenuItem(tLang.L("menu_quit")) then
                 mbm.quit()
@@ -788,8 +806,10 @@ end
 
 function loop(delta)
     main_menu_font_maker()
-    renderMainMenu(delta)
-    tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
+    if sFontSelected and tGlobalFont then
+        renderMainMenu(delta)
+        tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
+    end
     
     if tGlobalFont then
         updateText(tGlobalFont.tText,false)

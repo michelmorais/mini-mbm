@@ -4327,10 +4327,6 @@ namespace mbm
                 float       dy = (middleHeight - y) * 0.5f;
                 switch (i)
                 {
-                    case 'g': dy = y * 0.27f; break;
-                    case 'p': dy = y * 0.27f; break;
-                    case 'q': dy = y * 0.27f; break;
-                    case 'y': dy = y * 0.27f; break;
                     case '*': dy = 0; break;
                     case '-': dy = 0; break;
                     case '+': dy = 0; break;
@@ -4382,12 +4378,7 @@ namespace mbm
                     case 179:
                         dy = -dy;
                         break; //³
-                    case 231:
-                        dy = y * 0.27f;
-                        break; //ç
-                    case 199:
-                        dy = y * 0.13f;
-                        break; //Ç
+                    default: break;
                 }
                 fillvertexQuadTrueFont(pPosition, lsWidthLetter[i].x, y, dy);
 
