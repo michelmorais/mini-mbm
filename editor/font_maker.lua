@@ -50,7 +50,7 @@ function onInitScene()
     iSpaceHeight         = 0
     tFontHeight          = {}
     sAnimationName       = ''
-    defaultText          = "\nSymbols:'\"\\/ :;.,<>|+-=_!?@#$€%¨&*()~^`[]{}' '\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nÄÅÆ ËÏ ÐÑ ÖØ ÜÝÞß äåæ ëï ðñ öø üýþ\n¡¢£¥§©® °±²³ ¼½¾¿ ×÷\nTime:"
+    defaultText          = "\nSymbols:'\"\\/ :;.,<>|+-=_!?@#$€%¨&*()~^`[]{}'\nNumber:0123456789\nabcdefghijklmnopqrstuvxyz\nABCDEFGHIJKLMNOPQRSTUVXYZ\nSpace Space,[\t]Tab\tTab\nàèìòù ÀÈÌÒÙ áéíóú ÁÉÍÓÚ\nãõÃÕ âêîôû ÂÊÎÔÛ çÇ\nÄÅÆ ËÏ ÐÑ ÖØ ÜÝÞß äåæ ëï ðñ öø üýþ\n¡¢£¥§©® °±²³ ¼½¾¿ ×÷\nTime:"
     sAdditionalText       = ''
     selectedLetter       = ''
     tAnimTypes           = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}
@@ -589,7 +589,7 @@ function renderMainMenu(delta)
                 local step_int_fast  =  5
                 local format         = "%.1f"
 
-                local sSymbolsLetters           = '\"\\/ :;.,<>|+=-_!?@#$€%¨&*()~^`[\t]{}'
+                local sSymbolsLetters           = '\"\\/ :;.,<>|+=-_!?@#$€%¨&*()~^`[\t]{}\'"'
                 local sAbcLowerCaseLetters      = 'abcdefghijklmnopqrstuvxyz'
                 local sAbcUpperCaseLetters      = 'ABCDEFGHIJKLMNOPQRSTUVXYZ'
                 local sDiacriticLetters         = 'àèìòùÀÈÌÒÙáéíóúÁÉÍÓÚãõÃÕâêîôûÂÊÎÔÛçÇ'
