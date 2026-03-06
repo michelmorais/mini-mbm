@@ -163,6 +163,7 @@ M.en = {
     cancel = "Cancel",
     remove_all_images = "Remove all images ?",
     -- Font maker
+    font_maker = "Font Maker Editor",
     load_font = "Load Font...",
     parse_font = "Parse Font ... ",
     save_binary_font = "Save Binary Font...",
@@ -910,6 +911,7 @@ M.pt_br = {
     cancel = "Cancelar",
     remove_all_images = "Remover todas as imagens?",
     -- Font maker
+    font_maker = "Editor de Font",
     load_font = "Carregar fonte...",
     parse_font = "Analisar fonte...",
     save_binary_font = "Salvar fonte binária...",

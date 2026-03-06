@@ -381,20 +381,14 @@ function renderMainMenu(delta)
     local width        = 300
     local iW, iH       = mbm.getRealSizeScreen()
     local height       = iH
-    local tPosWin      = {x = 0, y = 0}
+    local tPosWin      = {x = 0, y = 20}
     local tSizeButton  = {x = 200, y = 0}
     local itemWidth    = 200
     local title        = tLang.L("title_font_import_options")
     tImGui.SetNextWindowSize({x = width, y = height}, tImGui.Flags('ImGuiCond_Once'))
     tImGui.SetNextWindowPos(tPosWin, tImGui.Flags('ImGuiCond_Once'))
-    local is_opened, closed_clicked = tImGui.Begin(title, false, tImGui.Flags('ImGuiWindowFlags_NoMove'))
+    local is_opened, closed_clicked = tImGui.Begin(title, false, tImGui.Flags('ImGuiWindowFlags_None'))
     if is_opened then
-        if tImGui.Button(tLang.L("load_font"),tSizeButton) then
-            loadNewFont(nil)
-        end
-        if tImGui.Button(tLang.L("parse_font"),tSizeButton) then
-            onParseFont()
-        end
         if sFontSelected and tGlobalFont then
             tImGui.Text(tUtil.getShortName(sFontSelected))
             if tImGui.Button(tLang.L("save_binary_font"),tSizeButton) then
@@ -744,7 +738,56 @@ function onKeyUp(key)
     end
 end
 
+function main_menu_font_maker()
+    if tImGui.BeginMainMenuBar() then
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
+
+            if tImGui.MenuItem(tLang.L("load_font")) then
+                loadNewFont(nil)
+            end
+            if tImGui.MenuItem(tLang.L("parse_font")) then
+                onParseFont()
+            end
+
+            tImGui.Separator()
+            if tImGui.MenuItem(tLang.L("menu_quit")) then
+                mbm.quit()
+            end
+            tImGui.EndMenu()
+        end
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            tLang.renderLanguageSubmenu()
+            tImGui.EndMenu()
+        end
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed = tImGui.MenuItem(tLang.L("font_maker_editor"), nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker"')
+                end
+            end
+            pressed = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                end
+            end
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
+                tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
+                tImGui.EndMenu()
+            end
+            tImGui.EndMenu()
+        end
+        tImGui.EndMainMenuBar()
+    end
+end
+
 function loop(delta)
+    main_menu_font_maker()
     renderMainMenu(delta)
     tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
     
