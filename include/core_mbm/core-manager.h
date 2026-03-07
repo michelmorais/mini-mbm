@@ -30,7 +30,7 @@
 
 #if defined ANDROID
     #include <jni.h>
-#elif (defined __linux__ || defined(__APPLE__)) && !defined ANDROID
+#elif (defined __linux__ || (defined(__APPLE__) && !defined(USE_METAL))) && !defined ANDROID
     #include <X11/Xlib.h>
 #endif
 
@@ -214,7 +214,7 @@ namespace mbm
     #endif
         API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
         API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
-    #if (defined  (__linux__) || defined(__APPLE__)) && !defined(ANDROID)
+    #if (defined  (__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
         bool initializeWindowx11();
     #endif
 

@@ -109,8 +109,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
 
-    #Opengl
-    include(FindOpenGLES2)
+    if(USE_OPENGL_ES)
+        #Opengl
+        include(FindOpenGLES2)
+    endif()
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -122,6 +124,25 @@ else()
 endif()
 
 
+# Gather Objective-C++ Metal sources (Apple + USE_METAL only)
+set(METAL_MM_SOURCES "")
+set(METAL_RENDER_MM_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+    file(GLOB_RECURSE METAL_MM_SOURCES "${CORE_OPENGLES_SRC}/*.mm")
+    file(GLOB_RECURSE METAL_RENDER_MM_SOURCES "${RENDER_SRC}/*.mm")
+    # Enable Automatic Reference Counting for all Objective-C++ Metal sources.
+    # Without ARC, Metal id<> objects returned by factory methods would be
+    # autoreleased and freed before we use them across frame boundaries.
+    if (METAL_MM_SOURCES)
+        set_source_files_properties(${METAL_MM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    endif()
+    if (METAL_RENDER_MM_SOURCES)
+        set_source_files_properties(${METAL_RENDER_MM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    endif()
+endif()
+
 #Generate the static library from the sources
 add_library(core_mbm SHARED
     ${STB_SOURCES} 
@@ -131,7 +152,9 @@ add_library(core_mbm SHARED
     ${RENDER_SOURCES}
     ${TINYFILEDIALOGS_SOURCES}
     ${PORT_AUDIO_SOURCES}
-    ${WAVE_SOURCES})
+    ${WAVE_SOURCES}
+    ${METAL_MM_SOURCES}
+    ${METAL_RENDER_MM_SOURCES})
 
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
@@ -188,10 +211,18 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     message(" ... ")
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    target_link_libraries(core_mbm ${X11_LIBRARIES})
-    target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
-    target_link_libraries(core_mbm ${EGL_LIBRARY})
-    target_link_libraries(core_mbm ${VULKAN_LIBRARY})
+    if(USE_METAL)
+        target_link_libraries(core_mbm "-framework Metal")
+        target_link_libraries(core_mbm "-framework Foundation")
+        target_link_libraries(core_mbm "-framework QuartzCore")
+        target_link_libraries(core_mbm "-framework Cocoa")
+        target_link_libraries(core_mbm "-framework AppKit")
+    else()
+        target_link_libraries(core_mbm ${X11_LIBRARIES})
+        target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
+        target_link_libraries(core_mbm ${EGL_LIBRARY})
+        target_link_libraries(core_mbm ${VULKAN_LIBRARY})
+    endif()
     if (${AUDIO} STREQUAL "portaudio" )
         target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
     elseif(${AUDIO} STREQUAL "audiere" )
