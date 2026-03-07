@@ -22,6 +22,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
   - [Core Classes](#core-classes)
   - [Render Pipeline](#render-pipeline)
 - [Renderable Types (RENDERIZABLE)](#renderable-types-renderizable)
+- [Custom Binary Formats](#custom-binary-formats)
 - [Render Backends](#render-backends)
 - [Lua Scripting Interface](#lua-scripting-interface)
   - [Scene Lifecycle (Lua)](#scene-lifecycle-lua)
@@ -46,7 +47,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 | Category | Highlights |
 |---|---|
 | **Rendering** | 13+ renderable types (sprites, meshes, textures, particles, tiles, fonts, shapes, …) with frustum culling, z-ordering, and blend modes |
-| **Backends** | OpenGL ES 2.0 (all platforms), DirectX 9 (Windows), Dummy (headless). Metal and Vulkan planned |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless). Metal and Vulkan planned |
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
@@ -57,7 +58,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 | **Camera** | 2D/3D camera with projection/view matrices, billboard, azimuth, pixel-perfect mode |
 | **Shaders** | Custom FX system with per-variable min/max animation, PS + VS support |
 | **Security** | AES encryption for scripts and assets (PlusAES) |
-| **Formats** | Custom binary mesh (`.mbm`), compressed images (miniz), SQLite3 asset packages |
+| **Formats** | Custom binary formats: `.msh` (mesh), `.spt` (sprite), `.fnt` (font), `.tile` (tile map), `.ptl` (particle). Compressed images (miniz), SQLite3 asset packages |
 
 ---
 
@@ -137,18 +138,18 @@ All visible objects in the engine inherit from `mbm::RENDERIZABLE` (defined in `
 
 | Type | Class | Description |
 |---|---|---|
-| **Sprite** | `SPRITE` | Animated 2D sprite with frame-based animation. Supports 7 animation modes, per-frame shader effects, and physics shapes. The primary type for 2D games. |
+| **Sprite** | `SPRITE` | Animated 2D sprite with frame-based animation. Supports 7 animation modes, per-frame shader effects, and physics shapes. The primary type for 2D games. Uses `.spt` format. |
 | **Texture View** | `TEXTURE_VIEW` | Renders a standalone texture (PNG, BMP) as a textured quad. Simple, non-animated image display. |
-| **Mesh** | `MESH` | Loads and renders 3D/2D meshes from the engine's custom `.mbm` binary format. Supports normals, UVs, and shader effects. |
+| **Mesh** | `MESH` | Loads and renders 3D/2D meshes from the engine's custom `.msh` binary format. Supports normals, UVs, and shader effects. |
 | **Background** | `BACKGROUND` | Full-screen or scaled background image. Can also render text/fonts as backgrounds. |
 | **GIF View** | `GIF_VIEW` | Multi-frame animated GIF viewer. Plays through GIF frames automatically. |
-| **Text** | `TEXT_DRAW` | Bitmap font text rendering with alignment, per-character animation, color, and shader effects. |
+| **Text** | `TEXT_DRAW` | Bitmap font text rendering with alignment, per-character animation, color, and shader effects. Uses `.fnt` format (converted from TTF). |
 | **Shape Mesh** | `SHAPE_MESH` | Procedural geometry: circles, rectangles, triangles, custom indexed polygons, and dynamic vertex buffers. |
 | **Line Mesh** | `LINE_MESH` | Line-based rendering for debug visualization, bounding box display, and wireframe overlays. |
-| **Particle** | `PARTICLE` | GPU particle system with multi-stage control, custom shader operators, and configurable emitters. |
+| **Particle** | `PARTICLE` | GPU particle system with multi-stage control, custom shader operators, and configurable emitters. Uses `.ptl` format. |
 | **Steered Particle** | `STEERED_PARTICLE` | Force-controlled particle system with groups — designed for fluids and steering behaviors (integrates with LiquidFun). |
 | **Render-to-Texture** | `RENDER_2_TEXTURE` | Off-screen render target with its own 2D/3D camera. Can export to PNG. Used for post-processing, minimaps, mirrors, etc. |
-| **Tile** | `TILE` | Tile-map renderer with multiple layers, brick IDs, per-tile operations, and scrolling. |
+| **Tile** | `TILE` | Tile-map renderer with multiple layers, brick IDs, per-tile operations, and scrolling. Uses `.tile` format. |
 | **Tile Object** | `TILE_OBJ` | Individual tile object within a tile map layer. |
 
 **Intermediate / specialized types:**
@@ -157,6 +158,22 @@ All visible objects in the engine inherit from `mbm::RENDERIZABLE` (defined in `
 - `TILE_EDITOR` — tile editing subclass (used by the Tiled plugin)
 
 All renderable types (except `TILE_OBJ`) also inherit from `ANIMATION_MANAGER`, providing built-in animation support with 7 modes: *Paused*, *Growing*, *Growing-Loop*, *Decreasing*, *Decreasing-Loop*, *Recursive*, and *Recursive-Loop*.
+
+---
+
+## Custom Binary Formats
+
+The engine uses its own optimized binary formats for game assets. These are **not** generic file formats — they are generated by the engine's [editor tools](#editor-tools) and loaded directly at runtime for maximum performance.
+
+| Extension | Name | Description | Generated by |
+|---|---|---|---|
+| `.msh` | Mesh | 3D or 2D mesh data (vertices, normals, UVs, indices) | Mesh Debug tool / external pipeline |
+| `.spt` | Sprite | Animated sprite with frames, animation sequences, and optional physics shapes | Sprite Maker |
+| `.fnt` | Font | Bitmap font converted from TrueType (`.ttf`) files | Font Maker |
+| `.tile` | Tile Map | Tile-based level data with layers, brick IDs, and tile sets | Tilemap Editor |
+| `.ptl` | Particle | Multi-stage particle system configuration (emitters, forces, colors, lifetimes) | Particle Editor |
+
+> **Note:** You may encounter `.mbm` files in older parts of the codebase. This was the original format used in the very early stages of engine development and is being phased out in favor of the type-specific extensions listed above.
 
 ---
 
@@ -189,7 +206,7 @@ A Lua game script implements these callbacks:
 ```lua
 function onInitScene()
     -- Load assets, create sprites, set up the scene
-    sprite = mbm.Sprite("player.mbm")
+    sprite = mbm.Sprite("player.spt")
     sprite:setPosition(100, 200, 0)
 end
 
@@ -252,15 +269,15 @@ Mini MBM ships with a set of **Lua-based visual editors** (in the `editor/` fold
 
 | Editor | Script | Description |
 |---|---|---|
-| **Sprite Maker** | `sprite_maker.lua` | Create animations from images. Import frames, define animation sequences, configure physics collision shapes, preview animations in real-time. Exports `.mbm` sprite files. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
-| **Font Maker** | `font_maker.lua` | Convert TrueType (`.ttf`) fonts into the engine's binary bitmap font format with configurable size and character sets. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
+| **Sprite Maker** | `sprite_maker.lua` | Create animations from images. Import frames, define animation sequences, configure physics collision shapes, preview animations in real-time. Exports `.spt` sprite files. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
+| **Font Maker** | `font_maker.lua` | Convert TrueType (`.ttf`) fonts into the engine's binary (`.fnt`) bitmap font format with configurable size and character sets. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
 | **Scene Editor 2D** | `scene_editor2d.lua` | Visual 2D scene editor for placing and arranging objects (sprites, textures, meshes, text) in both world and screen coordinate spaces. Includes a **simulator** — run your Lua game script with a play button. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d) |
 | **Shader Editor** | `shader_editor.lua` | Create and edit shader effects (pixel + vertex shaders) for any renderable type. Configure per-variable animation with min/max ranges. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
-| **Particle Editor** | `particle_editor.lua` | Design multi-stage particle systems with configurable emitters, forces, colors, and lifetimes. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
+| **Particle Editor** | `particle_editor.lua` | Design multi-stage particle systems (`.ptl`) with configurable emitters, forces, colors, and lifetimes. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
 | **Texture Packer** | `texture_packer.lua` | Pack multiple textures into optimized sprite sheet files for efficient rendering and memory usage. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Design 2D tile-based levels with multiple layers, brush tools, and brick palette management. |
 | **Physics Editor** | `physic_editor.lua` | Edit physics collision shapes (bounding volumes) for sprites and meshes. Integrates with Box2D for shape testing. |
-| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations: load meshes, add/remove normals, centralize, batch process entire folders. |
+| **Mesh Debug** | `mesh_debug.lua` | Batch mesh operations: load engine binary files (`.msh`, `.spt`, `.fnt`, `.tile`, `.ptl`), add/remove normals, centralize, batch process entire folders. |
 | **Asset Packager** | `asset_packager.lua` | Create and edit asset packages (SQLite3 databases) containing textures, music, scripts, and other resources for distribution. |
 
 Shared utilities are provided by `editor_utils.lua` (window positioning, color themes, image filters, overlays) and `lang/language.lua` (localization: English / Portuguese BR).
@@ -559,6 +576,7 @@ O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma co
 - [Visão Geral dos Recursos](#visão-geral-dos-recursos)
 - [Visão Geral da Arquitetura](#visão-geral-da-arquitetura)
 - [Tipos Renderizáveis (RENDERIZABLE)](#tipos-renderizáveis-renderizable)
+- [Formatos Binários Customizados](#formatos-binários-customizados)
 - [Backends de Renderização](#backends-de-renderização)
 - [Interface de Script Lua](#interface-de-script-lua)
 - [Ferramentas de Edição](#ferramentas-de-edição)
@@ -575,7 +593,7 @@ O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma co
 | Categoria | Destaques |
 |---|---|
 | **Renderização** | 13+ tipos renderizáveis (sprites, meshes, texturas, partículas, tiles, fontes, shapes, …) com frustum culling, z-ordering e modos de blend |
-| **Backends** | OpenGL ES 2.0 (todas plataformas), DirectX 9 (Windows), Dummy (headless). Metal e Vulkan planejados |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless). Metal e Vulkan planejados |
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
@@ -586,7 +604,7 @@ O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma co
 | **Câmera** | Câmera 2D/3D com matrizes de projeção/visão, billboard, azimute, modo pixel-perfect |
 | **Shaders** | Sistema FX customizado com animação min/max por variável, suporte a PS + VS |
 | **Segurança** | Criptografia AES para scripts e assets (PlusAES) |
-| **Formatos** | Mesh binário customizado (`.mbm`), imagens comprimidas (miniz), pacotes de assets SQLite3 |
+| **Formatos** | Formatos binários customizados: `.msh` (mesh), `.spt` (sprite), `.fnt` (fonte), `.tile` (tile map), `.ptl` (partícula). Imagens comprimidas (miniz), pacotes de assets SQLite3 |
 
 ---
 
@@ -622,19 +640,35 @@ Todos os objetos visíveis herdam de `mbm::RENDERIZABLE`. Cada tipo possui um id
 |---|---|---|
 | **Sprite** | `SPRITE` | Sprite 2D animado com animação baseada em frames. Suporta 7 modos de animação, efeitos de shader por frame e shapes de física. O tipo principal para jogos 2D. |
 | **Texture View** | `TEXTURE_VIEW` | Renderiza uma textura standalone (PNG, BMP) como um quad texturizado. Exibição simples de imagem. |
-| **Mesh** | `MESH` | Carrega e renderiza meshes 3D/2D do formato binário customizado `.mbm` do motor. Suporta normais, UVs e efeitos de shader. |
+| **Mesh** | `MESH` | Carrega e renderiza meshes 3D/2D do formato binário customizado `.msh` do motor. Suporta normais, UVs e efeitos de shader. |
 | **Background** | `BACKGROUND` | Imagem de fundo em tela cheia ou escalonada. |
 | **GIF View** | `GIF_VIEW` | Visualização de GIF com múltiplos frames. Reproduz frames automaticamente. |
-| **Text** | `TEXT_DRAW` | Renderização de texto com fontes bitmap, alinhamento, animação por caractere, cor e efeitos de shader. |
+| **Text** | `TEXT_DRAW` | Renderização de texto com fontes bitmap, alinhamento, animação por caractere, cor e efeitos de shader. Usa formato `.fnt` (convertido de TTF). |
 | **Shape Mesh** | `SHAPE_MESH` | Geometria procedural: círculos, retângulos, triângulos, polígonos indexados e buffers de vértices dinâmicos. |
 | **Line Mesh** | `LINE_MESH` | Renderização baseada em linhas para debug, bounding boxes e wireframe. |
-| **Particle** | `PARTICLE` | Sistema de partículas GPU com controle multi-estágio e operadores de shader customizados. |
+| **Particle** | `PARTICLE` | Sistema de partículas GPU com controle multi-estágio e operadores de shader customizados. Usa formato `.ptl`. |
 | **Steered Particle** | `STEERED_PARTICLE` | Sistema de partículas controlado por forças com grupos — projetado para fluidos e steering behaviors (integra com LiquidFun). |
 | **Render-to-Texture** | `RENDER_2_TEXTURE` | Target de renderização off-screen com câmera 2D/3D própria. Pode exportar para PNG. |
-| **Tile** | `TILE` | Renderizador de tile map com múltiplas camadas, IDs de bricks e operações por tile. |
+| **Tile** | `TILE` | Renderizador de tile map com múltiplas camadas, IDs de bricks e operações por tile. Usa formato `.tile`. |
 | **Tile Object** | `TILE_OBJ` | Objeto individual dentro de uma camada de tile map. |
 
 Todos os tipos renderizáveis (exceto `TILE_OBJ`) também herdam de `ANIMATION_MANAGER`, fornecendo suporte integrado a animação com 7 modos.
+
+---
+
+## Formatos Binários Customizados
+
+O motor utiliza seus próprios formatos binários otimizados para assets de jogo. Estes **não são** formatos genéricos — são gerados pelas [ferramentas de edição](#ferramentas-de-edição) do motor e carregados diretamente em tempo de execução para máxima performance.
+
+| Extensão | Nome | Descrição | Gerado por |
+|---|---|---|---|
+| `.msh` | Mesh | Dados de mesh 3D ou 2D (vértices, normais, UVs, índices) | Mesh Debug / pipeline externo |
+| `.spt` | Sprite | Sprite animado com frames, sequências de animação e shapes de física opcionais | Sprite Maker |
+| `.fnt` | Font | Fonte bitmap convertida a partir de arquivos TrueType (`.ttf`) | Font Maker |
+| `.tile` | Tile Map | Dados de nível baseado em tiles com camadas, IDs de bricks e tile sets | Tilemap Editor |
+| `.ptl` | Particle | Configuração de sistema de partículas multi-estágio (emissores, forças, cores, tempos de vida) | Particle Editor |
+
+> **Nota:** Você pode encontrar arquivos `.mbm` em partes mais antigas do código. Este era o formato original usado nos primeiros estágios do desenvolvimento do motor e está sendo substituído pelas extensões específicas por tipo listadas acima.
 
 ---
 
@@ -661,7 +695,7 @@ Lua 5.4 é a interface de scripting **opcional mas recomendada**. Quando habilit
 ```lua
 function onInitScene()
     -- Carrega assets, cria sprites, configura a cena
-    sprite = mbm.Sprite("player.mbm")
+    sprite = mbm.Sprite("player.spt")
     sprite:setPosition(100, 200, 0)
 end
 
@@ -693,14 +727,14 @@ O Mini MBM inclui um conjunto de **editores visuais baseados em Lua** (na pasta 
 | Editor | Script | Descrição |
 |---|---|---|
 | **Sprite Maker** | `sprite_maker.lua` | Cria animações a partir de imagens. Importa frames, define sequências de animação, configura shapes de colisão, prévia em tempo real. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker) |
-| **Font Maker** | `font_maker.lua` | Converte fontes TrueType (`.ttf`) para o formato binário bitmap do motor. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
+| **Font Maker** | `font_maker.lua` | Converte fontes TrueType (`.ttf`) para o formato binário (`.fnt`) bitmap do motor. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#font-maker) |
 | **Scene Editor 2D** | `scene_editor2d.lua` | Editor visual de cenas 2D. Inclui **simulador** — rode seu script Lua com o botão play. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d) |
 | **Shader Editor** | `shader_editor.lua` | Cria e edita efeitos de shader (pixel + vertex) para qualquer tipo renderizável. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#shader-editor) |
-| **Particle Editor** | `particle_editor.lua` | Projeta sistemas de partículas multi-estágio. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
+| **Particle Editor** | `particle_editor.lua` | Projeta sistemas de partículas (`.ptl`) multi-estágio. [Docs](https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor) |
 | **Texture Packer** | `texture_packer.lua` | Empacota múltiplas texturas em sprite sheets otimizadas. |
 | **Tilemap Editor** | `tilemap_editor.lua` | Edita níveis 2D baseados em tiles com múltiplas camadas e ferramentas de brush. |
 | **Physics Editor** | `physic_editor.lua` | Edita shapes de colisão física para sprites e meshes. Integra com Box2D. |
-| **Mesh Debug** | `mesh_debug.lua` | Operações em lote em meshes: carregar, adicionar/remover normais, centralizar. |
+| **Mesh Debug** | `mesh_debug.lua` | Operações em lote em arquivos binários do motor (`.msh`, `.spt`, `.fnt`, `.tile`, `.ptl`): carregar, adicionar/remover normais, centralizar. |
 | **Asset Packager** | `asset_packager.lua` | Cria pacotes de assets (bancos SQLite3) com texturas, música, scripts e outros recursos. |
 
 ---
