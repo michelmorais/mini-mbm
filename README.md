@@ -40,6 +40,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [Features at a Glance](#features-at-a-glance)
 - [Architecture Overview](#architecture-overview)
   - [Core Classes](#core-classes)
@@ -63,6 +64,130 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 - [Project Structure](#project-structure)
 - [Third-Party Libraries](#third-party-libraries)
 - [License](#license)
+
+---
+
+## Quick Start
+
+This section gets you from zero to a running application in minutes. Choose **Lua mode** (recommended for fast iteration) or **C++ mode** (full low-level control).
+
+### Option A: Lua Mode (Recommended)
+
+**1. Build the engine with Lua support:**
+
+```bash
+mkdir build && cd build
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+make -j$(nproc)
+```
+
+**2. Create your game script** (e.g. `my_game.lua`):
+
+```lua
+local player
+
+function onInitScene()
+    -- Create a sprite in 2D world space
+    player = sprite:new('2dw')
+    if player:load('hero.spt') then
+        print('Sprite loaded!')
+    end
+    player.x = 400
+    player.y = 300
+
+    -- Custom properties — Lua lets you attach any data
+    player.life  = 100
+    player.speed = 3
+end
+
+function loop(delta)
+    -- move right each frame (delta-time multiplied)
+    player:move(player.speed, 0)
+end
+
+function onKeyDown(keyCode)
+    if keyCode == 27 then  -- ESC
+        mbm.quit()
+    end
+end
+```
+
+**3. Run it:**
+
+```bash
+# From the build output directory
+./mini-mbm --scene ../my_game.lua
+```
+
+Or launch the engine without arguments — a **launcher dialog** will appear where you can pick any of the built-in editors or browse to your own script.
+
+### Option B: C++ Mode
+
+**1. Build the engine (Lua not required):**
+
+```bash
+mkdir build && cd build
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
+```
+
+**2. Create your scene and game class:**
+
+```cpp
+// my-scene.h
+#include <core_mbm/scene.h>
+#include <core_mbm/core-manager.h>
+#include <core_mbm/device.h>
+
+class MY_SCENE : public mbm::SCENE {
+public:
+    void startLoading() override { /* show loading screen */ }
+    void endLoading()   override { /* loading done */ }
+
+    void init() override {
+        // Set up camera
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->camera.position = mbm::VEC3(0, 0, -500);
+        device->camera.focus    = mbm::VEC3(0, 0, 0);
+    }
+
+    void logic() override {
+        // Game logic — called every frame
+    }
+
+    void onKeyDown(int key) override {
+        if (key == 27) mbm::DEVICE::quit();  // ESC
+    }
+
+    // Input callbacks (implement as needed):
+    void onTouchDown(int btn, float x, float y) override {}
+    void onTouchUp(int btn, float x, float y)   override {}
+    void onTouchMove(int btn, float x, float y) override {}
+    void onKeyUp(int key) override {}
+    void onFinalizeScene() override {}
+};
+
+class GAME : public mbm::CORE_MANAGER {
+public:
+    MY_SCENE myScene;
+    GAME()  { setScene(&myScene); }
+    ~GAME() { mbm::DEVICE::quit(); }
+};
+```
+
+```cpp
+// main.cpp
+#include "my-scene.h"
+
+int main() {
+    GAME game;
+    if (game.initGraphics("My First Game"))
+        return game.loop(false, true);
+    return -1;
+}
+```
+
+**3. Build and run** — link against the engine library and launch your executable.
 
 ---
 
@@ -245,7 +370,7 @@ function onInitScene()
     tSprite.y = 200
 end
 
-function onLogic()
+function loop(delta)
     -- Called every frame — game logic goes here
     tSprite:move(2, 0)  -- moves right (delta-time multiplied)
 end
@@ -732,6 +857,7 @@ O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma co
 
 ## Sumário
 
+- [Início Rápido](#início-rápido)
 - [Visão Geral dos Recursos](#visão-geral-dos-recursos)
 - [Visão Geral da Arquitetura](#visão-geral-da-arquitetura)
 - [Tipos Renderizáveis (RENDERIZABLE)](#tipos-renderizáveis-renderizable)
@@ -744,6 +870,111 @@ O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma co
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Bibliotecas de Terceiros](#bibliotecas-de-terceiros)
 - [Licença](#licença-1)
+
+---
+
+## Início Rápido
+
+Esta seção leva você do zero a uma aplicação rodando em minutos. Escolha **modo Lua** (recomendado para iteração rápida) ou **modo C++** (controle total de baixo nível).
+
+### Opção A: Modo Lua (Recomendado)
+
+**1. Compile o motor com suporte Lua:**
+
+```bash
+mkdir build && cd build
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+make -j$(nproc)
+```
+
+**2. Crie seu script de jogo** (ex: `meu_jogo.lua`):
+
+```lua
+local player
+
+function onInitScene()
+    -- Cria um sprite no espaço 2D world
+    player = sprite:new('2dw')
+    if player:load('hero.spt') then
+        print('Sprite carregado!')
+    end
+    player.x = 400
+    player.y = 300
+
+    -- Propriedades customizadas — Lua permite anexar qualquer dado
+    player.life  = 100
+    player.speed = 3
+end
+
+function loop(delta)
+    -- move para a direita a cada frame (multiplicado por delta-time)
+    player:move(player.speed, 0)
+end
+
+function onKeyDown(keyCode)
+    if keyCode == 27 then  -- ESC
+        mbm.quit()
+    end
+end
+```
+
+**3. Execute:**
+
+```bash
+# A partir do diretório de build
+./mini-mbm --scene ../meu_jogo.lua
+```
+
+Ou lance o motor sem argumentos — uma **janela de seleção** aparecerá onde você pode escolher qualquer editor integrado ou navegar até seu próprio script.
+
+### Opção B: Modo C++
+
+**1. Compile o motor (Lua não é necessário):**
+
+```bash
+mkdir build && cd build
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
+```
+
+**2. Crie sua cena e classe do jogo** — herde de `mbm::SCENE` (cada tela) e `mbm::CORE_MANAGER` (o jogo):
+
+```cpp
+// main.cpp
+#include <core_mbm/scene.h>
+#include <core_mbm/core-manager.h>
+#include <core_mbm/device.h>
+
+class MY_SCENE : public mbm::SCENE {
+public:
+    void init() override {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->camera.position = mbm::VEC3(0, 0, -500);
+        device->camera.focus    = mbm::VEC3(0, 0, 0);
+    }
+    void logic() override { /* lógica do jogo */ }
+    void onKeyDown(int key) override {
+        if (key == 27) mbm::DEVICE::quit();
+    }
+    // ... outros callbacks
+};
+
+class GAME : public mbm::CORE_MANAGER {
+public:
+    MY_SCENE myScene;
+    GAME()  { setScene(&myScene); }
+    ~GAME() { mbm::DEVICE::quit(); }
+};
+
+int main() {
+    GAME game;
+    if (game.initGraphics("Meu Jogo"))
+        return game.loop(false, true);
+    return -1;
+}
+```
+
+**3. Compile e execute** — linke contra a biblioteca do motor e lance seu executável.
 
 ---
 
@@ -867,7 +1098,7 @@ function onInitScene()
     tSprite.y = 200
 end
 
-function onLogic()
+function loop(delta)
     -- Chamado a cada frame — lógica do jogo aqui
     tSprite:move(2, 0)  -- move para a direita (multiplicado por delta-time)
 end
