@@ -300,20 +300,93 @@ namespace mbm
         return true;
     }
 
-    bool BUFFER_GL::loadBufferDynamic(const uint16_t* /*arrayIndices*/, const unsigned int /*totalSubsets*/,
-                                      const int* /*indexStartSubset*/, const int* /*indexCountSubset*/,
-                                      const bool /*hasNormal*/, const bool /*hasUv*/,
-                                      const util::INFO_DRAW_MODE* /*info_draw_mode*/)
+    bool BUFFER_GL::loadBufferDynamic(const uint16_t* arrayIndices, const unsigned int totalSubsets,
+                                      const int* indexStartSubset, const int* indexCountSubset,
+                                      const bool hasNormal, const bool hasUv,
+                                      const util::INFO_DRAW_MODE* info_draw_mode)
     {
-        // TODO: create dynamic MTLBuffer.
-        return false;
+        release();
+        if (!arrayIndices || !totalSubsets || !indexStartSubset || !indexCountSubset)
+            return false;
+
+        auto* ctx = getMetalCtx();
+        if (!ctx || !ctx->mtlDevice) return false;
+
+        this->totalSubset = totalSubsets;
+        this->fvf = (hasNormal && hasUv) ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR_UV
+                  : hasNormal            ? FVF_PROVIDE_BY_ENGINE::FVF_POS_NOR
+                  : hasUv                ? FVF_PROVIDE_BY_ENGINE::FVF_POS_UV
+                                         : FVF_PROVIDE_BY_ENGINE::FVF_POS;
+
+        // Scan indices to determine how many unique vertices are needed.
+        NSUInteger maxIdx = 0;
+        for (uint32_t i = 0; i < totalSubsets; ++i)
+        {
+            const int start = indexStartSubset[i];
+            const int count = indexCountSubset[i];
+            for (int j = 0; j < count; ++j)
+            {
+                const uint16_t idx = arrayIndices[start + j];
+                if ((NSUInteger)idx > maxIdx) maxIdx = (NSUInteger)idx;
+            }
+        }
+        this->sizeOfArrayVertex = static_cast<uint32_t>(maxIdx) + 1; // indices are zero-based
+
+        this->initializeIndexBufferControl(totalSubsets, this->sizeOfArrayVertex,
+                                           indexStartSubset, indexCountSubset, info_draw_mode);
+
+        // Find the end of the flat index array (handles sparse indexStartSubset offsets).
+        NSUInteger maxEnd = 0;
+        for (uint32_t i = 0; i < totalSubsets; ++i)
+        {
+            NSUInteger end = (NSUInteger)indexStartSubset[i] + (NSUInteger)indexCountSubset[i];
+            if (end > maxEnd) maxEnd = end;
+        }
+
+        // Create static index buffer.
+        id<MTLBuffer> ibuf = [ctx->mtlDevice newBufferWithBytes:arrayIndices
+                                                         length:maxEnd * sizeof(uint16_t)
+                                                        options:MTLResourceStorageModeShared];
+        if (!ibuf) return false;
+
+        // Create dynamic (CPU-writable) vertex buffer – zero-initialised, filled by updateDynamic.
+        const NSUInteger stride  = strideForFVF(this->fvf);
+        const NSUInteger vbufSz  = (NSUInteger)this->sizeOfArrayVertex * stride;
+        id<MTLBuffer> vbuf = [ctx->mtlDevice newBufferWithLength:vbufSz
+                                                         options:MTLResourceStorageModeShared];
+        if (!vbuf) return false;
+
+        bs->vertexBuffer = vbuf;
+        bs->indexBuffer  = ibuf;
+        bs->indexCount   = maxEnd;
+        bs->vertexCount  = this->sizeOfArrayVertex;
+        return true;
     }
 
-    bool BUFFER_GL::updateDynamic(const VEC3* /*vertex*/, const VEC3* /*normal*/, const VEC2* /*uv*/,
-                                  const int* /*vertexStartSubset*/, const int* /*vertexCountSubset*/)
+    bool BUFFER_GL::updateDynamic(const VEC3* vertex, const VEC3* normal, const VEC2* uv,
+                                  const int* vertexStartSubset, const int* vertexCountSubset)
     {
-        // TODO: update MTLBuffer contents via replaceBytes:range:.
-        return false;
+        if (!vertex || !vertexStartSubset || !vertexCountSubset) return false;
+        if (!bs || !bs->vertexBuffer) return false;
+
+        const NSUInteger stride = strideForFVF(this->fvf);
+        uint8_t* dst = reinterpret_cast<uint8_t*>(bs->vertexBuffer.contents);
+        if (!dst) return false; // buffer not CPU-accessible
+
+        for (uint32_t i = 0; i < this->totalSubset; ++i)
+        {
+            const uint32_t vertexStart = (uint32_t)vertexStartSubset[i];
+            const uint32_t vertexCount = (uint32_t)vertexCountSubset[i];
+            if (vertexCount > this->sizeOfArrayVertex) return false;
+            if ((vertexStart + vertexCount) > this->sizeOfArrayVertex) return false;
+
+            buildInterleavedVB(dst + (NSUInteger)vertexStart * stride, stride,
+                               &vertex[vertexStart],
+                               normal ? &normal[vertexStart] : nullptr,
+                               uv     ? &uv[vertexStart]     : nullptr,
+                               vertexCount);
+        }
+        return true;
     }
 
     bool BUFFER_GL::loadParticleBuffer()
@@ -354,7 +427,10 @@ namespace mbm
 
     void BASE_SHADER::update(void* /*ptrShaderSpecific*/) const
     {
-        // TODO: upload uniform buffer to Metal shader via setVertexBytes / setFragmentBytes.
+        // In the Metal backend all per-draw uniforms (MVP matrices, color, etc.) are
+        // pushed inline inside render() / renderDynamic() / renderParticle().
+        // Custom VAR_SHADER values are read at draw-call time via getVarByName(), so
+        // there is nothing extra to do here.
     }
 
     // ---- GLES_PS_VS — not used for Metal ----
