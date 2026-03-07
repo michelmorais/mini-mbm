@@ -56,7 +56,11 @@ class MY_SCENE : public mbm::SCENE
 	mbm::HMD* hmd;
 	mbm::TILE* tile;
     mbm::TEXTURE_VIEW* texture;
+    mbm::TEXT_DRAW * mousePositionText;
     bool randomizeParticleEachLoop;
+    float backGroundTimeToHide;
+    int windowWidth;
+    int windowHeight;
 
 	void randomSteeredParticlePositions();
     MY_SCENE();

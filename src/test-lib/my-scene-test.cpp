@@ -26,21 +26,25 @@
 MY_SCENE::MY_SCENE()
 {
     randomizeParticleEachLoop = false;
-    texBox          = nullptr;
-    gif             = nullptr;
-    sprite          = nullptr;
-    mesh            = nullptr;
-    shape           = nullptr;
-    line            = nullptr;
-    particle        = nullptr;
-    render2Texture  = nullptr;
-    toTrack         = nullptr;
-    steeredParticle = nullptr;
-    background      = nullptr;
-    fontDraw        = nullptr;
-    hmd             = nullptr;
-    tile            = nullptr;
-    texture         = nullptr;
+    texBox                    = nullptr;
+    gif                       = nullptr;
+    sprite                    = nullptr;
+    mesh                      = nullptr;
+    shape                     = nullptr;
+    line                      = nullptr;
+    particle                  = nullptr;
+    render2Texture            = nullptr;
+    toTrack                   = nullptr;
+    steeredParticle           = nullptr;
+    background                = nullptr;
+    fontDraw                  = nullptr;
+    hmd                       = nullptr;
+    tile                      = nullptr;
+    texture                   = nullptr;
+    mousePositionText         = nullptr;
+    backGroundTimeToHide      = 1.0f;
+    windowWidth               = 1024;
+    windowHeight              = 1024;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -73,6 +77,7 @@ MY_SCENE::~MY_SCENE()
         delete tile;
     if (texture)
         delete texture;
+    //we do not to delete mousePositionText because it is managed by fontDraw, so when fontDraw is deleted, it will take care of deleting the text objects that it manages (including mousePositionText)
 }
 
 void MY_SCENE::startLoading()
@@ -95,18 +100,34 @@ void MY_SCENE::init()
     util::addPath("C:\\Users\\miche\\Downloads");
 	this->background = new mbm::BACKGROUND(this, false);
 	bool majorScale = true;
-    this->background->load("ground.png", true, majorScale);
+    if(this->background->load("ground.png", true, majorScale))
+    {
+        INFO_LOG("Background loaded successfully");
+        this->background->position.y = 200;
+        this->background->position.z = 100;
+    }
+    else
+    {
+        INFO_LOG("Failed to load background");
+    }
+
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
     
 
-	//this->fontDraw = new mbm::FONT_DRAW(this);
-    //if (this->fontDraw->loadFont("font_example.ttf", 32, 0, 0, false))
-    //{
-	//	this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
-    //    this->fontDraw->addText("Another_text!", mbm::VEC2(10, 50), true, true);
-    //}
+	this->fontDraw = new mbm::FONT_DRAW(this);
+    float heightLetter = 0; // since this font is binary, this should not affect the result, but for ttf fonts this is the height of the letters in pixels, so it is important to set it right (50 in our test font)
+    short spaceWidth = 0;
+    short spaceHeight = 0;
+    bool saveTextureAsPng = false;
+    if (this->fontDraw->loadFont("VCR_OSD_MONO_1-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTextureAsPng))
+    {
+		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
+        mousePositionText = this->fontDraw->addText("Another line!", mbm::VEC2(10, 50), true, true);
+        mousePositionText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+        INFO_LOG("Font loaded successfully");
+    }
 
     //if (meshDebug.loadDebugFromMemory(this->fontDraw->getMesh()))
     //{
@@ -118,9 +139,7 @@ void MY_SCENE::init()
     //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     //tile->load("tile-stage-1.tile");
     
-    //this->texBox->position.z = 0.11;
-    //this->texBox->alwaysRenderize = true;
-
+    
     //bool loaded = this->texBox->getTexture() != nullptr;
     //INFO_LOG("texBox load returned: %d", loaded ? 1 : 0);
     //if (loaded)
@@ -143,7 +162,16 @@ void MY_SCENE::init()
     gif->load("Lion-King.gif",600,400);
 
     this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
-    this->texBox->load("wooden-box.jpg", 200, 200);
+    if(this->texBox->load("wooden-box.jpg", 200, 200))
+    {
+        INFO_LOG("TextureView loaded successfully");
+        this->texBox->position.x = 300;
+        this->texBox->position.y = 100;
+    }
+    else
+    {
+        INFO_LOG("Failed to load TextureView");
+    }
     
     //TODO: Needs to be investgated
     //hmd = new mbm::HMD(this);
@@ -158,70 +186,77 @@ void MY_SCENE::init()
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
 
-    //sprite->load("pie.spt");
-    sprite->load("dialog.spt");
-    sprite->alwaysRenderize = true;
-    sprite->position.z = 1;
+    if(sprite->load("box.spt"))
+    {
+        INFO_LOG("Sprite loaded successfully");
+        sprite->alwaysRenderize = true;
+        sprite->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+        sprite->position.x = -200;
+    }
+    else
+    {
+        INFO_LOG("Failed to load sprite");
+    }
 
-    //texture = new mbm::TEXTURE_VIEW(this,false, false);
-    //if (texture->load("pie.png"))
-    //{
-    //    INFO_LOG("Pie texture loaded");
-    //    mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
-    //    if (pShaderCfgPie)
-    //    {
-    //        INFO_LOG("Pie shader found in the resource ...");
-    //        mbm::FX* fx = texture->getFx();
-    //        if (fx)
-    //        {
-    //            INFO_LOG(" Applying shader pie to texture");
-    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
-    //            {
-    //                INFO_LOG("Shader pie applyied sucessfully to texture");
-    //                //float dataPercent[4]   = { 0, 0, 0, 0 };
-    //                //float dataAngle[4]     = { 0, 0, 0, 0 };
-    //                //float dataClockwise[4] = { 1, 0, 0, 0 };
-    //                //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-    //                //    INFO_LOG("Min shader values applied to pie");
-    //                //{
-    //                //    INFO_LOG("Min shader values applied to pie");
-    //                //}
-    //                //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-    //                //{
-    //                //    INFO_LOG("Max shader values applied to pie");
-    //                //}
-    //                //texture->restartAnimation();
-    //            }
-    //
-    //            /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
-    //            if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
-    //            {
-    //                INFO_LOG("Shader pie applyied sucessfully to texture");
-    //                float dataPercent[4] = { 0, 0, 0, 0 };
-    //                float dataAngle[4] = { 0, 0, 0, 0 };
-    //                float dataClockwise[4] = { 1, 0, 0, 0 };
-    //                if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-    //                    INFO_LOG("Min shader values applied to pie");
-    //                if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-    //                    INFO_LOG("Max shader values applied to pie");
-    //                texture->restartAnimation();
-    //            }*/
-    //        }
-    //    }
-    //}
-    //
+    texture = new mbm::TEXTURE_VIEW(this,false, false);
+    if (texture->load("pie.png"))
+    {
+        INFO_LOG("Pie texture loaded");
+        mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
+        if (pShaderCfgPie)
+        {
+            INFO_LOG("Pie shader found in the resource ...");
+            mbm::FX* fx = texture->getFx();
+            if (fx)
+            {
+                INFO_LOG(" Applying shader pie to texture");
+                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+                {
+                    INFO_LOG("Shader pie applyied sucessfully to texture");
+                    //float dataPercent[4]   = { 0, 0, 0, 0 };
+                    //float dataAngle[4]     = { 0, 0, 0, 0 };
+                    //float dataClockwise[4] = { 1, 0, 0, 0 };
+                    //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+                    //    INFO_LOG("Min shader values applied to pie");
+                    //{
+                    //    INFO_LOG("Min shader values applied to pie");
+                    //}
+                    //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+                    //{
+                    //    INFO_LOG("Max shader values applied to pie");
+                    //}
+                    //texture->restartAnimation();
+                }
     
-    //**************
-    //TODO: check C:\Users\miche\Dropbox\Games\3d\Box-broken\crateShattered.mbm save in pixel shader editor fails
-    //**************
-
-    //mesh = new mbm::MESH(this, true, false);
-    //mesh->load("crateShattered.mbm"); VB noi texture?
-    //mesh->load("crateWreck1.mbm");
-    //mesh->scale.x = 3;
-    //mesh->scale.y = 3;
-    //mesh->scale.z = 3;
-    //mesh->position.y = 100;
+                /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
+                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+                {
+                    INFO_LOG("Shader pie applyied sucessfully to texture");
+                    float dataPercent[4] = { 0, 0, 0, 0 };
+                    float dataAngle[4] = { 0, 0, 0, 0 };
+                    float dataClockwise[4] = { 1, 0, 0, 0 };
+                    if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+                        INFO_LOG("Min shader values applied to pie");
+                    if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+                        INFO_LOG("Max shader values applied to pie");
+                    texture->restartAnimation();
+                }*/
+            }
+        }
+    }
+    
+    bool isMesh3d = true;
+    mesh = new mbm::MESH(this, isMesh3d, false);
+    if(mesh->load("Barrel_NoTop.msh"))
+    {
+        INFO_LOG("Mesh loaded successfully");
+        mesh->position.z = -100;
+        mesh->position.y = 100;
+    }
+    else
+    {
+        INFO_LOG("Failed to load mesh");
+    }
     //
 
     
@@ -240,14 +275,13 @@ void MY_SCENE::init()
     //}
     
     
-    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, false);
-    if (render2Texture->load(512, 512, 512, 512, "my-render", true))
+    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+    if (render2Texture->load(350, 204, 350, 204, "my-render", true))
     {
+        INFO_LOG("Render2Texture loaded successfully");
         render2Texture->addObject2Render(gif);
-        render2Texture->addObject2Render(this->texBox);
-        //render2Texture->addObject2Render(sprite);
-        //render2Texture->addObject2Render(shape);
-        //render2Texture->addObject2Render(line);
+        render2Texture->position.x = 1024 - (350 / 2);
+        render2Texture->position.y = 204 / 2.0f;;
     }
 
     this->toTrack = texBox;
@@ -333,12 +367,24 @@ void MY_SCENE::logic()
 {
     static int count = 0;
     count++;
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    backGroundTimeToHide -= device->delta;
+    if(backGroundTimeToHide <= 0 && background)
+    {
+        background->enableRender = false;
+    }
     if (count == 30)
     {
         //if (render2Texture && render2Texture->saveAsPNG("C:\\Users\\miche\\Downloads\\test.png", 0, 0, render2Texture->widthTexture, render2Texture->heightTexture))
         //{
         //    INFO_LOG("Image saved at download");
         //}
+    }
+    if(mesh)
+    {
+        mesh->angle.y += device->delta * 0.5f;
+        if (mesh->angle.y > 360.0f)
+            mesh->angle.y -= 360.0f;
     }
     if (randomizeParticleEachLoop)
     {
@@ -406,6 +452,11 @@ void MY_SCENE::onTouchMove(int, float x, float y)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
 		device->transformeScreen2dToWorld2d_scaled(x, y, this->toTrack->position);
+    }
+    if(mousePositionText)
+    {
+        mousePositionText->setText("%d, %d", static_cast<int>(x), static_cast<int>(y));
+        mousePositionText->position = mbm::VEC3(x, y, 0);
     }
 }
 
