@@ -198,9 +198,13 @@ void MY_SCENE::init()
         INFO_LOG("Failed to load sprite");
     }
 
-    texture = new mbm::TEXTURE_VIEW(this,false, false);
+    texture = new mbm::TEXTURE_VIEW(this,false, true);
     if (texture->load("pie.png"))
     {
+        float w, h;
+        texture->getAABB(&w, &h);
+        texture->position.y = windowHeight - (h / 2.0f);
+        texture->position.x = w / 2.0f;
         INFO_LOG("Pie texture loaded");
         mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
         if (pShaderCfgPie)
@@ -227,20 +231,14 @@ void MY_SCENE::init()
                     //}
                     //texture->restartAnimation();
                 }
-    
-                /*INFO_LOG("Pin the value to a visible range Applying shader pie to texture");
-                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+                else
                 {
-                    INFO_LOG("Shader pie applyied sucessfully to texture");
-                    float dataPercent[4] = { 0, 0, 0, 0 };
-                    float dataAngle[4] = { 0, 0, 0, 0 };
-                    float dataClockwise[4] = { 1, 0, 0, 0 };
-                    if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-                        INFO_LOG("Min shader values applied to pie");
-                    if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-                        INFO_LOG("Max shader values applied to pie");
-                    texture->restartAnimation();
-                }*/
+                    INFO_LOG("Failed to apply shader pie to texture");
+                }
+            }
+            else
+            {
+                INFO_LOG("Failed to get FX from texture");
             }
         }
     }
@@ -261,18 +259,26 @@ void MY_SCENE::init()
 
     
 
-    //shape = new mbm::SHAPE_MESH(this, false, false);
-    //shape->loadRectangle("quad", 100, 100, true, 2);
-    //shape->position.x = 300;
-
-    //line = new mbm::LINE_MESH(this, false, false);
-	//for (int i = 0; i < 2; i++)
-    //{
-    //    std::vector<mbm::VEC3> lines;
-    //    lines.push_back(mbm::VEC3(0 + i * 10, 0, 0));
-    //    lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
-    //    line->add(std::move(lines));
-    //}
+    shape = new mbm::SHAPE_MESH(this, false, false);
+    if(shape->loadRectangle("quad", 100, 100, true, 2))
+    {
+        INFO_LOG("Shape loaded successfully");
+        shape->position.x = 100;
+        shape->position.y = 100;
+    }
+    else
+    {
+        INFO_LOG("Failed to load shape");
+    }
+    
+    line = new mbm::LINE_MESH(this, false, false);
+	for (int i = 0; i < 2; i++)
+    {
+        std::vector<mbm::VEC3> lines;
+        lines.push_back(mbm::VEC3(0 + i * 10, 0, 0));
+        lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
+        line->add(std::move(lines));
+    }
     
     
     render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
@@ -287,56 +293,57 @@ void MY_SCENE::init()
     this->toTrack = texBox;
     
 
-    //mbm::INFO_PHYSICS infoPhysiscs;
-	//infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
-    //steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
-	//mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
-    //if (steeredParticle->load("C:\\Users\\miche\\Downloads\\fluid_particle.png", &colorParticle, &infoPhysiscs))
-    //{
-    //    steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
-    //    steeredParticle->setRadiusScale(2);
-    //    
-    //    mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
-    //    group->aSizeParticle = 20.0f;
-	//	
-    //    randomSteeredParticlePositions();
-    //
-    //    INFO_LOG("Particle z position %f", steeredParticle->position.z);
-    //
-    //    INFO_LOG("Steered Particle loaded successfully");
-    //    INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
-    //    INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
-    //    if (group)
-    //    {
-    //        INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
-    //    }
-    //
-    //    if (steeredParticle->getTexture())
-    //    {
-    //        INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
-    //    }
-    //    else
-    //    {
-    //        INFO_LOG("ERROR: Texture not loaded!");
-    //    }
-    //
-    //    INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
-    //}
-    //else
-    //{
-    //    INFO_LOG("ERROR: Failed to load steered particle");
-    //}
+    mbm::INFO_PHYSICS infoPhysiscs;
+	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
+    steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
+	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
+    if (steeredParticle->load("particle.png", &colorParticle, &infoPhysiscs))
+    {
+        steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
+        steeredParticle->setRadiusScale(2);
+        
+        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+        group->aSizeParticle = 20.0f;
+		
+        randomSteeredParticlePositions();
+    
+        INFO_LOG("Particle z position %f", steeredParticle->position.z);
+    
+        INFO_LOG("Steered Particle loaded successfully");
+        INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
+        INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
+        if (group)
+        {
+            INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
+        }
+    
+        if (steeredParticle->getTexture())
+        {
+            INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
+        }
+        else
+        {
+            INFO_LOG("ERROR: Texture not loaded!");
+        }
+    
+        INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
+        //steeredParticle->restartAnimationParticle();
+        steeredParticle->restartAnimation();
+    }
+    else
+    {
+        INFO_LOG("ERROR: Failed to load steered particle");
+    }
 	
 
-    
-    //AARRGGBB
-    //const char * fileNameTextureOrMesh = "#FFFF0000";
-    //particle = new mbm::PARTICLE(this, false, false);
-    //if (particle->load(fileNameTextureOrMesh, nullptr, nullptr, 100, true))
-    //{
-    //    particle->addParticle(1000,true);
-    //    particle->addStage();
-    //}
+    particle = new mbm::PARTICLE(this, false, false);
+    if (particle->load("particle.png", nullptr, nullptr, 100, true))
+    {
+        particle->addParticle(1000,true);
+        particle->addStage();
+        particle->restartAnimation();
+        INFO_LOG("Particle loaded successfully");
+    }
     
 }
 
@@ -372,6 +379,37 @@ void MY_SCENE::logic()
     if(backGroundTimeToHide <= 0 && background)
     {
         background->enableRender = false;
+    }
+    if (count <= 5 || count % 120 == 0)
+    {
+        if (steeredParticle)
+        {
+            INFO_LOG("[frame:%d] steeredParticle: enableRender=%d alwaysRenderize=%d isRender2Texture=%d pos=(%.1f,%.1f,%.1f) totalToRender=%u groups=%zu",
+                count,
+                steeredParticle->enableRender ? 1 : 0,
+                steeredParticle->alwaysRenderize ? 1 : 0,
+                steeredParticle->isRender2Texture ? 1 : 0,
+                steeredParticle->position.x, steeredParticle->position.y, steeredParticle->position.z,
+                steeredParticle->getTotalParticleToRender(),
+                steeredParticle->getTotalGroup());
+        }
+        if (particle)
+        {
+            INFO_LOG("[frame:%d] particle: enableRender=%d alwaysRenderize=%d isRender2Texture=%d pos=(%.1f,%.1f,%.1f) totalAlive=%u totalParticle=%u",
+                count,
+                particle->enableRender ? 1 : 0,
+                particle->alwaysRenderize ? 1 : 0,
+                particle->isRender2Texture ? 1 : 0,
+                particle->position.x, particle->position.y, particle->position.z,
+                particle->getTotalParticleAlive(),
+                particle->getTotalParticle());
+        }
+        INFO_LOG("[frame:%d] device: 2D rendering=%u onFrustum2D=%u total2D=%u 3D rendering=%u",
+            count,
+            device->totalObjectsIsRendering2D,
+            device->totalObjectsOnFrustum2D,
+            device->totalObjects2D,
+            device->totalObjectsIsRendering3D);
     }
     if (count == 30)
     {
@@ -410,8 +448,11 @@ void MY_SCENE::logic()
         if (fx)
         {
             float data[4] = { 0, 0, 0, 0 };
-            fx->getVarPShader("percent", data);
-            INFO_LOG("data : %g", data[0]);
+            if(fx->getVarPShader("percent", data) == 0)
+            {
+                INFO_LOG("Failed to get percent variable from shader");
+            }
+            //INFO_LOG("data : %g", data[0]);
             //data[0] += 0.01f;
             //if (data[0] > 1.0f)
             //    data[0] = 0.0f;
