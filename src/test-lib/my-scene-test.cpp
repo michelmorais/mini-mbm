@@ -327,8 +327,8 @@ void MY_SCENE::init()
         }
     
         INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
-        //steeredParticle->restartAnimationParticle();
-        steeredParticle->restartAnimation();
+        steeredParticle->restartAnimationParticle();
+        //steeredParticle->restartAnimation();
     }
     else
     {
@@ -341,7 +341,7 @@ void MY_SCENE::init()
     {
         particle->addParticle(1000,true);
         particle->addStage();
-        particle->restartAnimation();
+        particle->restartAnimationParticle();
         INFO_LOG("Particle loaded successfully");
     }
     
@@ -379,37 +379,6 @@ void MY_SCENE::logic()
     if(backGroundTimeToHide <= 0 && background)
     {
         background->enableRender = false;
-    }
-    if (count <= 5 || count % 120 == 0)
-    {
-        if (steeredParticle)
-        {
-            INFO_LOG("[frame:%d] steeredParticle: enableRender=%d alwaysRenderize=%d isRender2Texture=%d pos=(%.1f,%.1f,%.1f) totalToRender=%u groups=%zu",
-                count,
-                steeredParticle->enableRender ? 1 : 0,
-                steeredParticle->alwaysRenderize ? 1 : 0,
-                steeredParticle->isRender2Texture ? 1 : 0,
-                steeredParticle->position.x, steeredParticle->position.y, steeredParticle->position.z,
-                steeredParticle->getTotalParticleToRender(),
-                steeredParticle->getTotalGroup());
-        }
-        if (particle)
-        {
-            INFO_LOG("[frame:%d] particle: enableRender=%d alwaysRenderize=%d isRender2Texture=%d pos=(%.1f,%.1f,%.1f) totalAlive=%u totalParticle=%u",
-                count,
-                particle->enableRender ? 1 : 0,
-                particle->alwaysRenderize ? 1 : 0,
-                particle->isRender2Texture ? 1 : 0,
-                particle->position.x, particle->position.y, particle->position.z,
-                particle->getTotalParticleAlive(),
-                particle->getTotalParticle());
-        }
-        INFO_LOG("[frame:%d] device: 2D rendering=%u onFrustum2D=%u total2D=%u 3D rendering=%u",
-            count,
-            device->totalObjectsIsRendering2D,
-            device->totalObjectsOnFrustum2D,
-            device->totalObjects2D,
-            device->totalObjectsIsRendering3D);
     }
     if (count == 30)
     {
