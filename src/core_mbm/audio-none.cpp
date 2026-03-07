@@ -38,7 +38,15 @@ namespace mbm
 	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
     onEndStreamCallBack(nullptr)
     {
-        #pragma message(REMINDER_TODO "Audio engine NONE is used, all functions are disabled")
+        //#if !defined(__APPLE__)
+        #if defined(_MSC_VER)
+        #pragma message("Audio engine NONE is used, all functions are disabled")
+        #elif defined(__clang__) || defined(__GNUC__)
+        #pragma message "Audio engine NONE is used, all functions are disabled"
+        #else
+        #pragma message("Audio engine NONE is used, all functions are disabled")
+        #endif
+        //#endif
         ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
     }
 
