@@ -26,6 +26,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 - [Render Backends](#render-backends)
 - [Lua Scripting Interface](#lua-scripting-interface)
   - [Scene Lifecycle (Lua)](#scene-lifecycle-lua)
+  - [Lua Wrappers for Renderable Types](#lua-wrappers-for-renderable-types)
   - [The `mbm` Namespace](#the-mbm-namespace)
 - [Editor Tools](#editor-tools)
 - [Plugin System](#plugin-system)
@@ -204,14 +205,24 @@ Lua 5.4 is the **optional but recommended** scripting interface. When enabled (`
 A Lua game script implements these callbacks:
 
 ```lua
+local tSprite  -- forward declaration
+
 function onInitScene()
-    -- Load assets, create sprites, set up the scene
-    sprite = mbm.Sprite("player.spt")
-    sprite:setPosition(100, 200, 0)
+    -- Create a sprite in 2D world space and load it
+    tSprite = sprite:new('2dw')
+    if tSprite:load('mario.spt') then
+        print('Successfully loaded sprite:', 'mario.spt')
+    else
+        print('Failed to load sprite:', 'mario.spt')
+    end
+
+    tSprite.x = 100
+    tSprite.y = 200
 end
 
 function onLogic()
     -- Called every frame — game logic goes here
+    tSprite:move(2, 0)  -- moves right (delta-time multiplied)
 end
 
 function onTouchDown(x, y, id)
@@ -237,9 +248,134 @@ end
 
 Additional callbacks: `onTouchZoom()`, `onKeyDownJoystick()`, `onKeyUpJoystick()`, `onMoveJoystick()`, and more.
 
+### Lua Wrappers for Renderable Types
+
+Each C++ renderable type is exposed to Lua as a **global table**. You create instances with `:new(coordSpace)` and call methods with `:` (colon), while reading/writing properties with `.` (dot).
+
+**Global tables registered by the engine:**
+
+| Lua Table | C++ Class | File Format | Description |
+|---|---|---|---|
+| `sprite` | `SPRITE` | `.spt` | Animated 2D sprites |
+| `mesh` | `MESH` | `.msh` | 3D/2D meshes |
+| `texture` | `TEXTURE_VIEW` | PNG, BMP | Standalone texture display |
+| `backGround` | `BACKGROUND` | PNG, BMP | Full-screen backgrounds |
+| `font` | `TEXT_DRAW` | `.fnt` | Bitmap font text rendering |
+| `particle` | `PARTICLE` | `.ptl` | GPU particle systems |
+| `tile` | `TILE` | `.tile` | Tile-map renderer |
+| `shape` | `SHAPE_MESH` | — | Procedural geometry |
+| `line` | `LINE_MESH` | — | Line-based rendering |
+
+**Coordinate spaces** — passed as the first argument to `:new()`:
+
+| Value | Space | Description |
+|---|---|---|
+| `'2dw'` | 2D World | Objects move with the camera (default for most types) |
+| `'2ds'` | 2D Screen | Objects stay fixed on screen (HUD, UI) |
+| `'3d'` | 3D | Full 3D space with perspective projection |
+
+**Creating and loading objects:**
+
+```lua
+-- Sprite
+local s = sprite:new('2dw')      -- create in 2D world space
+s:load('player.spt')             -- load sprite file (returns boolean)
+
+-- Mesh
+local m = mesh:new('3d')         -- create in 3D space
+m:load('model.msh')              -- load mesh file
+
+-- Texture View
+local t = texture:new('2ds')     -- create in 2D screen space
+t:load('image.png', 256, 256, true)  -- load with width, height, hasAlpha
+
+-- Background
+local bg = backGround:new()      -- create (2D by default)
+bg:load('sky.png')
+
+-- Font (special — loaded during creation)
+local f = font:new('arial.ttf', 32, 3, 0)  -- font file, height, spaceW, spaceH
+local txt = f:add('Hello World!', '2dw', 100, 200, 0)  -- add text object
+
+-- Particle
+local p = particle:new('2ds')
+p:load('fire.ptl')
+
+-- Tile map
+local tl = tile:new('2dw')
+tl:load('level1.tile')
+
+-- Shape (no load — created procedurally)
+local sh = shape:new('2ds')      -- then use sh:create(...)
+
+-- Line (no load — added dynamically)
+local ln = line:new('2dw')       -- then use ln:add(...)
+```
+
+**Properties (dot `.` notation) — read and write directly:**
+
+| Property | Type | Description |
+|---|---|---|
+| `.x`, `.y`, `.z` | number | Position |
+| `.sx`, `.sy`, `.sz` | number | Scale |
+| `.ax`, `.ay`, `.az` | number | Angle (radians) |
+| `.visible` | boolean | Show/hide the object |
+| `.alwaysRender` | boolean | Skip frustum culling |
+
+Font text objects also support `.text` (string) and `.align` (`"left"`, `"center"`, `"right"`).
+
+**Dynamic custom properties** — Lua's flexibility allows you to attach **any custom property** to a renderable object. Unknown keys are stored as user-defined variables on the object, not on the C++ side:
+
+```lua
+local player = sprite:new('2dw')
+player:load('hero.spt')
+
+player.life = 100         -- custom property (not a built-in field)
+player.score = 0          -- another custom property
+player.name = "Hero"      -- string custom property
+
+-- Later in game logic:
+player.life = player.life - hit
+if player.life <= 0 then
+    player.visible = false   -- built-in property: hides the sprite
+end
+```
+
+This works because the engine's `__newindex`/`__index` metamethods intercept property access: known keys (like `.x`, `.visible`) map to C++ fields, while unknown keys are stored/retrieved as dynamic variables on the Lua userdata.
+
+**Methods (colon `:` notation) — common to all renderable types:**
+
+| Method | Description |
+|---|---|
+| `:load(filename, ...)` | Load asset from file (returns boolean) |
+| `:destroy()` | Remove object from the scene |
+| `:setPos(x, y [, z])` | Set position |
+| `:getPos()` | Get position (returns vec3 table) |
+| `:setAngle(ax [, ay, az])` | Set rotation |
+| `:getAngle()` | Get rotation |
+| `:setScale(sx [, sy, sz])` | Set scale |
+| `:getScale()` | Get scale |
+| `:move(vx [, vy, vz])` | Delta-time multiplied movement |
+| `:rotate(axis, radians)` | Delta-time multiplied rotation (`"x"`, `"y"`, or `"z"`) |
+| `:getSize([considerScale])` | Returns `w, h [, d]` |
+| `:getAABB([forceUpdate])` | Returns axis-aligned bounding box |
+| `:isOver(x, y)` | Hit test (returns boolean) |
+| `:collide(other [, useAABB])` | Collision check against another renderable |
+| `:isOnScreen()` | Frustum check (returns boolean) |
+| `:isLoaded()` | Check if asset is loaded |
+| `:setAnim(index)` | Set current animation |
+| `:getAnim()` | Get current animation index |
+| `:isEndedAnim()` | Check if animation finished |
+| `:onEndAnim(callback)` | Callback when animation ends |
+| `:setTypeAnim(type)` | Set animation mode |
+| `:setColor(r, g, b, a)` | Set color / tint |
+| `:setBlend(src, dst)` | Set blend mode |
+| `:getShader()` | Get shader table for FX control |
+| `:getPhysics()` | Get physics info table |
+
 ### The `mbm` Namespace
 
-The global `mbm` table exposes the full engine API to Lua. Key functions include:
+The global `mbm` table exposes the engine's core API to Lua (separate from the renderable type tables above). Key functions include:
 
 | Category | Functions |
 |---|---|
@@ -258,8 +394,6 @@ The global `mbm` table exposes the full engine API to Lua. Key functions include
 | **Events** | `addOnTouch`, `subscribe` (custom event subscriptions) |
 | **Threading** | `executeInThread` (async system command execution) |
 | **Rendering** | `enableClearScreen`, `setColor`, `getObjectsRendered`, `refresh` |
-
-Each renderable type has its own Lua binding with full control over position, scale, rotation, animation, shaders, and physics properties.
 
 ---
 
@@ -340,7 +474,7 @@ On non-Android platforms, **all plugins are built automatically** when Lua is en
 
 ```bash
 # Clone the repository
-git clone <repo-url> mini-mbm
+git clone git@github.com:michelmorais/mini-mbm.git mini-mbm
 cd mini-mbm
 
 # Minimal build (C++ only, no Lua)
@@ -693,14 +827,24 @@ Lua 5.4 é a interface de scripting **opcional mas recomendada**. Quando habilit
 ### Ciclo de Vida da Cena (Lua)
 
 ```lua
+local tSprite  -- declaração antecipada
+
 function onInitScene()
-    -- Carrega assets, cria sprites, configura a cena
-    sprite = mbm.Sprite("player.spt")
-    sprite:setPosition(100, 200, 0)
+    -- Cria um sprite no espaço 2D world e carrega
+    tSprite = sprite:new('2dw')
+    if tSprite:load('mario.spt') then
+        print('Sprite carregado com sucesso:', 'mario.spt')
+    else
+        print('Falha ao carregar sprite:', 'mario.spt')
+    end
+
+    tSprite.x = 100
+    tSprite.y = 200
 end
 
 function onLogic()
     -- Chamado a cada frame — lógica do jogo aqui
+    tSprite:move(2, 0)  -- move para a direita (multiplicado por delta-time)
 end
 
 function onTouchDown(x, y, id)
@@ -714,9 +858,83 @@ end
 
 Callbacks adicionais: `onTouchUp()`, `onTouchMove()`, `onTouchZoom()`, `onKeyUp()`, `onKeyDownJoystick()`, `onMoveJoystick()` e mais.
 
+### Wrappers Lua para Tipos Renderizáveis
+
+Cada tipo C++ renderizável é exposto ao Lua como uma **tabela global**. Você cria instâncias com `:new(coordSpace)` e chama métodos com `:` (dois pontos), enquanto lê/escreve propriedades com `.` (ponto).
+
+**Tabelas globais registradas pelo motor:**
+
+| Tabela Lua | Classe C++ | Formato | Descrição |
+|---|---|---|---|
+| `sprite` | `SPRITE` | `.spt` | Sprites 2D animados |
+| `mesh` | `MESH` | `.msh` | Meshes 3D/2D |
+| `texture` | `TEXTURE_VIEW` | PNG, BMP | Exibição de textura |
+| `backGround` | `BACKGROUND` | PNG, BMP | Fundos em tela cheia |
+| `font` | `TEXT_DRAW` | `.fnt` | Renderização de texto bitmap |
+| `particle` | `PARTICLE` | `.ptl` | Sistemas de partículas GPU |
+| `tile` | `TILE` | `.tile` | Renderizador de tile map |
+| `shape` | `SHAPE_MESH` | — | Geometria procedural |
+| `line` | `LINE_MESH` | — | Renderização baseada em linhas |
+
+**Espaços de coordenadas** — passados como primeiro argumento de `:new()`:
+
+| Valor | Espaço | Descrição |
+|---|---|---|
+| `'2dw'` | 2D World | Objetos se movem com a câmera (padrão para maioria dos tipos) |
+| `'2ds'` | 2D Screen | Objetos ficam fixos na tela (HUD, UI) |
+| `'3d'` | 3D | Espaço 3D completo com projeção perspectiva |
+
+**Criando e carregando objetos:**
+
+```lua
+-- Sprite
+local s = sprite:new('2dw')      -- cria no espaço 2D world
+s:load('player.spt')             -- carrega arquivo sprite (retorna boolean)
+
+-- Mesh
+local m = mesh:new('3d')         -- cria no espaço 3D
+m:load('model.msh')              -- carrega arquivo mesh
+
+-- Font (especial — carregado durante a criação)
+local f = font:new('arial.ttf', 32, 3, 0)  -- arquivo, altura, espaçoW, espaçoH
+local txt = f:add('Olá Mundo!', '2dw', 100, 200, 0)  -- adiciona objeto de texto
+```
+
+**Propriedades (notação ponto `.`) — leitura e escrita direta:**
+
+| Propriedade | Tipo | Descrição |
+|---|---|---|
+| `.x`, `.y`, `.z` | number | Posição |
+| `.sx`, `.sy`, `.sz` | number | Escala |
+| `.ax`, `.ay`, `.az` | number | Ângulo (radianos) |
+| `.visible` | boolean | Mostrar/ocultar o objeto |
+| `.alwaysRender` | boolean | Ignorar frustum culling |
+
+**Propriedades customizadas dinâmicas** — a flexibilidade do Lua permite anexar **qualquer propriedade customizada** a um objeto renderizável. Chaves desconhecidas são armazenadas como variáveis definidas pelo usuário:
+
+```lua
+local player = sprite:new('2dw')
+player:load('hero.spt')
+
+player.life = 100         -- propriedade customizada (não é campo nativo)
+player.score = 0          -- outra propriedade customizada
+
+-- Depois na lógica do jogo:
+player.life = player.life - hit
+if player.life <= 0 then
+    player.visible = false   -- propriedade nativa: esconde o sprite
+end
+```
+
+Isso funciona porque os metamétodos `__newindex`/`__index` do motor interceptam o acesso a propriedades: chaves conhecidas (como `.x`, `.visible`) mapeiam para campos C++, enquanto chaves desconhecidas são armazenadas/recuperadas como variáveis dinâmicas no userdata Lua.
+
+**Métodos (notação dois pontos `:`) — comuns a todos os tipos renderizáveis:**
+
+`:load()`, `:destroy()`, `:setPos()`, `:getPos()`, `:setAngle()`, `:getAngle()`, `:setScale()`, `:getScale()`, `:move()`, `:rotate()`, `:getSize()`, `:getAABB()`, `:isOver()`, `:collide()`, `:isOnScreen()`, `:isLoaded()`, `:setAnim()`, `:getAnim()`, `:isEndedAnim()`, `:onEndAnim()`, `:setTypeAnim()`, `:setColor()`, `:setBlend()`, `:getShader()`, `:getPhysics()`, e mais.
+
 ### O Namespace `mbm`
 
-A tabela global `mbm` expõe toda a API do motor para Lua: gerenciamento de cenas, tela, câmera, conversão de coordenadas, assets, shaders, I/O de arquivos, criptografia, áudio, diálogos nativos, variáveis globais entre cenas, eventos, threading e controle de renderização.
+A tabela global `mbm` expõe a API core do motor para Lua (separada das tabelas de tipos renderizáveis acima): gerenciamento de cenas (`loadScene`, `pause`, `resume`, `quit`), tela, câmera (`getCamera`), conversão de coordenadas (`to2dw`, `to2ds`, `to3d`), assets, shaders, I/O de arquivos, criptografia, áudio, diálogos nativos, variáveis globais entre cenas (`setGlobal`, `getGlobal`), eventos, threading e controle de renderização.
 
 ---
 
