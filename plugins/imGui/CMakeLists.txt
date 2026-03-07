@@ -4,9 +4,10 @@ project(${IMGUI_LIBRARY})
 
 set(SRC_INCLUDES            ${CMAKE_SOURCE_DIR}/include)
 set(LUA_WRAP                ${CMAKE_SOURCE_DIR}/include/lua-interface)
-set(PLUGIN_HELPER_INC          ${CMAKE_SOURCE_DIR}/plugins)
-set(IMGUI_INCLUDE           ".")
-set(IMGUI_SRC               ".")
+set(PLUGIN_HELPER_INC       ${CMAKE_SOURCE_DIR}/plugins)
+set(IMGUI_INCLUDE           ${CMAKE_SOURCE_DIR}/plugins/imGui)
+set(IMGUI_SRC               ${CMAKE_SOURCE_DIR}/plugins/imGui)
+set(IMGUI_BACKENDS          ${IMGUI_SRC}/backends)
 set(THIRD_PARTY             ${CMAKE_SOURCE_DIR}/third-party)
 set(LUA_INCLUDE             ${THIRD_PARTY}/lua-${LUA_LIB_VERSION})
  
@@ -22,27 +23,32 @@ message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_win32.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
 endif()
 
 # Compile only the render backend that matches the engine (USE_DIRECTX9 / USE_OPENGL_ES from root CMake)
 # For USE_DUMMY_BACK_END_ENGINE, exclude both backends (imgui-lua.cpp uses dummy stubs)
 if (USE_DUMMY_BACK_END_ENGINE)
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_opengl3.cpp")
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_dx9.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_opengl3.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_dx9.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_metal.mm")
 elseif (USE_DIRECTX9)
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_opengl3.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_opengl3.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_metal.mm")
 elseif (USE_OPENGL_ES)
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_impl_dx9.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_dx9.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_metal.mm")
+
 endif()
 
 # Exclude imgui_demo.cpp in release mode (ShowDemoWindow, ShowStyleSelector, etc. are debug-only)
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" _IMGUI_CMAKE_BUILD_TYPE_LOWER)
 if (NOT _IMGUI_CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_demo.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_SRC}/imgui_demo.cpp")
     message(STATUS "ImGui: excluding imgui_demo.cpp, using imgui_demo_stubs.cpp (release build)")
 else()
-    list(REMOVE_ITEM IM_GUI_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_SRC}/imgui_demo_stubs.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_SRC}/imgui_demo_stubs.cpp")
 endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
@@ -64,6 +70,7 @@ include_directories(  ${IMGUI_INCLUDE}
                       ${SRC_INCLUDES}
                       ${LUA_WRAP}
                       ${PLUGIN_HELPER_INC}
+                      ${IMGUI_BACKENDS}
                       ${THIRD_PARTY})
  
 # Included stuff

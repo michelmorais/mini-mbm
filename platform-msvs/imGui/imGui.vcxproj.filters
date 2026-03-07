@@ -27,13 +27,13 @@
     <ClInclude Include="..\..\plugins\imGui\imgui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_dx9.h">
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_dx9.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3.h">
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_win32.h">
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_win32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\plugins\imGui\imgui_internal.h">
@@ -48,7 +48,7 @@
     <ClInclude Include="..\..\plugins\imGui\imstb_truetype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h">
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3_loader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -65,13 +65,10 @@
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_dx9.cpp">
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_dx9.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_win32.cpp">
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\imGui\imgui_widgets.cpp">
@@ -84,6 +81,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
