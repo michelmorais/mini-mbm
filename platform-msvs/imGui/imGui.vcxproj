@@ -184,10 +184,10 @@
     <ClInclude Include="..\..\plugins\imGui\imconfig.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui-lua.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui.h" />
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_dx9.h" />
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3.h" />
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_opengl3_loader.h" />
-    <ClInclude Include="..\..\plugins\imGui\imgui_impl_win32.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_dx9.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="..\..\plugins\imGui\backends\imgui_impl_win32.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_internal.h" />
     <ClInclude Include="..\..\plugins\imGui\imgui_stdlib.h" />
     <ClInclude Include="..\..\plugins\imGui\imstb_rectpack.h" />
@@ -199,13 +199,13 @@
     <ClCompile Include="..\..\plugins\imGui\imgui.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_demo.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_draw.cpp" />
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_dx9.cpp">
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_dx9.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='DirectX9'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_opengl3.cpp">
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_opengl3.cpp">
       <ExcludedFromBuild Condition="'$(MbmBackend)'!='OpenGLES'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\plugins\imGui\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\..\plugins\imGui\backends\imgui_impl_win32.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_stdlib.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_tables.cpp" />
     <ClCompile Include="..\..\plugins\imGui\imgui_widgets.cpp" />
