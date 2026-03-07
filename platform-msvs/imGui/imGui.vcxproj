@@ -76,22 +76,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface;..\..\plugins\imGui\;..\..\plugins\imGui\backends</IncludePath>
     <LibraryPath>$(OutDir);$(SolutionDir)..\third-party\gles\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface;..\..\plugins\imGui\;..\..\plugins\imGui\backends</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>
     </LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface;..\..\plugins\imGui\;..\..\plugins\imGui\backends</IncludePath>
     <LibraryPath>$(OutDir);$(SolutionDir)..\third-party\gles\libs;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface</IncludePath>
+    <IncludePath>..\..\third-party\lua-5.4.1;..\..\third-party\gles;..\..\include;..\..\third-party;..\..\plugins;..\..\include\lua-interface;..\..\plugins\imGui\;..\..\plugins\imGui\backends</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
