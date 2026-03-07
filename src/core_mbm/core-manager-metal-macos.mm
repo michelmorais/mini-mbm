@@ -232,6 +232,18 @@ namespace mbm
             SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
             if (!ctx || !ctx->window) return;
 
+            // Scale factor converts logical NSEvent points → physical pixel coordinates
+            // that match backBufferWidth/Height (set to drawable size at init).
+            const CGFloat scale = [ctx->window backingScaleFactor];
+
+            // Converts a logical-point NSPoint (origin bottom-left) to engine coords
+            // (origin top-left, physical pixels).
+            auto toEngineXY = [&](NSPoint p, float& ex, float& ey) {
+                ex = static_cast<float>(p.x * scale);
+                ey = static_cast<float>(this->device->backBufferHeight) -
+                     static_cast<float>(p.y * scale);
+            };
+
             NSEvent* event;
             while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                                untilDate:[NSDate distantPast]
@@ -263,50 +275,49 @@ namespace mbm
                     // ---- Mouse buttons ----
                     case NSEventTypeLeftMouseDown:
                     {
-                        NSPoint p = [event locationInWindow];
-                        // Flip Y: engine expects (0,0) at top-left.
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchDown(0, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchDown(0, ex, ey);
                     }
                     break;
 
                     case NSEventTypeLeftMouseUp:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchUp(0, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchUp(0, ex, ey);
                     }
                     break;
 
                     case NSEventTypeRightMouseDown:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchDown(1, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchDown(1, ex, ey);
                     }
                     break;
 
                     case NSEventTypeRightMouseUp:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchUp(1, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchUp(1, ex, ey);
                     }
                     break;
 
                     case NSEventTypeOtherMouseDown:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchDown(2, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchDown(2, ex, ey);
                     }
                     break;
 
                     case NSEventTypeOtherMouseUp:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchUp(2, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchUp(2, ex, ey);
                     }
                     break;
 
@@ -316,9 +327,9 @@ namespace mbm
                     case NSEventTypeRightMouseDragged:
                     case NSEventTypeOtherMouseDragged:
                     {
-                        NSPoint p = [event locationInWindow];
-                        float y = static_cast<float>(this->device->backBufferHeight) - static_cast<float>(p.y);
-                        this->onTouchMove(0, static_cast<float>(p.x), y);
+                        float ex, ey;
+                        toEngineXY([event locationInWindow], ex, ey);
+                        this->onTouchMove(0, ex, ey);
                     }
                     break;
 
