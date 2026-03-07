@@ -15,6 +15,29 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
 
 ---
 
+## Games Made with Mini MBM
+
+<table>
+  <tr>
+    <td align="center"><strong>Tower Defense Monster</strong></td>
+    <td align="center"><strong>Spaceship Combat</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="preview/tower_defense_preview.gif" alt="Tower Defense Monster" width="400"/></td>
+    <td align="center"><img src="preview/space_ship_combat.png" alt="Spaceship Combat" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://play.google.com/store/apps/details?id=com.mini.mbm.towerdefense">Google Play</a> · <a href="https://mbm.itch.io/tower-defense-monster">itch.io</a>
+    </td>
+    <td align="center">
+      <a href="https://play.google.com/store/apps/details?id=com.mini.mbm.spaceshipcombat">Google Play</a>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Table of Contents
 
 - [Features at a Glance](#features-at-a-glance)
@@ -115,7 +138,9 @@ public:
 int main() {
     MyGame game;
     game.initGraphics("My Game");
-    game.loop(false, true);
+    const bool singleLoop    = false;
+    const bool doSwapBuffers = true;
+    game.loop(singleLoop, doSwapBuffers);
 }
 ```
 
