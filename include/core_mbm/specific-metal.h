@@ -92,6 +92,9 @@ namespace mbm
         // Pending clear-depth flag (set by DEVICE::clearDepth / clearDepthColored,
         // consumed by CORE_MANAGER::beginRender).
         bool pendingClearDepth = true;
+
+        // Default sampler shared by all standard shaders; created on first render() call.
+        id<MTLSamplerState> defaultSampler = nil;
     };
 
 } // namespace mbm

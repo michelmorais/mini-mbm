@@ -69,6 +69,7 @@ namespace mbm
         currentPassDescriptor = nil;
         commandQueue         = nil;
         metalLayer           = nil;
+        defaultSampler       = nil;
         // NSWindow and NSApplication are managed by the OS; we close the window
         // but do not release the application.
         if (window)

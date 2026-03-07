@@ -5,12 +5,6 @@
 | THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.                                    |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-// Metal texture-manager stubs.
-// TEXTURE::loadFromData() and TEXTURE::release() are called from the common
-// texture-manager.cpp which is always compiled. For Milestone 1 (empty scene,
-// no textures loaded) these functions are never called at runtime, but the
-// linker requires their symbols to exist.
-
 #if defined(USE_METAL)
 
 #include <specific-metal.h>
@@ -18,12 +12,24 @@
 #include <util-interface.h>
 #include <image-resource.h>
 #include <render-2-texture.h>
+#include <uber-image.h>
+#include <device.h>
 
 namespace mbm
 {
+    // Helper: current MTLDevice from the global DEVICE singleton.
+    static id<MTLDevice> getMetalDevice()
+    {
+        DEVICE* dev = DEVICE::getInstance();
+        return (dev && dev->specificContextDevice) ? dev->specificContextDevice->mtlDevice : nil;
+    }
     void TEXTURE::release()
     {
-        idTexture       = 0;
+        if (ptrTexture)
+        {
+            CFBridgingRelease(ptrTexture);
+            ptrTexture = nullptr;
+        }
         width           = 0;
         height          = 0;
         useAlphaChannel = false;
@@ -31,46 +37,104 @@ namespace mbm
 
     bool TEXTURE::loadFromData(const uint8_t* data,
                                const uint32_t w, const uint32_t h,
-                               const uint16_t /*depth*/,
+                               const uint16_t depth,
                                const uint16_t channel,
                                const bool     hasAlpha)
     {
-        // TODO: create MTLTexture from pixel data using MTLDevice::newTextureWithDescriptor:.
-        (void)data; (void)w; (void)h; (void)channel; (void)hasAlpha;
-        WARN_LOG("Metal: TEXTURE::loadFromData() is not yet implemented.");
-        return false;
+        if (!data || !w || !h) return false;
+        id<MTLDevice> device = getMetalDevice();
+        if (!device) return false;
+
+        // Normalise to 8-bpp (handles 16-bpp HDR inputs, etc.).
+        UBER_IMG uberImg;
+        const uint8_t* img = uberImg.getImage8bitsPerPixel(data, w, h, depth, channel);
+        if (!img) return false;
+
+        // Metal requires RGBA8Unorm; expand RGB/Grey to RGBA.
+        const uint8_t* rgbaData = nullptr;
+        uint8_t*       tempBuf  = nullptr;
+        if (channel == 4)
+        {
+            rgbaData = img;
+        }
+        else
+        {
+            tempBuf = new uint8_t[w * h * 4];
+            for (uint32_t i = 0; i < w * h; ++i)
+            {
+                if (channel == 3)
+                {
+                    tempBuf[i*4+0] = img[i*3+0];
+                    tempBuf[i*4+1] = img[i*3+1];
+                    tempBuf[i*4+2] = img[i*3+2];
+                    tempBuf[i*4+3] = 255;
+                }
+                else // channel == 1 (greyscale)
+                {
+                    const uint8_t v = img[i];
+                    tempBuf[i*4+0] = tempBuf[i*4+1] = tempBuf[i*4+2] = v;
+                    tempBuf[i*4+3] = 255;
+                }
+            }
+            rgbaData = tempBuf;
+        }
+
+        MTLTextureDescriptor* desc =
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                              width:w
+                                                             height:h
+                                                          mipmapped:NO];
+        desc.usage = MTLTextureUsageShaderRead;
+        id<MTLTexture> tex = [device newTextureWithDescriptor:desc];
+        if (tex)
+        {
+            [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+                   mipmapLevel:0
+                     withBytes:rgbaData
+                   bytesPerRow:w * 4];
+            if (ptrTexture) CFBridgingRelease(ptrTexture);
+            ptrTexture = (__bridge_retained void*)tex;
+        }
+        delete[] tempBuf;
+        if (!tex) return false;
+        this->width           = w;
+        this->height          = h;
+        this->useAlphaChannel = (channel == 4 || hasAlpha);
+        return true;
     }
 
     bool TEXTURE::loadFromResourceData(const IMAGE_RESOURCE* image)
     {
-        if (image == nullptr)
-            return false;
-        // TODO: upload embedded resource image to MTLTexture.
-        WARN_LOG("Metal: TEXTURE::loadFromResourceData() is not yet implemented.");
+        if (!image) return false;
+        id<MTLDevice> device = getMetalDevice();
+        if (!device) return false;
+
+        MTLTextureDescriptor* desc =
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                              width:image->width
+                                                             height:image->height
+                                                          mipmapped:NO];
+        desc.usage = MTLTextureUsageShaderRead;
+        id<MTLTexture> tex = [device newTextureWithDescriptor:desc];
+        if (!tex) return false;
+        [tex replaceRegion:MTLRegionMake2D(0, 0, image->width, image->height)
+               mipmapLevel:0
+                 withBytes:image->data
+               bytesPerRow:image->width * 4];
+        if (ptrTexture) CFBridgingRelease(ptrTexture);
+        ptrTexture        = (__bridge_retained void*)tex;
         this->width           = image->width;
         this->height          = image->height;
         this->useAlphaChannel = true;
-        return false;
+        return true;
     }
 
     TEXTURE* TEXTURE_MANAGER::loadNativeEngine(const char* fileName, const bool forceAlpha)
     {
-        if (fileName == nullptr)
-            return nullptr;
-        std::string fileNameBase = util::getBaseName(fileName);
-        TEXTURE* tex = lsTextures[fileNameBase];
-        if (tex)
-            return tex;
-        fileName = getFilePathTexture(fileName, nullptr);
-        if (fileName == nullptr)
-            return nullptr;
-        tex = new TEXTURE();
-        tex->useAlphaChannel = forceAlpha;
-        tex->fileName = fileName;
-        lsTextures[fileNameBase] = tex;
-        // TODO: load the image file and create an MTLTexture.
-        WARN_LOG("Metal: TEXTURE_MANAGER::loadNativeEngine() is not yet implemented.");
-        return tex;
+        // Return nullptr so the common loader uses lodepng and calls loadFromData().
+        // (Matches the OpenGL ES behaviour on Linux/macOS.)
+        (void)fileName; (void)forceAlpha;
+        return nullptr;
     }
 
     TEXTURE* TEXTURE_MANAGER::createTextureRenderTarget(RENDERIZABLE_TO_TARGET* renderToTarget,
