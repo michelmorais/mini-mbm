@@ -77,8 +77,8 @@ This section gets you from zero to a running application in minutes. Choose **Lu
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
-make -j$(nproc)
+cmake .. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug
+make -j8;
 ```
 
 **2. Create your game script** (e.g. `my_game.lua`):
@@ -127,7 +127,7 @@ Or launch the engine without arguments — a **launcher dialog** will appear whe
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
 make -j$(nproc)
 ```
 
@@ -629,16 +629,16 @@ cd mini-mbm
 
 # Minimal build (C++ only, no Lua)
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
 make -j$(nproc)
 
 # Full-featured build (Lua + all plugins + editors)
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=audiere -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
 make -j$(nproc)
 
 # Release build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=audiere
 make -j$(nproc)
 ```
 
@@ -883,7 +883,7 @@ Esta seção leva você do zero a uma aplicação rodando em minutos. Escolha **
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=audiere
 make -j$(nproc)
 ```
 
@@ -933,7 +933,7 @@ Ou lance o motor sem argumentos — uma **janela de seleção** aparecerá onde 
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
 make -j$(nproc)
 ```
 

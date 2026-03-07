@@ -29,6 +29,7 @@
 #include <specific-opengl_es.h>
 #include <miniz-wrap/miniz-wrap.h>
 #include <audio-interface.h>
+#include <util-interface.h>
 #include <cassert>
 #include <thread>
 #include <unistd.h>
