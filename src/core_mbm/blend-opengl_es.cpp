@@ -32,7 +32,10 @@ namespace mbm
 {
     void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
     {
-        GLBlendFunc(GL_DST_ALPHA, GL_ONE);
+        // Match DX9 behavior: SrcBlend is always GL_SRC_ALPHA (equivalent to D3DBLEND_SRCALPHA)
+        // Previously this incorrectly used GL_DST_ALPHA as source factor, which depends on
+        // framebuffer alpha and is undefined when the window has no alpha channel.
+        GLBlendFunc(GL_SRC_ALPHA, GL_ONE);
         switch (blendState)
         {
             case BLEND_DISABLE:
@@ -46,16 +49,17 @@ namespace mbm
         }
         switch (blendState)
         {
-            case BLEND_ZERO:         GLBlendFunc(GL_DST_ALPHA, GL_ZERO);                break;
-            case BLEND_ONE:          GLBlendFunc(GL_DST_ALPHA, GL_ONE);                 break;
-            case BLEND_SRCCOLOR:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_COLOR);           break;
-            case BLEND_INVSRCCOLOR:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_COLOR); break;
-            case BLEND_SRCALPHA:     GLBlendFunc(GL_DST_ALPHA, GL_SRC_ALPHA);           break;
-            case BLEND_INVSRCALPHA:  GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA); break;
-            case BLEND_DESTALPHA:    GLBlendFunc(GL_DST_ALPHA, GL_DST_ALPHA);           break;
-            case BLEND_INVDESTALPHA: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_ALPHA); break;
-            case BLEND_DESTCOLOR:    GLBlendFunc(GL_DST_ALPHA, GL_DST_COLOR);           break;
-            case BLEND_INVDESTCOLOR: GLBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_DST_COLOR); break;
+            //                                   GL_DST_ALPHA,... (old implementatiion)
+            case BLEND_ZERO:         GLBlendFunc(GL_SRC_ALPHA, GL_ZERO);                break;
+            case BLEND_ONE:          GLBlendFunc(GL_SRC_ALPHA, GL_ONE);                 break;
+            case BLEND_SRCCOLOR:     GLBlendFunc(GL_SRC_ALPHA, GL_SRC_COLOR);           break;
+            case BLEND_INVSRCCOLOR:  GLBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR); break;
+            case BLEND_SRCALPHA:     GLBlendFunc(GL_SRC_ALPHA, GL_SRC_ALPHA);           break;
+            case BLEND_INVSRCALPHA:  GLBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); break;
+            case BLEND_DESTALPHA:    GLBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);           break;
+            case BLEND_INVDESTALPHA: GLBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA); break;
+            case BLEND_DESTCOLOR:    GLBlendFunc(GL_SRC_ALPHA, GL_DST_COLOR);           break;
+            case BLEND_INVDESTCOLOR: GLBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_DST_COLOR); break;
             default:{}
         }
     }

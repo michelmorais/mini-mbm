@@ -350,6 +350,7 @@ namespace mbm
                 }
             }
         }
+        GLBindBuffer(GL_ARRAY_BUFFER, 0);
         return true;
     }
 
@@ -922,9 +923,21 @@ namespace mbm
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
+        // Disable face culling for particle quads – a previous draw (e.g. LINE_MESH)
+        // may have set glCullFace(GL_FRONT_AND_BACK) which would cull every triangle.
+        const GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
+        if (cullFaceEnabled)
+        {
+            GLDisable(GL_CULL_FACE);
+        }
         
         GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
+        // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
+        // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
+        // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
+        GLBindBuffer(GL_ARRAY_BUFFER, 0);
+        disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
@@ -966,6 +979,10 @@ namespace mbm
             }
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        if (cullFaceEnabled)
+        {
+            GLEnable(GL_CULL_FACE);
+        }
         if (depthTestEnabled)
         {
             GLEnable(GL_DEPTH_TEST);
@@ -1004,10 +1021,22 @@ namespace mbm
         GLboolean depthTestEnabled = true;
         glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
         GLDisable(GL_DEPTH_TEST);
+        // Disable face culling for particle quads – a previous draw (e.g. LINE_MESH)
+        // may have set glCullFace(GL_FRONT_AND_BACK) which would cull every triangle.
+        const GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
+        if (cullFaceEnabled)
+        {
+            GLDisable(GL_CULL_FACE);
+        }
 
         GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
 
+        // Unbind VBO so vertex pointers are treated as client-side arrays, and disable
+        // stale attrib arrays left by a previous draw (e.g. LINE_MESH position-only shader)
+        // to avoid GL_INVALID_OPERATION on strict GLES drivers (ANGLE, Mesa).
+        GLBindBuffer(GL_ARRAY_BUFFER, 0);
+        disableUnusedVertexAttribs(gles_shaderSpecific, false, gles_shaderSpecific->texCoordHandle >= 0);
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pBufferId->bs->vboIndexSubsetIB[index_subset]);
         VAR_SHADER* var = this->pShader
             ? this->pShader->getVarByName("color")
@@ -1080,6 +1109,10 @@ namespace mbm
         }
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        if (cullFaceEnabled)
+        {
+            GLEnable(GL_CULL_FACE);
+        }
         if (depthTestEnabled)
         {
             GLEnable(GL_DEPTH_TEST);
