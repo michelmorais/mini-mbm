@@ -99,28 +99,28 @@ void MY_SCENE::init()
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
     device->colorClearBackGround.b = 0.5f;
-    constexpr bool _2dWorldIsTrue = true;
-    constexpr bool _2dScreenWorldIsTrue = true;
+    constexpr bool _2dWorldIsTrue        = true;
+    constexpr bool _2dScreenWorldIsTrue  = true;
     constexpr bool _2dScreenWorldIsFalse = false;
-    constexpr bool _3dWorldIsFalse = false;
-    constexpr bool _3dWorldIsTrue = true;
+    constexpr bool _3dWorldIsFalse       = false;
+    constexpr bool _3dWorldIsTrue        = true;
 
-    bool create_texBox              = true;
-    bool create_gif                 = true;
-    bool create_sprite              = true;
-    bool create_background          = true;
-    bool create_mesh                = true;
-    bool create_shape               = true;
-    bool create_line                = true;
-    bool create_particle            = true;
-    bool create_particle_ptl        = true;
-    bool create_render2Texture      = true;
-    bool create_steeredParticle     = true;
-    bool create_fontDraw            = true;
-    bool create_hmd                 = true;
-    bool create_tile                = true;
-    bool create_texture             = true;
-    bool create_mousePositionText   = true;
+    constexpr bool create_texBox              = true;
+    constexpr bool create_gif                 = true;
+    constexpr bool create_sprite              = true;
+    constexpr bool create_background          = true;
+    constexpr bool create_mesh                = true;
+    constexpr bool create_shape               = true;
+    constexpr bool create_line                = true;
+    constexpr bool create_particle            = true;
+    constexpr bool create_particle_ptl        = true;
+    constexpr bool create_render2Texture      = true;
+    constexpr bool create_steeredParticle     = true;
+    constexpr bool create_fontDraw            = true;
+    constexpr bool create_hmd                 = false;
+    //constexpr bool create_tile                = true;
+    constexpr bool create_texture             = true;
+    constexpr bool create_mousePositionText   = true;
     
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
@@ -140,11 +140,6 @@ void MY_SCENE::init()
         }
     }
     
-    //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
-    ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
-    //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
-    
-
     if (create_fontDraw)
     {
         this->fontDraw = new mbm::FONT_DRAW(this);
@@ -154,10 +149,10 @@ void MY_SCENE::init()
         bool saveTextureAsPng = false;
         if (this->fontDraw && this->fontDraw->loadFont("VCR_OSD_MONO_1-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTextureAsPng))
         {
-            this->fontDraw->addText("Hello\tMini-MBM!", _2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
+            this->fontDraw->addText("Hello\tMini-MBM!", _2dWorldIsTrue, _2dScreenWorldIsTrue);
             if (create_mousePositionText)
             {
-                mousePositionText = this->fontDraw->addText("Another line!",_2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
+                mousePositionText = this->fontDraw->addText("Another line!",_2dWorldIsTrue, _2dScreenWorldIsTrue);
                 mousePositionText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
             }
             INFO_LOG("Font loaded successfully");
@@ -176,24 +171,7 @@ void MY_SCENE::init()
     //tile->load("tile-stage-1.tile");
     
     
-    //bool loaded = this->texBox->getTexture() != nullptr;
-    //INFO_LOG("texBox load returned: %d", loaded ? 1 : 0);
-    //if (loaded)
-    //{
-    //    INFO_LOG("texBox texture name: %s", this->texBox->getFileNameTexture().c_str());
-    //    INFO_LOG("texBox size: %u x %u  alpha:%d", this->texBox->getTexture()->getWidth(),
-    //        this->texBox->getTexture()->getHeight(),
-    //        this->texBox->getTexture()->useAlphaChannel ? 1 : 0);
-    //}
-    //else
-    //{
-    //    // quick test: try absolute path or solid color
-    //    INFO_LOG("Retrying with solid color test...");
-    //    this->texBox->load("#FF0000", 200, 200);
-    //    this->texBox->getTexture() ? INFO_LOG("Retry succeeded") : INFO_LOG("Retry failed");
-    //}
-
-	////TODO: check why gif is resizing wrong when load with width and height on lost device
+    //TODO: check why gif is resizing wrong when load with width and height on lost device
     if (create_gif)
     {
         gif = new mbm::GIF_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
@@ -216,11 +194,19 @@ void MY_SCENE::init()
     }
     
     //TODO: Needs to be investgated
-    //hmd = new mbm::HMD(this);
-    //if (hmd->load())
-    //{
-    //    hmd->addObject2Render(this->gif);
-    //}
+    if(create_hmd)
+    {
+        hmd = new mbm::HMD(this);
+        if (hmd->load())
+        {
+            hmd->addObject2Render(this->gif);
+            INFO_LOG("HMD loaded successfully");
+        }
+        else
+        {
+            INFO_LOG("Failed to load HMD");
+        }
+    }
     
     
     if (create_sprite)
@@ -305,8 +291,6 @@ void MY_SCENE::init()
             INFO_LOG("Failed to load mesh");
         }
     }
-    //
-
     
 
     if (create_shape)

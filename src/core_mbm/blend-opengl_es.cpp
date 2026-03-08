@@ -49,6 +49,7 @@ namespace mbm
         }
         switch (blendState)
         {
+            //                                   GL_DST_ALPHA,... (old implementatiion)
             case BLEND_ZERO:         GLBlendFunc(GL_SRC_ALPHA, GL_ZERO);                break;
             case BLEND_ONE:          GLBlendFunc(GL_SRC_ALPHA, GL_ONE);                 break;
             case BLEND_SRCCOLOR:     GLBlendFunc(GL_SRC_ALPHA, GL_SRC_COLOR);           break;

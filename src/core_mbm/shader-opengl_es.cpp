@@ -927,7 +927,9 @@ namespace mbm
         // may have set glCullFace(GL_FRONT_AND_BACK) which would cull every triangle.
         const GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
         if (cullFaceEnabled)
+        {
             GLDisable(GL_CULL_FACE);
+        }
         
         GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE,SHADER::modelView.p);
@@ -978,7 +980,9 @@ namespace mbm
         }
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         if (cullFaceEnabled)
+        {
             GLEnable(GL_CULL_FACE);
+        }
         if (depthTestEnabled)
         {
             GLEnable(GL_DEPTH_TEST);
@@ -1021,7 +1025,9 @@ namespace mbm
         // may have set glCullFace(GL_FRONT_AND_BACK) which would cull every triangle.
         const GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
         if (cullFaceEnabled)
+        {
             GLDisable(GL_CULL_FACE);
+        }
 
         GLUniformMatrix4fv(gles_shaderSpecific->mvpMatrixHandle, 1, GL_FALSE, SHADER::mvpMatrix.p);
         GLUniformMatrix4fv(gles_shaderSpecific->mvMatrixHandle, 1, GL_FALSE, SHADER::modelView.p);
@@ -1104,7 +1110,9 @@ namespace mbm
 
         GLBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         if (cullFaceEnabled)
+        {
             GLEnable(GL_CULL_FACE);
+        }
         if (depthTestEnabled)
         {
             GLEnable(GL_DEPTH_TEST);
