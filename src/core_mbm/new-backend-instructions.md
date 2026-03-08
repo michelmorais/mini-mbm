@@ -418,17 +418,50 @@ Required steps:
 `CORE_MANAGER::handleEventFromWindow()` is backend-specific.  It must:
 
 1. Process OS events (window messages, input callbacks).
-2. Translate pointer/touch coordinates from OS units to **physical pixels** before pushing
-   events.  On high-DPI displays (Retina/HiDPI) the OS often supplies logical points;
-   multiply by the display scale factor before comparing with `backBufferWidth/Height`.
+2. Translate pointer/touch coordinates from OS units to **logical points** before pushing
+   events.  `backBufferWidth/Height` is always in **logical points** — the coordinate
+   space the game scene uses.  The rendering-surface size (swapchain extent,
+   `drawableSize`, EGL surface, etc.) uses *physical* pixels (`logical × scale`), but
+   that is a separate value the game loop never reads directly.  Do **not** multiply
+   input coordinates by the scale factor before comparing with `backBufferWidth/Height`.
 3. Push events into `CORE_MANAGER::lsEvents` using `EVENT_KEY` structs.
 4. Call `CORE_MANAGER::loop(singleLoop, doSwapBuffers)` to drive the game loop.
 
 Mouse/touch Y origin: the engine origin is **bottom-left** (Y increases upward), matching
 OpenGL convention.  Most desktop OSes put Y=0 at the top of the window.  Apply Y-flip:
 ```cpp
-float ey = backBufferHeight - (os_y * scale);
+float ey = backBufferHeight - os_y;  // both in logical points — no scale factor
 ```
+
+> **CRITICAL — `backBufferWidth/Height` = logical points, rendering surface = physical pixels**  
+> Storing physical pixels (e.g. `width * retinaScale`) in `backBufferWidth/Height` makes
+> the orthographic camera span physical pixels, so every 2-D object appears at *half*
+> the expected size on a 2× Retina / HiDPI display compared with a non-Retina machine.  
+> Rule of thumb:
+> - `backBufferWidth/Height` — logical points (what the programmer thinks of as screen size)
+> - `drawableSize` / swapchain extent — physical pixels = logical × `contentsScale` / DPI scale  
+> - Input event coordinates — logical points (no multiplication needed on macOS/Windows)
+
+> **CRITICAL — read the actual window size *after* the OS has shown and constrained the window**  
+> On every desktop OS, if you request a window larger than the available screen area the OS
+> silently shrinks it.  That shrink happens during or after `makeKeyAndOrderFront` /
+> `ShowWindow` / `XMapWindow`, **not** when you create the window object.  Reading
+> `contentView.bounds` (macOS) or the equivalent before the window is visible gives the
+> *requested* size, not the *actual* size.  This creates a mismatch: `expectedScreen` is
+> set once on the first `loop()` tick from `backBufferWidth/Height`, and if those values
+> are wrong (e.g. 1 600 instead of 1 470) then `adjustScaleScreen2d()` computes a scale
+> ≠ 1 every frame, offsetting every `is2dS` object.  
+> Fix: pump the run-loop for ≥ 50 ms after showing the window, then read the actual
+> bounds and assign both `backBufferWidth/Height` **and** the native surface size from them.
+
+> **CRITICAL — `setProjectionMode` must only rebuild camera matrices**  
+> `setProjectionMode` is called every frame from inside the render loop.  It must contain
+> **only** a call to `updateCam` (or equivalent matrix rebuild).  Never reassign
+> `backBufferWidth/Height` or the native surface size (e.g. `drawableSize`) from inside
+> this function.  Doing so overwrites the values set by `initGraphics()` and
+> `resetDeviceWithNewDimensions()` every frame, corrupting the coordinate system
+> (sub-pixel gaps, wrong scale, lost Retina resolution).  Those values belong exclusively
+> to the init path and the resize handler.
 
 ---
 
