@@ -73,6 +73,41 @@ static id<MTLSamplerState> getOrCreateSampler(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* 
     return ctx->defaultSampler;
 }
 
+// Maps engine CULL_MODE values (== GL constants) to MTLCullMode.
+static MTLCullMode metalCullMode(uint32_t mode_cull_face)
+{
+    switch (mode_cull_face)
+    {
+        case 0x0404: return MTLCullModeFront;  // CULL_FRONT
+        case 0x0405: return MTLCullModeBack;   // CULL_BACK
+        case 0x0408: return MTLCullModeBack;   // CULL_FRONT_AND_BACK — best Metal approximation
+        default:     return MTLCullModeNone;   // 0 / unknown = no culling
+    }
+}
+
+// Maps engine FACE_DIRECTION values (== GL constants) to MTLWinding.
+static MTLWinding metalWinding(uint32_t mode_front_face_direction)
+{
+    // GL_CCW = 0x0901 → CCW front faces; GL_CW = 0x0900 → CW front faces.
+    return (mode_front_face_direction == 0x0901)
+        ? MTLWindingCounterClockwise
+        : MTLWindingClockwise;
+}
+
+// Lazily creates a depth-stencil state: less comparison, depth writes enabled.
+static id<MTLDepthStencilState> getOrCreateDepthStencilState(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
+{
+    if (!ctx->defaultDepthStencilState)
+    {
+        MTLDepthStencilDescriptor* dsd = [MTLDepthStencilDescriptor new];
+        dsd.depthCompareFunction = MTLCompareFunctionLess;
+        dsd.depthWriteEnabled    = YES;
+        ctx->defaultDepthStencilState =
+            [ctx->mtlDevice newDepthStencilStateWithDescriptor:dsd];
+    }
+    return ctx->defaultDepthStencilState;
+}
+
 // Builds the MSL source for the default shader matching the given FVF.
 static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 {
@@ -517,6 +552,7 @@ namespace mbm
             psd.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
             psd.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
             psd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+            psd.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
             id<MTLRenderPipelineState> pso =
                 [ctx->mtlDevice newRenderPipelineStateWithDescriptor:psd error:&err];
             if (!pso)
@@ -554,6 +590,9 @@ namespace mbm
                 (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
 
             [enc setRenderPipelineState:pso];
+            [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
+            [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
+            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
@@ -633,6 +672,9 @@ namespace mbm
                 (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
 
             [enc setRenderPipelineState:pso];
+            [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
+            [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
+            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
@@ -694,6 +736,9 @@ namespace mbm
                 (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
 
             [enc setRenderPipelineState:pso];
+            [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
+            [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
+            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);

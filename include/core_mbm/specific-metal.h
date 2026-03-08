@@ -95,6 +95,12 @@ namespace mbm
 
         // Default sampler shared by all standard shaders; created on first render() call.
         id<MTLSamplerState> defaultSampler = nil;
+
+        // Depth-stencil state: less comparison + depth write enabled (created on first use).
+        id<MTLDepthStencilState> defaultDepthStencilState = nil;
+
+        // Persistent full-frame depth texture.  Created / resized in beginRender().
+        id<MTLTexture> depthTexture = nil;
     };
 
 } // namespace mbm

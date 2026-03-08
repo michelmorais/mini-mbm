@@ -108,19 +108,19 @@ void MY_SCENE::init()
     constexpr bool create_texBox              = true;
     constexpr bool create_gif                 = true;
     constexpr bool create_sprite              = true;
-    constexpr bool create_background          = true;
+    constexpr bool create_background          = false;
     constexpr bool create_mesh                = true;
     constexpr bool create_shape               = true;
     constexpr bool create_line                = true;
     constexpr bool create_particle            = true;
-    constexpr bool create_particle_ptl        = true;
-    constexpr bool create_render2Texture      = true;
-    constexpr bool create_steeredParticle     = true;
-    constexpr bool create_fontDraw            = true;
+    constexpr bool create_particle_ptl        = false;
+    constexpr bool create_render2Texture      = false;
+    constexpr bool create_steeredParticle     = false;
+    constexpr bool create_fontDraw            = false;//segmentation fault when load font on Mac
     constexpr bool create_hmd                 = false;
     //constexpr bool create_tile                = true;
     constexpr bool create_texture             = true;
-    constexpr bool create_mousePositionText   = true;
+    constexpr bool create_mousePositionText   = false;
     
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
@@ -283,6 +283,7 @@ void MY_SCENE::init()
         if(mesh->load("Barrel_NoTop.msh"))
         {
             INFO_LOG("Mesh loaded successfully");
+            mesh->scale = mbm::VEC3(10.0f, 10.0f, 10.0f);
             mesh->position.z = -100;
             mesh->position.y = 100;
         }
@@ -489,7 +490,10 @@ void MY_SCENE::logic()
             float data[4] = { 0, 0, 0, 0 };
             if(fx->getVarPShader("percent", data) == 0)
             {
+                static bool loggedError = false;
+                if (!loggedError)
                 INFO_LOG("Failed to get percent variable from shader");
+                loggedError = true;
             }
             //INFO_LOG("data : %g", data[0]);
             //data[0] += 0.01f;

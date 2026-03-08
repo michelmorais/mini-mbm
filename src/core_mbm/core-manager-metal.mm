@@ -102,9 +102,29 @@ namespace mbm
                 static_cast<double>(device->colorClearBackGround.a));
             desc.colorAttachments[0].storeAction = MTLStoreActionStore;
 
-            // Depth attachment (backed by a persistent depth texture created on first use / resize)
-            // For Milestone 1 we omit a depth buffer; objects are rendered without depth test.
-            // A depth texture will be added in a later milestone.
+            // Depth attachment — create or resize to match the current drawable.
+            {
+                const NSUInteger dw = ctx->currentDrawable.texture.width;
+                const NSUInteger dh = ctx->currentDrawable.texture.height;
+                if (!ctx->depthTexture ||
+                    ctx->depthTexture.width  != dw ||
+                    ctx->depthTexture.height != dh)
+                {
+                    MTLTextureDescriptor* dd =
+                        [MTLTextureDescriptor
+                            texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                         width:dw
+                                                        height:dh
+                                                     mipmapped:NO];
+                    dd.usage       = MTLTextureUsageRenderTarget;
+                    dd.storageMode = MTLStorageModePrivate;
+                    ctx->depthTexture = [ctx->mtlDevice newTextureWithDescriptor:dd];
+                }
+                desc.depthAttachment.texture     = ctx->depthTexture;
+                desc.depthAttachment.loadAction  = MTLLoadActionClear;
+                desc.depthAttachment.clearDepth  = 1.0;
+                desc.depthAttachment.storeAction = MTLStoreActionDontCare;
+            }
 
             ctx->currentCommandBuffer = [ctx->commandQueue commandBuffer];
             ctx->currentCommandBuffer.label = @"MBM Frame";

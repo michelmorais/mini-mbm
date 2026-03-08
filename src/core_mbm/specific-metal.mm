@@ -70,6 +70,8 @@ namespace mbm
         commandQueue         = nil;
         metalLayer           = nil;
         defaultSampler       = nil;
+        defaultDepthStencilState = nil;
+        depthTexture         = nil;
         // NSWindow and NSApplication are managed by the OS; we close the window
         // but do not release the application.
         if (window)
