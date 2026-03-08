@@ -383,6 +383,26 @@ Required steps:
    begin a secondary render pass for each target, render its object list, end the pass.
 3. The result texture is then available for sampling in the main pass.
 
+> **CRITICAL — call `setTextureCapabilities()` inside `initGraphics()`**  
+> `TEXTURE_MANAGER::maxTextureSize` is initialized to `0`.  Every
+> `createTextureRenderTarget()` call checks `width > maxTextureSize` before
+> allocating — if you forget this call, every render target will fail silently.
+> Call it at the end of your backend's `initGraphics()` with the GPU's real
+> limits, e.g.:
+> ```cpp
+> mbm::TEXTURE_MANAGER* tm = mbm::TEXTURE_MANAGER::getInstance();
+> tm->setTextureCapabilities(16384, 16384, 16384); // Metal: 16 K on all families
+> ```
+> Other backends (OpenGL ES, DirectX9) already do this — do not forget it.
+
+> **UV orientation — display quad (`fillvertexQuad`)**  
+> When the captured texture is displayed as a 2-D quad, the V coordinate must
+> match the render-target's row origin:
+> - **OpenGL ES** — FBO row 0 is at the *bottom* → `uvOriginBottomLeft = false`
+> - **Metal / DirectX9** — texture row 0 is at the *top* → `uvOriginBottomLeft = true`  
+> See `RENDER_2_TEXTURE::fillvertexQuad()` in `render-2-texture.cpp` —
+> add your backend's define to the existing `#if defined(USE_DIRECTX9) || defined(USE_METAL)` guard.
+
 ---
 
 ## 13. Platform event loop (`handleEventFromWindow`)

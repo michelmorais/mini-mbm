@@ -440,8 +440,10 @@ namespace mbm
     
     void RENDER_2_TEXTURE::fillvertexQuad(VEC3 *_position, VEC3 *normal, VEC2 *uv, const float width, const float height)
     {
-        // OpenGL ES: origin bottom-left. DirectX9: origin top-left (flip V).
-#if defined(USE_DIRECTX9)
+        // OpenGL ES: FBO row-0 at bottom → uvOriginBottomLeft=false (V=0 samples bottom).
+        // DirectX9 / Metal: texture row-0 at top → uvOriginBottomLeft=true (V=0 samples top).
+        // Without the flip the captured content appears upside-down on DX9/Metal.
+#if defined(USE_DIRECTX9) || defined(USE_METAL)
         mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
 #else
         mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);

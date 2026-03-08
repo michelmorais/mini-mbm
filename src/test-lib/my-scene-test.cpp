@@ -337,8 +337,8 @@ void MY_SCENE::init()
             {
                 ERROR_LOG("Failed to add gif to render2Texture");
             }
-            render2Texture->position.x = 1024 - (350 / 2);
-            render2Texture->position.y = 204 / 2.0f;;
+            render2Texture->position.x = static_cast<float>(device->backBufferWidth) - (350 / 2.0f);
+            render2Texture->position.y = 204 / 2.0f;
         }
         else
         {
