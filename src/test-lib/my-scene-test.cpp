@@ -33,6 +33,7 @@ MY_SCENE::MY_SCENE()
     shape                     = nullptr;
     line                      = nullptr;
     particle                  = nullptr;
+    particle_ptl              = nullptr;
     render2Texture            = nullptr;
     toTrack                   = nullptr;
     steeredParticle           = nullptr;
@@ -77,6 +78,8 @@ MY_SCENE::~MY_SCENE()
         delete tile;
     if (texture)
         delete texture;
+    if(particle_ptl)
+        delete particle_ptl;
     //we do not to delete mousePositionText because it is managed by fontDraw, so when fontDraw is deleted, it will take care of deleting the text objects that it manages (including mousePositionText)
 }
 
@@ -96,9 +99,14 @@ void MY_SCENE::init()
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
     device->colorClearBackGround.b = 0.5f;
+    constexpr bool _2dWorldIsTrue = true;
+    constexpr bool _2dScreenWorldIsTrue = true;
+    constexpr bool _2dScreenWorldIsFalse = false;
+    constexpr bool _3dWorldIsFalse = false;
+    constexpr bool _3dWorldIsTrue = true;
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
-	this->background = new mbm::BACKGROUND(this, false);
+	this->background = new mbm::BACKGROUND(this, _3dWorldIsFalse);
 	bool majorScale = true;
     if(this->background->load("ground.png", true, majorScale))
     {
@@ -123,8 +131,8 @@ void MY_SCENE::init()
     bool saveTextureAsPng = false;
     if (this->fontDraw->loadFont("VCR_OSD_MONO_1-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTextureAsPng))
     {
-		this->fontDraw->addText("Hello\tMini-MBM!", mbm::VEC2(10, 10), true, true);
-        mousePositionText = this->fontDraw->addText("Another line!", mbm::VEC2(10, 50), true, true);
+		this->fontDraw->addText("Hello\tMini-MBM!", _2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
+        mousePositionText = this->fontDraw->addText("Another line!",_2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
         mousePositionText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
         INFO_LOG("Font loaded successfully");
     }
@@ -158,10 +166,10 @@ void MY_SCENE::init()
     //}
 
 	////TODO: check why gif is resizing wrong when load with width and height on lost device
-    gif = new mbm::GIF_VIEW(this,false,false);
+    gif = new mbm::GIF_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
     gif->load("Lion-King.gif",600,400);
 
-    this->texBox = new mbm::TEXTURE_VIEW(this, false, false);
+    this->texBox = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
     if(this->texBox->load("wooden-box.jpg", 200, 200))
     {
         INFO_LOG("TextureView loaded successfully");
@@ -198,7 +206,7 @@ void MY_SCENE::init()
         INFO_LOG("Failed to load sprite");
     }
 
-    texture = new mbm::TEXTURE_VIEW(this,false, true);
+    texture = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
     if (texture->load("pie.png"))
     {
         float w, h;
@@ -243,8 +251,7 @@ void MY_SCENE::init()
         }
     }
     
-    bool isMesh3d = true;
-    mesh = new mbm::MESH(this, isMesh3d, false);
+    mesh = new mbm::MESH(this, _3dWorldIsTrue, _2dScreenWorldIsFalse);
     if(mesh->load("Barrel_NoTop.msh"))
     {
         INFO_LOG("Mesh loaded successfully");
@@ -259,7 +266,7 @@ void MY_SCENE::init()
 
     
 
-    shape = new mbm::SHAPE_MESH(this, false, false);
+    shape = new mbm::SHAPE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
     if(shape->loadRectangle("quad", 100, 100, true, 2))
     {
         INFO_LOG("Shape loaded successfully");
@@ -271,7 +278,7 @@ void MY_SCENE::init()
         INFO_LOG("Failed to load shape");
     }
     
-    line = new mbm::LINE_MESH(this, false, false);
+    line = new mbm::LINE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
 	for (int i = 0; i < 2; i++)
     {
         std::vector<mbm::VEC3> lines;
@@ -281,21 +288,22 @@ void MY_SCENE::init()
     }
     
     
-    render2Texture = new mbm::RENDER_2_TEXTURE(this, false, true);
+    /*render2Texture = new mbm::RENDER_2_TEXTURE(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
     if (render2Texture->load(350, 204, 350, 204, "my-render", true))
     {
         INFO_LOG("Render2Texture loaded successfully");
         render2Texture->addObject2Render(gif);
         render2Texture->position.x = 1024 - (350 / 2);
         render2Texture->position.y = 204 / 2.0f;;
-    }
+    }*/
 
     this->toTrack = texBox;
     
 
     mbm::INFO_PHYSICS infoPhysiscs;
 	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
-    steeredParticle = new mbm::STEERED_PARTICLE(this, false, false, false, nullptr );
+    bool segmented = false;
+    steeredParticle = new mbm::STEERED_PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse, segmented, nullptr );
 	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
     if (steeredParticle->load("particle.png", &colorParticle, &infoPhysiscs))
     {
@@ -328,7 +336,7 @@ void MY_SCENE::init()
     
         INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
         steeredParticle->restartAnimationParticle();
-        //steeredParticle->restartAnimation();
+        steeredParticle->restartAnimation();
     }
     else
     {
@@ -336,7 +344,7 @@ void MY_SCENE::init()
     }
 	
 
-    particle = new mbm::PARTICLE(this, false, false);
+    particle = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
     if (particle->load("particle.png", nullptr, nullptr, 100, true))
     {
         particle->addParticle(1000,true);
@@ -344,7 +352,17 @@ void MY_SCENE::init()
         particle->restartAnimationParticle();
         INFO_LOG("Particle loaded successfully");
     }
-    
+
+    particle_ptl = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+    if (particle_ptl->load("particle_red.ptl", nullptr, nullptr, 100, true))
+    {        particle_ptl->addParticle(100, true);
+        particle_ptl->restartAnimationParticle();
+        INFO_LOG("Particle_ptl loaded successfully");  
+    }
+    else
+    {
+        INFO_LOG("Failed to load particle_ptl");
+    }
 }
 
 void MY_SCENE::randomSteeredParticlePositions()
@@ -430,7 +448,7 @@ void MY_SCENE::logic()
     }
 }
 
-void MY_SCENE::onTouchDown(int key, float, float)
+void MY_SCENE::onTouchDown(int key, float x, float y)
 {
 	INFO_LOG("Touch down key: %d", key);
     if (sprite)
@@ -447,6 +465,31 @@ void MY_SCENE::onTouchDown(int key, float, float)
         else
         {
             sprite->restartAnimation();
+        }
+    }
+    if(particle_ptl)
+    {
+        if (key == 0)
+        {
+            if(particle_ptl->is2dS)
+            {
+                particle_ptl->position.x = x;
+                particle_ptl->position.y = y;
+            }
+            else
+            {
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                device->transformeScreen2dToWorld2d_scaled(x, y, particle_ptl->position);
+            }
+
+            if(particle_ptl->addParticle(100, true))
+            {
+                INFO_LOG("Added 100 particles to particle_ptl");
+            }
+            else
+            {
+                INFO_LOG("Failed to add particles to particle_ptl");
+            }
         }
     }
     
