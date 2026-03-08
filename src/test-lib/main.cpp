@@ -33,7 +33,7 @@ int main()
     game.setUsageOfDefaultPS_VS_WhenNoShader(true, true);
     constexpr bool singleLoop    = false;
     constexpr bool doSwapBuffers = true;
-    if(game.initGraphics("Hello-world", 1024, 900, 100, 100, true, true))
+    if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
         return game.loop(singleLoop, doSwapBuffers);
     return -1;
 }
