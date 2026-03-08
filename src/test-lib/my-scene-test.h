@@ -60,8 +60,6 @@ class MY_SCENE : public mbm::SCENE
     mbm::TEXT_DRAW * mousePositionText;
     bool randomizeParticleEachLoop;
     float backGroundTimeToHide;
-    int windowWidth;
-    int windowHeight;
 
 	void randomSteeredParticlePositions();
     MY_SCENE();

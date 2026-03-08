@@ -44,8 +44,6 @@ MY_SCENE::MY_SCENE()
     texture                   = nullptr;
     mousePositionText         = nullptr;
     backGroundTimeToHide      = 1.0f;
-    windowWidth               = 1024;
-    windowHeight              = 1024;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -236,7 +234,7 @@ void MY_SCENE::init()
         {
             float w, h;
             texture->getAABB(&w, &h);
-            texture->position.y = windowHeight - (h / 2.0f);
+            texture->position.y = device->backBufferHeight - (h / 2.0f);
             texture->position.x = w / 2.0f;
             INFO_LOG("Pie texture loaded");
             mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
