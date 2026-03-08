@@ -217,6 +217,10 @@ namespace mbm
             // (MINIZ version logging not available in Metal build)
         }
 
+        // All Metal-capable Macs support 16384 × 16384 px textures (macOS GPU Family 1+).
+        mbm::TEXTURE_MANAGER* texture_manager = mbm::TEXTURE_MANAGER::getInstance();
+        texture_manager->setTextureCapabilities(16384, 16384, 16384);
+
         return true;
     }
 

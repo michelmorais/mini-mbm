@@ -419,7 +419,7 @@ Implement features in this order to reach a testable state as early as possible:
 - [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
       Skinned meshes, line meshes, and text rendering require this.
 - [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
-- [ ] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
+- [x] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
 - [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.

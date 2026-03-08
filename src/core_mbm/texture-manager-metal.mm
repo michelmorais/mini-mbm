@@ -159,14 +159,71 @@ namespace mbm
         TEXTURE* texture = lsTextures[fileNameBase];
         if (texture)
             return texture;
-        texture = new TEXTURE();
-        // TODO: create MTLTexture as render target and attach to renderToTarget.
-        texture->width            = static_cast<uint32_t>(width);
-        texture->height           = static_cast<uint32_t>(height);
-        texture->useAlphaChannel  = enableAlpha;
-        texture->fileName         = std::move(fileNameBase);
-        lsTextures[texture->fileName] = texture;
-        return texture;
+
+        id<MTLDevice> mtlDev = getMetalDevice();
+        if (!mtlDev) return nullptr;
+
+        TEXTURE* newTexture = nullptr;
+        @autoreleasepool
+        {
+            const NSUInteger tw = static_cast<NSUInteger>(width);
+            const NSUInteger th = static_cast<NSUInteger>(height);
+
+            // Color texture — same pixel format as the main CAMetalLayer so that the
+            // existing (already compiled) MTLRenderPipelineState is valid for both the
+            // main pass and any render-to-texture pass.
+            MTLTextureDescriptor* cd =
+                [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+                                                                   width:tw
+                                                                  height:th
+                                                               mipmapped:NO];
+            cd.usage       = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+            cd.storageMode = MTLStorageModePrivate;
+            id<MTLTexture> colorTex = [mtlDev newTextureWithDescriptor:cd];
+            if (!colorTex) return nullptr;
+
+            // Depth texture — same format as the main depth buffer.
+            MTLTextureDescriptor* dd =
+                [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                                   width:tw
+                                                                  height:th
+                                                               mipmapped:NO];
+            dd.usage       = MTLTextureUsageRenderTarget;
+            dd.storageMode = MTLStorageModePrivate;
+            id<MTLTexture> depthTex = [mtlDev newTextureWithDescriptor:dd];
+
+            // Build the render pass descriptor used each time this target is rendered.
+            MTLRenderPassDescriptor* passDesc = [MTLRenderPassDescriptor renderPassDescriptor];
+            passDesc.colorAttachments[0].texture     = colorTex;
+            passDesc.colorAttachments[0].loadAction  = MTLLoadActionClear;
+            passDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+            passDesc.colorAttachments[0].clearColor  = MTLClearColorMake(1.0, 1.0, 1.0, 1.0);
+            if (depthTex)
+            {
+                passDesc.depthAttachment.texture     = depthTex;
+                passDesc.depthAttachment.loadAction  = MTLLoadActionClear;
+                passDesc.depthAttachment.clearDepth  = 1.0;
+                passDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
+            }
+
+            // Store GPU objects in the render-target's backend config.
+            RENDER2TARGET_METAL* rf = static_cast<RENDER2TARGET_METAL*>(renderToTarget->specificConfig);
+            rf->renderTexture  = colorTex;
+            rf->depthTexture   = depthTex;
+            rf->passDescriptor = passDesc;
+            rf->width          = static_cast<uint32_t>(tw);
+            rf->height         = static_cast<uint32_t>(th);
+
+            // Build the TEXTURE record used for sampling in the main pass.
+            newTexture = new TEXTURE();
+            newTexture->ptrTexture      = (__bridge_retained void*)colorTex;
+            newTexture->width           = static_cast<uint32_t>(tw);
+            newTexture->height          = static_cast<uint32_t>(th);
+            newTexture->useAlphaChannel = enableAlpha;
+            newTexture->fileName        = std::move(fileNameBase);
+            lsTextures[newTexture->fileName] = newTexture;
+        }
+        return newTexture;
     }
 
 } // namespace mbm

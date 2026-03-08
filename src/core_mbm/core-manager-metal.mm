@@ -159,14 +159,58 @@ namespace mbm
 
     bool CORE_MANAGER::renderToTargets()
     {
-        // TODO: implement render-to-texture via MTLRenderPassDescriptor with offscreen MTLTexture.
-        // For Milestone 1 (no render-to-texture objects in the empty scene) just return true.
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
+        if (!ctx || !ctx->mtlDevice || !ctx->commandQueue) return true;
+
+        bool oneRender = false;
         for (auto renderTarget : this->device->lsObjectRenderToTarget)
         {
             if (!renderTarget->isObjectOnFrustum)
                 continue;
-            // Full implementation: encode a secondary render pass here.
-            (void)renderTarget;
+            RENDER2TARGET_METAL* rf =
+                static_cast<RENDER2TARGET_METAL*>(renderTarget->specificConfig);
+            if (!rf || !rf->renderTexture || !rf->passDescriptor)
+                continue;
+
+            // Update clear colour from the render target definition.
+            const COLOR& bg = renderTarget->colorClearBackGround;
+            rf->passDescriptor.colorAttachments[0].clearColor =
+                MTLClearColorMake(
+                    static_cast<double>(bg.r),
+                    static_cast<double>(bg.g),
+                    static_cast<double>(bg.b),
+                    static_cast<double>(bg.a));
+
+            id<MTLCommandBuffer> cmdBuf = [ctx->commandQueue commandBuffer];
+            if (!cmdBuf) continue;
+            cmdBuf.label = @"MBM RenderToTarget";
+
+            id<MTLRenderCommandEncoder> encoder =
+                [cmdBuf renderCommandEncoderWithDescriptor:rf->passDescriptor];
+            if (!encoder) continue;
+            encoder.label = @"MBM RTT Encoder";
+
+            // Route all SHADER::render() calls to the off-screen encoder.
+            ctx->currentEncoder = encoder;
+            renderTarget->render2Texture();
+            [encoder endEncoding];
+
+            // Commit without stalling CPU.  Both this command buffer and the main
+            // frame command buffer (created later in beginRender()) are enqueued on
+            // the same MTLCommandQueue, so the GPU executes them in submission order.
+            [cmdBuf commit];
+            ctx->currentEncoder = nil;
+            oneRender = true;
+        }
+
+        if (oneRender)
+        {
+            // Restore the camera to main backbuffer dimensions in case render2Texture()
+            // updated it for the off-screen target.
+            this->device->camera.updateCam(
+                true,
+                static_cast<float>(device->backBufferWidth),
+                static_cast<float>(device->backBufferHeight));
         }
         return true;
     }

@@ -114,7 +114,7 @@ void MY_SCENE::init()
     constexpr bool create_line                = true;
     constexpr bool create_particle            = true;
     constexpr bool create_particle_ptl        = false;
-    constexpr bool create_render2Texture      = false;
+    constexpr bool create_render2Texture      = true;
     constexpr bool create_steeredParticle     = false;
     constexpr bool create_fontDraw            = false;//segmentation fault when load font on Mac
     constexpr bool create_hmd                 = false;
@@ -136,7 +136,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load background");
+            ERROR_LOG("Failed to load background");
         }
     }
     
@@ -189,7 +189,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load TextureView");
+            ERROR_LOG("Failed to load TextureView");
         }
     }
     
@@ -204,7 +204,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load HMD");
+            ERROR_LOG("Failed to load HMD");
         }
     }
     
@@ -221,7 +221,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load sprite");
+            ERROR_LOG("Failed to load sprite");
         }
     }
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
@@ -266,12 +266,12 @@ void MY_SCENE::init()
                     }
                     else
                     {
-                        INFO_LOG("Failed to apply shader pie to texture");
+                        ERROR_LOG("Failed to apply shader pie to texture");
                     }
                 }
                 else
                 {
-                    INFO_LOG("Failed to get FX from texture");
+                    ERROR_LOG("Failed to get FX from texture");
                 }
             }
         }
@@ -289,7 +289,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load mesh");
+            ERROR_LOG("Failed to load mesh");
         }
     }
     
@@ -305,7 +305,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load shape");
+            ERROR_LOG("Failed to load shape");
         }
     }
     
@@ -329,9 +329,20 @@ void MY_SCENE::init()
         if (render2Texture->load(350, 204, 350, 204, "my-render", true))
         {
             INFO_LOG("Render2Texture loaded successfully");
-            render2Texture->addObject2Render(gif);
+            if(render2Texture->addObject2Render(gif))
+            {
+                INFO_LOG("Gif added to render2Texture successfully");
+            }
+            else
+            {
+                ERROR_LOG("Failed to add gif to render2Texture");
+            }
             render2Texture->position.x = 1024 - (350 / 2);
             render2Texture->position.y = 204 / 2.0f;;
+        }
+        else
+        {
+            ERROR_LOG("Failed to load render2Texture");
         }
     }
 
@@ -373,7 +384,7 @@ void MY_SCENE::init()
             }
             else
             {
-                INFO_LOG("ERROR: Texture not loaded!");
+                ERROR_LOG("ERROR: Texture not loaded!");
             }
         
             INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
@@ -382,7 +393,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load steered particle");
+            ERROR_LOG("Failed to load steered particle");
         }
     }
 
@@ -398,7 +409,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load particle from file...");
+            ERROR_LOG("Failed to load particle from file...");
         }
     }
 
@@ -413,7 +424,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load particle_ptl");
+            ERROR_LOG("Failed to load particle_ptl");
         }
     }
 }
@@ -492,7 +503,7 @@ void MY_SCENE::logic()
             {
                 static bool loggedError = false;
                 if (!loggedError)
-                INFO_LOG("Failed to get percent variable from shader");
+                ERROR_LOG("Failed to get percent variable from shader");
                 loggedError = true;
             }
             //INFO_LOG("data : %g", data[0]);
@@ -551,7 +562,7 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
             }
             else
             {
-                INFO_LOG("Failed to add particles to particle_ptl");
+                ERROR_LOG("Failed to add particles to particle_ptl");
             }
         }
     }
