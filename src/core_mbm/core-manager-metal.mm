@@ -70,7 +70,10 @@ namespace mbm
         SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
         if (!ctx || !ctx->metalLayer) return true;
 
-        ctx->metalLayer.drawableSize = CGSizeMake(newWidth, newHeight);
+        // newWidth/newHeight are in logical points; scale up to physical pixels
+        // for the Metal drawable (so Retina displays render at full resolution).
+        const CGFloat sc = ctx->metalLayer.contentsScale > 0.0 ? ctx->metalLayer.contentsScale : 1.0;
+        ctx->metalLayer.drawableSize = CGSizeMake(newWidth * sc, newHeight * sc);
         this->device->backBufferWidth  = static_cast<float>(newWidth);
         this->device->backBufferHeight = static_cast<float>(newHeight);
         return true;

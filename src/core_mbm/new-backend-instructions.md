@@ -78,7 +78,7 @@ attempt to build or test the editors during the initial port.
 
 ### Git workflow — add new files immediately, do not push
 
-Whenever you create a new backend source file, **`git add` it straight away**:
+Whenever you **create** a new backend source file, `git add` it straight away:
 
 ```bash
 git add src/core_mbm/specific-vulkan.cpp src/core_mbm/device-vulkan.cpp  # etc.
@@ -88,6 +88,14 @@ Why this matters: CMake generates build rules from the source file list at confi
 time.  An untracked file can be silently omitted from an incremental build, leaving the
 previous backend's stale `.o` linked instead of your new code.  Adding every new file to
 the Git index ensures Make/Ninja always regenerates rules from the correct sources.
+
+**Only do `git add` for new (untracked) files.**  Do not stage modifications to
+already-tracked files — this keeps `git diff` / `git difftool` clean so the owner can
+review exactly what changed.  You can verify which files are untracked with:
+
+```bash
+git status --short   # ?? = untracked (needs git add); M = modified (leave unstaged)
+```
 
 **Do not `git push` until the backend compiles cleanly and the project owner has reviewed
 the new files.**  Keep the commits local until they have been inspected.

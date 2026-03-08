@@ -99,16 +99,9 @@ namespace mbm
 
     void DEVICE::setProjectionMode(const bool is3D, const float width, const float height)
     {
-        // Update Metal layer drawable size to match the requested resolution.
-        if (this->specificContextDevice && this->specificContextDevice->metalLayer && width > 0 && height > 0)
-        {
-            this->specificContextDevice->metalLayer.drawableSize =
-                CGSizeMake(static_cast<CGFloat>(width), static_cast<CGFloat>(height));
-        }
-        if (width > 0)
-            backBufferWidth = width;
-        if (height > 0)
-            backBufferHeight = height;
+        // In the Metal backend, backBufferWidth/Height and drawableSize are managed
+        // by initGraphics() and resetDeviceWithNewDimensions() only.
+        // Here we just rebuild the camera matrices for the given dimensions.
         if (width > 0 && height > 0)
             this->camera.updateCam(is3D, static_cast<float>(width), static_cast<float>(height));
     }

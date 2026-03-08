@@ -184,14 +184,13 @@ namespace mbm
         [contentView setWantsLayer:YES];
         ctx->metalLayer.frame = contentView.bounds;
 
-        // Match drawable size to points×scale (for Retina displays).
         CGFloat scale = [ctx->window backingScaleFactor];
-        ctx->metalLayer.contentsScale    = scale;
-        ctx->metalLayer.drawableSize     = CGSizeMake(width * scale, height * scale);
+        ctx->metalLayer.contentsScale = scale;
+        // Preliminary drawable size based on requested dimensions — Metal needs a
+        // valid size before the window appears.  Will be corrected below after the
+        // OS has had a chance to constrain the window to the screen.
+        ctx->metalLayer.drawableSize = CGSizeMake(width * scale, height * scale);
 
-        // Update back-buffer dimensions to the actual pixel size.
-        this->device->backBufferWidth  = static_cast<float>(width  * scale);
-        this->device->backBufferHeight = static_cast<float>(height * scale);
         this->device->windowPositionX  = px;
         this->device->windowPositionY  = py;
 
@@ -199,23 +198,34 @@ namespace mbm
         [ctx->window makeKeyAndOrderFront:nil];
         [NSApp activateIgnoringOtherApps:YES];
 
-        // Pump the run-loop once so the window is actually mapped before we start
-        // rendering (avoids a black flash on the first frame).
+        // Pump the run-loop so the window is actually mapped.  After this point
+        // macOS has constrained the window to the available screen area, so
+        // contentView.bounds reflects the real logical dimensions.
         [NSApp nextEventMatchingMask:NSEventMaskAny
                            untilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]
                               inMode:NSDefaultRunLoopMode
                              dequeue:NO];
 
+        // Read the actual content-view size NOW (after OS constraining).
+        // On a screen that is smaller than the requested window size, macOS will
+        // cap the window; we must use those capped dimensions as the backbuffer
+        // size so that expectedScreen == backBufferSize and scaleScreen2d == 1.0.
+        NSRect actualBounds = [ctx->window contentView].bounds;
+        this->device->backBufferWidth  = static_cast<float>(actualBounds.size.width);
+        this->device->backBufferHeight = static_cast<float>(actualBounds.size.height);
+        ctx->metalLayer.drawableSize   = CGSizeMake(actualBounds.size.width  * scale,
+                                                     actualBounds.size.height * scale);
+
         // Mark device as running.
         this->device->run = true;
 
-        if (this->device->verbose)
-        {
-            INFO_LOG("\nMetal device: %s", [ctx->mtlDevice.name UTF8String]);
-            INFO_LOG("\nBackbuffer: %.0f x %.0f px (scale %.2f)",
-                     this->device->backBufferWidth, this->device->backBufferHeight, scale);
-            // (MINIZ version logging not available in Metal build)
-        }
+        // Log so any OS-imposed size difference is immediately visible.
+        INFO_LOG("Metal device: %s", [ctx->mtlDevice.name UTF8String]);
+        INFO_LOG("Requested logical size: %dx%d | Actual contentView: %.1f x %.1f | Retina scale: %.2f | Drawable: %.0f x %.0f",
+                 width, height,
+                 actualBounds.size.width, actualBounds.size.height,
+                 scale,
+                 ctx->metalLayer.drawableSize.width, ctx->metalLayer.drawableSize.height);
 
         // All Metal-capable Macs support 16384 × 16384 px textures (macOS GPU Family 1+).
         mbm::TEXTURE_MANAGER* texture_manager = mbm::TEXTURE_MANAGER::getInstance();
@@ -236,16 +246,17 @@ namespace mbm
             SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
             if (!ctx || !ctx->window) return;
 
-            // Scale factor converts logical NSEvent points → physical pixel coordinates
-            // that match backBufferWidth/Height (set to drawable size at init).
-            const CGFloat scale = [ctx->window backingScaleFactor];
+            // backBufferWidth/Height are in logical points (not scaled).
+            // NSEvent coordinates arrive in logical points — no scale needed.
 
             // Converts a logical-point NSPoint (origin bottom-left) to engine coords
             // (origin top-left, physical pixels).
+            // NSEvent coordinates are already in logical points (same space as
+            // backBufferWidth/Height).  No scale multiplication needed.
             auto toEngineXY = [&](NSPoint p, float& ex, float& ey) {
-                ex = static_cast<float>(p.x * scale);
+                ex = static_cast<float>(p.x);
                 ey = static_cast<float>(this->device->backBufferHeight) -
-                     static_cast<float>(p.y * scale);
+                     static_cast<float>(p.y);
             };
 
             NSEvent* event;
@@ -382,14 +393,13 @@ namespace mbm
             if (ctx->window && ctx->metalLayer)
             {
                 NSRect bounds = [ctx->window contentView].bounds;
-                CGFloat sc    = [ctx->window backingScaleFactor];
-                int newW = static_cast<int>(bounds.size.width  * sc);
-                int newH = static_cast<int>(bounds.size.height * sc);
+                // Logical point size — consistent with backBufferWidth/Height.
+                int newW = static_cast<int>(bounds.size.width);
+                int newH = static_cast<int>(bounds.size.height);
                 if (newW > 0 && newH > 0 &&
                     (newW != static_cast<int>(device->backBufferWidth) ||
                      newH != static_cast<int>(device->backBufferHeight)))
                 {
-                    ctx->metalLayer.drawableSize = CGSizeMake(newW, newH);
                     this->onResizeWindow(newW, newH);
                 }
             }
