@@ -104,38 +104,66 @@ void MY_SCENE::init()
     constexpr bool _2dScreenWorldIsFalse = false;
     constexpr bool _3dWorldIsFalse = false;
     constexpr bool _3dWorldIsTrue = true;
+
+    bool create_texBox              = false;
+    bool create_gif                 = false;
+    bool create_sprite              = false;
+    bool create_background          = false;
+    bool create_mesh                = false;
+    bool create_shape               = false;
+    bool create_line                = true;
+    bool create_particle            = true;
+    bool create_particle_ptl        = false;
+    bool create_render2Texture      = false;
+    bool create_steeredParticle     = false;
+    bool create_fontDraw            = false;
+    bool create_hmd                 = false;
+    bool create_tile                = false;
+    bool create_texture             = false;
+    bool create_mousePositionText   = false;
+    
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
-	this->background = new mbm::BACKGROUND(this, _3dWorldIsFalse);
-	bool majorScale = true;
-    if(this->background->load("ground.png", true, majorScale))
+    if (create_background)
     {
-        INFO_LOG("Background loaded successfully");
-        this->background->position.y = 200;
-        this->background->position.z = 100;
+        this->background = new mbm::BACKGROUND(this, _3dWorldIsFalse);
+        bool majorScale = true;
+        if(this->background->load("ground.png", true, majorScale))
+        {
+            INFO_LOG("Background loaded successfully");
+            this->background->position.y = 200;
+            this->background->position.z = 100;
+        }
+        else
+        {
+            INFO_LOG("Failed to load background");
+        }
     }
-    else
-    {
-        INFO_LOG("Failed to load background");
-    }
-
+    
     //util::addPath("C:\\Users\\miche\\Documents\\mini-mbm\\src\\test-lib\\");
     ////util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\AntigosX");
     //util::addPath("C:\\Users\\miche\\Dropbox\\Games\\3d\\Box-broken");
     
 
-	this->fontDraw = new mbm::FONT_DRAW(this);
-    float heightLetter = 0; // since this font is binary, this should not affect the result, but for ttf fonts this is the height of the letters in pixels, so it is important to set it right (50 in our test font)
-    short spaceWidth = 0;
-    short spaceHeight = 0;
-    bool saveTextureAsPng = false;
-    if (this->fontDraw->loadFont("VCR_OSD_MONO_1-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTextureAsPng))
+    if (create_fontDraw)
     {
-		this->fontDraw->addText("Hello\tMini-MBM!", _2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
-        mousePositionText = this->fontDraw->addText("Another line!",_2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
-        mousePositionText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        INFO_LOG("Font loaded successfully");
+        this->fontDraw = new mbm::FONT_DRAW(this);
+        float heightLetter = 0; // since this font is binary, this should not affect the result, but for ttf fonts this is the height of the letters in pixels, so it is important to set it right (50 in our test font)
+        short spaceWidth = 0;
+        short spaceHeight = 0;
+        bool saveTextureAsPng = false;
+        if (this->fontDraw && this->fontDraw->loadFont("VCR_OSD_MONO_1-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTextureAsPng))
+        {
+            this->fontDraw->addText("Hello\tMini-MBM!", _2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
+            if (create_mousePositionText)
+            {
+                mousePositionText = this->fontDraw->addText("Another line!",_2dScreenWorldIsTrue, _2dScreenWorldIsTrue);
+                mousePositionText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+            }
+            INFO_LOG("Font loaded successfully");
+        }
     }
+    
 
     //if (meshDebug.loadDebugFromMemory(this->fontDraw->getMesh()))
     //{
@@ -166,19 +194,25 @@ void MY_SCENE::init()
     //}
 
 	////TODO: check why gif is resizing wrong when load with width and height on lost device
-    gif = new mbm::GIF_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-    gif->load("Lion-King.gif",600,400);
-
-    this->texBox = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-    if(this->texBox->load("wooden-box.jpg", 200, 200))
+    if (create_gif)
     {
-        INFO_LOG("TextureView loaded successfully");
-        this->texBox->position.x = 300;
-        this->texBox->position.y = 100;
+        gif = new mbm::GIF_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        gif->load("Lion-King.gif",600,400);
     }
-    else
+    
+    if (create_texBox)
     {
-        INFO_LOG("Failed to load TextureView");
+        this->texBox = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        if(this->texBox->load("wooden-box.jpg", 200, 200))
+        {
+            INFO_LOG("TextureView loaded successfully");
+            this->texBox->position.x = 300;
+            this->texBox->position.y = 100;
+        }
+        else
+        {
+            INFO_LOG("Failed to load TextureView");
+        }
     }
     
     //TODO: Needs to be investgated
@@ -189,179 +223,212 @@ void MY_SCENE::init()
     //}
     
     
-    sprite = new mbm::SPRITE(this, false, false);
+    if (create_sprite)
+    {
+        sprite = new mbm::SPRITE(this, false, false);
+        if(sprite && sprite->load("box.spt"))
+        {
+            INFO_LOG("Sprite loaded successfully");
+            sprite->alwaysRenderize = true;
+            sprite->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+            sprite->position.x = -200;
+        }
+        else
+        {
+            INFO_LOG("Failed to load sprite");
+        }
+    }
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
 
-    if(sprite->load("box.spt"))
-    {
-        INFO_LOG("Sprite loaded successfully");
-        sprite->alwaysRenderize = true;
-        sprite->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        sprite->position.x = -200;
-    }
-    else
-    {
-        INFO_LOG("Failed to load sprite");
-    }
 
-    texture = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
-    if (texture->load("pie.png"))
+    if (create_texture)
     {
-        float w, h;
-        texture->getAABB(&w, &h);
-        texture->position.y = windowHeight - (h / 2.0f);
-        texture->position.x = w / 2.0f;
-        INFO_LOG("Pie texture loaded");
-        mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
-        if (pShaderCfgPie)
+        texture = new mbm::TEXTURE_VIEW(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
+        if (texture->load("pie.png"))
         {
-            INFO_LOG("Pie shader found in the resource ...");
-            mbm::FX* fx = texture->getFx();
-            if (fx)
+            float w, h;
+            texture->getAABB(&w, &h);
+            texture->position.y = windowHeight - (h / 2.0f);
+            texture->position.x = w / 2.0f;
+            INFO_LOG("Pie texture loaded");
+            mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
+            if (pShaderCfgPie)
             {
-                INFO_LOG(" Applying shader pie to texture");
-                if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+                INFO_LOG("Pie shader found in the resource ...");
+                mbm::FX* fx = texture->getFx();
+                if (fx)
                 {
-                    INFO_LOG("Shader pie applyied sucessfully to texture");
-                    //float dataPercent[4]   = { 0, 0, 0, 0 };
-                    //float dataAngle[4]     = { 0, 0, 0, 0 };
-                    //float dataClockwise[4] = { 1, 0, 0, 0 };
-                    //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
-                    //    INFO_LOG("Min shader values applied to pie");
-                    //{
-                    //    INFO_LOG("Min shader values applied to pie");
-                    //}
-                    //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
-                    //{
-                    //    INFO_LOG("Max shader values applied to pie");
-                    //}
-                    //texture->restartAnimation();
+                    INFO_LOG(" Applying shader pie to texture");
+                    if (fx->loadNewShader(pShaderCfgPie, nullptr, mbm::TYPE_ANIMATION_GROWING_LOOP, 5.0, mbm::TYPE_ANIMATION_PAUSED, 0.0f))
+                    {
+                        INFO_LOG("Shader pie applyied sucessfully to texture");
+                        //float dataPercent[4]   = { 0, 0, 0, 0 };
+                        //float dataAngle[4]     = { 0, 0, 0, 0 };
+                        //float dataClockwise[4] = { 1, 0, 0, 0 };
+                        //if (fx->setMinVarPShader("percent", dataPercent) && fx->setMinVarPShader("angle", dataAngle) && fx->setMinVarPShader("clockwise", dataClockwise))
+                        //    INFO_LOG("Min shader values applied to pie");
+                        //{
+                        //    INFO_LOG("Min shader values applied to pie");
+                        //}
+                        //if (fx->setMaxVarPShader("percent", dataPercent) && fx->setMaxVarPShader("angle", dataAngle) && fx->setMaxVarPShader("clockwise", dataClockwise))
+                        //{
+                        //    INFO_LOG("Max shader values applied to pie");
+                        //}
+                        //texture->restartAnimation();
+                    }
+                    else
+                    {
+                        INFO_LOG("Failed to apply shader pie to texture");
+                    }
                 }
                 else
                 {
-                    INFO_LOG("Failed to apply shader pie to texture");
+                    INFO_LOG("Failed to get FX from texture");
                 }
-            }
-            else
-            {
-                INFO_LOG("Failed to get FX from texture");
             }
         }
     }
     
-    mesh = new mbm::MESH(this, _3dWorldIsTrue, _2dScreenWorldIsFalse);
-    if(mesh->load("Barrel_NoTop.msh"))
+    if (create_mesh)
     {
-        INFO_LOG("Mesh loaded successfully");
-        mesh->position.z = -100;
-        mesh->position.y = 100;
-    }
-    else
-    {
-        INFO_LOG("Failed to load mesh");
+        mesh = new mbm::MESH(this, _3dWorldIsTrue, _2dScreenWorldIsFalse);
+        if(mesh->load("Barrel_NoTop.msh"))
+        {
+            INFO_LOG("Mesh loaded successfully");
+            mesh->position.z = -100;
+            mesh->position.y = 100;
+        }
+        else
+        {
+            INFO_LOG("Failed to load mesh");
+        }
     }
     //
 
     
 
-    shape = new mbm::SHAPE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-    if(shape->loadRectangle("quad", 100, 100, true, 2))
+    if (create_shape)
     {
-        INFO_LOG("Shape loaded successfully");
-        shape->position.x = 100;
-        shape->position.y = 100;
-    }
-    else
-    {
-        INFO_LOG("Failed to load shape");
-    }
-    
-    line = new mbm::LINE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-	for (int i = 0; i < 2; i++)
-    {
-        std::vector<mbm::VEC3> lines;
-        lines.push_back(mbm::VEC3(0 + i * 10, 0, 0));
-        lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
-        line->add(std::move(lines));
-    }
-    
-    
-    /*render2Texture = new mbm::RENDER_2_TEXTURE(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
-    if (render2Texture->load(350, 204, 350, 204, "my-render", true))
-    {
-        INFO_LOG("Render2Texture loaded successfully");
-        render2Texture->addObject2Render(gif);
-        render2Texture->position.x = 1024 - (350 / 2);
-        render2Texture->position.y = 204 / 2.0f;;
-    }*/
-
-    this->toTrack = texBox;
-    
-
-    mbm::INFO_PHYSICS infoPhysiscs;
-	infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
-    bool segmented = false;
-    steeredParticle = new mbm::STEERED_PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse, segmented, nullptr );
-	mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
-    if (steeredParticle->load("particle.png", &colorParticle, &infoPhysiscs))
-    {
-        steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
-        steeredParticle->setRadiusScale(2);
-        
-        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
-        group->aSizeParticle = 20.0f;
-		
-        randomSteeredParticlePositions();
-    
-        INFO_LOG("Particle z position %f", steeredParticle->position.z);
-    
-        INFO_LOG("Steered Particle loaded successfully");
-        INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
-        INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
-        if (group)
+        shape = new mbm::SHAPE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        if(shape->loadRectangle("quad", 100, 100, true, 2))
         {
-            INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
-        }
-    
-        if (steeredParticle->getTexture())
-        {
-            INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
+            INFO_LOG("Shape loaded successfully");
+            shape->position.x = 100;
+            shape->position.y = 100;
         }
         else
         {
-            INFO_LOG("ERROR: Texture not loaded!");
+            INFO_LOG("Failed to load shape");
         }
+    }
     
-        INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
-        steeredParticle->restartAnimationParticle();
-        steeredParticle->restartAnimation();
-    }
-    else
+    if (create_line)
     {
-        INFO_LOG("ERROR: Failed to load steered particle");
+        line = new mbm::LINE_MESH(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        for (int i = 0; i < 2; i++)
+        {
+            std::vector<mbm::VEC3> lines;
+            lines.push_back(mbm::VEC3(0 + i * 10, 0, 0));
+            lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
+            line->add(std::move(lines));
+        }
     }
-	
+    
+    
+    if (create_render2Texture)
+    {
+        render2Texture = new mbm::RENDER_2_TEXTURE(this, _3dWorldIsFalse, _2dScreenWorldIsTrue);
+        if (render2Texture->load(350, 204, 350, 204, "my-render", true))
+        {
+            INFO_LOG("Render2Texture loaded successfully");
+            render2Texture->addObject2Render(gif);
+            render2Texture->position.x = 1024 - (350 / 2);
+            render2Texture->position.y = 204 / 2.0f;;
+        }
+    }
 
-    particle = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-    if (particle->load("particle.png", nullptr, nullptr, 100, true))
+    if (texBox)
     {
-        particle->addParticle(1000,true);
-        particle->addStage();
-        particle->restartAnimationParticle();
-        INFO_LOG("Particle loaded successfully");
+        this->toTrack = texBox;
     }
 
-    particle_ptl = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
-    if (particle_ptl->load("particle_red.ptl", nullptr, nullptr, 100, true))
-    {        particle_ptl->addParticle(100, true);
-        particle_ptl->restartAnimationParticle();
-        INFO_LOG("Particle_ptl loaded successfully");  
-    }
-    else
+    if (create_steeredParticle)
     {
-        INFO_LOG("Failed to load particle_ptl");
+        bool segmented = false;
+        mbm::INFO_PHYSICS infoPhysiscs;
+        infoPhysiscs.lsCube.push_back(new mbm::CUBE(200,200,200));
+        steeredParticle = new mbm::STEERED_PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse, segmented, nullptr );
+        mbm::COLOR colorParticle(1.0f, 0.0f, 0.0f, 1.0f);
+        if (steeredParticle->load("particle.png", &colorParticle, &infoPhysiscs))
+        {
+            steeredParticle->addParticle(1432, steeredParticle->addGroup(&colorParticle) - 1);
+            steeredParticle->setRadiusScale(2);
+            
+            mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+            group->aSizeParticle = 20.0f;
+            
+            randomSteeredParticlePositions();
+        
+            INFO_LOG("Particle z position %f", steeredParticle->position.z);
+        
+            INFO_LOG("Steered Particle loaded successfully");
+            INFO_LOG("Total particles to render: %u", steeredParticle->getTotalParticleToRender());
+            INFO_LOG("Particle group count: %zu", steeredParticle->getTotalGroup());
+            if (group)
+            {
+                INFO_LOG("Group size: %u, total to render: %u", group->size_particle_array, group->totalParticleToRender);
+            }
+        
+            if (steeredParticle->getTexture())
+            {
+                INFO_LOG("Texture loaded: %u x %u", steeredParticle->getTexture()->getWidth(), steeredParticle->getTexture()->getHeight());
+            }
+            else
+            {
+                INFO_LOG("ERROR: Texture not loaded!");
+            }
+        
+            INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
+            steeredParticle->restartAnimationParticle();
+            steeredParticle->restartAnimation();
+        }
+        else
+        {
+            INFO_LOG("Failed to load steered particle");
+        }
+    }
+
+    if (create_particle)
+    {
+        particle = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        if (particle->load("particle.png", nullptr, nullptr, 100, true))
+        {
+            particle->addParticle(1000,true);
+            particle->addStage();
+            particle->restartAnimationParticle();
+            INFO_LOG("Particle loaded successfully");
+        }
+        else
+        {
+            INFO_LOG("Failed to load particle from file...");
+        }
+    }
+
+    if (create_particle_ptl)
+    {
+        particle_ptl = new mbm::PARTICLE(this, _3dWorldIsFalse, _2dScreenWorldIsFalse);
+        if (particle_ptl->load("particle_red.ptl", nullptr, nullptr, 100, true))
+        {
+            particle_ptl->addParticle(100, true);
+            particle_ptl->restartAnimationParticle();
+            INFO_LOG("Particle_ptl loaded successfully");
+        }
+        else
+        {
+            INFO_LOG("Failed to load particle_ptl");
+        }
     }
 }
 
