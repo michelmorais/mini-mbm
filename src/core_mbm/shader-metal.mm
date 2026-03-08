@@ -108,6 +108,35 @@ static id<MTLDepthStencilState> getOrCreateDepthStencilState(mbm::SPECIFIC_AUX_C
     return ctx->defaultDepthStencilState;
 }
 
+// Builds only the vertex preamble (header + vert_main) for a given FVF.
+// compileShader() appends the PS fragment function from the shader-resource entry.
+static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
+{
+    using F = mbm::FVF_PROVIDE_BY_ENGINE;
+    const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
+    const bool hasUV  = (fvf == F::FVF_POS_UV  || fvf == F::FVF_POS_NOR_UV);
+
+    NSMutableString* src = [NSMutableString stringWithString:
+        @"#include <metal_stdlib>\n"
+         "using namespace metal;\n"
+         "struct MbmUniforms { float4x4 mvp; float4x4 mv; float4 color; };\n"];
+
+    [src appendString:@"struct VIn { float3 pos [[attribute(0)]];"];
+    if (hasNor) [src appendString:@" float3 nor [[attribute(1)]];"];
+    if (hasNor && hasUV) [src appendString:@" float2 uv [[attribute(2)]];"];
+    else if (hasUV)      [src appendString:@" float2 uv [[attribute(1)]];"];
+    [src appendString:@" };\n"];
+    [src appendString:@"struct VOut { float4 pos [[position]]; float2 uv; };\n"];
+
+    [src appendString:
+        @"vertex VOut vert_main(VIn in [[stage_in]], constant MbmUniforms& u [[buffer(1)]]) {\n"
+         "    VOut o;\n"
+         "    o.pos = u.mvp * float4(in.pos, 1.0f);\n"];
+    [src appendString: hasUV ? @"    o.uv = in.uv;\n" : @"    o.uv = float2(0.0f);\n"];
+    [src appendString: @"    return o;\n}\n"];
+    return src;
+}
+
 // Builds the MSL source for the default shader matching the given FVF.
 static NSString* defaultMSLSource(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 {
@@ -454,6 +483,13 @@ namespace mbm
         if (!nameVar) return false;
         if (isThereVarIntoLsVars(nameVar)) return false;
         auto* var = new VAR_SHADER(std::string(nameVar), typeVar, isPS);
+        // Compute the sequential float offset in buffer(2) [PS] or buffer(3) [VS].
+        // Vars in each stage are packed in CFG declaration order.
+        int32_t floatOffset = 0;
+        for (const auto* existing : lsVar)
+            if (existing->isPS == isPS)
+                floatOffset += existing->sizeVar;
+        *static_cast<int32_t*>(var->ptrHandleVar) = floatOffset;
         if (defaultValue)
             memcpy(var->current, defaultValue, var->sizeVar * sizeof(float));
         lsVar.push_back(var);
@@ -525,7 +561,21 @@ namespace mbm
 
         @autoreleasepool
         {
-            NSString* mslSrc = defaultMSLSource(fvf);
+            // Choose MSL source: complete VS program, PS fragment + auto vertex, or default.
+            NSString* mslSrc = nil;
+            {
+                const bool hasPshader = (ptrPshader && ptrPshader->getCode() && ptrPshader->getCode()[0] != '\0');
+                const bool hasVshader = (ptrVshader && ptrVshader->getCode() && ptrVshader->getCode()[0] != '\0');
+                if (hasVshader && !hasPshader)
+                    // Complete MSL program stored in the VS entry (e.g. scale.vs).
+                    mslSrc = [NSString stringWithUTF8String:ptrVshader->getCode()];
+                else if (hasPshader)
+                    // Fragment-only PS entry — prepend the auto-generated vertex preamble.
+                    mslSrc = [buildVertexHeader(fvf)
+                        stringByAppendingString:[NSString stringWithUTF8String:ptrPshader->getCode()]];
+                else
+                    mslSrc = defaultMSLSource(fvf);
+            }
             NSError* err = nil;
             id<MTLLibrary> lib = [ctx->mtlDevice newLibraryWithSource:mslSrc options:nil error:&err];
             if (!lib)
@@ -596,6 +646,47 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+
+            // Bind stage-1 texture (constant across all subsets).
+            {
+                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
+                [enc setFragmentTexture:(t1 && t1->ptrTexture
+                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+            }
+
+            // Upload custom fragment uniforms to [[buffer(2)]].
+            if (pShader && !pShader->lsVar.empty())
+            {
+                int32_t totalF = 0;
+                for (const auto* v : pShader->lsVar) totalF += v->sizeVar;
+                if (totalF > 0)
+                {
+                    float fbuf[64] = {};
+                    for (const auto* v : pShader->lsVar)
+                    {
+                        const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                        memcpy(fbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                    }
+                    [enc setFragmentBytes:fbuf length:(NSUInteger)totalF * sizeof(float) atIndex:2];
+                }
+            }
+
+            // Upload custom vertex uniforms to [[buffer(3)]].
+            if (vShader && !vShader->lsVar.empty())
+            {
+                int32_t totalF = 0;
+                for (const auto* v : vShader->lsVar) totalF += v->sizeVar;
+                if (totalF > 0)
+                {
+                    float vbuf[64] = {};
+                    for (const auto* v : vShader->lsVar)
+                    {
+                        const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                        memcpy(vbuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                    }
+                    [enc setVertexBytes:vbuf length:(NSUInteger)totalF * sizeof(float) atIndex:3];
+                }
+            }
 
             const MTLPrimitiveType prim   = metalPrimitive(pBufferId->mode_draw);
             const NSUInteger       stride = strideForFVF(pBufferId->fvf);
@@ -678,6 +769,48 @@ namespace mbm
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+
+            // Bind stage-1 texture (constant across all subsets).
+            {
+                const TEXTURE* t1 = pBufferId->getTextureByStage(1, 0);
+                [enc setFragmentTexture:(t1 && t1->ptrTexture
+                    ? (__bridge id<MTLTexture>)t1->ptrTexture : nil) atIndex:1];
+            }
+
+            // Upload custom fragment uniforms to [[buffer(2)]].
+            if (pShader && !pShader->lsVar.empty())
+            {
+                int32_t totalF = 0;
+                for (const auto* v : pShader->lsVar) totalF += v->sizeVar;
+                if (totalF > 0)
+                {
+                    float fbuf2[64] = {};
+                    for (const auto* v : pShader->lsVar)
+                    {
+                        const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                        memcpy(fbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                    }
+                    [enc setFragmentBytes:fbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:2];
+                }
+            }
+
+            // Upload custom vertex uniforms to [[buffer(3)]].
+            if (vShader && !vShader->lsVar.empty())
+            {
+                int32_t totalF = 0;
+                for (const auto* v : vShader->lsVar) totalF += v->sizeVar;
+                if (totalF > 0)
+                {
+                    float vbuf2[64] = {};
+                    for (const auto* v : vShader->lsVar)
+                    {
+                        const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                        memcpy(vbuf2 + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                    }
+                    [enc setVertexBytes:vbuf2 length:(NSUInteger)totalF * sizeof(float) atIndex:3];
+                }
+            }
+
             [enc setVertexBuffer:vbuf offset:0 atIndex:0];
 
             const MTLPrimitiveType prim = metalPrimitive(pBufferId->mode_draw);

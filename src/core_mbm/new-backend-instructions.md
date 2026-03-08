@@ -488,7 +488,105 @@ Implement features in this order to reach a testable state as early as possible:
 
 ---
 
-## 15. Key source files for reference
+## 15. Built-in shader catalogue — CFG format and reserved names
+
+### CFG triple format
+
+`getShaderEngineBuiltIn()` (implemented in `shader-resource-<backend>.cpp/mm`) returns a
+`const char**` array organised in **groups of three** null-terminated strings:
+
+```
+"<name>.(ps|vs)",          // 1 – filename key used to find the shader
+"<shader source code>",    // 2 – full GLSL / MSL source text
+"<cfg description>\n",     // 3 – variable declarations (see below)
+```
+
+A `nullptr, nullptr, nullptr` sentinel terminates the list.  The CFG string is
+**100 % backend-independent** — the same text is used by all backends; never change it
+for a single backend.
+
+**Variable declaration syntax** (in the CFG string, third element of each triple):
+
+```
+[<shader-key>] = <name>.(ps|vs)                           // required header line
+[<shader-key>][float][varName]       = min V max V default V
+[<shader-key>][vector2][varName]     = min X Y max X Y default X Y
+[<shader-key>][rgb][varName]         = min R G B max R G B default R G B
+[<shader-key>][rgba][varName]        = min R G B A max R G B A default R G B A
+```
+
+Supported types: `float`, `vector2`, `rgb` (vec3 float), `rgba` (vec4 float).  Use
+`>= 0.5` / `< 0.5` in shader code for boolean behaviour — no separate bool type.
+
+---
+
+### Reserved names — do NOT rename across backends
+
+`SHADER::compileShader` (in `shader-opengl_es.cpp`) scans the shader source text for
+these exact strings to decide which uniform/attribute handles to look up.  Your backend
+**must** honour the same names so the rest of the engine can find them:
+
+| Name | Kind | GLSL binding | Metal convention |
+|---|---|---|---|
+| `aPosition` | vertex attribute | `attribute vec4 aPosition` | `[[attribute(0)]]` (float3) |
+| `aNormal` | vertex attribute | `attribute vec3 aNormal` | `[[attribute(1)]]` if present |
+| `aTextCoord` | vertex attribute | `attribute vec2 aTextCoord` | `[[attribute(1)]]` or `[[attribute(2)]]` if normal present |
+| `mvpMatrix` | uniform | `uniform mat4 mvpMatrix` | `Uniforms.mvp` at `[[buffer(1)]]` |
+| `mvMatrix` | uniform | `uniform mat4 mvMatrix` | `Uniforms.mv` at `[[buffer(1)]]` |
+| `sample0` | sampler | `uniform sampler2D sample0` | `[[texture(0)]]` + `[[sampler(0)]]` |
+| `sample1` | sampler | `uniform sampler2D sample1` | `[[texture(1)]]` + `[[sampler(0)]]` |
+| `color` | uniform (optional) | `uniform vec4 color` | custom uniforms struct / `VAR_SHADER` |
+
+The engine never passes these names to `glGetUniformLocation` / equivalent at draw
+time; they are only searched once during `compileShader` to cache handles.  In a Metal
+backend they map to fixed buffer/texture slots that the render() methods hard-code.
+
+---
+
+### GLSL → MSL translation rules
+
+When translating the built-in catalogue to MSL:
+
+| GLSL | MSL |
+|---|---|
+| `precision mediump float;` | *omit* (Metal has no precision qualifiers) |
+| `uniform sampler2D sample0` | `texture2d<float> sample0 [[texture(0)]]` + `sampler samp [[sampler(0)]]` |
+| `texture2D(sample0, uv)` | `sample0.sample(samp, uv)` |
+| `varying vec2 vTexCoord` | pass-through in vertex-out struct: `float2 uv;` |
+| `gl_FragColor = c` | `return c;` (fragment function returns `float4`) |
+| `gl_Position = ...` | `out.pos = ...; return out;` |
+| `discard;` | `discard_fragment();` |
+| `attribute vec4 aPosition` | `float3 pos [[attribute(0)]]` |
+| `attribute vec2 aTextCoord` | `float2 uv [[attribute(N)]]` (N = 1 or 2, see table above) |
+| `uniform float x` | field in custom `FragUniforms` struct at `[[buffer(2)]]` |
+| `uniform vec2 x` | `float2 x` in `FragUniforms` |
+| `uniform vec3 / rgb` | `float3 x` in `FragUniforms` |
+| `uniform vec4 / rgba` | `float4 x` in `FragUniforms` |
+| `vec2 / vec3 / vec4 / mat4` | `float2 / float3 / float4 / float4x4` |
+| `atan(y, x)` | `atan2(y, x)` |
+| `mod(a, b)` | `fmod(a, b)` |
+| `mix(a, b, t)` | `mix(a, b, t)` *(same)* |
+| `int loop_var; for(; cond;)` | `int` OK but `uint` preferred; Metal supports `for` |
+| `xlat_lib_sincos(angle, s, c)` | `s = sin(angle); c = cos(angle);` (inline, Metal has no `sincos`) |
+
+**Metal buffer slot conventions used by this engine:**
+
+| Slot | Content |
+|---|---|
+| `[[buffer(0)]]` | vertex data (position / normal / uv interleaved or separate) |
+| `[[buffer(1)]]` | `Uniforms` struct: `{ float4x4 mvp; float4x4 mv; float4 color; }` |
+| `[[buffer(2)]]` | custom `FragUniforms` struct (per-shader; produced from `VAR_SHADER` list) |
+
+**Custom uniforms (M8):** each built-in shader that has `[type][varName]` lines in
+its CFG string needs a matching `struct FragUniforms` in its MSL source.  The fields
+must appear **in the same order** as the CFG variable declarations so that
+`VAR_SHADER::ptrHandleVar` (which stores a byte offset into this struct) works
+correctly.  `BASE_SHADER::update()` in the Metal backend writes all current values
+into a stack `FragUniforms` buffer and calls `setFragmentBytes:length:atIndex:2`.
+
+---
+
+## 16. Key source files for reference
 
 | File | Backend | Notes |
 |---|---|---|
