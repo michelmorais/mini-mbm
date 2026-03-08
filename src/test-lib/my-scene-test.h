@@ -48,6 +48,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::SHAPE_MESH* shape;
     mbm::LINE_MESH* line;
     mbm::PARTICLE* particle;
+    mbm::PARTICLE* particle_ptl;
     mbm::RENDER_2_TEXTURE* render2Texture;
     mbm::RENDERIZABLE* toTrack;
 	mbm::STEERED_PARTICLE* steeredParticle;
@@ -56,7 +57,11 @@ class MY_SCENE : public mbm::SCENE
 	mbm::HMD* hmd;
 	mbm::TILE* tile;
     mbm::TEXTURE_VIEW* texture;
+    mbm::TEXT_DRAW * mousePositionText;
     bool randomizeParticleEachLoop;
+    float backGroundTimeToHide;
+    int windowWidth;
+    int windowHeight;
 
 	void randomSteeredParticlePositions();
     MY_SCENE();
