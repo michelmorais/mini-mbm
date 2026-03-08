@@ -105,22 +105,22 @@ void MY_SCENE::init()
     constexpr bool _3dWorldIsFalse = false;
     constexpr bool _3dWorldIsTrue = true;
 
-    bool create_texBox              = false;
-    bool create_gif                 = false;
-    bool create_sprite              = false;
-    bool create_background          = false;
-    bool create_mesh                = false;
-    bool create_shape               = false;
+    bool create_texBox              = true;
+    bool create_gif                 = true;
+    bool create_sprite              = true;
+    bool create_background          = true;
+    bool create_mesh                = true;
+    bool create_shape               = true;
     bool create_line                = true;
     bool create_particle            = true;
-    bool create_particle_ptl        = false;
-    bool create_render2Texture      = false;
-    bool create_steeredParticle     = false;
-    bool create_fontDraw            = false;
-    bool create_hmd                 = false;
-    bool create_tile                = false;
-    bool create_texture             = false;
-    bool create_mousePositionText   = false;
+    bool create_particle_ptl        = true;
+    bool create_render2Texture      = true;
+    bool create_steeredParticle     = true;
+    bool create_fontDraw            = true;
+    bool create_hmd                 = true;
+    bool create_tile                = true;
+    bool create_texture             = true;
+    bool create_mousePositionText   = true;
     
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
@@ -334,6 +334,7 @@ void MY_SCENE::init()
             lines.push_back(mbm::VEC3(0 + i * 10, 100, 0));
             line->add(std::move(lines));
         }
+        line->enableRender = false;
     }
     
     
@@ -532,6 +533,13 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
         else
         {
             sprite->restartAnimation();
+        }
+    }
+    if(line)
+    {
+        if (key == 0)
+        {
+            line->enableRender = !line->enableRender;
         }
     }
     if(particle_ptl)
