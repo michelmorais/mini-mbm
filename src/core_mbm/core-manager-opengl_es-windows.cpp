@@ -151,7 +151,14 @@ namespace mbm
         }
         EGLint numConfigs = 0;
         EGLConfig windowConfig = nullptr;
-        
+        // With ANGLE, EGL config selection can directly change how 3D looks, even when your mesh / camera code is identical.
+        // 
+        //     Main reason :
+        // 
+        // EGL config decides the actual GPU surfaces(color + depth + stencil) that ANGLE creates.
+        //     ANGLE then maps that to Direct3D resources on Windows.
+        //     If the chosen config is not what you think(especially depth), 3D can look wrong while 2D still seems fine.
+
         static const EGLint attribs[] = {
             // 32 bit color
             EGL_RED_SIZE, 8,
@@ -164,205 +171,40 @@ namespace mbm
             EGL_RENDERABLE_TYPE, (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT),
             EGL_NONE};
 
-        if ( EGL_FALSE == eglGetConfigs(this->device->specificContextDevice->eglDisplay, NULL, 0, &numConfigs) )
+        EGLBoolean result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, attribs, &windowConfig, 1, &numConfigs);
+        if (result != EGL_TRUE || numConfigs <= 0)
         {
-            ERROR_LOG("Could not get number of all configs");
-            return false;
-        }
-
-        // collect information about the configs
-        EGLConfig *configs = new EGLConfig[numConfigs];
-        if ( EGL_FALSE == eglGetConfigs(this->device->specificContextDevice->eglDisplay,configs,numConfigs,&numConfigs) )
-        {
-            delete [] configs;
-            ERROR_LOG("Could not get number all configs");
-            return false;
-        }
-
-        struct MY_CONFIG
-        {
-            EGLint _red_size;
-            EGLint _green_size;
-            EGLint _blue_size;
-            EGLint _alpha_size;
-            EGLint _bind_to_texture_rgb;
-            EGLint _bind_to_texture_rgba;
-            EGLint _buffer_size;
-            EGLint _config_caveat;
-            EGLint _config_id;
-            EGLint _depth_size;
-            EGLint _level;
-            EGLint _max_pbuffer_width;
-            EGLint _max_pbuffer_height;
-            EGLint _max_pbuffer_pixels;
-            EGLint _max_swap_interval;
-            EGLint _min_swap_interval;
-            EGLint _native_renderable;
-            EGLint _native_vrenderable;
-            EGLint _alpha_mask_size;
-            EGLint _color_buffer_type;
-            EGLint _luminance_size;
-            EGLint _renderable_type;
-            EGLint _conformant;
-            EGLint _egl_robust;
-        };
-
-        std::vector<MY_CONFIG> _bufferFormats;
-        MY_CONFIG newFormat;
- 
-        for ( GLint c = 0 ; c < numConfigs ; ++c)
-        {
-            memset(&newFormat,0,sizeof(newFormat));
-            EGLConfig config = configs[c];
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_RED_SIZE, &(newFormat._red_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_BLUE_SIZE, &(newFormat._blue_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_ALPHA_SIZE, &(newFormat._alpha_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGB, &(newFormat._bind_to_texture_rgb));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_BIND_TO_TEXTURE_RGBA, &(newFormat._bind_to_texture_rgba));
-            
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_BUFFER_SIZE, &(newFormat._buffer_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_CONFIG_CAVEAT, &(newFormat._config_caveat));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_CONFIG_ID, &(newFormat._config_id));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_DEPTH_SIZE, &(newFormat._depth_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_GREEN_SIZE, &(newFormat._green_size));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_LEVEL, &(newFormat._level));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_MAX_PBUFFER_WIDTH, &(newFormat._max_pbuffer_width));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_MAX_PBUFFER_HEIGHT, &(newFormat._max_pbuffer_height));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_MAX_PBUFFER_PIXELS, &(newFormat._max_pbuffer_pixels));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_MAX_SWAP_INTERVAL, &(newFormat._max_swap_interval));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_MIN_SWAP_INTERVAL, &(newFormat._min_swap_interval));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_NATIVE_RENDERABLE, &(newFormat._native_renderable));
-            eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_NATIVE_VISUAL_ID, &(newFormat._native_vrenderable));
-            /// etc etc etc for all those that you care about
- 
-            if ( eglVersionMajor >= 1 && eglVersionMinor >= 2 )
-            {       
-                // 1.2
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_ALPHA_MASK_SIZE, &(newFormat._alpha_mask_size));
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_COLOR_BUFFER_TYPE, &(newFormat._color_buffer_type));
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_LUMINANCE_SIZE, &(newFormat._luminance_size));
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_RENDERABLE_TYPE, &(newFormat._renderable_type));
-            }
- 
-            if ( eglVersionMajor >= 1 && eglVersionMinor >= 3 )
+            static const EGLint attribs_gl2[] = {
+                EGL_RED_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_BLUE_SIZE, 8,
+                EGL_DEPTH_SIZE, 24,
+                EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL_NONE};
+            result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, attribs_gl2, &windowConfig, 1, &numConfigs);
+            if (result != EGL_TRUE || numConfigs <= 0)
             {
-                // 1.3
-                //const char * ext = eglQueryString(this->device->specificContextDevice->eglDisplay,EGL_EXTENSIONS);
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_CONFORMANT, &(newFormat._conformant));
-                eglGetConfigAttrib( this->device->specificContextDevice->eglDisplay, config, EGL_CONTEXT_OPENGL_ROBUST_ACCESS, &(newFormat._egl_robust));
-                
-                //eglQueryString (configs[i], EGL_COLOR_COMPONENT_TYPE_EXT,
-                //                   &config.colorComponentType, "EGL_EXT_pixel_format_float",
-                //                   EGL_COLOR_COMPONENT_TYPE_FIXED_EXT);
+                ERROR_LOG("eglChooseConfig failed for GLES (ES3/ES2 fallback)");
+                return false;
             }
-            _bufferFormats.push_back(newFormat);
         }
 
-        delete [] configs;
-        configs = nullptr;
-
-        MY_CONFIG m = _bufferFormats[3];
-        EGLint the_attribs[] = 
-           {EGL_RED_SIZE, m._red_size,
-            EGL_GREEN_SIZE, m._green_size,
-            EGL_BLUE_SIZE, m._blue_size,
-            EGL_ALPHA_SIZE, m._alpha_size,
-            EGL_BIND_TO_TEXTURE_RGB, m._bind_to_texture_rgb,
-            EGL_BIND_TO_TEXTURE_RGBA, m._bind_to_texture_rgba,
-            EGL_BUFFER_SIZE, m._buffer_size,
-            EGL_CONFIG_CAVEAT, m._config_caveat,
-            EGL_CONFIG_ID, m._config_id,
-            EGL_DEPTH_SIZE, m._depth_size,
-            EGL_LEVEL, m._level,
-            EGL_MAX_PBUFFER_WIDTH, m._max_pbuffer_width,
-            EGL_MAX_PBUFFER_HEIGHT, m._max_pbuffer_height,
-            EGL_MAX_PBUFFER_PIXELS, m._max_pbuffer_pixels,
-            EGL_MAX_SWAP_INTERVAL, m._max_swap_interval,
-            EGL_MIN_SWAP_INTERVAL, m._min_swap_interval,
-            EGL_NATIVE_RENDERABLE, m._native_renderable,
-            EGL_NATIVE_VISUAL_ID, m._native_vrenderable,
-            EGL_ALPHA_MASK_SIZE, m._alpha_mask_size,
-            EGL_COLOR_BUFFER_TYPE, m._color_buffer_type,
-            EGL_LUMINANCE_SIZE, m._luminance_size,
-            EGL_RENDERABLE_TYPE, m._renderable_type,
-            EGL_CONFORMANT, m._conformant,
-            EGL_CONTEXT_OPENGL_ROBUST_ACCESS, m._egl_robust,
-            EGL_NONE
-            };
-
-        auto a = EGL_OPENGL_ES2_BIT;
-        auto b = EGL_OPENGL_ES3_BIT;
-        for(int n=0; n <numConfigs;++n)
+        if (device->verbose)
         {
-            MY_CONFIG m = _bufferFormats[n];
-            if(m._red_size    == 8 &&
-                m._green_size == 8 &&
-                m._blue_size  == 8 &&
-                m._alpha_size == 8 &&
-                (m._conformant  == EGL_OPENGL_ES3_BIT || m._conformant  == (EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT) &&  // compatible with OpenGL ES 3.x., EGL_OPENGL_ES2_BIT -> compatible with OpenGL ES 2.x., EGL_OPENGL_ES_BIT -> compatible with OpenGL ES 1.x.
-                m._max_swap_interval <= 4)
-                )
-            {
-            EGLint new_the_attribs[]= {EGL_RED_SIZE, m._red_size,
-            EGL_GREEN_SIZE, m._green_size,
-            EGL_BLUE_SIZE, m._blue_size,
-            EGL_ALPHA_SIZE, m._alpha_size,
-            EGL_BIND_TO_TEXTURE_RGB, m._bind_to_texture_rgb,
-            EGL_BIND_TO_TEXTURE_RGBA, m._bind_to_texture_rgba,
-            EGL_BUFFER_SIZE, m._buffer_size,
-            EGL_CONFIG_CAVEAT, m._config_caveat,
-            EGL_CONFIG_ID, m._config_id,
-            EGL_DEPTH_SIZE, m._depth_size,
-            EGL_LEVEL, m._level,
-            EGL_MAX_PBUFFER_WIDTH, m._max_pbuffer_width,
-            EGL_MAX_PBUFFER_HEIGHT, m._max_pbuffer_height,
-            EGL_MAX_PBUFFER_PIXELS, m._max_pbuffer_pixels,
-            EGL_MAX_SWAP_INTERVAL, m._max_swap_interval,
-            EGL_MIN_SWAP_INTERVAL, m._min_swap_interval,
-            EGL_NATIVE_RENDERABLE, m._native_renderable,
-            EGL_NATIVE_VISUAL_ID, m._native_vrenderable,
-            EGL_ALPHA_MASK_SIZE, m._alpha_mask_size,
-            EGL_COLOR_BUFFER_TYPE, m._color_buffer_type,
-            EGL_LUMINANCE_SIZE, m._luminance_size,
-            EGL_RENDERABLE_TYPE, m._renderable_type,
-            EGL_CONFORMANT, m._conformant,
-            EGL_NONE
-            };
-                memcpy(the_attribs,new_the_attribs,sizeof(new_the_attribs));
-                break;
-            }
-
-        }
-        //auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform"); it works
-        //auto pFn     = (PFNGLMAPBUFFEROESPROC)eglGetProcAddress("ANGLEGetDisplayPlatform");
-        EGLBoolean result = eglChooseConfig(this->device->specificContextDevice->eglDisplay, the_attribs, &windowConfig, 1, &numConfigs);
-        
-        switch (result )
-        {
-            case EGL_TRUE:break;
-            case EGL_FALSE:
-                ERROR_LOG(" eglChooseConfig returned false");
-            break;
-            case EGL_BAD_DISPLAY :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_DISPLAY");
-            break;
-            case EGL_BAD_ATTRIBUTE :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_ATTRIBUTE");
-            break;
-            case EGL_NOT_INITIALIZED :
-                ERROR_LOG(" eglChooseConfig returned EGL_NOT_INITIALIZED");
-            break;
-            case EGL_BAD_PARAMETER :
-                ERROR_LOG(" eglChooseConfig returned EGL_BAD_PARAMETER");
-            break;
-            default:
-                ERROR_LOG(" eglChooseConfig returned %d",result);
-            break;
-        }
-        if(result != EGL_TRUE)
-        {
-            return false;
+            EGLint cfgId = 0;
+            EGLint depthBits = 0;
+            EGLint stencilBits = 0;
+            EGLint renderableType = 0;
+            EGLint surfaceType = 0;
+            eglGetConfigAttrib(this->device->specificContextDevice->eglDisplay, windowConfig, EGL_CONFIG_ID, &cfgId);
+            eglGetConfigAttrib(this->device->specificContextDevice->eglDisplay, windowConfig, EGL_DEPTH_SIZE, &depthBits);
+            eglGetConfigAttrib(this->device->specificContextDevice->eglDisplay, windowConfig, EGL_STENCIL_SIZE, &stencilBits);
+            eglGetConfigAttrib(this->device->specificContextDevice->eglDisplay, windowConfig, EGL_RENDERABLE_TYPE, &renderableType);
+            eglGetConfigAttrib(this->device->specificContextDevice->eglDisplay, windowConfig, EGL_SURFACE_TYPE, &surfaceType);
+            INFO_LOG("EGL config selected: id=%d depth=%d stencil=%d renderable=0x%x surface=0x%x", cfgId, depthBits, stencilBits, renderableType, surfaceType);
+            printGLString("GL renderer:\n", GL_RENDERER);
+            printGLString("GL version:\n", GL_VERSION);
         }
 
         EGLint surfaceAttributes[] = { EGL_NONE };

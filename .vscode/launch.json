@@ -13,6 +13,17 @@
       "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
+      "name": "libTest.exe (Windows Release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/platform-msvs/Release/libTest.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/platform-msvs/Release",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Release)",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
+    },
+    {
       "name": "mini-mbm-dev (Windows Debug)",
       "type": "cppdbg",
       "request": "launch",

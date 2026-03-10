@@ -20,6 +20,26 @@
         "panel": "shared"
       },
       "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "Build mini-mbm (Release)",
+      "type": "process",
+      "command": "msbuild",
+      "args": [
+        "platform-msvs/mini-mbm.sln",
+        "/p:Configuration=Release",
+        "/m",
+        "/v:minimal"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$msCompile"]
     }
   ]
 }
