@@ -6,7 +6,11 @@
     #include <direct.h>
     #include <dirent-1-13/dirent.h>
 #else
-    #define  _POSIX_C_SOURCE 200809L
+    #if defined(__APPLE__)
+        #define _DARWIN_C_SOURCE 1
+    #else
+        #define  _POSIX_C_SOURCE 200809L
+    #endif
     #define _SEPARATOR_ '/'
     #include <stdlib.h>
     #include <unistd.h>
@@ -63,6 +67,10 @@ static void listFilesFromFolder(const char * path, std::vector<std::string> & fi
             {
                 if(strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0)
                 {
+                    /* Prefer d_type when available, but fall back to stat() for
+                       platforms (like some macOS setups) where DT_* may be
+                       unavailable or unreliable. */
+#if defined(DT_DIR) && defined(DT_REG)
                     if (dp->d_type == DT_DIR)
                     {
                         std::string str(path);
@@ -70,13 +78,50 @@ static void listFilesFromFolder(const char * path, std::vector<std::string> & fi
                         str += dp->d_name;
                         listFilesFromFolder(str.c_str(),fileList);
                     }
-                    else if(dp->d_type == DT_REG )
+                    else if (dp->d_type == DT_REG)
                     {
                         std::string str(path);
                         str += _SEPARATOR_;
                         str += dp->d_name;
                         fileList.emplace_back(str);
                     }
+                    else
+                    {
+                        std::string child(path);
+                        child += _SEPARATOR_;
+                        child += dp->d_name;
+                        struct stat st;
+                        if (stat(child.c_str(), &st) == 0)
+                        {
+                            if (S_ISDIR(st.st_mode))
+                            {
+                                listFilesFromFolder(child.c_str(), fileList);
+                            }
+                            else if (S_ISREG(st.st_mode))
+                            {
+                                fileList.emplace_back(child);
+                            }
+                        }
+                    }
+#else
+                    {
+                        std::string child(path);
+                        child += _SEPARATOR_;
+                        child += dp->d_name;
+                        struct stat st;
+                        if (stat(child.c_str(), &st) == 0)
+                        {
+                            if (S_ISDIR(st.st_mode))
+                            {
+                                listFilesFromFolder(child.c_str(), fileList);
+                            }
+                            else if (S_ISREG(st.st_mode))
+                            {
+                                fileList.emplace_back(child);
+                            }
+                        }
+                    }
+#endif
                 }
             }
         }while (dp != nullptr);

@@ -44,8 +44,6 @@ MY_SCENE::MY_SCENE()
     texture                   = nullptr;
     mousePositionText         = nullptr;
     backGroundTimeToHide      = 1.0f;
-    windowWidth               = 1024;
-    windowHeight              = 1024;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -69,11 +67,11 @@ MY_SCENE::~MY_SCENE()
     if (steeredParticle)
         delete steeredParticle;
     if(background)
-		delete background;
+        delete background;
     if (fontDraw)
         delete fontDraw;
     if(hmd)
-		delete hmd;
+        delete hmd;
     if (tile)
         delete tile;
     if (texture)
@@ -108,19 +106,19 @@ void MY_SCENE::init()
     constexpr bool create_texBox              = true;
     constexpr bool create_gif                 = true;
     constexpr bool create_sprite              = true;
-    constexpr bool create_background          = true;
+    constexpr bool create_background          = false;
     constexpr bool create_mesh                = true;
     constexpr bool create_shape               = true;
     constexpr bool create_line                = true;
     constexpr bool create_particle            = true;
-    constexpr bool create_particle_ptl        = true;
+    constexpr bool create_particle_ptl        = false;
     constexpr bool create_render2Texture      = true;
-    constexpr bool create_steeredParticle     = true;
-    constexpr bool create_fontDraw            = true;
+    constexpr bool create_steeredParticle     = false;
+    constexpr bool create_fontDraw            = false;//segmentation fault when load font on Mac
     constexpr bool create_hmd                 = false;
     //constexpr bool create_tile                = true;
     constexpr bool create_texture             = true;
-    constexpr bool create_mousePositionText   = true;
+    constexpr bool create_mousePositionText   = false;
     
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
     util::addPath("C:\\Users\\miche\\Downloads");
@@ -136,7 +134,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load background");
+            ERROR_LOG("Failed to load background");
         }
     }
     
@@ -165,7 +163,7 @@ void MY_SCENE::init()
     //    meshDebug.getInfo()
     //}
     
-	//tile = new mbm::TILE(this, false, false);
+    //tile = new mbm::TILE(this, false, false);
     //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");
     //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     //tile->load("tile-stage-1.tile");
@@ -189,7 +187,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load TextureView");
+            ERROR_LOG("Failed to load TextureView");
         }
     }
     
@@ -204,7 +202,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load HMD");
+            ERROR_LOG("Failed to load HMD");
         }
     }
     
@@ -221,7 +219,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load sprite");
+            ERROR_LOG("Failed to load sprite");
         }
     }
     //sprite->load("C:\\Users\\miche\\Downloads\\blast.spt");
@@ -236,7 +234,7 @@ void MY_SCENE::init()
         {
             float w, h;
             texture->getAABB(&w, &h);
-            texture->position.y = windowHeight - (h / 2.0f);
+            texture->position.y = device->backBufferHeight - (h / 2.0f);
             texture->position.x = w / 2.0f;
             INFO_LOG("Pie texture loaded");
             mbm::SHADER_CFG*  pShaderCfgPie = device->cfg.getShader("pie.ps");
@@ -266,12 +264,12 @@ void MY_SCENE::init()
                     }
                     else
                     {
-                        INFO_LOG("Failed to apply shader pie to texture");
+                        ERROR_LOG("Failed to apply shader pie to texture");
                     }
                 }
                 else
                 {
-                    INFO_LOG("Failed to get FX from texture");
+                    ERROR_LOG("Failed to get FX from texture");
                 }
             }
         }
@@ -283,12 +281,13 @@ void MY_SCENE::init()
         if(mesh->load("Barrel_NoTop.msh"))
         {
             INFO_LOG("Mesh loaded successfully");
+            mesh->scale = mbm::VEC3(10.0f, 10.0f, 10.0f);
             mesh->position.z = -100;
             mesh->position.y = 100;
         }
         else
         {
-            INFO_LOG("Failed to load mesh");
+            ERROR_LOG("Failed to load mesh");
         }
     }
     
@@ -304,7 +303,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load shape");
+            ERROR_LOG("Failed to load shape");
         }
     }
     
@@ -328,9 +327,20 @@ void MY_SCENE::init()
         if (render2Texture->load(350, 204, 350, 204, "my-render", true))
         {
             INFO_LOG("Render2Texture loaded successfully");
-            render2Texture->addObject2Render(gif);
-            render2Texture->position.x = 1024 - (350 / 2);
-            render2Texture->position.y = 204 / 2.0f;;
+            if(render2Texture->addObject2Render(gif))
+            {
+                INFO_LOG("Gif added to render2Texture successfully");
+            }
+            else
+            {
+                ERROR_LOG("Failed to add gif to render2Texture");
+            }
+            render2Texture->position.x = static_cast<float>(device->backBufferWidth) - (350 / 2.0f);
+            render2Texture->position.y = 204 / 2.0f;
+        }
+        else
+        {
+            ERROR_LOG("Failed to load render2Texture");
         }
     }
 
@@ -372,7 +382,7 @@ void MY_SCENE::init()
             }
             else
             {
-                INFO_LOG("ERROR: Texture not loaded!");
+                ERROR_LOG("ERROR: Texture not loaded!");
             }
         
             INFO_LOG("Enable render: %d, Always renderize: %d", steeredParticle->enableRender ? 1 : 0, steeredParticle->alwaysRenderize ? 1 : 0);
@@ -381,7 +391,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load steered particle");
+            ERROR_LOG("Failed to load steered particle");
         }
     }
 
@@ -397,7 +407,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load particle from file...");
+            ERROR_LOG("Failed to load particle from file...");
         }
     }
 
@@ -412,7 +422,7 @@ void MY_SCENE::init()
         }
         else
         {
-            INFO_LOG("Failed to load particle_ptl");
+            ERROR_LOG("Failed to load particle_ptl");
         }
     }
 }
@@ -479,7 +489,7 @@ void MY_SCENE::logic()
     //        //if (data[0] > 1.0f)
     //        //    data[0] = 0.0f;
     //        //fx->setVarPShader("percent", data);
-	//	}
+    //	}
     //}
     if (texture)
     {
@@ -489,7 +499,10 @@ void MY_SCENE::logic()
             float data[4] = { 0, 0, 0, 0 };
             if(fx->getVarPShader("percent", data) == 0)
             {
-                INFO_LOG("Failed to get percent variable from shader");
+                static bool loggedError = false;
+                if (!loggedError)
+                ERROR_LOG("Failed to get percent variable from shader");
+                loggedError = true;
             }
             //INFO_LOG("data : %g", data[0]);
             //data[0] += 0.01f;
@@ -502,7 +515,7 @@ void MY_SCENE::logic()
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
-	INFO_LOG("Touch down key: %d", key);
+    INFO_LOG("Touch down key: %d", key);
     if (sprite)
     {
         if (key == 0)
@@ -547,7 +560,7 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
             }
             else
             {
-                INFO_LOG("Failed to add particles to particle_ptl");
+                ERROR_LOG("Failed to add particles to particle_ptl");
             }
         }
     }
@@ -563,7 +576,7 @@ void MY_SCENE::onTouchMove(int, float x, float y)
     if(this->toTrack)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-		device->transformeScreen2dToWorld2d_scaled(x, y, this->toTrack->position);
+        device->transformeScreen2dToWorld2d_scaled(x, y, this->toTrack->position);
     }
     if(mousePositionText)
     {
