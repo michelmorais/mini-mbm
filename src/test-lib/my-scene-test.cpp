@@ -67,11 +67,11 @@ MY_SCENE::~MY_SCENE()
     if (steeredParticle)
         delete steeredParticle;
     if(background)
-		delete background;
+        delete background;
     if (fontDraw)
         delete fontDraw;
     if(hmd)
-		delete hmd;
+        delete hmd;
     if (tile)
         delete tile;
     if (texture)
@@ -163,7 +163,7 @@ void MY_SCENE::init()
     //    meshDebug.getInfo()
     //}
     
-	//tile = new mbm::TILE(this, false, false);
+    //tile = new mbm::TILE(this, false, false);
     //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");
     //util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
     //tile->load("tile-stage-1.tile");
@@ -489,7 +489,7 @@ void MY_SCENE::logic()
     //        //if (data[0] > 1.0f)
     //        //    data[0] = 0.0f;
     //        //fx->setVarPShader("percent", data);
-	//	}
+    //	}
     //}
     if (texture)
     {
@@ -515,7 +515,7 @@ void MY_SCENE::logic()
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
-	INFO_LOG("Touch down key: %d", key);
+    INFO_LOG("Touch down key: %d", key);
     if (sprite)
     {
         if (key == 0)
@@ -576,7 +576,7 @@ void MY_SCENE::onTouchMove(int, float x, float y)
     if(this->toTrack)
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
-		device->transformeScreen2dToWorld2d_scaled(x, y, this->toTrack->position);
+        device->transformeScreen2dToWorld2d_scaled(x, y, this->toTrack->position);
     }
     if(mousePositionText)
     {
