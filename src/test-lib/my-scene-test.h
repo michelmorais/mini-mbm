@@ -36,37 +36,71 @@
 #include <render/HMD.h>
 #include <core_mbm/mesh-manager.h> // mesh debug
 #include <render/tile.h>
+#include <vector>
+
+enum class RenderMode { NONE, SCREEN_2D, WORLD_2D, WORLD_3D };
+
+enum class MenuObjectType
+{
+    GIF_VIEW,
+    TEXTURE_VIEW,
+    SPRITE,
+    BACKGROUND,
+    MESH,
+    SHAPE_MESH,
+    LINE_MESH,
+    PARTICLE,
+    STEERED_PARTICLE,
+    RENDER_2_TEXTURE,
+    TILE
+};
+
+struct MenuRow
+{
+    const char*         typeName;
+    MenuObjectType      objType;
+    bool                supports2dS;
+    bool                supports2dW;
+    bool                supports3d;
+    RenderMode          currentMode;
+    mbm::TEXT_DRAW*     labelText;    // "[ ] TYPE" or "[X] TYPE (MODE)"
+    mbm::TEXT_DRAW*     btn2dS;       // "(2dS)"
+    mbm::TEXT_DRAW*     btn2dW;       // "(2dW)"
+    mbm::TEXT_DRAW*     btn3d;        // "(3d)"
+    mbm::TEXT_DRAW*     btnRelease;   // "(release)"
+    mbm::RENDERIZABLE*  object;       // non-owning view; nullptr when unloaded
+};
 
 class MY_SCENE : public mbm::SCENE
 {
   public:
-    mbm::TEXTURE_VIEW * texBox;
-    mbm::GIF_VIEW* gif;
-    mbm::SPRITE* sprite;
-	mbm::BACKGROUND* background;
-    mbm::MESH* mesh;
-    mbm::SHAPE_MESH* shape;
-    mbm::LINE_MESH* line;
-    mbm::PARTICLE* particle;
-    mbm::PARTICLE* particle_ptl;
-    mbm::RENDER_2_TEXTURE* render2Texture;
-    mbm::RENDERIZABLE* toTrack;
-	mbm::STEERED_PARTICLE* steeredParticle;
-    mbm::FONT_DRAW* fontDraw;
-	mbm::MESH_MBM_DEBUG meshDebug;
-	mbm::HMD* hmd;
-	mbm::TILE* tile;
-    mbm::TEXTURE_VIEW* texture;
-    mbm::TEXT_DRAW * mousePositionText;
-    bool randomizeParticleEachLoop;
-    float backGroundTimeToHide;
+    // Owned renderizable objects (nullptr when unloaded)
+    mbm::TEXTURE_VIEW*      texBox;
+    mbm::GIF_VIEW*          gif;
+    mbm::SPRITE*            sprite;
+    mbm::BACKGROUND*        background;
+    mbm::MESH*              mesh;
+    mbm::SHAPE_MESH*        shape;
+    mbm::LINE_MESH*         line;
+    mbm::PARTICLE*          particle;
+    mbm::PARTICLE*          particle_ptl;
+    mbm::RENDER_2_TEXTURE*  render2Texture;
+    mbm::STEERED_PARTICLE*  steeredParticle;
+    mbm::FONT_DRAW*         fontDrawNoShader;
+    mbm::MESH_MBM_DEBUG     meshDebug;
+    mbm::HMD*               hmd;
+    mbm::TILE*              tile;
+    mbm::TEXTURE_VIEW*      texture;
 
-	void randomSteeredParticlePositions();
+    // Menu
+    std::vector<MenuRow>    menuItems;
+    bool                    menuVisible;
+
     MY_SCENE();
     virtual ~MY_SCENE();
-	void startLoading();
-	void endLoading();
-    void init() ;
+    void startLoading();
+    void endLoading();
+    void init();
     void logic();
     void onTouchDown(int key, float x, float y);
     void onTouchUp(int key, float x, float y);
@@ -78,8 +112,15 @@ class MY_SCENE : public mbm::SCENE
     void onKeyDownJoystick(int player, int key);
     void onKeyUpJoystick(int player, int key);
     void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
-    void onInfoDeviceJoystick(int player, int maxNumberButton, const char * strDeviceName,const char * extraInfo);
+    void onInfoDeviceJoystick(int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo);
     void onResizeWindow();
+
+  private:
+    void buildMenu();
+    void updateMenuRow(size_t i);
+    void loadObjectAt(size_t i, RenderMode mode);
+    void releaseObjectAt(size_t i);
+    bool handleMenuTouchDown(float x, float y);
 };
 
 class GAME : public mbm::CORE_MANAGER

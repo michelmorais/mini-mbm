@@ -164,7 +164,7 @@ namespace mbm
         //const GLint MaxTextureWidth = static_cast<GLint>(std::sqrt(static_cast<float>(maxTextureSize)));
         const GLint MaxTextureWidth = maxTextureSize;
         const GLint MaxTextureHeight = MaxTextureWidth;
-        texture_manager->setTextureCapabilities(static_cast<const int32_t>(maxTextureSize), static_cast<const int32_t>(MaxTextureWidth), static_cast<const int32_t>(MaxTextureHeight));
+        texture_manager->setTextureCapabilities(static_cast<const uint32_t>(maxTextureSize), static_cast<const uint32_t>(MaxTextureWidth), static_cast<const uint32_t>(MaxTextureHeight));
 
         constexpr GLint index[2] = { GL_TEXTURE1, GL_TEXTURE0 };
         for (int i = 0; i < 2; i++)
