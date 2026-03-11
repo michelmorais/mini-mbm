@@ -97,7 +97,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::TEXT_DRAW*     btn3d;        // "(3d)"
 
     // Position preset right menu
-    mbm::TEXT_DRAW*         posMenuTexts[5];
+    mbm::TEXT_DRAW*         posMenuTexts[6];
     int                     posMenuSelected;
     bool                    posMenuVisible;
     bool                    worldMenuVisible;

@@ -53,7 +53,10 @@ MY_SCENE::MY_SCENE()
     texture            = nullptr;
     hintsText          = nullptr;
     menuVisible        = true;
-    for (int j = 0; j < 5; j++) posMenuTexts[j] = nullptr;
+    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
+    {
+        posMenuTexts[j] = nullptr;
+    }
     posMenuSelected    = 0;
     posMenuVisible     = true;
     worldMenuVisible   = true;
@@ -115,10 +118,6 @@ void MY_SCENE::init()
     device->colorClearBackGround.b = 0.5f;
 
     util::addPath(__FILE__);
-    util::addPath("C:\\Users\\miche\\Downloads");
-    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\image");
-    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\sprite");
-    util::addPath("C:\\Users\\miche\\Documents\\tower-defense\\tile");
 
     this->fontDrawNoShader = new mbm::FONT_DRAW(this);
     float heightLetter   = 0;
@@ -154,7 +153,7 @@ void MY_SCENE::logic()
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
-    INFO_LOG("Touch down key: %d", key);
+    INFO_LOG("Touch down key: %d %g %g", key, x, y);
     if (key == 0)
     {
         if (menuVisible && handleMenuTouchDown(x, y))
@@ -677,7 +676,7 @@ void MY_SCENE::buildPosMenu()
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
 
-    for (int j = 0; j < 6; j++)
+    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         char buf[64];
         snprintf(buf, sizeof(buf), "%s %s", j == 0 ? "[X]" : "[ ]", baseLabels[j]);
@@ -696,7 +695,7 @@ void MY_SCENE::buildPosMenu()
             maxHeight = h;
     }
 
-    for (int j = 0; j < 6; j++)
+    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (posMenuTexts[j])
         {
@@ -790,7 +789,7 @@ void MY_SCENE::updatePosMenu()
         "Apply (Right-Up)",
         "Apply (Track Mouse)",
     };
-    for (int j = 0; j < 6; j++)
+    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (!posMenuTexts[j])
             continue;
@@ -900,7 +899,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
 bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    for (int j = 0; j < 6; j++)
+    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (posMenuTexts[j] && posMenuTexts[j]->enableRender &&
             posMenuTexts[j]->isOver2ds(device, x, y))
