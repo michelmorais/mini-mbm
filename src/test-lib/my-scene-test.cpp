@@ -36,22 +36,31 @@ static inline const char* modeToStr(RenderMode mode)
 
 MY_SCENE::MY_SCENE()
 {
-    texBox           = nullptr;
-    gif              = nullptr;
-    sprite           = nullptr;
-    mesh             = nullptr;
-    shape            = nullptr;
-    line             = nullptr;
-    particle         = nullptr;
-    particle_ptl     = nullptr;
-    render2Texture   = nullptr;
-    steeredParticle  = nullptr;
-    background       = nullptr;
-    fontDrawNoShader = nullptr;
-    hmd              = nullptr;
-    tile             = nullptr;
-    texture          = nullptr;
-    menuVisible      = false;
+    texBox             = nullptr;
+    gif                = nullptr;
+    sprite             = nullptr;
+    mesh               = nullptr;
+    shape              = nullptr;
+    line               = nullptr;
+    particle           = nullptr;
+    particle_ptl       = nullptr;
+    render2Texture     = nullptr;
+    steeredParticle    = nullptr;
+    background         = nullptr;
+    fontDrawNoShader   = nullptr;
+    hmd                = nullptr;
+    tile               = nullptr;
+    texture            = nullptr;
+    hintsText          = nullptr;
+    menuVisible        = true;
+    for (int j = 0; j < 5; j++) posMenuTexts[j] = nullptr;
+    posMenuSelected    = 0;
+    posMenuVisible     = true;
+    worldMenuVisible   = true;
+    lastLoadedRowIdx   = -1;
+    statusText         = nullptr;
+    mouseScreenX       = 0.0f;
+    mouseScreenY       = 0.0f;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -116,10 +125,12 @@ void MY_SCENE::init()
     short spaceWidth     = 0;
     short spaceHeight    = 0;
     bool  saveTexAsPng   = false;
-    if (this->fontDrawNoShader->loadFont("Font-test-no-shader-25.fnt", heightLetter, spaceWidth, spaceHeight, saveTexAsPng))
+    if (this->fontDrawNoShader->loadFont("Font-test-no-shader-50.fnt", heightLetter, spaceWidth, spaceHeight, saveTexAsPng))
     {
         INFO_LOG("Font loaded successfully");
         buildMenu();
+        buildPosMenu();
+        buildWorldMenu();
     }
     else
     {
@@ -129,21 +140,40 @@ void MY_SCENE::init()
 
 void MY_SCENE::logic()
 {
+    if (statusText)
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        statusText->setText(
+            "Mouse(%.0f,%.0f)  Cam2D(%.0f,%.0f)  Cam3D(%.0f,%.0f,%.0f)",
+            mouseScreenX, mouseScreenY,
+            device->camera.position2d.x, device->camera.position2d.y,
+            device->camera.position.x, device->camera.position.y, device->camera.position.z);
+        statusText->forceCalcSize();
+    }
 }
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
 {
     INFO_LOG("Touch down key: %d", key);
-    if (menuVisible && key == 0 && handleMenuTouchDown(x, y))
-        return;
+    if (key == 0)
+    {
+        if (menuVisible && handleMenuTouchDown(x, y))
+            return;
+        if (posMenuVisible && handlePosMenuTouchDown(x, y))
+            return;
+        if(worldMenuVisible && handleWorldMenuTouchDown(x, y))
+            return;
+    }
 }
 
 void MY_SCENE::onTouchUp(int, float, float)
 {
 }
 
-void MY_SCENE::onTouchMove(int, float, float)
+void MY_SCENE::onTouchMove(int, float x, float y)
 {
+    mouseScreenX = x;
+    mouseScreenY = y;
 }
 
 void MY_SCENE::onTouchZoom(float)
@@ -156,11 +186,17 @@ void MY_SCENE::onFinalizeScene()
 
 void MY_SCENE::onKeyDown(int key)
 {
-    if (key == 77) // M - toggle menu
+    if (key == 77) // M - toggle left menu
     {
         menuVisible = !menuVisible;
         for (size_t i = 0; i < menuItems.size(); i++)
             updateMenuRow(i);
+        return;
+    }
+    if (key == 80) // P - toggle position menu
+    {
+        posMenuVisible = !posMenuVisible;
+        updatePosMenu();
         return;
     }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -217,18 +253,18 @@ void MY_SCENE::buildMenu()
         { "TILE",             MenuObjectType::TILE,             true,  true,  true  },
     };
 
-    constexpr float COL_LABEL   = 10.0f;
-    constexpr float COL_2DS     = 240.0f;
-    constexpr float COL_2DW     = 295.0f;
-    constexpr float COL_3D      = 345.0f;
-    constexpr float ROW_Y_START = 10.0f;
-    constexpr float ROW_HEIGHT  = 25.0f;
+    //constexpr float COL_LABEL   = 10.0f;
+    //constexpr float COL_2DS     = 240.0f;
+    //constexpr float COL_2DW     = 295.0f;
+    //constexpr float COL_3D      = 345.0f;
+    //constexpr float ROW_Y_START = 10.0f;
+    //constexpr float ROW_HEIGHT  = 25.0f;
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
 
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
-        const float rowY = ROW_Y_START + static_cast<float>(i) * ROW_HEIGHT;
+        //const float rowY = ROW_Y_START + static_cast<float>(i) * ROW_HEIGHT;
 
         MenuRow row;
         row.typeName    = defs[i].name;
@@ -241,33 +277,40 @@ void MY_SCENE::buildMenu()
 
         char labelBuf[64];
         snprintf(labelBuf, sizeof(labelBuf), "[ ] %s", defs[i].name);
-        row.labelText = this->fontDrawNoShader->addText(labelBuf, mbm::VEC2(COL_LABEL, rowY), IS_2D_FONT, IS_SCREEN);
-        row.labelText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+        row.labelText = this->fontDrawNoShader->addText(labelBuf, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
+        row.labelText->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
         row.labelText->forceCalcSize();
-        row.labelText->enableRender = false;
-
-        row.btn2dS = this->fontDrawNoShader->addText("(2dS)", mbm::VEC2(COL_2DS, rowY), IS_2D_FONT, IS_SCREEN);
-        row.btn2dS->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        row.btn2dS->forceCalcSize();
-        row.btn2dS->enableRender = false;
-
-        row.btn2dW = this->fontDrawNoShader->addText("(2dW)", mbm::VEC2(COL_2DW, rowY), IS_2D_FONT, IS_SCREEN);
-        row.btn2dW->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        row.btn2dW->forceCalcSize();
-        row.btn2dW->enableRender = false;
-
-        row.btn3d = this->fontDrawNoShader->addText("(3d)", mbm::VEC2(COL_3D, rowY), IS_2D_FONT, IS_SCREEN);
-        row.btn3d->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        row.btn3d->forceCalcSize();
-        row.btn3d->enableRender = false;
-
-        row.btnRelease = this->fontDrawNoShader->addText("(release)", mbm::VEC2(COL_2DS, rowY), IS_2D_FONT, IS_SCREEN);
-        row.btnRelease->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
-        row.btnRelease->forceCalcSize();
-        row.btnRelease->enableRender = false;
+        row.labelText->position.z    = -1.0f;
+        row.labelText->alwaysRenderize = true;
+        row.labelText->enableRender  = false;
 
         menuItems.push_back(row);
     }
+    
+    //float maxWidth  = 0.0f;
+    //float maxHeight = 0.0f;
+    for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
+    {
+        MenuRow& row = menuItems[i];
+        row.labelText->position.x = 10.0f;
+        row.labelText->position.y = 10.0f + static_cast<float>(i) * 50.0f;
+    }
+    // Hints text — always visible at the bottom of the screen
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    hintsText = this->fontDrawNoShader->addText("[M] menu | [P] pos-menu | [Arrows] camera", IS_2D_FONT, IS_SCREEN);
+    hintsText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    hintsText->forceCalcSize();
+    float hw = 0.0f, hh = 0.0f;
+    hintsText->getAABB(&hw, &hh);
+    hintsText->position.x      = 10.0f;
+    hintsText->position.y      = static_cast<float>(device->backBufferHeight) - hh - 5.0f;
+    hintsText->position.z      = -1.0f;
+    hintsText->alwaysRenderize = true;
+    hintsText->enableRender    = true;
+
+    // Show initial menu state
+    for (size_t i = 0; i < menuItems.size(); i++)
+        updateMenuRow(i);
 }
 
 void MY_SCENE::updateMenuRow(size_t i)
@@ -282,10 +325,6 @@ void MY_SCENE::updateMenuRow(size_t i)
     row.labelText->forceCalcSize();
 
     row.labelText->enableRender  = menuVisible;
-    row.btn2dS->enableRender     = menuVisible && !loaded && row.supports2dS;
-    row.btn2dW->enableRender     = menuVisible && !loaded && row.supports2dW;
-    row.btn3d->enableRender      = menuVisible && !loaded && row.supports3d;
-    row.btnRelease->enableRender = menuVisible && loaded;
 }
 
 void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
@@ -340,7 +379,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             sprite = new mbm::SPRITE(this, is3d, is2dS);
             if (sprite->load("box.spt"))
             {
-                sprite->scale      = mbm::VEC3(0.5f, 0.5f, 0.5f);
+                sprite->scale      = mbm::VEC3(1.0f, 1.0f, 1.0f);
                 sprite->position.x = -200;
                 INFO_LOG("SPRITE loaded (%s)", modeToStr(mode));
                 row.object = sprite;
@@ -514,7 +553,13 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
     }
 
     if (row.object)
-        row.currentMode = mode;
+    {
+        row.currentMode  = mode;
+        lastLoadedRowIdx = static_cast<int>(i);
+        // Ensure loaded 2D objects sit behind menu text (z=-1)
+        if (!is3d)
+            row.object->position.z = 0.0f;
+    }
     updateMenuRow(i);
 }
 
@@ -585,24 +630,282 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
     for (size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
-        if (row.btn2dS->enableRender && row.btn2dS->isOver2ds(device, x, y))
+        if (btn2dS->enableRender && btn2dS->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            loadObjectAt(i, RenderMode::SCREEN_2D);
+            if(row.labelText->text.find("[X]") != std::string::npos)
+                releaseObjectAt(i);
+            else
+                loadObjectAt(i, RenderMode::SCREEN_2D);
             return true;
         }
-        if (row.btn2dW->enableRender && row.btn2dW->isOver2ds(device, x, y))
+        if (btn2dW->enableRender && btn2dW->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            loadObjectAt(i, RenderMode::WORLD_2D);
+            if(row.labelText->text.find("[X]") != std::string::npos)
+                releaseObjectAt(i);
+            else
+                loadObjectAt(i, RenderMode::WORLD_2D);
             return true;
         }
-        if (row.btn3d->enableRender && row.btn3d->isOver2ds(device, x, y))
+        if (btn3d->enableRender && btn3d->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            loadObjectAt(i, RenderMode::WORLD_3D);
+            if(row.labelText->text.find("[X]") != std::string::npos)
+                releaseObjectAt(i);
+            else
+                loadObjectAt(i, RenderMode::WORLD_3D);
             return true;
         }
-        if (row.btnRelease->enableRender && row.btnRelease->isOver2ds(device, x, y))
+    }
+    return false;
+}
+
+void MY_SCENE::buildPosMenu()
+{
+    static const char* const baseLabels[6] =
+    {
+        "Apply (X=0,Y=0,Z=0)",
+        "Apply (Left-Bottom)",
+        "Apply (Left-Up)",
+        "Apply (Right-Bottom)",
+        "Apply (Right-Up)",
+        "Apply (Track Mouse)",
+    };
+
+    mbm::DEVICE* device     = mbm::DEVICE::getInstance();
+    
+    float maxWidth  = 0.0f;
+    float maxHeight = 0.0f;
+    constexpr bool  IS_2D_FONT  = true;
+    constexpr bool  IS_SCREEN   = true;
+
+    for (int j = 0; j < 6; j++)
+    {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%s %s", j == 0 ? "[X]" : "[ ]", baseLabels[j]);
+        posMenuTexts[j] = this->fontDrawNoShader->addText(buf, mbm::VEC2(0, 0), IS_2D_FONT, IS_SCREEN);
+        posMenuTexts[j]->scale         = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        posMenuTexts[j]->forceCalcSize();
+        posMenuTexts[j]->position.z    = -1.0f;
+        posMenuTexts[j]->alwaysRenderize = true;
+        posMenuTexts[j]->enableRender  = true;
+
+        float w = 0.0f, h = 0.0f;
+        posMenuTexts[j]->getAABB(&w, &h);
+        if (w > maxWidth)
+            maxWidth = w;
+        if (h > maxHeight)
+            maxHeight = h;
+    }
+
+    for (int j = 0; j < 6; j++)
+    {
+        if (posMenuTexts[j])
         {
-            releaseObjectAt(i);
+            posMenuTexts[j]->position.x = static_cast<float>(device->backBufferWidth) - maxWidth - 10.0f;
+            posMenuTexts[j]->position.y = 10.0f + static_cast<float>(j) * (maxHeight + 5.0f);
+        }
+    }
+
+    // Status text: one line above hints
+    float hw = 0.0f, hh = 0.0f;
+    if (hintsText)
+        hintsText->getAABB(&hw, &hh);
+    const float statusY = static_cast<float>(device->backBufferHeight) - hh * 2.0f - 12.0f;
+    statusText = this->fontDrawNoShader->addText(
+        "Mouse(0,0)  Cam2D(0,0)  Cam3D(0,0,0)", mbm::VEC2(10.0f, statusY), IS_2D_FONT, IS_SCREEN);
+    statusText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    statusText->forceCalcSize();
+    statusText->position.z    = -1.0f;
+    statusText->alwaysRenderize = true;
+    statusText->enableRender  = true;
+}
+
+void MY_SCENE::buildWorldMenu()
+{
+    float maxWidth  = 0.0f;
+    float maxHeight = 0.0f;
+    float hw = 0.0f, hh = 0.0f;
+    constexpr bool  IS_2D_FONT  = true;
+    constexpr bool  IS_SCREEN   = true;
+    btn2dS = this->fontDrawNoShader->addText("[x](2dS)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
+    btn2dS->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dS->forceCalcSize();
+    btn2dS->position.z    = -1.0f;
+    btn2dS->alwaysRenderize = true;
+    btn2dS->enableRender  = true;
+    btn2dS->getAABB(&maxWidth, &maxHeight);
+
+    btn2dW = this->fontDrawNoShader->addText("[ ](2dW)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
+    btn2dW->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn2dW->forceCalcSize();
+    btn2dW->position.z    = -1.0f;
+    btn2dW->alwaysRenderize = true;
+    btn2dW->enableRender  = true;
+    btn2dW->getAABB(&hw, &hh);
+    if (hw > maxWidth)        
+    {
+        maxWidth = hw;
+    }
+    if (hh > maxHeight)       
+    {
+        maxHeight = hh;
+    }
+
+    btn3d = this->fontDrawNoShader->addText("[ ](3d)", mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
+    btn3d->scale = mbm::VEC3(1.0f, 1.0f, 1.0f);
+    btn3d->forceCalcSize();
+    btn3d->position.z    = -1.0f;
+    btn3d->alwaysRenderize = true;
+    btn3d->enableRender  = true;
+    btn3d->getAABB(&hw, &hh);
+    if (hw > maxWidth)        
+    {
+        maxWidth = hw;
+    }
+    if (hh > maxHeight)       
+    {
+        maxHeight = hh;
+    }
+
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    float widthM = 0;
+    float heightM = 0;
+    btn3d->getWidthHeightString(&widthM, &heightM,"M");
+    const float defaultPosY = device->backBufferHeight - maxHeight;
+    btn2dS->position.x  = device->backBufferWidth - (maxWidth * 3) - widthM;
+    btn2dS->position.y  = defaultPosY;
+    btn2dW->position.x  = device->backBufferWidth - (maxWidth * 2) - widthM;
+    btn2dW->position.y  = defaultPosY;
+    btn3d->position.x   = device->backBufferWidth - maxWidth;
+    btn3d->position.y   = defaultPosY;
+}
+
+void MY_SCENE::updatePosMenu()
+{
+    static const char* const baseLabels[6] =
+    {
+        "Apply (X=0,Y=0,Z=0)",
+        "Apply (Left-Bottom)",
+        "Apply (Left-Up)",
+        "Apply (Right-Bottom)",
+        "Apply (Right-Up)",
+        "Apply (Track Mouse)",
+    };
+    for (int j = 0; j < 6; j++)
+    {
+        if (!posMenuTexts[j])
+            continue;
+        posMenuTexts[j]->setText("%s %s", j == posMenuSelected ? "[X]" : "[ ]", baseLabels[j]);
+        posMenuTexts[j]->forceCalcSize();
+        posMenuTexts[j]->enableRender = posMenuVisible;
+    }
+}
+
+void MY_SCENE::applyPosPreset(int idx)
+{
+    posMenuSelected = idx;
+    updatePosMenu();
+
+    if (lastLoadedRowIdx < 0 || lastLoadedRowIdx >= static_cast<int>(menuItems.size()))
+        return;
+
+    MenuRow& row = menuItems[static_cast<size_t>(lastLoadedRowIdx)];
+    if (!row.object || row.currentMode == RenderMode::NONE)
+        return;
+
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    float w = 0.0f, h = 0.0f;
+    row.object->getAABB(&w, &h);
+
+    if (idx == 0) // explicit origin
+    {
+        row.object->position.x = 0.0f;
+        row.object->position.y = 0.0f;
+        row.object->position.z = (row.currentMode == RenderMode::WORLD_3D) ? 0.0f : row.object->position.z;
+        return;
+    }
+
+    // Compute desired screen-space anchor
+    float sx = 0.0f, sy = 0.0f;
+    switch (idx)
+    {
+        case 1: // Left-Bottom
+            sx = w / 2.0f;
+            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            break;
+        case 2: // Left-Up
+            sx = w / 2.0f;
+            sy = h / 2.0f;
+            break;
+        case 3: // Right-Bottom
+            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
+            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            break;
+        case 4: // Right-Up
+            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
+            sy = h / 2.0f;
+            break;
+        default:
+            return;
+    }
+
+    const float savedZ = row.object->position.z;
+    if (row.currentMode == RenderMode::SCREEN_2D)
+    {
+        row.object->position.x = sx;
+        row.object->position.y = sy;
+        row.object->position.z = savedZ;
+    }
+    else if (row.currentMode == RenderMode::WORLD_2D)
+    {
+        device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
+        row.object->position.z = savedZ;
+    }
+    else // WORLD_3D
+    {
+        device->transformeScreen2dToWorld3d_scaled(sx, sy, &row.object->position, 100.0f);
+        // z is determined by the 3D transform — intentional
+    }
+}
+
+bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
+{
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    if(btn3d && btn3d->enableRender && btn3d->isOver2ds(device, x, y))
+    {
+        btn2dS->setText("[ ](2dS)");
+        btn2dW->setText("[ ](2dW)");
+        btn3d->setText("[x](3d)");
+        return true;
+    }
+
+    if(btn2dW && btn2dW->enableRender && btn2dW->isOver2ds(device, x, y))
+    {
+        btn2dS->setText("[ ](2dS)");
+        btn2dW->setText("[x](2dW)");
+        btn3d->setText("[ ](3d)");
+        return true;
+    }
+
+    if(btn2dS && btn2dS->enableRender && btn2dS->isOver2ds(device, x, y))
+    {
+        btn2dS->setText("[x](2dS)");
+        btn2dW->setText("[ ](2dW)");
+        btn3d->setText("[ ](3d)");
+        return true;
+    }
+    
+    return false;
+}
+
+bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
+{
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    for (int j = 0; j < 6; j++)
+    {
+        if (posMenuTexts[j] && posMenuTexts[j]->enableRender &&
+            posMenuTexts[j]->isOver2ds(device, x, y))
+        {
+            applyPosPreset(j);
             return true;
         }
     }

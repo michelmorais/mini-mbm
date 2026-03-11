@@ -64,10 +64,6 @@ struct MenuRow
     bool                supports3d;
     RenderMode          currentMode;
     mbm::TEXT_DRAW*     labelText;    // "[ ] TYPE" or "[X] TYPE (MODE)"
-    mbm::TEXT_DRAW*     btn2dS;       // "(2dS)"
-    mbm::TEXT_DRAW*     btn2dW;       // "(2dW)"
-    mbm::TEXT_DRAW*     btn3d;        // "(3d)"
-    mbm::TEXT_DRAW*     btnRelease;   // "(release)"
     mbm::RENDERIZABLE*  object;       // non-owning view; nullptr when unloaded
 };
 
@@ -95,6 +91,22 @@ class MY_SCENE : public mbm::SCENE
     // Menu
     std::vector<MenuRow>    menuItems;
     bool                    menuVisible;
+    mbm::TEXT_DRAW*         hintsText;     // always-visible keyboard shortcut help
+    mbm::TEXT_DRAW*     btn2dS;       // "(2dS)"
+    mbm::TEXT_DRAW*     btn2dW;       // "(2dW)"
+    mbm::TEXT_DRAW*     btn3d;        // "(3d)"
+
+    // Position preset right menu
+    mbm::TEXT_DRAW*         posMenuTexts[5];
+    int                     posMenuSelected;
+    bool                    posMenuVisible;
+    bool                    worldMenuVisible;
+    int                     lastLoadedRowIdx;  // -1 if none
+
+    // Status display
+    mbm::TEXT_DRAW*         statusText;
+    float                   mouseScreenX;
+    float                   mouseScreenY;
 
     MY_SCENE();
     virtual ~MY_SCENE();
@@ -117,10 +129,16 @@ class MY_SCENE : public mbm::SCENE
 
   private:
     void buildMenu();
+    void buildPosMenu();
+    void buildWorldMenu();
     void updateMenuRow(size_t i);
+    void updatePosMenu();
     void loadObjectAt(size_t i, RenderMode mode);
     void releaseObjectAt(size_t i);
+    void applyPosPreset(int idx);
     bool handleMenuTouchDown(float x, float y);
+    bool handlePosMenuTouchDown(float x, float y);
+    bool handleWorldMenuTouchDown(float x, float y);
 };
 
 class GAME : public mbm::CORE_MANAGER
