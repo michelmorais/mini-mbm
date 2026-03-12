@@ -139,7 +139,8 @@ class MY_SCENE : public mbm::SCENE
     void applyPosPreset(int idx);
     bool handleMenuTouchDown(float x, float y);
     bool handlePosMenuTouchDown(float x, float y);
-    bool handleWorldMenuTouchDown(float x, float y);
+    bool handleWorldMenuTouchDown(float x, float y, RenderMode &mode_selected);
+    void randomSteeredParticlePositions();
 };
 
 class GAME : public mbm::CORE_MANAGER

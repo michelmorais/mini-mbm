@@ -22,6 +22,7 @@
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
 #include <cstdio>
+#include <random>
 
 static inline const char* modeToStr(RenderMode mode)
 {
@@ -54,7 +55,7 @@ MY_SCENE::MY_SCENE()
     hintsText          = nullptr;
     trackMouse         = nullptr;
     menuVisible        = true;
-    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
+    for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
     {
         posMenuTexts[j] = nullptr;
     }
@@ -140,15 +141,30 @@ void MY_SCENE::init()
 
 void MY_SCENE::logic()
 {
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
     if (statusText)
     {
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
         statusText->setText(
             "Mouse(%.0f,%.0f)  Cam2D(%.0f,%.0f)  Cam3D(%.0f,%.0f,%.0f)",
             mouseScreenX, mouseScreenY,
             device->camera.position2d.x, device->camera.position2d.y,
             device->camera.position.x, device->camera.position.y, device->camera.position.z);
         statusText->forceCalcSize();
+    }
+    for(size_t i = 0; i < menuItems.size(); i++)
+    {
+        MenuRow& row = menuItems[i];
+        if (row.object)
+        {
+            if(row.object->is3D)
+            {
+                row.object->angle.y += device->delta * 3.0f;
+            }
+            else
+            {
+                row.object->angle.y = 0.0f;
+            }
+        }
     }
 }
 
@@ -161,8 +177,15 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
             return;
         if (posMenuVisible && handlePosMenuTouchDown(x, y))
             return;
-        if(worldMenuVisible && handleWorldMenuTouchDown(x, y))
-            return;
+        RenderMode mode_selected;
+        if(worldMenuVisible && handleWorldMenuTouchDown(x, y, mode_selected))
+        {
+            releaseObjectAt(lastLoadedRowIdx);
+            if(lastLoadedRowIdx != -1)
+            {
+                loadObjectAt(lastLoadedRowIdx, mode_selected);
+            }
+        }
     }
 }
 
@@ -419,6 +442,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             if (mesh->load("Barrel_NoTop.msh"))
             {
+                mesh->scale = mbm::VEC3(3.5f, 3.5f, 3.5f);
                 INFO_LOG("MESH loaded (%s)", modeToStr(mode));
                 row.object = mesh;
             }
@@ -499,6 +523,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
                     group->aSizeParticle = 20.0f;
                 steeredParticle->restartAnimationParticle();
                 steeredParticle->restartAnimation();
+                randomSteeredParticlePositions();
                 INFO_LOG("STEERED_PARTICLE loaded (%s)", modeToStr(mode));
                 row.object = steeredParticle;
             }
@@ -679,7 +704,7 @@ void MY_SCENE::buildPosMenu()
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
 
-    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+    for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         char buf[64];
         snprintf(buf, sizeof(buf), "%s %s", j == 0 ? "[X]" : "[ ]", baseLabels[j]);
@@ -698,7 +723,7 @@ void MY_SCENE::buildPosMenu()
             maxHeight = h;
     }
 
-    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+    for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (posMenuTexts[j])
         {
@@ -792,11 +817,11 @@ void MY_SCENE::updatePosMenu()
         "Apply (Right-Up)",
         "Apply (Track Mouse)",
     };
-    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+    for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (!posMenuTexts[j])
             continue;
-        posMenuTexts[j]->setText("%s %s", j == posMenuSelected ? "[X]" : "[ ]", baseLabels[j]);
+        posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j]->forceCalcSize();
         posMenuTexts[j]->enableRender = posMenuVisible;
     }
@@ -873,7 +898,7 @@ void MY_SCENE::applyPosPreset(int idx)
     }
 }
 
-bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
+bool MY_SCENE::handleWorldMenuTouchDown(float x, float y, RenderMode& mode_selected)
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     if(btn3d && btn3d->enableRender && btn3d->isOver2ds(device, x, y))
@@ -881,6 +906,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[ ](2dW)");
         btn3d->setText("[x](3d)");
+        mode_selected = RenderMode::WORLD_3D;
         return true;
     }
 
@@ -889,6 +915,7 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
         btn2dS->setText("[ ](2dS)");
         btn2dW->setText("[x](2dW)");
         btn3d->setText("[ ](3d)");
+        mode_selected = RenderMode::WORLD_2D;
         return true;
     }
 
@@ -897,16 +924,17 @@ bool MY_SCENE::handleWorldMenuTouchDown(float x, float y)
         btn2dS->setText("[x](2dS)");
         btn2dW->setText("[ ](2dW)");
         btn3d->setText("[ ](3d)");
+        mode_selected = RenderMode::SCREEN_2D;
         return true;
     }
-    
+    mode_selected = RenderMode::NONE;
     return false;
 }
 
 bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+    for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
     {
         if (posMenuTexts[j] && posMenuTexts[j]->enableRender &&
             posMenuTexts[j]->isOver2ds(device, x, y))
@@ -916,6 +944,29 @@ bool MY_SCENE::handlePosMenuTouchDown(float x, float y)
         }
     }
     return false;
+}
+
+void MY_SCENE::randomSteeredParticlePositions()
+{
+    if (steeredParticle)
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::FLUID_GROUP* group = steeredParticle->getParticleGroup(0);
+        if (group)
+        {
+            static std::random_device rd;
+            static std::mt19937 gen(rd());
+            std::uniform_real_distribution<float> disX(-static_cast<float>(device->backBufferWidth) * 0.25f, static_cast<float>(device->backBufferWidth) * 0.25f);
+            std::uniform_real_distribution<float> disY(-static_cast<float>(device->backBufferHeight) * 0.25f, static_cast<float>(device->backBufferHeight) * 0.25f);
+
+            for (uint32_t i = 0; i < group->size_particle_array; i++)
+            {
+                float randomX = disX(gen);
+                float randomY = disY(gen);
+                group->particle_positions[i] = mbm::VEC3(randomX, randomY, 0);
+            }
+        }
+    }
 }
 
 bool GAME::existScene(const int idScene)
