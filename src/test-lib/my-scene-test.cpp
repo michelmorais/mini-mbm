@@ -52,6 +52,7 @@ MY_SCENE::MY_SCENE()
     tile               = nullptr;
     texture            = nullptr;
     hintsText          = nullptr;
+    trackMouse         = nullptr;
     menuVisible        = true;
     for (int j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
     {
@@ -173,6 +174,24 @@ void MY_SCENE::onTouchMove(int, float x, float y)
 {
     mouseScreenX = x;
     mouseScreenY = y;
+    if(trackMouse)
+    {
+        if(trackMouse->is3D)
+        {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            device->transformeScreen2dToWorld3d_scaled(x, y, &trackMouse->position, 800.0f);
+        }
+        else if(trackMouse->is2dS)
+        {
+            trackMouse->position.x = x;
+            trackMouse->position.y = y;
+        }
+        else
+        {
+            mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            device->transformeScreen2dToWorld2d_scaled(x, y, trackMouse->position);
+        }
+    }
 }
 
 void MY_SCENE::onTouchZoom(float)
@@ -252,19 +271,11 @@ void MY_SCENE::buildMenu()
         { "TILE",             MenuObjectType::TILE,             true,  true,  true  },
     };
 
-    //constexpr float COL_LABEL   = 10.0f;
-    //constexpr float COL_2DS     = 240.0f;
-    //constexpr float COL_2DW     = 295.0f;
-    //constexpr float COL_3D      = 345.0f;
-    //constexpr float ROW_Y_START = 10.0f;
-    //constexpr float ROW_HEIGHT  = 25.0f;
     constexpr bool  IS_2D_FONT  = true;
     constexpr bool  IS_SCREEN   = true;
 
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
-        //const float rowY = ROW_Y_START + static_cast<float>(i) * ROW_HEIGHT;
-
         MenuRow row;
         row.typeName    = defs[i].name;
         row.objType     = defs[i].type;
@@ -286,8 +297,6 @@ void MY_SCENE::buildMenu()
         menuItems.push_back(row);
     }
     
-    //float maxWidth  = 0.0f;
-    //float maxHeight = 0.0f;
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
         MenuRow& row = menuItems[i];
@@ -359,8 +368,6 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             texBox = new mbm::TEXTURE_VIEW(this, is3d, is2dS);
             if (texBox->load("wooden-box.jpg", 200, 200))
             {
-                texBox->position.x = 300;
-                texBox->position.y = 100;
                 INFO_LOG("TEXTURE_VIEW loaded (%s)", modeToStr(mode));
                 row.object = texBox;
             }
@@ -378,8 +385,6 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             sprite = new mbm::SPRITE(this, is3d, is2dS);
             if (sprite->load("box.spt"))
             {
-                sprite->scale      = mbm::VEC3(1.0f, 1.0f, 1.0f);
-                sprite->position.x = -200;
                 INFO_LOG("SPRITE loaded (%s)", modeToStr(mode));
                 row.object = sprite;
             }
@@ -414,9 +419,6 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             mesh = new mbm::MESH(this, is3d, is2dS);
             if (mesh->load("Barrel_NoTop.msh"))
             {
-                mesh->scale      = mbm::VEC3(10.0f, 10.0f, 10.0f);
-                mesh->position.z = -100;
-                mesh->position.y = 100;
                 INFO_LOG("MESH loaded (%s)", modeToStr(mode));
                 row.object = mesh;
             }
@@ -434,8 +436,6 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             shape = new mbm::SHAPE_MESH(this, is3d, is2dS);
             if (shape->loadRectangle("quad", 100, 100, true, 2))
             {
-                shape->position.x = 100;
-                shape->position.y = 100;
                 INFO_LOG("SHAPE_MESH loaded (%s)", modeToStr(mode));
                 row.object = shape;
             }
@@ -560,10 +560,13 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             row.object->position.z = 0.0f;
     }
     updateMenuRow(i);
+    applyPosPreset(posMenuSelected);
 }
+
 
 void MY_SCENE::releaseObjectAt(size_t i)
 {
+    trackMouse = nullptr;
     MenuRow& row = menuItems[i];
     if (row.object == nullptr)
         return;
@@ -823,6 +826,7 @@ void MY_SCENE::applyPosPreset(int idx)
         return;
     }
 
+    trackMouse = nullptr;
     // Compute desired screen-space anchor
     float sx = 0.0f, sy = 0.0f;
     switch (idx)
@@ -843,6 +847,9 @@ void MY_SCENE::applyPosPreset(int idx)
             sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
             sy = h / 2.0f;
             break;
+        case 5: // Track Mouse
+            trackMouse = row.object;
+            break;
         default:
             return;
     }
@@ -861,8 +868,8 @@ void MY_SCENE::applyPosPreset(int idx)
     }
     else // WORLD_3D
     {
-        device->transformeScreen2dToWorld3d_scaled(sx, sy, &row.object->position, 100.0f);
-        // z is determined by the 3D transform — intentional
+        device->transformeScreen2dToWorld3d_scaled(sx, sy, &row.object->position, 800.0f);
+        // z is determined by the 3D transform — intentional (how far)
     }
 }
 

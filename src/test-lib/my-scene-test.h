@@ -87,6 +87,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::HMD*               hmd;
     mbm::TILE*              tile;
     mbm::TEXTURE_VIEW*      texture;
+    mbm::RENDERIZABLE*      trackMouse;
 
     // Menu
     std::vector<MenuRow>    menuItems;
