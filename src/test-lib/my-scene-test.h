@@ -109,6 +109,10 @@ class MY_SCENE : public mbm::SCENE
     float                   mouseScreenX;
     float                   mouseScreenY;
 
+    // Timed notification (5 seconds)
+    mbm::TEXT_DRAW*         notificationText;
+    float                   notificationTimer;
+
     MY_SCENE();
     virtual ~MY_SCENE();
     void startLoading();
@@ -142,6 +146,7 @@ class MY_SCENE : public mbm::SCENE
     bool handleWorldMenuTouchDown(float x, float y, RenderMode &mode_selected);
     void randomSteeredParticlePositions();
     void addObjectsToRender2Texture();
+    void showNotification(const char* fmt, ...);
 };
 
 class GAME : public mbm::CORE_MANAGER

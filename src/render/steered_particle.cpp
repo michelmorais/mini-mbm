@@ -348,7 +348,7 @@ namespace mbm
                     return false;
             }
         }
-        return false;
+        return true;
     }
 
     bool STEERED_PARTICLE::releaseOnFail()
