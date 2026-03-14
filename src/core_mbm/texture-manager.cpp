@@ -873,6 +873,19 @@ namespace mbm
         #endif
     }
     
+    void TEXTURE_MANAGER::releaseRenderTarget(const char *nickName)
+    {
+        if (!nickName)
+            return;
+        const std::string key = util::getBaseName(nickName);
+        auto it = lsTextures.find(key);
+        if (it != lsTextures.end())
+        {
+            delete it->second;
+            lsTextures.erase(it);
+        }
+    }
+
     TEXTURE_MANAGER::~TEXTURE_MANAGER()
     {
         std::unordered_map<std::string, TEXTURE *>::const_iterator it;

@@ -71,6 +71,9 @@ namespace mbm
     
     RENDER_2_TEXTURE::~RENDER_2_TEXTURE()
     {
+        // Evict the render-target texture from the cache and free its GL object before
+        // the base-class destructor deletes the FBO/renderbuffer in specificConfig.
+        this->release();
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         device->removeObjectRender2Texture(this);
         device->removeRenderizable(this);
@@ -104,7 +107,13 @@ namespace mbm
     
     void RENDER_2_TEXTURE::release()
     {
-        this->texture = nullptr;
+        // Evict from TEXTURE_MANAGER cache so the next load() with the same nickname
+        // creates a fresh FBO rather than returning this now-dead texture.
+        if (this->texture != nullptr)
+        {
+            TEXTURE_MANAGER::getInstance()->releaseRenderTarget(this->texture->getFileNameTexture());
+            this->texture = nullptr;
+        }
         this->clear();
         this->fileName.clear();
         this->bufferGL.release();
