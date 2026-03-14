@@ -89,6 +89,10 @@ namespace mbm
         API_IMPL static void release();
         API_IMPL TEXTURE *createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
                                                   const bool enableAlpha);
+        // Remove a render-target texture from the cache and delete its GL object.
+        // Must be called before destroying a RENDER_2_TEXTURE so that the next load
+        // with the same nickname creates a fresh FBO instead of reusing the stale one.
+        API_IMPL void releaseRenderTarget(const char *nickName);
         API_IMPL TEXTURE *load(const IMAGE_RESOURCE *imageResource);
         API_IMPL TEXTURE *load(const uint32_t width, const uint32_t height, const uint8_t *data,
                              const char *nickName, const uint16_t depth, const uint16_t channel);

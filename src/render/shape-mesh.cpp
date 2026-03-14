@@ -48,6 +48,12 @@ namespace mbm
     {
         this->releaseAnimation();
         this->indexCurrentAnimation = 0;
+        // Dynamic meshes store CPU-side vertex data in this instance's dynamicVertex.
+        // The MESH_MANAGER cache entry (vboIndexSubsetIB only, no static vboVertNorTexIB)
+        // cannot be reused by a new SHAPE_MESH instance — evict it so the next load
+        // rebuilds a fresh mesh with properly populated dynamicVertex.
+        if (this->mesh != nullptr && this->mesh->getInfoShape() != nullptr)
+            MESH_MANAGER::getInstance()->fakeRelease(this->mesh->getFilenameMesh());
         this->mesh                  = nullptr;
         this->onRenderDynamicBuffer = nullptr;
         dynamicVertex.clear();

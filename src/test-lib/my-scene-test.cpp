@@ -22,6 +22,8 @@
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
 #include <cstdio>
+#include <cstdarg>
+#include <cmath>
 #include <random>
 
 static inline const char* modeToStr(RenderMode mode)
@@ -62,10 +64,12 @@ MY_SCENE::MY_SCENE()
     posMenuSelected    = 0;
     posMenuVisible     = true;
     worldMenuVisible   = true;
-    lastLoadedRowIdx   = -1;
-    statusText         = nullptr;
-    mouseScreenX       = 0.0f;
-    mouseScreenY       = 0.0f;
+    lastLoadedRowIdx    = -1;
+    statusText          = nullptr;
+    mouseScreenX        = 0.0f;
+    mouseScreenY        = 0.0f;
+    notificationText    = nullptr;
+    notificationTimer   = 0.0f;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -151,6 +155,16 @@ void MY_SCENE::logic()
             device->camera.position.x, device->camera.position.y, device->camera.position.z);
         statusText->forceCalcSize();
     }
+    if (notificationTimer > 0.0f)
+    {
+        notificationTimer -= device->delta;
+        if (notificationTimer <= 0.0f)
+        {
+            notificationTimer = 0.0f;
+            if (notificationText)
+                notificationText->enableRender = false;
+        }
+    }
     for(size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
@@ -180,9 +194,9 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
         RenderMode mode_selected;
         if(worldMenuVisible && handleWorldMenuTouchDown(x, y, mode_selected))
         {
-            releaseObjectAt(lastLoadedRowIdx);
             if(lastLoadedRowIdx != -1)
             {
+                releaseObjectAt(lastLoadedRowIdx);
                 loadObjectAt(lastLoadedRowIdx, mode_selected);
             }
         }
@@ -290,7 +304,7 @@ void MY_SCENE::buildMenu()
         { "LINE_MESH",        MenuObjectType::LINE_MESH,        true,  true,  true  },
         { "PARTICLE",         MenuObjectType::PARTICLE,         true,  true,  true  },
         { "STEERED_PARTICLE", MenuObjectType::STEERED_PARTICLE, true,  true,  true  },
-        { "RENDER_2_TEXTURE", MenuObjectType::RENDER_2_TEXTURE, true,  false, false },
+        { "RENDER_2_TEXTURE (Prefer 2DW)", MenuObjectType::RENDER_2_TEXTURE, true,  false, false },
         { "TILE",             MenuObjectType::TILE,             true,  true,  true  },
     };
 
@@ -475,12 +489,64 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         case MenuObjectType::LINE_MESH:
         {
             line = new mbm::LINE_MESH(this, is3d, is2dS);
-            for (int j = 0; j < 2; j++)
+            if (is3d)
             {
-                std::vector<mbm::VEC3> pts;
-                pts.push_back(mbm::VEC3(0.0f + j * 10.0f, 0.0f, 0.0f));
-                pts.push_back(mbm::VEC3(0.0f + j * 10.0f, 100.0f, 0.0f));
-                line->add(std::move(pts));
+                // Low-poly globe wireframe: R=100, 5 stacks, 8 slices
+                static constexpr float PI    = 3.14159265358979f;
+                static constexpr float R     = 100.0f;
+                static constexpr int   STACKS = 5;
+                static constexpr int   SLICES = 8;
+                // Latitude rings (exclude poles: stacks-1 inner rings)
+                for (int st = 1; st < STACKS; ++st)
+                {
+                    const float phi = PI * static_cast<float>(st) / static_cast<float>(STACKS);
+                    const float y   = R * std::cos(phi);
+                    const float r   = R * std::sin(phi);
+                    std::vector<mbm::VEC3> ring;
+                    ring.reserve(SLICES + 1);
+                    for (int sl = 0; sl <= SLICES; ++sl)
+                    {
+                        const float theta = 2.0f * PI * static_cast<float>(sl) / static_cast<float>(SLICES);
+                        ring.push_back(mbm::VEC3(r * std::cos(theta), y, r * std::sin(theta)));
+                    }
+                    line->add(std::move(ring));
+                }
+                // Longitude meridians (north pole to south pole)
+                for (int sl = 0; sl < SLICES; ++sl)
+                {
+                    const float theta = 2.0f * PI * static_cast<float>(sl) / static_cast<float>(SLICES);
+                    std::vector<mbm::VEC3> meridian;
+                    meridian.reserve(STACKS + 1);
+                    for (int st = 0; st <= STACKS; ++st)
+                    {
+                        const float phi = PI * static_cast<float>(st) / static_cast<float>(STACKS);
+                        meridian.push_back(mbm::VEC3(
+                            R * std::sin(phi) * std::cos(theta),
+                            R * std::cos(phi),
+                            R * std::sin(phi) * std::sin(theta)));
+                    }
+                    line->add(std::move(meridian));
+                }
+            }
+            else
+            {
+                // Square outline with X mark (half-size = 50)
+                static constexpr float H = 50.0f;
+                // Closed square outline
+                std::vector<mbm::VEC3> sq = {
+                    mbm::VEC3(-H, -H, 0.0f),
+                    mbm::VEC3(-H,  H, 0.0f),
+                    mbm::VEC3( H,  H, 0.0f),
+                    mbm::VEC3( H, -H, 0.0f),
+                    mbm::VEC3(-H, -H, 0.0f)
+                };
+                line->add(std::move(sq));
+                // Diagonal: bottom-left to top-right
+                std::vector<mbm::VEC3> d1 = { mbm::VEC3(-H, -H, 0.0f), mbm::VEC3(H, H, 0.0f) };
+                line->add(std::move(d1));
+                // Diagonal: top-left to bottom-right
+                std::vector<mbm::VEC3> d2 = { mbm::VEC3(-H, H, 0.0f), mbm::VEC3(H, -H, 0.0f) };
+                line->add(std::move(d2));
             }
             line->enableRender = true;
             INFO_LOG("LINE_MESH loaded (%s)", modeToStr(mode));
@@ -540,14 +606,16 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             render2Texture      = new mbm::RENDER_2_TEXTURE(this, is3d, is2dS);
-            if (render2Texture->load(350, 204, 350, 204, "my-render", true))
+            const uint32_t widthFrame = static_cast<uint32_t>(device->backBufferWidth * 0.60f);
+            const uint32_t heightFrame = static_cast<uint32_t>(device->backBufferHeight * 0.60f);
+            if (render2Texture->load(widthFrame, heightFrame, widthFrame, heightFrame, "my-render", true))
             {
                 if (gif)
                     render2Texture->addObject2Render(gif);
-                render2Texture->position.x = static_cast<float>(device->backBufferWidth) - (350.0f / 2.0f);
-                render2Texture->position.y = 204.0f / 2.0f;
                 INFO_LOG("RENDER_2_TEXTURE loaded (%s)", modeToStr(mode));
                 row.object = render2Texture;
+                addObjectsToRender2Texture();
+                posMenuSelected = 0; // objects inside r2t always start at origin
             }
             else
             {
@@ -584,10 +652,77 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         if (!is3d)
             row.object->position.z = 0.0f;
     }
+    addObjectsToRender2Texture();
     updateMenuRow(i);
     applyPosPreset(posMenuSelected);
+    if (row.object)
+    {
+        const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
+        showNotification("%s loaded (%s) %s | pos(%.0f,%.0f,%.0f)",
+            row.typeName, modeToStr(mode),
+            insideR2T ? "in render2texture" : "in scene",
+            row.object->position.x, row.object->position.y, row.object->position.z);
+    }
 }
 
+void MY_SCENE::addObjectsToRender2Texture()
+{
+    if (render2Texture)
+    {
+        if (gif)
+        {
+            render2Texture->addObject2Render(gif);
+        }
+        if (sprite)
+        {
+            render2Texture->addObject2Render(sprite);
+        }
+        if (shape)
+        {
+            render2Texture->addObject2Render(shape);
+        }
+        if (line)
+        {
+            render2Texture->addObject2Render(line);
+        }
+        if (particle)
+        {
+            render2Texture->addObject2Render(particle);
+        }
+        if (steeredParticle)
+        {
+            render2Texture->addObject2Render(steeredParticle);
+        }
+        if (tile)
+        {
+            render2Texture->addObject2Render(tile);
+        }
+        if(background)
+        {
+            render2Texture->addObject2Render(background);
+        }
+        if(mesh)
+        {
+            render2Texture->addObject2Render(mesh);
+        }
+        if(texture)
+        {
+            render2Texture->addObject2Render(texture);
+        }
+        if(particle_ptl)
+        {
+            render2Texture->addObject2Render(particle_ptl);
+        }
+        if(hmd)
+        {
+            render2Texture->addObject2Render(hmd);
+        }
+        if(texBox)
+        {
+            render2Texture->addObject2Render(texBox);
+        }
+    }
+}
 
 void MY_SCENE::releaseObjectAt(size_t i)
 {
@@ -596,11 +731,13 @@ void MY_SCENE::releaseObjectAt(size_t i)
     if (row.object == nullptr)
         return;
 
+    showNotification("%s released", row.typeName);
+
+    if (render2Texture)
+        render2Texture->removeObject2Render(row.object);
     switch (row.objType)
     {
         case MenuObjectType::GIF_VIEW:
-            if (render2Texture)
-                render2Texture->removeObject2Render(gif);
             delete gif;
             gif = nullptr;
             break;
@@ -639,6 +776,7 @@ void MY_SCENE::releaseObjectAt(size_t i)
         case MenuObjectType::RENDER_2_TEXTURE:
             delete render2Texture;
             render2Texture = nullptr;
+            updatePosMenu(); // restore full pos menu now that r2t is gone
             break;
         case MenuObjectType::TILE:
             delete tile;
@@ -744,6 +882,15 @@ void MY_SCENE::buildPosMenu()
     statusText->position.z    = -1.0f;
     statusText->alwaysRenderize = true;
     statusText->enableRender  = true;
+
+    // Notification text: one line above statusText
+    const float notifyY = statusY - hh - 5.0f;
+    notificationText = this->fontDrawNoShader->addText("", mbm::VEC2(10.0f, notifyY), IS_2D_FONT, IS_SCREEN);
+    notificationText->scale         = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    notificationText->forceCalcSize();
+    notificationText->position.z    = -1.0f;
+    notificationText->alwaysRenderize = true;
+    notificationText->enableRender  = false;
 }
 
 void MY_SCENE::buildWorldMenu()
@@ -823,7 +970,9 @@ void MY_SCENE::updatePosMenu()
             continue;
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j]->forceCalcSize();
-        posMenuTexts[j]->enableRender = posMenuVisible;
+        // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
+        // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
+        //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
     }
 }
 
@@ -854,22 +1003,30 @@ void MY_SCENE::applyPosPreset(int idx)
     trackMouse = nullptr;
     // Compute desired screen-space anchor
     float sx = 0.0f, sy = 0.0f;
+    float backBufferHeight = static_cast<float>(device->backBufferHeight);
+    float backBufferWidth = static_cast<float>(device->backBufferWidth);
+    if(render2Texture && row.object != render2Texture)
+    {
+        // If the object is inside render2Texture, use its dimensions instead of the device backbuffer for positioning
+        backBufferHeight = static_cast<float>(render2Texture->heightTexture);
+        backBufferWidth = static_cast<float>(render2Texture->widthTexture);
+    }
     switch (idx)
     {
         case 1: // Left-Bottom
             sx = w / 2.0f;
-            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            sy = backBufferHeight - h / 2.0f;
             break;
         case 2: // Left-Up
             sx = w / 2.0f;
             sy = h / 2.0f;
             break;
         case 3: // Right-Bottom
-            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
-            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            sx = backBufferWidth - w / 2.0f;
+            sy = backBufferHeight - h / 2.0f;
             break;
         case 4: // Right-Up
-            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
+            sx = backBufferWidth - w / 2.0f;
             sy = h / 2.0f;
             break;
         case 5: // Track Mouse
@@ -880,16 +1037,40 @@ void MY_SCENE::applyPosPreset(int idx)
     }
 
     const float savedZ = row.object->position.z;
+    const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
     if (row.currentMode == RenderMode::SCREEN_2D)
     {
-        row.object->position.x = sx;
-        row.object->position.y = sy;
+        if (insideR2T)
+        {
+            // render2texture camera uses matrixOrthoLH(tw, th). The SCREEN_2D render path
+            // calls transformeScreen2dToWorld2d_scaled(position) at draw time, then applies
+            // matrixPerspective2d. We need world = (sx - tw/2, -(sy - th/2)), so store the
+            // main-screen-equivalent pixel coords that produce those world coords.
+            row.object->position.x = device->backBufferWidth * 0.5f + sx - backBufferWidth * 0.5f;
+            row.object->position.y = device->backBufferHeight * 0.5f - backBufferHeight * 0.5f + sy;
+        }
+        else
+        {
+            row.object->position.x = sx;
+            row.object->position.y = sy;
+        }
         row.object->position.z = savedZ;
     }
     else if (row.currentMode == RenderMode::WORLD_2D)
     {
-        device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
-        row.object->position.z = savedZ;
+        if (insideR2T)
+        {
+            // render2texture camera uses matrixOrthoLH(tw, th) which maps [-tw/2, tw/2] to
+            // clip space. WORLD_2D render path uses position directly — place in texture world.
+            row.object->position.x = sx - backBufferWidth * 0.5f;
+            row.object->position.y = -(sy - backBufferHeight * 0.5f);
+            row.object->position.z = savedZ;
+        }
+        else
+        {
+            device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
+            row.object->position.z = savedZ;
+        }
     }
     else // WORLD_3D
     {
@@ -967,6 +1148,21 @@ void MY_SCENE::randomSteeredParticlePositions()
             }
         }
     }
+}
+
+void MY_SCENE::showNotification(const char* fmt, ...)
+{
+    if (!notificationText)
+        return;
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    notificationText->setText("%s", buf);
+    notificationText->forceCalcSize();
+    notificationText->enableRender = true;
+    notificationTimer = 5.0f;
 }
 
 bool GAME::existScene(const int idScene)
