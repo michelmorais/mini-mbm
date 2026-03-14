@@ -110,7 +110,7 @@ namespace mbm
         this->bufferGL.release();
     }
     
-    TEXTURE* RENDER_2_TEXTURE::load(const unsigned int widthFrame, const unsigned int heightFrame, const unsigned int _widthTexture,const unsigned int _heightTexture, const char *nickName, const bool hasAlpha)
+    TEXTURE* RENDER_2_TEXTURE::load(const uint32_t widthFrame, const uint32_t heightFrame, const uint32_t _widthTexture,const uint32_t _heightTexture, const char *nickName, const bool hasAlpha)
     {
         #if defined _WIN32
             const char *messageError =

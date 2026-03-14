@@ -180,9 +180,9 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
         RenderMode mode_selected;
         if(worldMenuVisible && handleWorldMenuTouchDown(x, y, mode_selected))
         {
-            releaseObjectAt(lastLoadedRowIdx);
             if(lastLoadedRowIdx != -1)
             {
+                releaseObjectAt(lastLoadedRowIdx);
                 loadObjectAt(lastLoadedRowIdx, mode_selected);
             }
         }
@@ -540,14 +540,21 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
             render2Texture      = new mbm::RENDER_2_TEXTURE(this, is3d, is2dS);
-            if (render2Texture->load(350, 204, 350, 204, "my-render", true))
+            const uint32_t widthFrame = static_cast<uint32_t>(device->backBufferWidth * 0.60f);
+            const uint32_t heightFrame = static_cast<uint32_t>(device->backBufferHeight * 0.60f);
+            if (render2Texture->load(widthFrame, heightFrame, widthFrame, heightFrame, "my-render", true))
             {
                 if (gif)
                     render2Texture->addObject2Render(gif);
-                render2Texture->position.x = static_cast<float>(device->backBufferWidth) - (350.0f / 2.0f);
-                render2Texture->position.y = 204.0f / 2.0f;
                 INFO_LOG("RENDER_2_TEXTURE loaded (%s)", modeToStr(mode));
                 row.object = render2Texture;
+                addObjectsToRender2Texture();
+
+                // Apply position presets to objects inside render2Texture
+                for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+                {
+                    applyPosPreset(j);
+                }
             }
             else
             {
@@ -584,10 +591,69 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         if (!is3d)
             row.object->position.z = 0.0f;
     }
+    addObjectsToRender2Texture();
     updateMenuRow(i);
     applyPosPreset(posMenuSelected);
 }
 
+void MY_SCENE::addObjectsToRender2Texture()
+{
+    if (render2Texture)
+    {
+        if (gif)
+        {
+            render2Texture->addObject2Render(gif);
+        }
+        if (sprite)
+        {
+            render2Texture->addObject2Render(sprite);
+        }
+        if (shape)
+        {
+            render2Texture->addObject2Render(shape);
+        }
+        if (line)
+        {
+            render2Texture->addObject2Render(line);
+        }
+        if (particle)
+        {
+            render2Texture->addObject2Render(particle);
+        }
+        if (steeredParticle)
+        {
+            render2Texture->addObject2Render(steeredParticle);
+        }
+        if (tile)
+        {
+            render2Texture->addObject2Render(tile);
+        }
+        if(background)
+        {
+            render2Texture->addObject2Render(background);
+        }
+        if(mesh)
+        {
+            render2Texture->addObject2Render(mesh);
+        }
+        if(texture)
+        {
+            render2Texture->addObject2Render(texture);
+        }
+        if(particle_ptl)
+        {
+            render2Texture->addObject2Render(particle_ptl);
+        }
+        if(hmd)
+        {
+            render2Texture->addObject2Render(hmd);
+        }
+        if(texBox)
+        {
+            render2Texture->addObject2Render(texBox);
+        }
+    }
+}
 
 void MY_SCENE::releaseObjectAt(size_t i)
 {
@@ -596,11 +662,11 @@ void MY_SCENE::releaseObjectAt(size_t i)
     if (row.object == nullptr)
         return;
 
+    if (render2Texture)
+        render2Texture->removeObject2Render(row.object);
     switch (row.objType)
     {
         case MenuObjectType::GIF_VIEW:
-            if (render2Texture)
-                render2Texture->removeObject2Render(gif);
             delete gif;
             gif = nullptr;
             break;
@@ -854,22 +920,30 @@ void MY_SCENE::applyPosPreset(int idx)
     trackMouse = nullptr;
     // Compute desired screen-space anchor
     float sx = 0.0f, sy = 0.0f;
+    float backBufferHeight = static_cast<float>(device->backBufferHeight);
+    float backBufferWidth = static_cast<float>(device->backBufferWidth);
+    if(render2Texture && row.object != render2Texture)
+    {
+        // If the object is inside render2Texture, use its dimensions instead of the device backbuffer for positioning
+        backBufferHeight = static_cast<float>(render2Texture->heightTexture);
+        backBufferWidth = static_cast<float>(render2Texture->widthTexture);
+    }
     switch (idx)
     {
         case 1: // Left-Bottom
             sx = w / 2.0f;
-            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            sy = backBufferHeight - h / 2.0f;
             break;
         case 2: // Left-Up
             sx = w / 2.0f;
             sy = h / 2.0f;
             break;
         case 3: // Right-Bottom
-            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
-            sy = static_cast<float>(device->backBufferHeight) - h / 2.0f;
+            sx = backBufferWidth - w / 2.0f;
+            sy = backBufferHeight - h / 2.0f;
             break;
         case 4: // Right-Up
-            sx = static_cast<float>(device->backBufferWidth) - w / 2.0f;
+            sx = backBufferWidth - w / 2.0f;
             sy = h / 2.0f;
             break;
         case 5: // Track Mouse

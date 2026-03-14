@@ -141,6 +141,7 @@ class MY_SCENE : public mbm::SCENE
     bool handlePosMenuTouchDown(float x, float y);
     bool handleWorldMenuTouchDown(float x, float y, RenderMode &mode_selected);
     void randomSteeredParticlePositions();
+    void addObjectsToRender2Texture();
 };
 
 class GAME : public mbm::CORE_MANAGER
