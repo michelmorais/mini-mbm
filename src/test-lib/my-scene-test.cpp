@@ -970,8 +970,9 @@ void MY_SCENE::updatePosMenu()
             continue;
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j]->forceCalcSize();
-        // While render2Texture is active only the origin preset makes sense for its contents
-        posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
+        // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
+        // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
+        //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
     }
 }
 
