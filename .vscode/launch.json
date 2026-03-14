@@ -2,6 +2,58 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "libTest (Linux Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/linux_x86/testLib",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/linux_x86",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Linux Debug)",
+      "miDebuggerPath": "/usr/bin/gdb"
+    },
+    {
+      "name": "mini-mbm (Linux Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/linux_x86/mini-mbm",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/linux_x86",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Linux Debug)",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+    },
+    {
+      "name": "libTest (macOS Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/arm64/testLib",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/arm64",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (macOS Debug)",
+      "MIMode": "lldb"
+    },
+    {
+      "name": "mini-mbm (macOS Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/arm64/mini-mbm",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/arm64",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (macOS Debug)",
+      "MIMode": "lldb",
+      "setupCommands": [
+        { "description": "Enable pretty-printing", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+    },
+
+    {
       "name": "libTest.exe (Windows Debug)",
       "type": "cppdbg",
       "request": "launch",
@@ -9,8 +61,38 @@
       "args": [],
       "cwd": "${workspaceFolder}/platform-msvs/Debug",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Debug)",
+      "preLaunchTask": "Build mini-mbm (Windows Debug)",
       "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
+    },
+    {
+      "name": "libTest.exe (Windows MinGW Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/win32/testLib.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/win32",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Windows MinGW Debug)",
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
+    },
+    {
+      "name": "mini-mbm.exe (Windows MinGW Debug)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/debug/win32/mini-mbm.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/bin/debug/win32",
+      "stopAtEntry": false,
+      "preLaunchTask": "Build mini-mbm (Windows MinGW Debug)",
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe",
+      "setupCommands": [
+        { "description": "Enable pretty-printing for gdb", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      ]
     },
     {
       "name": "libTest.exe (Windows Release)",
@@ -20,7 +102,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/platform-msvs/Release",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Release)",
+      "preLaunchTask": "Build mini-mbm (Windows Release)",
       "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
@@ -31,7 +113,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/platform-msvs/Debug",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Debug)",
+      "preLaunchTask": "Build mini-mbm (Windows Debug)",
       "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {
@@ -42,7 +124,7 @@
       "args": [],
       "cwd": "${workspaceFolder}/platform-msvs/Release",
       "stopAtEntry": false,
-      "preLaunchTask": "Build mini-mbm (Release)",
+      "preLaunchTask": "Build mini-mbm (Windows Release)",
       "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe"
     },
     {

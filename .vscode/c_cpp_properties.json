@@ -18,8 +18,13 @@
       "intelliSenseMode": "windows-msvc-x86"
     },
     {
-      "name": "WSL",
-      "includePath": ["${workspaceFolder}/**"],
+      "name": "Linux",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/plugins",
+        "${workspaceFolder}/third-party"
+      ],
       "defines": [],
       "compilerPath": "/usr/bin/gcc",
       "cStandard": "c17",
@@ -28,7 +33,12 @@
     },
     {
       "name": "Mac",
-      "includePath": ["${workspaceFolder}/**"],
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/plugins",
+        "${workspaceFolder}/third-party"
+      ],
       "defines": [],
       "macFrameworkPath": ["/System/Library/Frameworks", "/Library/Frameworks"],
       "compilerPath": "/usr/bin/clang",

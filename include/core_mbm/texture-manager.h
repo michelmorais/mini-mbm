@@ -89,6 +89,10 @@ namespace mbm
         API_IMPL static void release();
         API_IMPL TEXTURE *createTextureRenderTarget(RENDERIZABLE_TO_TARGET *renderToTarget, const char *nickName,
                                                   const bool enableAlpha);
+        // Remove a render-target texture from the cache and delete its GL object.
+        // Must be called before destroying a RENDER_2_TEXTURE so that the next load
+        // with the same nickname creates a fresh FBO instead of reusing the stale one.
+        API_IMPL void releaseRenderTarget(const char *nickName);
         API_IMPL TEXTURE *load(const IMAGE_RESOURCE *imageResource);
         API_IMPL TEXTURE *load(const uint32_t width, const uint32_t height, const uint8_t *data,
                              const char *nickName, const uint16_t depth, const uint16_t channel);
@@ -111,7 +115,8 @@ namespace mbm
             char* strMessageError = nullptr);
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
-        API_IMPL void setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound);
+        API_IMPL void setTextureCapabilities(const uint32_t maxTextureSizeFound, uint32_t maxTextureWidthFound, uint32_t maxTextureHeightFound);
+        API_IMPL void getTextureCapabilities(uint32_t &maxTextureSizeFound, uint32_t &maxTextureWidthFound, uint32_t &maxTextureHeightFound);
         API_IMPL TEXTURE* loadNativeEngine(const char* fileName, const bool forceAlpha); // load native engine (e.g.: Directx LoadTextureFromFile, Metal). Implemented specific
       private:
         static TEXTURE_MANAGER *instanceTextureManager;
@@ -121,9 +126,9 @@ namespace mbm
         const char *getFilePathTexture(const char *fileName,const char* fullFileName);
         const char *findInAllPaths(const char *fileNameTexture);
         char                     pathSource[255];
-        int32_t                  maxTextureSize;
-        int32_t                  maxTextureHeight;
-        int32_t                  maxTextureWidth;
+        uint32_t                 maxTextureSize;
+        uint32_t                 maxTextureHeight;
+        uint32_t                 maxTextureWidth;
     };
 }
 

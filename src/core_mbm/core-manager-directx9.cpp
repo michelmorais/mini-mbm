@@ -245,7 +245,7 @@ namespace mbm
         }
 
         TEXTURE_MANAGER* texture_manager = TEXTURE_MANAGER::getInstance();
-        const int32_t maxTextureSize = cap.MaxTextureWidth * cap.MaxTextureWidth;
+        const uint32_t maxTextureSize = cap.MaxTextureWidth * cap.MaxTextureWidth;
         texture_manager->setTextureCapabilities(maxTextureSize, cap.MaxTextureWidth, cap.MaxTextureHeight);
 
         this->device->specificContextDevice->pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);//Turn on the face oclusion

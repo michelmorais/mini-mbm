@@ -2,7 +2,91 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build mini-mbm (Debug)",
+      "label": "Build mini-mbm (Linux Debug)",
+      "type": "shell",
+      "command": "mkdir -p build/linux_debug && cd build/linux_debug && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (Linux Release)",
+      "type": "shell",
+      "command": "mkdir -p build/linux_release && cd build/linux_release && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (macOS Debug)",
+      "type": "shell",
+      "command": "mkdir -p build/apple_debug && cd build/apple_debug && cmake ../.. -DPLAT=Apple -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DCMAKE_BUILD_TYPE=Debug && make -j$(sysctl -n hw.logicalcpu)",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (macOS Release)",
+      "type": "shell",
+      "command": "mkdir -p build/apple_release && cd build/apple_release && cmake ../.. -DPLAT=Apple -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DCMAKE_BUILD_TYPE=Release && make -j$(sysctl -n hw.logicalcpu)",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (Windows MinGW Debug)",
+      "type": "shell",
+      "command": "if not exist build\\mingw_debug mkdir build\\mingw_debug && cd build\\mingw_debug && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && mingw32-make -j%NUMBER_OF_PROCESSORS%",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (Windows MinGW Release)",
+      "type": "shell",
+      "command": "if not exist build\\mingw_release mkdir build\\mingw_release && cd build\\mingw_release && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Release && mingw32-make -j%NUMBER_OF_PROCESSORS%",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build mini-mbm (Windows Debug)",
       "type": "process",
       "command": "msbuild",
       "args": [
@@ -22,7 +106,7 @@
       "problemMatcher": ["$msCompile"]
     },
     {
-      "label": "Build mini-mbm (Release)",
+      "label": "Build mini-mbm (Windows Release)",
       "type": "process",
       "command": "msbuild",
       "args": [

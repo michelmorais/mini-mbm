@@ -97,6 +97,11 @@ namespace mbm
             const size_t lenTTFfile  = strlen(fileNameTTF);
             bool                             ret = false;
             stbtt_bakedchar                  cdata[225]; // ASCII 32..126 is 95 glyphs but we want all (255 - 30 = 225)
+            mbm::TEXTURE_MANAGER *textureManager = mbm::TEXTURE_MANAGER::getInstance();
+            uint32_t maxTextureSize = 0;
+            uint32_t maxTextureWidth = 0;
+            uint32_t maxTextureHeight = 0;
+            textureManager->getTextureCapabilities(maxTextureSize, maxTextureWidth, maxTextureHeight);
             std::unique_ptr<uint8_t[],DeleteArrayChar> ttf_buffer(new uint8_t[sFile],DeleteArrayChar());
             if (fread(&ttf_buffer[0], 1, sFile, fp) == sFile)
             {
@@ -122,6 +127,17 @@ namespace mbm
                             else
                             {
                                 this->width *= 2;
+                            }
+                            
+                            if(static_cast<uint32_t>(this->width) > maxTextureWidth)
+                            {
+                                ERROR_AT(__LINE__,__FILE__,"max size to generate texture is  %d/%d.", maxTextureWidth, maxTextureSize);
+                                return false;
+                            }
+                            if(static_cast<uint32_t>(this->height) > maxTextureHeight)
+                            {
+                                ERROR_AT(__LINE__,__FILE__,"max size to generate texture is  %d/%d.", maxTextureHeight, maxTextureSize);
+                                return false;
                             }
                         }
                         else
@@ -444,7 +460,7 @@ namespace mbm
     {
         if (!imageResource)
             return nullptr;
-        if (static_cast<int>(imageResource->width) > this->maxTextureSize || static_cast<int>(imageResource->height) > this->maxTextureSize)
+        if (static_cast<uint32_t>(imageResource->width) > this->maxTextureSize || static_cast<uint32_t>(imageResource->height) > this->maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is  %d/%d.",
                          imageResource->width > imageResource->height ? imageResource->width : imageResource->height,
@@ -477,9 +493,9 @@ namespace mbm
         const char *fileName = nickName;
         if (!fileName)
             return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
+        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
         {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,
+            PRINT_IF_DEBUG("max size to generate texture is  %u/%u.", width > height ? width : height,
                          this->maxTextureSize);
             return nullptr;
         }
@@ -510,9 +526,9 @@ namespace mbm
     {
         if (nickName == nullptr)
             return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
+        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
         {
-            PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,
+            PRINT_IF_DEBUG("max size to generate texture is  %u/%u.", width > height ? width : height,
                          this->maxTextureSize);
             return nullptr;
         }
@@ -857,6 +873,19 @@ namespace mbm
         #endif
     }
     
+    void TEXTURE_MANAGER::releaseRenderTarget(const char *nickName)
+    {
+        if (!nickName)
+            return;
+        const std::string key = util::getBaseName(nickName);
+        auto it = lsTextures.find(key);
+        if (it != lsTextures.end())
+        {
+            delete it->second;
+            lsTextures.erase(it);
+        }
+    }
+
     TEXTURE_MANAGER::~TEXTURE_MANAGER()
     {
         std::unordered_map<std::string, TEXTURE *>::const_iterator it;
@@ -1009,11 +1038,18 @@ namespace mbm
         //Remember to implement setTextureCapabilities by engine backend
     }
 
-    void TEXTURE_MANAGER::setTextureCapabilities(const int32_t maxTextureSizeFound, int32_t maxTextureWidthFound, int32_t maxTextureHeightFound)
+    void TEXTURE_MANAGER::setTextureCapabilities(const uint32_t maxTextureSizeFound, const uint32_t maxTextureWidthFound, const uint32_t maxTextureHeightFound)
     {
         this->maxTextureSize = maxTextureSizeFound;
         this->maxTextureWidth = maxTextureWidthFound;
         this->maxTextureHeight = maxTextureHeightFound;
+    }
+
+    void TEXTURE_MANAGER::getTextureCapabilities(uint32_t &maxTextureSizeFound, uint32_t &maxTextureWidthFound, uint32_t &maxTextureHeightFound)
+    {
+        maxTextureSizeFound = this->maxTextureSize;
+        maxTextureWidthFound = this->maxTextureWidth;
+        maxTextureHeightFound = this->maxTextureHeight;
     }
 
     mbm::TEXTURE_MANAGER *mbm::TEXTURE_MANAGER::instanceTextureManager = nullptr;    
