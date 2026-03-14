@@ -155,7 +155,7 @@ namespace mbm
         const auto height        = static_cast<GLsizei>(renderToTarget->heightTexture);
         if (fileNameBase.size() == 0)
             return nullptr;
-        if (static_cast<int>(width) > this->maxTextureSize || static_cast<int>(height) > this->maxTextureSize)
+        if (static_cast<uint32_t>(width) > this->maxTextureSize || static_cast<uint32_t>(height) > this->maxTextureSize)
         {
             PRINT_IF_DEBUG("max size to generate texture is  %d/%d.", width > height ? width : height,this->maxTextureSize);
             return nullptr;
