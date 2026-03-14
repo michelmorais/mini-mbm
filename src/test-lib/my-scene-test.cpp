@@ -304,7 +304,7 @@ void MY_SCENE::buildMenu()
         { "LINE_MESH",        MenuObjectType::LINE_MESH,        true,  true,  true  },
         { "PARTICLE",         MenuObjectType::PARTICLE,         true,  true,  true  },
         { "STEERED_PARTICLE", MenuObjectType::STEERED_PARTICLE, true,  true,  true  },
-        { "RENDER_2_TEXTURE", MenuObjectType::RENDER_2_TEXTURE, true,  false, false },
+        { "RENDER_2_TEXTURE (Prefer 2DW)", MenuObjectType::RENDER_2_TEXTURE, true,  false, false },
         { "TILE",             MenuObjectType::TILE,             true,  true,  true  },
     };
 
@@ -615,12 +615,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
                 INFO_LOG("RENDER_2_TEXTURE loaded (%s)", modeToStr(mode));
                 row.object = render2Texture;
                 addObjectsToRender2Texture();
-
-                // Apply position presets to objects inside render2Texture
-                for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
-                {
-                    applyPosPreset(j);
-                }
+                posMenuSelected = 0; // objects inside r2t always start at origin
             }
             else
             {
@@ -781,6 +776,7 @@ void MY_SCENE::releaseObjectAt(size_t i)
         case MenuObjectType::RENDER_2_TEXTURE:
             delete render2Texture;
             render2Texture = nullptr;
+            updatePosMenu(); // restore full pos menu now that r2t is gone
             break;
         case MenuObjectType::TILE:
             delete tile;
@@ -974,7 +970,8 @@ void MY_SCENE::updatePosMenu()
             continue;
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
         posMenuTexts[j]->forceCalcSize();
-        posMenuTexts[j]->enableRender = posMenuVisible;
+        // While render2Texture is active only the origin preset makes sense for its contents
+        posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
     }
 }
 
@@ -1039,16 +1036,40 @@ void MY_SCENE::applyPosPreset(int idx)
     }
 
     const float savedZ = row.object->position.z;
+    const bool insideR2T = (render2Texture != nullptr) && (row.object != render2Texture);
     if (row.currentMode == RenderMode::SCREEN_2D)
     {
-        row.object->position.x = sx;
-        row.object->position.y = sy;
+        if (insideR2T)
+        {
+            // render2texture camera uses matrixOrthoLH(tw, th). The SCREEN_2D render path
+            // calls transformeScreen2dToWorld2d_scaled(position) at draw time, then applies
+            // matrixPerspective2d. We need world = (sx - tw/2, -(sy - th/2)), so store the
+            // main-screen-equivalent pixel coords that produce those world coords.
+            row.object->position.x = device->backBufferWidth * 0.5f + sx - backBufferWidth * 0.5f;
+            row.object->position.y = device->backBufferHeight * 0.5f - backBufferHeight * 0.5f + sy;
+        }
+        else
+        {
+            row.object->position.x = sx;
+            row.object->position.y = sy;
+        }
         row.object->position.z = savedZ;
     }
     else if (row.currentMode == RenderMode::WORLD_2D)
     {
-        device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
-        row.object->position.z = savedZ;
+        if (insideR2T)
+        {
+            // render2texture camera uses matrixOrthoLH(tw, th) which maps [-tw/2, tw/2] to
+            // clip space. WORLD_2D render path uses position directly — place in texture world.
+            row.object->position.x = sx - backBufferWidth * 0.5f;
+            row.object->position.y = -(sy - backBufferHeight * 0.5f);
+            row.object->position.z = savedZ;
+        }
+        else
+        {
+            device->transformeScreen2dToWorld2d_scaled(sx, sy, row.object->position);
+            row.object->position.z = savedZ;
+        }
     }
     else // WORLD_3D
     {
