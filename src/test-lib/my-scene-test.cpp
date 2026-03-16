@@ -714,7 +714,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         case MenuObjectType::TILE:
         {
             tile = new mbm::TILE(this, is3d, is2dS);
-            if (tile->load("tile-stage-1.tile"))
+            if (tile->load("tile-map-test.tile"))
             {
                 INFO_LOG("TILE loaded (%s)", modeToStr(mode));
                 row.object = tile;
