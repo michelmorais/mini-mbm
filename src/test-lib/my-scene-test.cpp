@@ -716,6 +716,7 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             tile = new mbm::TILE(this, is3d, is2dS);
             if (tile->load("tile-map-test.tile"))
             {
+                tile->scale = mbm::VEC3(0.3f, 0.3f, 0.3f);
                 INFO_LOG("TILE loaded (%s)", modeToStr(mode));
                 row.object = tile;
             }
