@@ -56,6 +56,7 @@ MY_SCENE::MY_SCENE()
     texture            = nullptr;
     hintsText          = nullptr;
     trackMouse         = nullptr;
+    lineFontIsOver     = nullptr;
     menuVisible        = true;
     for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
     {
@@ -104,6 +105,8 @@ MY_SCENE::~MY_SCENE()
         delete texture;
     if(particle_ptl)
         delete particle_ptl;
+    if(lineFontIsOver)
+        delete lineFontIsOver;
 }
 
 void MY_SCENE::startLoading()
@@ -136,6 +139,9 @@ void MY_SCENE::init()
         buildMenu();
         buildPosMenu();
         buildWorldMenu();
+        lineFontIsOver = new mbm::LINE_MESH(this, false, true);
+        std::vector<mbm::VEC3> linePoints(4);
+        lineFontIsOver->add(std::move(linePoints));
     }
     else
     {
@@ -209,13 +215,13 @@ void MY_SCENE::onTouchUp(int, float, float)
 
 void MY_SCENE::onTouchMove(int, float x, float y)
 {
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
     mouseScreenX = x;
     mouseScreenY = y;
     if(trackMouse)
     {
         if(trackMouse->is3D)
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             device->transformeScreen2dToWorld3d_scaled(x, y, &trackMouse->position, 800.0f);
         }
         else if(trackMouse->is2dS)
@@ -225,10 +231,88 @@ void MY_SCENE::onTouchMove(int, float x, float y)
         }
         else
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             device->transformeScreen2dToWorld2d_scaled(x, y, trackMouse->position);
         }
     }
+    if(lineFontIsOver && lineFontIsOver->getTotalLines() > 0)
+    {
+        std::vector<mbm::VEC3> linePoints(4);
+        bool found = false;
+
+        for (auto& row : menuItems)
+        {
+            if(row.labelText &&  row.labelText->isOver2ds(device, x, y))
+            {
+                updateBoundsForTextDraw(row.labelText);
+                found = true;
+                break;
+            }
+        }
+        if(found == false && hintsText && hintsText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(hintsText);
+            found = true;
+        }
+        for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+        {
+            if(posMenuTexts[j] && posMenuTexts[j]->isOver2ds(device, x, y))
+            {
+                updateBoundsForTextDraw(posMenuTexts[j]);
+                found = true;
+                break;
+            }
+        }
+        if(found == false && statusText && statusText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(statusText);
+            found = true;
+        }
+        if(found == false && notificationText && notificationText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(notificationText);
+            found = true;
+        }
+        if(found == false  && btn2dS && btn2dS->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(btn2dS);
+            found = true;
+        }
+        if(found == false  && btn2dW && btn2dW->isOver2dw(device, x, y))
+        {
+            updateBoundsForTextDraw(btn2dW);
+            found = true;
+        }
+        if(found == false  && btn3d && btn3d->isOver3d(device, x, y))
+        {
+            updateBoundsForTextDraw(btn3d);
+            found = true;
+        }
+        if(found)
+        {
+            lineFontIsOver->enableRender = true;
+        }
+        else
+        {
+            lineFontIsOver->enableRender = false;
+        }
+    }
+}
+
+void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
+{
+    float w = 0, h = 0;
+    if (textDraw)
+    {
+        std::vector<mbm::VEC3> linePoints(4);
+        textDraw->getAABB(&w, &h);
+        linePoints[0] = mbm::VEC3(textDraw->position.x - w / 2.0f, textDraw->position.y - h / 2.0f, textDraw->position.z);
+        linePoints[1] = mbm::VEC3(textDraw->position.x + w / 2.0f, textDraw->position.y - h / 2.0f, textDraw->position.z);
+        linePoints[2] = mbm::VEC3(textDraw->position.x + w / 2.0f, textDraw->position.y + h / 2.0f, textDraw->position.z);
+        linePoints[3] = mbm::VEC3(textDraw->position.x - w / 2.0f, textDraw->position.y + h / 2.0f, textDraw->position.z);
+
+        lineFontIsOver->set(std::move(linePoints), 0);
+    }
+    
 }
 
 void MY_SCENE::onTouchZoom(float)

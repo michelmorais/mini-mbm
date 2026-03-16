@@ -78,6 +78,7 @@ class MY_SCENE : public mbm::SCENE
     mbm::MESH*              mesh;
     mbm::SHAPE_MESH*        shape;
     mbm::LINE_MESH*         line;
+    mbm::LINE_MESH*         lineFontIsOver;
     mbm::PARTICLE*          particle;
     mbm::PARTICLE*          particle_ptl;
     mbm::RENDER_2_TEXTURE*  render2Texture;
@@ -147,6 +148,7 @@ class MY_SCENE : public mbm::SCENE
     void randomSteeredParticlePositions();
     void addObjectsToRender2Texture();
     void showNotification(const char* fmt, ...);
+    void updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw);
 };
 
 class GAME : public mbm::CORE_MANAGER
