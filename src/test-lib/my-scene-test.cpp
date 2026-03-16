@@ -159,7 +159,6 @@ void MY_SCENE::logic()
             mouseScreenX, mouseScreenY,
             device->camera.position2d.x, device->camera.position2d.y,
             device->camera.position.x, device->camera.position.y, device->camera.position.z);
-        statusText->forceCalcSize();
     }
     if (notificationTimer > 0.0f)
     {
@@ -305,10 +304,13 @@ void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
     {
         std::vector<mbm::VEC3> linePoints(4);
         textDraw->getAABB(&w, &h);
-        linePoints[0] = mbm::VEC3(textDraw->position.x - w / 2.0f, textDraw->position.y - h / 2.0f, textDraw->position.z);
-        linePoints[1] = mbm::VEC3(textDraw->position.x + w / 2.0f, textDraw->position.y - h / 2.0f, textDraw->position.z);
-        linePoints[2] = mbm::VEC3(textDraw->position.x + w / 2.0f, textDraw->position.y + h / 2.0f, textDraw->position.z);
-        linePoints[3] = mbm::VEC3(textDraw->position.x - w / 2.0f, textDraw->position.y + h / 2.0f, textDraw->position.z);
+        // TEXT_DRAW::position is the top-left starting corner in screen coords (Y-down).
+        // getAABB() returns screen-pixel dimensions, so the box spans
+        // [position.x .. position.x+w] x [position.y .. position.y+h].
+        linePoints[0] = mbm::VEC3(textDraw->position.x,     textDraw->position.y,     textDraw->position.z);
+        linePoints[1] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y,     textDraw->position.z);
+        linePoints[2] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y + h, textDraw->position.z);
+        linePoints[3] = mbm::VEC3(textDraw->position.x,     textDraw->position.y + h, textDraw->position.z);
 
         lineFontIsOver->set(std::move(linePoints), 0);
     }
@@ -451,7 +453,6 @@ void MY_SCENE::updateMenuRow(size_t i)
         row.labelText->setText("[X] %s (%s)", row.typeName, modeToStr(row.currentMode));
     else
         row.labelText->setText("[ ] %s", row.typeName);
-    row.labelText->forceCalcSize();
 
     row.labelText->enableRender  = menuVisible;
 }
@@ -879,25 +880,25 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
     for (size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
-        if (btn2dS->enableRender && btn2dS->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dS->enableRender && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::SCREEN_2D);
             return true;
         }
-        if (btn2dW->enableRender && btn2dW->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dW->enableRender && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::WORLD_2D);
             return true;
         }
-        if (btn3d->enableRender && btn3d->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn3d->enableRender && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::WORLD_3D);
@@ -1053,7 +1054,6 @@ void MY_SCENE::updatePosMenu()
         if (!posMenuTexts[j])
             continue;
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
-        posMenuTexts[j]->forceCalcSize();
         // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
         // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
         //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
@@ -1244,7 +1244,6 @@ void MY_SCENE::showNotification(const char* fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     notificationText->setText("%s", buf);
-    notificationText->forceCalcSize();
     notificationText->enableRender = true;
     notificationTimer = 5.0f;
 }
