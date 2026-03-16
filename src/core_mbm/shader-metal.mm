@@ -176,6 +176,37 @@ static id<MTLRenderPipelineState> compileSinglePSO(
 }
 
 // Builds only the vertex preamble (header + vert_main) for a given FVF.
+// Returns the MSL 'struct VIn { ... };' declaration matching the given FVF.
+// Prewritten VS programs (scale.vs, simple texture.vs) hardcode attribute(1)=uv
+// which is wrong for FVF_POS_NOR_UV where attribute(1) is the normal and
+// attribute(2) is the UV in the interleaved vertex buffer.
+static NSString* vinStructForFVF(mbm::FVF_PROVIDE_BY_ENGINE fvf)
+{
+    using F = mbm::FVF_PROVIDE_BY_ENGINE;
+    const bool hasNor = (fvf == F::FVF_POS_NOR || fvf == F::FVF_POS_NOR_UV);
+    const bool hasUV  = (fvf == F::FVF_POS_UV  || fvf == F::FVF_POS_NOR_UV);
+    NSMutableString* s = [NSMutableString stringWithString:@"struct VIn { float3 pos [[attribute(0)]];"];
+    if (hasNor) [s appendString:@" float3 nor [[attribute(1)]];"];
+    if (hasNor && hasUV) [s appendString:@" float2 uv [[attribute(2)]];"];
+    else if (hasUV)      [s appendString:@" float2 uv [[attribute(1)]];"];
+    [s appendString:@" };"];
+    return s;
+}
+
+// Replaces the 'struct VIn { ... };' block in 'vsStr' with the FVF-correct version.
+// This fixes prewritten VS programs whose VIn has hardcoded attribute indices.
+static NSString* patchVInStruct(NSString* vsStr, mbm::FVF_PROVIDE_BY_ENGINE fvf)
+{
+    NSRange vinBegin = [vsStr rangeOfString:@"struct VIn"];
+    if (vinBegin.location == NSNotFound) return vsStr;
+    NSRange searchFrom = NSMakeRange(vinBegin.location, vsStr.length - vinBegin.location);
+    NSRange vinClose = [vsStr rangeOfString:@"};" options:0 range:searchFrom];
+    if (vinClose.location == NSNotFound) return vsStr;
+    NSUInteger endPos = vinClose.location + vinClose.length;
+    NSRange vinFullRange = NSMakeRange(vinBegin.location, endPos - vinBegin.location);
+    return [vsStr stringByReplacingCharactersInRange:vinFullRange withString:vinStructForFVF(fvf)];
+}
+
 // compileShader() appends the PS fragment function from the shader-resource entry.
 static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
 {
@@ -633,9 +664,32 @@ namespace mbm
             {
                 const bool hasPshader = (ptrPshader && ptrPshader->getCode() && ptrPshader->getCode()[0] != '\0');
                 const bool hasVshader = (ptrVshader && ptrVshader->getCode() && ptrVshader->getCode()[0] != '\0');
-                if (hasVshader && !hasPshader)
-                    // Complete MSL program stored in the VS entry (e.g. scale.vs).
-                    mslSrc = [NSString stringWithUTF8String:ptrVshader->getCode()];
+                if (hasVshader && hasPshader)
+                {
+                    // Both: VS holds a complete MSL program (vert_main + default frag_main);
+                    // PS holds a custom fragment-only function.
+                    // Build: VS structs + vert_main, then replace the VS default frag_main
+                    // with the PS entry's frag_main so that, e.g., scale.vs + blend.ps works.
+                    NSString* vsStr = [NSString stringWithUTF8String:ptrVshader->getCode()];
+                    NSString* psStr = [NSString stringWithUTF8String:ptrPshader->getCode()];
+                    // Fix VIn attribute indices to match the interleaved mesh FVF layout
+                    // (e.g. FVF_POS_NOR_UV puts normal at attr(1) and uv at attr(2)).
+                    vsStr = patchVInStruct(vsStr, fvf);
+                    // Strip the VS default fragment function (everything from the last
+                    // "\nfragment " onwards) and append the PS fragment code.
+                    NSRange fragRange = [vsStr rangeOfString:@"\nfragment "
+                                                    options:NSBackwardsSearch];
+                    if (fragRange.location != NSNotFound)
+                        vsStr = [vsStr substringToIndex:fragRange.location];
+                    mslSrc = [vsStr stringByAppendingString:psStr];
+                }
+                else if (hasVshader)
+                {
+                    // Complete MSL program stored in the VS entry (e.g. scale.vs standalone).
+                    // Fix VIn attribute indices to match the interleaved mesh FVF layout.
+                    NSString* vsStr = [NSString stringWithUTF8String:ptrVshader->getCode()];
+                    mslSrc = patchVInStruct(vsStr, fvf);
+                }
                 else if (hasPshader)
                     // Fragment-only PS entry — prepend the auto-generated vertex preamble.
                     mslSrc = [buildVertexHeader(fvf)
