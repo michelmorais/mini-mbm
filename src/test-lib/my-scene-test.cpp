@@ -56,6 +56,7 @@ MY_SCENE::MY_SCENE()
     texture            = nullptr;
     hintsText          = nullptr;
     trackMouse         = nullptr;
+    lineFontIsOver     = nullptr;
     menuVisible        = true;
     for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++) 
     {
@@ -104,6 +105,8 @@ MY_SCENE::~MY_SCENE()
         delete texture;
     if(particle_ptl)
         delete particle_ptl;
+    if(lineFontIsOver)
+        delete lineFontIsOver;
 }
 
 void MY_SCENE::startLoading()
@@ -136,6 +139,9 @@ void MY_SCENE::init()
         buildMenu();
         buildPosMenu();
         buildWorldMenu();
+        lineFontIsOver = new mbm::LINE_MESH(this, false, true);
+        std::vector<mbm::VEC3> linePoints(4);
+        lineFontIsOver->add(std::move(linePoints));
     }
     else
     {
@@ -153,7 +159,6 @@ void MY_SCENE::logic()
             mouseScreenX, mouseScreenY,
             device->camera.position2d.x, device->camera.position2d.y,
             device->camera.position.x, device->camera.position.y, device->camera.position.z);
-        statusText->forceCalcSize();
     }
     if (notificationTimer > 0.0f)
     {
@@ -209,13 +214,13 @@ void MY_SCENE::onTouchUp(int, float, float)
 
 void MY_SCENE::onTouchMove(int, float x, float y)
 {
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
     mouseScreenX = x;
     mouseScreenY = y;
     if(trackMouse)
     {
         if(trackMouse->is3D)
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             device->transformeScreen2dToWorld3d_scaled(x, y, &trackMouse->position, 800.0f);
         }
         else if(trackMouse->is2dS)
@@ -225,10 +230,91 @@ void MY_SCENE::onTouchMove(int, float x, float y)
         }
         else
         {
-            mbm::DEVICE* device = mbm::DEVICE::getInstance();
             device->transformeScreen2dToWorld2d_scaled(x, y, trackMouse->position);
         }
     }
+    if(lineFontIsOver && lineFontIsOver->getTotalLines() > 0)
+    {
+        std::vector<mbm::VEC3> linePoints(4);
+        bool found = false;
+
+        for (auto& row : menuItems)
+        {
+            if(row.labelText &&  row.labelText->isOver2ds(device, x, y))
+            {
+                updateBoundsForTextDraw(row.labelText);
+                found = true;
+                break;
+            }
+        }
+        if(found == false && hintsText && hintsText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(hintsText);
+            found = true;
+        }
+        for (uint32_t j = 0; j < sizeof(posMenuTexts) / sizeof(posMenuTexts[0]); j++)
+        {
+            if(posMenuTexts[j] && posMenuTexts[j]->isOver2ds(device, x, y))
+            {
+                updateBoundsForTextDraw(posMenuTexts[j]);
+                found = true;
+                break;
+            }
+        }
+        if(found == false && statusText && statusText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(statusText);
+            found = true;
+        }
+        if(found == false && notificationText && notificationText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(notificationText);
+            found = true;
+        }
+        if(found == false  && btn2dS && btn2dS->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(btn2dS);
+            found = true;
+        }
+        if(found == false  && btn2dW && btn2dW->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(btn2dW);
+            found = true;
+        }
+        if(found == false  && btn3d && btn3d->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(btn3d);
+            found = true;
+        }
+        if(found)
+        {
+            lineFontIsOver->enableRender = true;
+        }
+        else
+        {
+            lineFontIsOver->enableRender = false;
+        }
+    }
+}
+
+void MY_SCENE::updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw)
+{
+    float w = 0, h = 0;
+    if (textDraw)
+    {
+        std::vector<mbm::VEC3> linePoints(4);
+        textDraw->getAABB(&w, &h);
+        // TEXT_DRAW::position is the top-left starting corner in screen coords (Y-down).
+        // getAABB() returns screen-pixel dimensions, so the box spans
+        // [position.x .. position.x+w] x [position.y .. position.y+h].
+        linePoints[0] = mbm::VEC3(textDraw->position.x,     textDraw->position.y,     textDraw->position.z);
+        linePoints[1] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y,     textDraw->position.z);
+        linePoints[2] = mbm::VEC3(textDraw->position.x + w, textDraw->position.y + h, textDraw->position.z);
+        linePoints[3] = mbm::VEC3(textDraw->position.x,     textDraw->position.y + h, textDraw->position.z);
+
+        lineFontIsOver->set(std::move(linePoints), 0);
+    }
+    
 }
 
 void MY_SCENE::onTouchZoom(float)
@@ -367,7 +453,6 @@ void MY_SCENE::updateMenuRow(size_t i)
         row.labelText->setText("[X] %s (%s)", row.typeName, modeToStr(row.currentMode));
     else
         row.labelText->setText("[ ] %s", row.typeName);
-    row.labelText->forceCalcSize();
 
     row.labelText->enableRender  = menuVisible;
 }
@@ -629,8 +714,9 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
         case MenuObjectType::TILE:
         {
             tile = new mbm::TILE(this, is3d, is2dS);
-            if (tile->load("tile-stage-1.tile"))
+            if (tile->load("tile-map-test.tile"))
             {
+                tile->scale = mbm::VEC3(0.3f, 0.3f, 0.3f);
                 INFO_LOG("TILE loaded (%s)", modeToStr(mode));
                 row.object = tile;
             }
@@ -795,25 +881,25 @@ bool MY_SCENE::handleMenuTouchDown(float x, float y)
     for (size_t i = 0; i < menuItems.size(); i++)
     {
         MenuRow& row = menuItems[i];
-        if (btn2dS->enableRender && btn2dS->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dS->enableRender && btn2dS->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::SCREEN_2D);
             return true;
         }
-        if (btn2dW->enableRender && btn2dW->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn2dW->enableRender && btn2dW->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::WORLD_2D);
             return true;
         }
-        if (btn3d->enableRender && btn3d->text.find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
+        if (btn3d->enableRender && btn3d->getText().find("[x]") != std::string::npos && row.labelText->isOver2ds(device, x, y))
         {
-            if(row.labelText->text.find("[X]") != std::string::npos)
+            if(row.labelText->getText().find("[X]") != std::string::npos)
                 releaseObjectAt(i);
             else
                 loadObjectAt(i, RenderMode::WORLD_3D);
@@ -969,7 +1055,6 @@ void MY_SCENE::updatePosMenu()
         if (!posMenuTexts[j])
             continue;
         posMenuTexts[j]->setText("%s %s", static_cast<size_t>(j) == static_cast<size_t>(posMenuSelected) ? "[X]" : "[ ]", baseLabels[j]);
-        posMenuTexts[j]->forceCalcSize();
         // If render2Texture is active, only show the "Apply (X=0,Y=0,Z=0)" preset since the others don't make sense inside the texture frame
         // Uncommenting the line below will show all presets, but they will all apply the position based on the main screen dimensions, which can be confusing when the object is inside render2texture
         //posMenuTexts[j]->enableRender = posMenuVisible && (render2Texture == nullptr || j == 0);
@@ -1160,7 +1245,6 @@ void MY_SCENE::showNotification(const char* fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     notificationText->setText("%s", buf);
-    notificationText->forceCalcSize();
     notificationText->enableRender = true;
     notificationTimer = 5.0f;
 }
