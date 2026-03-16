@@ -276,12 +276,12 @@ void MY_SCENE::onTouchMove(int, float x, float y)
             updateBoundsForTextDraw(btn2dS);
             found = true;
         }
-        if(found == false  && btn2dW && btn2dW->isOver2dw(device, x, y))
+        if(found == false  && btn2dW && btn2dW->isOver2ds(device, x, y))
         {
             updateBoundsForTextDraw(btn2dW);
             found = true;
         }
-        if(found == false  && btn3d && btn3d->isOver3d(device, x, y))
+        if(found == false  && btn3d && btn3d->isOver2ds(device, x, y))
         {
             updateBoundsForTextDraw(btn3d);
             found = true;
