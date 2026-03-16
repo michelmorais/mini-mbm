@@ -94,6 +94,7 @@ class MY_SCENE : public mbm::SCENE
     std::vector<MenuRow>    menuItems;
     bool                    menuVisible;
     mbm::TEXT_DRAW*         hintsText;     // always-visible keyboard shortcut help
+    mbm::TEXT_DRAW*         shaderInfoText;
     mbm::TEXT_DRAW*     btn2dS;       // "(2dS)"
     mbm::TEXT_DRAW*     btn2dW;       // "(2dW)"
     mbm::TEXT_DRAW*     btn3d;        // "(3d)"
@@ -149,6 +150,7 @@ class MY_SCENE : public mbm::SCENE
     void addObjectsToRender2Texture();
     void showNotification(const char* fmt, ...);
     void updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw);
+    std::string getShaderInfoText(const char* shader_type, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx);
 };
 
 class GAME : public mbm::CORE_MANAGER
