@@ -21,6 +21,7 @@
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader-resource.h>
 #include <core_mbm/util-interface.h>
+#include <core_mbm/shader-var-cfg.h>
 #include <cstdio>
 #include <cstdarg>
 #include <cmath>
@@ -55,6 +56,10 @@ MY_SCENE::MY_SCENE()
     tile               = nullptr;
     texture            = nullptr;
     hintsText          = nullptr;
+    shaderInfoText     = nullptr;
+    btn2dS             = nullptr;
+    btn2dW             = nullptr;
+    btn3d              = nullptr;
     trackMouse         = nullptr;
     lineFontIsOver     = nullptr;
     menuVisible        = true;
@@ -185,6 +190,68 @@ void MY_SCENE::logic()
             }
         }
     }
+    if(sprite)
+    {
+        mbm::FX* fx = sprite->getFx();
+        if(fx)
+        {
+            std::string PixeShader;
+            std::string VertexShader;
+            std::vector<mbm::VAR_SHADER *> *vars = fx->getVarsPS();
+            if(vars)
+            {
+                PixeShader = getShaderInfoText("Pixel", vars, fx);
+            }
+            vars = fx->getVarsVS();
+            if(vars)
+            {
+                VertexShader = getShaderInfoText("Vertex", vars, fx);
+            }
+            shaderInfoText->setText((PixeShader + VertexShader).c_str());
+        }
+    }
+}
+
+std::string MY_SCENE::getShaderInfoText(const char* shader_type, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx)
+{
+    char text[256];
+    std::string finalText;
+    snprintf(text, sizeof(text), "%s shader vars: %zu name", shader_type, vars->size());
+    finalText += text;
+    finalText += "\n";
+    float data[4];
+    for(mbm::VAR_SHADER* var : *vars)
+    {
+        fx->getVarPShader(var->name.c_str(), data);
+        switch(var->typeVar)
+        {
+            case mbm::TYPE_VAR_SHADER::VAR_FLOAT:
+            {
+                snprintf(text, sizeof(text), "%s[%0.3f]", var->name.c_str(), data[0]);
+                break;
+            }
+            case mbm::TYPE_VAR_SHADER::VAR_VECTOR2:
+            {
+                snprintf(text, sizeof(text), "%s[%0.3f,%0.3f]", var->name.c_str(), data[0], data[1]);
+                break;
+            }
+            default:
+            case mbm::TYPE_VAR_SHADER::VAR_VECTOR:
+            case mbm::TYPE_VAR_SHADER::VAR_COLOR_RGB:
+            {
+                snprintf(text, sizeof(text), "%s[%0.3f,%0.3f,%0.3f]", var->name.c_str(), data[0], data[1], data[2]);
+            }
+            break;
+            case mbm::TYPE_VAR_SHADER::VAR_COLOR_RGBA:
+            {
+                snprintf(text, sizeof(text), "%s[%0.3f,%0.3f,%0.3f,%0.3f]", var->name.c_str(), data[0], data[1], data[2], data[3]);
+            }
+            break;
+        }
+        finalText += text;
+        finalText += "\n";
+    }
+    return finalText;
 }
 
 void MY_SCENE::onTouchDown(int key, float x, float y)
@@ -419,12 +486,13 @@ void MY_SCENE::buildMenu()
 
         menuItems.push_back(row);
     }
-    
+    float latestY = 0.0f;
     for (size_t i = 0; i < sizeof(defs) / sizeof(defs[0]); i++)
     {
         MenuRow& row = menuItems[i];
         row.labelText->position.x = 10.0f;
         row.labelText->position.y = 10.0f + static_cast<float>(i) * 50.0f;
+        latestY = row.labelText->position.y;
     }
     // Hints text — always visible at the bottom of the screen
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -438,6 +506,16 @@ void MY_SCENE::buildMenu()
     hintsText->position.z      = -1.0f;
     hintsText->alwaysRenderize = true;
     hintsText->enableRender    = true;
+
+
+    shaderInfoText = this->fontDrawNoShader->addText("Shader information", IS_2D_FONT, IS_SCREEN);
+    shaderInfoText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
+    shaderInfoText->forceCalcSize();
+    shaderInfoText->position.x      = 10.0f;
+    shaderInfoText->position.y      = latestY + 50.0f;
+    shaderInfoText->position.z      = -1.0f;
+    shaderInfoText->alwaysRenderize = true;
+    shaderInfoText->enableRender    = true;
 
     // Show initial menu state
     for (size_t i = 0; i < menuItems.size(); i++)
