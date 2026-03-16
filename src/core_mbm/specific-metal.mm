@@ -71,6 +71,7 @@ namespace mbm
         metalLayer           = nil;
         defaultSampler       = nil;
         defaultDepthStencilState = nil;
+        noDepthStencilState  = nil;
         depthTexture         = nil;
         // NSWindow and NSApplication are managed by the OS; we close the window
         // but do not release the application.

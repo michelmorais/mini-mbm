@@ -99,6 +99,9 @@ namespace mbm
         // Depth-stencil state: less comparison + depth write enabled (created on first use).
         id<MTLDepthStencilState> defaultDepthStencilState = nil;
 
+        // Depth-stencil state: always pass + no depth write (for particles).
+        id<MTLDepthStencilState> noDepthStencilState = nil;
+
         // Persistent full-frame depth texture.  Created / resized in beginRender().
         id<MTLTexture> depthTexture = nil;
     };

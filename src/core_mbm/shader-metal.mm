@@ -108,6 +108,73 @@ static id<MTLDepthStencilState> getOrCreateDepthStencilState(mbm::SPECIFIC_AUX_C
     return ctx->defaultDepthStencilState;
 }
 
+// Lazily creates a depth-stencil state with depth test disabled (for particles).
+// Mirrors OpenGL's glDisable(GL_DEPTH_TEST) used in renderParticle.
+static id<MTLDepthStencilState> getOrCreateNoDepthState(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
+{
+    if (!ctx->noDepthStencilState)
+    {
+        MTLDepthStencilDescriptor* dsd = [MTLDepthStencilDescriptor new];
+        dsd.depthCompareFunction = MTLCompareFunctionAlways;
+        dsd.depthWriteEnabled    = NO;
+        ctx->noDepthStencilState =
+            [ctx->mtlDevice newDepthStencilStateWithDescriptor:dsd];
+    }
+    return ctx->noDepthStencilState;
+}
+
+// Thin ObjC wrapper that stores two PSOs for one compiled program:
+//   standardPSO  — standard alpha blend (src_alpha * src + (1-src_alpha) * dst)
+//   additivePSO  — additive blend       (src_alpha * src + 1 * dst)
+// Both are immutable MTLRenderPipelineState objects.
+// 'ptrShaderSpecific' on SHADER holds a CF-retained reference to one of these.
+@interface MBMPSOPair : NSObject
+@property (nonatomic, strong) id<MTLRenderPipelineState> standardPSO;
+@property (nonatomic, strong) id<MTLRenderPipelineState> additivePSO;
+@end
+@implementation MBMPSOPair
+@end
+
+// Compile one MTLRenderPipelineState.  When additive==true the destination blend
+// factor for both RGB and alpha is MTLBlendFactorOne, matching OpenGL BLEND_ONE:
+//   glBlendFunc(GL_SRC_ALPHA, GL_ONE).
+static id<MTLRenderPipelineState> compileSinglePSO(
+    id<MTLDevice> device,
+    id<MTLFunction> vertFn,
+    id<MTLFunction> fragFn,
+    MTLVertexDescriptor* vtxDesc,
+    MTLPixelFormat colorFmt,
+    bool additive)
+{
+    MTLRenderPipelineDescriptor* psd = [[MTLRenderPipelineDescriptor alloc] init];
+    psd.label            = @"MBM";
+    psd.vertexFunction   = vertFn;
+    psd.fragmentFunction = fragFn;
+    psd.vertexDescriptor = vtxDesc;
+    psd.colorAttachments[0].pixelFormat          = colorFmt;
+    psd.colorAttachments[0].blendingEnabled      = YES;
+    psd.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    if (additive)
+    {
+        psd.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOne;
+        psd.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorSourceAlpha;
+        psd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne;
+    }
+    else
+    {
+        psd.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
+        psd.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
+        psd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    }
+    psd.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+    NSError* err = nil;
+    id<MTLRenderPipelineState> pso =
+        [device newRenderPipelineStateWithDescriptor:psd error:&err];
+    if (!pso)
+        ERROR_LOG("Metal: pipeline state error: %s", [[err localizedDescription] UTF8String]);
+    return pso;
+}
+
 // Builds only the vertex preamble (header + vert_main) for a given FVF.
 // compileShader() appends the PS fragment function from the shader-resource entry.
 static NSString* buildVertexHeader(mbm::FVF_PROVIDE_BY_ENGINE fvf)
@@ -591,27 +658,19 @@ namespace mbm
                 ERROR_LOG("Metal: missing vert_main / frag_main.");
                 return false;
             }
-            MTLRenderPipelineDescriptor* psd = [[MTLRenderPipelineDescriptor alloc] init];
-            psd.label            = @"MBM";
-            psd.vertexFunction   = vertFn;
-            psd.fragmentFunction = fragFn;
-            psd.vertexDescriptor = buildVtxDesc(fvf);
-            psd.colorAttachments[0].pixelFormat             = ctx->metalLayer.pixelFormat;
-            psd.colorAttachments[0].blendingEnabled         = YES;
-            psd.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
-            psd.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
-            psd.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
-            psd.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-            psd.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
-            id<MTLRenderPipelineState> pso =
-                [ctx->mtlDevice newRenderPipelineStateWithDescriptor:psd error:&err];
-            if (!pso)
-            {
-                ERROR_LOG("Metal: pipeline state error: %s",
-                          [[err localizedDescription] UTF8String]);
+            MTLVertexDescriptor* vtxDesc    = buildVtxDesc(fvf);
+            MTLPixelFormat      colorFmt    = ctx->metalLayer.pixelFormat;
+
+            // Compile both blend-mode variants.  renderParticle() selects additivePSO;
+            // render() / renderDynamic() select standardPSO.
+            MBMPSOPair* pair = [MBMPSOPair new];
+            pair.standardPSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
+                                                vtxDesc, colorFmt, /*additive=*/false);
+            pair.additivePSO = compileSinglePSO(ctx->mtlDevice, vertFn, fragFn,
+                                                vtxDesc, colorFmt, /*additive=*/true);
+            if (!pair.standardPSO || !pair.additivePSO)
                 return false;
-            }
-            ptrShaderSpecific = (__bridge_retained void*)pso;
+            ptrShaderSpecific = (__bridge_retained void*)pair;
         }
         return true;
     }
@@ -636,10 +695,9 @@ namespace mbm
             }
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            id<MTLRenderPipelineState>  pso =
-                (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
+            MBMPSOPair* pair = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pso];
+            [enc setRenderPipelineState:pair.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
             [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
@@ -759,10 +817,9 @@ namespace mbm
             uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            id<MTLRenderPipelineState>  pso =
-                (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
+            MBMPSOPair* pairD = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pso];
+            [enc setRenderPipelineState:pairD.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
             [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
@@ -865,13 +922,12 @@ namespace mbm
         @autoreleasepool
         {
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
-            id<MTLRenderPipelineState>  pso =
-                (__bridge id<MTLRenderPipelineState>)ptrShaderSpecific;
+            MBMPSOPair* pairP = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pso];
+            [enc setRenderPipelineState:pairP.additivePSO];  // BLEND_ONE: src*alpha + dst*1
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
-            [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
-            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
+            [enc setCullMode:MTLCullModeNone]; // match OpenGL: disable face culling for particles
+            [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // match OpenGL: no depth test
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
 
             const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
@@ -880,29 +936,51 @@ namespace mbm
 
             const VERTEX_UV*    vbuf      = particleControl->getVertexBuffer();
             const ATT_PARTICLE* particles = particleControl->getAttParticle();
-            const bool          hasColor  =
-                (pShader && pShader->getVarByName("color") != nullptr);
+
+            // Build the base fragment uniform buffer from pShader vars.
+            // The particle PS reads color from [[buffer(2)]] f[0..3],
+            // and enableAlphaFromColor from f[4]; per-particle color overrides f[0..3].
+            const VAR_SHADER* colorVar = pShader ? pShader->getVarByName("color") : nullptr;
+            const int32_t colorOff = colorVar
+                ? *static_cast<const int32_t*>(colorVar->ptrHandleVar) : -1;
+            const bool hasColor = (colorVar != nullptr);
+
+            float fragBuf[64] = {};
+            int32_t totalFragF = 0;
+            if (pShader)
+            {
+                for (const auto* v : pShader->lsVar) totalFragF += v->sizeVar;
+                for (const auto* v : pShader->lsVar)
+                {
+                    const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                    if (off >= 0 && off + v->sizeVar <= 64)
+                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                }
+            }
 
             struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
             MetalUniforms uni;
             memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
             memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
 
             for (uint32_t i = 0; i < totalAlive; ++i)
             {
-                if (hasColor)
+                if (hasColor && colorOff >= 0 && colorOff + 4 <= 64)
                 {
                     const ATT_PARTICLE& p = particles[i];
+                    fragBuf[colorOff + 0] = p.r; fragBuf[colorOff + 1] = p.g;
+                    fragBuf[colorOff + 2] = p.b; fragBuf[colorOff + 3] = p.a;
                     uni.color[0] = p.r; uni.color[1] = p.g;
                     uni.color[2] = p.b; uni.color[3] = p.a;
-                }
-                else
-                {
-                    uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
                 }
                 [enc setVertexBytes:&vbuf[i * 4]  length:sizeof(VERTEX_UV) * 4 atIndex:0];
                 [enc setVertexBytes:&uni           length:sizeof(uni)          atIndex:1];
                 [enc setFragmentBytes:&uni         length:sizeof(uni)          atIndex:1];
+                if (totalFragF > 0)
+                    [enc setFragmentBytes:fragBuf
+                                  length:(NSUInteger)totalFragF * sizeof(float)
+                                 atIndex:2];
                 [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:6
                                  indexType:MTLIndexTypeUInt16
@@ -913,10 +991,98 @@ namespace mbm
         return true;
     }
 
-    bool SHADER::renderParticle(const BUFFER_GL* /*pBufferId*/,
-                                const FLUID_GROUP* /*pGroup*/) const
+    bool SHADER::renderParticle(const BUFFER_GL* pBufferId,
+                                const FLUID_GROUP* pGroup) const
     {
-        return false;
+        if (!ptrShaderSpecific || !pBufferId || !pGroup) return false;
+        if (!pBufferId->bs || !pBufferId->bs->indexBuffer) return false;
+        auto* ctx = getMetalCtx();
+        if (!ctx || !ctx->currentEncoder) return false;
+
+        const uint32_t totalToRender = pGroup->totalParticleToRender;
+        if (!totalToRender) return true;
+
+        @autoreleasepool
+        {
+            id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
+            MBMPSOPair* pairF = (__bridge MBMPSOPair*)ptrShaderSpecific;
+
+            [enc setRenderPipelineState:pairF.additivePSO];  // BLEND_ONE: src*alpha + dst*1
+            [enc setFrontFacingWinding:MTLWindingCounterClockwise];
+            [enc setCullMode:MTLCullModeNone]; // no culling for particles
+            [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // no depth test
+            [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
+
+            const TEXTURE* tex0 = pBufferId->getTextureByStage(0, 0);
+            [enc setFragmentTexture:(tex0 && tex0->ptrTexture
+                ? (__bridge id<MTLTexture>)tex0->ptrTexture : nil) atIndex:0];
+
+            struct MetalUniforms { float mvp[16]; float mv[16]; float color[4]; };
+            MetalUniforms uni;
+            memcpy(uni.mvp, SHADER::mvpMatrix.p, sizeof(uni.mvp));
+            memcpy(uni.mv,  SHADER::modelView.p,  sizeof(uni.mv));
+            uni.color[0] = uni.color[1] = uni.color[2] = uni.color[3] = 1.0f;
+
+            // Build fragment uniform buffer from pShader vars; override color with pGroup->color.
+            const VAR_SHADER* colorVar = pShader ? pShader->getVarByName("color") : nullptr;
+            const int32_t colorOff = colorVar
+                ? *static_cast<const int32_t*>(colorVar->ptrHandleVar) : -1;
+
+            float fragBuf[64] = {};
+            int32_t totalFragF = 0;
+            if (pShader)
+            {
+                for (const auto* v : pShader->lsVar) totalFragF += v->sizeVar;
+                for (const auto* v : pShader->lsVar)
+                {
+                    const int32_t off = *static_cast<const int32_t*>(v->ptrHandleVar);
+                    if (off >= 0 && off + v->sizeVar <= 64)
+                        memcpy(fragBuf + off, v->current, (size_t)v->sizeVar * sizeof(float));
+                }
+            }
+            if (pGroup->color && colorOff >= 0 && colorOff + 4 <= 64)
+            {
+                fragBuf[colorOff + 0] = pGroup->color->r;
+                fragBuf[colorOff + 1] = pGroup->color->g;
+                fragBuf[colorOff + 2] = pGroup->color->b;
+                fragBuf[colorOff + 3] = pGroup->color->a;
+                uni.color[0] = pGroup->color->r; uni.color[1] = pGroup->color->g;
+                uni.color[2] = pGroup->color->b; uni.color[3] = pGroup->color->a;
+            }
+
+            // Color is constant per group — set uniforms once before the particle loop.
+            [enc setVertexBytes:&uni length:sizeof(uni) atIndex:1];
+            [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
+            if (totalFragF > 0)
+                [enc setFragmentBytes:fragBuf
+                              length:(NSUInteger)totalFragF * sizeof(float)
+                             atIndex:2];
+
+            // Interleaved pos+uv layout that matches buildVtxDesc(FVF_POS_UV): stride 20.
+            struct PVert { float x, y, z, u, v; };
+            PVert quad[4];
+
+            const VEC3* vpos = pGroup->vertex_particle;
+            const VEC2* uvs  = pGroup->uv;
+
+            for (uint32_t i = 0; i < totalToRender; ++i)
+            {
+                const VEC3* p4  = &vpos[i * 4];
+                const VEC2* uv4 = pGroup->segmented ? &uvs[i * 4] : uvs;
+                for (int v = 0; v < 4; ++v)
+                {
+                    quad[v].x = p4[v].x;  quad[v].y = p4[v].y;  quad[v].z = p4[v].z;
+                    quad[v].u = uv4[v].x; quad[v].v = uv4[v].y;
+                }
+                [enc setVertexBytes:quad length:sizeof(quad) atIndex:0];
+                [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                indexCount:6
+                                 indexType:MTLIndexTypeUInt16
+                               indexBuffer:pBufferId->bs->indexBuffer
+                         indexBufferOffset:0];
+            }
+        }
+        return true;
     }
 
 } // namespace mbm
