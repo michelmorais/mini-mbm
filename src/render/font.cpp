@@ -61,6 +61,8 @@ namespace mbm
         this->spaceYCharacter       = 0.0f;
         this->wildCardChangeAnim      = 0;
         this->aligned               = ALIGN_LEFT;
+        this->aabbMin               = VEC2(0, 0);
+        this->aabbMax               = VEC2(0, 0);
         mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
         this->text = "Hello Font!";
@@ -81,6 +83,8 @@ namespace mbm
         this->spaceYCharacter       = 0.0f;
         this->wildCardChangeAnim      = 0;
         this->aligned               = ALIGN_LEFT;
+        this->aabbMin               = VEC2(0, 0);
+        this->aabbMax               = VEC2(0, 0);
         mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
         if (newText)
@@ -105,6 +109,8 @@ namespace mbm
         this->spaceYCharacter       = 0.0f;
         this->wildCardChangeAnim    = 0;
         this->aligned               = ALIGN_LEFT;
+        this->aabbMin               = VEC2(0, 0);
+        this->aabbMax               = VEC2(0, 0);
         mbm::DEVICE* device         = mbm::DEVICE::getInstance();
         device->addRenderizable(this);
         if (newText)
@@ -135,6 +141,8 @@ namespace mbm
             this->text        = "Hello Font!";
         this->onRestoreFont   = ptrOnRestoreFont;
         this->parentFONT_DRAW = _parentFONT_DRAW;
+        this->aabbMin         = VEC2(0, 0);
+        this->aabbMax         = VEC2(0, 0);
         device->addRenderizable(this);
     }
 
@@ -267,6 +275,12 @@ namespace mbm
         va_end(va_args);
         this->text = _buffer;
         delete[] _buffer;
+        this->forceCalcSize();
+    }
+
+    const std::string& TEXT_DRAW::getText() const
+    {
+        return this->text;
     }
     
     bool TEXT_DRAW::getWidthHeight(float *_width, float *_height, const bool ) const
@@ -296,12 +310,43 @@ namespace mbm
             {
                 cube = this->mesh->infoPhysics.lsCube[0];
             }
-            cube->halfDim.x       = w * 0.5f;
-            cube->halfDim.y       = h * 0.5f;
-            cube->halfDim.z       = 1.0f;
-            this->bounding_AABB.x = w;
-            this->bounding_AABB.y = h;
+            if (this->is2dS)
+            {
+                // Convert world-2D dimensions to screen pixels so that
+                // getAABB(), isOver2ds(), and isOnFrustum() all work at any camera scale.
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                VEC2 pt0, pt1;
+                device->transformeWorld2dToScreen2d_scaled(beginText.x, beginText.y, pt0);
+                device->transformeWorld2dToScreen2d_scaled(endText.x,   endText.y,   pt1);
+                const float sw = std::abs(pt1.x - pt0.x);
+                const float sh = std::abs(pt1.y - pt0.y);
+                cube->halfDim.x       = sw * 0.5f;
+                cube->halfDim.y       = sh * 0.5f;
+                cube->halfDim.z       = 1.0f;
+                this->bounding_AABB.x = sw;
+                this->bounding_AABB.y = sh;
+                // position is the top-left corner in screen coords (Y-down)
+                this->aabbMin = VEC2(this->position.x, this->position.y);
+                this->aabbMax = VEC2(this->position.x + sw, this->position.y + sh);
+            }
+            else
+            {
+                cube->halfDim.x       = w * 0.5f;
+                cube->halfDim.y       = h * 0.5f;
+                cube->halfDim.z       = 1.0f;
+                this->bounding_AABB.x = w;
+                this->bounding_AABB.y = h;
+                // position is the top-origin corner in world coords (Y-up); text extends right and down
+                this->aabbMin = VEC2(this->position.x, this->position.y - h);
+                this->aabbMax = VEC2(this->position.x + w, this->position.y);
+            }
         }
+    }
+
+    void TEXT_DRAW::getAABB(float *w, float *h) const
+    {
+        *w = this->aabbMax.x - this->aabbMin.x;
+        *h = std::abs(this->aabbMax.y - this->aabbMin.y);
     }
     
     bool TEXT_DRAW::getWidthHeightString(float *_width, float *_height, const char *str)
@@ -337,7 +382,8 @@ namespace mbm
         w *= 0.5f;
         h *= 0.5f;
         d *= 0.5f;
-        const VEC3 pos(this->position.x + (w * 0.5f), this->position.y - (h * 0.5f), this->position.z);
+        // After *= 0.5f, w/h/d are half-dimensions; center = position + halfDim offset
+        const VEC3 pos(this->position.x + w, this->position.y - h, this->position.z);
         // dir is unit direction vector of ray
         const VEC3 dirfrac(dir.x != 0.0f ? 1.0f / dir.x : 0.0f, dir.y != 0.0f ? 1.0f / dir.y : 0.0f,
                            dir.z != 0.0f ? 1.0f / dir.z : 0.0f);
@@ -403,27 +449,46 @@ namespace mbm
                 {
                     cube = this->mesh->infoPhysics.lsCube[0];
                 }
-                cube->halfDim.x       = w * 0.5f;
-                cube->halfDim.y       = h * 0.5f;
-                cube->halfDim.z       = 1.0f;
-                this->bounding_AABB.x = w;
-                this->bounding_AABB.y = h;
+                if (this->is2dS)
+                {
+                    // Convert to screen pixels so frustum test uses the correct space
+                    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                    VEC2 pt0, pt1;
+                    device->transformeWorld2dToScreen2d_scaled(beginText.x, beginText.y, pt0);
+                    device->transformeWorld2dToScreen2d_scaled(endText.x,   endText.y,   pt1);
+                    const float sw = std::abs(pt1.x - pt0.x);
+                    const float sh = std::abs(pt1.y - pt0.y);
+                    cube->halfDim.x       = sw * 0.5f;
+                    cube->halfDim.y       = sh * 0.5f;
+                    cube->halfDim.z       = 1.0f;
+                    this->bounding_AABB.x = sw;
+                    this->bounding_AABB.y = sh;
+                    w = sw; h = sh;
+                }
+                else
+                {
+                    cube->halfDim.x       = w * 0.5f;
+                    cube->halfDim.y       = h * 0.5f;
+                    cube->halfDim.z       = 1.0f;
+                    this->bounding_AABB.x = w;
+                    this->bounding_AABB.y = h;
+                }
             }
             const float ws = w * 0.5f;
             const float hs = h * 0.5f;
             this->position.x += ws;
-            this->position.y -= hs;
+            // For screen-2D (Y-down) the center is below the top-left; for world (Y-up) it is above the bottom.
+            this->position.y += (this->is2dS ? hs : -hs);
             IS_ON_FRUSTUM verify(this);
             const bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
             this->position.x -= ws;
-            this->position.y += hs;
+            this->position.y -= (this->is2dS ? hs : -hs);
             if(ret == false)
             {
                 ANIMATION *anim = this->getAnimation();
                 mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
             }
-            return ret;
             return ret;
         }
         return false;

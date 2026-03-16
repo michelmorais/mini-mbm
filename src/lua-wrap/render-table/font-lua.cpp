@@ -166,8 +166,7 @@ namespace mbm
             {
                 if (strcmp("text", what) == 0)
                 {
-                    draw->text = luaL_checkstring(lua, 3);
-                    draw->forceCalcSize();
+                    draw->setText("%s", luaL_checkstring(lua, 3));
                 }
                 else
                     return setVariable(lua, draw, what);
@@ -273,7 +272,7 @@ namespace mbm
             case 4:
             {
                 if (strcmp("text", what) == 0)
-                    lua_pushstring(lua, draw->text.c_str());
+                    lua_pushstring(lua, draw->getText().c_str());
                 else
                     return getVariable(lua, draw, what);
             }

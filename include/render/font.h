@@ -45,11 +45,17 @@ namespace mbm
         friend class FONT_DRAW;
         OnRestoreFont onRestoreFont;
         FONT_DRAW *   parentFONT_DRAW;
-        std::string   text;
         ALIGNED       aligned;
         float         spaceXCharacter;
         float         spaceYCharacter;
         uint8_t wildCardChangeAnim;
+        // Bounding box in position-space coordinates (screen pixels for is2dS, world units for is2dW/is3D).
+        // Updated by forceCalcSize(). For is2dS: aabbMin=(position.x, position.y) top-left,
+        // aabbMax=(position.x+w, position.y+h) bottom-right. For is2dW/is3D: aabbMin.y = position.y-h.
+        // Note: if position changes without a forceCalcSize() call, aabbMin/aabbMax become stale;
+        // use getAABB() for size only (it is always correct) and position.xy for origin.
+        VEC2 aabbMin;
+        VEC2 aabbMax;
     
         API_IMPL virtual ~TEXT_DRAW();
         API_IMPL void release();
@@ -58,10 +64,18 @@ namespace mbm
         API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC3 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
         API_IMPL TEXT_DRAW(const int idScene, const bool _is3d, const bool _is2dScreen, const char *newText,const VEC2 &position,OnRestoreFont ptrOnRestoreFont, FONT_DRAW *_parentFONT_DRAW);
         API_IMPL static uint8_t withoutBOM2Map(uint8_t index, const uint8_t mapBoom) noexcept;
+        // Sets the text and automatically updates bounds (no need to call forceCalcSize after).
         API_IMPL void setText(const char *format, ...);
+        // Returns the current text string.
+        API_IMPL const std::string& getText() const;
         API_IMPL bool getWidthHeight(float *_width, float *_height, const bool consider_scale = true) const override;
+        // Recalculates bounding dimensions. Call after changing scale or position.
+        // Not needed after setText() — that calls it automatically.
         API_IMPL void forceCalcSize();
         API_IMPL bool getWidthHeightString(float *_width, float *_height, const char *str);
+        // Returns the bounding size in position-space units (screen pixels for is2dS, world units otherwise).
+        using RENDERIZABLE::getAABB;
+        API_IMPL void getAABB(float *w, float *h) const override;
         API_IMPL bool isOver3d(DEVICE *, const float x, const float y) const override;
         API_IMPL bool isOver2dw(DEVICE *, const float x, const float y) const override;
         API_IMPL bool isOver2ds(DEVICE *, const float x, const float y) const override;
@@ -81,6 +95,7 @@ namespace mbm
         bool isLoaded() const override;
         const std::string getTextWithoutSpecialLetters()const;
         std::string textWithoutSpeciaLetters;
+        std::string text;
         MESH_MBM *mesh;
         float     widthFirstLetter;
         VEC2      beginText;
