@@ -140,7 +140,7 @@ namespace mbm
                         VAR_SHADER *var = this->ptrCurrentShader->getVar(i);
                         for (int j = 0; j < var->sizeVar; ++j)
                         {
-                            var->current[j] = var->min[j];
+                            var->current[j] = var->current[j];
                         }
                     }
                 }

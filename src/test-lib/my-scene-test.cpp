@@ -76,6 +76,9 @@ MY_SCENE::MY_SCENE()
     mouseScreenY        = 0.0f;
     notificationText    = nullptr;
     notificationTimer   = 0.0f;
+    shaderMenuVisible   = true;
+    currentPsShaderIdx = -1;
+    currentVsShaderIdx = -1;
 }
 
 MY_SCENE::~MY_SCENE()
@@ -144,6 +147,7 @@ void MY_SCENE::init()
         buildMenu();
         buildPosMenu();
         buildWorldMenu();
+        buildShaderMenu();
         lineFontIsOver = new mbm::LINE_MESH(this, false, true);
         std::vector<mbm::VEC3> linePoints(4);
         lineFontIsOver->add(std::move(linePoints));
@@ -190,39 +194,51 @@ void MY_SCENE::logic()
             }
         }
     }
-    if(sprite)
     {
-        mbm::FX* fx = sprite->getFx();
-        if(fx)
+        mbm::RENDERIZABLE* latestObj = (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
+            ? menuItems[static_cast<size_t>(lastLoadedRowIdx)].object
+            : nullptr;
+        if (latestObj && shaderInfoText)
         {
-            std::string PixeShader;
-            std::string VertexShader;
-            std::vector<mbm::VAR_SHADER *> *vars = fx->getVarsPS();
-            if(vars)
+            mbm::FX* fx = latestObj->getFx();
+            if (fx)
             {
-                PixeShader = getShaderInfoText("Pixel", vars, fx);
+                std::string PixeShader;
+                std::string VertexShader;
+                std::vector<mbm::VAR_SHADER *> *vars = fx->getVarsPS();
+                if (vars)
+                    PixeShader = getShaderInfoText(true, vars, fx);
+                vars = fx->getVarsVS();
+                if (vars)
+                    VertexShader = getShaderInfoText(false, vars, fx);
+                shaderInfoText->setText((PixeShader + VertexShader).c_str());
             }
-            vars = fx->getVarsVS();
-            if(vars)
+            else
             {
-                VertexShader = getShaderInfoText("Vertex", vars, fx);
+                shaderInfoText->setText("");
             }
-            shaderInfoText->setText((PixeShader + VertexShader).c_str());
         }
     }
 }
 
-std::string MY_SCENE::getShaderInfoText(const char* shader_type, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx)
+std::string MY_SCENE::getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx)
 {
     char text[256];
     std::string finalText;
-    snprintf(text, sizeof(text), "%s shader vars: %zu name", shader_type, vars->size());
+    snprintf(text, sizeof(text), "%s shader vars: %zu", isPS ? "Pixel" : "Vertex", vars->size());
     finalText += text;
     finalText += "\n";
     float data[4];
     for(mbm::VAR_SHADER* var : *vars)
     {
-        fx->getVarPShader(var->name.c_str(), data);
+        if (isPS)
+        {
+            fx->getVarPShader(var->name.c_str(), data);
+        }
+        else
+        {
+            fx->getVarVShader(var->name.c_str(), data);
+        }
         switch(var->typeVar)
         {
             case mbm::TYPE_VAR_SHADER::VAR_FLOAT:
@@ -262,6 +278,8 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
         if (menuVisible && handleMenuTouchDown(x, y))
             return;
         if (posMenuVisible && handlePosMenuTouchDown(x, y))
+            return;
+        if (shaderMenuVisible && handleShaderMenuTouchDown(x, y))
             return;
         RenderMode mode_selected;
         if(worldMenuVisible && handleWorldMenuTouchDown(x, y, mode_selected))
@@ -353,6 +371,42 @@ void MY_SCENE::onTouchMove(int, float x, float y)
             updateBoundsForTextDraw(btn3d);
             found = true;
         }
+        if (!found && shaderRowPS.labelText && shaderRowPS.labelText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowPS.labelText);
+            found = true;
+        }
+        if (!found && shaderRowPS.btnPrev && shaderRowPS.btnPrev->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowPS.btnPrev);
+            found = true;
+        }
+        if (!found && shaderRowPS.btnNext && shaderRowPS.btnNext->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowPS.btnNext);
+            found = true;
+        }
+        if (!found && shaderRowVS.labelText && shaderRowVS.labelText->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowVS.labelText);
+            found = true;
+        }
+        if (!found && shaderRowVS.btnPrev && shaderRowVS.btnPrev->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowVS.btnPrev);
+            found = true;
+        }
+        if (!found && shaderRowVS.btnNext && shaderRowVS.btnNext->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderRowVS.btnNext);
+            found = true;
+        }
+        if (!found && shaderBtnPause && shaderBtnPause->isOver2ds(device, x, y))
+        {
+            updateBoundsForTextDraw(shaderBtnPause);
+            found = true;
+        }
+
         if(found)
         {
             lineFontIsOver->enableRender = true;
@@ -405,6 +459,12 @@ void MY_SCENE::onKeyDown(int key)
     {
         posMenuVisible = !posMenuVisible;
         updatePosMenu();
+        return;
+    }
+    if (key == 83) // S - toggle shader menu
+    {
+        shaderMenuVisible = !shaderMenuVisible;
+        updateShaderMenu();
         return;
     }
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
@@ -496,7 +556,7 @@ void MY_SCENE::buildMenu()
     }
     // Hints text — always visible at the bottom of the screen
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    hintsText = this->fontDrawNoShader->addText("[M] menu | [P] pos-menu | [Arrows] camera", IS_2D_FONT, IS_SCREEN);
+    hintsText = this->fontDrawNoShader->addText("[M] menu | [P] pos | [S] shader | [Arrows] camera", IS_2D_FONT, IS_SCREEN);
     hintsText->scale = mbm::VEC3(0.5f, 0.5f, 0.5f);
     hintsText->forceCalcSize();
     float hw = 0.0f, hh = 0.0f;
@@ -827,6 +887,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             insideR2T ? "in render2texture" : "in scene",
             row.object->position.x, row.object->position.y, row.object->position.z);
     }
+    //Do not apply shader since some object are loaded with shader.
+    //applyCurrentShaders();
 }
 
 void MY_SCENE::addObjectsToRender2Texture()
@@ -1325,6 +1387,262 @@ void MY_SCENE::showNotification(const char* fmt, ...)
     notificationText->setText("%s", buf);
     notificationText->enableRender = true;
     notificationTimer = 5.0f;
+}
+
+void MY_SCENE::buildShaderMenu()
+{
+    constexpr bool IS_2D_FONT = true;
+    constexpr bool IS_SCREEN  = true;
+    mbm::DEVICE* device = mbm::DEVICE::getInstance();
+
+    auto makeText = [&](const char* txt) -> mbm::TEXT_DRAW*
+    {
+        mbm::TEXT_DRAW* t = this->fontDrawNoShader->addText(txt, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
+        t->scale           = mbm::VEC3(0.75f, 0.75f, 0.75f);
+        t->forceCalcSize();
+        t->position.z      = -1.0f;
+        t->alwaysRenderize = true;
+        t->enableRender    = true;// initially visible
+        return t;
+    };
+
+    shaderRowPS.labelText = makeText("[ ] (PS none)");
+    shaderRowPS.btnPrev   = makeText("<");
+    shaderRowPS.btnNext   = makeText(">");
+    shaderRowVS.labelText = makeText("[ ] (VS none)");
+    shaderRowVS.btnPrev   = makeText("<");
+    shaderRowVS.btnNext   = makeText(">");
+    shaderBtnPause        = makeText("[ ] Pause shader animation");
+
+    // Measure the widest possible label across all ps/vs shader names
+    float maxLabelW = 0.0f;
+    for (auto* s : device->cfg.lsPs)
+    {
+        shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
+        shaderRowPS.labelText->forceCalcSize();
+        float w = 0.0f, h = 0.0f;
+        shaderRowPS.labelText->getAABB(&w, &h);
+        if (w > maxLabelW) maxLabelW = w;
+    }
+    for (auto* s : device->cfg.lsVs)
+    {
+        shaderRowPS.labelText->setText("[X] %s", s->fileName.c_str());
+        shaderRowPS.labelText->forceCalcSize();
+        float w = 0.0f, h = 0.0f;
+        shaderRowPS.labelText->getAABB(&w, &h);
+        if (w > maxLabelW) maxLabelW = w;
+    }
+    shaderRowPS.labelText->setText("[ ] (PS none)");
+    shaderRowPS.labelText->forceCalcSize();
+
+    // Measure < > button widths and row height
+    float prevW = 0.0f, rowH = 0.0f;
+    shaderRowPS.btnPrev->getAABB(&prevW, &rowH);
+    float nextW = 0.0f, tmp = 0.0f;
+    shaderRowPS.btnNext->getAABB(&nextW, &tmp);
+
+    // Measure pause button height
+    float pauseW = 0.0f, pauseH = 0.0f;
+    shaderBtnPause->getAABB(&pauseW, &pauseH);
+    if (pauseH > rowH) rowH = pauseH;
+
+    const float gap       = 8.0f;
+    const float rightEdge = static_cast<float>(device->backBufferWidth) - 10.0f;
+    const float labelX    = rightEdge - nextW - gap - prevW - gap - maxLabelW;
+    const float prevX     = rightEdge - nextW - gap - prevW;
+    const float nextX     = rightEdge - nextW;
+
+    const float spacing    = rowH + 8.0f;
+    //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
+    float rowY = 510.0f;
+
+    shaderRowPS.labelText->position.x = labelX;
+    shaderRowPS.labelText->position.y = rowY;
+    shaderRowPS.btnPrev->position.x   = prevX;
+    shaderRowPS.btnPrev->position.y   = rowY;
+    shaderRowPS.btnNext->position.x   = nextX;
+    shaderRowPS.btnNext->position.y   = rowY;
+    rowY += spacing;
+
+    shaderRowVS.labelText->position.x = labelX;
+    shaderRowVS.labelText->position.y = rowY;
+    shaderRowVS.btnPrev->position.x   = prevX;
+    shaderRowVS.btnPrev->position.y   = rowY;
+    shaderRowVS.btnNext->position.x   = nextX;
+    shaderRowVS.btnNext->position.y   = rowY;
+    rowY += spacing;
+
+    shaderBtnPause->position.x = labelX;
+    shaderBtnPause->position.y = rowY;
+}
+
+void MY_SCENE::updateShaderMenu()
+{
+    if (!shaderRowPS.labelText)
+        return;
+
+    mbm::DEVICE* device  = mbm::DEVICE::getInstance();
+    const bool   visible = shaderMenuVisible;
+
+    if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
+        shaderRowPS.labelText->setText("[X] %s", device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
+    else
+        shaderRowPS.labelText->setText("[ ] (PS none)");
+    shaderRowPS.labelText->enableRender = visible;
+    shaderRowPS.btnPrev->enableRender   = visible;
+    shaderRowPS.btnNext->enableRender   = visible;
+
+    if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
+        shaderRowVS.labelText->setText("[X] %s", device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
+    else
+        shaderRowVS.labelText->setText("[ ] (VS none)");
+    shaderRowVS.labelText->enableRender = visible;
+    shaderRowVS.btnPrev->enableRender   = visible;
+    shaderRowVS.btnNext->enableRender   = visible;
+
+    bool paused = false;
+    if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
+    {
+        mbm::RENDERIZABLE* obj = menuItems[static_cast<size_t>(lastLoadedRowIdx)].object;
+        if (obj)
+        {
+            mbm::FX* fx = obj->getFx();
+            if (fx)
+                paused = (fx->getTypePS() == mbm::TYPE_ANIMATION_PAUSED &&
+                          fx->getTypeVS() == mbm::TYPE_ANIMATION_PAUSED);
+        }
+    }
+    shaderBtnPause->setText(paused ? "[X] Pause shader animation" : "[ ] Pause shader animation");
+    shaderBtnPause->enableRender = visible;
+}
+
+void MY_SCENE::applyCurrentShaders()
+{
+    if (lastLoadedRowIdx < 0 || lastLoadedRowIdx >= static_cast<int>(menuItems.size()))
+        return;
+    mbm::RENDERIZABLE* obj = menuItems[static_cast<size_t>(lastLoadedRowIdx)].object;
+    if (!obj)
+        return;
+    mbm::FX* fx = obj->getFx();
+    if (!fx)
+        return;
+    if (currentPsShaderIdx < 0 && currentVsShaderIdx < 0)
+    {
+        if(obj->typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && obj->typeClass != mbm::TYPE_CLASS_PARTICLE)
+        {
+            mbm::SHADER_CFG* psCfg = nullptr;
+            mbm::SHADER_CFG* vsCfg = nullptr;
+            fx->loadNewShader(psCfg, vsCfg,
+                        mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                        mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                        obj->getFvfFromBuffer());
+        }
+        updateShaderMenu();
+        return;
+    }
+
+    mbm::DEVICE*     device = mbm::DEVICE::getInstance();
+    mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
+                               ? device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)] : nullptr;
+    mbm::SHADER_CFG* vsCfg  = (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
+                               ? device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)] : nullptr;
+
+    fx->loadNewShader(psCfg, vsCfg,
+                      mbm::TYPE_ANIMATION_GROWING_LOOP, 1.0f,
+                      mbm::TYPE_ANIMATION_GROWING_LOOP, 1.0f,
+                      obj->getFvfFromBuffer());
+    updateShaderMenu();
+}
+
+bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
+{
+    if (!shaderRowPS.labelText)
+        return false;
+
+    mbm::DEVICE* device  = mbm::DEVICE::getInstance();
+    const int    psCount = static_cast<int>(device->cfg.lsPs.size());
+    const int    vsCount = static_cast<int>(device->cfg.lsVs.size());
+
+    if (shaderRowPS.btnPrev->enableRender && shaderRowPS.btnPrev->isOver2ds(device, x, y))
+    {
+        if (psCount > 0)
+        {
+            currentPsShaderIdx = (currentPsShaderIdx <= 0) ? psCount - 1 : currentPsShaderIdx - 1;
+            applyCurrentShaders();
+        }
+        return true;
+    }
+    if (shaderRowPS.btnNext->enableRender && shaderRowPS.btnNext->isOver2ds(device, x, y))
+    {
+        if (psCount > 0)
+        {
+            currentPsShaderIdx = (currentPsShaderIdx + 1) % psCount;
+            applyCurrentShaders();
+        }
+        return true;
+    }
+    if (shaderRowPS.labelText->enableRender && shaderRowPS.labelText->isOver2ds(device, x, y))
+    {
+        currentPsShaderIdx = (currentPsShaderIdx >= 0) ? -1 : (psCount > 0 ? 0 : -1);
+        applyCurrentShaders();
+        return true;
+    }
+
+    if (shaderRowVS.btnPrev->enableRender && shaderRowVS.btnPrev->isOver2ds(device, x, y))
+    {
+        if (vsCount > 0)
+        {
+            currentVsShaderIdx = (currentVsShaderIdx <= 0) ? vsCount - 1 : currentVsShaderIdx - 1;
+            applyCurrentShaders();
+        }
+        return true;
+    }
+    if (shaderRowVS.btnNext->enableRender && shaderRowVS.btnNext->isOver2ds(device, x, y))
+    {
+        if (vsCount > 0)
+        {
+            currentVsShaderIdx = (currentVsShaderIdx + 1) % vsCount;
+            applyCurrentShaders();
+        }
+        return true;
+    }
+    if (shaderRowVS.labelText->enableRender && shaderRowVS.labelText->isOver2ds(device, x, y))
+    {
+        currentVsShaderIdx = (currentVsShaderIdx >= 0) ? -1 : (vsCount > 0 ? 0 : -1);
+        applyCurrentShaders();
+        return true;
+    }
+
+    if (shaderBtnPause->enableRender && shaderBtnPause->isOver2ds(device, x, y))
+    {
+        if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
+        {
+            mbm::RENDERIZABLE* obj = menuItems[static_cast<size_t>(lastLoadedRowIdx)].object;
+            if (obj)
+            {
+                mbm::FX* fx = obj->getFx();
+                if (fx)
+                {
+                    const bool isPaused = (fx->getTypePS() == mbm::TYPE_ANIMATION_PAUSED &&
+                                          fx->getTypeVS() == mbm::TYPE_ANIMATION_PAUSED);
+                    if (isPaused)
+                    {
+                        fx->setTypePS(mbm::TYPE_ANIMATION_GROWING_LOOP);
+                        fx->setTypeVS(mbm::TYPE_ANIMATION_GROWING_LOOP);
+                    }
+                    else
+                    {
+                        fx->setTypePS(mbm::TYPE_ANIMATION_PAUSED);
+                        fx->setTypeVS(mbm::TYPE_ANIMATION_PAUSED);
+                    }
+                }
+            }
+        }
+        updateShaderMenu();
+        return true;
+    }
+
+    return false;
 }
 
 bool GAME::existScene(const int idScene)
