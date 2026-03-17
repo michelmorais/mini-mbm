@@ -110,7 +110,6 @@ class MY_SCENE : public mbm::SCENE
     ShaderMenuRow           shaderRowPS;
     ShaderMenuRow           shaderRowVS;
     mbm::TEXT_DRAW*         shaderBtnPause;
-    mbm::TEXT_DRAW*         shaderBtnRestart;
     bool                    shaderMenuVisible;
     int                     currentPsShaderIdx;  // -1 = none
     int                     currentVsShaderIdx;  // -1 = none

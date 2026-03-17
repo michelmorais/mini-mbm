@@ -399,11 +399,7 @@ void MY_SCENE::onTouchMove(int, float x, float y)
             updateBoundsForTextDraw(shaderBtnPause);
             found = true;
         }
-        if (!found && shaderBtnRestart && shaderBtnRestart->isOver2ds(device, x, y))
-        {
-            updateBoundsForTextDraw(shaderBtnRestart);
-            found = true;
-        }
+
         if(found)
         {
             lineFontIsOver->enableRender = true;
@@ -1409,7 +1405,6 @@ void MY_SCENE::buildShaderMenu()
     shaderRowVS.btnPrev   = makeText("<");
     shaderRowVS.btnNext   = makeText(">");
     shaderBtnPause        = makeText("[ ] Pause shader animation");
-    shaderBtnRestart      = makeText("[ ] Restart shader animation");
 
     // Measure the widest possible label across all ps/vs shader names
     float maxLabelW = 0.0f;
@@ -1438,23 +1433,19 @@ void MY_SCENE::buildShaderMenu()
     float nextW = 0.0f, tmp = 0.0f;
     shaderRowPS.btnNext->getAABB(&nextW, &tmp);
 
-    // Measure pause/restart widths
+    // Measure pause button height
     float pauseW = 0.0f, pauseH = 0.0f;
     shaderBtnPause->getAABB(&pauseW, &pauseH);
-    float restartW = 0.0f;
-    shaderBtnRestart->getAABB(&restartW, &tmp);
     if (pauseH > rowH) rowH = pauseH;
 
     const float gap       = 8.0f;
-    const float specialW  = (pauseW > restartW) ? pauseW : restartW;
     const float rightEdge = static_cast<float>(device->backBufferWidth) - 10.0f;
     const float labelX    = rightEdge - nextW - gap - prevW - gap - maxLabelW;
     const float prevX     = rightEdge - nextW - gap - prevW;
     const float nextX     = rightEdge - nextW;
-    const float specialX  = rightEdge - specialW;
 
     const float spacing    = rowH + 8.0f;
-    const float totalMenuH = 4.0f * spacing;
+    const float totalMenuH = 3.0f * spacing;
     //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
     float rowY = 510.0f;
 
@@ -1474,14 +1465,8 @@ void MY_SCENE::buildShaderMenu()
     shaderRowVS.btnNext->position.y   = rowY;
     rowY += spacing;
 
-    //shaderBtnPause->position.x = specialX;
     shaderBtnPause->position.x = labelX;
     shaderBtnPause->position.y = rowY;
-    rowY += spacing;
-
-    //shaderBtnRestart->position.x = specialX;
-    shaderBtnRestart->position.x = labelX;
-    shaderBtnRestart->position.y = rowY;
 }
 
 void MY_SCENE::updateShaderMenu()
@@ -1521,8 +1506,7 @@ void MY_SCENE::updateShaderMenu()
         }
     }
     shaderBtnPause->setText(paused ? "[X] Pause shader animation" : "[ ] Pause shader animation");
-    shaderBtnPause->enableRender   = visible;
-    shaderBtnRestart->enableRender = visible;
+    shaderBtnPause->enableRender = visible;
 }
 
 void MY_SCENE::applyCurrentShaders()
@@ -1618,27 +1602,18 @@ bool MY_SCENE::handleShaderMenuTouchDown(float x, float y)
                 mbm::FX* fx = obj->getFx();
                 if (fx)
                 {
-                    fx->setTypePS(mbm::TYPE_ANIMATION_PAUSED);
-                    fx->setTypeVS(mbm::TYPE_ANIMATION_PAUSED);
-                }
-            }
-        }
-        updateShaderMenu();
-        return true;
-    }
-
-    if (shaderBtnRestart->enableRender && shaderBtnRestart->isOver2ds(device, x, y))
-    {
-        if (lastLoadedRowIdx >= 0 && lastLoadedRowIdx < static_cast<int>(menuItems.size()))
-        {
-            mbm::RENDERIZABLE* obj = menuItems[static_cast<size_t>(lastLoadedRowIdx)].object;
-            if (obj)
-            {
-                mbm::FX* fx = obj->getFx();
-                if (fx)
-                {
-                    fx->setTypePS(mbm::TYPE_ANIMATION_GROWING_LOOP);
-                    fx->setTypeVS(mbm::TYPE_ANIMATION_GROWING_LOOP);
+                    const bool isPaused = (fx->getTypePS() == mbm::TYPE_ANIMATION_PAUSED &&
+                                          fx->getTypeVS() == mbm::TYPE_ANIMATION_PAUSED);
+                    if (isPaused)
+                    {
+                        fx->setTypePS(mbm::TYPE_ANIMATION_GROWING_LOOP);
+                        fx->setTypeVS(mbm::TYPE_ANIMATION_GROWING_LOOP);
+                    }
+                    else
+                    {
+                        fx->setTypePS(mbm::TYPE_ANIMATION_PAUSED);
+                        fx->setTypeVS(mbm::TYPE_ANIMATION_PAUSED);
+                    }
                 }
             }
         }
