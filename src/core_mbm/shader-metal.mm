@@ -61,6 +61,19 @@ static MTLPrimitiveType metalPrimitive(const uint32_t m)
 
 static id<MTLSamplerState> getOrCreateSampler(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
 {
+    if (ctx->useNearestSampler)
+    {
+        if (!ctx->nearestSampler)
+        {
+            MTLSamplerDescriptor* sd = [MTLSamplerDescriptor new];
+            sd.minFilter    = MTLSamplerMinMagFilterNearest;
+            sd.magFilter    = MTLSamplerMinMagFilterNearest;
+            sd.sAddressMode = MTLSamplerAddressModeRepeat;
+            sd.tAddressMode = MTLSamplerAddressModeRepeat;
+            ctx->nearestSampler = [ctx->mtlDevice newSamplerStateWithDescriptor:sd];
+        }
+        return ctx->nearestSampler;
+    }
     if (!ctx->defaultSampler)
     {
         MTLSamplerDescriptor* sd = [MTLSamplerDescriptor new];

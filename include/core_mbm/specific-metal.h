@@ -93,8 +93,13 @@ namespace mbm
         // consumed by CORE_MANAGER::beginRender).
         bool pendingClearDepth = true;
 
-        // Default sampler shared by all standard shaders; created on first render() call.
+        // Default sampler (bilinear + clamp-to-edge) — used for all normal rendering.
         id<MTLSamplerState> defaultSampler = nil;
+
+        // Nearest-neighbor sampler (point + repeat) — activated during tile-map rendering
+        // by DEVICE::disableFilteringForPixelPerfect(); restored by enableFilteringAfterPixelPerfect().
+        id<MTLSamplerState> nearestSampler  = nil;
+        bool useNearestSampler              = false;
 
         // Depth-stencil state: less comparison + depth write enabled (created on first use).
         id<MTLDepthStencilState> defaultDepthStencilState = nil;

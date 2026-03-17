@@ -70,6 +70,8 @@ namespace mbm
         commandQueue         = nil;
         metalLayer           = nil;
         defaultSampler       = nil;
+        nearestSampler       = nil;
+        useNearestSampler    = false;
         defaultDepthStencilState = nil;
         noDepthStencilState  = nil;
         depthTexture         = nil;

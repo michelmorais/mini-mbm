@@ -115,14 +115,15 @@ namespace mbm
     void DEVICE::disableFilteringForPixelPerfect() noexcept
     {
         _pixelPerfectRenderingActive = true;
-        // Metal: texture sampling is configured in MTLSamplerState baked at
-        // pipeline setup time. Full pixel-perfect support requires switching
-        // sampler states. Stored as a flag for future pipeline-state management.
+        if (specificContextDevice)
+            specificContextDevice->useNearestSampler = true;
     }
 
     void DEVICE::enableFilteringAfterPixelPerfect() noexcept
     {
         _pixelPerfectRenderingActive = false;
+        if (specificContextDevice)
+            specificContextDevice->useNearestSampler = false;
     }
 
 } // namespace mbm

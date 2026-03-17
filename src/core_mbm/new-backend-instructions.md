@@ -481,7 +481,7 @@ Implement features in this order to reach a testable state as early as possible:
       Skinned meshes, line meshes, and text rendering require this.
 - [x] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
 - [x] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
-- [~] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
+- [x] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.
   - ✅ `addVar`, `update`, `VAR_SHADER` constructor fully implemented for Metal.
   - ✅ Particles (`renderParticle`), steered particles (`FLUID_GROUP`), and
@@ -509,8 +509,22 @@ Implement features in this order to reach a testable state as early as possible:
         (`box.spt` has only one texture), causing the blend formula to produce
         degenerate or fully-transparent output under certain GPU/driver
         implementations.  Not a blocker for M8 completion.
-- [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
-- [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
+- [x] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
+- [~] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
+  - ✅ `saveAsPNG`: implemented via `MTLBlitCommandEncoder` staging blit in
+        `render-2-texture-metal.mm`.
+  - ✅ **Pixel-perfect filtering**: implemented.  `SPECIFIC_AUX_CONTEXT_DEVICE`
+        now holds two `MTLSamplerState` objects — `defaultSampler` (bilinear +
+        clamp-to-edge for normal rendering) and `nearestSampler` (point filter +
+        repeat, for tile-map rendering).  `disableFilteringForPixelPerfect()` sets
+        `useNearestSampler = true` on the context; `enableFilteringAfterPixelPerfect()`
+        clears it.  `getOrCreateSampler()` in `shader-metal.mm` lazily creates both
+        samplers and returns the active one.  All `render()` / `renderDynamic()` /
+        `renderParticle()` call sites use `getOrCreateSampler()`, so the switch is
+        automatic with no per-draw-call overhead.  Fixes the black gap lines that
+        appeared between tile-map tiles when bilinear filtering sampled across tile
+        boundaries.
+  - ⚠️ **HMD support**: not yet investigated; deferred.
 
 ---
 
