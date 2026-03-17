@@ -1445,7 +1445,6 @@ void MY_SCENE::buildShaderMenu()
     const float nextX     = rightEdge - nextW;
 
     const float spacing    = rowH + 8.0f;
-    const float totalMenuH = 3.0f * spacing;
     //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
     float rowY = 510.0f;
 
@@ -1519,6 +1518,20 @@ void MY_SCENE::applyCurrentShaders()
     mbm::FX* fx = obj->getFx();
     if (!fx)
         return;
+    if (currentPsShaderIdx < 0 && currentVsShaderIdx < 0)
+    {
+        if(obj->typeClass != mbm::TYPE_CLASS_STEERED_PARTICLE && obj->typeClass != mbm::TYPE_CLASS_PARTICLE)
+        {
+            mbm::SHADER_CFG* psCfg = nullptr;
+            mbm::SHADER_CFG* vsCfg = nullptr;
+            fx->loadNewShader(psCfg, vsCfg,
+                        mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                        mbm::TYPE_ANIMATION_PAUSED, 1.0f,
+                        obj->getFvfFromBuffer());
+        }
+        updateShaderMenu();
+        return;
+    }
 
     mbm::DEVICE*     device = mbm::DEVICE::getInstance();
     mbm::SHADER_CFG* psCfg  = (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
