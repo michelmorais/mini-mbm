@@ -67,6 +67,13 @@ struct MenuRow
     mbm::RENDERIZABLE*  object;       // non-owning view; nullptr when unloaded
 };
 
+struct ShaderMenuRow
+{
+    mbm::TEXT_DRAW* labelText;  // "[X] name.ps" or "[ ] (none)"
+    mbm::TEXT_DRAW* btnPrev;    // "<"
+    mbm::TEXT_DRAW* btnNext;    // ">"
+};
+
 class MY_SCENE : public mbm::SCENE
 {
   public:
@@ -94,9 +101,18 @@ class MY_SCENE : public mbm::SCENE
     std::vector<MenuRow>    menuItems;
     bool                    menuVisible;
     mbm::TEXT_DRAW*         hintsText;     // always-visible keyboard shortcut help
+    mbm::TEXT_DRAW*         shaderInfoText;
     mbm::TEXT_DRAW*     btn2dS;       // "(2dS)"
     mbm::TEXT_DRAW*     btn2dW;       // "(2dW)"
     mbm::TEXT_DRAW*     btn3d;        // "(3d)"
+
+    // Shader test menu (right-center)
+    ShaderMenuRow           shaderRowPS;
+    ShaderMenuRow           shaderRowVS;
+    mbm::TEXT_DRAW*         shaderBtnPause;
+    bool                    shaderMenuVisible;
+    int                     currentPsShaderIdx;  // -1 = none
+    int                     currentVsShaderIdx;  // -1 = none
 
     // Position preset right menu
     mbm::TEXT_DRAW*         posMenuTexts[6];
@@ -149,6 +165,11 @@ class MY_SCENE : public mbm::SCENE
     void addObjectsToRender2Texture();
     void showNotification(const char* fmt, ...);
     void updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw);
+    std::string getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx);
+    void buildShaderMenu();
+    void updateShaderMenu();
+    bool handleShaderMenuTouchDown(float x, float y);
+    void applyCurrentShaders();
 };
 
 class GAME : public mbm::CORE_MANAGER
