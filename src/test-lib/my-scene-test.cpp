@@ -207,10 +207,10 @@ void MY_SCENE::logic()
                 std::string VertexShader;
                 std::vector<mbm::VAR_SHADER *> *vars = fx->getVarsPS();
                 if (vars)
-                    PixeShader = getShaderInfoText("Pixel", vars, fx);
+                    PixeShader = getShaderInfoText(true, vars, fx);
                 vars = fx->getVarsVS();
                 if (vars)
-                    VertexShader = getShaderInfoText("Vertex", vars, fx);
+                    VertexShader = getShaderInfoText(false, vars, fx);
                 shaderInfoText->setText((PixeShader + VertexShader).c_str());
             }
             else
@@ -221,17 +221,24 @@ void MY_SCENE::logic()
     }
 }
 
-std::string MY_SCENE::getShaderInfoText(const char* shader_type, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx)
+std::string MY_SCENE::getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx)
 {
     char text[256];
     std::string finalText;
-    snprintf(text, sizeof(text), "%s shader vars: %zu name", shader_type, vars->size());
+    snprintf(text, sizeof(text), "%s shader vars: %zu", isPS ? "Pixel" : "Vertex", vars->size());
     finalText += text;
     finalText += "\n";
     float data[4];
     for(mbm::VAR_SHADER* var : *vars)
     {
-        fx->getVarPShader(var->name.c_str(), data);
+        if (isPS)
+        {
+            fx->getVarPShader(var->name.c_str(), data);
+        }
+        else
+        {
+            fx->getVarVShader(var->name.c_str(), data);
+        }
         switch(var->typeVar)
         {
             case mbm::TYPE_VAR_SHADER::VAR_FLOAT:

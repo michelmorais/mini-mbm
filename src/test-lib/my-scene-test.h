@@ -165,7 +165,7 @@ class MY_SCENE : public mbm::SCENE
     void addObjectsToRender2Texture();
     void showNotification(const char* fmt, ...);
     void updateBoundsForTextDraw(mbm::TEXT_DRAW* textDraw);
-    std::string getShaderInfoText(const char* shader_type, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx);
+    std::string getShaderInfoText(const bool isPS, std::vector<mbm::VAR_SHADER *> *vars, mbm::FX* fx);
     void buildShaderMenu();
     void updateShaderMenu();
     bool handleShaderMenuTouchDown(float x, float y);
