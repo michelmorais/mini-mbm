@@ -469,17 +469,17 @@ float ey = backBufferHeight - os_y;  // both in logical points — no scale fact
 
 Implement features in this order to reach a testable state as early as possible:
 
-- [ ] **M1 — Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
+- [x] **M1 — Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
       `swapBuffers`, background color.  Run testLib; a coloured window should appear.
-- [ ] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
+- [x] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
       `TEXTURE::release`.  PNG images should decode and display.
-- [ ] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
+- [x] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
       `loadBuffer(IB)`, `render`.  3D meshes and 2D quads should draw correctly.
-- [ ] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
+- [x] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
       draw call; attach depth buffer to render pass.  Meshes should stop showing inner faces.
-- [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
+- [x] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
       Skinned meshes, line meshes, and text rendering require this.
-- [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
+- [x] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
 - [x] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
 - [~] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.
