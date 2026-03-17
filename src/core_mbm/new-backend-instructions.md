@@ -481,8 +481,34 @@ Implement features in this order to reach a testable state as early as possible:
       Skinned meshes, line meshes, and text rendering require this.
 - [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
 - [x] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
-- [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
+- [~] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
       `VAR_SHADER` constructor with backend handle.
+  - ✅ `addVar`, `update`, `VAR_SHADER` constructor fully implemented for Metal.
+  - ✅ Particles (`renderParticle`), steered particles (`FLUID_GROUP`), and
+        dual-PSO blend modes (standard + additive) working.
+  - ✅ Combined VS+PS compilation (`scale.vs` + `blend.ps`) working — the VS
+        default `frag_main` is stripped and the PS `frag_main` appended.
+  - ✅ **FVF attribute-index fix** (`patchVInStruct`): prewritten VS programs
+        (`scale.vs`, `simple texture.vs`) hardcoded `uv [[attribute(1)]]`.
+        For `FVF_POS_NOR_UV` meshes the Metal interleaved vertex descriptor
+        places the normal at `[[attribute(1)]]` and UV at `[[attribute(2)]]`;
+        the hardcoded index caused the vertex shader to read normal data as UV
+        coordinates, sampling garbage texels.  `compileShader` now calls
+        `patchVInStruct(vsStr, fvf)` to replace the `struct VIn` block with the
+        FVF-correct attribute indices before pipeline compilation.
+        *Note: OpenGL ES is unaffected because it binds each stream to a separate
+        VBO and looks up `aTextCoord` by name, not by attribute index.*
+  - ⚠️ **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5**:
+        observed on **both** Linux/OpenGL ES and macOS/Metal.  When all three
+        `scale` components exceed ≈ 0.5 the rendered sprite becomes invisible;
+        below 0.5 it is visible.  The same vertex shader combined with other
+        pixel shaders (e.g. `bands.ps + scale.vs`) renders correctly even at
+        very high scale values (verified at 6.67).  Root cause is under
+        investigation; the most likely explanation is that `blend.ps` samples
+        `sample1` (its second texture) which is not bound for the test sprite
+        (`box.spt` has only one texture), causing the blend formula to produce
+        degenerate or fully-transparent output under certain GPU/driver
+        implementations.  Not a blocker for M8 completion.
 - [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
 - [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
 
@@ -583,6 +609,22 @@ must appear **in the same order** as the CFG variable declarations so that
 `VAR_SHADER::ptrHandleVar` (which stores a byte offset into this struct) works
 correctly.  `BASE_SHADER::update()` in the Metal backend writes all current values
 into a stack `FragUniforms` buffer and calls `setFragmentBytes:length:atIndex:2`.
+
+**Prewritten VS programs and FVF attribute indices:** `scale.vs` and `simple texture.vs`
+are stored as complete MSL programs with a hardcoded `struct VIn` that maps
+`uv` to `[[attribute(1)]]`.  This is only correct for `FVF_POS_UV`; for
+`FVF_POS_NOR_UV` the interleaved buffer places normal at slot 1 and UV at slot 2.
+`compileShader` must call `patchVInStruct(vsStr, fvf)` to rewrite the `struct VIn`
+block with the FVF-correct attribute indices.  OpenGL ES is immune because it uses
+separate VBOs per stream and binds `aTextCoord` by name.
+
+**`blend.ps` requires two textures:** `blend.ps` always samples both `sample0` and
+`sample1`.  When only one texture is bound (common for single-texture sprites) the
+behaviour of the unbound sampler is implementation-defined and can produce a
+degenerate alpha value, making the object invisible.  When using `blend.ps` ensure
+a second texture is always bound, even if it is a 1×1 white placeholder.  This is
+a `blend.ps`-specific constraint; pixel shaders that use only `sample0` (e.g.
+`bands.ps`, `font.ps`) are unaffected.
 
 ---
 
