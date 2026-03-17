@@ -510,9 +510,10 @@ Implement features in this order to reach a testable state as early as possible:
         degenerate or fully-transparent output under certain GPU/driver
         implementations.  Not a blocker for M8 completion.
 - [x] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
-- [~] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
+- [x] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
   - ✅ `saveAsPNG`: implemented via `MTLBlitCommandEncoder` staging blit in
-        `render-2-texture-metal.mm`.
+        `render-2-texture-metal.mm`.  Triggered by right mouse button in the test
+        scene (`onTouchDown key==1`) when a `RENDER_2_TEXTURE` object is active.
   - ✅ **Pixel-perfect filtering**: implemented.  `SPECIFIC_AUX_CONTEXT_DEVICE`
         now holds two `MTLSamplerState` objects — `defaultSampler` (bilinear +
         clamp-to-edge for normal rendering) and `nearestSampler` (point filter +
@@ -524,7 +525,10 @@ Implement features in this order to reach a testable state as early as possible:
         automatic with no per-draw-call overhead.  Fixes the black gap lines that
         appeared between tile-map tiles when bilinear filtering sampled across tile
         boundaries.
-  - ⚠️ **HMD support**: not yet investigated; deferred.
+  - ✅ **HMD**: `HMD.cpp` is platform-agnostic and compiles for Metal without
+        modification.  It is built on top of `RENDER_2_TEXTURE` (M7, already
+        implemented), so no Metal-specific stubs are needed.  The class has not been
+        exercised in the Metal test scene yet (it is driven via Lua in practice).
 
 ---
 
