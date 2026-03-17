@@ -1394,7 +1394,7 @@ void MY_SCENE::buildShaderMenu()
     auto makeText = [&](const char* txt) -> mbm::TEXT_DRAW*
     {
         mbm::TEXT_DRAW* t = this->fontDrawNoShader->addText(txt, mbm::VEC2(0.0f, 0.0f), IS_2D_FONT, IS_SCREEN);
-        t->scale           = mbm::VEC3(1.0f, 1.0f, 1.0f);
+        t->scale           = mbm::VEC3(0.75f, 0.75f, 0.75f);
         t->forceCalcSize();
         t->position.z      = -1.0f;
         t->alwaysRenderize = true;
@@ -1402,10 +1402,10 @@ void MY_SCENE::buildShaderMenu()
         return t;
     };
 
-    shaderRowPS.labelText = makeText("[ ] (none)");
+    shaderRowPS.labelText = makeText("[ ] (PS none)");
     shaderRowPS.btnPrev   = makeText("<");
     shaderRowPS.btnNext   = makeText(">");
-    shaderRowVS.labelText = makeText("[ ] (none)");
+    shaderRowVS.labelText = makeText("[ ] (VS none)");
     shaderRowVS.btnPrev   = makeText("<");
     shaderRowVS.btnNext   = makeText(">");
     shaderBtnPause        = makeText("[ ] Pause shader animation");
@@ -1429,7 +1429,7 @@ void MY_SCENE::buildShaderMenu()
         shaderRowPS.labelText->getAABB(&w, &h);
         if (w > maxLabelW) maxLabelW = w;
     }
-    shaderRowPS.labelText->setText("[ ] (none)");
+    shaderRowPS.labelText->setText("[ ] (PS none)");
     shaderRowPS.labelText->forceCalcSize();
 
     // Measure < > button widths and row height
@@ -1455,7 +1455,8 @@ void MY_SCENE::buildShaderMenu()
 
     const float spacing    = rowH + 8.0f;
     const float totalMenuH = 4.0f * spacing;
-    float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
+    //float rowY = static_cast<float>(device->backBufferHeight) / 2.0f - totalMenuH / 2.0f;
+    float rowY = 510.0f;
 
     shaderRowPS.labelText->position.x = labelX;
     shaderRowPS.labelText->position.y = rowY;
@@ -1473,11 +1474,13 @@ void MY_SCENE::buildShaderMenu()
     shaderRowVS.btnNext->position.y   = rowY;
     rowY += spacing;
 
-    shaderBtnPause->position.x = specialX;
+    //shaderBtnPause->position.x = specialX;
+    shaderBtnPause->position.x = labelX;
     shaderBtnPause->position.y = rowY;
     rowY += spacing;
 
-    shaderBtnRestart->position.x = specialX;
+    //shaderBtnRestart->position.x = specialX;
+    shaderBtnRestart->position.x = labelX;
     shaderBtnRestart->position.y = rowY;
 }
 
@@ -1492,7 +1495,7 @@ void MY_SCENE::updateShaderMenu()
     if (currentPsShaderIdx >= 0 && currentPsShaderIdx < static_cast<int>(device->cfg.lsPs.size()))
         shaderRowPS.labelText->setText("[X] %s", device->cfg.lsPs[static_cast<size_t>(currentPsShaderIdx)]->fileName.c_str());
     else
-        shaderRowPS.labelText->setText("[ ] (none)");
+        shaderRowPS.labelText->setText("[ ] (PS none)");
     shaderRowPS.labelText->enableRender = visible;
     shaderRowPS.btnPrev->enableRender   = visible;
     shaderRowPS.btnNext->enableRender   = visible;
@@ -1500,7 +1503,7 @@ void MY_SCENE::updateShaderMenu()
     if (currentVsShaderIdx >= 0 && currentVsShaderIdx < static_cast<int>(device->cfg.lsVs.size()))
         shaderRowVS.labelText->setText("[X] %s", device->cfg.lsVs[static_cast<size_t>(currentVsShaderIdx)]->fileName.c_str());
     else
-        shaderRowVS.labelText->setText("[ ] (none)");
+        shaderRowVS.labelText->setText("[ ] (VS none)");
     shaderRowVS.labelText->enableRender = visible;
     shaderRowVS.btnPrev->enableRender   = visible;
     shaderRowVS.btnNext->enableRender   = visible;
