@@ -880,7 +880,8 @@ void MY_SCENE::loadObjectAt(size_t i, RenderMode mode)
             insideR2T ? "in render2texture" : "in scene",
             row.object->position.x, row.object->position.y, row.object->position.z);
     }
-    applyCurrentShaders();
+    //Do not apply shader since some object are loaded with shader.
+    //applyCurrentShaders();
 }
 
 void MY_SCENE::addObjectsToRender2Texture()
