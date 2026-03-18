@@ -43,7 +43,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/bin/debug/arm64/mini-mbm",
-      "args": [],
+      "args": ["${workspaceFolder}/editor/tilemap_editor.lua", "-w", "1470", "-h", "900", "-ew", "1470", "-eh", "900"],
       "cwd": "${workspaceFolder}/bin/debug/arm64",
       "stopAtEntry": false,
       "preLaunchTask": "Build mini-mbm (macOS Debug)",
