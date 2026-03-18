@@ -179,12 +179,17 @@ int main(const int argc,const char **argv)
         #endif
     #endif
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
-    if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked, requested_width, requested_height))
+    if (index_app_selected >= 0)
     {
-        if (index_app_selected > -1 && index_app_selected < size_app)
-        {
+        // A script was specified via CLI — run directly without showing the file picker.
+        if (index_app_selected < size_app)
             mbm::set_scene(default_applications[index_app_selected].script_path);
-        }
+        ret = mbm::loop();
+    }
+    else
+    {
+        // No script supplied — open an empty window and log a message.
+        WARN_LOG("%s", "No lua script supplied (main.lua not found). Window will open without a scene.");
         ret = mbm::loop();
     }
     if (temporary_folder_path.size() > 0)

@@ -361,17 +361,17 @@ namespace mbm
                     case NSEventTypeAppKitDefined:
                     {
                         // Window geometry may have changed; check actual content size.
+                        // Use logical points (not physical pixels) to stay consistent
+                        // with backBufferWidth/Height and the end-of-frame poll below.
                         if (ctx->window)
                         {
                             NSRect bounds = [ctx->window contentView].bounds;
-                            CGFloat sc    = [ctx->window backingScaleFactor];
-                            int newW = static_cast<int>(bounds.size.width  * sc);
-                            int newH = static_cast<int>(bounds.size.height * sc);
+                            int newW = static_cast<int>(bounds.size.width);
+                            int newH = static_cast<int>(bounds.size.height);
                             if (newW > 0 && newH > 0 &&
                                 (newW != static_cast<int>(device->backBufferWidth) ||
                                  newH != static_cast<int>(device->backBufferHeight)))
                             {
-                                ctx->metalLayer.drawableSize = CGSizeMake(newW, newH);
                                 this->onResizeWindow(newW, newH);
                             }
                         }
