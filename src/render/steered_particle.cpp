@@ -184,7 +184,7 @@ namespace mbm
         {
             anim->isEndedThisAnimation = false;
             anim->currentWayGrowingOfAnimation = false;
-            sprintf(anim->nameAnimation, "group:%d", 1);
+            snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
         }
     }
 
@@ -408,7 +408,7 @@ namespace mbm
     {
         this->releaseAnimation();
         auto anim = new ANIMATION();
-        sprintf(anim->nameAnimation, "group:%d", 1);
+        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "group:%d", 1);
         anim->isEndedThisAnimation = false;
         anim->currentWayGrowingOfAnimation = false;
         anim->type = TYPE_ANIMATION_PAUSED;

@@ -821,11 +821,11 @@ namespace util
                             const char *_path = lsPath[i].c_str();
                             if (_path[len - 1] == util::getCharDirSeparator())
                             {
-                                sprintf(cCurrentPath, "%s%s", _path, path);
+                                snprintf(cCurrentPath, sizeof(cCurrentPath), "%s%s", _path, path);
                             }
                             else
                             {
-                                sprintf(cCurrentPath, "%s%c%s", _path, util::getCharDirSeparator(), path);
+                                snprintf(cCurrentPath, sizeof(cCurrentPath), "%s%c%s", _path, util::getCharDirSeparator(), path);
                             }
                             dir = opendir(cCurrentPath);
                         }

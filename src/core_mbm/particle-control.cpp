@@ -506,7 +506,7 @@ namespace mbm
                     if ((this->indexStage + 1) < this->lsParticleStage.size())
                     {
                         this->indexStage++;
-                        sprintf(anim->nameAnimation, "stage:%d", static_cast<int>(this->indexStage + 1));
+                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", static_cast<int>(this->indexStage + 1));
                         anim->isEndedThisAnimation = false;
                         anim->currentWayGrowingOfAnimation = false;
                         this->currentTimeArise = 0.0f;
@@ -519,13 +519,13 @@ namespace mbm
                     anim->currentWayGrowingOfAnimation = true;
                     if (onEndAnimationParticleControl)
                     {
-                        sprintf(anim->nameAnimation, "particle:0");
+                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "particle:0");
                         //onEndAnimation(anim->nameAnimation, this);
                         onEndAnimationParticleControl(owner, anim->nameAnimation);
                     }
                     if ((this->indexStage) < this->lsParticleStage.size())
                     {
-                        sprintf(anim->nameAnimation, "stage:%d", static_cast<int>(this->indexStage));
+                        snprintf(anim->nameAnimation, sizeof(anim->nameAnimation), "stage:%d", static_cast<int>(this->indexStage));
                     }
                 }
             }

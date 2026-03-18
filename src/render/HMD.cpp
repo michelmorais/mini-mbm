@@ -52,7 +52,7 @@ namespace mbm
         const auto _heightTexture  = static_cast<const unsigned int>(device->getBackBufferHeight());
         char               nickName[255]  = "";
         const bool         hasAlpha       = false;
-        sprintf(nickName, "texture_dynamic_%d", ++num);
+        snprintf(nickName, sizeof(nickName), "texture_dynamic_%d", ++num);
         #if defined _WIN32
         const char *messageError =
             ""

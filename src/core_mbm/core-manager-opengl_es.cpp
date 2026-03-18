@@ -334,7 +334,7 @@ namespace log_util
             default:
             {
                 static char errStr[255];
-                sprintf(errStr, "Unknown error gl: decimal:[%d] hexadecimal [0x%x] ", (int)error, (int)error);
+                snprintf(errStr, sizeof(errStr), "Unknown error gl: decimal:[%d] hexadecimal [0x%x] ", (int)error, (int)error);
                 return errStr;
             }
         }

@@ -200,7 +200,7 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("deflate() failed status %i!\n", status);
                 if(stringError)
-                    sprintf(stringError,"deflate() failed status %i!\n", status);
+                    snprintf(stringError, lenError, "deflate() failed status %i!\n", status);
                 delete [] s_inbuf;
                 delete [] s_outbuf;
                 return false;
@@ -334,7 +334,7 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("deflate() failed status %i!\n", status);
                 if(stringError)
-                    sprintf(stringError,"deflate() failed status %i!\n", status);
+                    snprintf(stringError, lenError, "deflate() failed status %i!\n", status);
                 delete [] s_outbuf;
                 return false;
             }
@@ -485,7 +485,7 @@ namespace mbm
             {
                 PRINT_IF_DEBUG("\ninflate() failed status %i!", status);
                 if(stringError)
-                    sprintf(stringError,"inflate() failed status %i!", status);
+                    snprintf(stringError, lenError, "inflate() failed status %i!", status);
                 delete [] s_inbuf;
                 delete [] s_outbuf;
                 fclose(pInfile);
@@ -515,7 +515,7 @@ namespace mbm
             return false;
         }
         if(stringError)
-            sprintf(stringError,"in bytes: %u\nout bytes: %u", static_cast<mz_uint32>(stream.total_in),static_cast<mz_uint32>(stream.total_out));
+            snprintf(stringError, lenError, "in bytes: %u\nout bytes: %u", static_cast<mz_uint32>(stream.total_in),static_cast<mz_uint32>(stream.total_out));
         delete [] s_inbuf;
         delete [] s_outbuf;
         return true;
