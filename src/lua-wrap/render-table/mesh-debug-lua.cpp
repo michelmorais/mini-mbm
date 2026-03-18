@@ -1220,7 +1220,7 @@ namespace mbm
 			{
 				pIndex[i] = pIndex[i] - 1;
 			}
-            if (!meshDebug->mesh.addIndex(indexFrame, indexSubset, pIndex.data(), sTableIndex, strErrorOut))
+            if (!meshDebug->mesh.addIndex(indexFrame, indexSubset, pIndex.data(), sTableIndex, strErrorOut, (int)sizeof(strErrorOut)))
             {
                 return lua_error_debug(lua, strErrorOut);
             }
@@ -1325,7 +1325,8 @@ namespace mbm
                                                                         finalFrame, 
                                                                         timeBetweenFrame, 
                                                                         typeAnimation, 
-                                                                        errorOut);
+                                                                        errorOut,
+                                                                        (int)sizeof(errorOut));
         if (ret == 0)
             return lua_error_debug(lua, errorOut);
         lua_pushinteger(lua, ret);

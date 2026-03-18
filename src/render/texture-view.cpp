@@ -113,7 +113,7 @@ namespace mbm
         const int useAlpha   = this->texture ? (this->texture->useAlphaChannel ? 1 : 0) : 0;
         char strTemp[255];
         const std::string baseFileName = util::getBaseName(fileNameTexture);
-        sprintf(strTemp, "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
+        snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%d",baseFileName.c_str() , w, h, useAlpha);
         this->fileName = strTemp;
         this->updateAABB();
         return true;
@@ -338,7 +338,7 @@ namespace mbm
             util::split(result, this->fileName.c_str(), '|');
             if (result.size() <= 1 || result[0].compare("texture") != 0)
                 return;
-            sprintf(strTemp, "texture|%s|%f|%f|%s", result[1].c_str(), w, h, result[4].c_str());
+            snprintf(strTemp, sizeof(strTemp), "texture|%s|%f|%f|%s", result[1].c_str(), w, h, result[4].c_str());
             this->fileName = strTemp;
         }
     }

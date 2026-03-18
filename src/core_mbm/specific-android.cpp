@@ -104,7 +104,7 @@ namespace mbm
 
     jclass SPECIFIC_AUX_CONTEXT_DEVICE::getClass(const char *nameClass)
     {
-        sprintf(this->packageName, "%s/%s", this->packageNameMiniMBMClasses, nameClass);
+        snprintf(this->packageName, sizeof(this->packageName), "%s/%s", this->packageNameMiniMBMClasses, nameClass);
         jclass localClass = jenv->FindClass(this->packageName);
         if (localClass == nullptr)
         {
