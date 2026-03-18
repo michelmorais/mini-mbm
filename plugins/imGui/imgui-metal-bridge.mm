@@ -27,6 +27,22 @@ void ImGui_Metal_NewFrame()
 
     // currentPassDescriptor is valid between CORE_MANAGER::beginRender and swapBuffers.
     ImGui_ImplMetal_NewFrame(ctx->currentPassDescriptor);
+
+    // On Retina/HiDPI displays the Metal drawable is larger than the logical window size.
+    // Tell ImGui about the pixel-to-point ratio so it renders at the correct physical scale.
+    // DisplaySize is kept in logical points (what mouse / touch coordinates use).
+    // DisplayFramebufferScale is the multiplier from points → physical pixels.
+    id<MTLTexture> colorTex = ctx->currentPassDescriptor.colorAttachments[0].texture;
+    if (colorTex)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.DisplaySize.x > 0.0f && io.DisplaySize.y > 0.0f)
+        {
+            float scaleX = static_cast<float>(colorTex.width)  / io.DisplaySize.x;
+            float scaleY = static_cast<float>(colorTex.height) / io.DisplaySize.y;
+            io.DisplayFramebufferScale = ImVec2(scaleX, scaleY);
+        }
+    }
 }
 
 void ImGui_Metal_RenderDrawData(ImDrawData* drawData)
