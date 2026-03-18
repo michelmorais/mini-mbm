@@ -40,7 +40,7 @@
     },
     {
       "name": "mini-mbm (macOS Debug)",
-      "type": "cppdbg",
+      "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/bin/debug/arm64/mini-mbm",
       "args": ["${workspaceFolder}/editor/tilemap_editor.lua", "-w", "1470", "-h", "900", "-ew", "1470", "-eh", "900"],

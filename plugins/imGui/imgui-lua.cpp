@@ -623,7 +623,19 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
     else if (type == LUA_TSTRING)
     {
         const char* texture_name = lua_tostring(lua, index++);
-        return (ImTextureID)(intptr_t)(get_texture_id(lua, texture_name, width_out, height_out));
+        mbm::TEXTURE_MANAGER* texMan = mbm::TEXTURE_MANAGER::getInstance();
+        mbm::TEXTURE* texture = texMan->load(texture_name, true);
+        if (texture)
+        {
+            width_out  = texture->getWidth();
+            height_out = texture->getHeight();
+            return (ImTextureID)(texture->ptrTexture);
+        }
+        std::string msg("Texture [");
+        msg += texture_name ? texture_name : "nullptr";
+        msg += "] not found!";
+        lua_log_error(lua, msg.c_str());
+        return (ImTextureID)(0);
     }
     else if (type == LUA_TTABLE)
     {
