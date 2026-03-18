@@ -162,7 +162,7 @@ namespace mbm
         resourceNameBuf[copyLen] = '\0';
         const char *resourceName = resourceNameBuf;
         char strMessageError[1024] = {0};
-        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, strMessageError);
+        bool ret = TEXTURE_MANAGER::generateImageResourceHeaderFromPng(pngPath, outputHeaderPath, resourceName, strMessageError, sizeof(strMessageError));
         if(ret == false)
             ERROR_LOG("%s",strMessageError);
         lua_pushboolean(lua, ret);
@@ -909,7 +909,7 @@ namespace mbm
                 strSaveAs += ".png";
             }
             char strMessageError[1024] = "";
-            bool _ret = man->saveDataAsPNG(strSaveAs.c_str(), pixel, channel, width, height, strMessageError);
+            bool _ret = man->saveDataAsPNG(strSaveAs.c_str(), pixel, channel, width, height, strMessageError, sizeof(strMessageError));
             if (_ret)
             {
                 lua_pushstring(lua, strSaveAs.c_str());
@@ -1943,19 +1943,19 @@ namespace mbm
             const unsigned int  s         = lsVec->size();
             if (s == 1)
             {
-                sprintf(tmp, "%s %f ", minMaxDefault, lsVec->at(0));
+                snprintf(tmp, sizeof(tmp), "%s %f ", minMaxDefault, lsVec->at(0));
             }
             else if (s == 2)
             {
-                sprintf(tmp, "%s %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1));
+                snprintf(tmp, sizeof(tmp), "%s %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1));
             }
             else if (s == 3)
             {
-                sprintf(tmp, "%s %f %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1), lsVec->at(2));
+                snprintf(tmp, sizeof(tmp), "%s %f %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1), lsVec->at(2));
             }
             else if (s == 4)
             {
-                sprintf(tmp, "%s %f %f %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1), lsVec->at(2), lsVec->at(3));
+                snprintf(tmp, sizeof(tmp), "%s %f %f %f %f ", minMaxDefault, lsVec->at(0), lsVec->at(1), lsVec->at(2), lsVec->at(3));
             }
             else
             {

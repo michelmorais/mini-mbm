@@ -539,12 +539,12 @@ namespace mbm
             {
                 if (isPTbr)
                 {
-                    sprintf(str, STR_PT_BR_MONITOR_FORMAT, (int)i + 1, temp.width, temp.height,
+                    snprintf(str, sizeof(str), STR_PT_BR_MONITOR_FORMAT, (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 else
                 {
-                    sprintf(str, "%d: %ld x %ld, frequency:%lu, position:%ld x %ld", (int)i + 1, temp.width, temp.height,
+                    snprintf(str, sizeof(str), "%d: %ld x %ld, frequency:%lu, position:%ld x %ld", (int)i + 1, temp.width, temp.height,
                         temp.frequency, temp.position.x, temp.position.y);
                 }
                 w.addText(__auxSelectMonitor.indexCmbSelectedeMonitor, str);
@@ -642,7 +642,7 @@ namespace mbm
             SCREEN_RESOLUTION * screen_resolution = &list_to_use[i];
             if(screen_resolution->width <= mon_width && screen_resolution->height <= mon_height)
             {
-                sprintf(str, "%d x %d %s",screen_resolution->width, screen_resolution->height, screen_resolution->description ? screen_resolution->description : "");
+                snprintf(str, sizeof(str), "%d x %d %s",screen_resolution->width, screen_resolution->height, screen_resolution->description ? screen_resolution->description : "");
                 w.addText(idResolution, str);
                 selected_width  = screen_resolution->width;
                 selected_height = screen_resolution->height;

@@ -131,7 +131,7 @@ namespace
         if (!try_decode_type_from_header(headerOut, typeOut))
         {
             char strTemp[MBM_ERROR_DESCRIPTION_BUFFER_SIZE];
-            sprintf(strTemp, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerOut.typeApp);
+            snprintf(strTemp, MBM_ERROR_DESCRIPTION_BUFFER_SIZE, "[%s] is not a mbm file!!\ntype of file: %s", fileNamePath, headerOut.typeApp);
             return log_util::onFailed(fp, __FILE__, __LINE__, strTemp);
         }
         if (headerOut.version < INITIAL_VERSION_MBM_HEADER || headerOut.version > CURRENT_VERSION_MBM_HEADER)
@@ -2562,7 +2562,7 @@ namespace mbm
                     else
                     {
                         if (error)
-                        sprintf(error,"index buffer must be dividible by 3 (mode triangle list indexed)\nindex total [%d]",iTotalIndex);
+                        snprintf(error, lenError, "index buffer must be dividible by 3 (mode triangle list indexed)\nindex total [%d]",iTotalIndex);
                         return false;
                     }
                 }
@@ -2581,7 +2581,7 @@ namespace mbm
                     else
                     {
                         if (error)
-                            sprintf(error,"vertex buffer must be dividible by 3 (mode triangle list indexed)\nvertex total [%d]",iTotalVertex);
+                            snprintf(error, lenError, "vertex buffer must be dividible by 3 (mode triangle list indexed)\nvertex total [%d]",iTotalVertex);
                         return false;
                     }
                 }
@@ -2592,7 +2592,7 @@ namespace mbm
                 if ((pTmpSubset->vertexStart + pTmpSubset->vertexCount) > iTotalVertex)
                 {
                     if (error)
-                        sprintf(error, "vertex start [%d] + vertex count [%d] = [%d] > total vertex [%d] in subset [%u] "
+                        snprintf(error, lenError, "vertex start [%d] + vertex count [%d] = [%d] > total vertex [%d] in subset [%u] "
                                        "at frame [%u]",
                                 pTmpSubset->vertexStart, pTmpSubset->vertexCount,
                                 pTmpSubset->vertexStart + pTmpSubset->vertexCount, iTotalVertex, j, i);
@@ -2601,8 +2601,9 @@ namespace mbm
                 if ((pTmpSubset->indexStart + pTmpSubset->indexCount) > iTotalIndex)
                 {
                     if (error)
-                        sprintf(
+                        snprintf(
                             error,
+                            lenError,
                             "index start [%d] + index count [%d] = [%d] > total index [%d] in subset [%u] at frame [%u]",
                             pTmpSubset->indexStart, pTmpSubset->indexCount,
                             pTmpSubset->indexStart + pTmpSubset->indexCount, iTotalIndex, j, i);
@@ -2617,7 +2618,7 @@ namespace mbm
                     if (pTmpSubset->indexCount == 0)
                     {
                         if (error)
-                            sprintf(error, "index length is [0] in subset [%u] at frame [%u]", j, i);
+                            snprintf(error, lenError, "index length is [0] in subset [%u] at frame [%u]", j, i);
                         return false;
                     }
                     for (int k = 0; k < pTmpSubset->indexCount; ++k)
@@ -2626,7 +2627,7 @@ namespace mbm
                         if (index > iTotalVertex)
                         {
                             if (error)
-                                sprintf(error, "index [%d] value [%u] invalid in subset [%u] at frame [%u]", k, index, j,
+                                snprintf(error, lenError, "index [%d] value [%u] invalid in subset [%u] at frame [%u]", k, index, j,
                                         i);
                             return false;
                         }
@@ -2775,7 +2776,7 @@ namespace mbm
     
     bool MESH_MBM_DEBUG::addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                         const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
-                        char *strErrorOut)
+                        char *strErrorOut, const int strErrorOutLen)
     {
         if (indexFrame < this->buffer.size() && indexSubset < this->buffer[indexFrame]->subset.size())
         {
@@ -2784,7 +2785,7 @@ namespace mbm
             if (pSubset->vertexCount == 0)
             {
                 if (strErrorOut)
-                    sprintf(strErrorOut, "vertex count is zero [0] to subset [%u] at frame [%u]\nBefore set index you "
+                    snprintf(strErrorOut, strErrorOutLen, "vertex count is zero [0] to subset [%u] at frame [%u]\nBefore set index you "
                                          "must set the vertex.",
                             indexSubset, indexFrame);
                 return false;
@@ -2795,7 +2796,7 @@ namespace mbm
                 if (index >= pSubset->vertexCount)
                 {
                     if (strErrorOut)
-                        sprintf(strErrorOut, "index [%u] value [%u] out of bound. max vertex [%d] for this subset", i,
+                        snprintf(strErrorOut, strErrorOutLen, "index [%u] value [%u] out of bound. max vertex [%d] for this subset", i,
                                 index, pSubset->vertexCount);
                     return false;
                 }
@@ -2883,7 +2884,7 @@ namespace mbm
             if (strErrorOut)
             {
                 const auto tSubset = static_cast<int>(indexFrame < this->buffer.size() ? this->buffer[indexFrame]->subset.size() : 0);
-                sprintf(strErrorOut, "Out of bound[indexFrame(total %u),indexSubset(total %d)\n"
+                snprintf(strErrorOut, strErrorOutLen, "Out of bound[indexFrame(total %u),indexSubset(total %d)\n"
                                      "indexFrame %u indexSubset %u",
                         static_cast<uint32_t>(this->buffer.size()), tSubset, indexFrame, indexSubset);
             }
@@ -2984,30 +2985,30 @@ namespace mbm
     }
     
     int MESH_MBM_DEBUG::addAnimation(const char *nameAnimation, const int initialFrame, const int finalFrame,
-                           const float timeBetweenFrame, const int typeAnimation, char *errorOut)
+                           const float timeBetweenFrame, const int typeAnimation, char *errorOut, const int errorOutLen)
     {
         if (this->buffer.size() == 0)
         {
             if (errorOut)
-                sprintf(errorOut, "there is no frame ");
+                snprintf(errorOut, errorOutLen, "there is no frame ");
             return 0;
         }
         if (initialFrame < 0 || initialFrame >= static_cast<int>(this->buffer.size()))
         {
             if (errorOut)
-                sprintf(errorOut, "initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut, errorOutLen, "initial frame [%d] out of range ->[%d]", initialFrame, static_cast<int>(this->buffer.size()));
             return 0;
         }
         if (finalFrame < 0 || finalFrame >= static_cast<int>(this->buffer.size()))
         {
             if (errorOut)
-                sprintf(errorOut, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->buffer.size()));
+                snprintf(errorOut, errorOutLen, "final frame [%d] out of range ->[%d]", finalFrame, static_cast<int>(this->buffer.size()));
             return 0;
         }
         if (typeAnimation < 0 || typeAnimation > 6)
         {
             if (errorOut)
-                sprintf(errorOut, "type of animation [%d] out of range ->[0-6]", typeAnimation);
+                snprintf(errorOut, errorOutLen, "type of animation [%d] out of range ->[0-6]", typeAnimation);
             return 0;
         }
         auto infoHead = new util::INFO_ANIMATION::INFO_HEADER_ANIM();

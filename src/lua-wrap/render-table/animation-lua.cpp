@@ -285,7 +285,7 @@ namespace mbm
     {
         static char randomName[255] = "";
         static int  n               = 1;
-        sprintf(randomName, "anim_%d", n++);
+        snprintf(randomName, sizeof(randomName), "anim_%d", n++);
         return randomName;
     }
     //- addAnim(    string* name,number* type,number* StartFrame,
