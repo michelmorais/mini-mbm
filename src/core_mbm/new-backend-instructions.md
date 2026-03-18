@@ -372,6 +372,27 @@ union { uint32_t idTexture; void* ptrTexture; };
 - Metal/Vulkan/D3D12 use `ptrTexture` (store a retained pointer / descriptor, cast via
   `(__bridge_retained void*)` on Metal, via raw pointer on others).
 
+> **CRITICAL — 64-bit platforms: always use `ptrTexture`, never `idTexture`**  
+> On 32-bit platforms `sizeof(void*) == sizeof(uint32_t)` so both union members alias
+> cleanly.  On **64-bit** platforms (macOS, Linux x86_64, Windows x64) `sizeof(void*)` is
+> 8 bytes, but `sizeof(uint32_t)` is only 4 bytes.  Storing a Metal/Vulkan/D3D12 pointer
+> in `ptrTexture` and then reading it back through `idTexture` silently truncates the
+> upper 32 bits, yielding a garbage or null value that will crash when used as a pointer.
+>
+> - **OpenGL ES (any bitness):** use `idTexture` exclusively.  `GLGenTextures(1, &idTexture)`
+>   and `GLDeleteTextures(1, &idTexture)` take a `GLuint*` (4 bytes).  Widening `idTexture`
+>   to 64 bits would corrupt those calls because the GL functions only write/read 4 bytes.
+>   The union is intentionally split by backend for this reason — never widen `idTexture`.
+> - **Metal / Vulkan / D3D12 on 64-bit:** use `ptrTexture` everywhere.  Never read or
+>   compare `idTexture` in these backends, not even for null checks.
+>
+> **Real crash (macOS/Metal, tilemap plugin):** a code path checked `texture->idTexture`
+> to test whether a Metal texture was loaded.  The Metal texture had a valid non-null
+> `ptrTexture`, but the lower 32 bits of the pointer happened to be zero, so the equality
+> test returned `true` and the texture was treated as missing — causing a null dereference
+> one call later.  The fix: use `ptrTexture` (or `ptrTexture != nullptr`) exclusively in
+> all Metal code paths.
+
 `TEXTURE::release()` must free the GPU texture when called.  `loadFromData()` receives a
 decoded RGBA byte buffer + dimensions; upload it to the GPU and store the handle.
 `loadNativeEngine()` may return `nullptr` to let the common code decode PNG via lodepng
@@ -661,3 +682,129 @@ a `blend.ps`-specific constraint; pixel shaders that use only `sample0` (e.g.
 | `include/core_mbm/draw-compatibility.h` | All | `CULL_MODE`, `FACE_DIRECTION`, `MODE_DRAW` enum values |
 | `include/core_mbm/shader.h` | All | `BUFFER_GL`, `BASE_SHADER`, `SHADER`, `FVF_PROVIDE_BY_ENGINE` |
 | `include/core_mbm/specific-metal.h` | Metal | Example `SPECIFIC_AUX_CONTEXT_DEVICE` struct layout |
+
+---
+
+## 17. Plugin porting notes (ImGui, Tiled, Box2D and others)
+
+Plugins live under `plugins/` and are loaded as shared libraries or compiled directly into
+the engine depending on build flags.  Build with `-DUSE_ALL=1` to include all of them, or
+enable individual plugins with `-DUSE_IMGUI=1`, `-DUSE_TILED=1`, etc.  Plugins call the
+same C++ API as the rest of the engine — if the core render backend is solid, most plugin
+code will work without modification.  The exceptions documented below were all encountered
+during the macOS/Metal port.
+
+### Shared library file extensions by platform
+
+The engine loads plugins at runtime by filename.  The file extension varies by OS:
+
+| Platform | Extension | Notes |
+|---|---|---|
+| Windows | `.dll` | Dynamic-link library |
+| Linux / Android | `.so` | Shared object |
+| macOS / iOS | `.dylib` | Dynamic library (distinct from `.so`) |
+| PlayStation / Nintendo / Xbox GDK | vendor-specific | Consult the platform SDK |
+
+When the engine or a Lua script constructs a plugin filename at runtime (e.g.
+`"box2d" .. ext`), make sure the correct extension is used for the target OS.  CMake
+exposes `CMAKE_SHARED_LIBRARY_SUFFIX` which resolves to the right value automatically
+if you set plugin output names without a hardcoded extension.
+
+### Plugin lifecycle — `onPrepare`, `onLoop`, `onRender`
+
+Every plugin implements the `PLUGIN_INTERFACE` with three per-frame callbacks:
+
+| Callback | Timing | Metal encoder state |
+|---|---|---|
+| `onPrepare()` | Before `beginRender()` | No encoder active (`currentEncoder == nil`) |
+| `onLoop(delta)` | After `onPrepare()`, before `beginRender()` | No encoder active |
+| `onRender()` | After all scene objects render, before `endRender()` | Encoder **is** active |
+
+Any plugin code that needs to submit draw calls or bind GPU resources **must** run in
+`onRender()`.  Code that allocates GPU resources (creating `MTLBuffer`, uploading textures)
+does **not** need the encoder — it can run in `onPrepare()` or `onLoop()` safely.
+
+### ImGui plugin (`plugins/imGui/`)
+
+**`ImGui_Metal_NewFrame()` timing:**  
+The Metal ImGui backend's `NewFrame()` reads `currentPassDescriptor` (set by
+`beginRender()`) to obtain the render-target's `sampleCount`.  Calling it before
+`beginRender()` gives a nil descriptor, which yields `sampleCount = 0`, and the GPU
+rejects the pipeline state at draw time with a validation error.  
+*Fix:* call `ImGui_Metal_NewFrame()` inside `onRender()`, after `beginRender()` has
+already run.  Do **not** put it in `onPrepare()`.
+
+**Retina / HiDPI `DisplayFramebufferScale`:**  
+ImGui needs to know the ratio of physical pixels to logical points so it can render text
+and geometry at the correct density.  If `io.DisplayFramebufferScale` is left at its
+default `{1, 1}`, every glyph and widget will render at half the intended size on a 2×
+Retina display.  
+*Fix:* inside `ImGui_Metal_NewFrame()` (or `onRender()` before `ImGui::Render()`),
+compute the scale from the actual drawable texture:
+```cpp
+ImGuiIO& io = ImGui::GetIO();
+id<MTLTexture> colorTex = currentPassDescriptor.colorAttachments[0].texture;
+if (io.DisplaySize.x > 0)
+    io.DisplayFramebufferScale = ImVec2(
+        colorTex.width  / io.DisplaySize.x,
+        colorTex.height / io.DisplaySize.y);
+```
+
+**ImGui scale flicker on mouse leave (macOS):**  
+The macOS event handler (`NSEventTypeAppKitDefined`) fired on every window event including
+mouse activity.  If that handler computes a new window size by multiplying logical bounds
+by `backingScaleFactor` (physical pixels) and then passes that to `onResizeWindow()`, the
+backbuffer dimensions oscillate between physical and logical pixels every time the mouse
+enters or leaves the window — causing ImGui (and all 2D objects) to flicker between the
+correct size and half-size.  
+*Fix:* in the resize event handler use logical points only (do **not** multiply by
+`backingScaleFactor`).  Let `resetDeviceWithNewDimensions()` handle the physical drawable
+size internally via `contentsScale`.  See §13 for the general rule.
+
+**Lua `onFrame` callback timing:**  
+The ImGui Lua integration calls `ImGui::NewFrame()` in `onPrepare()` and `ImGui::Render()`
+in `onRender()`.  Lua code (button callbacks, editor logic) therefore executes between
+these two calls — i.e. during the frame but **before** `beginRender()`.  This means Lua
+callbacks can safely allocate GPU resources (upload textures, create vertex buffers) but
+should not attempt to issue draw calls.
+
+### Tiled / tilemap plugin (`plugins/tiled/`)
+
+**`idTexture` vs `ptrTexture` crash on 64-bit (segfault on macOS):**  
+The tilemap plugin's "create tile set" button triggered a segfault when clicked on macOS.
+The crash was caused by plugin code reading `texture->idTexture` (a `uint32_t`) to check
+whether a Metal texture was loaded.  On the 64-bit macOS build the Metal texture pointer
+was stored in `ptrTexture` (8 bytes); its lower 32 bits happened to be zero, so the
+`idTexture == 0` check incorrectly concluded the texture was missing and proceeded to
+dereference a null pointer.  
+*Fix:* use `ptrTexture != nullptr` for Metal (or any pointer-based backend) everywhere in
+plugin code.  See §11 for the full explanation of the union layout.
+
+**`TILE_EDITOR::renderTileSet()` missing null guard:**  
+After a tile set is successfully created (at least one entry in `tile_sets`), the next
+render frame calls `this->getAnimation(0)` inside `renderTileSet()` without checking the
+return value for null.  If `createAnim()` fails (e.g. shader not found) the animation list
+is empty and the subsequent dereference crashes.  Always guard:
+```cpp
+ANIMATION* anim = this->getAnimation(0);
+if (anim == nullptr) return false;  // guard required
+```
+
+### Box2D / Bullet / other physics plugins (`plugins/box2d/`, `plugins/bullet3d/`)
+
+These plugins are pure CPU physics; they have no GPU dependencies and port without
+modification.  The only requirement is that the engine core compiles cleanly for your
+platform (64-bit struct sizes, endianness) before enabling them.
+
+### General plugin checklist for a new 64-bit backend
+
+- [ ] Replace every `texture->idTexture` check with `texture->ptrTexture != nullptr` in
+      plugin code that runs on the new backend.
+- [ ] Verify `onPrepare()` / `onRender()` split: GPU resource creation in `onPrepare()`,
+      draw calls in `onRender()` (encoder active).
+- [ ] Any backend-specific `NewFrame()` call (ImGui, etc.) must be deferred to
+      `onRender()` if it needs an active render pass descriptor.
+- [ ] `DisplayFramebufferScale` (or equivalent HiDPI scale) must be set explicitly;
+      default `{1, 1}` produces half-size UI on Retina / HiDPI displays.
+- [ ] Event-handler resize paths must use **logical points**, not physical pixels, when
+      updating `backBufferWidth/Height`.  See §13.
