@@ -22,6 +22,16 @@ endif()
 message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
+# On Apple/Metal builds, gather .mm sources and apply ARC.
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+    file(GLOB_RECURSE IM_GUI_MM_SOURCES "${IMGUI_SRC}/*.mm")
+    list(APPEND IM_GUI_SOURCES ${IM_GUI_MM_SOURCES})
+    if (IM_GUI_MM_SOURCES)
+        set_source_files_properties(${IM_GUI_MM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    endif()
+endif()
+
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
 endif()
@@ -36,6 +46,11 @@ if (USE_DUMMY_BACK_END_ENGINE)
 elseif (USE_DIRECTX9)
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_opengl3.cpp")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_metal.mm")
+elseif (USE_METAL)
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_opengl3.cpp")
+    list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_dx9.cpp")
+    # imgui_impl_win32.cpp is already removed above for Apple
+    # imgui_impl_metal.mm stays in sources
 elseif (USE_OPENGL_ES)
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_dx9.cpp")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_metal.mm")
@@ -68,6 +83,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STRE
 include_directories(  ${IMGUI_INCLUDE}
                       ${LUA_INCLUDE}
                       ${SRC_INCLUDES}
+                      ${SRC_INCLUDES}/core_mbm
                       ${LUA_WRAP}
                       ${PLUGIN_HELPER_INC}
                       ${IMGUI_BACKENDS}
@@ -99,6 +115,12 @@ if (USE_OPENGL_ES)
 endif()
 if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   target_link_libraries(${IMGUI_LIBRARY} d3d9)
+endif()
+
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+  target_link_libraries(${IMGUI_LIBRARY} "-framework Metal")
+  target_link_libraries(${IMGUI_LIBRARY} "-framework Foundation")
+  target_link_libraries(${IMGUI_LIBRARY} "-framework QuartzCore")
 endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")

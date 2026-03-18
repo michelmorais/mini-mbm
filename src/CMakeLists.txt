@@ -32,6 +32,7 @@ if (USE_LUA)
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
+        set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -157,12 +158,22 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    add_executable(mini-mbm ${MAIN}
-                        ${SOURCES}
-                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
-                        ${BULLET3D_WRAP_SOURCES}
-                        ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP})
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP}
+                            ${LIB_MINIMBM_LUA_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP})
+    endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")

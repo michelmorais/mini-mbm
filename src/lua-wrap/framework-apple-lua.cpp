@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,34 +17,35 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if !defined(ANDROID) && defined(__linux__) && !defined(__APPLE__)
+// macOS / Apple Silicon platform implementation.
+// Compiled when __APPLE__ is defined (and not ANDROID — that uses framework-android-lua.cpp).
+// Supports USE_METAL and USE_DUMMY_BACK_END_ENGINE; OpenGL ES is not available on macOS.
+
+#if defined(__APPLE__) && !defined(ANDROID)
 
 #include <lua-wrap/framework-lua.h>
 #include <core_mbm/device.h>
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>
 
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
+#if defined USE_METAL
+    // No extra header needed here: Metal-specific types live in specific-metal.h
+    //  and are only required from .mm files that include them with Objective-C imports.
 #elif defined USE_DUMMY_BACK_END_ENGINE
-    #include <core_mbm/specific-dummy.h> // replace with your specific backend engine header
-    #if defined __linux__  || defined(__APPLE__)
-        #include <X11/Xlib.h>
-        #include <X11/Xutil.h>
-        #include <X11/XKBlib.h>
-    #endif
+    #include <core_mbm/specific-dummy.h>
 #else
-    #error "This file is only for OpenGL ES"
+    #error "framework-apple-lua.cpp: only USE_METAL or USE_DUMMY_BACK_END_ENGINE are supported on Apple"
 #endif
-
 
 #include <lua-wrap/render-table/mesh-debug-lua.h>
 
 #include <algorithm>
 #include <vector>
+#include <unistd.h>     // getcwd
+#include <locale.h>     // setlocale
 #include <audio-interface.h>
 
-extern "C" 
+extern "C"
 {
     #include <lauxlib.h>
     #include <lualib.h>
@@ -54,31 +55,107 @@ extern "C"
     #include <lua-wrap/render-table/vr-lua.h>
 #endif
 
+// ---------------------------------------------------------------------------
+// XK-compatible key symbol constants.
+// core-manager-metal-macos.mm translates NSEvent key codes to these same
+// integer values so that Lua scripts behave identically to the Linux build.
+// All values match the corresponding X11 keysymdef.h defines.
+// ---------------------------------------------------------------------------
+#ifndef XK_BackSpace
+#define XK_BackSpace        0xFF08
+#define XK_Tab              0xFF09
+#define XK_Return           0xFF0D
+#define XK_Pause            0xFF13
+#define XK_Scroll_Lock      0xFF14
+#define XK_Escape           0xFF1B
+#define XK_Home             0xFF50
+#define XK_Left             0xFF51
+#define XK_Up               0xFF52
+#define XK_Right            0xFF53
+#define XK_Down             0xFF54
+#define XK_Page_Up          0xFF55
+#define XK_Page_Down        0xFF56
+#define XK_End              0xFF57
+#define XK_Print            0xFF61
+#define XK_Insert           0xFF63
+#define XK_Menu             0xFF67
+#define XK_Num_Lock         0xFF7F
+#define XK_KP_Enter         0xFF8D
+#define XK_KP_Home          0xFF95
+#define XK_KP_Left          0xFF96
+#define XK_KP_Up            0xFF97
+#define XK_KP_Right         0xFF98
+#define XK_KP_Down          0xFF99
+#define XK_KP_Page_Up       0xFF9A
+#define XK_KP_Page_Down     0xFF9B
+#define XK_KP_End           0xFF9C
+#define XK_KP_Begin         0xFF9D
+#define XK_KP_Insert        0xFF9E
+#define XK_KP_Delete        0xFF9F
+#define XK_KP_Multiply      0xFFAA
+#define XK_KP_Add           0xFFAB
+#define XK_KP_Subtract      0xFFAD
+#define XK_KP_Decimal       0xFFAE
+#define XK_KP_Divide        0xFFAF
+#define XK_KP_0             0xFFB0
+#define XK_KP_1             0xFFB1
+#define XK_KP_2             0xFFB2
+#define XK_KP_3             0xFFB3
+#define XK_KP_4             0xFFB4
+#define XK_KP_5             0xFFB5
+#define XK_KP_6             0xFFB6
+#define XK_KP_7             0xFFB7
+#define XK_KP_8             0xFFB8
+#define XK_KP_9             0xFFB9
+#define XK_F1               0xFFBE
+#define XK_F2               0xFFBF
+#define XK_F3               0xFFC0
+#define XK_F4               0xFFC1
+#define XK_F5               0xFFC2
+#define XK_F6               0xFFC3
+#define XK_F7               0xFFC4
+#define XK_F8               0xFFC5
+#define XK_F9               0xFFC6
+#define XK_F10              0xFFC7
+#define XK_F11              0xFFC8
+#define XK_F12              0xFFC9
+#define XK_Shift_L          0xFFE1
+#define XK_Shift_R          0xFFE2
+#define XK_Control_L        0xFFE3
+#define XK_Control_R        0xFFE4
+#define XK_Caps_Lock        0xFFE5
+#define XK_Alt_L            0xFFE9
+#define XK_Alt_R            0xFFEA
+#define XK_Super_L          0xFFEB
+#define XK_Super_R          0xFFEC
+#define XK_space            0x0020
+#define XK_Delete           0xFFFF
+#endif // XK_BackSpace
 
 
-namespace mbm 
+namespace mbm
 {
     int onDoCommands(lua_State *lua)
     {
-        const int   top  = lua_gettop(lua);
-        const char *what = luaL_checkstring(lua, 1);
+        const int   top       = lua_gettop(lua);
+        const char *what      = luaL_checkstring(lua, 1);
         const char *parameter = top > 1 ? luaL_checkstring(lua, 2) : "";
-        auto *luaManager = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
-        char result[1024] = "";
-        if(luaManager->onDoNativeCommand)
-            luaManager->onDoNativeCommand(what,parameter,result,sizeof(result));
-        lua_pushstring(lua,result);
+        auto *luaManager      = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
+        char result[1024]     = "";
+        if (luaManager->onDoNativeCommand)
+            luaManager->onDoNativeCommand(what, parameter, result, sizeof(result));
+        lua_pushstring(lua, result);
         return 1;
     }
 
     void showConsoleWindowLua()
     {
-        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect");
+        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect [Apple]");
     }
 
     void hideConsoleWindowLua()
     {
-        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect");
+        PRINT_WARN_IF_DEBUG("hideConsoleWindow without effect [Apple]");
     }
 
     int onGetDisplayMetrics(lua_State *lua)
@@ -86,8 +163,8 @@ namespace mbm
         int width  = 0;
         int height = 0;
         DEVICE *device = DEVICE::getInstance();
-        device->ptrManager->getScreenSize(&width,&height);
-        if(width > 0 && height > 0)
+        device->ptrManager->getScreenSize(&width, &height);
+        if (width > 0 && height > 0)
         {
             lua_pushnumber(lua, width);
             lua_pushnumber(lua, height);
@@ -98,20 +175,19 @@ namespace mbm
         return 2;
     }
 
-    int onQuitEngine(lua_State * lua)
+    int onQuitEngine(lua_State *lua)
     {
-        DEVICE *device		= DEVICE::getInstance();
-		const int   top		= lua_gettop(lua);
-        device->run         = false;
+        DEVICE *device    = DEVICE::getInstance();
+        const int   top   = lua_gettop(lua);
+        device->run       = false;
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->scene->onFinalizeScene();
         return 0;
     }
 
-
     int onShowConsoleMbm(lua_State *lua)
     {
-        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect [linux]");
+        PRINT_WARN_IF_DEBUG("showConsoleWindow without effect [Apple]");
         return 0;
     }
 
@@ -120,12 +196,10 @@ namespace mbm
         const int   top      = lua_gettop(lua);
         const char *filename = top >= 1 && lua_type(lua, 1) == LUA_TSTRING ? lua_tostring(lua, 1) : nullptr;
         const int   level    = filename != nullptr && top >= 2 && lua_type(lua, 2) == LUA_TNUMBER ? lua_tointeger(lua, 2)
-                              : (top >= 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
-        char             dir[255]   = "";
-        dir[0]                      = 0;
-
-        getcwd(dir,sizeof(dir));
-
+                             : (top >= 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
+        char dir[255] = "";
+        dir[0] = 0;
+        getcwd(dir, sizeof(dir));
         if (dir[0])
             lua_pushstring(lua, getPathAtLevel(level, dir, filename));
         else if (filename)
@@ -140,8 +214,8 @@ namespace mbm
         const char *fileName = luaL_checkstring(lua, 1);
         if (fileName)
         {
-            bool             sucess = false;
-            const char *  newPath = util::getFullPath(fileName, nullptr);
+            bool        sucess  = false;
+            const char *newPath = util::getFullPath(fileName, nullptr);
             if (newPath)
             {
                 const int ret = luaL_dofile(lua, newPath);
@@ -149,24 +223,25 @@ namespace mbm
                     sucess = true;
                 else
                 {
-                    lua_print_line(lua,TYPE_LOG_ERROR, "mbm.include - Error occurs when calling luaL_dofile(%s) Hint Machine 0x%p\n",newPath, ret);
-                    lua_print_line(lua,TYPE_LOG_ERROR, "mbm.include - Error: %s", lua_tostring(lua, -1));
+                    lua_print_line(lua, TYPE_LOG_ERROR, "mbm.include - Error occurs when calling luaL_dofile(%s) Hint Machine 0x%p\n", newPath, ret);
+                    lua_print_line(lua, TYPE_LOG_ERROR, "mbm.include - Error: %s", lua_tostring(lua, -1));
                 }
             }
             else
             {
-                lua_print_line(lua,TYPE_LOG_ERROR, "mbm.include - error on open file [%s]!", fileName);
+                lua_print_line(lua, TYPE_LOG_ERROR, "mbm.include - error on open file [%s]!", fileName);
             }
             lua_pushboolean(lua, sucess ? 1 : 0);
             return 1;
         }
-        else
-        {
-            lua_pushboolean(lua, 0);
-            return 1;
-        }
+        lua_pushboolean(lua, 0);
+        return 1;
     }
 
+    // Map a Lua key-name string to an engine key code.
+    // Returns the same integer values as the Linux/X11 build so that Lua scripts
+    // are portable. Values match those emitted by translateMacKeyCode() in
+    // core-manager-metal-macos.mm.
     int getKeyCode(const char *key)
     {
         const int len = strlen(key);
@@ -180,15 +255,13 @@ namespace mbm
                 case '/': return XK_KP_Divide;
                 case '.': return XK_KP_Decimal;
                 default:
-                {
-                    KeySym keyCode = XStringToKeysym(key);
-                    return keyCode;
-                }
+                    // Metal core manager always sends uppercase ASCII for letter keys.
+                    return toupper(static_cast<unsigned char>(key[0]));
             }
         }
         else if (len == 2 && (key[0] == 'f' || key[0] == 'F'))
         {
-            switch(key[1])
+            switch (key[1])
             {
                 case '1': return XK_F1;
                 case '2': return XK_F2;
@@ -203,7 +276,7 @@ namespace mbm
         }
         else if (len == 3 && (key[0] == 'f' || key[0] == 'F'))
         {
-            switch(key[1])
+            switch (key[1])
             {
                 case '0': return XK_F10;
                 case '1': return XK_F11;
@@ -212,56 +285,39 @@ namespace mbm
         }
         else
         {
-            if (strcasecmp(key, "left") == 0)
-                return XK_Left;
-            if (strcasecmp(key, "right") == 0)
-                return XK_Right;
-            if (strcasecmp(key, "up") == 0)
-                return XK_Up;
-            if (strcasecmp(key, "down") == 0)
-                return XK_Down;
+            if (strcasecmp(key, "left") == 0)         return XK_Left;
+            if (strcasecmp(key, "right") == 0)        return XK_Right;
+            if (strcasecmp(key, "up") == 0)           return XK_Up;
+            if (strcasecmp(key, "down") == 0)         return XK_Down;
             if (strcasecmp(key, "esc") == 0 || strcasecmp(key, "escape") == 0)
-                return XK_Escape;
-            if (strcasecmp(key, "space") == 0)
-                return XK_space;
-            if (strcasecmp(key, "insert") == 0)
-                return XK_Insert;
+                                                       return XK_Escape;
+            if (strcasecmp(key, "space") == 0)        return XK_space;
+            if (strcasecmp(key, "insert") == 0)       return XK_Insert;
             if (strcasecmp(key, "pageup") == 0 || strcasecmp(key, "page up") == 0)
-                return XK_Page_Up;
+                                                       return XK_Page_Up;
             if (strcasecmp(key, "pagedown") == 0 || strcasecmp(key, "page down") == 0)
-                return XK_Page_Down;
-            if (strcasecmp(key, "end") == 0)
-                return XK_End;
-            if (strcasecmp(key, "delete") == 0)
-                return XK_Delete;
+                                                       return XK_Page_Down;
+            if (strcasecmp(key, "end") == 0)          return XK_End;
+            if (strcasecmp(key, "delete") == 0)       return XK_Delete;
             if (strcasecmp(key, "printscreen") == 0 || strcasecmp(key, "print screen") == 0)
-                return XK_Print;
-            if (strcasecmp(key, "keypad enter") == 0)
-                return XK_KP_Enter;
-            if (strcasecmp(key, "enter") == 0)
-                return XK_Return;
-            if (strcasecmp(key, "shift") == 0)
-                return XK_Shift_L;
-            if (strcasecmp(key, "control") == 0)
-                return XK_Control_L;
+                                                       return XK_Print;
+            if (strcasecmp(key, "keypad enter") == 0) return XK_KP_Enter;
+            if (strcasecmp(key, "enter") == 0)        return XK_Return;
+            if (strcasecmp(key, "shift") == 0)        return XK_Shift_L;
+            if (strcasecmp(key, "control") == 0)      return XK_Control_L;
             if (strcasecmp(key, "backspace") == 0 || strcasecmp(key, "back space") == 0)
-                return XK_BackSpace;
-            if (strcasecmp(key, "pause") == 0)
-                return XK_Pause;
-            if (strcasecmp(key, "tab") == 0)
-                return XK_Tab;
+                                                       return XK_BackSpace;
+            if (strcasecmp(key, "pause") == 0)        return XK_Pause;
+            if (strcasecmp(key, "tab") == 0)          return XK_Tab;
             if (strcasecmp(key, "capslook") == 0 || strcasecmp(key, "caps look") == 0)
-                return XK_Caps_Lock;
+                                                       return XK_Caps_Lock;
             if (strcasecmp(key, "numlock") == 0 || strcasecmp(key, "num lock") == 0)
-                return XK_Num_Lock;
-            if (strcasecmp(key, "alt") == 0)
-                return XK_Alt_L;
-            if (strcasecmp(key, "home") == 0)
-                return XK_Home;
+                                                       return XK_Num_Lock;
+            if (strcasecmp(key, "alt") == 0)          return XK_Alt_L;
+            if (strcasecmp(key, "home") == 0)         return XK_Home;
             if (strcasecmp(key, "scroll") == 0 || strcasecmp(key, "scroll lock") == 0)
-                return XK_Scroll_Lock;
-            if (strcasecmp(key, "super") == 0)
-                return XK_Super_L;
+                                                       return XK_Scroll_Lock;
+            if (strcasecmp(key, "super") == 0)        return XK_Super_L;
             return key[0];
         }
         return key[0];
@@ -271,21 +327,21 @@ namespace mbm
     {
         switch (key)
         {
-            case XK_KP_Insert: return "0";
-            case XK_KP_Delete: return "DELETE";
-            case XK_KP_Enter: return "ENTER";
-            case XK_KP_End: return "1";
-            case XK_KP_Down: return "2";
+            case XK_KP_Insert:    return "0";
+            case XK_KP_Delete:    return "DELETE";
+            case XK_KP_Enter:     return "ENTER";
+            case XK_KP_End:       return "1";
+            case XK_KP_Down:      return "2";
             case XK_KP_Page_Down: return "3";
-            case XK_KP_Left: return "4";
-            case XK_KP_Begin: return "5";
-            case XK_KP_Right: return "6";
-            case XK_KP_Home: return "7";
-            case XK_KP_Up: return "8";
-            case XK_KP_Page_Up: return "9";
-            case XK_Num_Lock: return "NUM LOCK";
-            case XK_Super_L: return "windows";
-            case XK_Super_R: return "windows";
+            case XK_KP_Left:      return "4";
+            case XK_KP_Begin:     return "5";
+            case XK_KP_Right:     return "6";
+            case XK_KP_Home:      return "7";
+            case XK_KP_Up:        return "8";
+            case XK_KP_Page_Up:   return "9";
+            case XK_Num_Lock:     return "NUM LOCK";
+            case XK_Super_L:      return "windows";
+            case XK_Super_R:      return "windows";
             case XK_KP_0:
             case '0': return "0";
             case XK_KP_1:
@@ -306,49 +362,49 @@ namespace mbm
             case '8': return "8";
             case XK_KP_9:
             case '9': return "9";
-            case XK_KP_Multiply: return "*";
-            case XK_KP_Add: return "+";
-            case XK_KP_Subtract: return "-";
-            case XK_KP_Divide: return "/";
-            case XK_KP_Decimal: return ".";
-            case XK_F1: return "F1";
-            case XK_F2: return "F2";
-            case XK_F3: return "F3";
-            case XK_F4: return "F4";
-            case XK_F5: return "F5";
-            case XK_F6: return "F6";
-            case XK_F7: return "F7";
-            case XK_F8: return "F8";
-            case XK_F9: return "F9";
-            case XK_F10: return "F10";
-            case XK_F11: return "F11";
-            case XK_F12: return "F12";
-            case XK_Return: return "ENTER";
-            case XK_Up: return "UP";
-            case XK_Down: return "DOWN";
-            case XK_Left: return "LEFT";
-            case XK_Right: return "RIGHT";
-            case XK_Tab: return "TAB";
-            case XK_Menu: return "ALT";
-            case 0xfe03: return "ALT";
-            case XK_Pause: return "PAUSE";
-            case XK_space: return "SPACE";
-            case XK_Escape: return "ESCAPE";
-            case XK_Page_Up: return "PAGE UP";
-            case XK_Page_Down: return "PAGE DOWN";
-            case XK_Home: return "HOME";
-            case XK_Delete: return "DELETE";
-            case XK_Scroll_Lock: return "SCROLL";
-            case XK_Control_L: return "CONTROL";
-            case XK_Control_R: return "CONTROL";
-            case XK_Shift_L: return "SHIFT";
-            case XK_BackSpace: return "BACKSPACE";
-            case XK_Insert: return "INSERT";
-            case XK_End: return "END";
-            case XK_Print: return "PRINT SCREEN";
-            case XK_Alt_R: return "ALT";
-            case XK_Alt_L: return "ALT";
-            case XK_Caps_Lock: return "CAPS LOOK";
+            case XK_KP_Multiply:  return "*";
+            case XK_KP_Add:       return "+";
+            case XK_KP_Subtract:  return "-";
+            case XK_KP_Divide:    return "/";
+            case XK_KP_Decimal:   return ".";
+            case XK_F1:           return "F1";
+            case XK_F2:           return "F2";
+            case XK_F3:           return "F3";
+            case XK_F4:           return "F4";
+            case XK_F5:           return "F5";
+            case XK_F6:           return "F6";
+            case XK_F7:           return "F7";
+            case XK_F8:           return "F8";
+            case XK_F9:           return "F9";
+            case XK_F10:          return "F10";
+            case XK_F11:          return "F11";
+            case XK_F12:          return "F12";
+            case XK_Return:       return "ENTER";
+            case XK_Up:           return "UP";
+            case XK_Down:         return "DOWN";
+            case XK_Left:         return "LEFT";
+            case XK_Right:        return "RIGHT";
+            case XK_Tab:          return "TAB";
+            case XK_Menu:         return "ALT";
+            case 0xfe03:          return "ALT";
+            case XK_Pause:        return "PAUSE";
+            case XK_space:        return "SPACE";
+            case XK_Escape:       return "ESCAPE";
+            case XK_Page_Up:      return "PAGE UP";
+            case XK_Page_Down:    return "PAGE DOWN";
+            case XK_Home:         return "HOME";
+            case XK_Delete:       return "DELETE";
+            case XK_Scroll_Lock:  return "SCROLL";
+            case XK_Control_L:    return "CONTROL";
+            case XK_Control_R:    return "CONTROL";
+            case XK_Shift_L:      return "SHIFT";
+            case XK_BackSpace:    return "BACKSPACE";
+            case XK_Insert:       return "INSERT";
+            case XK_End:          return "END";
+            case XK_Print:        return "PRINT SCREEN";
+            case XK_Alt_R:        return "ALT";
+            case XK_Alt_L:        return "ALT";
+            case XK_Caps_Lock:    return "CAPS LOOK";
             case 'A': return "A";
             case 'B': return "B";
             case 'C': return "C";
@@ -375,30 +431,35 @@ namespace mbm
             case 'X': return "X";
             case 'Y': return "Y";
             case 'Z': return "Z";
-            // case VK_OEM_102: return "\\";
-            // case VK_OEM_PLUS:    return "=";
-            // case VK_OEM_COMMA:   return ",";
-            // case VK_OEM_MINUS:   return "-";
-            // case VK_OEM_PERIOD:  return ".";
             default:
             {
                 static char str[20] = "";
-                snprintf( str,sizeof(str)-1,"0X%x",key);
+                snprintf(str, sizeof(str) - 1, "0X%x", key);
                 return str;
-            };
+            }
         }
     }
 
+    // Returns the UI language code (e.g. "en", "pt", "de").
+    // On macOS the $LANG variable typically looks like "en_US.UTF-8"; we strip
+    // the country code and encoding to return just the ISO 639-1 code.
     int onGetIdiom(lua_State *lua)
     {
         const char *lang = getenv("LANG");
-        if (lang == nullptr)
-            lua_pushstring(lua, "unknown");
-        else
+        if (!lang || !*lang)
         {
-            setlocale(LC_ALL, lang);
-            lua_pushstring(lua, nl_langinfo(_NL_IDENTIFICATION_LANGUAGE));
+            lua_pushstring(lua, "unknown");
+            return 1;
         }
+        static char buf[64];
+        strncpy(buf, lang, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = '\0';
+        // Strip everything from the first '_', '.' or '@'.
+        char *end = buf;
+        while (*end && *end != '_' && *end != '.' && *end != '@')
+            ++end;
+        *end = '\0';
+        lua_pushstring(lua, buf[0] ? buf : "unknown");
         return 1;
     }
 
@@ -429,47 +490,41 @@ namespace mbm
         {
             const std::string filter(i);
             if (filter.size() >= 2 && strncmp(filter.c_str(), "*.", 2) != 0 && strncmp(filter.c_str(), ".", 1) != 0)
-            {
                 i.insert(0, "*.");
-            }
             else if (filter.size() >= 1 && strncmp(filter.c_str(), ".", 1) == 0)
-            {
                 i.insert(0, "*");
-            }
         }
-        const int    total        = filters.size();
+        const int  total        = static_cast<int>(filters.size());
         const auto filtersArray = new const char *[total];
-        for (unsigned int i = 0; i < filters.size(); i++)
-        {
-            filtersArray[i] = filters[i].c_str();
-        }
+        for (int i = 0; i < total; i++)
+            filtersArray[i] = filters[static_cast<size_t>(i)].c_str();
 
         const char *fileName = tinyfd_saveFileDialog("Save As", defaultName, filters.size(), filtersArray, nullptr);
-
         delete[] filtersArray;
+
         if (fileName)
         {
             bool        extension = false;
             std::string ret(fileName);
-            const int   t = ret.size();
+            const int   t = static_cast<int>(ret.size());
             for (auto & i : filters)
             {
-                const int s      = i.size();
-                int       offset = t - ((int)s - 1);
+                const int  s      = static_cast<int>(i.size());
+                const int  offset = t - (s - 1);
                 if (offset > 0)
                 {
                     const char *filter = i.c_str();
                     if (filter[0] == '*')
-                        filter++; //*
+                        filter++;
                     const char *p = &fileName[offset];
-                    if (strncmp(p, filter, s - 1) == 0)
+                    if (strncmp(p, filter, static_cast<size_t>(s - 1)) == 0)
                     {
                         extension = true;
                         break;
                     }
                 }
             }
-            if (extension == false)
+            if (!extension)
             {
                 for (auto & i : filters)
                 {
@@ -477,7 +532,7 @@ namespace mbm
                     {
                         const char *filter = i.c_str();
                         if (filter[0] == '*')
-                            filter++; //*
+                            filter++;
                         ret += filter;
                         break;
                     }
@@ -506,38 +561,32 @@ namespace mbm
         {
             const std::string filter(i);
             if (filter.size() >= 2 && strncmp(filter.c_str(), "*.", 2) != 0 && strncmp(filter.c_str(), ".", 1) != 0)
-            {
                 i.insert(0, "*.");
-            }
             else if (filter.size() >= 1 && strncmp(filter.c_str(), ".", 1) == 0)
-            {
                 i.insert(0, "*");
-            }
         }
-        const int    total        = filters.size();
+        const int  total        = static_cast<int>(filters.size());
         const auto filtersArray = new const char *[total];
-        for (unsigned int i = 0; i < filters.size(); i++)
-        {
-            filtersArray[i] = filters[i].c_str();
-        }
+        for (int i = 0; i < total; i++)
+            filtersArray[i] = filters[static_cast<size_t>(i)].c_str();
 
         const char *filename = tinyfd_openFileDialog("Open file", defaultName, filters.size(), filtersArray, nullptr, allowMultipleSelects);
-
         delete[] filtersArray;
+
         if (filename)
         {
-            if(allowMultipleSelects)
+            if (allowMultipleSelects)
             {
                 std::vector<std::string> res;
-                util::split(res,filename,'|');
-                if(res.size())
+                util::split(res, filename, '|');
+                if (res.size())
                 {
                     lua_newtable(lua);
                     for (unsigned int i = 0; i < res.size(); ++i)
                     {
                         log_util::replaceString(res[i], "\\", "/");
                         lua_pushstring(lua, res[i].c_str());
-                        lua_rawseti(lua, -2, i+1);
+                        lua_rawseti(lua, -2, i + 1);
                     }
                 }
                 else
@@ -555,18 +604,18 @@ namespace mbm
 
     int onShowMessageBox(lua_State *lua)
     {
-        const int         top     = lua_gettop(lua);
-        const char *const title   = top > 0 && lua_type(lua, 1) == LUA_TSTRING ? lua_tostring(lua, 1) : "title";
-        const char *const message = top > 1 && lua_type(lua, 2) == LUA_TSTRING ? lua_tostring(lua, 2) : "your message";
-        const char *   dialogType = top > 2 && lua_type(lua, 3) == LUA_TSTRING ? lua_tostring(lua, 3) : "ok"; /* "ok" "okcancel" "yesno" */
-        const char *iconType      = top > 3 && lua_type(lua, 4) == LUA_TSTRING ? lua_tostring(lua, 4) : "info"; /* "info" "warning" "error" "question" */
-        int defaultButton         = top > 4 && lua_type(lua, 5) == LUA_TNUMBER ? lua_tointeger(lua,5) : 0; /* 0 for cancel/no , 1 for ok/yes */
+        const int         top          = lua_gettop(lua);
+        const char *const title        = top > 0 && lua_type(lua, 1) == LUA_TSTRING ? lua_tostring(lua, 1) : "title";
+        const char *const message      = top > 1 && lua_type(lua, 2) == LUA_TSTRING ? lua_tostring(lua, 2) : "your message";
+        const char *      dialogType   = top > 2 && lua_type(lua, 3) == LUA_TSTRING ? lua_tostring(lua, 3) : "ok";
+        const char *      iconType     = top > 3 && lua_type(lua, 4) == LUA_TSTRING ? lua_tostring(lua, 4) : "info";
+        int               defaultButton = top > 4 && lua_type(lua, 5) == LUA_TNUMBER ? lua_tointeger(lua, 5) : 0;
         if (defaultButton != 0 && defaultButton != 1)
             defaultButton = 0;
-        if (strcmp(dialogType, "ok") != 0 && strcmp(dialogType, "okcancel")!= 0 && strcmp(dialogType, "yesno")!= 0)
+        if (strcmp(dialogType, "ok") != 0 && strcmp(dialogType, "okcancel") != 0 && strcmp(dialogType, "yesno") != 0)
             dialogType = "ok";
-        if (strcmp(iconType, "info")!= 0 && strcmp(iconType, "warning")!= 0 && strcmp(iconType, "error")!= 0 &&
-            strcmp(iconType, "question")!= 0)
+        if (strcmp(iconType, "info") != 0 && strcmp(iconType, "warning") != 0 && strcmp(iconType, "error") != 0 &&
+            strcmp(iconType, "question") != 0)
             iconType = "info";
         const int ret = tinyfd_messageBox(title, message, dialogType, iconType, defaultButton);
         lua_pushboolean(lua, ret);
@@ -578,7 +627,7 @@ namespace mbm
         const int         top         = lua_gettop(lua);
         const char *const title       = top > 0 && lua_type(lua, 1) == LUA_TSTRING ? lua_tostring(lua, 1) : "Choose a folder";
         const char *const defaultPath = top > 1 && lua_type(lua, 2) == LUA_TSTRING ? lua_tostring(lua, 2) : "";
-        const char *      path         = tinyfd_selectFolderDialog(title, defaultPath);
+        const char *      path        = tinyfd_selectFolderDialog(title, defaultPath);
         if (path)
             lua_pushstring(lua, path);
         else
@@ -615,19 +664,21 @@ namespace mbm
 
     int onColorFromDialogBox(lua_State *lua)
     {
-        const int         top     = lua_gettop(lua);
-        char const * const aTitle = "Select color";
-        unsigned char aoResultRGB[3] = {0,0,0};
-        unsigned char const aDefaultRGB[3] = {  top > 0 ? static_cast<const unsigned char>(luaL_checknumber(lua,1) * 255.0f) : static_cast<const unsigned char>(0),
-                                                top > 1 ? static_cast<const unsigned char>(luaL_checknumber(lua,2) * 255.0f) : static_cast<const unsigned char>(255),
-                                                top > 2 ? static_cast<const unsigned char>(luaL_checknumber(lua,3) * 255.0f) : static_cast<const unsigned char>(255)};
-        const char *result = tinyfd_colorChooser(aTitle,nullptr,aDefaultRGB,aoResultRGB);
+        const int         top      = lua_gettop(lua);
+        char const *const aTitle   = "Select color";
+        unsigned char aoResultRGB[3]      = {0, 0, 0};
+        unsigned char const aDefaultRGB[3] = {
+            top > 0 ? static_cast<unsigned char>(luaL_checknumber(lua, 1) * 255.0f) : static_cast<unsigned char>(0),
+            top > 1 ? static_cast<unsigned char>(luaL_checknumber(lua, 2) * 255.0f) : static_cast<unsigned char>(255),
+            top > 2 ? static_cast<unsigned char>(luaL_checknumber(lua, 3) * 255.0f) : static_cast<unsigned char>(255)
+        };
+        const char *result = tinyfd_colorChooser(aTitle, nullptr, aDefaultRGB, aoResultRGB);
         if (result)
         {
             constexpr float p = 1.0f / 255.0f;
-            const float r = (static_cast<const float>(static_cast<const int>(aoResultRGB[0]))) * p;
-            const float g = (static_cast<const float>(static_cast<const int>(aoResultRGB[1]))) * p;
-            const float b = (static_cast<const float>(static_cast<const int>(aoResultRGB[2]))) * p;
+            const float r = static_cast<float>(static_cast<int>(aoResultRGB[0])) * p;
+            const float g = static_cast<float>(static_cast<int>(aoResultRGB[1])) * p;
+            const float b = static_cast<float>(static_cast<int>(aoResultRGB[2])) * p;
             lua_pushnumber(lua, r);
             lua_pushnumber(lua, g);
             lua_pushnumber(lua, b);
@@ -639,11 +690,11 @@ namespace mbm
 
     int onPanic(lua_State *lua)
     {
-        DEVICE *        device    = DEVICE::getInstance();
-        auto *userScene           = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
-        const char *    error     = lua_tostring(lua, -1);
-        std::string               strErr(error ? error : "undefined");
-        ERROR_LOG("%s",strErr.c_str());
+        DEVICE *    device    = DEVICE::getInstance();
+        auto *userScene       = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
+        const char *error     = lua_tostring(lua, -1);
+        std::string strErr(error ? error : "undefined");
+        ERROR_LOG("%s", strErr.c_str());
         tinyfd_messageBox("PANIC: unprotected error in call to Lua API", strErr.c_str(), "ok", "error", 0);
         if (userScene && userScene->oldPanicFunction)
             userScene->oldPanicFunction(lua);
@@ -651,6 +702,6 @@ namespace mbm
             exit(255);
         return 0;
     }
-};
+}; // namespace mbm
 
-#endif
+#endif // defined(__APPLE__) && !defined(ANDROID)

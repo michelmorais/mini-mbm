@@ -36,7 +36,7 @@ struct array_deleter
   }
 };
 
-#if defined _WIN32
+#if defined _WIN32 || (defined __APPLE__ && __cplusplus < 201703L)
     namespace std
     {
         float clamp(const float value,const float v_min, const float v_max)

@@ -233,7 +233,8 @@ namespace mbm
             plugin->onSubscribe(
                 static_cast<int>(this->device->backBufferWidth),
                 static_cast<int>(this->device->backBufferHeight),
-                handle, nullptr);
+                handle,
+                (__bridge void*)this->device->specificContextDevice->mtlDevice);
             return static_cast<unsigned int>(this->lsPlugins.size() - 1);
         }
         return 0xffffffff;

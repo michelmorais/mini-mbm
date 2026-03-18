@@ -68,7 +68,9 @@
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
-#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
+#elif defined(__APPLE__) && !defined(ANDROID)
+    #include <unistd.h>                 // getcwd — no X11 on macOS
+#elif defined(__linux__)
     #include <unistd.h>
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
@@ -2431,6 +2433,8 @@ namespace mbm
             std::string full_name_C(name);
             #if defined _WIN32
             full_name_C += ".dll";
+            #elif defined __APPLE__
+            full_name_C += ".dylib";
             #else
             full_name_C += ".so";
             #endif

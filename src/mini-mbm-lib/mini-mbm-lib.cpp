@@ -27,7 +27,10 @@
 #include <core_mbm/strings-pt-br.h>
 #if defined (WIN32)
 #include <defaultThemePlusWindows.h>
-#elif defined (__linux__) || defined(__APPLE__)
+#elif defined (__APPLE__)
+#include <cstring>
+#include <tinyfiledialogs/tinyfiledialogs.h>
+#elif defined (__linux__)
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/keysym.h>
@@ -799,7 +802,7 @@ namespace mbm
     {
         return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked, 0, 0);
     }
-    #elif defined (__linux__) || defined(__APPLE__)
+    #elif defined (__linux__)
     
     // Simple X11 dialog for resolution/app selection
     bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int * index_app_selected, SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked, int requested_width, int requested_height)
@@ -1254,6 +1257,52 @@ namespace mbm
         return confirmed;
     }
     
+    bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
+    {
+        return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked, 0, 0);
+    }
+    #elif defined (__APPLE__)
+
+    bool select_app_and_resolution(APP_RUN* app_run, int size_app_run, int* index_app_selected,
+                                   SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list,
+                                   bool allow_full_screen, const bool full_screen_checked,
+                                   int requested_width, int requested_height)
+    {
+        (void)screen_resolution_list;
+        (void)size_screen_resolution_list;
+        (void)allow_full_screen;
+        (void)full_screen_checked;
+
+        if (requested_width > 0 && requested_height > 0)
+        {
+            mbm::set_window_size(requested_width, requested_height);
+        }
+
+        // If a script was already selected via command-line args, proceed with it.
+        if (index_app_selected && *index_app_selected >= 0)
+        {
+            return true;
+        }
+
+        // No script specified — let the user pick one via native macOS file dialog.
+        const char* filter_patterns[] = { "*.lua", "*.LUA" };
+        const char* script = tinyfd_openFileDialog(
+            my_app_name.length() > 0 ? my_app_name.c_str() : "Select Lua Script",
+            nullptr, 2, filter_patterns, "Lua Scripts", 0);
+
+        if (!script)
+        {
+            return false; // user cancelled
+        }
+
+        mbm::set_scene(script);
+        if (index_app_selected)
+        {
+            *index_app_selected = 0;
+        }
+        return true;
+    }
+
     bool select_resolution(SCREEN_RESOLUTION* screen_resolution_list, int size_screen_resolution_list, bool allow_full_screen, const bool full_screen_checked)
     {
         return select_app_and_resolution(nullptr, 0, nullptr, screen_resolution_list, size_screen_resolution_list, allow_full_screen, full_screen_checked, 0, 0);
