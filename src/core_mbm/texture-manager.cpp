@@ -158,7 +158,7 @@ namespace mbm
                                 char asPngFileName[255] = "";
                                 strncpy(asPngFileName,fileNameTTF,sizeof(asPngFileName)-1);
                                 if(lenTTFfile > 4)
-                                    sprintf(&asPngFileName[lenTTFfile - 4],"-%2.0f.png",heightLetter);
+                                    snprintf(&asPngFileName[lenTTFfile - 4], sizeof(asPngFileName) - (lenTTFfile - 4), "-%2.0f.png", heightLetter);
                                 else
                                     strncat(asPngFileName,".png",sizeof(asPngFileName) - strlen(asPngFileName) - 1);
                                 std::vector<uint8_t> png;
@@ -739,7 +739,7 @@ namespace mbm
     }
     
     bool TEXTURE_MANAGER::saveDataAsPNG(const char *fileName, std::vector<uint8_t> &image, const uint32_t channel,
-                              const uint32_t width, const uint32_t height, char *strMessageError)
+                              const uint32_t width, const uint32_t height, char *strMessageError, size_t strMessageErrorLen)
     {
         unsigned                   error = 0;
         std::vector<uint8_t> png;
@@ -747,7 +747,7 @@ namespace mbm
         if (error)
         {
             if (strMessageError)
-                sprintf(strMessageError, "PNG encoding error  [%s]", lodepng_error_text(error));
+                snprintf(strMessageError, strMessageErrorLen, "PNG encoding error  [%s]", lodepng_error_text(error));
             return false;
         }
         lodepng::save_file(png, fileName);
@@ -757,12 +757,12 @@ namespace mbm
     #if !defined ANDROID
     static bool generateImageFromPng(const char* pngPath,
         std::vector<uint32_t>& outData, uint32_t& outWidth, uint32_t& outHeight,
-        char* strMessageError)
+        char* strMessageError, size_t strMessageErrorLen)
     {
         if (!pngPath)
         {
             if (strMessageError)
-                sprintf(strMessageError, "PNG path is null");
+                snprintf(strMessageError, strMessageErrorLen, "PNG path is null");
             return false;
         }
         std::vector<uint8_t> image;
@@ -771,7 +771,7 @@ namespace mbm
         if (error)
         {
             if (strMessageError)
-                sprintf(strMessageError, "PNG decode error [%s]", lodepng_error_text(error));
+                snprintf(strMessageError, strMessageErrorLen, "PNG decode error [%s]", lodepng_error_text(error));
             return false;
         }
         const uint32_t width = static_cast<uint32_t>(w);
@@ -797,24 +797,24 @@ namespace mbm
 
     bool TEXTURE_MANAGER::generateImageResourceHeaderFromPng(const char* pngPath,
         const char* outputHeaderPath, const char* resourceName,
-        char* strMessageError)
+        char* strMessageError, size_t strMessageErrorLen)
     {
         #if !defined ANDROID
         std::vector<uint32_t> data;
         uint32_t width = 0, height = 0;
-        if (!generateImageFromPng(pngPath, data, width, height, strMessageError))
+        if (!generateImageFromPng(pngPath, data, width, height, strMessageError, strMessageErrorLen))
             return false;
         if (!outputHeaderPath || !resourceName)
         {
             if (strMessageError)
-                sprintf(strMessageError, "output path or resource name is null");
+                snprintf(strMessageError, strMessageErrorLen, "output path or resource name is null");
             return false;
         }
         FILE* fp = fopen(outputHeaderPath, "w");
         if (!fp)
         {
             if (strMessageError)
-                sprintf(strMessageError, "failed to open output file [%s]", outputHeaderPath);
+                snprintf(strMessageError, strMessageErrorLen, "failed to open output file [%s]", outputHeaderPath);
             return false;
         }
         const uint32_t size = width * height;
@@ -867,7 +867,7 @@ namespace mbm
         return true;
         #else
         if (strMessageError)
-            sprintf(strMessageError, "editor features are not enabled");
+            snprintf(strMessageError, strMessageErrorLen, "editor features are not enabled");
         INFO_AT(__LINE__,__FILE__,"editor features are not enabled");
         return false;
         #endif

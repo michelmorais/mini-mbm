@@ -109,7 +109,7 @@ namespace mbm
             }
             sec = static_cast<int>(second);
         }
-        sprintf(strTimeHourMinSec, "%02d:%02d:%02d", hour, min, sec);
+        snprintf(strTimeHourMinSec, sizeof(strTimeHourMinSec), "%02d:%02d:%02d", hour, min, sec);
         return strTimeHourMinSec;
     }
     
@@ -134,7 +134,7 @@ namespace mbm
             }
             sec = static_cast<int>(second);
         }
-        sprintf(strTimeHourMinSec, "%02d:%02d:%02d", hour, min, sec);
+        snprintf(strTimeHourMinSec, sizeof(strTimeHourMinSec), "%02d:%02d:%02d", hour, min, sec);
         return strTimeHourMinSec;
     }
     

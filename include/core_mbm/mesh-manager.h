@@ -99,10 +99,10 @@ namespace mbm
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
         API_IMPL bool addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                             const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
-                            char *strErrorOut);
+                            char *strErrorOut, const int strErrorOutLen);
         API_IMPL bool addVertex(const uint32_t indexFrame, const uint32_t indexSubset, const uint32_t totalVertex);
         API_IMPL int addAnimation(const char *nameAnimation, const int initialFrame, const int finalFrame,
-                               const float timeBetweenFrame, const int typeAnimation, char *errorOut);
+                               const float timeBetweenFrame, const int typeAnimation, char *errorOut, const int errorOutLen);
         API_IMPL bool updateAnimation(const uint32_t index, const char *nameAnimation, const int initialFrame, const int finalFrame,
                                const float timeBetweenFrame, const int typeAnimation, char *errorOut,const int lenError);
         API_IMPL const util::INFO_ANIMATION::INFO_HEADER_ANIM *getAnim(const uint32_t index)const;

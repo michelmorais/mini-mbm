@@ -1070,7 +1070,7 @@ namespace mbm
             }
             char strTemp[255]             = "";
             this->fileName = fileNameMbmOrTtf;
-            sprintf(strTemp, "|%f|%d|%d", heightLetter, spaceWidth, spaceHeight);
+            snprintf(strTemp, sizeof(strTemp), "|%f|%d|%d", heightLetter, spaceWidth, spaceHeight);
             this->fileName += strTemp;
             if(texture_loaded)
                 texture_file_name_created = texture_loaded->getFileNameTexture();

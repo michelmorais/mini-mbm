@@ -2427,7 +2427,7 @@ namespace mbm
                         }
 
                         char errorText[255] = "";
-                        if(meshDebug.addIndex(indexFrame,indexSubset,indexBuffer,indexBufferCount,errorText) == false)
+                        if(meshDebug.addIndex(indexFrame,indexSubset,indexBuffer,indexBufferCount,errorText,(int)sizeof(errorText)) == false)
                         {
                             return log_util::fail(__LINE__, __FILE__, "Failed add index buffer\n[%s]",errorText);
                         }

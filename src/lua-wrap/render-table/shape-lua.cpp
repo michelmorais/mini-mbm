@@ -85,7 +85,7 @@ namespace mbm
     {
         static char randomName[255] = "";
         static int  n               = 1;
-        sprintf(randomName, "__ShapeMesh_%d_", n++);
+        snprintf(randomName, sizeof(randomName), "__ShapeMesh_%d_", n++);
         return randomName;
     }
     static int onCreateTriangleShapeMeshLua(lua_State *lua,SHAPE_MESH *shape,const int top)
