@@ -1613,9 +1613,11 @@ namespace mbm
             }
             return false;
         }
-        virtual float32 ReportParticle(const b2ParticleSystem* ,int32 , const b2Vec2& ,const b2Vec2& , float32 )
+        virtual bool ReportParticle(const b2ParticleSystem* particleSystem, int32 index)
         {
-            return 0;
+            B2_NOT_USED(particleSystem);
+            B2_NOT_USED(index);
+            return false;
         }
 
         virtual bool ShouldQueryParticleSystem(const b2ParticleSystem*)
