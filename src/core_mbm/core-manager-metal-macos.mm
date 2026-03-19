@@ -167,6 +167,16 @@ namespace mbm
         }
         [ctx->window setTitle:[NSString stringWithUTF8String:nameAplication.c_str()]];
 
+        // Borderless (fullscreen) window: raise above the menu bar and
+        // auto-hide the menu bar + dock so they don't overlap the content.
+        if (!border)
+        {
+            [ctx->window setLevel:NSMainMenuWindowLevel + 1];
+            [NSApp setPresentationOptions:
+                NSApplicationPresentationAutoHideMenuBar |
+                NSApplicationPresentationAutoHideDock];
+        }
+
         // Window delegate — handles close / resize notifications.
         MBMWindowDelegate* delegate = [[MBMWindowDelegate alloc] init];
         delegate.runFlag = &this->device->run;
@@ -424,6 +434,8 @@ namespace mbm
 
     void CORE_MANAGER::ReleaseGraphics(bool wasDeviceLost)
     {
+        // Restore default presentation (menu bar + dock visible again).
+        [NSApp setPresentationOptions:NSApplicationPresentationDefault];
         TEXTURE_MANAGER::getInstance()->release();
         MESH_MANAGER::getInstance()->release();
         this->device->specificContextDevice->release(wasDeviceLost);
