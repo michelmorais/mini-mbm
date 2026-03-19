@@ -105,7 +105,7 @@ namespace mbm
 {
     inline const char* __std_p()
     {
-		static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.YZ");
+        static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.Y");
         static char _p[17] = {
             'M', 'i', 'N', 'i', 'M', 'b', 'M', '-',
             MBM_VERSION[0], MBM_VERSION[1], MBM_VERSION[2],
