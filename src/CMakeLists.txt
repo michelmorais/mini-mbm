@@ -23,8 +23,10 @@ if (USE_LUA)
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Linux.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Windows.cpp)
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
             set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
         endif()
@@ -33,6 +35,9 @@ if (USE_LUA)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-MacOs.mm)
+        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -124,7 +129,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
-                            ${LIB_MINIMBM_LUA_SRC})
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -145,7 +151,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
-                            ${LIB_MINIMBM_LUA_SRC})
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -165,7 +172,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
-                            ${LIB_MINIMBM_LUA_SRC})
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -175,6 +183,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
                             ${SCENE_CPP})
     endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm "-framework Cocoa")
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()

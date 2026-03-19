@@ -147,6 +147,9 @@
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib-Windows.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="dllmain-mini-mbm-lib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
