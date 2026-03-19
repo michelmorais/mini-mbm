@@ -97,34 +97,84 @@ namespace dialog_util
         return exts.count > 0 ? exts : nil;
     }
 
-    // Raise the panel above the app's main window (handles fullscreen level),
-    // run the modal session, then restore the previous window level.
+    // Run the save/open panel in front of the engine's game window.
+    //
+    // Three problems prevented the naive approach from working:
+    //
+    //   1. [NSApp mainWindow] / [NSApp keyWindow] return nil for the game window.
+    //      NSWindowStyleMaskBorderless windows don't become the AppKit "main window"
+    //      by default, so querying mainWindow gives nil.
+    //
+    //   2. [panel runModal]  resets the panel's window level to NSModalPanelWindowLevel
+    //      (8) before displaying the UI, overriding any level set beforehand.
+    //      The engine's fullscreen window sits at NSMainMenuWindowLevel+1 (25), so
+    //      the panel always ends up behind it.
+    //
+    //   3. beginSheetModalForWindow: on a borderless (NSWindowStyleMaskBorderless)
+    //      window falls back to an app-modal panel at NSModalPanelWindowLevel — still
+    //      behind the game window.
+    //
+    // Solution:
+    //   a) Find the game window by iterating [NSApp windows] and selecting the
+    //      visible non-panel window with the highest level.
+    //   b) Attach the dialog as an explicit child of that window via
+    //      addChildWindow:ordered:NSWindowAbove.  Child windows are composited
+    //      *above* their parent by the WindowServer, regardless of NSWindowLevel.
+    //      Metal renders into the parent window's CAMetalLayer; child windows sit
+    //      above that in the compositor hierarchy.
+    //   c) Show the panel with beginWithCompletionHandler: (async API) instead of
+    //      runModal, so AppKit does not reset the window level.
+    //   d) Spin the run loop to make the call synchronous for callers.
     static NSModalResponse runPanelModal(NSSavePanel *panel)
     {
-        // The engine sets NSMainMenuWindowLevel+1 for borderless fullscreen windows.
-        // Raise the panel above whatever level the main window currently has.
-        NSWindow *mainWin    = [NSApp mainWindow] ?: [NSApp keyWindow];
-        NSWindowLevel origLevel = NSNormalWindowLevel;
-        if (mainWin)
+        [NSApp activateIgnoringOtherApps:YES];
+
+        // Find the engine's game window: the visible, non-panel window with
+        // the highest window level.  This works for both the Metal/borderless
+        // path (level 25) and the normal windowed path (level 0).
+        NSWindow *hostWin = nil;
+        for (NSWindow *w in [NSApp windows])
         {
-            origLevel = mainWin.level;
-            // Temporarily drop the main window to normal level so it doesn't
-            // occlude the panel.
-            [mainWin setLevel:NSNormalWindowLevel];
+            if (w != panel && w.isVisible && ![w isKindOfClass:[NSPanel class]])
+            {
+                if (!hostWin || w.level > hostWin.level)
+                    hostWin = w;
+            }
         }
 
-        // Set panel level above NSModalPanelWindowLevel as a safety margin.
-        [panel setLevel:NSModalPanelWindowLevel + 1];
-        [NSApp activateIgnoringOtherApps:YES];
-        [panel orderFrontRegardless];
+        if (hostWin)
+        {
+            // Attach as a child: the compositor always draws child windows above
+            // their parent, independently of window levels.
+            [hostWin addChildWindow:panel ordered:NSWindowAbove];
+        }
+        else
+        {
+            // No game window visible — set a high level as a last resort.
+            [panel setLevel:NSMainMenuWindowLevel + 2];
+        }
 
-        NSModalResponse result = [NSApp runModalForWindow:panel];
+        __block NSModalResponse response = NSModalResponseCancel;
+        __block BOOL done = NO;
 
-        // Restore the main window to its original level (re-enters fullscreen look).
-        if (mainWin)
-            [mainWin setLevel:origLevel];
+        // beginWithCompletionHandler: is the async equivalent of runModal.
+        // Unlike runModal it does NOT reset the panel's window level, so the
+        // child-window ordering we set above is preserved.
+        [panel beginWithCompletionHandler:^(NSModalResponse r) {
+            response = r;
+            done     = YES;
+        }];
 
-        return result;
+        // Spin the run loop until the user dismisses the panel.  Safe because
+        // this function always runs on the main thread.
+        while (!done)
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+
+        if (hostWin)
+            [hostWin removeChildWindow:panel];
+
+        return response;
     }
 
     const char * openFileDialog(
