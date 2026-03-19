@@ -64,8 +64,9 @@
     4.2   Reorganized framework, moved needed function to plugins, LiquidFun and Box2d Available.
     5.0   Include Directx 9 backend support. Refactoried core-manager-opengl_es to core-manager-renderer with support to Directx9 and Opengl-ES and future renderers.
     5.1   Updated IM-GUI version to 1.92.6
+    5.2.0 Introduced MacOs support
 */
-#define MBM_VERSION "5.1"
+#define MBM_VERSION "5.2.0"
 #endif
 
 #endif
