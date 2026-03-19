@@ -75,7 +75,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STRE
     message(STATUS "X11_LIBRARIES = ${X11_LIBRARIES}")
 
     include_directories(${X11_INCLUDE_DIR})
-    link_directories(${X11_LIBRARIES})
     ####
   endif()
 

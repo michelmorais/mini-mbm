@@ -26,6 +26,9 @@
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/scene.h>
 #include <algorithm>
+#if defined(__APPLE__) || defined(__linux__)
+#include <unistd.h>
+#endif
 
 template< typename T >
 struct array_deleter
@@ -1655,7 +1658,15 @@ namespace mbm
     {
         if(tileMap.bricks.size() > 0 && tileMap.layers.size() > 0)
         {
+#if defined(__APPLE__) || defined(__linux__)
+            char _tmp_tpl[] = "/tmp/minimbm_hist_XXXXXX";
+            int _tmp_fd = mkstemp(_tmp_tpl);
+            if (_tmp_fd == -1) return;
+            ::close(_tmp_fd);
+            std::string file_name = _tmp_tpl;
+#else
             std::string file_name = std::tmpnam(nullptr);
+#endif
             if(this->saveBinary(file_name.c_str()))
             {
                 if(index_history == (history_files.size()))
