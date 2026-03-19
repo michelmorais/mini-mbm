@@ -801,12 +801,14 @@ namespace mbm
     bool TILE_EDITOR::render()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
         ANIMATION *anim = this->getAnimation(0);
         if(anim == nullptr)
         {
             if(createAnim() == false)
             {
                 ERROR_AT(__LINE__,__FILE__, "%s", "Failed to create animation");
+                device->enableFilteringAfterPixelPerfect();
                 return false;
             }
             anim = this->getAnimation();
@@ -814,7 +816,10 @@ namespace mbm
         if (this->alwaysRenderize)
         {
             if (this->isOnFrustum() == false)
+            {
+                device->enableFilteringAfterPixelPerfect();
                 return false;
+            }
         }
 
         this->blend.set(anim->blendState);
@@ -824,18 +829,19 @@ namespace mbm
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+        bool result = false;
         switch (render_what)
         {
             case RENDER_MAP:
             {
                 if(line_tileSetPreview)
                     line_tileSetPreview->enableRender = false;
-                return renderMap(&anim->fx.shader);
+                result = renderMap(&anim->fx.shader);
             }
             break;
             case RENDER_TILE_SET:
             {
-                return renderTileSet();
+                result = renderTileSet();
             }
             break;
             case RENDER_LAYER:
@@ -845,12 +851,16 @@ namespace mbm
                     line_tileSetPreview->enableRender = false;
                 const VEC2 scale_offset(scale.x,scale.y);
 
+                result = true;
                 for (uint32_t i = 0; i < tileMap.layers.size(); i++)
                 {
                     const bool enable_highlights = i == index_render_what;
                     const float transparency = i > index_render_what ? 0.7f : 0.0f;
                     if(renderLayer(i, enable_highlights ,scale_offset,transparency) == false)
-                        return false;
+                    {
+                        result = false;
+                        break;
+                    }
                 }
             }
             break;
@@ -858,11 +868,12 @@ namespace mbm
             {
                 if(line_tileSetPreview)
                     line_tileSetPreview->enableRender = false;
-                return renderBrick();
+                result = renderBrick();
             }
             break;
         }
-        return false;
+        device->enableFilteringAfterPixelPerfect();
+        return result;
     }
 
     bool TILE_EDITOR::onRestoreDevice()
