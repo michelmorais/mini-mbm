@@ -30,6 +30,8 @@
 #include <unistd.h>
 #endif
 
+constexpr float z_offset_interval = -0.001f;
+
 template< typename T >
 struct array_deleter
 {
@@ -505,7 +507,7 @@ namespace mbm
         }
         if(layer->createFx() == false)
             return false;
-        layer->offset.z =    (tileMap.layers.size() + 1) * -0.1f;
+        layer->offset.z =    (tileMap.layers.size() + 1) * z_offset_interval;
         tileMap.layers.emplace_back(layer);
         return true;
     }
@@ -518,7 +520,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -1599,7 +1601,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -1612,7 +1614,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -2058,7 +2060,7 @@ namespace mbm
                     const uint32_t total  = tileMap.count_width_tile * tileMap.count_height_tile;
                     layer->offset.x       = tInfolayer->offset[0];
                     layer->offset.y       = tInfolayer->offset[1];
-                    //layer->       = tInfolayer->offset[1];
+                    layer->offset.z       = tInfolayer->offset[2];
                     layer->bricks.reserve(total);
 
                     for (size_t j = 0; j < tileCount; j++)
@@ -2182,6 +2184,13 @@ namespace mbm
                             return false;
                     }
                     tileMap.layers.emplace_back(layer);
+                }
+
+                // Always synthesize z from layer index — repairs old files where z was
+                // incorrectly saved as 0 due to a bug in a previous loadBinary version.
+                for (size_t i = 0; i < tileMap.layers.size(); i++)
+                {
+                    tileMap.layers[i]->offset.z = static_cast<float>(i + 1) * z_offset_interval;
                 }
 
                 auto addToRightPlace = [] (DYNAMIC_VAR* var, TILED_MAP & tileMap, const std::string & name,const std::string & owner) -> void
@@ -2488,7 +2497,7 @@ namespace mbm
                 tileInfo->layers[k].lsIndexTiles       = lsIndexTiles;
                 tileInfo->layers[k].offset[0]          = tileMap.layers[k]->offset.x;
                 tileInfo->layers[k].offset[1]          = tileMap.layers[k]->offset.y;
-                tileInfo->layers[k].offset[2]          = tileMap.layers[k]->offset.z;
+                tileInfo->layers[k].offset[2]          = (float)(k + 1) * z_offset_interval; // always derived from index, never from stale in-memory value
                 auto & layer                           = tileMap.layers[k];
 
                 for (uint32_t i = 0; i < tileMap.count_width_tile; i++)
