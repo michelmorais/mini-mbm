@@ -44,7 +44,7 @@
 #include <cstdio>
 
 #if (defined __linux__ || defined(__APPLE__) || defined _WIN32) && !defined ANDROID
-    #include <tinyfiledialogs/tinyfiledialogs.h>
+    #include <core_mbm/dialog-util.h>
 #endif
 
 namespace mbm
@@ -945,7 +945,7 @@ namespace mbm
                 constexpr int sizeFilters = sizeof(filters) / sizeof(char*);
                 std::string where_str("where:");
                 where_str += fileName;
-                const char *result = tinyfd_openFileDialog(where_str.c_str(), fileName, sizeFilters, filters, nullptr, 0);
+                const char *result = dialog_util::openFileDialog(where_str.c_str(), fileName, filters, sizeFilters, 0);
                 if (result)
                 {
                     util::addPath(result);

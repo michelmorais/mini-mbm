@@ -37,6 +37,7 @@ extern "C"
 
 #if (defined __linux__ || defined _WIN32 || defined(__APPLE__)) && !defined ANDROID
     #include <tinyfiledialogs/tinyfiledialogs.h>
+    #include <core_mbm/dialog-util.h>
 #endif
 
 struct lua_State;

@@ -969,7 +969,7 @@ namespace mbm
         jenv->DeleteLocalRef(ret);
     #else
 
-        const char *fileName = tinyfd_saveFileDialog("Save As", defaultName, filters.size(), filtersArray, nullptr);
+        const char *fileName = dialog_util::saveFileDialog("Save As", defaultName, filtersArray, (int)filters.size());
     #endif
         delete[] filtersArray;
         if (fileName)
@@ -1077,7 +1077,7 @@ namespace mbm
     #else
 
         const char *filename =
-            tinyfd_openFileDialog("Open file", defaultName, filters.size(), filtersArray, nullptr, allowMultipleSelects);
+            dialog_util::openFileDialog("Open file", defaultName, filtersArray, (int)filters.size(), allowMultipleSelects);
     #endif
         delete[] filtersArray;
         if (filename)

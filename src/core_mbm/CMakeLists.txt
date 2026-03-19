@@ -143,6 +143,16 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
     endif()
 endif()
 
+# For Apple builds that don't use Metal (e.g. USE_DUMMY_BACK_END_ENGINE), the
+# dialog-util-macos.mm file is not picked up by the Metal .mm glob above.
+# Add it explicitly so that dialog_util symbols are always available on Apple.
+set(APPLE_DIALOG_MM_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND NOT USE_METAL)
+    set(APPLE_DIALOG_MM_SOURCES ${CORE_OPENGLES_SRC}/dialog-util-macos.mm)
+    set_source_files_properties(${APPLE_DIALOG_MM_SOURCES}
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
+
 #Generate the static library from the sources
 add_library(core_mbm SHARED
     ${STB_SOURCES} 
@@ -154,7 +164,8 @@ add_library(core_mbm SHARED
     ${PORT_AUDIO_SOURCES}
     ${WAVE_SOURCES}
     ${METAL_MM_SOURCES}
-    ${METAL_RENDER_MM_SOURCES})
+    ${METAL_RENDER_MM_SOURCES}
+    ${APPLE_DIALOG_MM_SOURCES})
 
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
@@ -218,6 +229,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
         target_link_libraries(core_mbm "-framework Cocoa")
         target_link_libraries(core_mbm "-framework AppKit")
     else()
+        # Non-Metal Apple builds (e.g. USE_DUMMY_BACK_END_ENGINE) still need Cocoa
+        # for dialog-util-macos.mm (NSOpenPanel / NSSavePanel).
+        target_link_libraries(core_mbm "-framework Cocoa")
+        target_link_libraries(core_mbm "-framework Foundation")
         target_link_libraries(core_mbm ${X11_LIBRARIES})
         target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
         target_link_libraries(core_mbm ${EGL_LIBRARY})

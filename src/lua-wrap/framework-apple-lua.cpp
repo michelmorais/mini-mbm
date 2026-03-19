@@ -499,7 +499,7 @@ namespace mbm
         for (int i = 0; i < total; i++)
             filtersArray[i] = filters[static_cast<size_t>(i)].c_str();
 
-        const char *fileName = tinyfd_saveFileDialog("Save As", defaultName, filters.size(), filtersArray, nullptr);
+        const char *fileName = dialog_util::saveFileDialog("Save As", defaultName, filtersArray, total);
         delete[] filtersArray;
 
         if (fileName)
@@ -570,7 +570,7 @@ namespace mbm
         for (int i = 0; i < total; i++)
             filtersArray[i] = filters[static_cast<size_t>(i)].c_str();
 
-        const char *filename = tinyfd_openFileDialog("Open file", defaultName, filters.size(), filtersArray, nullptr, allowMultipleSelects);
+        const char *filename = dialog_util::openFileDialog("Open file", defaultName, filtersArray, total, allowMultipleSelects);
         delete[] filtersArray;
 
         if (filename)
