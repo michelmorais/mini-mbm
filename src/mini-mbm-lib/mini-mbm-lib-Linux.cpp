@@ -20,10 +20,12 @@
 #ifdef __linux__
 
 #include "mini-mbm-lib.h"
+#include <core_mbm/util-interface.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 #include <X11/keysym.h>
 #include <cstring>
+#include <string>
 
 extern std::string my_app_name;
 
