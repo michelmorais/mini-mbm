@@ -153,9 +153,9 @@ namespace mbm
         "pie.ps",
 
         "sampler2D sample0 : register(s0);\n"
-        "float percent : register(c0);\n"
-        "float angle : register(c1);\n"
-        "float clockwise : register(c2);\n"
+        "float clockwise          : register(c0);\n"
+        "float angle_start_in_deg : register(c1);\n"
+        "float percent            : register(c2);\n"
         "\n"
         "struct PS_INPUT\n"
         "{\n"
@@ -164,22 +164,29 @@ namespace mbm
         "\n"
         "float4 main(PS_INPUT input) : COLOR0\n"
         "{\n"
-        "    float x0 = input.vTexCoord.x - 0.5;\n"
-        "    float y0 = input.vTexCoord.y - 0.5;\n"
-        "    float x = x0 * cos(angle) - y0 * sin(angle);\n"
-        "    float y = x0 * sin(angle) + y0 * cos(angle);\n"
-        "    float a = atan2(y, x);\n"
-        "    if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))\n"
+        "    // Normalize fragment angle to [0, 1) where 0 = east / 3-o'clock, clockwise.\n"
+        "    float2 c       = input.vTexCoord - 0.5;\n"
+        "    float  a_rad   = atan2(c.y, c.x);\n"
+        "    float  a01     = fmod(a_rad / (2.0 * 3.14159265) + 1.0, 1.0);\n"
+        "    float  start01 = fmod(angle_start_in_deg / 360.0, 1.0);\n"
+        "\n"
+        "    // Arc distance from start to fragment, in requested winding direction.\n"
+        "    float delta;\n"
+        "    if (clockwise >= 0.5)\n"
+        "        delta = fmod(a01 - start01 + 1.0, 1.0);\n"
+        "    else\n"
+        "        delta = fmod(start01 - a01 + 1.0, 1.0);\n"
+        "\n"
+        "    if (delta < percent)\n"
         "        return tex2D(sample0, input.vTexCoord);\n"
         "    else\n"
         "        return float4(0, 0, 0, 0);\n"
-        "    /* D3D9: use transparent black instead of clip(-1) for compatibility */\n"
         "}\n",
 
         "[ps-pie.ps] = pie.ps\n"
-        "[ps-pie.ps][float][percent] = min -3.1415 max 3.1415 default 0.0 \n"
-        "[ps-pie.ps][float][angle] = min -3.1415 max 3.1415 default 0.0 \n"
-        "[ps-pie.ps][float][clockwise] = min 0.0 max 1.0 default 1.0 \n",
+        "[ps-pie.ps][float][clockwise]          = min 0.0   max 1.0   default 1.0 \n"
+        "[ps-pie.ps][float][angle_start_in_deg] = min 0.0   max 360.0 default 0.0 \n"
+        "[ps-pie.ps][float][percent]            = min 0.0   max 1.0   default 0.5 \n",
 
         // pie *********************
             

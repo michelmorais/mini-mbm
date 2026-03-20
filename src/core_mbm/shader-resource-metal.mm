@@ -71,27 +71,35 @@ fragment float4 frag_main(VOut in [[stage_in]],
     sampler          samp    [[sampler(0)]],
     constant float*  f       [[buffer(2)]])
 {
-    float2 uv        = in.uv;
-    float  percent   = f[0];
-    float  angle     = f[1];
-    float  clockwise = f[2];
+    float2 uv                 = in.uv;
+    float  clockwise          = f[0];
+    float  angle_start_in_deg = f[1];
+    float  percent            = f[2];
 
-    float x0 = uv.x - 0.5f;
-    float y0 = uv.y - 0.5f;
-    float x  = x0 * cos(angle) - y0 * sin(angle);
-    float y  = x0 * sin(angle) + y0 * cos(angle);
-    float a  = atan2(y, x);
+    // Normalize fragment angle to [0, 1) where 0 = east / 3-o'clock, clockwise.
+    float  PI      = 3.14159265358979f;
+    float2 c       = uv - 0.5f;
+    float  a_rad   = atan2(c.y, c.x);
+    float  a01     = fmod(a_rad / (2.0f * PI) + 1.0f, 1.0f);
+    float  start01 = fmod(angle_start_in_deg / 360.0f, 1.0f);
 
-    if ((clockwise >= 0.5f && a > percent) || (clockwise < 0.5f && a < percent))
+    // Arc distance from start to fragment, in requested winding direction.
+    float delta;
+    if (clockwise >= 0.5f)
+        delta = fmod(a01 - start01 + 1.0f, 1.0f);
+    else
+        delta = fmod(start01 - a01 + 1.0f, 1.0f);
+
+    if (delta < percent)
         return sample0.sample(samp, uv);
     discard_fragment();
     return float4(0.0f);
 }
 )msl",
     "[ps-pie.ps] = pie.ps\n"
-    "[ps-pie.ps][float][percent] = min -3.1415 max 3.1415 default 0.0 \n"
-    "[ps-pie.ps][float][angle] = min -3.1415 max 3.1415 default 0.0 \n"
-    "[ps-pie.ps][float][clockwise] = min 0.0 max 1.0 default 1.0 \n",
+    "[ps-pie.ps][float][clockwise]          = min 0.0   max 1.0   default 1.0 \n"
+    "[ps-pie.ps][float][angle_start_in_deg] = min 0.0   max 360.0 default 0.0 \n"
+    "[ps-pie.ps][float][percent]            = min 0.0   max 1.0   default 0.5 \n",
 
     // ---- explosion gaussian -------------------------------------------------
     "explosion gaussian.ps",
