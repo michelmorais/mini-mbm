@@ -251,6 +251,10 @@ namespace mbm
     // -------------------------------------------------------------------------
     void CORE_MANAGER::handleEventFromWindow()
     {
+        // Tracks the previous modifier-key state so we can fire synthetic
+        // key-down / key-up events when individual modifier bits change.
+        static NSEventModifierFlags previousModifierFlags = 0;
+
         @autoreleasepool
         {
             SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
@@ -294,6 +298,33 @@ namespace mbm
                         int key = translateMacKeyCode(event);
                         if (key != 0)
                             this->onKeyUp(key);
+                    }
+                    break;
+
+                    // ---- Modifier keys (Shift, Ctrl, Option/Alt, Command, CapsLock) ----
+                    // NSEventTypeFlagsChanged fires whenever any modifier key is pressed
+                    // or released.  We diff against the previous state to produce individual
+                    // synthetic key-down / key-up events with XK-compatible codes.
+                    case NSEventTypeFlagsChanged:
+                    {
+                        NSEventModifierFlags cur =
+                            event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+                        NSEventModifierFlags prev = previousModifierFlags;
+                        previousModifierFlags = cur;
+
+                        auto dispatchMod = [&](NSEventModifierFlags flag, int keyCode)
+                        {
+                            bool wasDown = (prev & flag) != 0;
+                            bool isDown  = (cur  & flag) != 0;
+                            if      (!wasDown && isDown)  this->onKeyDown(keyCode);
+                            else if ( wasDown && !isDown) this->onKeyUp(keyCode);
+                        };
+
+                        dispatchMod(NSEventModifierFlagShift,    0xFFE1); // XK_Shift_L
+                        dispatchMod(NSEventModifierFlagControl,  0xFFE3); // XK_Control_L
+                        dispatchMod(NSEventModifierFlagOption,   0xFFE9); // XK_Alt_L   (Option)
+                        dispatchMod(NSEventModifierFlagCommand,  0xFFEB); // XK_Super_L (Command ⌘)
+                        dispatchMod(NSEventModifierFlagCapsLock, 0xFFE5); // XK_Caps_Lock
                     }
                     break;
 

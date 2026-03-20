@@ -459,6 +459,7 @@ void MY_SCENE::onFinalizeScene()
 
 void MY_SCENE::onKeyDown(int key)
 {
+    printf("Key down: %d\n", key);
     if (key == 77) // M - toggle left menu
     {
         menuVisible = !menuVisible;

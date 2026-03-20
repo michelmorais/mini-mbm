@@ -951,3 +951,81 @@ two states and switch between them at draw time.
 | `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select depth state via `depthTestEnabled` |
 | `src/core_mbm/device-opengl_es.cpp` | `clearDepth()` — removed `GL_COLOR_BUFFER_BIT` |
 | `src/core_mbm/device-directx9.cpp` | `clearDepth()` — removed `D3DCLEAR_TARGET` |
+
+---
+
+## 19. macOS modifier-key events (Shift, Control, Option, Command)
+
+### Problem
+
+On macOS, modifier keys (Shift, Control, Option/Alt, Command, Caps Lock) do **not** produce
+`NSEventTypeKeyDown` / `NSEventTypeKeyUp` events.  Instead, the OS fires a single
+`NSEventTypeFlagsChanged` event whenever the combined modifier-key state changes.  If the
+event loop only handles `NSEventTypeKeyDown` and `NSEventTypeKeyUp`, all modifier keys are
+silently invisible to the engine — game logic that checks
+`XK_Shift_L`, `XK_Control_L`, etc. will never fire.
+
+### Fix — handle `NSEventTypeFlagsChanged` in `handleEventFromWindow`
+
+Track the previous modifier-flag state (static local, reset to 0 at startup) and diff
+it against the current state on every `FlagsChanged` event.  For each bit that toggled on,
+fire `onKeyDown`; for each bit that toggled off, fire `onKeyUp`.
+
+```objc
+// At the top of handleEventFromWindow() — persists across calls:
+static NSEventModifierFlags previousModifierFlags = 0;
+
+// Inside the switch(event.type):
+case NSEventTypeFlagsChanged:
+{
+    NSEventModifierFlags cur =
+        event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    NSEventModifierFlags prev = previousModifierFlags;
+    previousModifierFlags = cur;
+
+    auto dispatchMod = [&](NSEventModifierFlags flag, int keyCode)
+    {
+        bool wasDown = (prev & flag) != 0;
+        bool isDown  = (cur  & flag) != 0;
+        if      (!wasDown && isDown)  this->onKeyDown(keyCode);
+        else if ( wasDown && !isDown) this->onKeyUp(keyCode);
+    };
+
+    dispatchMod(NSEventModifierFlagShift,    0xFFE1); // XK_Shift_L
+    dispatchMod(NSEventModifierFlagControl,  0xFFE3); // XK_Control_L
+    dispatchMod(NSEventModifierFlagOption,   0xFFE9); // XK_Alt_L   (Option ⌥)
+    dispatchMod(NSEventModifierFlagCommand,  0xFFEB); // XK_Super_L (Command ⌘)
+    dispatchMod(NSEventModifierFlagCapsLock, 0xFFE5); // XK_Caps_Lock
+}
+break;
+```
+
+`NSEventModifierFlagDeviceIndependentFlagsMask` strips hardware-specific bits so the
+comparison is stable across keyboards.
+
+### Key-code table
+
+The XK constants used above match those defined in `src/lua-wrap/framework-apple-lua.cpp`
+and consumed by the Lua key-name table:
+
+| macOS flag | XK constant | Lua key name |
+|---|---|---|
+| `NSEventModifierFlagShift` | `0xFFE1` (`XK_Shift_L`) | `"shift"` |
+| `NSEventModifierFlagControl` | `0xFFE3` (`XK_Control_L`) | `"control"` |
+| `NSEventModifierFlagOption` | `0xFFE9` (`XK_Alt_L`) | `"alt"` |
+| `NSEventModifierFlagCommand` | `0xFFEB` (`XK_Super_L`) | `"windows"` (matches DX9) |
+| `NSEventModifierFlagCapsLock` | `0xFFE5` (`XK_Caps_Lock`) | `"caps lock"` |
+
+> **Note on regular key events and modifiers:**
+> `translateMacKeyCode()` uses `[event charactersIgnoringModifiers]` to retrieve the base
+> key code, which is correct — letter keys always produce uppercase ASCII regardless of
+> Shift state, matching the convention used on Windows and Linux.  Because
+> `NSEventTypeFlagsChanged` fires **before** the following `NSEventTypeKeyDown`, the
+> engine already knows Shift/Control/etc. are held by the time the regular key event
+> arrives.
+
+### File changed
+
+| File | Change |
+|---|---|
+| `src/core_mbm/core-manager-metal-macos.mm` | Added `static NSEventModifierFlags previousModifierFlags = 0` + `NSEventTypeFlagsChanged` case |
