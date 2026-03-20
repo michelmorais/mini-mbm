@@ -109,9 +109,9 @@ namespace mbm
     "}\n",
 
     "[ps-pie.ps] = pie.ps\n"
-    "[ps-pie.ps][float][clockwise]          = min 0.0   max 1.0   default 1.0 \n"
-    "[ps-pie.ps][float][angle_start_in_deg] = min 0.0   max 360.0 default 0.0 \n"
-    "[ps-pie.ps][float][percent]            = min 0.0   max 1.0   default 0.5 \n",
+    "[ps-pie.ps][float][clockwise]          = min 0.0    max 1.0   default 1.0 \n"
+    "[ps-pie.ps][float][angle_start_in_deg] = min -360.0 max 360.0 default 0.0 \n"
+    "[ps-pie.ps][float][percent]            = min 0.0    max 1.0   default 0.5 \n",
     
     // pie *********************
     
