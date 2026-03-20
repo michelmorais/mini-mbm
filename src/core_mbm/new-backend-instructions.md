@@ -808,3 +808,146 @@ platform (64-bit struct sizes, endianness) before enabling them.
       default `{1, 1}` produces half-size UI on Retina / HiDPI displays.
 - [ ] Event-handler resize paths must use **logical points**, not physical pixels, when
       updating `backBufferWidth/Height`.  See §13.
+
+---
+
+## 18. 3D → 2dw depth separation
+
+### Problem
+
+The engine renders frames in three sequential passes (see `core-manager-common.cpp`):
+
+1. **3D pass** — perspective projection, depth test on, depth write on.
+2. **2dw pass** — orthographic projection, depth test on, depth write on.
+   Objects are pre-sorted back-to-front by `prepareRender2d()` (painter's algorithm).
+3. **2ds pass** — screen-space UI, depth test off.
+
+Without an explicit depth-buffer clear between the 3D and 2dw passes, the perspective
+depth values written during the 3D pass remain in the depth buffer when the 2dw pass
+begins.  The orthographic projection maps Z differently from the perspective projection
+(e.g. a wall mesh at depth ≈ 0.1 in perspective may overlap the same depth region as a
+2dw sprite), so some 2dw objects fail the depth test against 3D geometry even though they
+should be fully visible.  The result is incorrect overlap between 2dw objects — objects
+whose back-to-front order is correct per their Z value appear to be occluded by other 2dw
+objects (or by invisible 3D geometry remnants in the depth buffer).
+
+The same root cause also means that `setDephtTest(false)` **must** be functional for the
+2ds pass; if it is a no-op, 2ds screen-space UI elements can be occluded by 2dw objects
+behind them.
+
+### Fix — three parts
+
+#### Part 1 — clear depth between 3D and 2dw passes (`core-manager-common.cpp`)
+
+Call `device->clearDepth()` immediately after `setProjectionMode(false)` and before the
+first `setDephtTest(true)` / 2dw draw loop:
+
+```cpp
+device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
+device->totalObjectsIsRendering2D = 0;
+// Clear the depth buffer so 3D perspective depth values do not occlude 2dw
+// objects whose depth comes from the orthographic projection.
+device->clearDepth();
+device->setDephtTest(true);
+for (auto ptrRender : lsRender2dw)
+    ...
+```
+
+`clearDepth()` must clear **depth only** — colour must be preserved so the 3D scene is
+not erased.
+
+#### Part 2 — depth-only clear on each backend
+
+**OpenGL ES (`device-opengl_es.cpp`):**
+```cpp
+void DEVICE::clearDepth()
+{
+    // Depth only — colour intentionally preserved (3D scene must not be erased).
+    GLClearDepthf(1.0f);
+    GLClear(GL_DEPTH_BUFFER_BIT);   // NOT GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT
+}
+```
+
+**Direct3D 9 (`device-directx9.cpp`):**
+```cpp
+void DEVICE::clearDepth()
+{
+    specificContextDevice->pd3dDevice->Clear(0, NULL,
+        D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL,  // NOT D3DCLEAR_TARGET
+        D3DCOLOR_XRGB(0,0,0), 1.0f, 0);
+}
+```
+
+**Metal (`device-metal.mm`) — encoder restart pattern:**  
+Metal does not support clearing a single attachment in the middle of a render pass.  The
+only way to change load/store actions mid-frame is to end the current encoder and start a
+new one.  To preserve the 3D scene in the colour attachment, open the new pass with
+`MTLLoadActionLoad` for colour and `MTLLoadActionClear` for depth:
+
+```objc
+void DEVICE::clearDepth()
+{
+    auto* ctx = specificContextDevice.get();
+    if (!ctx->currentEncoder || !ctx->currentCommandBuffer) return;
+
+    [ctx->currentEncoder endEncoding];
+    ctx->currentEncoder = nil;
+
+    MTLRenderPassDescriptor* desc = [MTLRenderPassDescriptor renderPassDescriptor];
+    // Colour: load existing pixels (3D scene)
+    desc.colorAttachments[0].texture     = ctx->currentPassDescriptor.colorAttachments[0].texture;
+    desc.colorAttachments[0].loadAction  = MTLLoadActionLoad;
+    desc.colorAttachments[0].storeAction = MTLStoreActionStore;
+    // Depth: clear to 1.0 (far plane)
+    desc.depthAttachment.texture     = ctx->depthTexture;
+    desc.depthAttachment.loadAction  = MTLLoadActionClear;
+    desc.depthAttachment.clearDepth  = 1.0;
+    desc.depthAttachment.storeAction = MTLStoreActionDontCare;
+
+    ctx->currentEncoder = [ctx->currentCommandBuffer renderCommandEncoderWithDescriptor:desc];
+    ctx->currentEncoder.label = @"MBM Encoder (2D)";
+    ctx->currentPassDescriptor = desc;
+}
+```
+
+#### Part 3 — implement `setDephtTest` on Metal (`device-metal.mm` + `specific-metal.h`)
+
+Metal bakes the depth-stencil state into the pipeline (`MTLDepthStencilState`).  Unlike
+OpenGL or D3D you cannot toggle depth testing with a single API call — you must pre-build
+two states and switch between them at draw time.
+
+1. Add a flag to `SPECIFIC_AUX_CONTEXT_DEVICE` (`specific-metal.h`):
+   ```cpp
+   // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDephtTest)
+   bool depthTestEnabled = true;
+   ```
+
+2. Implement `setDephtTest`:
+   ```objc
+   void DEVICE::setDephtTest(const bool enable)
+   {
+       specificContextDevice->depthTestEnabled = enable;
+   }
+   ```
+
+3. In `SHADER::render()` and `SHADER::renderDynamic()` (`shader-metal.mm`), select the
+   appropriate pre-built depth state before each draw call:
+   ```objc
+   [enc setDepthStencilState: ctx->depthTestEnabled
+       ? getOrCreateDepthStencilState(ctx)   // less comparison + depth write
+       : getOrCreateNoDepthState(ctx)];      // always pass + no write (2ds / particles)
+   ```
+
+   Both helper functions (`getOrCreateDepthStencilState` and `getOrCreateNoDepthState`)
+   already exist in `shader-metal.mm` — just call the right one based on the flag.
+
+### Summary of files changed
+
+| File | Change |
+|---|---|
+| `src/core_mbm/core-manager-common.cpp` | Added `device->clearDepth()` between 3D and 2dw loops |
+| `src/core_mbm/device-metal.mm` | Implemented `clearDepth()` (encoder restart) and `setDephtTest()` |
+| `include/core_mbm/specific-metal.h` | Added `bool depthTestEnabled = true` to context struct |
+| `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select depth state via `depthTestEnabled` |
+| `src/core_mbm/device-opengl_es.cpp` | `clearDepth()` — removed `GL_COLOR_BUFFER_BIT` |
+| `src/core_mbm/device-directx9.cpp` | `clearDepth()` — removed `D3DCLEAR_TARGET` |

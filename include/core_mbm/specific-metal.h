@@ -101,10 +101,14 @@ namespace mbm
         id<MTLSamplerState> nearestSampler  = nil;
         bool useNearestSampler              = false;
 
+        // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDephtTest).
+        // SHADER::render() reads this to choose between defaultDepthStencilState and noDepthStencilState.
+        bool depthTestEnabled               = true;
+
         // Depth-stencil state: less comparison + depth write enabled (created on first use).
         id<MTLDepthStencilState> defaultDepthStencilState = nil;
 
-        // Depth-stencil state: always pass + no depth write (for particles).
+        // Depth-stencil state: always pass + no depth write (for particles / 2ds objects).
         id<MTLDepthStencilState> noDepthStencilState = nil;
 
         // Persistent full-frame depth texture.  Created / resized in beginRender().

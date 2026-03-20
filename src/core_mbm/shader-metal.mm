@@ -767,7 +767,9 @@ namespace mbm
             [enc setRenderPipelineState:pair.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
-            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
+            [enc setDepthStencilState: ctx->depthTestEnabled
+                ? getOrCreateDepthStencilState(ctx)
+                : getOrCreateNoDepthState(ctx)];
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];
@@ -889,7 +891,9 @@ namespace mbm
             [enc setRenderPipelineState:pairD.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
-            [enc setDepthStencilState:getOrCreateDepthStencilState(ctx)];
+            [enc setDepthStencilState: ctx->depthTestEnabled
+                ? getOrCreateDepthStencilState(ctx)
+                : getOrCreateNoDepthState(ctx)];
             [enc setVertexBytes:&uni   length:sizeof(uni) atIndex:1];
             [enc setFragmentBytes:&uni length:sizeof(uni) atIndex:1];
             [enc setFragmentSamplerState:getOrCreateSampler(ctx) atIndex:0];

@@ -71,7 +71,9 @@ namespace mbm
 
     void DEVICE::clearDepth()
     {
-        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+        // Depth+stencil only — colour is intentionally preserved so the 3D scene is not erased.
+        // Use clearDepthColored() when you also need to repaint the background colour.
+        specificContextDevice->pd3dDevice->Clear(0, NULL, D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
     }
     void DEVICE::clearDepthColored()
     {

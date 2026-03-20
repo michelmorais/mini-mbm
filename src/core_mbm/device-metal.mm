@@ -57,19 +57,50 @@ namespace mbm
         instanceDevice = nullptr;
     }
 
-    void DEVICE::setDephtTest(const bool /*enable*/)
+    void DEVICE::setDephtTest(const bool enable)
     {
-        // Metal: depth testing is configured in MTLDepthStencilState baked into
-        // the pipeline state. A full implementation would rebuild/swap pipeline
-        // states here. For Milestone 1 (clear-screen), this is a no-op.
+        // Toggle the flag read by SHADER::render() / renderDynamic() to choose between
+        // the depth-enabled (less + write) and depth-disabled (always + no-write) states.
+        if (specificContextDevice)
+            specificContextDevice->depthTestEnabled = enable;
     }
 
     void DEVICE::clearDepth()
     {
-        // Metal: the actual clear happens via the render-pass descriptor in
-        // CORE_MANAGER::beginRender(). Just set the pending flag.
-        if (this->specificContextDevice)
-            this->specificContextDevice->pendingClearDepth = true;
+        // Metal cannot clear the depth buffer mid-pass via a simple API call.
+        // We end the current encoder and start a new one that loads the existing
+        // colour attachment (preserving the 3D scene) but clears the depth attachment.
+        // This is called between the 3D pass and the 2dw pass so that 3D perspective
+        // depth values do not contaminate the 2dw orthographic depth comparisons.
+        if (!specificContextDevice) return;
+        SPECIFIC_AUX_CONTEXT_DEVICE* ctx = specificContextDevice;
+        if (ctx->currentEncoder && ctx->currentCommandBuffer && ctx->currentPassDescriptor)
+        {
+            [ctx->currentEncoder endEncoding];
+            ctx->currentEncoder = nil;
+
+            MTLRenderPassDescriptor* desc = [MTLRenderPassDescriptor renderPassDescriptor];
+            // Preserve the colour buffer (3D scene already rendered into it).
+            desc.colorAttachments[0].texture     = ctx->currentPassDescriptor.colorAttachments[0].texture;
+            desc.colorAttachments[0].loadAction  = MTLLoadActionLoad;
+            desc.colorAttachments[0].storeAction = MTLStoreActionStore;
+            // Clear depth to 1.0 (far plane) so 2dw objects get a clean depth slate.
+            desc.depthAttachment.texture     = ctx->depthTexture;
+            desc.depthAttachment.loadAction  = MTLLoadActionClear;
+            desc.depthAttachment.clearDepth  = 1.0;
+            desc.depthAttachment.storeAction = MTLStoreActionDontCare;
+
+            ctx->currentEncoder = [ctx->currentCommandBuffer
+                renderCommandEncoderWithDescriptor:desc];
+            if (ctx->currentEncoder)
+                ctx->currentEncoder.label = @"MBM Encoder (2D)";
+            ctx->currentPassDescriptor = desc;
+        }
+        else
+        {
+            // No encoder active yet — flag it for beginRender().
+            ctx->pendingClearDepth = true;
+        }
     }
 
     void DEVICE::clearDepthColored()

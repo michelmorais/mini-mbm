@@ -482,6 +482,11 @@ namespace mbm
 
             device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
             device->totalObjectsIsRendering2D = 0;
+            // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
+            // objects whose depth comes from the orthographic projection. On Metal this
+            // ends the current command encoder and starts a new one that preserves the
+            // colour attachment (3D scene) while clearing depth to 1.0.
+            device->clearDepth();
             device->setDephtTest(true);
             for (auto ptrRender : lsRender2dw)
             {
