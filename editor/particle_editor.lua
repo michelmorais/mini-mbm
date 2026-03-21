@@ -800,7 +800,7 @@ function showParticleOptions()
                 local baseTemplate = mbm.getParticleShaderCode()
                 local sCodeShader = baseTemplate
                     :gsub('%?', tShaderByOperator[tShaderByOperator.index].op, 1)
-                    :gsub('#', sAddCode, 1)
+                    :gsub('#', function() return sAddCode end, 1)
                 tImGui.TextDisabled(sCodeShader)
                 if tImGui.Button(tLang.L("apply_btn")) then
                     local ext = tUtil.getExtension(sLastEditorFileName)
@@ -992,6 +992,8 @@ function main_menu_particle()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 end
             end
             local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
@@ -1000,6 +1002,8 @@ function main_menu_particle()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
             if tImGui.BeginMenu(tLang.L("menu_version")) then

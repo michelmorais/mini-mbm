@@ -1212,3 +1212,162 @@ else
     -- V=0 at bottom (OpenGL ES default)
 end
 ```
+
+---
+
+## 23. Particle editor shader — use `mbm.getParticleShaderCode()` instead of hardcoded GLSL
+
+### Problem
+
+`particle_editor.lua::addShaderParticle()` and the shader preview in `showParticleOptions()` previously hardcoded 30 lines of OpenGL ES GLSL:
+
+```lua
+code = [[
+precision mediump float;
+uniform vec4 color;
+...
+gl_FragColor = outColor;
+]]
+```
+
+This raw GLSL is passed to `mbm.addShader()` which stores it verbatim and later feeds it to `compileShader()`. On Metal, `compileShader()` calls `[MTLDevice newLibraryWithSource:]` expecting MSL — the GLSL causes a compile error and the particle effect renders with no shader.
+
+### Fix
+
+A new C++ binding `mbm.getParticleShaderCode()` was added to `src/lua-wrap/framework-lua.cpp`. It calls `getParticlePSCode()` — the same platform-specific function already used by `PARTICLE::loadParticleShader()` — and returns the complete fragment shader template for the active backend.
+
+The template uses two placeholders (identical to the C++ substitution logic in `particle.cpp`):
+
+| Placeholder | Meaning |
+|---|---|
+| `?` | Arithmetic operator (`+`, `-`, `/`, `*`) |
+| `#` | Injection point for optional extra GLSL/MSL code (remove by replacing with `''`) |
+
+#### C++ binding (`src/lua-wrap/framework-lua.cpp`)
+
+```cpp
+#include <core_mbm/shader-resource.h>   // getParticlePSCode()
+
+int onGetParticleShaderCode(lua_State *lua)
+{
+    const char *code = getParticlePSCode();
+    if (code)
+        lua_pushstring(lua, code);
+    else
+        lua_pushnil(lua);
+    return 1;
+}
+// Registered in luaL_Reg table as: {"getParticleShaderCode", onGetParticleShaderCode}
+```
+
+#### `addShaderParticle()` pattern (`editor/particle_editor.lua`)
+
+```lua
+function addShaderParticle()
+    local baseTemplate = mbm.getParticleShaderCode()
+    for i = 1, 4 do
+        local code = baseTemplate:gsub('%?', tShaderByOperator[i].op, 1):gsub('#', '', 1)
+        local tShaderParticle = { name = tShaderByOperator[i].name, code = code, ... }
+        mbm.addShader(tShaderParticle)
+    end
+end
+```
+
+**Important Lua `gsub` notes:**
+- Use `'%?'` (not `'?'`) — `?` is a magic pattern character in Lua and must be escaped with `%`.
+- When substituting user-supplied content that may contain `%` characters (e.g. GLSL comments like `// 50% blend`), use a function to avoid Lua interpreting `%1`, `%2` etc. in the replacement string:
+  ```lua
+  :gsub('#', function() return sAddCode end, 1)
+  ```
+
+#### Additional code text box — hidden on Metal
+
+The `InputTextMultiline` that lets users inject custom GLSL is meaningless on Metal (the engine ignores it; shader compilation uses MSL). It is hidden with:
+
+```lua
+if not mbm.get('USE_METAL') then
+    -- show InputTextMultiline
+else
+    tImGui.TextDisabled("(Custom shader code not available on Metal)")
+end
+```
+
+#### Rule for future editors
+
+Never hardcode GLSL in Lua editor scripts. For particle shaders always call `mbm.getParticleShaderCode()` and substitute the operator placeholder `?` before passing the result to `mbm.addShader()`.
+
+---
+
+## 24. `mbm.is('macos')` — missing platform + `linux` bug in `onIs` / `onGet`
+
+### Problem
+
+In `src/lua-wrap/framework-lua.cpp`, the `onIs` function only handled `windows`, `android`, and `linux`. The `linux` branch used:
+
+```cpp
+#if defined __linux__ || defined(__APPLE__) && !defined(ANDROID)
+```
+
+This caused two bugs on macOS:
+- `mbm.is('linux')` returned **`true`** on macOS (Apple piggy-backed on the Linux branch).
+- `mbm.is('macos')` always returned **`false`** (fell through to the `else` branch).
+
+The `onGet` platform block had the same preprocessor defect and was also missing `macos`.
+
+### Fix (`src/lua-wrap/framework-lua.cpp`)
+
+#### `onIs` — add `macos`, fix `linux`
+
+```cpp
+// linux: strictly __linux__ without Apple
+else if (strcasecmp(what, "linux") == 0)
+{
+#if defined __linux__ && !defined(__APPLE__)
+    lua_pushboolean(lua, 1);
+#else
+    lua_pushboolean(lua, 0);
+#endif
+}
+// NEW: macos
+else if (strcasecmp(what, "macos") == 0)
+{
+#if defined(__APPLE__) && !defined(ANDROID)
+    lua_pushboolean(lua, 1);
+#else
+    lua_pushboolean(lua, 0);
+#endif
+}
+```
+
+#### `onGet` platform block — add `macos`, fix per-platform matching
+
+```cpp
+if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 ||
+    strcasecmp(what, "linux") == 0   || strcasecmp(what, "macos") == 0)
+{
+#if defined _WIN32
+    lua_pushboolean(lua, strcasecmp(what, "windows") == 0 ? 1 : 0);
+#elif defined ANDROID
+    lua_pushboolean(lua, strcasecmp(what, "android") == 0 ? 1 : 0);
+#elif defined __linux__ && !defined(__APPLE__)
+    lua_pushboolean(lua, strcasecmp(what, "linux") == 0 ? 1 : 0);
+#elif defined(__APPLE__)
+    lua_pushboolean(lua, strcasecmp(what, "macos") == 0 ? 1 : 0);
+#else
+    lua_pushboolean(lua, 0);
+#endif
+}
+```
+
+### Known platform strings (case-insensitive)
+
+| String | Macro | Notes |
+|---|---|---|
+| `windows` | `_WIN32` | |
+| `android` | `ANDROID` | |
+| `linux` | `__linux__ && !__APPLE__` | |
+| `macos` | `__APPLE__ && !ANDROID` | **Added this session** |
+
+### Editors updated
+
+All 8 editors (`particle_editor`, `texture_packer`, `sprite_maker`, `shader_editor`, `asset_packager`, `physic_editor`, `mesh_debug`, `scene_editor2d`) had their About menu browser-open blocks updated to include `elseif mbm.is('macos') then os.execute('open "URL"')` in the same session.

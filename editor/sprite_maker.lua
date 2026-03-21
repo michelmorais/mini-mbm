@@ -825,6 +825,8 @@ function main_menu_sprite()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#sprite-maker"')
                 end
             end
             local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
@@ -833,6 +835,8 @@ function main_menu_sprite()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
 

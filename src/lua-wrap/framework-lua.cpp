@@ -655,7 +655,15 @@ namespace mbm
             }
             else if (strcasecmp(what, "linux") == 0)
             {
-    #if defined __linux__ || defined(__APPLE__) && !defined(ANDROID)
+    #if defined __linux__ && !defined(__APPLE__)
+                lua_pushboolean(lua, 1);
+    #else
+                lua_pushboolean(lua, 0);
+    #endif
+            }
+            else if (strcasecmp(what, "macos") == 0)
+            {
+    #if defined(__APPLE__) && !defined(ANDROID)
                 lua_pushboolean(lua, 1);
     #else
                 lua_pushboolean(lua, 0);
@@ -679,16 +687,19 @@ namespace mbm
         if (what)
         {
             DEVICE *device = DEVICE::getInstance();
-            if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 || strcasecmp(what, "linux") == 0)
+            if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 ||
+                strcasecmp(what, "linux") == 0   || strcasecmp(what, "macos") == 0)
             {
     #if defined _WIN32
-                lua_pushboolean(lua,1);
+                lua_pushboolean(lua, strcasecmp(what, "windows") == 0 ? 1 : 0);
     #elif defined ANDROID
-                lua_pushboolean(lua,1);
-    #elif defined __linux__ || defined(__APPLE__)
-                lua_pushboolean(lua,1);
+                lua_pushboolean(lua, strcasecmp(what, "android") == 0 ? 1 : 0);
+    #elif defined __linux__ && !defined(__APPLE__)
+                lua_pushboolean(lua, strcasecmp(what, "linux") == 0 ? 1 : 0);
+    #elif defined(__APPLE__)
+                lua_pushboolean(lua, strcasecmp(what, "macos") == 0 ? 1 : 0);
     #else
-                lua_pushboolean(lua,0);
+                lua_pushboolean(lua, 0);
     #endif
             }
             else if (strcasecmp(what, "version") == 0)
