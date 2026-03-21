@@ -1029,3 +1029,124 @@ and consumed by the Lua key-name table:
 | File | Change |
 |---|---|
 | `src/core_mbm/core-manager-metal-macos.mm` | Added `static NSEventModifierFlags previousModifierFlags = 0` + `NSEventTypeFlagsChanged` case |
+
+---
+
+## 20. Blend state on Metal
+
+### Problem
+
+Metal bakes the blend equation and blend factors into `MTLRenderPipelineState` at compile
+time — there is no `glBlendFunc` / `SetRenderState` equivalent that can change blending
+per draw call.  The engine's `RENDER_STATE::set(BLEND_STATE)` and `FX::setBlendOp()` are
+called at draw time; on the Metal stub they were no-ops, so all objects rendered with the
+same hardcoded `standardPSO` (alpha blend) regardless of what the scene requested.
+
+### Solution — two PSO variants per compiled shader
+
+`compileShader()` in `shader-metal.mm` already builds a `MBMPSOPair` holding:
+
+| PSO | Blend equation | Equivalent GL call |
+|---|---|---|
+| `standardPSO` | `src_alpha × src + (1−src_alpha) × dst` | `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)` |
+| `additivePSO` | `src_alpha × src + 1 × dst` | `glBlendFunc(GL_SRC_ALPHA, GL_ONE)` — `BLEND_ONE` |
+
+This covers the two modes used by all current engine content.
+
+### Implementation — `currentBlendState` field
+
+1. **`include/core_mbm/specific-metal.h`** — add a field to `SPECIFIC_AUX_CONTEXT_DEVICE`:
+   ```cpp
+   // Tracks the destination blend factor requested via RENDER_STATE::set().
+   // 2 = BLEND_ONE (additive); all others = standard alpha.
+   int currentBlendState = 2; // BLEND_ONE matches OpenGL default: GL_SRC_ALPHA, GL_ONE
+   ```
+
+2. **`src/core_mbm/blend-metal.mm`** — `RENDER_STATE::set()` stores the enum value:
+   ```cpp
+   void RENDER_STATE::set(const BLEND_STATE blendState) const noexcept
+   {
+       auto* dev = mbm::DEVICE::getInstance();
+       if (dev && dev->specificContextDevice)
+           dev->specificContextDevice->currentBlendState = static_cast<int>(blendState);
+   }
+   ```
+
+3. **`src/core_mbm/shader-metal.mm`** — `SHADER::render()` and `renderDynamic()` select
+   the PSO before each draw:
+   ```objc
+   // BLEND_ONE (2) = additive; all others = standard alpha blend.
+   [enc setRenderPipelineState:(ctx->currentBlendState == 2)
+       ? pair.additivePSO : pair.standardPSO];
+   ```
+
+### Blend equations (`setBlendOp` / `setBlendDefaultOp`)
+
+Both PSOs compile with `MTLBlendOperationAdd`.  `FX::setBlendOp()` values 2–5
+(SUBTRACT, REVERSE SUBTRACT, MIN, MAX) would require additional PSO variants compiled
+per shader.  They are not built currently — these three cases remain as documented no-ops
+and continue to render with the ADD equation.  If a scene uses subtract/min/max blending,
+add a third PSO variant to `MBMPSOPair` and select it via an extended `currentBlendState`
+check in `render()`.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `include/core_mbm/specific-metal.h` | Added `int currentBlendState = 2` to context struct |
+| `src/core_mbm/blend-metal.mm` | `RENDER_STATE::set()` stores blend state; `setBlendOp()` documented no-op |
+| `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select PSO via `currentBlendState` |
+
+---
+
+## 21. Mesh debug readback on Metal (`fillInSubsetDebug`)
+
+### Background
+
+`MESH_MBM_DEBUG::fillInSubsetDebug()` is called by `loadDebugFromMemory()` to copy
+vertex and index data from GPU buffers back to CPU memory for the in-engine mesh
+debug/editor visualisation (collision shapes, bone overlays, UV display).  On OpenGL ES
+this requires the `GL_OES_mapbuffer` extension to map VBOs.  On Direct3D 9 it is not
+implemented at all.
+
+### Metal advantage — Shared storage mode
+
+All Metal vertex and index buffers in this engine are created with
+`MTLResourceStorageModeShared`.  On Apple Silicon (and on Intel Macs with unified memory)
+the CPU and GPU share the same physical memory — `MTLBuffer.contents` is a valid, always-
+accessible CPU pointer.  No blit command, staging buffer, or synchronisation fence is
+needed to read back vertex data.
+
+### Implementation
+
+```objc
+const uint8_t* raw = static_cast<const uint8_t*>(bs->vertexBuffer.contents);
+```
+
+The interleaved layout (built by `buildInterleavedVB` in `shader-metal.mm`) is:
+
+| FVF | Stride | Layout |
+|---|---|---|
+| `FVF_POS` | 12 bytes | `float3 pos` |
+| `FVF_POS_UV` | 20 bytes | `float3 pos, float2 uv` |
+| `FVF_POS_NOR` | 24 bytes | `float3 pos, float3 normal` |
+| `FVF_POS_NOR_UV` | 32 bytes | `float3 pos, float3 normal, float2 uv` |
+
+`fillInSubsetDebug` walks the buffer with the correct stride and writes separate
+`pBuffer->position`, `pBuffer->normal`, and `pBuffer->uv` arrays that the debug system
+expects.
+
+### Special cases handled
+
+| Case | How handled |
+|---|---|
+| Index Buffer meshes (3D models) | Copies indices from `bs->indexBuffer.contents`; scans each subset to find `maxIndex`, derives `vertexCount` |
+| Vertex Buffer meshes (2D quads, lines) | Reads from `bs->vertexBuffer.contents` directly |
+| Dynamic shapes (fonts, skinned meshes) | Uses CPU-side `infoShape->dynamicVertex` / `dynamicUV` arrays — no GPU readback needed |
+| Font letter offsets | Applies per-frame `letterDiffX` / `letterDiffY` offsets after copying position data |
+
+### File changed
+
+| File | Change |
+|---|---|
+| `src/core_mbm/mesh-manager-metal.mm` | Full implementation replacing the `return false` stub |
