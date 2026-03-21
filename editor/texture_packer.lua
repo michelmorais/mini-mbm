@@ -325,7 +325,7 @@ function adjustTextureSize()
             local half_height = tTextureOptions.fHeight * 0.5
             local tVertex     = {-half_width ,-half_height,  -half_width,half_height,  half_width,-half_height,  half_width,half_height}
             local tUv
-            if mbm.get('USE_DIRECTX9') then
+            if mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL') then
                 tUv = {0,1, 0,0, 1,1, 1,0}
             else
                 tUv = {0,0, 0,1, 1,0, 1,1}

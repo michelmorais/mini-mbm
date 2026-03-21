@@ -1150,3 +1150,65 @@ expects.
 | File | Change |
 |---|---|
 | `src/core_mbm/mesh-manager-metal.mm` | Full implementation replacing the `return false` stub |
+
+---
+
+## 22. Render-to-texture UV flip in Lua editors (macOS/Metal)
+
+### Problem
+
+In the editor Lua scripts, the `render2texture` result is displayed by a `shape` quad whose
+UVs were only flipped for `USE_DIRECTX9`.  Metal stores render-target row 0 at the **top**
+(same convention as DirectX9) — not at the bottom like OpenGL ES — so the packed texture /
+animation preview appeared **upside-down** on macOS.
+
+### Root cause
+
+`RENDER_2_TEXTURE::fillvertexQuad()` already handles the flip correctly for the C++ side
+(see the `#elif defined(USE_DIRECTX9) || defined(USE_METAL)` block in `render-2-texture.cpp`).
+However the Lua-side quads that _display_ the render-to-texture result had a separate guard
+that only checked `USE_DIRECTX9`.
+
+### Fix pattern
+
+Every place in an editor script that builds quad UVs (or passes `bFlipV`) based on
+`mbm.get('USE_DIRECTX9')` must also include `mbm.get('USE_METAL')`:
+
+```lua
+-- BEFORE (broken on Metal)
+if mbm.get('USE_DIRECTX9') then
+    tUv = {0,1, 0,0, 1,1, 1,0}
+else
+    tUv = {0,0, 0,1, 1,0, 1,1}
+end
+
+-- AFTER (correct for Metal + DirectX9)
+if mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL') then
+    tUv = {0,1, 0,0, 1,1, 1,0}
+else
+    tUv = {0,0, 0,1, 1,0, 1,1}
+end
+```
+
+The same applies to boolean `bFlipV` flags passed to `tImGui.Image(...)`.
+
+### Files changed
+
+| File | Location | Change |
+|---|---|---|
+| `editor/texture_packer.lua` | `adjustTextureSize()` — quad UV for display shape | Added `or mbm.get('USE_METAL')` |
+| `editor/sprite_maker.lua` | `getOrCreateShapeForAnimImage()` — animation preview quad UV | Added `or mbm.get('USE_METAL')` |
+| `editor/sprite_maker.lua` | `addDynamicTextureToImGuiImage()` — `bFlipV` for ImGui image | Added `or mbm.get('USE_METAL')` |
+
+### Rule for future editors
+
+When a Lua editor script renders a `render2texture` result via a `shape:createIndexed` quad
+or `tImGui.Image`, the UV/flip condition must be:
+
+```lua
+if mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL') then
+    -- V=0 at top (flip compared to OpenGL)
+else
+    -- V=0 at bottom (OpenGL ES default)
+end
+```
