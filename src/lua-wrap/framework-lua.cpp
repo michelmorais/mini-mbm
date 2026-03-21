@@ -39,6 +39,7 @@
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader.h>
 #include <core_mbm/shader-var-cfg.h>
+#include <core_mbm/shader-resource.h>
 #include <core_mbm/core-manager.h>
 #include <core_mbm/vigenere.h>
 #include <core_mbm/plugin-callback.h>
@@ -2194,6 +2195,16 @@ namespace mbm
         return 1;
     }
 
+    int onGetParticleShaderCode(lua_State *lua)
+    {
+        const char *code = getParticlePSCode();
+        if (code)
+            lua_pushstring(lua, code);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onRefresh(lua_State * )
     {
         //force refresh window by sending resize event
@@ -2533,6 +2544,7 @@ namespace mbm
             {"getShaderList", onGetShaderList},
             {"existShader", onExistShader},
             {"addShader", onAddShader},
+            {"getParticleShaderCode", onGetParticleShaderCode},
             {"sortShader", onSortShader },
             {"inputBox", onInputDialogBox},
             {"inputPassword", onInputPasswordBox},
