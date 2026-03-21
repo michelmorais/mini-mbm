@@ -488,68 +488,28 @@ float ey = backBufferHeight - os_y;  // both in logical points — no scale fact
 
 ## 14. Milestone checklist
 
-Implement features in this order to reach a testable state as early as possible:
+Implement features in this order to reach a testable state as early as possible.
+For each milestone, check the Metal implementation in `src/core_mbm/shader-metal.mm`
+and `src/core_mbm/texture-manager-metal.mm` as a concrete reference.
 
-- [x] **M1 — Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
+- [ ] **M1 — Window + clear screen**: `initGraphics`, `beginRender`, `endRender`,
       `swapBuffers`, background color.  Run testLib; a coloured window should appear.
-- [x] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
+- [ ] **M2 — Textures**: `TEXTURE::loadFromData`, `TEXTURE::loadFromResourceData`,
       `TEXTURE::release`.  PNG images should decode and display.
-- [x] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
+- [ ] **M3 — Shaders + static buffers**: `compileShader`, `loadBuffer(VB)`,
       `loadBuffer(IB)`, `render`.  3D meshes and 2D quads should draw correctly.
-- [x] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
+- [ ] **M4 — Culling + depth**: apply `mode_cull_face` + `mode_front_face_direction` per
       draw call; attach depth buffer to render pass.  Meshes should stop showing inner faces.
-- [x] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
+- [ ] **M5 — Dynamic buffers**: `loadBufferDynamic`, `updateDynamic`.
       Skinned meshes, line meshes, and text rendering require this.
-- [x] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
-- [x] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
-- [x] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
-      `VAR_SHADER` constructor with backend handle.
-  - ✅ `addVar`, `update`, `VAR_SHADER` constructor fully implemented for Metal.
-  - ✅ Particles (`renderParticle`), steered particles (`FLUID_GROUP`), and
-        dual-PSO blend modes (standard + additive) working.
-  - ✅ Combined VS+PS compilation (`scale.vs` + `blend.ps`) working — the VS
-        default `frag_main` is stripped and the PS `frag_main` appended.
-  - ✅ **FVF attribute-index fix** (`patchVInStruct`): prewritten VS programs
-        (`scale.vs`, `simple texture.vs`) hardcoded `uv [[attribute(1)]]`.
-        For `FVF_POS_NOR_UV` meshes the Metal interleaved vertex descriptor
-        places the normal at `[[attribute(1)]]` and UV at `[[attribute(2)]]`;
-        the hardcoded index caused the vertex shader to read normal data as UV
-        coordinates, sampling garbage texels.  `compileShader` now calls
-        `patchVInStruct(vsStr, fvf)` to replace the `struct VIn` block with the
-        FVF-correct attribute indices before pipeline compilation.
-        *Note: OpenGL ES is unaffected because it binds each stream to a separate
-        VBO and looks up `aTextCoord` by name, not by attribute index.*
-  - ⚠️ **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5**:
-        observed on **both** Linux/OpenGL ES and macOS/Metal.  When all three
-        `scale` components exceed ≈ 0.5 the rendered sprite becomes invisible;
-        below 0.5 it is visible.  The same vertex shader combined with other
-        pixel shaders (e.g. `bands.ps + scale.vs`) renders correctly even at
-        very high scale values (verified at 6.67).  Root cause is under
-        investigation; the most likely explanation is that `blend.ps` samples
-        `sample1` (its second texture) which is not bound for the test sprite
-        (`box.spt` has only one texture), causing the blend formula to produce
-        degenerate or fully-transparent output under certain GPU/driver
-        implementations.  Not a blocker for M8 completion.
-- [x] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
-- [x] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
-  - ✅ `saveAsPNG`: implemented via `MTLBlitCommandEncoder` staging blit in
-        `render-2-texture-metal.mm`.  Triggered by right mouse button in the test
-        scene (`onTouchDown key==1`) when a `RENDER_2_TEXTURE` object is active.
-  - ✅ **Pixel-perfect filtering**: implemented.  `SPECIFIC_AUX_CONTEXT_DEVICE`
-        now holds two `MTLSamplerState` objects — `defaultSampler` (bilinear +
-        clamp-to-edge for normal rendering) and `nearestSampler` (point filter +
-        repeat, for tile-map rendering).  `disableFilteringForPixelPerfect()` sets
-        `useNearestSampler = true` on the context; `enableFilteringAfterPixelPerfect()`
-        clears it.  `getOrCreateSampler()` in `shader-metal.mm` lazily creates both
-        samplers and returns the active one.  All `render()` / `renderDynamic()` /
-        `renderParticle()` call sites use `getOrCreateSampler()`, so the switch is
-        automatic with no per-draw-call overhead.  Fixes the black gap lines that
-        appeared between tile-map tiles when bilinear filtering sampled across tile
-        boundaries.
-  - ✅ **HMD**: `HMD.cpp` is platform-agnostic and compiles for Metal without
-        modification.  It is built on top of `RENDER_2_TEXTURE` (M7, already
-        implemented), so no Metal-specific stubs are needed.  The class has not been
-        exercised in the Metal test scene yet (it is driven via Lua in practice).
+- [ ] **M6 — Particles**: `loadParticleBuffer`, `renderParticle(PARTICLE_CONTROL*)`.
+- [ ] **M7 — Render-to-texture**: `createTextureRenderTarget`, `renderToTargets`.
+- [ ] **M8 — Custom shaders**: `BASE_SHADER::addVar`, `BASE_SHADER::update`,
+      `VAR_SHADER` constructor with backend handle.  See §15 for the shader catalogue
+      and §A2 for Metal-specific notes (PSO variants, FVF attribute patching).
+- [ ] **M9 — Fluid particles**: `renderParticle(FLUID_GROUP*)`.
+- [ ] **M10 — Utilities**: `saveAsPNG`, pixel-perfect filtering, HMD support.
+      `HMD.cpp` is platform-agnostic and builds on M7.
 
 ---
 
@@ -954,7 +914,16 @@ two states and switch between them at draw time.
 
 ---
 
-## 19. macOS modifier-key events (Shift, Control, Option, Command)
+---
+
+# Appendix A — macOS / Metal implementation notes
+
+This appendix documents macOS- and Metal-specific behaviour.  A Vulkan, PlayStation, or
+other backend implementor can skip this section entirely during the initial port.
+
+---
+
+## A1. macOS modifier-key events (Shift, Control, Option, Command)
 
 ### Problem
 
@@ -1032,7 +1001,7 @@ and consumed by the Lua key-name table:
 
 ---
 
-## 20. Blend state on Metal
+## A2. Blend state on Metal
 
 ### Problem
 
@@ -1097,9 +1066,14 @@ check in `render()`.
 | `src/core_mbm/blend-metal.mm` | `RENDER_STATE::set()` stores blend state; `setBlendOp()` documented no-op |
 | `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select PSO via `currentBlendState` |
 
+**M8 additional notes (Metal):**
+- `VAR_SHADER` fields must appear **in CFG declaration order** so byte-offset handles computed by `VAR_SHADER::ptrHandleVar` are correct.
+- Prewritten VS programs (`scale.vs`, `simple texture.vs`) hardcode `uv [[attribute(1)]]`. For `FVF_POS_NOR_UV` meshes the normal sits at slot 1 and UV at slot 2 — call `patchVInStruct(vsStr, fvf)` in `compileShader` to rewrite the `struct VIn` block.
+- **Known issue — `blend.ps + scale.vs` invisible when scale > 0.5** (seen on both OpenGL ES and Metal): `blend.ps` always samples `sample1`; if only one texture is bound the blend formula collapses to transparent. Always bind a 1×1 white placeholder when using `blend.ps` with a single-texture object.
+
 ---
 
-## 21. Mesh debug readback on Metal (`fillInSubsetDebug`)
+## A3. Mesh debug readback on Metal (`fillInSubsetDebug`)
 
 ### Background
 
@@ -1153,14 +1127,22 @@ expects.
 
 ---
 
-## 22. Render-to-texture UV flip in Lua editors (macOS/Metal)
+# Appendix B — Lua / editor layer notes
+
+This appendix documents issues in the Lua editor scripts and the `mbm.*` Lua API.  These
+are not backend implementation concerns — they apply once the C++ render backend is solid
+and Lua integration is enabled.
+
+---
+
+## B1. Render-to-texture UV flip in Lua editors (top-origin vs bottom-origin backends)
 
 ### Problem
 
 In the editor Lua scripts, the `render2texture` result is displayed by a `shape` quad whose
-UVs were only flipped for `USE_DIRECTX9`.  Metal stores render-target row 0 at the **top**
-(same convention as DirectX9) — not at the bottom like OpenGL ES — so the packed texture /
-animation preview appeared **upside-down** on macOS.
+UVs were only flipped for `USE_DIRECTX9`.  Metal and Vulkan store render-target row 0 at
+the **top** (same convention as DirectX9) — not at the bottom like OpenGL ES — so the
+packed texture / animation preview appeared **upside-down** on macOS.
 
 ### Root cause
 
@@ -1207,15 +1189,18 @@ or `tImGui.Image`, the UV/flip condition must be:
 
 ```lua
 if mbm.get('USE_DIRECTX9') or mbm.get('USE_METAL') then
-    -- V=0 at top (flip compared to OpenGL)
+    -- V=0 at top: DirectX9, Metal, Vulkan (VK_KHR_maintenance1 default)
 else
-    -- V=0 at bottom (OpenGL ES default)
+    -- V=0 at bottom: OpenGL ES
 end
 ```
 
+> If you add a new top-origin backend (e.g. Vulkan), add its `mbm.get('USE_VULKAN')`
+> check to every such condition in the editor scripts.
+
 ---
 
-## 23. Particle editor shader — use `mbm.getParticleShaderCode()` instead of hardcoded GLSL
+## B2. Particle editor shader — use `mbm.getParticleShaderCode()` instead of hardcoded GLSL
 
 ### Problem
 
@@ -1298,25 +1283,23 @@ Never hardcode GLSL in Lua editor scripts. For particle shaders always call `mbm
 
 ---
 
-## 24. `mbm.is('macos')` — missing platform + `linux` bug in `onIs` / `onGet`
+## B3. `mbm.is()` / `mbm.get()` — adding a new platform string
 
-### Problem
+When you add a new backend, also add its platform name to `onIs` and `onGet` in
+`src/lua-wrap/framework-lua.cpp` so that `mbm.is('yourplatform')` works in Lua.
 
-In `src/lua-wrap/framework-lua.cpp`, the `onIs` function only handled `windows`, `android`, and `linux`. The `linux` branch used:
+### Bug history — `macos` was missing, `linux` returned `true` on macOS
+
+The original `linux` branch used:
 
 ```cpp
 #if defined __linux__ || defined(__APPLE__) && !defined(ANDROID)
 ```
 
-This caused two bugs on macOS:
-- `mbm.is('linux')` returned **`true`** on macOS (Apple piggy-backed on the Linux branch).
-- `mbm.is('macos')` always returned **`false`** (fell through to the `else` branch).
+This made `mbm.is('linux')` return `true` on macOS and `mbm.is('macos')` always
+return `false`.  Fixed during the Metal port.
 
-The `onGet` platform block had the same preprocessor defect and was also missing `macos`.
-
-### Fix (`src/lua-wrap/framework-lua.cpp`)
-
-#### `onIs` — add `macos`, fix `linux`
+### Pattern — `onIs` branch for a new platform
 
 ```cpp
 // linux: strictly __linux__ without Apple
