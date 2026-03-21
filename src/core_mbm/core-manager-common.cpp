@@ -51,10 +51,10 @@ namespace mbm
             return -1;
         if (!variablesInitialized)
         {
-            // Cfg shader from memory----
+            // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
-                PRINT_IF_DEBUG("\nerror on Parse CFG from memory.");
+                PRINT_IF_DEBUG("\nerror on Parse CFG from resource.");
                 return -1;
             }
             this->device->cfg.sortShader();

@@ -764,7 +764,10 @@ namespace mbm
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pair = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pair.standardPSO];
+            // Select PSO based on blend state set by RENDER_STATE::set().
+            // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
+            [enc setRenderPipelineState:(ctx->currentBlendState == 2)
+                ? pair.additivePSO : pair.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
             [enc setDepthStencilState: ctx->depthTestEnabled
@@ -888,7 +891,10 @@ namespace mbm
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pairD = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pairD.standardPSO];
+            // Select PSO based on blend state set by RENDER_STATE::set().
+            // BLEND_ONE (2) = additive (src_alpha*src + 1*dst); all others = standard alpha.
+            [enc setRenderPipelineState:(ctx->currentBlendState == 2)
+                ? pairD.additivePSO : pairD.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:metalCullMode(pBufferId->mode_cull_face)];
             [enc setDepthStencilState: ctx->depthTestEnabled

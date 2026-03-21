@@ -105,6 +105,12 @@ namespace mbm
         // SHADER::render() reads this to choose between defaultDepthStencilState and noDepthStencilState.
         bool depthTestEnabled               = true;
 
+        // Tracks the destination blend factor requested via RENDER_STATE::set().
+        // Stored as the raw BLEND_STATE enum integer to avoid including blend.h here.
+        // 2 = BLEND_ONE (additive) — matches the OpenGL default: glBlendFunc(GL_SRC_ALPHA, GL_ONE).
+        // SHADER::render() and renderDynamic() read it to select standardPSO vs additivePSO.
+        int currentBlendState               = 2; // BLEND_ONE
+
         // Depth-stencil state: less comparison + depth write enabled (created on first use).
         id<MTLDepthStencilState> defaultDepthStencilState = nil;
 
