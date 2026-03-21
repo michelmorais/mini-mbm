@@ -24,10 +24,11 @@
 
 namespace mbm
 {
+	// we only export symbols that are used by the engine, so we can hide the shader code in the implementation files and avoid exposing it in the header.
     const char** getShaderEngineBuiltIn();
     const char* getCodePScolorFor_LINE_MESH();
     const char* getCodeVScolorFor_LINE_MESH();
-    const char* getParticlePSCode();
+    API_IMPL const char* getParticlePSCode();
     const char* getParticleVSCode();
 
     const char* getSteeredParticlePSCode(bool hasColor);
@@ -38,7 +39,7 @@ namespace mbm
     void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept;
     bool useDefaultPSWhenNoShader() noexcept;
     bool useDefaultVSWhenNoShader() noexcept;
-    void setPSVersion(const char * version);
-    void setVSVersion(const char* version);
+	API_IMPL void setPSVersion(const char* version);// If the shader need version e.g.Direcxt9 (ps_2_0), we can set the version.
+    API_IMPL void setVSVersion(const char* version);// If the shader need version e.g.Direcxt9 (vs_2_0), we can set the version.
 }
 #endif

@@ -19,6 +19,7 @@
 
 #if defined (USE_DUMMY_BACK_END_ENGINE)
 
+#include <core_mbm/core-exports.h>
 #include <string>
 #include <stdio.h>
 
@@ -589,7 +590,7 @@ namespace mbm
         return codeVsColor_LINE_MESH;
     }
 
-    const char* getParticlePSCode()
+    API_IMPL const char* getParticlePSCode()
     {
         static const char* psParticleCode = "TODO";
 

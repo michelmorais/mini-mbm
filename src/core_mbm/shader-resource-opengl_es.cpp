@@ -19,6 +19,7 @@
 
 #if defined (USE_OPENGL_ES)
 
+#include <core_mbm/core-exports.h>
 #include <stdio.h>
 #include <string>
 
@@ -2592,7 +2593,7 @@ namespace mbm
         return codeVsColor_LINE_MESH;
     }
 
-    const char* getParticlePSCode()
+    API_IMPL const char* getParticlePSCode()
     {
         static const char* psParticleCode = "precision mediump float;\n"
             "uniform vec4 color;\n"
