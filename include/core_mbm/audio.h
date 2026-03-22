@@ -26,13 +26,15 @@
 #include <vector>
 
 #if defined(AUDIO_ENGINE_AUDIERE)
-	#include <audiere-1.9.4/src/audiere.h>
-	#if defined(_WIN32)
-		#pragma comment(lib, "audiere.lib")
-	#endif
+		#include <audiere-1.9.4/src/audiere.h>
+		#if defined(_WIN32)
+			#pragma comment(lib, "audiere.lib")
+		#endif
 #elif defined(AUDIO_ENGINE_PORT_AUDIO)
-	#include <pa-wave.h>
-	#include <memory>
+		#include <pa-wave.h>
+		#include <memory>
+#elif defined(AUDIO_ENGINE_AVFOUNDATION)
+		#include <memory>
 #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 	#include <dsound.h>
 	#include <mmreg.h>
@@ -84,6 +86,9 @@ namespace mbm
 		audiere::OutputStreamPtr sound;
 	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
 		std::unique_ptr<PA_WAVE> pa_wave;
+	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------
+		struct AVFAudioData;  // defined in audio-avfoundation.mm (Objective-C++)
+		std::unique_ptr<AVFAudioData> avf_data;
 	#elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)//  AUDIO_ENGINE_DIRECT_SOUND_8 -----------------------------------------------
 		bool update();
 	private:

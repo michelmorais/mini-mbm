@@ -33,6 +33,12 @@
     #endif
 #endif
 
+// Forward-declarations for AVFoundation audio engine helpers defined in audio-avfoundation.mm
+#if defined(AUDIO_ENGINE_AVFOUNDATION)
+extern "C" void avfoundation_audio_init(void);
+extern "C" void avfoundation_audio_release(void);
+#endif
+
 namespace mbm
 {
 #if defined(AUDIO_ENGINE_AUDIERE)
@@ -54,6 +60,8 @@ namespace mbm
         if (!AUDIO_MANAGER::audioDevice)
             ERROR_LOG("Failed opening Audiere audio device");
         AUDIO_MANAGER::audioDevice->registerCallback(new AUDIO_MANAGER::STOP_AUDIERE());//leak*** :( for some reason if we destroy callback from audiere before detach it (DLL), it crashes. so, we make this leak.
+        #elif defined(AUDIO_ENGINE_AVFOUNDATION)
+        avfoundation_audio_init();
         #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
         m_directSound = nullptr;
         if (FAILED(DirectSoundCreate8(nullptr, &m_directSound, nullptr )))
@@ -90,6 +98,8 @@ namespace mbm
         if(m_directSound != nullptr)
             m_directSound->Release();
         m_directSound = nullptr;
+        #elif defined(AUDIO_ENGINE_AVFOUNDATION)
+        avfoundation_audio_release();
         #endif
     }
 
@@ -113,11 +123,15 @@ namespace mbm
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
         const int idScene = device->scene ? device->scene->getIdScene() : -1;
         const size_t s1 = audios.size();
+        // Only reuse an existing instance if it is NOT currently playing.
+        // Reusing a playing instance would interrupt it — causing the "muted"
+        // effect when many enemies trigger the same sound simultaneously.
         for (size_t i = 0; i < s1; ++i)
         {
             AUDIO* my_audio = audios[i];
             if (my_audio->idScene != idScene && 
-                my_audio->fileName.compare(fileName) == 0)
+                my_audio->fileName.compare(fileName) == 0 &&
+                !my_audio->isPlaying())
             {
                 my_audio->idScene = idScene;//make this sound belongs to this scene
                 return my_audio;
@@ -129,7 +143,8 @@ namespace mbm
         {
             AUDIO* my_audio = audiosToDelete[i];
             if (my_audio->idScene != idScene &&
-                my_audio->fileName.compare(fileName) == 0)
+                my_audio->fileName.compare(fileName) == 0 &&
+                !my_audio->isPlaying())
             {
                 my_audio->idScene = idScene;//make this sound belongs to this scene
                 PRINT_IF_DEBUG("Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
