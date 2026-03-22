@@ -378,6 +378,7 @@
     <ClCompile Include="..\..\third-party\miniz\miniz_tinfl.c" />
     <ClCompile Include="..\..\third-party\miniz\miniz_zip.c" />
     <ClCompile Include="..\..\third-party\stb\stb.c" />
+    <ClCompile Include="..\..\third-party\stb\stb_vorbis.c" />
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
     <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />

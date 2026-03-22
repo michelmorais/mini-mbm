@@ -85,6 +85,9 @@
     <Filter Include="Source Files\platform">
       <UniqueIdentifier>{f6640f30-9a6c-48e8-b388-e8f406637295}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\audio-codec">
+      <UniqueIdentifier>{cc5c93d4-d082-47b2-aaf0-15cceed2627e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h">
@@ -661,6 +664,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp">
       <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\stb\stb_vorbis.c">
+      <Filter>Source Files\audio-codec</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
