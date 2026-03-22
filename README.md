@@ -849,10 +849,16 @@ No code signing is required for Simulator builds.
 > **Important:** Run all `xcodebuild` commands from the **repo root** (`mini-mbm/`), not from inside `build/`.
 
 ```bash
-# See which simulators are available on your machine:
-xcrun simctl list devices available | grep -E "iPhone|iPad"
+# See which simulators are available (shows OS version headers + device names):
+xcrun simctl list devices available | grep -E "iOS [0-9]|iPhone|iPad"
 
-# Build (from repo root — substitute name and OS from the list above):
+# The output groups devices under OS version headers, e.g.:
+#   -- iOS 26.1 --
+#       iPhone 17 (8B35B6FC-...) (Shutdown)
+# Use the device name and its section header as the OS value:
+#   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1"
+
+# Build (from repo root — substitute name and OS from the output above):
 xcodebuild -project build/mini-mbm.xcodeproj \
            -scheme mini-mbm \
            -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
