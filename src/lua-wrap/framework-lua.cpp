@@ -125,7 +125,7 @@ namespace mbm
         return iv;
     }
 
-    #if !defined ANDROID
+    #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
     int onExecuteInOtherThread(lua_State *lua)
     {
         std::string command              = luaL_checkstring(lua,1);
@@ -2583,7 +2583,7 @@ namespace mbm
             {"setMinMaxWindowSize", onSetMinMaxWindowSizeLua},
             {"pauseAudioOnPauseGame", onPauseAudioOnPauseGame },
             
-    #if !defined ANDROID
+    #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
             {"executeInThread", onExecuteInOtherThread},
             #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},

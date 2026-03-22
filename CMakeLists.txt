@@ -396,12 +396,21 @@ else()
 
     elseif(PLAT_LOWER STREQUAL "ios")
 
-        set(CMAKE_SYSTEM_NAME           "iOS")
-        set(CMAKE_OSX_ARCHITECTURES     "arm64")   # All modern iPhone/iPad; add x86_64 for simulator
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0")    # Metal guaranteed on iOS 8+; 14 gives modern API surface
+        # These must be in the CMake cache before project() runs its compiler-detection
+        # step, otherwise the Xcode generator cannot find the iOS SDK clang.
+        # Using CACHE ... FORCE guarantees that even on a fresh (empty-cache) configure.
+        set(CMAKE_SYSTEM_NAME           "iOS"    CACHE STRING "Target platform" FORCE)
+        set(CMAKE_OSX_SYSROOT           "iphoneos" CACHE STRING "iOS SDK sysroot" FORCE)
+        set(CMAKE_OSX_ARCHITECTURES     "arm64"  CACHE STRING "iOS architectures" FORCE)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0"   CACHE STRING "iOS deployment target" FORCE)
+
         set(ENGINE_TARGET_PLATFORM      "iOS")
         set(FOLDER_ARCHITECTURE         "iphoneos_arm64")
         add_definitions(-DMBM_PLATFORM_IOS)
+
+        # Allow the caller to override for Simulator:  -DCMAKE_OSX_SYSROOT=iphonesimulator
+        # Note: command-line -D values are stored in the cache first, so they win over FORCE here only
+        # if passed on the very same cmake invocation.  Wipe the build dir to change the sysroot.
         #success
         set(CMAKE_SUCCESS_SET_PLAT           1)
 

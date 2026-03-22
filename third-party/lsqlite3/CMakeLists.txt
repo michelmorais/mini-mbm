@@ -17,6 +17,8 @@ elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_LINUX)
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     message(STATUS " CMAkE sqlite3 Configuration for Apple (not working yet!!!) is set...")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_IOS)
 else()
   message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
@@ -44,14 +46,21 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
-    ####
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    #pthreads — libc on iOS already includes pthread; REQUIRED avoids link errors
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
 endif()
 
 file(GLOB SOURCES "${SQLITE_SRC}/*.c" "${SQLITE_SRC}/*.cpp")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
-#Generate the static library from the sources
-add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES} )
+# iOS requires static libraries (App Store sandbox)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${SQLITE3_LUA_LIBRARY} STATIC ${SOURCES})
+else()
+    add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES})
+endif()
 
 target_link_libraries(${SQLITE3_LUA_LIBRARY} ${LUA_LIBRARY})
 target_link_libraries(${SQLITE3_LUA_LIBRARY} ${CORE_MBM_LIBRARY})

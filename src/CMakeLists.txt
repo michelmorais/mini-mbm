@@ -42,7 +42,11 @@ if (USE_LUA)
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-iOS.mm)
-        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
+        set(IOS_PLATFORM_SOURCES
+            ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm)
+        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC} ${IOS_PLATFORM_SOURCES}
             PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
@@ -67,6 +71,10 @@ else()
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-macos/my-scene.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
+        set(IOS_PLATFORM_SOURCES
+            ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm)
         # iOS uses UIApplicationMain; no separate my-scene.cpp
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
@@ -214,6 +222,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
 
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
+                            ${IOS_PLATFORM_SOURCES}
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
@@ -222,6 +231,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
                             ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
+                            ${IOS_PLATFORM_SOURCES}
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
@@ -232,6 +242,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist)
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
+    target_link_libraries(mini-mbm "-framework Metal")
+    target_link_libraries(mini-mbm "-framework AVFoundation")
+    target_link_libraries(mini-mbm "-framework AudioToolbox")
+    target_link_libraries(mini-mbm "-framework Foundation")
 
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")

@@ -2,8 +2,6 @@
 | MIT License — see main-lua.mm for full text.                                                                           |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(MBM_PLATFORM_IOS)
-
 #import "MetalViewController.h"
 
 #include <lua-wrap/manager-lua.h>
@@ -237,5 +235,3 @@ static mbm::LUA_MANAGER* s_game = nullptr;
 }
 
 @end
-
-#endif // MBM_PLATFORM_IOS

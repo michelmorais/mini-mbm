@@ -228,8 +228,12 @@ namespace mbm
         if (plugin)
         {
             this->lsPlugins.push_back(plugin);
-            // Provide the NSWindow as the platform handle (cast to void*).
+            // Provide the window/view as the platform handle (cast to void*).
+#if TARGET_OS_IOS
+            void* handle = (__bridge void*)this->device->specificContextDevice->metalView;
+#else
             void* handle = (__bridge void*)this->device->specificContextDevice->window;
+#endif
             plugin->onSubscribe(
                 static_cast<int>(this->device->backBufferWidth),
                 static_cast<int>(this->device->backBufferHeight),
@@ -242,6 +246,10 @@ namespace mbm
 
     void CORE_MANAGER::setMinMaxSizeWindow(int32_t min_x, int32_t min_y, int32_t max_x, int32_t max_y)
     {
+#if TARGET_OS_IOS
+        (void)min_x; (void)min_y; (void)max_x; (void)max_y;
+        // iOS windows are always full-screen; min/max size is not applicable.
+#else
         NSWindow* win = this->device->specificContextDevice->window;
         if (!win) return;
 
@@ -257,6 +265,7 @@ namespace mbm
         {
             [win setMaxSize:NSMakeSize(FLT_MAX, FLT_MAX)];
         }
+#endif
     }
 
 } // namespace mbm

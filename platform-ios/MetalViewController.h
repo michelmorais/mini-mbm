@@ -4,8 +4,6 @@
 
 #pragma once
 
-#if defined(MBM_PLATFORM_IOS)
-
 #import <UIKit/UIKit.h>
 #import "MBMMetalView.h"
 
@@ -18,5 +16,3 @@
 @interface MetalViewController : UIViewController
 
 @end
-
-#endif // MBM_PLATFORM_IOS

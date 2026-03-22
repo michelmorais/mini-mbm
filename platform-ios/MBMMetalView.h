@@ -4,8 +4,6 @@
 
 #pragma once
 
-#if defined(MBM_PLATFORM_IOS)
-
 #import <UIKit/UIKit.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -17,5 +15,3 @@
 @property (nonatomic, readonly) CAMetalLayer* metalLayer;
 
 @end
-
-#endif // MBM_PLATFORM_IOS

@@ -197,33 +197,50 @@ int main() {
 
 The iOS port uses UIKit + Metal.  It requires **Xcode 15+** with the iOS SDK installed.
 
-**1. Generate an Xcode project:**
+**1. Generate an Xcode project** (run once, from the repo root):
 
 ```bash
-cmake -B build/ios_debug \
+mkdir -p build && cd build
+cmake .. \
       -DPLAT=iOS \
       -DUSE_ALL=1 \
       -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+      -DAUDIO=avfoundation \
       -DCMAKE_BUILD_TYPE=Debug \
       -G Xcode
 ```
 
-**2. Set up code signing, then build to the Simulator:**
+**2a. Build via the command line** (iOS Simulator, no signing required):
 
 ```bash
-# Open in Xcode — set Team + Bundle ID under Signing & Capabilities
-open build/ios_debug/mini-mbm.xcodeproj
+# List available simulators first:
+xcodebuild -project build/mini-mbm.xcodeproj -scheme mini-mbm -showdestinations | grep Simulator
 
-# Or build directly to the iOS Simulator from the command line (no signing needed)
-xcodebuild -project build/ios_debug/mini-mbm.xcodeproj \
+# Build (replace name/OS with one from the list above)
+xcodebuild -project build/mini-mbm.xcodeproj \
            -scheme mini-mbm \
-           -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
-           -configuration Debug build
+           -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
+           -configuration Debug \
+           build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
 ```
 
-**3. Place your Lua scripts** in the app bundle under `Resources/`.  CMake copies any
-files listed as `RESOURCE` properties of the target into the `.app` bundle automatically
-when building with the Xcode generator.  The engine entry point is `Resources/main.lua`.
+**2b. Build via the Xcode IDE:**
+
+1. Open the project: `open build/mini-mbm.xcodeproj`
+2. In the toolbar, click the **scheme selector** (shows `mini-mbm`) — keep it as-is.
+3. Click the **destination selector** next to it → choose a Simulator (e.g. *iPhone 17 (iOS 26.1)*).
+4. Press **⌘B** (Product → Build).
+5. Errors appear in the **Issue Navigator** (⌘5 / triangle icon on the left sidebar).
+
+**3. Deploy to a physical device** (requires an Apple Developer account):
+
+1. Connect your iPhone/iPad.
+2. In Xcode → **Signing & Capabilities** tab → set **Team** and **Bundle Identifier**.
+3. Select your device in the destination selector.
+4. Press **⌘R** to build and run.
+
+**4. Place your Lua scripts** in the app bundle under `Resources/`.  The engine entry
+point is `Resources/main.lua`.
 
 > **Notes:**
 > - All plugins are **statically linked** on iOS (App Store sandbox forbids dynamic loading).
@@ -232,10 +249,6 @@ when building with the Xcode generator.  The engine entry point is `Resources/ma
 > - Touch events are routed via UIKit (`onTouchDown/Move/Up`); mouse events are not used.
 > - Orientation is locked to **landscape** by default (edit `Info.plist` and
 >   `MetalViewController` to add portrait support).
->
-> To target a **physical device** instead of the Simulator, connect the device, select it
-> in Xcode under *Destinations*, and build normally.  A valid Apple Developer account is
-> required for on-device deployment.
 
 ---
 
@@ -809,39 +822,78 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 
 Requires **Xcode 15+** with the iOS SDK (`xcode-select -p` should point to Xcode).
 
+> **First-time setup:** Open Xcode once and complete the first-launch SDK install, then run
+> `sudo xcodebuild -license accept && xcodebuild -runFirstLaunch` to install platform tools.
+
+#### 1. Generate the Xcode project
+
+Run this once from the repo root:
+
 ```bash
-# Generate Xcode project (arm64 device)
-cmake -B build/ios_debug \
+mkdir -p build && cd build
+cmake .. \
       -DPLAT=iOS \
       -DUSE_ALL=1 \
       -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+      -DAUDIO=avfoundation \
       -DCMAKE_BUILD_TYPE=Debug \
       -G Xcode
-
-# Build to the iOS Simulator (no code-signing required)
-xcodebuild -project build/ios_debug/mini-mbm.xcodeproj \
-           -scheme mini-mbm \
-           -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
-           -configuration Debug build
-
-# Or open in Xcode for device deployment (requires Apple Developer account)
-open build/ios_debug/mini-mbm.xcodeproj
 ```
 
-For the Simulator you can also override the sysroot at CMake time:
+This writes the Xcode project to `build/mini-mbm.xcodeproj`.
+
+#### 2a. Build from the command line (Simulator)
+
+No code signing is required for Simulator builds:
 
 ```bash
-cmake -B build/ios_sim \
-      -DPLAT=iOS \
-      -DUSE_ALL=1 \
-      -DCMAKE_OSX_SYSROOT=iphonesimulator \
-      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -G Xcode
+# See which simulators are available on your machine:
+xcodebuild -project build/mini-mbm.xcodeproj \
+           -scheme mini-mbm \
+           -showdestinations 2>&1 | grep "iOS Simulator"
+
+# Build (substitute name and OS from the list above):
+xcodebuild -project build/mini-mbm.xcodeproj \
+           -scheme mini-mbm \
+           -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
+           -configuration Debug \
+           build 2>&1 | tee /tmp/ios-build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
 ```
 
-> **Note:** All plugins are statically linked on iOS (App Store sandbox). The launcher
-> dialog is skipped; the engine launches `Resources/main.lua` directly from the app bundle.
+#### 2b. Build from the Xcode IDE
+
+1. **Open the project:**
+   ```bash
+   open build/mini-mbm.xcodeproj
+   ```
+2. **Select the scheme** in the toolbar — it should already show `mini-mbm`.
+3. **Select the destination** (next to the scheme selector):
+   - For Simulator: pick any *iPhone* or *iPad* simulator from the list.
+   - For a physical device: connect the device via USB and select it.
+4. **Build:** press **⌘B** (Product → Build).  
+   Errors appear in the **Issue Navigator** (⌘5, triangle icon in the left sidebar).
+5. **Run:** press **⌘R** to build and launch in the selected Simulator or device.
+
+#### 3. Deploy to a physical device
+
+1. Connect your iPhone/iPad via USB.
+2. In Xcode, open the **Signing & Capabilities** tab for the `mini-mbm` target.
+3. Set **Team** to your Apple Developer account and enter a unique **Bundle Identifier**
+   (e.g. `com.yourname.mini-mbm`).
+4. Select the device in the destination selector, then press **⌘R**.
+
+#### Notes
+
+- All plugins are **statically linked** on iOS — dynamic loading is blocked by the App Store sandbox.
+- The launcher dialog is disabled; the engine starts `Resources/main.lua` directly.
+- `os.execute` and `executeInThread` are no-ops on iOS (not available on the platform).
+- File dialogs (`openFileDialog` / `saveFileDialog`) return `nullptr` on iOS.
+- Touch events map to `onTouchDown` / `onTouchMove` / `onTouchUp`; mouse events are not used.
+- Orientation is locked to **landscape** by default.  To add portrait support, edit
+  `platform-ios/Info.plist` (`UISupportedInterfaceOrientations`) and the
+  `supportedInterfaceOrientations` method in `platform-ios/MetalViewController.mm`.
+- To build for the **Simulator** with a different deployment target you can pass
+  `-DCMAKE_OSX_SYSROOT=iphonesimulator` to the cmake command.
 
 ### CMake Option Flags
 

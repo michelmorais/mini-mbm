@@ -13,6 +13,8 @@ endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   add_definitions(-DLUA_BUILD_AS_DLL)
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+  add_definitions(-DLUA_USE_IOS)
 else()
   add_definitions(-DLUA_USE_LINUX)
 endif()
@@ -26,7 +28,11 @@ file(GLOB SOURCES "${LUA_SRC}/*.c")
 list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${LUA_SRC}/lua.c")
  
 #Generate the shared library from the sources
-add_library(lua-${LUA_LIB_VERSION} SHARED ${SOURCES})
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+  add_library(lua-${LUA_LIB_VERSION} STATIC ${SOURCES})
+else()
+  add_library(lua-${LUA_LIB_VERSION} SHARED ${SOURCES})
+endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 

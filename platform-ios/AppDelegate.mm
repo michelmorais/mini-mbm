@@ -2,8 +2,6 @@
 | MIT License — see main-lua.mm for full text.                                                                           |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined(MBM_PLATFORM_IOS)
-
 #import "AppDelegate.h"
 #import "MetalViewController.h"
 
@@ -34,5 +32,3 @@
 }
 
 @end
-
-#endif // MBM_PLATFORM_IOS

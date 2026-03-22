@@ -20,8 +20,6 @@
 // iOS entry point — delegates to UIApplicationMain which drives the app lifecycle.
 // All engine initialisation happens in MetalViewController (viewDidLoad).
 
-#if defined(MBM_PLATFORM_IOS)
-
 #import <UIKit/UIKit.h>
 #import "AppDelegate.h"
 
@@ -33,5 +31,3 @@ int main(int argc, char* argv[])
                                  NSStringFromClass([AppDelegate class]));
     }
 }
-
-#endif // MBM_PLATFORM_IOS

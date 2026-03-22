@@ -140,6 +140,14 @@
 
 
 static int os_execute (lua_State *L) {
+#if defined(LUA_USE_IOS)
+  /* system() is not available on iOS; os.execute always fails */
+  (void)L;
+  lua_pushboolean(L, 0);
+  lua_pushstring(L, "os.execute not supported on iOS");
+  lua_pushinteger(L, -1);
+  return 3;
+#else
   const char *cmd = luaL_optstring(L, 1, NULL);
   int stat;
   errno = 0;
@@ -150,6 +158,7 @@ static int os_execute (lua_State *L) {
     lua_pushboolean(L, stat);  /* true if there is a shell */
     return 1;
   }
+#endif
 }
 
 
