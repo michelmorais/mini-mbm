@@ -39,6 +39,7 @@
 #include <core_mbm/texture-manager.h>
 #include <core_mbm/shader.h>
 #include <core_mbm/shader-var-cfg.h>
+#include <core_mbm/shader-resource.h>
 #include <core_mbm/core-manager.h>
 #include <core_mbm/vigenere.h>
 #include <core_mbm/plugin-callback.h>
@@ -68,7 +69,9 @@
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
-#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
+#elif defined(__APPLE__) && !defined(ANDROID)
+    #include <unistd.h>                 // getcwd — no X11 on macOS
+#elif defined(__linux__)
     #include <unistd.h>
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
@@ -103,7 +106,7 @@ namespace mbm
 {
     inline const char* __std_p()
     {
-		static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.YZ");
+        static_assert(sizeof(MBM_VERSION) == 4, "MBM_VERSION must be in format X.Y");
         static char _p[17] = {
             'M', 'i', 'N', 'i', 'M', 'b', 'M', '-',
             MBM_VERSION[0], MBM_VERSION[1], MBM_VERSION[2],
@@ -119,7 +122,7 @@ namespace mbm
         'm', 'I', 'n', 'I', '-', 'M', 'b', 'M',
         0x01, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
         };
-		return iv;
+        return iv;
     }
 
     #if !defined ANDROID
@@ -173,7 +176,7 @@ namespace mbm
     void lua_userdata_register(lua_State *lua,const int value)
     {
         const char* __userdata_ = getUserTypeAsString(value);
-		assert(strcmp("_usertype_unknown",__userdata_) != 0);
+        assert(strcmp("_usertype_unknown",__userdata_) != 0);
         luaL_newmetatable(lua, __userdata_);
         lua_pushinteger(lua,value);
         lua_rawseti(lua,-2,1);
@@ -189,7 +192,7 @@ namespace mbm
         }
     }
 
-	int enableTextureFilterLua(lua_State *lua)
+    int enableTextureFilterLua(lua_State *lua)
     {
         bool value = lua_toboolean(lua,1);
         TEXTURE::EnablePixelPerfectTexture(!value);
@@ -209,12 +212,12 @@ namespace mbm
     }
     
     int onPauseAudioOnPauseGame(lua_State *lua)
-	{
-		bool bPauseOnPauseAll = lua_toboolean(lua,1);
-		auto manager = AUDIO_MANAGER::getInstance();
-		manager->pauseAudioOnPauseGame = bPauseOnPauseAll;
-		return 0;
-	}
+    {
+        bool bPauseOnPauseAll = lua_toboolean(lua,1);
+        auto manager = AUDIO_MANAGER::getInstance();
+        manager->pauseAudioOnPauseGame = bPauseOnPauseAll;
+        return 0;
+    }
 
     int onGetRealSizeBackBuffer(lua_State *lua)
     {
@@ -652,7 +655,15 @@ namespace mbm
             }
             else if (strcasecmp(what, "linux") == 0)
             {
-    #if defined __linux__ || defined(__APPLE__) && !defined(ANDROID)
+    #if defined __linux__ && !defined(__APPLE__)
+                lua_pushboolean(lua, 1);
+    #else
+                lua_pushboolean(lua, 0);
+    #endif
+            }
+            else if (strcasecmp(what, "macos") == 0)
+            {
+    #if defined(__APPLE__) && !defined(ANDROID)
                 lua_pushboolean(lua, 1);
     #else
                 lua_pushboolean(lua, 0);
@@ -676,16 +687,19 @@ namespace mbm
         if (what)
         {
             DEVICE *device = DEVICE::getInstance();
-            if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 || strcasecmp(what, "linux") == 0)
+            if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 ||
+                strcasecmp(what, "linux") == 0   || strcasecmp(what, "macos") == 0)
             {
     #if defined _WIN32
-                lua_pushboolean(lua,1);
+                lua_pushboolean(lua, strcasecmp(what, "windows") == 0 ? 1 : 0);
     #elif defined ANDROID
-				lua_pushboolean(lua,1);
-    #elif defined __linux__ || defined(__APPLE__)
-				lua_pushboolean(lua,1);
+                lua_pushboolean(lua, strcasecmp(what, "android") == 0 ? 1 : 0);
+    #elif defined __linux__ && !defined(__APPLE__)
+                lua_pushboolean(lua, strcasecmp(what, "linux") == 0 ? 1 : 0);
+    #elif defined(__APPLE__)
+                lua_pushboolean(lua, strcasecmp(what, "macos") == 0 ? 1 : 0);
     #else
-				lua_pushboolean(lua,0);
+                lua_pushboolean(lua, 0);
     #endif
             }
             else if (strcasecmp(what, "version") == 0)
@@ -789,11 +803,16 @@ namespace mbm
                 const bool is_Directx9 = strcasecmp(device->getBackendEngineName(), "Directx9") == 0;
                 lua_pushboolean(lua, is_Directx9 ? 1 : 0);
             }
+            else if (strcasecmp(what, "USE_METAL") == 0)
+            {
+                const bool is_metal = strcasecmp(device->getBackendEngineName(), "Metal") == 0;
+                lua_pushboolean(lua, is_metal ? 1 : 0);
+            }
             else if (strcasecmp(what, "backend_engine") == 0 || strcasecmp(what, "engine") == 0)
             {
                 lua_pushstring(lua, device->getBackendEngineName());
             }
-			else
+            else
             {
                 lua_pushnil(lua);
             }
@@ -917,7 +936,7 @@ namespace mbm
             }
             else
             {
-				lua_print_line(lua,TYPE_LOG_ERROR,"error on save image [%s]\nError [%s]!", strSaveAs.c_str(),strMessageError);
+                lua_print_line(lua,TYPE_LOG_ERROR,"error on save image [%s]\nError [%s]!", strSaveAs.c_str(),strMessageError);
             }
         }
         if (texture != nullptr)
@@ -935,126 +954,126 @@ namespace mbm
         return 1;
     }
 
-	static bool print_tag(const char * arg, int & index)
-	{
-		if(arg)
-		{
-			if(strcasecmp(arg,"info") == 0)
-			{
-				log_util::print_colored(COLOR_TERMINAL_GREEN,"%s","INFO ");
-				index += 1;
-				return true;
-			}
-			else if(strcasecmp(arg,"warn") == 0)
-			{
-				log_util::print_colored(COLOR_TERMINAL_YELLOW,"%s","WARN ");
-				index += 1;
-				return true;
-			}
-			else if(strcasecmp(arg,"error") == 0)
-			{
-				log_util::print_colored(COLOR_TERMINAL_RED,"%s","ERROR ");
-				index += 1;
-				return true;
-			}
-		}
-		return false;
-	}
+    static bool print_tag(const char * arg, int & index)
+    {
+        if(arg)
+        {
+            if(strcasecmp(arg,"info") == 0)
+            {
+                log_util::print_colored(COLOR_TERMINAL_GREEN,"%s","INFO ");
+                index += 1;
+                return true;
+            }
+            else if(strcasecmp(arg,"warn") == 0)
+            {
+                log_util::print_colored(COLOR_TERMINAL_YELLOW,"%s","WARN ");
+                index += 1;
+                return true;
+            }
+            else if(strcasecmp(arg,"error") == 0)
+            {
+                log_util::print_colored(COLOR_TERMINAL_RED,"%s","ERROR ");
+                index += 1;
+                return true;
+            }
+        }
+        return false;
+    }
 
-	static bool print_line(lua_State *lua,const char * arg, int & index)
-	{
-		if(arg && strcasecmp(arg,"line") == 0)//print file and line
-		{
-			lua_Debug ar;
-			memset(&ar, 0, sizeof(lua_Debug));
-			if (lua_getstack(lua, 1, &ar))
-			{
-				if (lua_getinfo(lua, "nSl", &ar))
-				{
-					log_util::print_colored(COLOR_TERMINAL_CIAN,"File[%s] line[%d]\n", log_util::basename(ar.short_src), ar.currentline);
-					index += 1;
-					return true;
-				}
-				else
-				{
-					ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
-				}
-			}
-			else
-			{
-				ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
-			}
-		}
-		return false;
-	}
+    static bool print_line(lua_State *lua,const char * arg, int & index)
+    {
+        if(arg && strcasecmp(arg,"line") == 0)//print file and line
+        {
+            lua_Debug ar;
+            memset(&ar, 0, sizeof(lua_Debug));
+            if (lua_getstack(lua, 1, &ar))
+            {
+                if (lua_getinfo(lua, "nSl", &ar))
+                {
+                    log_util::print_colored(COLOR_TERMINAL_CIAN,"File[%s] line[%d]\n", log_util::basename(ar.short_src), ar.currentline);
+                    index += 1;
+                    return true;
+                }
+                else
+                {
+                    ERROR_AT(__LINE__,__FILE__,"Could not get the line and file");
+                }
+            }
+            else
+            {
+                ERROR_AT(__LINE__,__FILE__,"Could not get stack from LUA");
+            }
+        }
+        return false;
+    }
 
-	static bool set_color_to_print(const char * arg, int & index, COLOR_TERMINAL & color_out)
-	{
-		if(arg)
-		{
-			static const std::map<std::string,COLOR_TERMINAL> map_color =
-			{
-				{"white", COLOR_TERMINAL_WHITE     },
-				{"red", COLOR_TERMINAL_RED 	       },
-				{"yellow", COLOR_TERMINAL_YELLOW   },
-				{"green", COLOR_TERMINAL_GREEN 	   },
-				{"blue", COLOR_TERMINAL_BLUE 	   },
-				{"magenta", COLOR_TERMINAL_MAGENTA },
-				{"cian", COLOR_TERMINAL_CIAN 	   },
-				{"WHITE", COLOR_TERMINAL_WHITE     },
-				{"RED", COLOR_TERMINAL_RED 	       },
-				{"YELLOW", COLOR_TERMINAL_YELLOW   },
-				{"GREEN", COLOR_TERMINAL_GREEN 	   },
-				{"BLUE", COLOR_TERMINAL_BLUE 	   },
-				{"MAGENTA", COLOR_TERMINAL_MAGENTA },
-				{"CIAN", COLOR_TERMINAL_CIAN 	   },
-			};
-			
-			const auto & term  = map_color.find(arg);
-		
-			if (term != map_color.end())
-			{
-				index += 1;
-				color_out = term->second;
-				return true;
-			}
-		}
-		return false;
-	}
+    static bool set_color_to_print(const char * arg, int & index, COLOR_TERMINAL & color_out)
+    {
+        if(arg)
+        {
+            static const std::map<std::string,COLOR_TERMINAL> map_color =
+            {
+                {"white", COLOR_TERMINAL_WHITE     },
+                {"red", COLOR_TERMINAL_RED 	       },
+                {"yellow", COLOR_TERMINAL_YELLOW   },
+                {"green", COLOR_TERMINAL_GREEN 	   },
+                {"blue", COLOR_TERMINAL_BLUE 	   },
+                {"magenta", COLOR_TERMINAL_MAGENTA },
+                {"cian", COLOR_TERMINAL_CIAN 	   },
+                {"WHITE", COLOR_TERMINAL_WHITE     },
+                {"RED", COLOR_TERMINAL_RED 	       },
+                {"YELLOW", COLOR_TERMINAL_YELLOW   },
+                {"GREEN", COLOR_TERMINAL_GREEN 	   },
+                {"BLUE", COLOR_TERMINAL_BLUE 	   },
+                {"MAGENTA", COLOR_TERMINAL_MAGENTA },
+                {"CIAN", COLOR_TERMINAL_CIAN 	   },
+            };
+            
+            const auto & term  = map_color.find(arg);
+        
+            if (term != map_color.end())
+            {
+                index += 1;
+                color_out = term->second;
+                return true;
+            }
+        }
+        return false;
+    }
 
-	static int __luaB_print_color(lua_State *lua)
-	{
-		int index				= 1;
+    static int __luaB_print_color(lua_State *lua)
+    {
+        int index				= 1;
         const int n				= lua_gettop(lua); /* number of arguments */
-		const char * arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-		COLOR_TERMINAL my_color = COLOR_TERMINAL_WHITE;
-		if(arg)
-		{
-			if(print_tag(arg,index) == true)
-			{
-				arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-				if(print_line(lua,arg,index) == true)
-				{
-					arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-					set_color_to_print(arg,index,my_color);
-				}
-				else if(set_color_to_print(arg,index,my_color) == true)
-				{
-					arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-					print_line(lua,arg,index);
-				}
-			}
-			else if(print_line(lua,arg,index) == true)
-			{
-				arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-				set_color_to_print(arg,index,my_color);
-			}
-			else if(set_color_to_print(arg,index,my_color) == true)
-			{
-				arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
-				print_line(lua,arg,index);
-			}
-		}
+        const char * arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+        COLOR_TERMINAL my_color = COLOR_TERMINAL_WHITE;
+        if(arg)
+        {
+            if(print_tag(arg,index) == true)
+            {
+                arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+                if(print_line(lua,arg,index) == true)
+                {
+                    arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+                    set_color_to_print(arg,index,my_color);
+                }
+                else if(set_color_to_print(arg,index,my_color) == true)
+                {
+                    arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+                    print_line(lua,arg,index);
+                }
+            }
+            else if(print_line(lua,arg,index) == true)
+            {
+                arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+                set_color_to_print(arg,index,my_color);
+            }
+            else if(set_color_to_print(arg,index,my_color) == true)
+            {
+                arg		= lua_type(lua,index) == LUA_TSTRING ? lua_tostring(lua,index) : nullptr;
+                print_line(lua,arg,index);
+            }
+        }
 
         lua_getglobal(lua, "tostring");
         std::string all_msg;
@@ -1225,40 +1244,60 @@ namespace mbm
     int onClearGlobals(lua_State *)
     {
         DEVICE *device = DEVICE::getInstance();
-		std::map<std::string,DYNAMIC_VAR*> map_globals;
-		const auto & globals_lua = get_globals_lua();
-		for(const auto & global_name :  globals_lua)
-		{
-			DYNAMIC_VAR* dynamic_var = device->lsDynamicVarGlobal[global_name];
-			if(dynamic_var)
-			{
-				device->lsDynamicVarGlobal[global_name] = nullptr;
-				map_globals[global_name] = dynamic_var;
-			}
-		}
-		for (const auto & dynamic_var : device->lsDynamicVarGlobal)
+        std::map<std::string,DYNAMIC_VAR*> map_globals;
+        const auto & globals_lua = get_globals_lua();
+        for(const auto & global_name :  globals_lua)
+        {
+            DYNAMIC_VAR* dynamic_var = device->lsDynamicVarGlobal[global_name];
+            if(dynamic_var)
+            {
+                device->lsDynamicVarGlobal[global_name] = nullptr;
+                map_globals[global_name] = dynamic_var;
+            }
+        }
+        for (const auto & dynamic_var : device->lsDynamicVarGlobal)
         {
             DYNAMIC_VAR *dVar = dynamic_var.second;
-			if(dVar)
-				delete dVar;
+            if(dVar)
+                delete dVar;
         }
-		device->lsDynamicVarGlobal.clear();
-		for(const auto & global_name :  globals_lua)
-		{
-			DYNAMIC_VAR* dynamic_var = map_globals[global_name];
-			if(dynamic_var)
-			{
-				device->lsDynamicVarGlobal[global_name] = dynamic_var;
-			}
-		}
+        device->lsDynamicVarGlobal.clear();
+        for(const auto & global_name :  globals_lua)
+        {
+            DYNAMIC_VAR* dynamic_var = map_globals[global_name];
+            if(dynamic_var)
+            {
+                device->lsDynamicVarGlobal[global_name] = dynamic_var;
+            }
+        }
         return 0;
     }
 #if defined USE_PLUSAES
+    // Local file-size helper to avoid crossing CRT boundaries.
+    // util::getSizeFile lives in core_mbm.dll and would call fseek/ftell
+    // from a different CRT than the one that owns the FILE* opened here.
+    static bool getSizeFileLocal(FILE *fp, size_t *sizeOut)
+    {
+        if (fp == nullptr)
+            return false;
+        if (fseek(fp, 0, SEEK_SET))
+            return false;
+        if (fseek(fp, 0, SEEK_END))
+            return false;
+        const long t = ftell(fp);
+        if (t <= 0)
+            return false;
+        *sizeOut = static_cast<size_t>(t);
+        if (fseek(fp, 0, SEEK_SET))
+            return false;
+        return true;
+    }
+
     const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (* passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
     {
         // encrypt
-		size_t read_bytes = 0;
-        if (util::getSizeFile(infp, &read_bytes))
+        size_t read_bytes = 0;
+        if (getSizeFileLocal(infp, &read_bytes))
         {
             std::vector<unsigned char> raw_data(read_bytes);
 
@@ -1342,7 +1381,7 @@ namespace mbm
                             snprintf(errorOut, 511, "unknown error");
                         }
                         return false;
-				}
+                }
             }
             else
             {
@@ -1351,7 +1390,7 @@ namespace mbm
                     snprintf(errorOut, 511, "failed to read file");
                 }
                 return false;
-			}
+            }
         }
         else
         {
@@ -1366,7 +1405,7 @@ namespace mbm
     const bool decrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (*passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
     {
         size_t read_bytes = 0;
-        if (util::getSizeFile(infp, &read_bytes))
+        if (getSizeFileLocal(infp, &read_bytes))
         {
             std::vector<unsigned char> encrypted(read_bytes);
 
@@ -1384,8 +1423,8 @@ namespace mbm
                 {
                 case plusaes::Error::kErrorOk:
                 {
-					// we do not write padding
-					const size_t new_size = read_bytes - padded_size;
+                    // we do not write padding
+                    const size_t new_size = read_bytes - padded_size;
                     if (fwrite(decrypted.data(), 1, new_size, outfp) == new_size)
                     {
                         return true;
@@ -1397,7 +1436,7 @@ namespace mbm
                             snprintf(errorOut, 511, "plusaes::Error: failed to write file");
                         }
                         return false;
-					}
+                    }
                     return true;
                 }
                 case plusaes::Error::kErrorInvalidDataSize:
@@ -1497,8 +1536,8 @@ namespace mbm
             if (len != 16)
             {
                 return lua_error_debug(lua, "when using custom iv it must be 16 bytes length");
-			}
-			iv = reinterpret_cast<const unsigned char*>(strIv);
+            }
+            iv = reinterpret_cast<const unsigned char*>(strIv);
         }
 #endif
         std::string strOut(fileNameOut);
@@ -1554,7 +1593,7 @@ namespace mbm
             lua_pushboolean(lua, 0);
         }
 #elif defined USE_PLUSAES
-		if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -2167,6 +2206,16 @@ namespace mbm
         return 1;
     }
 
+    int onGetParticleShaderCode(lua_State *lua)
+    {
+        const char *code = getParticlePSCode();
+        if (code)
+            lua_pushstring(lua, code);
+        else
+            lua_pushnil(lua);
+        return 1;
+    }
+
     int onRefresh(lua_State * )
     {
         //force refresh window by sending resize event
@@ -2242,33 +2291,33 @@ namespace mbm
                 lua_pushinteger(lua,4);
             else if(strcasecmp(what,"MAX") == 0)
                 lua_pushinteger(lua,5);
-			else if(strcmp(what,"STAGE_1") == 0)
+            else if(strcmp(what,"STAGE_1") == 0)
                 lua_pushinteger(lua,1);
-			else if(strcmp(what,"STAGE_2") == 0)
+            else if(strcmp(what,"STAGE_2") == 0)
                 lua_pushinteger(lua,2);
-			else if(strcmp(what,"DISABLE") == 0)
+            else if(strcmp(what,"DISABLE") == 0)
                 lua_pushinteger(lua,BLEND_DISABLE);
-			else if(strcmp(what,"ZERO") == 0)
+            else if(strcmp(what,"ZERO") == 0)
                 lua_pushinteger(lua,BLEND_ZERO);
-			else if(strcmp(what,"ONE") == 0)
+            else if(strcmp(what,"ONE") == 0)
                 lua_pushinteger(lua,BLEND_ONE);
-			else if(strcmp(what,"SRC_COLOR") == 0)
+            else if(strcmp(what,"SRC_COLOR") == 0)
                 lua_pushinteger(lua,BLEND_SRCCOLOR);
-			else if(strcmp(what,"INV_SRC_COLOR") == 0)
+            else if(strcmp(what,"INV_SRC_COLOR") == 0)
                 lua_pushinteger(lua,BLEND_INVSRCCOLOR);
-			else if(strcmp(what,"SRC_ALPHA") == 0)
+            else if(strcmp(what,"SRC_ALPHA") == 0)
                 lua_pushinteger(lua,BLEND_SRCALPHA);
-			else if(strcmp(what,"INV_SRC_ALPHA") == 0)
+            else if(strcmp(what,"INV_SRC_ALPHA") == 0)
                 lua_pushinteger(lua,BLEND_INVSRCALPHA);
-			else if(strcmp(what,"DEST_ALPHA") == 0)
+            else if(strcmp(what,"DEST_ALPHA") == 0)
                 lua_pushinteger(lua,BLEND_DESTALPHA);
-			else if(strcmp(what,"INV_DEST_ALPHA") == 0)
+            else if(strcmp(what,"INV_DEST_ALPHA") == 0)
                 lua_pushinteger(lua,BLEND_INVDESTALPHA);
-			else if(strcmp(what,"DEST_COLOR") == 0)
+            else if(strcmp(what,"DEST_COLOR") == 0)
                 lua_pushinteger(lua,BLEND_DESTCOLOR);
-			else if(strcmp(what,"INV_DEST_COLOR") == 0)
+            else if(strcmp(what,"INV_DEST_COLOR") == 0)
                 lua_pushinteger(lua,BLEND_INVDESTCOLOR);
-			else
+            else
                 return 0;
             return 1;
         }
@@ -2431,6 +2480,8 @@ namespace mbm
             std::string full_name_C(name);
             #if defined _WIN32
             full_name_C += ".dll";
+            #elif defined __APPLE__
+            full_name_C += ".dylib";
             #else
             full_name_C += ".so";
             #endif
@@ -2504,6 +2555,7 @@ namespace mbm
             {"getShaderList", onGetShaderList},
             {"existShader", onExistShader},
             {"addShader", onAddShader},
+            {"getParticleShaderCode", onGetParticleShaderCode},
             {"sortShader", onSortShader },
             {"inputBox", onInputDialogBox},
             {"inputPassword", onInputPasswordBox},
@@ -2560,9 +2612,9 @@ namespace mbm
         registerClassVR(lua);
     #endif
 
-		registerClassTile(lua);
-		
-		lua_pushcfunction(lua, __luaB_print_color); // override print
+        registerClassTile(lua);
+        
+        lua_pushcfunction(lua, __luaB_print_color); // override print
         lua_setglobal(lua, "print");
 
         const char *splitStringLua = "\n"

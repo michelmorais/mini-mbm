@@ -23,8 +23,10 @@ if (USE_LUA)
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Linux.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Windows.cpp)
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
             set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
         endif()
@@ -32,6 +34,10 @@ if (USE_LUA)
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
+        set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-MacOs.mm)
+        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -123,7 +129,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
-                            ${LIB_MINIMBM_LUA_SRC})
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -144,7 +151,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
-                            ${LIB_MINIMBM_LUA_SRC})
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
     else()
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -157,13 +165,25 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    add_executable(mini-mbm ${MAIN}
-                        ${SOURCES}
-                        ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
-                        ${BULLET3D_WRAP_SOURCES}
-                        ${TINYFILEDIALOGS_SOURCES}
-                        ${SCENE_CPP})
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP}
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${SCENE_CPP})
+    endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm "-framework Cocoa")
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
@@ -283,6 +303,72 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo "do:"
         COMMAND cmake -E echo "chmod 755 ${PATH_BIN}/shortcuts.sh"
         COMMAND cmake -E echo "echo \"source ${PATH_BIN}/shortcuts.sh \"  ${REDIRECT_SHELL} ~/.bashrc"
+        COMMAND cmake -E echo ""
+        COMMAND cmake -E echo "---------------------------------------------")
+    endif()
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    set(REDIRECT_SHELL                    "'>>'")
+    if(USE_LUA)
+        add_custom_target(
+        shortcuts ALL
+        DEPENDS mini-mbm
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "binaries created at ${PATH_BIN}"
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "Creating alias..."
+        COMMAND cmake -E echo "alias for scene_editor"
+        COMMAND cmake -E echo "alias for sprite_maker"
+        COMMAND cmake -E echo "alias for font_maker"
+        COMMAND cmake -E echo "alias for mesh_debug"
+        COMMAND cmake -E echo "alias for shader_editor"
+        COMMAND cmake -E echo "alias for particle_editor"
+        COMMAND cmake -E echo "alias for physic_editor"
+        COMMAND cmake -E echo "alias for mini-mbm"
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "alias lua='${PATH_BIN}/lua-${LUA_LIB_VERSION}'" > ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias scene_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/scene_editor2d.lua -w 1470 -h 900 --nosplash --name scene_editor2d'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias sprite_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/sprite_maker.lua -w 1470 -h 900 --nosplash --name sprite_maker'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias font_maker='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/font_maker.lua  -w 1470 -h 900 --nosplash --name font_maker'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias mesh_debug='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/mesh_debug.lua -w 1470 -h 900 --nosplash --name mesh_debug'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias shader_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/shader_editor.lua -w 1470 -h 900 --nosplash --name shader_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias particle_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/particle_editor.lua  -w 1470 -h 900 --nosplash --name particle_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias physic_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/physic_editor.lua  -w 1470 -h 900 --nosplash --name physic_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias asset_packager='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/asset_packager.lua  -w 1470 -h 900 --nosplash --name asset_packager'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias tilemap_editor='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/tilemap_editor.lua  -w 1470 -h 900 --nosplash --name tilemap_editor'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias texture_packer='${PATH_BIN}/mini-mbm --scene ${PATH_LUA_EDITOR}/texture_packer.lua  -w 1470 -h 900 --nosplash --name texture_packer'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "alias minimbm='${PATH_BIN}/mini-mbm '" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export LUA_PATH='\"?;?.lua;${PATH_BIN}/?.lua\"'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export LUA_CPATH='\"?;?.dylib;${PATH_BIN}/?.dylib\"'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export DYLD_LIBRARY_PATH=${PATH_BIN}:/usr/local/lib" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "aliases created at ${PATH_BIN}/shortcuts.sh"
+        COMMAND cmake -E echo "add ${PATH_BIN}/shortcuts.sh at ~/.zshrc to make your shortcut"
+        COMMAND cmake -E echo "do:"
+        COMMAND cmake -E echo "chmod 755 ${PATH_BIN}/shortcuts.sh"
+        COMMAND cmake -E echo "echo \"source ${PATH_BIN}/shortcuts.sh \"  ${REDIRECT_SHELL} ~/.zshrc"
+        COMMAND cmake -E echo ""
+        COMMAND cmake -E echo "---------------------------------------------"
+        )
+    else()
+        add_custom_target(
+        shortcuts ALL
+        DEPENDS mini-mbm
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "binaries created at ${PATH_BIN}"
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "Creating alias..."
+        COMMAND cmake -E echo "alias for mini-mbm"
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "alias minimbm='${PATH_BIN}/mini-mbm'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export LUA_PATH='\"?;?.lua;${PATH_BIN}/?.lua\"'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export LUA_CPATH='\"?;?.dylib;${PATH_BIN}/?.dylib\"'" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "export DYLD_LIBRARY_PATH=${PATH_BIN}:/usr/local/lib" >> ${PATH_BIN}/shortcuts.sh
+        COMMAND cmake -E echo "---------------------------------------------"
+        COMMAND cmake -E echo "aliases created at ${PATH_BIN}/shortcuts.sh"
+        COMMAND cmake -E echo "add ${PATH_BIN}/shortcuts.sh at ~/.zshrc to make your shortcut"
+        COMMAND cmake -E echo "do:"
+        COMMAND cmake -E echo "chmod 755 ${PATH_BIN}/shortcuts.sh"
+        COMMAND cmake -E echo "echo \"source ${PATH_BIN}/shortcuts.sh \"  ${REDIRECT_SHELL} ~/.zshrc"
         COMMAND cmake -E echo ""
         COMMAND cmake -E echo "---------------------------------------------")
     endif()

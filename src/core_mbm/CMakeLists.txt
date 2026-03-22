@@ -109,8 +109,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
 
-    #Opengl
-    include(FindOpenGLES2)
+    if(USE_OPENGL_ES)
+        #Opengl
+        include(FindOpenGLES2)
+    endif()
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -122,6 +124,35 @@ else()
 endif()
 
 
+# Gather Objective-C++ Metal sources (Apple + USE_METAL only)
+set(METAL_MM_SOURCES "")
+set(METAL_RENDER_MM_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+    file(GLOB_RECURSE METAL_MM_SOURCES "${CORE_OPENGLES_SRC}/*.mm")
+    file(GLOB_RECURSE METAL_RENDER_MM_SOURCES "${RENDER_SRC}/*.mm")
+    # Enable Automatic Reference Counting for all Objective-C++ Metal sources.
+    # Without ARC, Metal id<> objects returned by factory methods would be
+    # autoreleased and freed before we use them across frame boundaries.
+    if (METAL_MM_SOURCES)
+        set_source_files_properties(${METAL_MM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    endif()
+    if (METAL_RENDER_MM_SOURCES)
+        set_source_files_properties(${METAL_RENDER_MM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    endif()
+endif()
+
+# For Apple builds that don't use Metal (e.g. USE_DUMMY_BACK_END_ENGINE), the
+# dialog-util-macos.mm file is not picked up by the Metal .mm glob above.
+# Add it explicitly so that dialog_util symbols are always available on Apple.
+set(APPLE_DIALOG_MM_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND NOT USE_METAL)
+    set(APPLE_DIALOG_MM_SOURCES ${CORE_OPENGLES_SRC}/dialog-util-macos.mm)
+    set_source_files_properties(${APPLE_DIALOG_MM_SOURCES}
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
+
 #Generate the static library from the sources
 add_library(core_mbm SHARED
     ${STB_SOURCES} 
@@ -131,7 +162,10 @@ add_library(core_mbm SHARED
     ${RENDER_SOURCES}
     ${TINYFILEDIALOGS_SOURCES}
     ${PORT_AUDIO_SOURCES}
-    ${WAVE_SOURCES})
+    ${WAVE_SOURCES}
+    ${METAL_MM_SOURCES}
+    ${METAL_RENDER_MM_SOURCES}
+    ${APPLE_DIALOG_MM_SOURCES})
 
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
@@ -188,10 +222,22 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     message(" ... ")
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-    target_link_libraries(core_mbm ${X11_LIBRARIES})
-    target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
-    target_link_libraries(core_mbm ${EGL_LIBRARY})
-    target_link_libraries(core_mbm ${VULKAN_LIBRARY})
+    if(USE_METAL)
+        target_link_libraries(core_mbm "-framework Metal")
+        target_link_libraries(core_mbm "-framework Foundation")
+        target_link_libraries(core_mbm "-framework QuartzCore")
+        target_link_libraries(core_mbm "-framework Cocoa")
+        target_link_libraries(core_mbm "-framework AppKit")
+    else()
+        # Non-Metal Apple builds (e.g. USE_DUMMY_BACK_END_ENGINE) still need Cocoa
+        # for dialog-util-macos.mm (NSOpenPanel / NSSavePanel).
+        target_link_libraries(core_mbm "-framework Cocoa")
+        target_link_libraries(core_mbm "-framework Foundation")
+        target_link_libraries(core_mbm ${X11_LIBRARIES})
+        target_link_libraries(core_mbm ${OPENGLES2_LIBRARY})
+        target_link_libraries(core_mbm ${EGL_LIBRARY})
+        target_link_libraries(core_mbm ${VULKAN_LIBRARY})
+    endif()
     if (${AUDIO} STREQUAL "portaudio" )
         target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
     elseif(${AUDIO} STREQUAL "audiere" )

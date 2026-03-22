@@ -70,7 +70,9 @@
 #include <audio-interface.h>
 #if defined ANDROID
     // no includes here
-#elif defined __linux__ || defined(__APPLE__) && !defined ANDROID
+#elif defined(__APPLE__) && !defined(ANDROID)
+    #include <unistd.h>                 // getcwd — no X11 on macOS
+#elif defined(__linux__)
     #include <unistd.h>
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
@@ -514,7 +516,7 @@ namespace mbm
             filtersArray[i] = filters[i].c_str();
         }
 
-        const char *fileName = tinyfd_saveFileDialog("Save As", defaultName, filters.size(), filtersArray, nullptr);
+        const char *fileName = dialog_util::saveFileDialog("Save As", defaultName, filtersArray, (int)filters.size());
         delete[] filtersArray;
         if (fileName)
         {
@@ -591,7 +593,7 @@ namespace mbm
         }
 
         const char *filename =
-            tinyfd_openFileDialog("Open file", defaultName, filters.size(), filtersArray, nullptr, allowMultipleSelects);
+            dialog_util::openFileDialog("Open file", defaultName, filtersArray, (int)filters.size(), allowMultipleSelects);
         delete[] filtersArray;
         if (filename)
         {

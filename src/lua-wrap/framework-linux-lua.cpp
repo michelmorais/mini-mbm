@@ -17,7 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if !defined ANDROID && (defined(__linux__) || defined(__APPLE__))
+#if !defined(ANDROID) && defined(__linux__) && !defined(__APPLE__)
 
 #include <lua-wrap/framework-lua.h>
 #include <core_mbm/device.h>
@@ -444,7 +444,7 @@ namespace mbm
             filtersArray[i] = filters[i].c_str();
         }
 
-        const char *fileName = tinyfd_saveFileDialog("Save As", defaultName, filters.size(), filtersArray, nullptr);
+        const char *fileName = dialog_util::saveFileDialog("Save As", defaultName, filtersArray, (int)filters.size());
 
         delete[] filtersArray;
         if (fileName)
@@ -521,7 +521,7 @@ namespace mbm
             filtersArray[i] = filters[i].c_str();
         }
 
-        const char *filename = tinyfd_openFileDialog("Open file", defaultName, filters.size(), filtersArray, nullptr, allowMultipleSelects);
+        const char *filename = dialog_util::openFileDialog("Open file", defaultName, filtersArray, (int)filters.size(), allowMultipleSelects);
 
         delete[] filtersArray;
         if (filename)

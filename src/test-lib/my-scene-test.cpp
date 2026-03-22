@@ -291,6 +291,17 @@ void MY_SCENE::onTouchDown(int key, float x, float y)
             }
         }
     }
+    if(key == 1 && render2Texture)
+    {
+        if(render2Texture->saveAsPNG("render2texture-out.png", 0, 0, render2Texture->widthTexture, render2Texture->heightTexture))
+        {
+            INFO_LOG("Saved render2Texture content to render2texture-out.png");
+        }
+        else
+        {
+            INFO_LOG("Failed to save render2Texture content");
+        }
+    }
 }
 
 void MY_SCENE::onTouchUp(int, float, float)
@@ -448,6 +459,7 @@ void MY_SCENE::onFinalizeScene()
 
 void MY_SCENE::onKeyDown(int key)
 {
+    printf("Key down: %d\n", key);
     if (key == 77) // M - toggle left menu
     {
         menuVisible = !menuVisible;

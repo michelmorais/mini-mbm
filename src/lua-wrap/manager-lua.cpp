@@ -1959,6 +1959,34 @@ namespace mbm
                 }
                 
                 path = win_path.c_str();
+            #elif defined(__APPLE__)
+                
+                R"__ADD_PACKAGE(
+                    local function __addPathPackage(path)
+    
+                        local path_lua = path .. '/?.lua'
+                        local p = package.path:split(';')
+                        for i=1, #p do
+                            local each_path = p[i]
+                            if each_path == path_lua then
+                                return false
+                            end
+                        end
+                        package.path = package.path .. ';' .. path_lua
+
+
+                        local path_dylib = path .. '/?.dylib'
+                        local cp = package.cpath:split(';')
+                        for i=1, #cp do
+                            local each_path = cp[i]
+                            if each_path == path_dylib then
+                                return false
+                            end
+                        end
+                        package.cpath = package.cpath .. ';' .. path_dylib
+                        return true
+                    end
+                )__ADD_PACKAGE";
             #else
                 
                 R"__ADD_PACKAGE(

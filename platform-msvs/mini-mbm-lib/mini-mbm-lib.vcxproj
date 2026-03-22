@@ -176,6 +176,7 @@
     <ClCompile Include="..\..\src\lua-wrap\require_embedded.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\texture-info-lua.cpp" />
     <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib.cpp" />
+    <ClCompile Include="..\..\src\mini-mbm-lib\mini-mbm-lib-Windows.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\audio-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\camera-lua.cpp" />
     <ClCompile Include="..\..\src\lua-wrap\common-methods-lua.cpp" />

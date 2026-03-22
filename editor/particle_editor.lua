@@ -781,38 +781,26 @@ function showParticleOptions()
                     tShader:load(tShaderByOperator[tShaderByOperator.index].name,nil,mbm.GROWING,1.0,mbm.GROWING_LOOP,1.0)
                 end
 
-                tImGui.Text(tLang.L("additional_code_shader"))
-                tImGui.SameLine()
-                tImGui.HelpMarker(tLang.L("help_not_saved_binary"))
-                local modified , sNewText = tImGui.InputTextMultiline('##AdditionalCode',tShaderByOperator.sAdditionalCode,{x=-1,y=0},flags)
-                if modified then
-                    tShaderByOperator.sAdditionalCode = sNewText
+                if not mbm.get('USE_METAL') then
+                    tImGui.Text(tLang.L("additional_code_shader"))
+                    tImGui.SameLine()
+                    tImGui.HelpMarker(tLang.L("help_not_saved_binary"))
+                    local modified , sNewText = tImGui.InputTextMultiline('##AdditionalCode',tShaderByOperator.sAdditionalCode,{x=-1,y=0},flags)
+                    if modified then
+                        tShaderByOperator.sAdditionalCode = sNewText
+                    end
+                else
+                    tImGui.TextDisabled("(Custom shader code not available on Metal)")
                 end
-                local sAddCode = '\n // YOUR CODE HERE **********'
+                local sAddCode = '\n// YOUR CODE HERE **********'
                 if tShaderByOperator.sAdditionalCode:len() > 0 then
-                    sAddCode = '\n // YOUR CODE ********** \n' ..  tShaderByOperator.sAdditionalCode .. '\n//END YOUR CODE ********** \n'
+                    sAddCode = '\n// YOUR CODE **********\n' .. tShaderByOperator.sAdditionalCode .. '\n// END YOUR CODE **********\n'
                 end
                 tImGui.Text(tLang.L("code_label"))
-                local sCodeShader = 
-[[precision mediump float;
-uniform vec4 color;
-uniform float enableAlphaFromColor;
-varying vec2 vTexCoord;
-uniform sampler2D sample0;
-void main()
-{
-    vec4 texColor;
-    vec4 outColor;
-    texColor = texture2D( sample0, vTexCoord );
-    if(enableAlphaFromColor > 0.5)
-        outColor.a = color.a;
-    else
-        outColor.a = texColor.a;
-    outColor.rgb = color.rgb ]] .. tShaderByOperator[tShaderByOperator.index].op .. ' texColor.rgb;\n' ..
-    sAddCode .. [[
-    gl_FragColor = outColor;
-}
-]]
+                local baseTemplate = mbm.getParticleShaderCode()
+                local sCodeShader = baseTemplate
+                    :gsub('%?', tShaderByOperator[tShaderByOperator.index].op, 1)
+                    :gsub('#', function() return sAddCode end, 1)
                 tImGui.TextDisabled(sCodeShader)
                 if tImGui.Button(tLang.L("apply_btn")) then
                     local ext = tUtil.getExtension(sLastEditorFileName)
@@ -1004,6 +992,8 @@ function main_menu_particle()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#particle-editor"')
                 end
             end
             local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
@@ -1012,6 +1002,8 @@ function main_menu_particle()
                     os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
                 elseif mbm.is('linux') then
                     os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
                 end
             end
             if tImGui.BeginMenu(tLang.L("menu_version")) then
@@ -1086,35 +1078,23 @@ function onKeyUp(key)
 end
 
 function addShaderParticle()
-    for i =1, 4 do
-        local tShaderParticle = 
-        {	
+    local baseTemplate = mbm.getParticleShaderCode()
+    if baseTemplate == nil then
+        print("Error: mbm.getParticleShaderCode() returned nil")
+        return
+    end
+    for i = 1, 4 do
+        local code = baseTemplate:gsub('%?', tShaderByOperator[i].op, 1):gsub('#', '', 1)
+        local tShaderParticle =
+        {
             name = tShaderByOperator[i].name,
-            code = [[
-            precision mediump float;
-            uniform vec4 color;
-            uniform float enableAlphaFromColor;
-            varying vec2 vTexCoord;
-            uniform sampler2D sample0;
-            void main()
-            {
-                vec4 texColor;
-                vec4 outColor;
-                texColor = texture2D( sample0, vTexCoord );
-                if(enableAlphaFromColor > 0.5)
-                    outColor.a = color.a;
-                else
-                    outColor.a = texColor.a;
-                outColor.rgb = color.rgb ]] .. tShaderByOperator[i].op .. [[ texColor.rgb;
-                gl_FragColor = outColor;
-            }
-            ]],
-            var = {color = {0.5,0.5,0.5,0.5}, enableAlphaFromColor = {1}},
-            min = {color = {0.0,0.0,0.0,0.0}, enableAlphaFromColor = {0}},
-            max = {color = {1.0,1.0,1.0,1.0}, enableAlphaFromColor = {1}}
+            code = code,
+            var  = {color = {0.5, 0.5, 0.5, 0.5}, enableAlphaFromColor = {1}},
+            min  = {color = {0.0, 0.0, 0.0, 0.0}, enableAlphaFromColor = {0}},
+            max  = {color = {1.0, 1.0, 1.0, 1.0}, enableAlphaFromColor = {1}}
         }
         if not mbm.addShader(tShaderParticle) then
-            print("Error on add shader:",tShaderParticle.name)
+            print("Error on add shader:", tShaderParticle.name)
         end
     end
 end

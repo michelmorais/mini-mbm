@@ -32,6 +32,8 @@
     #include "imgui_stdlib.h"
 #elif defined USE_DIRECTX9
     #include "imgui_impl_dx9.h"
+#elif defined USE_METAL
+    #include "imgui_metal_bridge.h"
 #elif defined USE_DUMMY_BACK_END_ENGINE
     #include <core_mbm/dummy-engine.h> // for compiler_message, you can remove it after implement the functions
 #else
@@ -42,7 +44,7 @@
 
 #if defined _WIN32
     #include "imgui_impl_win32.h"
-#elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+#elif defined(__linux__) && !defined(ANDROID)
     #ifndef XK_MISCELLANY
         #define XK_MISCELLANY
     #endif
@@ -52,6 +54,92 @@
     #include <X11/XKBlib.h>
     #include <X11/keysymdef.h>
     #include <X11/cursorfont.h>
+#elif defined(__APPLE__) && !defined(ANDROID)
+    // XK constants matching translateMacKeyCode() in core-manager-metal-macos.mm
+    #ifndef XK_BackSpace
+    #define XK_BackSpace   0xFF08
+    #define XK_Tab         0xFF09
+    #define XK_Return      0xFF0D
+    #define XK_Pause       0xFF13
+    #define XK_Escape      0xFF1B
+    #define XK_Home        0xFF50
+    #define XK_Left        0xFF51
+    #define XK_Up          0xFF52
+    #define XK_Right       0xFF53
+    #define XK_Down        0xFF54
+    #define XK_Page_Up     0xFF55
+    #define XK_Page_Down   0xFF56
+    #define XK_End         0xFF57
+    #define XK_Insert      0xFF63
+    #define XK_Delete      0xFFFF
+    #define XK_Num_Lock    0xFF7F
+    #define XK_Scroll_Lock 0xFF14
+    #define XK_Caps_Lock   0xFFE5
+    #define XK_F1          0xFFBE
+    #define XK_F2          0xFFBF
+    #define XK_F3          0xFFC0
+    #define XK_F4          0xFFC1
+    #define XK_F5          0xFFC2
+    #define XK_F6          0xFFC3
+    #define XK_F7          0xFFC4
+    #define XK_F8          0xFFC5
+    #define XK_F9          0xFFC6
+    #define XK_F10         0xFFC7
+    #define XK_F11         0xFFC8
+    #define XK_F12         0xFFC9
+    #define XK_Print       0xFF61
+    #define XK_KP_Enter    0xFF8D
+    #define XK_KP_Space    0xFF80
+    #define XK_space       0x0020
+    #define XK_apostrophe  0x0027
+    #define XK_comma       0x002C
+    #define XK_minus       0x002D
+    #define XK_period      0x002E
+    #define XK_slash       0x002F
+    #define XK_semicolon   0x003B
+    #define XK_equal       0x003D
+    #define XK_bracketleft  0x005B
+    #define XK_backslash   0x005C
+    #define XK_bracketright 0x005D
+    #define XK_grave       0x0060
+    // Keypad
+    #define XK_KP_Multiply  0xFFAA
+    #define XK_KP_Add       0xFFAB
+    #define XK_KP_Subtract  0xFFAD
+    #define XK_KP_Decimal   0xFFAE
+    #define XK_KP_Divide    0xFFAF
+    #define XK_KP_0         0xFFB0
+    #define XK_KP_1         0xFFB1
+    #define XK_KP_2         0xFFB2
+    #define XK_KP_3         0xFFB3
+    #define XK_KP_4         0xFFB4
+    #define XK_KP_5         0xFFB5
+    #define XK_KP_6         0xFFB6
+    #define XK_KP_7         0xFFB7
+    #define XK_KP_8         0xFFB8
+    #define XK_KP_9         0xFFB9
+    #define XK_KP_Home      0xFF95
+    #define XK_KP_Left      0xFF96
+    #define XK_KP_Up        0xFF97
+    #define XK_KP_Right     0xFF98
+    #define XK_KP_Down      0xFF99
+    #define XK_KP_Page_Up   0xFF9A
+    #define XK_KP_Page_Down 0xFF9B
+    #define XK_KP_End       0xFF9C
+    #define XK_KP_Begin     0xFF9D
+    #define XK_KP_Insert    0xFF9E
+    #define XK_KP_Delete    0xFF9F
+    // Modifiers
+    #define XK_Shift_L      0xFFE1
+    #define XK_Shift_R      0xFFE2
+    #define XK_Control_L    0xFFE3
+    #define XK_Control_R    0xFFE4
+    #define XK_Alt_L        0xFFE9
+    #define XK_Alt_R        0xFFEA
+    #define XK_Super_L      0xFFEB
+    #define XK_Super_R      0xFFEC
+    #define XK_Menu         0xFF67
+    #endif
 #elif defined(ANDROID)
     #include <jni.h>
 #endif
@@ -535,7 +623,19 @@ ImTextureID get_imgui_texture_id(lua_State *lua, int &index, unsigned int &width
     else if (type == LUA_TSTRING)
     {
         const char* texture_name = lua_tostring(lua, index++);
-        return (ImTextureID)(intptr_t)(get_texture_id(lua, texture_name, width_out, height_out));
+        mbm::TEXTURE_MANAGER* texMan = mbm::TEXTURE_MANAGER::getInstance();
+        mbm::TEXTURE* texture = texMan->load(texture_name, true);
+        if (texture)
+        {
+            width_out  = texture->getWidth();
+            height_out = texture->getHeight();
+            return (ImTextureID)(texture->ptrTexture);
+        }
+        std::string msg("Texture [");
+        msg += texture_name ? texture_name : "nullptr";
+        msg += "] not found!";
+        lua_log_error(lua, msg.c_str());
+        return (ImTextureID)(0);
     }
     else if (type == LUA_TTABLE)
     {
@@ -1369,7 +1469,9 @@ public:
     std::set<int> keysDown;  // Track keys that are currently down to filter OS key repeats
 
     ImGuiContext*   imGuiContext;
-    #if (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+    #if defined USE_METAL
+        void*        context;    // NSWindow* passed as void* (opaque in .cpp)
+    #elif defined(__linux__) && !defined(ANDROID)
         Display*    context;
     #elif defined(_WIN32)
         HWND        context;
@@ -1436,6 +1538,8 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_Init(static_cast<IDirect3DDevice9*>(_renderDevice));
+#elif defined USE_METAL
+            ImGui_Metal_Init(_renderDevice);  // _renderDevice = id<MTLDevice> as void*
 #elif defined USE_DUMMY_BACK_END_ENGINE
             REMINDER_TODO
 #else
@@ -1446,9 +1550,12 @@ public:
                 context = static_cast<HWND>(_context);
                 ImGui_ImplWin32_Init(context);
                 // Windows: clipboard uses built-in Win32 handlers from imgui.cpp
-            #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+            #elif defined USE_METAL
+                context = _context;  // NSWindow* as void*
+                // macOS clipboard: ImGui uses pbpaste/pbcopy via tinyfd or system defaults
+            #elif defined(__linux__) && !defined(ANDROID)
                 context = static_cast<Display*>(_context);
-                // Linux/macOS: install xclip/xsel-based clipboard for OS integration
+                // Linux: install xclip/xsel-based clipboard for OS integration
                 ImGuiPlatformIO& platform_io = ImGui::GetPlatformIO();
                 platform_io.Platform_GetClipboardTextFn = Platform_GetClipboardTextFn_Linux;
                 platform_io.Platform_SetClipboardTextFn = Platform_SetClipboardTextFn_Linux;
@@ -1936,6 +2043,9 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_NewFrame();
+#elif defined USE_METAL
+            // Metal NewFrame is called in onRender() after beginRender() has set up currentPassDescriptor.
+            // Calling it here (before beginRender) would give a nil descriptor → sampleCount=0 → GPU crash.
 #elif defined USE_DUMMY_BACK_END_ENGINE
             REMINDER_TODO
 #else
@@ -1976,6 +2086,9 @@ public:
     #endif
 #elif defined USE_DIRECTX9
             ImGui_ImplDX9_RenderDrawData(draw_data);
+#elif defined USE_METAL
+            ImGui_Metal_NewFrame();       // must be called after beginRender() so currentPassDescriptor is valid
+            ImGui_Metal_RenderDrawData(draw_data);
 #elif defined USE_DUMMY_BACK_END_ENGINE
             REMINDER_TODO
 #else
@@ -1994,6 +2107,8 @@ public:
     #endif
 #elif defined USE_DIRECTX9
         ImGui_ImplDX9_Shutdown();
+#elif defined USE_METAL
+        ImGui_Metal_Shutdown();
 #elif defined USE_DUMMY_BACK_END_ENGINE
             REMINDER_TODO
 #else
@@ -2037,7 +2152,7 @@ public:
                 }
             }
         }
-        #elif (defined(__linux__) || defined(__APPLE__)) && !defined (ANDROID)
+        #elif defined(__linux__) && !defined(ANDROID)
         Window w = 0;
         int current_focus_state = 0;
         if(XGetInputFocus(context,&w,&current_focus_state) != RevertToNone && w != 0)

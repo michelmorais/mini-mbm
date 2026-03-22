@@ -85,8 +85,10 @@ namespace mbm
 
     void DEVICE::clearDepth()
     {
+        // Depth only — colour is intentionally preserved so the 3D scene is not erased.
+        // Use clearDepthColored() when you also need to repaint the background colour.
         GLClearDepthf(1.0f);
-        GLClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        GLClear(GL_DEPTH_BUFFER_BIT);
     }
     void DEVICE::clearDepthColored()
     {

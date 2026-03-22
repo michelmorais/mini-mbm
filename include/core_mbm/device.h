@@ -30,7 +30,7 @@
 
 #if defined ANDROID
     // Android specific includes
-#elif defined __linux__  || defined(__APPLE__) && !defined ANDROID
+#elif (defined __linux__  || (defined(__APPLE__) && !defined(USE_METAL))) && !defined ANDROID
     #include <X11/Xlib.h>
 #endif
 

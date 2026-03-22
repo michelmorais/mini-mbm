@@ -47,7 +47,7 @@ namespace mbm
         {
             char str[255];
             int  type = lua_type(lua, i);
-            sprintf(str, "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
+            snprintf(str, sizeof(str), "\t%d| %8s |%d\n", -k, lua_typename(lua, type), i);
             stack += str;
         }
         stack += "**********************************\n\n";
@@ -837,7 +837,7 @@ namespace mbm
     {
         static char seqTextureName[255] = "";
         static int  n                   = 1;
-        sprintf(seqTextureName, "__Texture_%d.png", n++);
+        snprintf(seqTextureName, sizeof(seqTextureName), "__Texture_%d.png", n++);
         return seqTextureName;
     }
 

@@ -659,6 +659,9 @@
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp">
+      <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\copy-dlls.bat">
@@ -666,5 +669,8 @@
     </None>
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />
+    <None Include="..\..\src\core_mbm\new-backend-instructions.md">
+      <Filter>Source Files\core_mbm</Filter>
+    </None>
   </ItemGroup>
 </Project>

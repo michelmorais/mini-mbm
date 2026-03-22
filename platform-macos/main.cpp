@@ -22,8 +22,8 @@
 int main()
 {
     GAME game;
-    if(game.initGl("Hello-world"))
-        return game.loop();
+    if(game.initGraphics("Hello-world"))
+        return game.loop(false, true);
     return -1;
 }
 

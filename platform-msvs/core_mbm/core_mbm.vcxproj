@@ -287,6 +287,7 @@
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es-x11.cpp" />
     <ClCompile Include="..\..\src\core_mbm\core-manager-opengl_es_android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\device-win32.cpp" />
+    <ClCompile Include="..\..\src\core_mbm\dialog-util.cpp" />
     <ClCompile Include="..\..\src\core_mbm\draw-compatibility.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-manager-legacy.cpp" />
     <ClCompile Include="..\..\src\core_mbm\mesh-v8-io.cpp" />
@@ -383,6 +384,7 @@
     <ClCompile Include="core_mbm.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\core_mbm\new-backend-instructions.md" />
     <None Include="..\copy-dlls.bat" />
     <None Include="..\mbm-backend.props" />
     <None Include="mbm-core-flags.props" />

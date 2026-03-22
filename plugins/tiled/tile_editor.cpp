@@ -26,6 +26,11 @@
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/scene.h>
 #include <algorithm>
+#if defined(__APPLE__) || defined(__linux__)
+#include <unistd.h>
+#endif
+
+constexpr float z_offset_interval = -0.001f;
 
 template< typename T >
 struct array_deleter
@@ -36,7 +41,7 @@ struct array_deleter
   }
 };
 
-#if defined _WIN32
+#if defined _WIN32 || (defined __APPLE__ && __cplusplus < 201703L)
     namespace std
     {
         float clamp(const float value,const float v_min, const float v_max)
@@ -502,7 +507,7 @@ namespace mbm
         }
         if(layer->createFx() == false)
             return false;
-        layer->offset.z =    (tileMap.layers.size() + 1) * -0.1f;
+        layer->offset.z =    (tileMap.layers.size() + 1) * z_offset_interval;
         tileMap.layers.emplace_back(layer);
         return true;
     }
@@ -515,7 +520,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -796,12 +801,14 @@ namespace mbm
     bool TILE_EDITOR::render()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
         ANIMATION *anim = this->getAnimation(0);
         if(anim == nullptr)
         {
             if(createAnim() == false)
             {
                 ERROR_AT(__LINE__,__FILE__, "%s", "Failed to create animation");
+                device->enableFilteringAfterPixelPerfect();
                 return false;
             }
             anim = this->getAnimation();
@@ -809,7 +816,10 @@ namespace mbm
         if (this->alwaysRenderize)
         {
             if (this->isOnFrustum() == false)
+            {
+                device->enableFilteringAfterPixelPerfect();
                 return false;
+            }
         }
 
         this->blend.set(anim->blendState);
@@ -819,18 +829,19 @@ namespace mbm
         //only 2dw
         MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
         MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
+        bool result = false;
         switch (render_what)
         {
             case RENDER_MAP:
             {
                 if(line_tileSetPreview)
                     line_tileSetPreview->enableRender = false;
-                return renderMap(&anim->fx.shader);
+                result = renderMap(&anim->fx.shader);
             }
             break;
             case RENDER_TILE_SET:
             {
-                return renderTileSet();
+                result = renderTileSet();
             }
             break;
             case RENDER_LAYER:
@@ -840,12 +851,16 @@ namespace mbm
                     line_tileSetPreview->enableRender = false;
                 const VEC2 scale_offset(scale.x,scale.y);
 
+                result = true;
                 for (uint32_t i = 0; i < tileMap.layers.size(); i++)
                 {
                     const bool enable_highlights = i == index_render_what;
                     const float transparency = i > index_render_what ? 0.7f : 0.0f;
                     if(renderLayer(i, enable_highlights ,scale_offset,transparency) == false)
-                        return false;
+                    {
+                        result = false;
+                        break;
+                    }
                 }
             }
             break;
@@ -853,11 +868,12 @@ namespace mbm
             {
                 if(line_tileSetPreview)
                     line_tileSetPreview->enableRender = false;
-                return renderBrick();
+                result = renderBrick();
             }
             break;
         }
-        return false;
+        device->enableFilteringAfterPixelPerfect();
+        return result;
     }
 
     bool TILE_EDITOR::onRestoreDevice()
@@ -1596,7 +1612,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -1609,7 +1625,7 @@ namespace mbm
             for(uint32_t i=0; i < tileMap.layers.size(); ++i)
             {
                 auto & layer    = tileMap.layers[i];
-                layer->offset.z = (i + 1) * -0.1f;
+                layer->offset.z = (i + 1) * z_offset_interval;
             }
         }
     }
@@ -1655,7 +1671,15 @@ namespace mbm
     {
         if(tileMap.bricks.size() > 0 && tileMap.layers.size() > 0)
         {
+#if defined(__APPLE__) || defined(__linux__)
+            char _tmp_tpl[] = "/tmp/minimbm_hist_XXXXXX";
+            int _tmp_fd = mkstemp(_tmp_tpl);
+            if (_tmp_fd == -1) return;
+            ::close(_tmp_fd);
+            std::string file_name = _tmp_tpl;
+#else
             std::string file_name = std::tmpnam(nullptr);
+#endif
             if(this->saveBinary(file_name.c_str()))
             {
                 if(index_history == (history_files.size()))
@@ -2047,7 +2071,7 @@ namespace mbm
                     const uint32_t total  = tileMap.count_width_tile * tileMap.count_height_tile;
                     layer->offset.x       = tInfolayer->offset[0];
                     layer->offset.y       = tInfolayer->offset[1];
-                    //layer->       = tInfolayer->offset[1];
+                    layer->offset.z       = tInfolayer->offset[2];
                     layer->bricks.reserve(total);
 
                     for (size_t j = 0; j < tileCount; j++)
@@ -2171,6 +2195,13 @@ namespace mbm
                             return false;
                     }
                     tileMap.layers.emplace_back(layer);
+                }
+
+                // Always synthesize z from layer index — repairs old files where z was
+                // incorrectly saved as 0 due to a bug in a previous loadBinary version.
+                for (size_t i = 0; i < tileMap.layers.size(); i++)
+                {
+                    tileMap.layers[i]->offset.z = static_cast<float>(i + 1) * z_offset_interval;
                 }
 
                 auto addToRightPlace = [] (DYNAMIC_VAR* var, TILED_MAP & tileMap, const std::string & name,const std::string & owner) -> void
@@ -2477,7 +2508,7 @@ namespace mbm
                 tileInfo->layers[k].lsIndexTiles       = lsIndexTiles;
                 tileInfo->layers[k].offset[0]          = tileMap.layers[k]->offset.x;
                 tileInfo->layers[k].offset[1]          = tileMap.layers[k]->offset.y;
-                tileInfo->layers[k].offset[2]          = tileMap.layers[k]->offset.z;
+                tileInfo->layers[k].offset[2]          = (float)(k + 1) * z_offset_interval; // always derived from index, never from stale in-memory value
                 auto & layer                           = tileMap.layers[k];
 
                 for (uint32_t i = 0; i < tileMap.count_width_tile; i++)

@@ -19,6 +19,7 @@
 
 #if defined (USE_OPENGL_ES)
 
+#include <core_mbm/core-exports.h>
 #include <stdio.h>
 #include <string>
 
@@ -82,33 +83,36 @@ namespace mbm
     "precision mediump float;\n"
     "uniform sampler2D sample0;\n"
     "varying vec2 vTexCoord;\n"
-    "uniform float percent;\n"
-    "uniform float angle;\n"
     "uniform float clockwise;\n"
+    "uniform float angle_start_in_deg;\n"
+    "uniform float percent;\n"
     "\n"
     "void main( )\n"
     "{\n"
-    "    float x0 = vTexCoord.x - 0.5;\n"
-    "    float y0 = vTexCoord.y - 0.5;\n"
-    "    float x = x0 * cos(angle) - y0 * sin(angle);\n"
-    "    float y = x0 * sin(angle) + y0 * cos(angle);\n"
-    "    \n"
-    "    float a = atan(y, x);\n"
-    "    \n"
-    "    if ((clockwise >= 0.5 && a > percent) || (clockwise < 0.5 && a < percent))\n"
-    "    {\n"
-    "        gl_FragColor = texture2D(sample0, vTexCoord);\n"
-    "    }\n"
+    "    // Normalize fragment angle to [0, 1) where 0 = east / 3-o'clock, clockwise.\n"
+    "    float  PI      = 3.14159265;\n"
+    "    vec2   c       = vTexCoord - 0.5;\n"
+    "    float  a_rad   = atan(c.y, c.x);\n"
+    "    float  a01     = mod(a_rad / (2.0 * PI) + 1.0, 1.0);\n"
+    "    float  start01 = mod(angle_start_in_deg / 360.0, 1.0);\n"
+    "\n"
+    "    // Arc distance from start to fragment, in requested winding direction.\n"
+    "    float delta;\n"
+    "    if (clockwise >= 0.5)\n"
+    "        delta = mod(a01 - start01 + 1.0, 1.0);\n"
     "    else\n"
-    "    {\n"
+    "        delta = mod(start01 - a01 + 1.0, 1.0);\n"
+    "\n"
+    "    if (delta < percent)\n"
+    "        gl_FragColor = texture2D(sample0, vTexCoord);\n"
+    "    else\n"
     "        discard;\n"
-    "    }\n"
     "}\n",
 
     "[ps-pie.ps] = pie.ps\n"
-    "[ps-pie.ps][float][percent] = min -3.1415 max 3.1415 default 0.0 \n"
-    "[ps-pie.ps][float][angle] = min -3.1415 max 3.1415 default 0.0 \n"
-    "[ps-pie.ps][float][clockwise] = min 0.0 max 1.0 default 1.0 \n",
+    "[ps-pie.ps][float][clockwise]          = min 0.0    max 1.0   default 1.0 \n"
+    "[ps-pie.ps][float][angle_start_in_deg] = min -360.0 max 360.0 default 0.0 \n"
+    "[ps-pie.ps][float][percent]            = min 0.0    max 1.0   default 0.5 \n",
     
     // pie *********************
     
@@ -2589,7 +2593,7 @@ namespace mbm
         return codeVsColor_LINE_MESH;
     }
 
-    const char* getParticlePSCode()
+    API_IMPL const char* getParticlePSCode()
     {
         static const char* psParticleCode = "precision mediump float;\n"
             "uniform vec4 color;\n"
