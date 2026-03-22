@@ -61,6 +61,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
   - [Windows (Visual Studio)](#windows-visual-studio)
   - [Android (CMake + NDK)](#android-cmake--ndk)
   - [macOS (CMake)](#macos-cmake)
+  - [iOS (Metal, Xcode)](#ios-metal-xcode)
   - [CMake Option Flags](#cmake-option-flags)
 - [Project Structure](#project-structure)
 - [Third-Party Libraries](#third-party-libraries)
@@ -192,6 +193,52 @@ int main() {
 
 ---
 
+### Option C: iOS (Metal, Xcode)
+
+The iOS port uses UIKit + Metal.  It requires **Xcode 15+** with the iOS SDK installed.
+
+**1. Generate an Xcode project:**
+
+```bash
+cmake -B build/ios_debug \
+      -DPLAT=iOS \
+      -DUSE_ALL=1 \
+      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -G Xcode
+```
+
+**2. Set up code signing, then build to the Simulator:**
+
+```bash
+# Open in Xcode — set Team + Bundle ID under Signing & Capabilities
+open build/ios_debug/mini-mbm.xcodeproj
+
+# Or build directly to the iOS Simulator from the command line (no signing needed)
+xcodebuild -project build/ios_debug/mini-mbm.xcodeproj \
+           -scheme mini-mbm \
+           -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
+           -configuration Debug build
+```
+
+**3. Place your Lua scripts** in the app bundle under `Resources/`.  CMake copies any
+files listed as `RESOURCE` properties of the target into the `.app` bundle automatically
+when building with the Xcode generator.  The engine entry point is `Resources/main.lua`.
+
+> **Notes:**
+> - All plugins are **statically linked** on iOS (App Store sandbox forbids dynamic loading).
+> - The launcher dialog is disabled on iOS; the engine launches `main.lua` directly.
+> - File dialogs (`openFileDialog` / `saveFileDialog`) return `nullptr` on iOS.
+> - Touch events are routed via UIKit (`onTouchDown/Move/Up`); mouse events are not used.
+> - Orientation is locked to **landscape** by default (edit `Info.plist` and
+>   `MetalViewController` to add portrait support).
+>
+> To target a **physical device** instead of the Simulator, connect the device, select it
+> in Xcode under *Destinations*, and build normally.  A valid Apple Developer account is
+> required for on-device deployment.
+
+---
+
 ## Features at a Glance
 
 | Category | Highlights |
@@ -204,7 +251,7 @@ int main() {
 | **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
-| **Platforms** | Windows, Linux, macOS, Android |
+| **Platforms** | Windows, Linux, macOS, Android, iOS |
 | **Camera** | 2D/3D camera with projection/view matrices, billboard, azimuth, pixel-perfect mode |
 | **Shaders** | Custom FX system with per-variable min/max animation, PS + VS support |
 | **Security** | AES encryption for scripts and assets (PlusAES) |
@@ -757,6 +804,44 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 **OGG/Vorbis** via the bundled `stb_vorbis` decoder (no extra dependencies needed).
 
 > **Note:** The Metal rendering backend is selected automatically when building for Apple (`-DUSE_METAL=1` is the default).
+
+### iOS (Metal, Xcode)
+
+Requires **Xcode 15+** with the iOS SDK (`xcode-select -p` should point to Xcode).
+
+```bash
+# Generate Xcode project (arm64 device)
+cmake -B build/ios_debug \
+      -DPLAT=iOS \
+      -DUSE_ALL=1 \
+      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -G Xcode
+
+# Build to the iOS Simulator (no code-signing required)
+xcodebuild -project build/ios_debug/mini-mbm.xcodeproj \
+           -scheme mini-mbm \
+           -destination "platform=iOS Simulator,name=iPhone 15,OS=latest" \
+           -configuration Debug build
+
+# Or open in Xcode for device deployment (requires Apple Developer account)
+open build/ios_debug/mini-mbm.xcodeproj
+```
+
+For the Simulator you can also override the sysroot at CMake time:
+
+```bash
+cmake -B build/ios_sim \
+      -DPLAT=iOS \
+      -DUSE_ALL=1 \
+      -DCMAKE_OSX_SYSROOT=iphonesimulator \
+      -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -G Xcode
+```
+
+> **Note:** All plugins are statically linked on iOS (App Store sandbox). The launcher
+> dialog is skipped; the engine launches `Resources/main.lua` directly from the app bundle.
 
 ### CMake Option Flags
 
