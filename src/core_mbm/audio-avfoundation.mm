@@ -148,10 +148,45 @@ bool AUDIO::load(const char *filenameSound, const bool /*loop*/, const bool /*in
     avf_data = std::make_unique<AVFAudioData>();
 
     NSString *nsPath = [NSString stringWithUTF8String:fullPath];
-    NSURL    *url    = [NSURL fileURLWithPath:nsPath];
 
+    // AVFoundation does not support the OGG container. stb_vorbis handles
+    // OGG Vorbis, but files converted for Android are often OGG Opus which
+    // stb_vorbis cannot decode. Detect OGG Opus by reading the stream header
+    // and, if found, fall back to the .wav counterpart in the same directory.
     const bool isOgg =
         [[nsPath.pathExtension lowercaseString] isEqualToString:@"ogg"];
+
+    if (isOgg) {
+        // Read the first 64 bytes to check for "OpusHead" magic.
+        bool isOpus = false;
+        if (FILE *f = fopen(fullPath, "rb")) {
+            uint8_t hdr[64] = {};
+            fread(hdr, 1, sizeof(hdr), f);
+            fclose(f);
+            // OGG Opus first-page header contains the string "OpusHead"
+            for (int i = 0; i <= (int)sizeof(hdr) - 8; ++i) {
+                if (memcmp(hdr + i, "OpusHead", 8) == 0) { isOpus = true; break; }
+            }
+        }
+        if (isOpus) {
+            // Swap the .ogg extension for .wav and try again.
+            NSString *wavPath = [[nsPath stringByDeletingPathExtension]
+                                  stringByAppendingPathExtension:@"wav"];
+            bool wavFound = false;
+            const char *wavFullPath = util::getFullPath([wavPath UTF8String], &wavFound);
+            if (wavFound && wavFullPath) {
+                NSLog(@"[mini-mbm] OGG Opus not supported natively; falling back to %s", wavFullPath);
+                avf_data.reset();
+                return load(wavFullPath, false, false);
+            } else {
+                ERROR_LOG("OGG Opus not supported and no .wav fallback found for: %s", filenameSound);
+                avf_data.reset();
+                return false;
+            }
+        }
+    }
+
+    NSURL *url = [NSURL fileURLWithPath:nsPath];
 
     AVAudioFormat    *format    = nil;
     AVAudioPCMBuffer *pcmBuffer = nil;

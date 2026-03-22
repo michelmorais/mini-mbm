@@ -47,6 +47,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
   - [Render Pipeline](#render-pipeline)
 - [Renderable Types (RENDERIZABLE)](#renderable-types-renderizable)
 - [Custom Binary Formats](#custom-binary-formats)
+- [Audio Backends & Supported File Formats](#audio-backends--supported-file-formats)
 - [Render Backends](#render-backends)
 - [Lua Scripting Interface](#lua-scripting-interface)
   - [Scene Lifecycle (Lua)](#scene-lifecycle-lua)
@@ -325,6 +326,43 @@ The engine uses its own optimized binary formats for game assets. These are **no
 | `.ptl` | Particle | Multi-stage particle system configuration (emitters, forces, colors, lifetimes) | Particle Editor |
 
 > **Note:** You may encounter `.mbm` files in older parts of the codebase. This was the original format used in the very early stages of engine development and is being phased out in favor of the type-specific extensions listed above.
+
+---
+
+## Audio Backends & Supported File Formats
+
+The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CMake flag. Each platform has a default.
+
+| Platform | Default Backend | CMake Flag |
+|---|---|---|
+| macOS | AVFoundation | `-DAUDIO=avfoundation` |
+| Linux | PortAudio | `-DAUDIO=portaudio` |
+| Windows | Audiere | `-DAUDIO=audiere` |
+| Android | JNI (SoundPool) | `-DAUDIO=jni` |
+| All | None (silent) | `-DAUDIO=none` |
+
+### Supported File Formats by Platform
+
+| Format | macOS | Linux | Windows | Android | Notes |
+|---|---|---|---|---|---|
+| **WAV** | ✅ Recommended | ✅ Recommended | ✅ Recommended | ✅ | Uncompressed PCM. Zero decode latency. Best for sound effects. |
+| **AIFF / CAF / AU** | ✅ | ❌ | ❌ | ❌ | Decoded natively by AVFoundation. |
+| **MP3** | ✅ | ✅ (via Audiere) | ✅ (via Audiere) | ✅ | Hardware-decoded on macOS. |
+| **AAC / M4A** | ✅ | ❌ | ❌ | ✅ | Recommended for long background music on macOS/Android. |
+| **FLAC** | ✅ (macOS 10.13+) | ✅ (via Audiere) | ✅ (via Audiere) | ❌ | |
+| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via Audiere) | ✅ (via Audiere) | ✅ Recommended | `.ogg` container with Vorbis codec. |
+| **OGG Opus** | ⚠️ Falls back to `.wav` | ✅ (via Audiere) | ✅ (via Audiere) | ✅ | macOS auto-retries with same name + `.wav` extension. |
+| **MOD / S3M / XM / IT** | ❌ | ✅ (via Audiere) | ✅ (via Audiere) | ❌ | Tracker music formats. |
+
+### Recommended Format per Platform
+
+| Use case | macOS | Linux | Windows | Android |
+|---|---|---|---|---|
+| **Sound effects** (short, frequent) | `.wav` | `.wav` | `.wav` | `.ogg` (Vorbis) |
+| **Background music** (long) | `.aac` / `.m4a` | `.ogg` (Vorbis) | `.ogg` (Vorbis) | `.ogg` (Vorbis) |
+| **Cross-platform single file** | `.wav` | `.wav` | `.wav` | `.wav` |
+
+> **macOS + OGG Opus:** Android tooling often exports `.ogg` files encoded with the Opus codec. AVFoundation and stb_vorbis do not support Opus. The engine automatically detects OGG Opus files (by reading the `OpusHead` stream header) and falls back to a `.wav` file with the same base name in the same directory. Keep both `.ogg` and `.wav` versions of your sounds to stay compatible with both Android and macOS.
 
 ---
 
