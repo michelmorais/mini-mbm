@@ -117,19 +117,24 @@ if (USE_OPENGL_ES)
   target_compile_definitions(${IMGUI_LIBRARY} PRIVATE IMGUI_IMPL_OPENGL_ES2 IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 endif()
 if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
-  target_link_libraries(${IMGUI_LIBRARY} d3d9)
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE d3d9)
 endif()
 
 if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
-  target_link_libraries(${IMGUI_LIBRARY} "-framework Metal")
-  target_link_libraries(${IMGUI_LIBRARY} "-framework Foundation")
-  target_link_libraries(${IMGUI_LIBRARY} "-framework QuartzCore")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework Metal")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework Foundation")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework QuartzCore")
 endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
-  target_link_libraries(${IMGUI_LIBRARY} ${OPENGLES2_LIBRARY})
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${OPENGLES2_LIBRARY})
 endif()
 
-target_link_libraries(${IMGUI_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${IMGUI_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
-target_link_libraries(${IMGUI_LIBRARY} ${CORE_MBM_LIBRARY})
+# On iOS ImGui is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
+# static deps to the consumer, so linking Lua here would duplicate the explicit
+# target_link_libraries(mini-mbm ${LUA_LIBRARY}) call and trigger an ld warning.
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${LUA_LIBRARY})
+endif()
+target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
+target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})

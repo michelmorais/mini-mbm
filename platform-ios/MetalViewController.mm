@@ -114,8 +114,12 @@ static mbm::LUA_MANAGER* s_game = nullptr;
     // 9. Start the per-frame display link.
     _displayLink = [CADisplayLink displayLinkWithTarget:self
                                                selector:@selector(renderFrame:)];
-    _displayLink.preferredFrameRateRange =
-        CAFrameRateRangeMake(30, 60, 60); // ask for up to 60 fps
+    if (@available(iOS 15.0, *)) {
+        _displayLink.preferredFrameRateRange =
+            CAFrameRateRangeMake(30, 60, 60); // ask for up to 60 fps
+    } else {
+        _displayLink.preferredFramesPerSecond = 60;
+    }
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop]
                        forMode:NSRunLoopCommonModes];
 }

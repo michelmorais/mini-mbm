@@ -45,7 +45,7 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
 add_library(${BOX2D_LIQUID_FUN_LUA_LIBRARY} SHARED ${SOURCES} )
 
-target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${LUA_LIBRARY})
-#target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
-target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+target_link_libraries(${BOX2D_LIQUID_FUN_LUA_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
 

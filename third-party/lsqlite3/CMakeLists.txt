@@ -62,5 +62,8 @@ else()
     add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES})
 endif()
 
-target_link_libraries(${SQLITE3_LUA_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${SQLITE3_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+# Same rationale as ImGui: STATIC on iOS, skip Lua to avoid duplicate in mini-mbm link.
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
+endif()
+target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
