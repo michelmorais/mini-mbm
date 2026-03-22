@@ -1364,7 +1364,7 @@ namespace mbm
                 this->lsScene.push_back(newScene);
                 this->setScene(newScene);
             }
-    #if (defined _WIN32 || defined __linux__ || defined __APPLE__)  && !defined ANDROID
+    #if (defined _WIN32 || defined __linux__ || defined __APPLE__) && !defined ANDROID && !defined MBM_PLATFORM_IOS
             constexpr bool singleLoop    = false;
             constexpr bool doSwapBuffers = true;
             return this->loop(singleLoop, doSwapBuffers);

@@ -32,10 +32,16 @@ if (USE_LUA)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
-    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-MacOs.mm)
+        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
+        set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-iOS.mm)
         set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
             PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
@@ -56,9 +62,12 @@ else()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-android/scene-1.cpp)
-    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-macos/my-scene.cpp)
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
+        # iOS uses UIApplicationMain; no separate my-scene.cpp
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -164,7 +173,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -184,6 +193,46 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework Cocoa")
+
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    # iOS static-link plugin definitions (same workaround as Android — dynamic loading is blocked)
+    if(USE_LSQLITE3)
+        add_definitions(-DUSE_LSQLITE3)
+    endif()
+    if(USE_BOX2D_LIQUID_FUN)
+        add_definitions(-DUSE_BOX2D_LIQUID_FUN)
+    endif()
+    if(USE_BOX2D)
+        add_definitions(-DUSE_BOX2D)
+    endif()
+    if(USE_BULLET3D)
+        add_definitions(-DUSE_BULLET3D)
+    endif()
+    if(USE_IMGUI)
+        add_definitions(-DUSE_IMGUI)
+    endif()
+
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES})
+    endif()
+    set_target_properties(mini-mbm PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist)
+    target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm "-framework UIKit")
+
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
@@ -218,6 +267,36 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     if(USE_IMGUI)
         message(STATUS "USE_IMGUI is enabled, ${IMGUI_LIBRARY} for ANDROID will be linked as workaround")
+        target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
+    endif()
+
+endif()
+
+# plugins for iOS must also be statically linked (App Store sandbox forbids user-space dylibs)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+
+    if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D)
+        message(STATUS "USE_BOX2D is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+    endif()
+
+    if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
+    endif()
+
+    if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled — linking statically for iOS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
@@ -306,7 +385,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo ""
         COMMAND cmake -E echo "---------------------------------------------")
     endif()
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     set(REDIRECT_SHELL                    "'>>'")
     if(USE_LUA)
         add_custom_target(

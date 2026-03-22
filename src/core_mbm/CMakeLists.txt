@@ -109,7 +109,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     message( SEND_ERROR "Not configurated for Windows src/CMakeList.txt")
 
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
 
     if(USE_OPENGL_ES)
         #Opengl
@@ -119,6 +119,14 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
     ####
+
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+
+    #pthreads
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    ####
+
 else()
 
     message( SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM=${ENGINE_TARGET_PLATFORM} in src/CMakeLists.txt")
@@ -126,10 +134,10 @@ else()
 endif()
 
 
-# Gather Objective-C++ Metal sources (Apple + USE_METAL only)
+# Gather Objective-C++ Metal sources (MacOs/iOS + USE_METAL only)
 set(METAL_MM_SOURCES "")
 set(METAL_RENDER_MM_SOURCES "")
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
     file(GLOB_RECURSE METAL_MM_SOURCES "${CORE_OPENGLES_SRC}/*.mm")
     file(GLOB_RECURSE METAL_RENDER_MM_SOURCES "${RENDER_SRC}/*.mm")
     # Enable Automatic Reference Counting for all Objective-C++ Metal sources.
@@ -149,7 +157,7 @@ endif()
 # dialog-util-macos.mm file is not picked up by the Metal .mm glob above.
 # Add it explicitly so that dialog_util symbols are always available on Apple.
 set(APPLE_DIALOG_MM_SOURCES "")
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND NOT USE_METAL)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND NOT USE_METAL)
     set(APPLE_DIALOG_MM_SOURCES ${CORE_OPENGLES_SRC}/dialog-util-macos.mm)
     set_source_files_properties(${APPLE_DIALOG_MM_SOURCES}
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
@@ -158,7 +166,7 @@ endif()
 # For Apple builds that use AVFoundation audio but NOT Metal, the
 # audio-avfoundation.mm is not picked up by the Metal .mm glob above.
 set(APPLE_AVF_AUDIO_MM_SOURCES "")
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND ${AUDIO} STREQUAL "avfoundation" AND NOT USE_METAL)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND ${AUDIO} STREQUAL "avfoundation" AND NOT USE_METAL)
     set(APPLE_AVF_AUDIO_MM_SOURCES ${CORE_OPENGLES_SRC}/audio-avfoundation.mm)
     set_source_files_properties(${APPLE_AVF_AUDIO_MM_SOURCES}
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
@@ -233,7 +241,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     message(" ... ")
     
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if(USE_METAL)
         target_link_libraries(core_mbm "-framework Metal")
         target_link_libraries(core_mbm "-framework Foundation")
@@ -271,6 +279,24 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     
     target_link_libraries(core_mbm dl)
     target_link_libraries(core_mbm pthread)
+
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    # iOS uses Metal + UIKit; no Cocoa/AppKit
+    target_link_libraries(core_mbm "-framework Metal")
+    target_link_libraries(core_mbm "-framework Foundation")
+    target_link_libraries(core_mbm "-framework QuartzCore")
+    target_link_libraries(core_mbm "-framework UIKit")
+    target_link_libraries(core_mbm "-framework CoreGraphics")
+    if (${AUDIO} STREQUAL "avfoundation")
+        target_link_libraries(core_mbm "-framework AVFoundation")
+        target_link_libraries(core_mbm "-framework AudioToolbox")
+    elseif(${AUDIO} STREQUAL "none")
+        message("Disabling sound audio class for iOS")
+    else()
+        message(SEND_ERROR " Unknown AUDIO choice for iOS: ${AUDIO}")
+    endif()
+    target_link_libraries(core_mbm pthread)
+
 else()
     message( SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM=${ENGINE_TARGET_PLATFORM} in src/CMakeLists.txt")
 endif()

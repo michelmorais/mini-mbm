@@ -680,7 +680,7 @@ cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=audiere
 make -j$(nproc)
 
 # On Mac (Metal + AVFoundation audio is default)
-cmake -B build -DPLAT=Apple -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)
+cmake -B build -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(sysctl -n hw.logicalcpu)
 ```
 
 **Output locations:**
@@ -748,7 +748,7 @@ make -j$(nproc)
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Apple -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+cmake .. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
 make -j$(nproc)
 ```
 
@@ -762,7 +762,7 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 
 | Flag | Default | Description |
 |---|---|---|
-| `-DPLAT=` | **(required)** | Target platform: `Linux`, `Windows`, `Android`, or `Apple` |
+| `-DPLAT=` | **(required)** | Target platform: `Linux`, `Windows`, `Android`, `MacOs`, or `iOS` |
 | `-DCMAKE_BUILD_TYPE=` | `Release` | `Debug` or `Release` |
 | `-DUSE_ALL=1` | `OFF` | Enable all features (Lua, VR, and on Android all plugins) |
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |

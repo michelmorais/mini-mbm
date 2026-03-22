@@ -34,7 +34,7 @@ the Apple/Metal target without audio:
 ```bash
 git clean -xdf
 mkdir build && cd build
-cmake .. -DPLAT=Apple -DAUDIO=none
+cmake .. -DPLAT=MacOs -DAUDIO=none
 make -j8
 cd ..
 ```
@@ -1349,8 +1349,177 @@ if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 ||
 | `windows` | `_WIN32` | |
 | `android` | `ANDROID` | |
 | `linux` | `__linux__ && !__APPLE__` | |
-| `macos` | `__APPLE__ && !ANDROID` | **Added this session** |
+| `macos` | `__APPLE__ && !ANDROID && !MBM_PLATFORM_IOS` | **Added Metal port session** |
+| `ios` | `MBM_PLATFORM_IOS` | **Added iOS port session** |
 
 ### Editors updated
 
 All 8 editors (`particle_editor`, `texture_packer`, `sprite_maker`, `shader_editor`, `asset_packager`, `physic_editor`, `mesh_debug`, `scene_editor2d`) had their About menu browser-open blocks updated to include `elseif mbm.is('macos') then os.execute('open "URL"')` in the same session.
+
+---
+
+# Appendix C — iOS / Metal implementation notes
+
+This appendix documents the iOS port of the engine (Metal backend, UIKit app model).
+
+---
+
+## C1. Architecture overview
+
+iOS uses the same Metal render backend as macOS, but replaces the Cocoa/NSWindow
+application model with UIKit/UIView:
+
+| Concern | macOS | iOS |
+|---|---|---|
+| Window | `NSWindow` | `UIWindow` + `UIView` |
+| Event loop | `NSApplication` run loop + `handleEventFromWindow` | `UIApplicationMain` + `CADisplayLink` |
+| Metal surface | `CAMetalLayer` in `NSView` | `CAMetalLayer` as backing layer of `MBMMetalView` |
+| Frame tick | `LUA_MANAGER::run()` blocking loop | `CADisplayLink` → `loop(true, true)` per frame |
+| File dialog | `dialog-util-macos.mm` (tinyfiledialogs) | `dialog-util-ios.mm` (stub, returns `nullptr`) |
+| Launcher dialog | `mini-mbm-lib-MacOs.mm` (Cocoa panel) | `mini-mbm-lib-iOS.mm` (stub, returns `false`) |
+
+### Key difference: non-blocking `run()`
+
+On iOS, `UIApplicationMain` owns the main thread and cannot be blocked.  `LUA_MANAGER::run()`
+is guarded in `manager-lua.cpp`:
+
+```cpp
+#if (defined _WIN32 || defined __linux__ || defined __APPLE__) && !defined ANDROID && !defined MBM_PLATFORM_IOS
+    loop(false, true);   // blocking desktop loop
+#endif
+```
+
+After `run()` returns immediately, `MetalViewController` starts a `CADisplayLink` that
+calls `loop(true, true)` once per display refresh (60 or 120 Hz).
+
+---
+
+## C2. CAMetalLayer handoff
+
+`DEVICE::initializeSpecificContext()` constructs a fresh `SPECIFIC_AUX_CONTEXT_DEVICE`,
+which clears any previously stored layer pointer.  To survive this reset, the layer pointer
+is stored in a file-scoped static before `initializeSceneLua()` is called and read back
+inside `initGraphics()`:
+
+```objc
+// core-manager-metal-ios.mm
+static CAMetalLayer* s_pendingMetalLayer = nil;
+
+extern "C" void mbm_ios_setMetalLayer(CAMetalLayer* layer) {
+    s_pendingMetalLayer = layer;
+}
+
+void CORE_MANAGER::initGraphics() {
+    // initializeSpecificContext() was called inside initializeSceneLua()
+    auto* ctx = specificContextDevice.get();
+    ctx->metalLayer = s_pendingMetalLayer;   // read back after context reset
+    ...
+}
+```
+
+`MetalViewController` calls `mbm_ios_setMetalLayer(_metalView.metalLayer)` before
+`initializeSceneLua()`.
+
+---
+
+## C3. `specific-metal.h` conditional fields
+
+`NSWindow` does not exist on iOS.  The struct uses `TARGET_OS_IOS` to switch:
+
+```objc
+#include <TargetConditionals.h>
+#if TARGET_OS_IOS
+    #import <UIKit/UIKit.h>    // UIView
+#else
+    #import <Cocoa/Cocoa.h>    // NSWindow
+#endif
+
+// Inside SPECIFIC_AUX_CONTEXT_DEVICE:
+#if TARGET_OS_IOS
+    UIView*   metalView      = nil;
+#else
+    NSWindow* window         = nil;
+    id        windowDelegate = nil;
+#endif
+```
+
+---
+
+## C4. Touch input
+
+Touch events arrive via `UIResponder` overrides on `MetalViewController`.  Each
+`UITouch*` pointer is mapped to a stable integer finger index via a static map:
+
+```cpp
+static std::map<UITouch*, int> s_touchMap;
+static int s_nextTouchID = 0;
+```
+
+`touchesBegan` assigns a new ID; `touchesEnded/Cancelled` removes the entry.  The (x, y)
+coordinates are taken from `[touch locationInView:self.view]` in **points** (logical),
+then multiplied by `self.view.contentScaleFactor` to get physical pixels matching the
+engine's backbuffer dimensions.
+
+The engine receives `onTouchDown(id, x, y)` / `onTouchMove(id, x, y)` / `onTouchUp(id, x, y)`.
+
+---
+
+## C5. Build prerequisites
+
+- Xcode 15 or later with the iOS SDK
+- Apple Developer account (free tier allows device testing via USB)
+- `cmake` 3.21+; Ninja or Xcode generator
+
+```bash
+# Generate an Xcode project targeting iOS (arm64 device)
+cmake -B build/ios \
+      -DPLAT=iOS \
+      -DUSE_ALL=1 \
+      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+      -DCMAKE_BUILD_TYPE=Debug \
+      -G Xcode
+
+# Build from command line (requires code-signing environment variables or
+# DEVELOPMENT_TEAM set in CMakeLists.txt)
+xcodebuild -project build/ios/mini-mbm.xcodeproj \
+           -scheme mini-mbm \
+           -destination "generic/platform=iOS" \
+           -configuration Debug \
+           build
+```
+
+> **Tip:** Open `build/ios/mini-mbm.xcodeproj` in Xcode and set the Team + Bundle
+> Identifier under *Signing & Capabilities* before the first build.
+
+---
+
+## C6. Bundle layout
+
+Lua scripts and assets must be placed inside the app bundle so they are accessible via
+`[[NSBundle mainBundle] resourcePath]`.  `MetalViewController` passes
+`--addPath <resourcePath>` and `--scene main.lua` to `LUA_MANAGER` so the engine finds
+the entry script at `Resources/main.lua`.
+
+CMake copies files listed under `RESOURCE` properties of the target into the `.app`
+bundle automatically when building with the Xcode generator.
+
+---
+
+## C7. Plugin notes
+
+All plugins are **statically linked** on iOS (App Store requirement — no dynamic loading).
+Each plugin is added via `add_definitions(-DUSE_<PLUGIN>)` in
+`src/CMakeLists.txt` so `require_embedded.cpp` maps `require("box2d")` (etc.) to the
+statically-linked init functions.
+
+The same pattern is used for Android; see the `BUILD_ANDROID` block in
+`src/CMakeLists.txt` for reference.
+
+---
+
+## C8. Orientation
+
+`MetalViewController` returns `UIInterfaceOrientationMaskLandscape` from
+`supportedInterfaceOrientations`, matching the `UISupportedInterfaceOrientations` keys in
+`Info.plist` (LandscapeLeft + LandscapeRight).  To add portrait support remove both
+restrictions.

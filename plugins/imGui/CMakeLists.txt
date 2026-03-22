@@ -23,7 +23,7 @@ message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
 # On Apple/Metal builds, gather .mm sources and apply ARC.
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND USE_METAL)
     file(GLOB_RECURSE IM_GUI_MM_SOURCES "${IMGUI_SRC}/*.mm")
     list(APPEND IM_GUI_SOURCES ${IM_GUI_MM_SOURCES})
     if (IM_GUI_MM_SOURCES)
@@ -32,7 +32,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
     endif()
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
 endif()
 
@@ -66,7 +66,7 @@ else()
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_SRC}/imgui_demo_stubs.cpp")
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
 
     find_package(X11 REQUIRED)
 
@@ -116,7 +116,7 @@ if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   target_link_libraries(${IMGUI_LIBRARY} d3d9)
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND USE_METAL)
   target_link_libraries(${IMGUI_LIBRARY} "-framework Metal")
   target_link_libraries(${IMGUI_LIBRARY} "-framework Foundation")
   target_link_libraries(${IMGUI_LIBRARY} "-framework QuartzCore")

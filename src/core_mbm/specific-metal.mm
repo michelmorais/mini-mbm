@@ -75,6 +75,9 @@ namespace mbm
         defaultDepthStencilState = nil;
         noDepthStencilState  = nil;
         depthTexture         = nil;
+#if TARGET_OS_IOS
+        metalView = nil;
+#else
         // NSWindow and NSApplication are managed by the OS; we close the window
         // but do not release the application.
         if (window)
@@ -83,6 +86,7 @@ namespace mbm
             window = nil;
         }
         windowDelegate = nil;
+#endif
         mtlDevice      = nil;
     }
 
