@@ -23,7 +23,7 @@ message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
 # On Apple/Metal builds, gather .mm sources and apply ARC.
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND USE_METAL)
+if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
     file(GLOB_RECURSE IM_GUI_MM_SOURCES "${IMGUI_SRC}/*.mm")
     list(APPEND IM_GUI_SOURCES ${IM_GUI_MM_SOURCES})
     if (IM_GUI_MM_SOURCES)
@@ -32,7 +32,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND USE_METAL)
     endif()
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
 endif()
 
@@ -76,7 +76,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STRE
 
     include_directories(${X11_INCLUDE_DIR})
     ####
-  endif()
+endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(  ${IMGUI_INCLUDE}
@@ -107,7 +107,11 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 endif()
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${IMGUI_LIBRARY} STATIC ${IM_GUI_SOURCES})
+else()
+    add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})
+endif()
 
 if (USE_OPENGL_ES)
   target_compile_definitions(${IMGUI_LIBRARY} PRIVATE IMGUI_IMPL_OPENGL_ES2 IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
@@ -116,7 +120,7 @@ if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   target_link_libraries(${IMGUI_LIBRARY} d3d9)
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND USE_METAL)
+if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
   target_link_libraries(${IMGUI_LIBRARY} "-framework Metal")
   target_link_libraries(${IMGUI_LIBRARY} "-framework Foundation")
   target_link_libraries(${IMGUI_LIBRARY} "-framework QuartzCore")
