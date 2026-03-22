@@ -179,11 +179,11 @@ class IMGUI_LUA;
 // Windows: Uses built-in Win32 clipboard (imgui.cpp default)
 // Linux/macOS: Override with xclip/xsel for OS clipboard integration
 //-----------------------------------------------------------------------------
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(ANDROID)
-// Requirements on Linux/macOS
+#if defined(__linux__) && !defined(ANDROID)
+// Requirements on Linux:
 // Install one of:
-// xclip: apt install xclip (Debian/Ubuntu) or brew install xclip (macOS)
-// xsel: apt install xsel (Debian/Ubuntu) or brew install xsel (macOS)
+// xclip: apt install xclip (Debian/Ubuntu)
+// xsel: apt install xsel (Debian/Ubuntu)
 static void Platform_SetClipboardTextFn_Linux(ImGuiContext* ctx, const char* text)
 {
     if (!text) return;
