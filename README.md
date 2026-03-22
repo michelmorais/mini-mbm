@@ -844,15 +844,15 @@ This writes the Xcode project to `build/mini-mbm.xcodeproj`.
 
 #### 2a. Build from the command line (Simulator)
 
-No code signing is required for Simulator builds:
+No code signing is required for Simulator builds.
+
+> **Important:** Run all `xcodebuild` commands from the **repo root** (`mini-mbm/`), not from inside `build/`.
 
 ```bash
 # See which simulators are available on your machine:
-xcodebuild -project build/mini-mbm.xcodeproj \
-           -scheme mini-mbm \
-           -showdestinations 2>&1 | grep "iOS Simulator"
+xcrun simctl list devices available | grep -E "iPhone|iPad"
 
-# Build (substitute name and OS from the list above):
+# Build (from repo root — substitute name and OS from the list above):
 xcodebuild -project build/mini-mbm.xcodeproj \
            -scheme mini-mbm \
            -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
