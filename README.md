@@ -196,7 +196,7 @@ int main() {
 | Category | Highlights |
 |---|---|
 | **Rendering** | 13+ renderable types (sprites, meshes, textures, particles, tiles, fonts, shapes, …) with frustum culling, z-ordering, and blend modes |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless). Metal and Vulkan planned |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS). Vulkan planned |
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
@@ -338,7 +338,7 @@ The engine abstracts all graphics API calls behind a backend interface, selected
 | **DirectX 9** | Windows | ✅ Stable | `-DUSE_DIRECTX9=1` |
 | **Dummy** | All | ✅ Stable (headless/testing) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
 | **Vulkan** | — | 🚧 Planned | `-DUSE_VULKAN=1` |
-| **Metal** | macOS, iOS | 🚧 Planned | `-DUSE_METAL=1` |
+| **Metal** | macOS, iOS | ✅ Stable | `-DUSE_METAL=1` |
 
 Each backend implements platform-specific versions of: core manager, device, blend, shader, shader resources, mesh manager, texture manager, and render-to-texture. For example, the OpenGL ES backend provides EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows), and JNI (Android).
 
@@ -711,7 +711,7 @@ cmake .. -DPLAT=Apple -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
 make -j$(nproc)
 ```
 
-> **Note:** Audio is set to `none` on macOS by default. Metal backend is planned for future releases.
+> **Note:** Audio is set to `none` on macOS by default. Use `-DUSE_METAL=1` to enable the Metal backend.
 
 ### CMake Option Flags
 
@@ -724,7 +724,7 @@ make -j$(nproc)
 | `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android/Apple) |
 | `-DUSE_DIRECTX9=1` | Auto | DirectX 9 backend (auto-enabled on Windows) |
 | `-DUSE_VULKAN=1` | `OFF` | Vulkan backend (planned) |
-| `-DUSE_METAL=1` | `OFF` | Metal backend (planned) |
+| `-DUSE_METAL=1` | `OFF` | Metal backend (macOS, iOS) |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
 | `-DUSE_PLUSAES=1` | `ON` | AES encryption for scripts/assets |
 | `-DUSE_BOX2D=1` | Auto | Box2D physics plugin |
@@ -983,7 +983,7 @@ int main() {
 | Categoria | Destaques |
 |---|---|
 | **Renderização** | 13+ tipos renderizáveis (sprites, meshes, texturas, partículas, tiles, fontes, shapes, …) com frustum culling, z-ordering e modos de blend |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless). Metal e Vulkan planejados |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS). Vulkan planejado |
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
@@ -1070,7 +1070,7 @@ O motor utiliza seus próprios formatos binários otimizados para assets de jogo
 | **DirectX 9** | Windows | ✅ Estável | `-DUSE_DIRECTX9=1` |
 | **Dummy** | Todas | ✅ Estável (headless/testes) | `-DUSE_DUMMY_BACK_END_ENGINE=1` |
 | **Vulkan** | — | 🚧 Planejado | `-DUSE_VULKAN=1` |
-| **Metal** | macOS, iOS | 🚧 Planejado | `-DUSE_METAL=1` |
+| **Metal** | macOS, iOS | ✅ Estável | `-DUSE_METAL=1` |
 
 O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e JNI (Android).
 
