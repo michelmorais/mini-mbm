@@ -831,13 +831,7 @@ Run this once from the repo root:
 
 ```bash
 mkdir -p build && cd build
-cmake .. \
-      -DPLAT=iOS \
-      -DUSE_ALL=1 \
-      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-      -DAUDIO=avfoundation \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -G Xcode
+cmake .. -DPLAT=iOS -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=avfoundation -DCMAKE_BUILD_TYPE=Debug  -G Xcode
 ```
 
 This writes the Xcode project to `build/mini-mbm.xcodeproj`.
