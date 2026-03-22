@@ -43,13 +43,13 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/bin/debug/arm64/mini-mbm",
-      "args": ["${workspaceFolder}/editor/tilemap_editor.lua", "-w", "1470", "-h", "900", "-ew", "1470", "-eh", "900"],
+      "args": ["/Users/michel/tower-defense/main.lua", "-w", "1470", "-h", "900", "-ew", "1470", "-eh", "900"],
       "cwd": "${workspaceFolder}/bin/debug/arm64",
       "stopAtEntry": false,
       "preLaunchTask": "Build mini-mbm (macOS Debug)",
-      "MIMode": "lldb",
-      "setupCommands": [
-        { "description": "Enable pretty-printing", "text": "-enable-pretty-printing", "ignoreFailures": true }
+      "exceptionBreakpointFilters": [],
+      "preRunCommands": [
+        "script import re; [lldb.target.GetBreakpointAtIndex(i).SetAutoContinue(True) for i in range(lldb.target.GetNumBreakpoints()) if re.search(r'Exception|__cxa_throw', str(lldb.target.GetBreakpointAtIndex(i)))]"
       ]
     },
 

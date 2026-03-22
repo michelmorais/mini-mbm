@@ -75,6 +75,8 @@ elseif (${AUDIO} STREQUAL "portaudio")
     endif()
     include_directories(${HEADER_PORT_AUDIO})
     add_definitions(-DAUDIO_ENGINE_PORT_AUDIO)
+elseif (${AUDIO} STREQUAL "avfoundation")
+    add_definitions(-DAUDIO_ENGINE_AVFOUNDATION)
 elseif( NOT ${AUDIO} STREQUAL "none")
     message(SEND_ERROR " Unknow AUDIO choice: ${AUDIO}")
 endif()
@@ -153,6 +155,15 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND NOT USE_METAL)
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
+# For Apple builds that use AVFoundation audio but NOT Metal, the
+# audio-avfoundation.mm is not picked up by the Metal .mm glob above.
+set(APPLE_AVF_AUDIO_MM_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND ${AUDIO} STREQUAL "avfoundation" AND NOT USE_METAL)
+    set(APPLE_AVF_AUDIO_MM_SOURCES ${CORE_OPENGLES_SRC}/audio-avfoundation.mm)
+    set_source_files_properties(${APPLE_AVF_AUDIO_MM_SOURCES}
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+endif()
+
 #Generate the static library from the sources
 add_library(core_mbm SHARED
     ${STB_SOURCES} 
@@ -165,7 +176,8 @@ add_library(core_mbm SHARED
     ${WAVE_SOURCES}
     ${METAL_MM_SOURCES}
     ${METAL_RENDER_MM_SOURCES}
-    ${APPLE_DIALOG_MM_SOURCES})
+    ${APPLE_DIALOG_MM_SOURCES}
+    ${APPLE_AVF_AUDIO_MM_SOURCES})
 
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
@@ -240,6 +252,9 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     endif()
     if (${AUDIO} STREQUAL "portaudio" )
         target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
+    elseif(${AUDIO} STREQUAL "avfoundation")
+        target_link_libraries(core_mbm "-framework AVFoundation")
+        target_link_libraries(core_mbm "-framework AudioToolbox")
     elseif(${AUDIO} STREQUAL "audiere" )
         # Audiere for Linux (trick)
         # Since it has it own MakeFile (not converted to cmake yet), we copy the generated library and added as IMPORTED library

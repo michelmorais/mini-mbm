@@ -200,7 +200,7 @@ int main() {
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android |
@@ -640,6 +640,9 @@ make -j$(nproc)
 # Release build
 cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=audiere
 make -j$(nproc)
+
+# On Mac (Metal + AVFoundation audio is default)
+cmake -B build -DPLAT=Apple -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)
 ```
 
 **Output locations:**
@@ -711,7 +714,11 @@ cmake .. -DPLAT=Apple -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
 make -j$(nproc)
 ```
 
-> **Note:** Audio is set to `none` on macOS by default. Use `-DUSE_METAL=1` to enable the Metal backend.
+Audio defaults to **AVFoundation** on macOS when `-DAUDIO=` is not specified.
+AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
+**OGG/Vorbis** via the bundled `stb_vorbis` decoder (no extra dependencies needed).
+
+> **Note:** The Metal rendering backend is selected automatically when building for Apple (`-DUSE_METAL=1` is the default).
 
 ### CMake Option Flags
 
@@ -732,7 +739,7 @@ make -j$(nproc)
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
 | `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
-| `-DAUDIO=` | Platform-dependent | Audio backend: `portaudio`, `audiere`, `jni`, or `none` |
+| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `jni` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 
 > On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
@@ -799,6 +806,7 @@ mini-mbm/
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | Immediate-mode GUI |
 | [Audiere](https://audiere.sourceforge.net/) | 1.9.4 | Audio engine (Windows) |
 | [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux) |
+| [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) | — | OGG/Vorbis decoder (macOS AVFoundation path) |
 | [lSQLite3](http://lua.sqlite.org/) | — | SQLite3 Lua bindings (asset packaging) |
 | [lodepng](https://lodev.org/lodepng/) | — | PNG encoding/decoding |
 | [stb](https://github.com/nothings/stb) | — | stb\_image (image loading), stb\_truetype (TTF rasterization) |
