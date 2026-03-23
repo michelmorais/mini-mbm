@@ -442,7 +442,12 @@ endif()
 if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     #Here starts to check project/working C/C++ compiler
-    project(mini-mbm)
+    # Use GAME_NAME for the project name so -G Xcode produces <GameName>.xcodeproj
+    if(DEFINED GAME_NAME)
+        project(${GAME_NAME})
+    else()
+        project(mini-mbm)
+    endif()
     
     #set(CMAKE_VERBOSE_MAKEFILE on)
 

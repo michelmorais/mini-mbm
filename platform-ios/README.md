@@ -1,6 +1,42 @@
 # iOS Platform — Architecture Notes
 
-## Build modes
+## Build generators: `make` vs `-G Xcode`
+
+Two CMake generators are supported for iOS, serving different purposes:
+
+| Generator | Command | Use case |
+|---|---|---|
+| `make` (default) | `cmake .. -DPLAT=iOS …` | Fast compile check, CI pipelines — produces a plain unsigned binary |
+| Xcode | `cmake .. -DPLAT=iOS … -G Xcode` | Device/simulator deployment — produces a signed `.xcodeproj` |
+
+The `make` generator cross-compiles for ARM64 via `xcrun` and produces a valid
+`mini-mbm.app` bundle with all assets, but the binary is **unsigned** and cannot be
+installed on a device.  It is useful for verifying the build compiles cleanly.
+
+The **Xcode generator** is required whenever you want to:
+- Run on a physical device (requires a signed `.ipa`)
+- Launch in the iOS Simulator (Xcode selects the right arch automatically)
+- Use Xcode's debugger, Instruments, or crash symbolication
+
+```sh
+# Xcode project — generated once, rebuilt by Xcode thereafter
+mkdir -p build/ios_xcode && cd build/ios_xcode
+cmake ../.. \
+    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=/path/to/your/game/assets \
+    -G Xcode
+open "My Game.xcodeproj"   # name matches -DGAME_NAME; Signing & Capabilities → set Team → ⌘R
+```
+
+You can keep **two separate build directories** — one `make` dir for fast checks, one
+`Xcode` dir for deployment.  They share the same source tree and CMake flags.
+
+---
+
+## Build modes (Lua vs. pure C++)
 
 The iOS target supports two build modes, selected at CMake configure time:
 
@@ -102,43 +138,73 @@ mini-mbm.app/
     …
 ```
 
-### Copying assets — no CMake changes required per game
+### Separate game repositories
 
-You do **not** need to modify any CMake file for each new game.  The build system adds a
-single post-build command (once, in `src/CMakeLists.txt`) that copies an entire
-conventional `assets/` folder into the bundle every time you build:
+The engine repo and a game repo are independent.  A typical layout:
 
-```cmake
-# In src/CMakeLists.txt — added once, works for every game
-add_custom_command(TARGET mini-mbm POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/assets"
-        "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>/assets"
-    COMMENT "Copying game assets into app bundle"
-)
+```
+~/mini-mbm/          ← engine repo (this repo)
+~/tower-defense/     ← game repo (separate, not part of the engine)
+  assets/
+    main.lua
+    sprites/
+    meshes/
+  docs/
+  README.md
+  …
 ```
 
-The workflow per game is then identical to Android:
+Three CMake variables let you point the engine build at a specific game without touching
+any CMake file:
 
-1. Place your files under `<repo>/assets/` (Lua scripts, textures, sprites, meshes, …).
-2. Build normally — the post-build step copies everything automatically.
-3. No CMake edits needed.
+| Variable | Default | Purpose |
+|---|---|---|
+| `-DGAME_BUNDLE_ID` | `com.mini.mbm.mini-mbm` | iOS App Store bundle identifier |
+| `-DGAME_NAME` | `mini-mbm` | Display name shown on the device home screen |
+| `-DGAME_ASSETS_DIR` | _(not set — no copy)_ | Absolute path to the game's asset folder |
+
+Example configure command for Tower Defense:
+
+```sh
+mkdir -p build/ios_towerdefense && cd build/ios_towerdefense
+cmake ../.. \
+    -DPLAT=iOS \
+    -DUSE_LUA=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.mini.mbm.towerdefense \
+    -DGAME_NAME="Tower Defense" \
+    -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets
+make -j$(sysctl -n hw.logicalcpu)
+```
+
+What each variable does under the hood:
+
+* **`GAME_BUNDLE_ID` / `GAME_NAME`** — CMake runs `configure_file` on
+  `platform-ios/Info.plist.in`, substituting `@IOS_BUNDLE_ID@` and `@IOS_APP_NAME@`,
+  and writes the result to the build directory.  The `Info.plist.in` template is the
+  *only* file you need to look at if you want to add custom plist keys (e.g. required
+  device capabilities, privacy strings).
+
+* **`GAME_ASSETS_DIR`** — a `POST_BUILD` command copies the entire directory tree into
+  `mini-mbm.app/assets/` after every successful build.  Only the declared path is
+  copied; the rest of the game repo (docs, READMEs, scripts, …) is ignored
+  automatically.  You never need to edit any CMake file between games.
 
 The engine locates assets at runtime because `MetalViewController viewDidLoad` already
 passes `[[NSBundle mainBundle] resourcePath]` as `--addPath`, which resolves to the
-bundle's root.  From Lua you reference files relatively:
+bundle root.  From Lua you reference files with a path relative to that root:
 
 ```lua
-local spr = mbm.newSprite("assets/player.spr")
+local spr = mbm.newSprite("assets/sprites/player.spr")
 ```
 
-> **Manual copy (quick iteration):** You can also just copy files directly into the
-> `.app` directory after building — on macOS/iOS simulator it is a plain directory:
+> **Manual copy (quick iteration):** You can also copy files directly into the `.app`
+> after building — it is a plain directory on disk:
 > ```sh
-> cp -r assets/ bin/release/iphoneos_arm64/mini-mbm.app/assets/
+> cp -r ~/tower-defense/assets \
+>        bin/release/iphoneos_arm64/mini-mbm.app/assets/
 > ```
-> For device deployment the `.app` is re-signed anyway by Xcode/`xcodebuild`, so this
-> works fine during development.
+> The app is re-signed on device deployment anyway, so this is safe during development.
 
 ---
 

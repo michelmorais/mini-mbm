@@ -197,58 +197,46 @@ int main() {
 
 The iOS port uses UIKit + Metal.  It requires **Xcode 15+** with the iOS SDK installed.
 
-**1. Generate an Xcode project** (run once, from the repo root):
+**Quick build** (compile check, no signing):
 
 ```bash
-mkdir -p build && cd build
-cmake .. \
-      -DPLAT=iOS \
-      -DUSE_ALL=1 \
-      -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-      -DAUDIO=avfoundation \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -G Xcode
+mkdir -p build/ios && cd build/ios
+cmake ../.. \
+    -DPLAT=iOS \
+    -DUSE_LUA=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=/path/to/your/game/assets
+make -j$(sysctl -n hw.logicalcpu)
 ```
 
-**2a. Build via the command line** (iOS Simulator, no signing required):
+**Xcode project** (required for device/simulator deployment):
 
 ```bash
-# List available simulators first:
-xcodebuild -project build/mini-mbm.xcodeproj -scheme mini-mbm -showdestinations | grep Simulator
-
-# Build (replace name/OS with one from the list above)
-xcodebuild -project build/mini-mbm.xcodeproj \
-           -scheme mini-mbm \
-           -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
-           -configuration Debug \
-           build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+mkdir -p build/ios_xcode && cd build/ios_xcode
+cmake ../.. \
+    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=/path/to/your/game/assets \
+    -G Xcode
+open "My Game.xcodeproj"   # name matches -DGAME_NAME; set Team in Signing & Capabilities, press ⌘R
 ```
 
-**2b. Build via the Xcode IDE:**
+> **Game identity & assets** — pass `-DGAME_BUNDLE_ID`, `-DGAME_NAME`, and
+> `-DGAME_ASSETS_DIR` to customise each game without editing any CMake file.
+> Assets are copied into the `.app` bundle automatically after every build.
 
-1. Open the project: `open build/mini-mbm.xcodeproj`
-2. In the toolbar, click the **scheme selector** (shows `mini-mbm`) — keep it as-is.
-3. Click the **destination selector** next to it → choose a Simulator (e.g. *iPhone 17 (iOS 26.1)*).
-4. Press **⌘B** (Product → Build).
-5. Errors appear in the **Issue Navigator** (⌘5 / triangle icon on the left sidebar).
+> **All plugins are statically linked** on iOS — the App Store sandbox forbids
+> bare dynamic libraries.  Touch events are routed via UIKit (`onTouchDown/Move/Up`).
+> Orientation is locked to **landscape** by default.
 
-**3. Deploy to a physical device** (requires an Apple Developer account):
-
-1. Connect your iPhone/iPad.
-2. In Xcode → **Signing & Capabilities** tab → set **Team** and **Bundle Identifier**.
-3. Select your device in the destination selector.
-4. Press **⌘R** to build and run.
-
-**4. Place your Lua scripts** in the app bundle under `Resources/`.  The engine entry
-point is `Resources/main.lua`.
-
-> **Notes:**
-> - All plugins are **statically linked** on iOS (App Store sandbox forbids dynamic loading).
-> - The launcher dialog is disabled on iOS; the engine launches `main.lua` directly.
-> - File dialogs (`openFileDialog` / `saveFileDialog`) return `nullptr` on iOS.
-> - Touch events are routed via UIKit (`onTouchDown/Move/Up`); mouse events are not used.
-> - Orientation is locked to **landscape** by default (edit `Info.plist` and
->   `MetalViewController` to add portrait support).
+For full details on the iOS architecture, static linking rationale, asset workflow,
+build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
+[platform-ios/README.md](platform-ios/README.md).
 
 ---
 
@@ -834,7 +822,7 @@ mkdir -p build && cd build
 cmake .. -DPLAT=iOS -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=avfoundation -DCMAKE_BUILD_TYPE=Debug  -G Xcode
 ```
 
-This writes the Xcode project to `build/mini-mbm.xcodeproj`.
+This writes the Xcode project to `build/<GAME_NAME>.xcodeproj` (or `build/mini-mbm.xcodeproj` if `-DGAME_NAME` is not set).
 
 #### 2a. Build from the command line (Simulator)
 
@@ -853,7 +841,7 @@ xcrun simctl list devices available | grep -E "iOS [0-9]|iPhone|iPad"
 #   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1"
 
 # Build (from repo root — substitute name and OS from the output above):
-xcodebuild -project build/mini-mbm.xcodeproj \
+xcodebuild -project "build/My Game.xcodeproj" \
            -scheme mini-mbm \
            -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
            -configuration Debug \
@@ -864,7 +852,7 @@ xcodebuild -project build/mini-mbm.xcodeproj \
 
 1. **Open the project:**
    ```bash
-   open build/mini-mbm.xcodeproj
+   open "build/My Game.xcodeproj"
    ```
 2. **Select the scheme** in the toolbar — it should already show `mini-mbm`.
 3. **Select the destination** (next to the scheme selector):

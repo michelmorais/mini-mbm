@@ -240,15 +240,48 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
                             ${BULLET3D_WRAP_SOURCES}
                             ${TINYFILEDIALOGS_SOURCES})
     endif()
+    # ── Per-game identity ─────────────────────────────────────────────────────
+    # Override at configure time from your game repo's build script:
+    #   -DGAME_BUNDLE_ID=com.yourcompany.yourgame
+    #   -DGAME_NAME="Tower Defense"
+    #   -DGAME_ASSETS_DIR=/path/to/tower-defense/assets
+    if(NOT DEFINED GAME_BUNDLE_ID)
+        set(GAME_BUNDLE_ID "com.mini.mbm.mini-mbm")
+    endif()
+    if(NOT DEFINED GAME_NAME)
+        set(GAME_NAME "mini-mbm")
+    endif()
+    set(IOS_BUNDLE_ID "${GAME_BUNDLE_ID}")
+    set(IOS_APP_NAME  "${GAME_NAME}")
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist.in
+        ${CMAKE_BINARY_DIR}/Info.plist
+        @ONLY)
+    message(STATUS "iOS bundle ID : ${GAME_BUNDLE_ID}")
+    message(STATUS "iOS app name  : ${GAME_NAME}")
+
     set_target_properties(mini-mbm PROPERTIES
         MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist)
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_BINARY_DIR}/Info.plist)
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
     target_link_libraries(mini-mbm "-framework Metal")
     target_link_libraries(mini-mbm "-framework AVFoundation")
     target_link_libraries(mini-mbm "-framework AudioToolbox")
     target_link_libraries(mini-mbm "-framework Foundation")
+
+    # ── Game assets ───────────────────────────────────────────────────────────
+    # If the caller passes -DGAME_ASSETS_DIR=/path/to/game/assets, all files
+    # inside that directory are copied into the app bundle under assets/ after
+    # every build.  No CMake edit needed per game — just populate the folder.
+    if(DEFINED GAME_ASSETS_DIR)
+        message(STATUS "iOS assets dir: ${GAME_ASSETS_DIR}")
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${GAME_ASSETS_DIR}"
+                "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>/assets"
+            COMMENT "Copying game assets from ${GAME_ASSETS_DIR}")
+    endif()
 
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")

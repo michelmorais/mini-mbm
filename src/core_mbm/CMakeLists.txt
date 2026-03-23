@@ -172,8 +172,13 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND ${AUDIO} STREQUAL "avfoundati
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
-#Generate the static library from the sources
-add_library(core_mbm SHARED
+#Generate the library from the sources (STATIC on iOS — App Store forbids bare dylibs)
+if(PLAT_LOWER STREQUAL "ios")
+    set(_CORE_MBM_LIB_TYPE STATIC)
+else()
+    set(_CORE_MBM_LIB_TYPE SHARED)
+endif()
+add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
     ${STB_SOURCES} 
     ${LODE_PNG_SOURCES} 
     ${MINI_Z_SOURCES} 
