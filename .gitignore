@@ -28,6 +28,8 @@ platform-msvs/mini-mbm/Debug/
 platform-msvs/tilemap/Debug/
 platform-msvs/tiny-obj-loader/Debug/
 platform-msvs/mini-mbm/imgui.ini
+# Generated Info.plist (produced by configure_file from platform-ios/Info.plist.in)
+platform-ios/Info.plist
 platform-msvs/core_mbm/core_mbm.vcxproj.user
 platform-msvs/imGui/ImGui.vcxproj.user
 platform-msvs/libTest/libTest.vcxproj.user

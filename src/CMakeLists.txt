@@ -253,16 +253,19 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     endif()
     set(IOS_BUNDLE_ID "${GAME_BUNDLE_ID}")
     set(IOS_APP_NAME  "${GAME_NAME}")
+    # Write Info.plist into the source tree so Xcode's navigator can find it.
+    # (Placing it in CMAKE_BINARY_DIR causes the Xcode navigator to show it red,
+    #  even though the build still works — this avoids that cosmetic issue.)
     configure_file(
         ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist.in
-        ${CMAKE_BINARY_DIR}/Info.plist
+        ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist
         @ONLY)
     message(STATUS "iOS bundle ID : ${GAME_BUNDLE_ID}")
     message(STATUS "iOS app name  : ${GAME_NAME}")
 
     set_target_properties(mini-mbm PROPERTIES
         MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_BINARY_DIR}/Info.plist)
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist)
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
     target_link_libraries(mini-mbm "-framework Metal")
