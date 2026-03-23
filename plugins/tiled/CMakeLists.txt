@@ -35,8 +35,14 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/src/cmake-module
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${TILED_LIBRARY} SHARED ${RENDERER_SOURCES})
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${TILED_LIBRARY} STATIC ${RENDERER_SOURCES})
+else()
+    add_library(${TILED_LIBRARY} SHARED ${RENDERER_SOURCES})
+endif()
 
-target_link_libraries(${TILED_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${TILED_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
-target_link_libraries(${TILED_LIBRARY} ${CORE_MBM_LIBRARY})
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${TILED_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${TILED_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
+    target_link_libraries(${TILED_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+endif()

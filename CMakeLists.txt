@@ -546,6 +546,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(USE_TILEMAP             1)
     endif()
 
+    # On iOS all plugins are compiled as STATIC archives and linked into a single
+    # executable.  box2d and box2d-liquid-fun share large amounts of object code
+    # (b2World, b2Body, …) so having both in the same link produces duplicate-symbol
+    # errors.  When USE_ALL is used (or the user enables both manually), keep only
+    # box2d and drop liquid-fun automatically.
+    if(PLAT_LOWER STREQUAL "ios" AND USE_BOX2D AND USE_BOX2D_LIQUID_FUN)
+        message(WARNING
+            "iOS static build: box2d and box2d-liquid-fun share symbols and cannot "
+            "both be linked into the same binary.  Disabling USE_BOX2D_LIQUID_FUN. "
+            "To use liquid-fun instead, pass -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 "
+            "explicitly (do not use -DUSE_ALL=1).")
+        set(USE_BOX2D_LIQUID_FUN 0)
+    endif()
+
     OPTION(DEBUG_SET_GET_GLOBAL "debug getGlobal and setglobal lua" OFF) # Disabled by default
     IF(DEBUG_SET_GET_GLOBAL)
         add_definitions(-DDEBUG_SET_GET_GLOBAL)

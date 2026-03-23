@@ -62,8 +62,11 @@ else()
     add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES})
 endif()
 
-# Same rationale as ImGui: STATIC on iOS, skip Lua to avoid duplicate in mini-mbm link.
+# On iOS lsqlite3 is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
+# static deps to the consumer, duplicating the explicit links in mini-mbm's
+# target_link_libraries calls and triggering ld duplicate-library warnings.
+# Both Lua and core_mbm are provided by mini-mbm at final link.
 if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
 endif()
-target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})

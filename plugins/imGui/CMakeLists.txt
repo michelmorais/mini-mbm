@@ -131,10 +131,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 endif()
 
 # On iOS ImGui is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
-# static deps to the consumer, so linking Lua here would duplicate the explicit
-# target_link_libraries(mini-mbm ${LUA_LIBRARY}) call and trigger an ld warning.
+# static deps to the consumer, duplicating the explicit links in mini-mbm's
+# target_link_libraries calls and triggering ld duplicate-library warnings.
+# All of Lua, plugin_helper and core_mbm are provided by mini-mbm at final link.
 if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
 endif()
-target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
-target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
