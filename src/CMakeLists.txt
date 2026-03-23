@@ -275,16 +275,42 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     target_link_libraries(mini-mbm "-framework Foundation")
 
     # ── Game assets ───────────────────────────────────────────────────────────
-    # If the caller passes -DGAME_ASSETS_DIR=/path/to/game/assets, all files
-    # inside that directory are copied into the app bundle under assets/ after
-    # every build.  No CMake edit needed per game — just populate the folder.
+    # With -G Xcode: files are added as target sources with MACOSX_PACKAGE_LOCATION
+    # so they appear in the Xcode project navigator (editable like in Android Studio)
+    # and Xcode copies them into the .app bundle under assets/ automatically.
+    # With make: fall back to a POST_BUILD copy_directory (no navigator needed).
+    # NOTE: adding new files to GAME_ASSETS_DIR requires re-running cmake so that
+    # CMake's GLOB_RECURSE picks them up — the build itself does not need a clean.
     if(DEFINED GAME_ASSETS_DIR)
         message(STATUS "iOS assets dir: ${GAME_ASSETS_DIR}")
-        add_custom_command(TARGET mini-mbm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${GAME_ASSETS_DIR}"
-                "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>/assets"
-            COMMENT "Copying game assets from ${GAME_ASSETS_DIR}")
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            # Collect every file (not directories) under GAME_ASSETS_DIR
+            file(GLOB_RECURSE _GAME_ASSET_FILES
+                LIST_DIRECTORIES FALSE
+                "${GAME_ASSETS_DIR}/*")
+            foreach(_asset_file ${_GAME_ASSET_FILES})
+                # Compute path relative to GAME_ASSETS_DIR, e.g. "image/hero.png"
+                file(RELATIVE_PATH _rel_path "${GAME_ASSETS_DIR}" "${_asset_file}")
+                # Keep only the directory component, e.g. "image"
+                get_filename_component(_rel_dir "${_rel_path}" DIRECTORY)
+                if(_rel_dir)
+                    set(_pkg_loc "assets/${_rel_dir}")
+                else()
+                    set(_pkg_loc "assets")
+                endif()
+                # Tell Xcode: this file is a resource to be placed in assets/<subdir>/
+                set_source_files_properties("${_asset_file}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "${_pkg_loc}")
+            endforeach()
+            target_sources(mini-mbm PRIVATE ${_GAME_ASSET_FILES})
+        else()
+            # make generator: simple directory copy post-build
+            add_custom_command(TARGET mini-mbm POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${GAME_ASSETS_DIR}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>/assets"
+                COMMENT "Copying game assets from ${GAME_ASSETS_DIR}")
+        endif()
     endif()
 
 else()
