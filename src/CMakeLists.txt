@@ -303,6 +303,8 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
                     MACOSX_PACKAGE_LOCATION "${_pkg_loc}")
             endforeach()
             target_sources(mini-mbm PRIVATE ${_GAME_ASSET_FILES})
+            # Mirror the source directory tree in the Xcode navigator
+            source_group(TREE "${GAME_ASSETS_DIR}" PREFIX "assets" FILES ${_GAME_ASSET_FILES})
         else()
             # make generator: simple directory copy post-build
             add_custom_command(TARGET mini-mbm POST_BUILD
