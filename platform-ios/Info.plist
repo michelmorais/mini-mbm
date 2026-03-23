@@ -3,13 +3,15 @@
     "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- App identity -->
+    <!-- App identity — values are substituted by CMake configure_file().
+         Pass -DGAME_BUNDLE_ID=com.yourcompany.yourgame and -DGAME_NAME="My Game"
+         at cmake configure time to override the defaults. -->
     <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <string>com.mini.mbm.towerdefense</string>
     <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
+    <string>Tower defense</string>
     <key>CFBundleDisplayName</key>
-    <string>$(PRODUCT_NAME)</string>
+    <string>Tower defense</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <key>CFBundleVersion</key>
@@ -17,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
+    <string>mini-mbm</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
 

@@ -408,6 +408,14 @@ else()
         set(FOLDER_ARCHITECTURE         "iphoneos_arm64")
         add_definitions(-DMBM_PLATFORM_IOS)
 
+        # Suppress the CMake Xcode-generator quirk that adds a red "Resources/Info.plist"
+        # reference to every static library target.  We provide our own Info.plist only
+        # for the mini-mbm app target via MACOSX_BUNDLE_INFO_PLIST, so auto-generation
+        # is not needed anywhere.
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            set(CMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+        endif()
+
         # Allow the caller to override for Simulator:  -DCMAKE_OSX_SYSROOT=iphonesimulator
         # Note: command-line -D values are stored in the cache first, so they win over FORCE here only
         # if passed on the very same cmake invocation.  Wipe the build dir to change the sysroot.
