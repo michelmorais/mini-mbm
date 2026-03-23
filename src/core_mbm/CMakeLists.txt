@@ -192,6 +192,15 @@ add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
     ${APPLE_DIALOG_MM_SOURCES}
     ${APPLE_AVF_AUDIO_MM_SOURCES})
 
+# Static libraries on iOS do not need Info.plist.  Set these attributes
+# directly on the target (the global CMAKE_XCODE_ATTRIBUTE_* doesn't reach
+# sub-project .xcodeproj files, causing a red file reference in the navigator).
+if(PLAT_LOWER STREQUAL "ios" AND CMAKE_GENERATOR STREQUAL "Xcode")
+    set_target_properties(core_mbm PROPERTIES
+        XCODE_ATTRIBUTE_INFOPLIST_FILE ""
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+endif()
+
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
 endif()

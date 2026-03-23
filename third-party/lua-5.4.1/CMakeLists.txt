@@ -30,6 +30,13 @@ list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${LUA_SRC}/lua.c")
 #Generate the shared library from the sources
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
   add_library(lua-${LUA_LIB_VERSION} STATIC ${SOURCES})
+  # Static libraries on iOS do not need Info.plist.  Set directly on the target
+  # because the global CMAKE_XCODE_ATTRIBUTE_* doesn't reach sub-project .xcodeproj.
+  if(CMAKE_GENERATOR STREQUAL "Xcode")
+    set_target_properties(lua-${LUA_LIB_VERSION} PROPERTIES
+        XCODE_ATTRIBUTE_INFOPLIST_FILE ""
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+  endif()
 else()
   add_library(lua-${LUA_LIB_VERSION} SHARED ${SOURCES})
 endif()
