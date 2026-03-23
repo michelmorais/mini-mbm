@@ -74,8 +74,11 @@ else()
         set(IOS_PLATFORM_SOURCES
             ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
             ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
-            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm)
-        # iOS uses UIApplicationMain; no separate my-scene.cpp
+            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/my-scene.mm)
+        # iOS uses UIApplicationMain; my-scene.mm is compiled but active only when USE_LUA is off
+        set_source_files_properties(${MAIN} ${IOS_PLATFORM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()

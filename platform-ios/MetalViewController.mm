@@ -4,7 +4,11 @@
 
 #import "MetalViewController.h"
 
+#ifdef USE_LUA
 #include <lua-wrap/manager-lua.h>
+#else
+#include "my-scene.h"
+#endif
 #include <core_mbm/device.h>
 #include <util-interface.h>
 #include <map>
@@ -40,7 +44,11 @@ static void releaseTouch(UITouch* touch)
 // ---------------------------------------------------------------------------
 // Global engine instance (heap-allocated, survives the VC lifecycle).
 // ---------------------------------------------------------------------------
+#ifdef USE_LUA
 static mbm::LUA_MANAGER* s_game = nullptr;
+#else
+static GAME* s_game = nullptr;
+#endif
 
 // ---------------------------------------------------------------------------
 @implementation MetalViewController
@@ -64,6 +72,7 @@ static mbm::LUA_MANAGER* s_game = nullptr;
     const int w = static_cast<int>(_metalView.bounds.size.width);
     const int h = static_cast<int>(_metalView.bounds.size.height);
 
+#ifdef USE_LUA
     // 3. Locate the app bundle's resource directory — where Lua scripts live.
     NSString* bundleResourcePath = [[NSBundle mainBundle] resourcePath];
     const std::string resourcePath = bundleResourcePath
@@ -110,6 +119,27 @@ static mbm::LUA_MANAGER* s_game = nullptr;
 
     // 8. Prepare Lua scene (returns immediately on iOS — no blocking loop).
     s_game->run();
+#else
+    // 3–4. Pure C++ path — no Lua arguments needed.
+
+    // 5. Register the CAMetalLayer so initGraphics() can pick it up.
+    mbm_ios_setMetalLayer(_metalView.metalLayer);
+
+    // 6. Create the engine manager (setScene is called in GAME constructor).
+    s_game = new GAME();
+    s_game->device->backBufferWidth  = static_cast<float>(w);
+    s_game->device->backBufferHeight = static_cast<float>(h);
+
+    // 7. Initialise graphics + scene.
+    constexpr bool border = false;
+    if (!s_game->initGraphics("mini_mbm", w, h, 0, 0, border, false))
+    {
+        NSLog(@"[mini-mbm] initGraphics failed — engine will not run.");
+        delete s_game;
+        s_game = nullptr;
+        return;
+    }
+#endif
 
     // 9. Start the per-frame display link.
     _displayLink = [CADisplayLink displayLinkWithTarget:self
@@ -236,6 +266,7 @@ static mbm::LUA_MANAGER* s_game = nullptr;
     [_displayLink invalidate];
     delete s_game;
     s_game = nullptr;
+    // ARC inserts [super dealloc] automatically
 }
 
 @end

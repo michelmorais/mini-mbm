@@ -749,11 +749,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_definitions(-DAUDIO_ENGINE_NONE)
     endif()
 
+    if (USE_LUA)
+        add_definitions(-DUSE_LUA)
+    endif()
+
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
     add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 
     if (USE_LUA)
-        add_definitions(-DUSE_LUA)
         add_subdirectory(${LUA_LIB} 			${LUA_LIB})
     endif()
 
