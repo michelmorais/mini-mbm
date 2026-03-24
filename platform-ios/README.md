@@ -36,6 +36,48 @@ You can keep **two separate build directories** — one `make` dir for fast chec
 
 ---
 
+## Placing the Xcode project outside the engine repo
+
+The build directory can live anywhere on disk — it does not have to be inside
+`mini-mbm/`.  This is useful when each game lives in its own repository: you keep
+the engine in one place and generate a per-game `.xcodeproj` inside the game repo.
+
+```
+~/mini-mbm/          ← engine repo (shared, never edited per game)
+~/tower-defense/
+    assets/          ← game assets
+    ios_xcode/       ← generated Xcode project  ← add to .gitignore
+    ...
+```
+
+```sh
+# From inside your game repo — point cmake at the engine source
+mkdir -p ~/tower-defense/ios_xcode && cd ~/tower-defense/ios_xcode
+cmake ~/mini-mbm \
+    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=~/tower-defense/assets \
+    -G Xcode
+# The configure message prints the exact open command:
+#   open "/Users/you/tower-defense/ios_xcode/My Game.xcodeproj"
+```
+
+**What lands where:**
+
+| Artifact | Location | Notes |
+|---|---|---|
+| `.xcodeproj` | `~/tower-defense/ios_xcode/` | Game repo — add to `.gitignore` |
+| Compiled `.app` | Xcode Derived Data | Managed by Xcode, no action needed |
+| `libcore_mbm.a` etc. | `~/mini-mbm/libs/release/…` | Engine artifacts — expected there |
+| `platform-ios/Info.plist` | `~/mini-mbm/platform-ios/` | Generated file — already gitignored |
+
+Add `ios_xcode/` to your game repo's `.gitignore` — it is a generated build
+directory and should not be committed.
+
+---
+
 ## Build modes (Lua vs. pure C++)
 
 The iOS target supports two build modes, selected at CMake configure time:
