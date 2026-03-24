@@ -31,6 +31,12 @@ cmake ../.. \
 open "My Game.xcodeproj"   # name matches -DGAME_NAME; Signing & Capabilities → set Team → ⌘R
 ```
 
+> **No Apple ID? Use the Simulator.**  In Xcode pick any **iPhone** simulator from the
+> device dropdown at the top (instead of a physical device) and press **⌘R** — no signing
+> or Apple ID required.  To deploy to a real device you need a free Apple ID
+> (apple.com → Create Apple ID, no credit card needed); the provisioning profile expires
+> after 7 days and is renewed automatically on the next ⌘R.
+
 You can keep **two separate build directories** — one `make` dir for fast checks, one
 `Xcode` dir for deployment.  They share the same source tree and CMake flags.
 
@@ -63,6 +69,10 @@ cmake ~/mini-mbm \
 # The configure message prints the exact open command:
 #   open "/Users/michel/tower-defense-ios_xcode/Tower Defense Monster.xcodeproj"
 ```
+
+> **Use an absolute path for `GAME_ASSETS_DIR`.**  CMake does not expand `~` in `-D`
+> values when the path is quoted (e.g. `"-DGAME_ASSETS_DIR=~/…"`) — use the full
+> path (`/Users/michel/…`) or the shell variable `$HOME` instead.
 
 **What lands where:**
 
