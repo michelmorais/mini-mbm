@@ -64,14 +64,15 @@ static GAME* s_game = nullptr;
 
     // 1. Create the Metal view and use it as the root view.
     _metalView = [[MBMMetalView alloc] initWithFrame:self.view.bounds];
+    _metalView.contentScaleFactor = UIScreen.mainScreen.scale;  // set before layout
     _metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
                                   UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:_metalView];
 
     // 2. Pixel dimensions of the view (points × Retina scale factor).
-    // Using pixel dimensions ensures the engine renders at the full drawable
-    // resolution rather than at the lower logical-point resolution.
-    const float scale = _metalView.contentScaleFactor;
+    // UIScreen.mainScreen.scale is reliable even before the view is on-screen;
+    // contentScaleFactor would return 1.0 until after the first layout pass.
+    const float scale = UIScreen.mainScreen.scale;
     const int w = static_cast<int>(_metalView.bounds.size.width  * scale);
     const int h = static_cast<int>(_metalView.bounds.size.height * scale);
 
@@ -114,7 +115,7 @@ static GAME* s_game = nullptr;
     s_game->device->backBufferWidth  = static_cast<float>(w);
     s_game->device->backBufferHeight = static_cast<float>(h);
     // print the resolution to the console for debugging (Lua's print goes to Xcode's console).
-    NSLog(@"[mini-mbm] view size: %d x %d", w, h);
+    NSLog(@"[mini-mbm] view size: %d x %d scale %f ", w, h, scale);
 
     // 7. Initialise graphics + scene (calls core-manager-metal-ios.mm::initGraphics).
     constexpr bool border = false;
@@ -188,7 +189,7 @@ static GAME* s_game = nullptr;
 
     if (!s_game) return;
 
-    const float scale = _metalView.contentScaleFactor;
+    const float scale = UIScreen.mainScreen.scale;
     const int newW = static_cast<int>(_metalView.bounds.size.width  * scale);
     const int newH = static_cast<int>(_metalView.bounds.size.height * scale);
 
@@ -201,18 +202,21 @@ static GAME* s_game = nullptr;
 }
 
 // ── Multi-touch routing ──────────────────────────────────────────────────────
+// locationInView: returns logical points; multiply by screen scale to get the
+// pixel coordinates that match the engine's pixel-based coordinate system.
 
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event
 {
     (void)event;
     if (!s_game) return;
+    const float scale = UIScreen.mainScreen.scale;
     for (UITouch* touch in touches)
     {
         const int   id  = touchID(touch);
         const CGPoint p = [touch locationInView:_metalView];
         s_game->onTouchDown(id,
-                            static_cast<float>(p.x),
-                            static_cast<float>(p.y));
+                            static_cast<float>(p.x * scale),
+                            static_cast<float>(p.y * scale));
     }
 }
 
@@ -220,13 +224,14 @@ static GAME* s_game = nullptr;
 {
     (void)event;
     if (!s_game) return;
+    const float scale = UIScreen.mainScreen.scale;
     for (UITouch* touch in touches)
     {
         const int   id  = touchID(touch);
         const CGPoint p = [touch locationInView:_metalView];
         s_game->onTouchMove(id,
-                            static_cast<float>(p.x),
-                            static_cast<float>(p.y));
+                            static_cast<float>(p.x * scale),
+                            static_cast<float>(p.y * scale));
     }
 }
 
@@ -234,13 +239,14 @@ static GAME* s_game = nullptr;
 {
     (void)event;
     if (!s_game) return;
+    const float scale = UIScreen.mainScreen.scale;
     for (UITouch* touch in touches)
     {
         const int   id  = touchID(touch);
         const CGPoint p = [touch locationInView:_metalView];
         s_game->onTouchUp(id,
-                          static_cast<float>(p.x),
-                          static_cast<float>(p.y));
+                          static_cast<float>(p.x * scale),
+                          static_cast<float>(p.y * scale));
         releaseTouch(touch);
     }
 }
@@ -249,13 +255,14 @@ static GAME* s_game = nullptr;
 {
     (void)event;
     if (!s_game) return;
+    const float scale = UIScreen.mainScreen.scale;
     for (UITouch* touch in touches)
     {
         const int   id  = touchID(touch);
         const CGPoint p = [touch locationInView:_metalView];
         s_game->onTouchUp(id,
-                          static_cast<float>(p.x),
-                          static_cast<float>(p.y));
+                          static_cast<float>(p.x * scale),
+                          static_cast<float>(p.y * scale));
         releaseTouch(touch);
     }
 }
