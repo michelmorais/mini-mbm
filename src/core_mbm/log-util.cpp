@@ -184,18 +184,33 @@ void log_tag(const TYPE_LOG type_log,const char* tag, const char *format, ...)
                 typedef std::map<std::string, bool> mapError;
                 CR_DEFINE_STATIC_LOCAL(mapError, errorList);
                 if (errorList[_buffer] == false)
+                {
+#if TARGET_OS_IOS
+                    // Xcode console does not render ANSI escape codes — emit plain text.
+                    fprintf(stdout, "ERR %s\n", _buffer);
+#else
                     fprintf(stdout, "\033[1;31mERR\033[0m %s\n", _buffer);
+#endif
+                }
                 errorList[_buffer] = true;
             }
             break;
             case TYPE_LOG_INFO:
             {
+#if TARGET_OS_IOS
+                fprintf(stdout, "INFO %s\n", _buffer);
+#else
                 fprintf(stdout, "\033[1;32mINFO\033[0m %s\n", _buffer);
+#endif
             }
             break;
             case TYPE_LOG_WARN:
             {
+#if TARGET_OS_IOS
+                fprintf(stdout, "WARN %s\n", _buffer);
+#else
                 fprintf(stdout, "\033[1;33mWARN\033[0m %s\n", _buffer);
+#endif
             }
             break;
         }

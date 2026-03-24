@@ -68,9 +68,12 @@ static GAME* s_game = nullptr;
                                   UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:_metalView];
 
-    // 2. Logical point dimensions of the view.
-    const int w = static_cast<int>(_metalView.bounds.size.width);
-    const int h = static_cast<int>(_metalView.bounds.size.height);
+    // 2. Pixel dimensions of the view (points × Retina scale factor).
+    // Using pixel dimensions ensures the engine renders at the full drawable
+    // resolution rather than at the lower logical-point resolution.
+    const float scale = _metalView.contentScaleFactor;
+    const int w = static_cast<int>(_metalView.bounds.size.width  * scale);
+    const int h = static_cast<int>(_metalView.bounds.size.height * scale);
 
 #ifdef USE_LUA
     // 3. Locate the app bundle's resource directory — where Lua scripts live.
@@ -102,7 +105,6 @@ static GAME* s_game = nullptr;
     }
     args.push_back("--scene");
     args.push_back("main.lua");
-    args.push_back("--nosplash");
 
     // 5. Register the CAMetalLayer so initGraphics() can pick it up.
     mbm_ios_setMetalLayer(_metalView.metalLayer);
@@ -111,6 +113,8 @@ static GAME* s_game = nullptr;
     s_game = new mbm::LUA_MANAGER(args);
     s_game->device->backBufferWidth  = static_cast<float>(w);
     s_game->device->backBufferHeight = static_cast<float>(h);
+    // print the resolution to the console for debugging (Lua's print goes to Xcode's console).
+    NSLog(@"[mini-mbm] view size: %d x %d", w, h);
 
     // 7. Initialise graphics + scene (calls core-manager-metal-ios.mm::initGraphics).
     constexpr bool border = false;
@@ -184,8 +188,9 @@ static GAME* s_game = nullptr;
 
     if (!s_game) return;
 
-    const int newW = static_cast<int>(_metalView.bounds.size.width);
-    const int newH = static_cast<int>(_metalView.bounds.size.height);
+    const float scale = _metalView.contentScaleFactor;
+    const int newW = static_cast<int>(_metalView.bounds.size.width  * scale);
+    const int newH = static_cast<int>(_metalView.bounds.size.height * scale);
 
     if (newW > 0 && newH > 0 &&
         (newW != static_cast<int>(s_game->device->backBufferWidth) ||
