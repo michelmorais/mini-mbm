@@ -94,6 +94,11 @@ static GAME* s_game = nullptr;
     {
         args.push_back("--addPath");
         args.push_back(resourcePath);
+        // Game assets (including main.lua) live under assets/ in the bundle.
+        // Adding this sub-path lets the engine find main.lua and any Lua
+        // modules that sit at the root of the GAME_ASSETS_DIR folder.
+        args.push_back("--addPath");
+        args.push_back(resourcePath + "/assets");
     }
     args.push_back("--scene");
     args.push_back("main.lua");
