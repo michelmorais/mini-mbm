@@ -282,6 +282,9 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     # NOTE: adding new files to GAME_ASSETS_DIR requires re-running cmake so that
     # CMake's GLOB_RECURSE picks them up — the build itself does not need a clean.
     if(DEFINED GAME_ASSETS_DIR)
+        if(NOT IS_DIRECTORY "${GAME_ASSETS_DIR}")
+            message(WARNING "GAME_ASSETS_DIR '${GAME_ASSETS_DIR}' does not exist or is not a directory — no assets will be bundled. Check the path (tilde ~ is not expanded inside double-quoted cmake -D values).")
+        endif()
         message(STATUS "iOS assets dir: ${GAME_ASSETS_DIR}")
         if(CMAKE_GENERATOR STREQUAL "Xcode")
             # Collect every file (not directories) under GAME_ASSETS_DIR

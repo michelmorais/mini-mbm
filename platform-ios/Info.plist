@@ -7,11 +7,11 @@
          Pass -DGAME_BUNDLE_ID=com.yourcompany.yourgame and -DGAME_NAME="My Game"
          at cmake configure time to override the defaults. -->
     <key>CFBundleIdentifier</key>
-    <string>com.mini.mbm.towerdefense</string>
+    <string>com.mini.mbm.tower-defense</string>
     <key>CFBundleName</key>
-    <string>Tower defense</string>
+    <string>Tower Defense Monster</string>
     <key>CFBundleDisplayName</key>
-    <string>Tower defense</string>
+    <string>Tower Defense Monster</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <key>CFBundleVersion</key>

@@ -43,38 +43,40 @@ The build directory can live anywhere on disk — it does not have to be inside
 the engine in one place and generate a per-game `.xcodeproj` inside the game repo.
 
 ```
-~/mini-mbm/          ← engine repo (shared, never edited per game)
-~/tower-defense/
-    assets/          ← game assets
-    ios_xcode/       ← generated Xcode project  ← add to .gitignore
+~/mini-mbm/                  ← engine repo (shared, never edited per game)
+~/tower-defense/             ← game repo
+    assets/                  ← game assets
     ...
+~/tower-defense-ios_xcode/   ← generated Xcode project (sibling dir, add to .gitignore)
 ```
 
 ```sh
 # From inside your game repo — point cmake at the engine source
-mkdir -p ~/tower-defense/ios_xcode && cd ~/tower-defense/ios_xcode
+mkdir -p ~/tower-defense-ios_xcode && cd ~/tower-defense-ios_xcode
 cmake ~/mini-mbm \
     -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=avfoundation \
-    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
-    -DGAME_NAME="My Game" \
-    -DGAME_ASSETS_DIR=~/tower-defense/assets \
+    -DGAME_BUNDLE_ID=com.mini.mbm.tower-defense \
+    -DGAME_NAME="Tower Defense Monster" \
+    -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
     -G Xcode
 # The configure message prints the exact open command:
-#   open "/Users/you/tower-defense/ios_xcode/My Game.xcodeproj"
+#   open "/Users/michel/tower-defense-ios_xcode/Tower Defense Monster.xcodeproj"
 ```
 
 **What lands where:**
 
 | Artifact | Location | Notes |
 |---|---|---|
-| `.xcodeproj` | `~/tower-defense/ios_xcode/` | Game repo — add to `.gitignore` |
+| `.xcodeproj` | `~/tower-defense-ios_xcode/` | Sibling dir — add to `.gitignore` |
 | Compiled `.app` | Xcode Derived Data | Managed by Xcode, no action needed |
 | `libcore_mbm.a` etc. | `~/mini-mbm/libs/release/…` | Engine artifacts — expected there |
 | `platform-ios/Info.plist` | `~/mini-mbm/platform-ios/` | Generated file — already gitignored |
 
-Add `ios_xcode/` to your game repo's `.gitignore` — it is a generated build
-directory and should not be committed.
+Add `tower-defense-ios_xcode/` (or whatever sibling name you choose) to your
+`.gitignore` at the parent level — it is a generated build directory and should
+not be committed.  Alternatively, since it sits outside the game repo entirely,
+it is simply not tracked by git at all.
 
 ---
 
@@ -208,15 +210,14 @@ any CMake file:
 Example configure command for Tower Defense:
 
 ```sh
-mkdir -p build/ios_towerdefense && cd build/ios_towerdefense
-cmake ../.. \
-    -DPLAT=iOS \
-    -DUSE_LUA=1 \
+mkdir -p ~/tower-defense-ios_xcode && cd ~/tower-defense-ios_xcode
+cmake ~/mini-mbm \
+    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=avfoundation \
-    -DGAME_BUNDLE_ID=com.mini.mbm.towerdefense \
-    -DGAME_NAME="Tower Defense" \
-    -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets
-make -j$(sysctl -n hw.logicalcpu)
+    -DGAME_BUNDLE_ID=com.mini.mbm.tower-defense \
+    -DGAME_NAME="Tower Defense Monster" \
+    -DGAME_ASSETS_DIR=~/tower-defense/assets \
+    -G Xcode
 ```
 
 What each variable does under the hood:
