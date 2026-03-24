@@ -48,6 +48,9 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
+    #if defined(__APPLE__)
+        #include <TargetConditionals.h>
+    #endif
 #endif
 
 #include <random>
@@ -481,6 +484,26 @@ namespace util
             return fopen(fileName, mode);
         }
 #else
+        // iOS sandbox: the app bundle is read-only; only ~/Documents is writable.
+        // Redirect relative filenames to Documents/ so save files are persistent.
+        // Absolute paths (starting with /) are used as-is.
+#if TARGET_OS_IOS
+        if (mode && strchr(mode, 'w') && fileName && fileName[0] != '/')
+        {
+            const char *home = getenv("HOME");
+            if (home)
+            {
+                std::string docPath(home);
+                docPath += "/Documents/";
+                docPath += fileName;
+                FILE *fp = fopen(docPath.c_str(), mode);
+                if (fp)
+                    return fp;
+                // If fopen failed, fall through to plain fopen so the caller
+                // gets a null and reports the error normally.
+            }
+        }
+#endif
         return fopen(fileName, mode);
 #endif
     }

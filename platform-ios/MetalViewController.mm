@@ -103,6 +103,14 @@ static GAME* s_game = nullptr;
         // modules that sit at the root of the GAME_ASSETS_DIR folder.
         args.push_back("--addPath");
         args.push_back(resourcePath + "/assets");
+        // Documents directory: writable sandbox location for save files.
+        // Adding it as a read path lets the engine find files written there.
+        const char *home = getenv("HOME");
+        if (home)
+        {
+            args.push_back("--addPath");
+            args.push_back(std::string(home) + "/Documents");
+        }
     }
     args.push_back("--scene");
     args.push_back("main.lua");
@@ -174,6 +182,8 @@ static GAME* s_game = nullptr;
     {
         [_displayLink invalidate];
         _displayLink = nil;
+        // mbm.quit() was called — terminate the process cleanly.
+        exit(0);
         return;
     }
 
@@ -274,6 +284,19 @@ static GAME* s_game = nullptr;
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations
 {
     return UIInterfaceOrientationMaskLandscape;
+}
+
+// ── Background / foreground pause ────────────────────────────────────────────
+
+- (void)pauseRendering
+{
+    _displayLink.paused = YES;
+}
+
+- (void)resumeRendering
+{
+    if (s_game && s_game->device->run)
+        _displayLink.paused = NO;
 }
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────

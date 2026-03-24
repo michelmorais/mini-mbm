@@ -15,4 +15,8 @@
 //   • Routes UITouch events to the engine's onTouchDown/Move/Up callbacks.
 @interface MetalViewController : UIViewController
 
+// Called by AppDelegate when the app loses / regains focus.
+- (void)pauseRendering;
+- (void)resumeRendering;
+
 @end
