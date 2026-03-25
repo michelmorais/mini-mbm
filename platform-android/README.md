@@ -226,7 +226,7 @@ The Android target has been modernised to follow the same pattern as the iOS por
 | 14-step manual Android Studio project | One `cmake` command generates everything |
 | Java `GLSurfaceView` + JNI bridge | C++ `android_native_app_glue` + `NativeActivity` |
 | Java `FileJniEngine` for asset I/O | NDK `AAssetManager` C API |
-| `AudioManager` JNI calls | `AUDIO=jni` (backward compat) or `AUDIO=opensl` |
+| `AudioManager` JNI calls | OpenSL ES — pure C++ (`-DAUDIO=opensl`, recommended) |
 | `MY_GAME(JNIEnv*, jobject)` | `MY_GAME()` — no JNI args needed |
 
 A single thin Java class (`MbmActivity.java`) is kept for device services (vibrate,
@@ -248,7 +248,7 @@ cmake ../.. \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=jni
+    -DAUDIO=opensl
 ```
 
 CMake will:
@@ -312,7 +312,7 @@ cmake ~/mini-mbm \
     -DANDROID_NATIVE_API_LEVEL=24 \
     -DUSE_LUA=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=jni \
+    -DAUDIO=opensl \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.example.tower_defense \
     -DGAME_NAME="Tower Defense" \
@@ -326,8 +326,8 @@ cmake ~/mini-mbm \
 
 | `AUDIO=` | Description | Status |
 |---|---|---|
-| `jni` | Java `SoundPool` / `MediaPlayer` via JNI (default) | Stable, backward compatible |
-| `opensl` | NDK OpenSL ES — pure C++, no Java audio calls | Available (API ≥ 21) |
+| `opensl` | NDK OpenSL ES — pure C++, no Java audio calls | **Recommended** (API ≥ 21) |
+| `jni` | Java `SoundPool` / `MediaPlayer` via JNI | Legacy — requires Java audio classes in APK |
 | `none` | Disabled | Silently drops all audio calls |
 
 To use OpenSL ES:
@@ -367,14 +367,14 @@ The `android_main()` NativeActivity entry point is the same file for both paths;
 | `platform-android/templates/` | Gradle project templates (`*.in` files) |
 | `platform-android/gradle/` | Gradle wrapper scripts (configured at CMake time) |
 | `src/core_mbm/specific-android.cpp` | NDK system integration (`AAssetManager`, `ALooper`) |
-| `src/core_mbm/audio-jni-android.cpp` | JNI audio backend (AUDIO=jni) |
-| `src/core_mbm/audio-opensl-android.cpp` | OpenSL ES audio backend (AUDIO=opensl) |
+| `src/core_mbm/audio-opensl-android.cpp` | OpenSL ES audio backend (`AUDIO=opensl`, recommended) |
+| `src/core_mbm/audio-jni-android.cpp` | Legacy JNI audio backend (`AUDIO=jni`) |
 
 ---
 
 ## Legacy files (kept for reference)
 
-The following files remain in the repo as archive and are **not used by the build**:
+The following files remain in the repo as archive and are **not used by the NativeActivity build**:
 
 | File | Notes |
 |---|---|
@@ -382,7 +382,18 @@ The following files remain in the repo as archive and are **not used by the buil
 | `platform-android/main-lua.cpp` | Old Lua JNI entry point (replaced by `main-native-activity.cpp`) |
 | `platform-android/scene-1.h` / `scene-1.cpp` | Old scene with `JNIEnv*` constructor |
 | `platform-android/AndroidManifest.xml` | Old hand-crafted manifest |
-| `platform-android/com/` | 12 Java classes for the old JNI bridge |
+| `platform-android/com/mini/mbm/FileJniEngine.java` | Lua file-dialog helper (optional — silently skipped if absent) |
+| `platform-android/com/mini/mbm/KeyCodeJniEngine.java` | Lua key-mapping helper (optional — silently skipped if absent) |
+
+### Removed files
+
+The following JNI audio classes were removed after the switch to OpenSL ES (`-DAUDIO=opensl`).
+They are no longer needed and have been deleted from the repository:
+
+- `AudioJniEngine.java`
+- `AudioManagerJniEngine.java`
+- `MusicJniEngine.java`
+- `SoundJniEngine.java`
 
 ---
 

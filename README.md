@@ -249,7 +249,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
@@ -386,7 +386,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
 | Windows | Audiere | `-DAUDIO=audiere` |
-| Android | JNI (SoundPool) or OpenSL ES | `-DAUDIO=jni` / `-DAUDIO=opensl` |
+| Android | OpenSL ES (recommended) or JNI | `-DAUDIO=opensl` / `-DAUDIO=jni` |
 | All | None (silent) | `-DAUDIO=none` |
 
 ### Supported File Formats by Platform
@@ -813,8 +813,8 @@ cmake ~/mini-mbm \
 ```
 
 **Audio options:**
-- `-DAUDIO=jni` — Java `SoundPool`/`MediaPlayer` via JNI (default, widely tested)
-- `-DAUDIO=opensl` — NDK OpenSL ES, pure C++ (API ≥ 21)
+- `-DAUDIO=opensl` — NDK OpenSL ES, pure C++ (API ≥ 21, **recommended**)
+- `-DAUDIO=jni` — Java `SoundPool`/`MediaPlayer` via JNI (legacy)
 - `-DAUDIO=none` — silent (no audio dependency)
 
 **Other Android-specific flags:**
@@ -979,7 +979,7 @@ mini-mbm/
 ├── third-party/                # Third-party libraries (see below)
 ├── platform-linux/             # Linux entry points (main.cpp, main-lua.cpp)
 ├── platform-msvs/              # Windows Visual Studio solution
-├── platform-android/           # Android JNI entry point + Java classes
+├── platform-android/           # Android NativeActivity entry point + Java helper
 ├── platform-macos/             # macOS entry points
 ├── modules/                    # Additional modules (obj importer, test)
 ├── CMakeLists.txt              # Root CMake build file
