@@ -23,6 +23,7 @@
 #include <core_mbm/device.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/scene.h>
+#include <android/configuration.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 
@@ -289,28 +290,22 @@ namespace mbm
 
     int onGetIdiom(lua_State *lua)
     {
-        const char *     methodName = "getIdiom";
-        const char *     signature  = "()Ljava/lang/String;"; //(string) void
+        // Pure C++ implementation using AConfiguration — no JNI required.
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
+        if (cJni->assetManager)
         {
-            return lua_error_debug(lua, "method not found:%s", methodName);
+            AConfiguration* config = AConfiguration_new();
+            AConfiguration_fromAssetManager(config, cJni->assetManager);
+            char lang[3] = {};
+            AConfiguration_getLanguage(config, lang);
+            AConfiguration_delete(config);
+            if (lang[0] != 0)
+            {
+                lua_pushstring(lua, lang);
+                return 1;
+            }
         }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid);
-        if (ret)
-        {
-            const char *newRet = jenv->GetStringUTFChars(ret, 0);
-            const char *r      = cJni->getStrToDelete(newRet);
-            jenv->ReleaseStringUTFChars(ret, newRet);
-            lua_pushstring(lua, r);
-            jenv->DeleteLocalRef(ret);
-        }
-        else
-        {
-            lua_pushstring(lua, "Unknown");
-        }
+        lua_pushstring(lua, "en");
         return 1;
     }
 

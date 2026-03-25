@@ -26,6 +26,7 @@
 #include <texture-manager.h>
 #include <device.h>
 #include <specific-opengl_es.h>
+#include <core_mbm/util-interface.h>
 
 
 namespace mbm
@@ -51,6 +52,12 @@ namespace mbm
     {
         auto* ctx = this->device->specificContextDevice;
 
+        if (!ctx->nativeWindow)
+        {
+            ERROR_LOG("EGL: nativeWindow is null — cannot create EGL surface");
+            return false;
+        }
+
         // ---------------------------------------------------------------
         // EGL initialisation — must happen before any GL call
         // ---------------------------------------------------------------
@@ -58,7 +65,16 @@ namespace mbm
         {
             // First-time init: create display, context and window surface
             ctx->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-            eglInitialize(ctx->eglDisplay, nullptr, nullptr);
+            if (ctx->eglDisplay == EGL_NO_DISPLAY)
+            {
+                ERROR_LOG("EGL: eglGetDisplay failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglInitialize(ctx->eglDisplay, nullptr, nullptr))
+            {
+                ERROR_LOG("EGL: eglInitialize failed (error 0x%x)", eglGetError());
+                return false;
+            }
 
             const EGLint configAttribs[] = {
                 EGL_RED_SIZE,        8,
@@ -74,6 +90,7 @@ namespace mbm
             if (numConfigs == 0)
             {
                 // Fallback: relax depth size
+                INFO_LOG("EGL: depth-24 config not available, trying depth-16");
                 const EGLint fallbackAttribs[] = {
                     EGL_RED_SIZE,        8,
                     EGL_GREEN_SIZE,      8,
@@ -85,17 +102,38 @@ namespace mbm
                 };
                 eglChooseConfig(ctx->eglDisplay, fallbackAttribs, &ctx->eglConfig, 1, &numConfigs);
             }
+            if (numConfigs == 0)
+            {
+                ERROR_LOG("EGL: eglChooseConfig found no matching config (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: config chosen, numConfigs=%d", numConfigs);
 
             EGLint format = 0;
             eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
             ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
 
             ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
+            if (ctx->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
 
             const EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
             ctx->eglContext = eglCreateContext(ctx->eglDisplay, ctx->eglConfig, EGL_NO_CONTEXT, ctxAttribs);
+            if (ctx->eglContext == EGL_NO_CONTEXT)
+            {
+                ERROR_LOG("EGL: eglCreateContext failed (error 0x%x)", eglGetError());
+                return false;
+            }
 
-            eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext);
+            if (!eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext))
+            {
+                ERROR_LOG("EGL: eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: context created and made current");
         }
         else if (ctx->eglSurface == EGL_NO_SURFACE)
         {
@@ -104,7 +142,17 @@ namespace mbm
             eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
             ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
             ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
-            eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext);
+            if (ctx->eglSurface == EGL_NO_SURFACE)
+            {
+                ERROR_LOG("EGL: resume eglCreateWindowSurface failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            if (!eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext))
+            {
+                ERROR_LOG("EGL: resume eglMakeCurrent failed (error 0x%x)", eglGetError());
+                return false;
+            }
+            INFO_LOG("EGL: surface recreated for resume");
         }
 
         // Query actual surface dimensions and use them
@@ -112,6 +160,7 @@ namespace mbm
             EGLint surfW = 0, surfH = 0;
             eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_WIDTH,  &surfW);
             eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_HEIGHT, &surfH);
+            INFO_LOG("EGL: surface dimensions %d x %d", surfW, surfH);
             if (surfW > 0) width  = surfW;
             if (surfH > 0) height = surfH;
         }

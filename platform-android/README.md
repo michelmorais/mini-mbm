@@ -58,7 +58,7 @@ cmake ~/mini-mbm \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=jni \
     -DUSE_STL_STATIC=1 \
-    -DGAME_PACKAGE=com.example.tower_defense \
+    -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
@@ -120,7 +120,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 adb install app-release.apk
 
 # Launch from the command line (no need to tap the icon)
-adb shell am start -n com.example.tower_defense/com.mini.mbm.MbmActivity
+adb shell am start -n com.mini.mbm.tower_defense/com.mini.mbm.MbmActivity
 ```
 
 **Step 5 — read log output in the terminal:**

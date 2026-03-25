@@ -42,6 +42,7 @@ namespace mbm
 
     AUDIO::~AUDIO()
     {
+		if (indexJNI < 0) { fileName.clear(); return; }
 		const char *methodName = "onDestroyAudioJniEngine";
 		const char *signature = "(I)V"; // void (int)
 
@@ -62,6 +63,7 @@ namespace mbm
         
     bool AUDIO::setVolume(const float volume) 
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onSetVolumeAudioJniEngine";
         const char *signature  = "(IF)V"; // void (int,float)
         mbm::DEVICE *device               = mbm::DEVICE::getInstance();
@@ -76,6 +78,7 @@ namespace mbm
     
     bool AUDIO::setPan(const float pan )
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onSetPanAudioJniEngine";
         const char *signature  = "(IF)V"; // void (int,float)
         mbm::DEVICE *device               = mbm::DEVICE::getInstance();
@@ -90,6 +93,7 @@ namespace mbm
     
     bool AUDIO::pause() 
     {
+        if (indexJNI < 0) return false;
         if(isPlaying())
         {
             const char *methodName = "onPauseAudioJniEngine";
@@ -109,6 +113,7 @@ namespace mbm
     
     bool AUDIO::resume() 
     {
+        if (indexJNI < 0) return false;
         if(state == AUDIO_PLAYING)
         {
             const char *     methodName = "onResumeAudioJniEngine";
@@ -127,6 +132,7 @@ namespace mbm
     
     bool AUDIO::stop()
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onStopAudioJniEngine";
         const char *signature  = "(I)V"; // void (int)
         mbm::DEVICE *device               = mbm::DEVICE::getInstance();
@@ -142,6 +148,7 @@ namespace mbm
     
     bool AUDIO::setPitch(const float pitch) // range from 0.5 to 2.0.  default is 1.0. - ok somente sound
     {
+        if (indexJNI < 0) return false;
         const char *methodName            = "onSetPitchAudioJniEngine";
         const char *signature             = "(IF)V"; // void (int,float)
         mbm::DEVICE *device               = mbm::DEVICE::getInstance();
@@ -156,6 +163,7 @@ namespace mbm
     
     bool AUDIO::load(const char *filenameSound, const bool loop , const bool inMemory ) // mesmo que load - ok
     {
+        if (indexJNI < 0) return false;
         if (filenameSound == nullptr)
             return false;
 		if(isLoaded())
@@ -180,6 +188,7 @@ namespace mbm
     
     bool AUDIO::play(const bool loop )
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onPlayAudioJniEngine";
         const char *signature  = "(IZ)Z"; // bool (int,bool)
 
@@ -196,6 +205,7 @@ namespace mbm
     
     bool AUDIO::isPlaying()
     {
+        if (indexJNI < 0) return false;
         if(state == AUDIO_STOPPED)
             return false;
         const char *methodName = "onIsPlayingAudioJniEngine";
@@ -217,6 +227,7 @@ namespace mbm
     
     bool AUDIO::isPaused()
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onIsPausedAudioJniEngine";
         const char *signature  = "(I)Z"; // bool (int)
 
@@ -232,6 +243,7 @@ namespace mbm
     
     float AUDIO::getVolume()
     {
+        if (indexJNI < 0) return 0.0f;
         const char *methodName = "onGetVolumeAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
@@ -247,6 +259,7 @@ namespace mbm
     
     float AUDIO::getPan()
     {
+        if (indexJNI < 0) return 0.0f;
         const char *methodName = "onGetPanAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
@@ -262,6 +275,7 @@ namespace mbm
     
     float AUDIO::getPitch()
     {
+        if (indexJNI < 0) return 0.0f;
         const char *methodName = "onGetPitchAudioJniEngine";
         const char *signature  = "(I)F"; // float (int)
 
@@ -277,6 +291,7 @@ namespace mbm
     
     int AUDIO::getLength()
     {
+        if (indexJNI < 0) return 0;
         const char *methodName = "onGetLengthAudioJniEngine";
         const char *signature  = "(I)I"; // int (int)
 
@@ -292,6 +307,7 @@ namespace mbm
     
     bool AUDIO::reset()
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onResetAudioJniEngine";
         const char *signature  = "(I)V"; // void (int)
 
@@ -307,6 +323,7 @@ namespace mbm
 
     bool AUDIO::setPosition(const int pos)
     {
+        if (indexJNI < 0) return false;
         const char *methodName = "onSetPositionAudioJniEngine";
         const char *signature  = "(II)V"; // void (int,int)
 
@@ -347,6 +364,8 @@ namespace mbm
         const char *     signature        = "()I";
         mbm::DEVICE *device               = mbm::DEVICE::getInstance();
         SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
+        if (!cJni->jclassAudioManagerJniEngine)
+            return false;
         JNIEnv *     jenv                 = cJni->jenv;
         jmethodID midNew_AudioJniEngine   = jenv->GetStaticMethodID(cJni->jclassAudioManagerJniEngine, methodName, signature);
         if (midNew_AudioJniEngine == nullptr)

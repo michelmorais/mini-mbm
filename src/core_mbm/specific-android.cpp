@@ -20,6 +20,7 @@
 #ifdef ANDROID
 
 #include <unistd.h>
+#include <sys/stat.h>
 #include <cstring>
 #include <android/asset_manager.h>
 #include <stb_image.h>
@@ -299,9 +300,20 @@ namespace mbm
         if (this->retPath.back() != '/' && this->retPath.back() != '\\')
             this->retPath += '/';
         this->retPath += fileName;
+        // Ensure all parent directories exist (e.g. absPath/logic/ for "logic/scene.lua")
+        {
+            const std::string dir = this->retPath.substr(0, this->retPath.rfind('/'));
+            for (size_t i = 1; i < dir.size(); ++i) {
+                if (dir[i] == '/') {
+                    mkdir(dir.substr(0, i).c_str(), 0755);
+                }
+            }
+            mkdir(dir.c_str(), 0755);
+        }
         FILE* fp = fopen(this->retPath.c_str(), "wb");
         if (!fp)
         {
+            ERROR_LOG("copyFileFromAsset: fopen failed for '%s'", this->retPath.c_str());
             AAsset_close(asset);
             return fileName;
         }
@@ -442,10 +454,15 @@ namespace mbm
 
 int access_file(const char *fileName, int)
 {
+    if (!fileName || fileName[0] == '\0')
+        return -1;
+    // Check the real filesystem first (covers files already extracted to absPath).
+    if (access(fileName, F_OK) == 0)
+        return 0;
+    // Fall back to AAssetManager for files still inside the APK.
     mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
     mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-    std::string fileName_buffer(fileName ? fileName : "");
-    return cJni->existFileOnAssets(fileName_buffer.c_str());
+    return cJni->existFileOnAssets(fileName);
 }
 
 #endif

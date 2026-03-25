@@ -153,6 +153,8 @@ namespace mbm
         void SCENE_SCRIPT::init() 
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            INFO_LOG("SCENE_SCRIPT::init() enter - scriptLua=[%s] noSplash=%d logo_was_init=%d",
+                     this->scriptLua.c_str(), (int)this->noSplash, (int)SCENE_SCRIPT::logo_was_init);
             if (this->lua == nullptr)
             {
                 if (this->createSceneLua() == false)
@@ -272,28 +274,33 @@ namespace mbm
             {
                 bool sucess                 = false;
                 SCENE_SCRIPT::logo_was_init = true;
-                const char *newPath = util::getFullPath(device->copyFileFromAsset(this->scriptLua.c_str(), "rt"),nullptr);
-                #if _DEBUG
-                if(device->verbose)
-                    INFO_LOG("new path [%s]", newPath ? newPath : "NULL");
-                #endif
+                INFO_LOG("SCENE_SCRIPT::init scriptLua=[%s]", this->scriptLua.c_str());
+                const char *copied = device->copyFileFromAsset(this->scriptLua.c_str(), "rt");
+                INFO_LOG("SCENE_SCRIPT::init copyFileFromAsset returned [%s]", copied ? copied : "NULL");
+                const char *newPath = util::getFullPath(copied, nullptr);
+                INFO_LOG("SCENE_SCRIPT::init getFullPath returned [%s]", newPath ? newPath : "NULL");
                 if (newPath)
                 {
                     if (this->doLauncher(newPath))
                     {
+                        INFO_LOG("SCENE_SCRIPT::init doLauncher succeeded");
                         this->fileNameScriptLuaFinal = newPath;
                         sucess = true;
                     }
                     else if (!luaL_dofile(this->lua, newPath))
                     {
+                        INFO_LOG("SCENE_SCRIPT::init luaL_dofile succeeded for [%s]", newPath);
                         this->fileNameScriptLuaFinal = newPath;
                         sucess                       = true;
                     }
                     else
                     {
+                        INFO_LOG("SCENE_SCRIPT::init luaL_dofile FAILED for [%s]", newPath);
         #ifdef ANDROID
+                        INFO_LOG("SCENE_SCRIPT::init trying doFileAsString fallback");
                         if (this->doFileAsString(this->scriptLua.c_str()))
                         {
+                            INFO_LOG("SCENE_SCRIPT::init doFileAsString succeeded");
                             this->fileNameScriptLuaFinal = this->scriptLua;
                             sucess                       = true;
                         }

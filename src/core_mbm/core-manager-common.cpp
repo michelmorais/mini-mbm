@@ -47,13 +47,21 @@ namespace mbm
     int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
     {
         static bool variablesInitialized = false;
+        static int loopCallCount = 0;
+        loopCallCount++;
+        if (loopCallCount <= 3)
+            INFO_LOG("CORE_MANAGER::loop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
+                     loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
+                     device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
         if (!variablesInitialized)
         {
+            INFO_LOG("CORE_MANAGER::loop() first-time init");
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
+                ERROR_LOG("CORE_MANAGER::loop() parserCFGFromResource FAILED");
                 PRINT_IF_DEBUG("\nerror on Parse CFG from resource.");
                 return -1;
             }
@@ -267,6 +275,9 @@ namespace mbm
                     break;
                 }
             }
+            if (loopCallCount <= 3)
+                INFO_LOG("CORE_MANAGER::loop() about to update/render (frame %d) changeScene=%d swapStep=%d",
+                         loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done
@@ -692,8 +703,10 @@ namespace mbm
             }
             else if (changeScene)
             {
+                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->__swapBackBufferStep);
                 if (this->device->__swapBackBufferStep == 3)
                 {
+                    INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
                     this->reinitTimers();
                     enableRender(this->device->scene->getIdScene());
                     this->device->scene->wasUnloadedScene = false;

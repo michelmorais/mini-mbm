@@ -343,11 +343,12 @@ void android_main(struct android_app* app)
         int                         events;
         struct android_poll_source* source;
 
-        // Poll for events. When not rendering, block; when rendering, don't block.
-        const int timeoutMs = (s_running && s_windowReady) ? 0 : -1;
-
-        while ((ident = ALooper_pollOnce(timeoutMs, nullptr, &events,
-                                         reinterpret_cast<void**>(&source))) >= 0)
+        // Poll for events. When rendering, poll without blocking (0);
+        // when idle, block until an event arrives (-1).
+        while ((ident = ALooper_pollOnce(
+                    (s_running && s_windowReady) ? 0 : -1,
+                    nullptr, &events,
+                    reinterpret_cast<void**>(&source))) >= 0)
         {
             if (source != nullptr)
                 source->process(app, source);
