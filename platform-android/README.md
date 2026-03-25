@@ -149,17 +149,29 @@ After opening the project (**File → Open → select the `android-studio/` fold
 
 ---
 
-## Assets folder in Android Studio
+## Assets folder
 
-The assets live **outside** the generated project folder (at the path you passed to `-DGAME_ASSETS_DIR`).  Gradle knows about them via `assets.srcDirs` in `app/build.gradle`, but Android Studio's default **"Android" project view** only shows virtual nodes and may not display the external folder.
+The assets live **outside** the generated project folder, at the path you passed to `-DGAME_ASSETS_DIR`.  They flow through the build in three stages:
 
-To see your asset files inside Android Studio:
+| Stage | Path | Purpose |
+|---|---|---|
+| **Source** | `/home/michel/tower-defense/assets/` | Edit your Lua scripts and assets here |
+| **Gradle staging** | `app/build/intermediates/assets/debug/mergeDebugAssets/` | Gradle copies here during build — do not edit |
+| **APK** | `assets/` inside the APK | What the device reads at runtime via `AAssetManager` |
+
+If you run `find . -name main.lua` in the generated project and see it under `build/intermediates/`, that is **correct** — it means Gradle successfully picked up your assets and they will be included in the APK.
+
+**Always edit files in your source directory** (`/home/michel/tower-defense/assets/`).  The staging copy is recreated from scratch on every build.
+
+### Viewing assets in Android Studio
+
+Android Studio's default **"Android"** project view does not show external asset directories.  To browse them:
 
 1. At the top of the **Project** panel, click the dropdown that says **"Android"**.
-2. Switch to **"Project"** view.
-3. Navigate to `app → src → main` — you will see an `assets` symlink/folder pointing to your external path.
+2. Switch to **"Project Files"** view.
+3. Navigate to `app → src → main → assets` — this shows the files from your source directory.
 
-Alternatively, since the assets folder is just a normal directory on disk, you can edit files in it directly with any editor; they will be picked up by the next `./gradlew assemble*` build without re-running cmake.
+You do not need to re-run cmake after editing asset files.  Just run `./gradlew assembleDebug` (or press **▶ Run** in Android Studio) and the updated files will be packaged into the next APK.
 
 ---
 
