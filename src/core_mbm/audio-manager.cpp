@@ -407,6 +407,8 @@ namespace mbm
             }
         }
     }
+#elif defined(AUDIO_ENGINE_ANDROID_OPENSL)
+    void AUDIO_MANAGER::streamStopped(const int /*indexJNI*/) {}  // no-op: OpenSL ES manages end-of-stream natively
 #endif
     void AUDIO_MANAGER::releaseStaticInstance()
     {

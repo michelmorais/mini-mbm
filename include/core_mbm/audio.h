@@ -141,6 +141,8 @@ namespace mbm
 		static audiere::AudioDevicePtr	audioDevice;
 #elif defined(AUDIO_ENGINE_ANDROID_JNI)
         void streamStopped(const int indexJNI)override;
+#elif defined(AUDIO_ENGINE_ANDROID_OPENSL)
+        void streamStopped(const int indexJNI)override;  // no-op: OpenSL ES manages end-of-stream natively
 #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 		LPDIRECTSOUND8		m_directSound; //for DSBCAPS_CTRL3D , DSBCAPS_PRIMARYBUFFER  must be present and must be used with LPDIRECTSOUND instead of LPDIRECTSOUND8
 #endif

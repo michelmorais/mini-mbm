@@ -168,7 +168,7 @@ namespace mbm
         device->run         = false;
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->scene->onFinalizeScene();
-        device->specificContextDevice->callQuitInJava();
+        device->specificContextDevice->callQuit();
         return 0;
     }
 
@@ -244,6 +244,7 @@ namespace mbm
     {
     
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassKeyCodeJniEngine) return 0;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyCode", "(Ljava/lang/String;)I");
         if (mid == NULL)
@@ -266,6 +267,7 @@ namespace mbm
     {
     
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassKeyCodeJniEngine) return nullptr;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyName", "(I)Ljava/lang/String;");
         if (mid == NULL)
@@ -543,6 +545,7 @@ namespace mbm
         const char *methodName = "messageBox";
         const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"; // boolean (string,string,string)
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassFileJniEngine) return false;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)
@@ -606,6 +609,7 @@ namespace mbm
         const char *      methodName = "openFolder";
         const char *      signature  = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"; // String (string)
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassFileJniEngine) { lua_pushnil(lua); return 1; }
         JNIEnv *          jenv       = cJni->jenv;
         jmethodID         mid        = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)

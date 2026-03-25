@@ -31,7 +31,7 @@ if (USE_LUA)
             set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
@@ -64,8 +64,8 @@ else()
             set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main.cpp)
-        set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-android/scene-1.cpp)
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
+        set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-android/my-scene.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-macos/my-scene.cpp)
@@ -132,13 +132,26 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         add_definitions(-DUSE_IMGUI)
     endif()
 
+    # android_native_app_glue: compile the glue code as a static lib so that
+    # android_main() is called correctly by the NativeActivity launcher.
+    set(NATIVE_APP_GLUE_SRC
+        ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
+    add_library(android_native_app_glue STATIC ${NATIVE_APP_GLUE_SRC})
+    target_include_directories(android_native_app_glue PUBLIC
+        ${ANDROID_NDK}/sources/android/native_app_glue)
+
     add_library(mini-mbm  SHARED  ${MAIN}
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
                             ${SCENE_CPP})
 
+    target_include_directories(mini-mbm PRIVATE
+        ${ANDROID_NDK}/sources/android/native_app_glue)
+
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm android_native_app_glue)
+    target_link_libraries(mini-mbm android log)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 

@@ -55,7 +55,7 @@
 #endif
 
 #ifdef _DEBUG
-#include <util-interface.h>
+#include "util-interface.h"
 #endif
 
 namespace log_util
@@ -574,16 +574,20 @@ void printGLString(const char *name, GLenum s);
 void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
+#   include <android/asset_manager.h>
+#   include <android/native_window.h>
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
       public:
-        JNIEnv *    jenv;
-        std::string absPath, apkPath;
-        jclass      jclassFileJniEngine;
-        jclass      jclassDoCommandsJniEngine;
-        jclass      jclassKeyCodeJniEngine;
-        jclass      jclassInstanceActivityEngine;
-        jclass      jclassAudioManagerJniEngine;
+        JNIEnv *         jenv;
+        std::string      absPath, apkPath;
+        AAssetManager*   assetManager;   // NDK asset manager — replaces FileJniEngine JNI
+        ANativeWindow*   nativeWindow;   // current ANativeWindow for EGL surface creation
+        jclass           jclassDoCommandsJniEngine;     // thin MbmActivity: vibrate / doCommands
+        jclass           jclassAudioManagerJniEngine;   // legacy JNI audio backend (AUDIO=jni)
+        jclass           jclassFileJniEngine;           // Lua file dialogs
+        jclass           jclassKeyCodeJniEngine;        // Lua key mapping
 
         GLint filter_GL_TEXTURE_WRAP_S;
         GLint filter_GL_TEXTURE_WRAP_T;
@@ -598,7 +602,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         void release(const bool wasDeviceLost);
         const char *getStrToDelete(const char *str);
         void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
-        void callQuitInJava();
+        void callQuit();
         void streamStopped(const int indexJNI);
       private:
         char              packageName[255];
@@ -606,7 +610,8 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         std::string       retPath;
         std::string       buffer_new_stringUTF[10];
         int               index_string_utf;
-        jclass getClass(const char *nameClass);
+        jclass getClass(const char *nameClass);       // aborts if class not found
+        jclass tryGetClass(const char *nameClass);    // returns nullptr silently if not found
       public:
         const char* get_safe_string_utf(const char* string_input);
         #if _DEBUG

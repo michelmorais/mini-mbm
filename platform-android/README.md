@@ -1,0 +1,279 @@
+# Android Platform — Architecture Notes
+
+## Prerequisites
+
+Before running any cmake command you need three things installed on your machine:
+
+### 1. Android Studio + SDK
+
+Download from https://developer.android.com/studio and install it.
+The installer places the Android SDK at `~/Android/Sdk` (Linux/macOS) automatically.
+
+### 2. Android NDK r29
+
+The NDK is the C++ compiler toolchain. Download it separately:
+```sh
+# Download NDK r29 (Linux x86_64)
+cd ~
+wget https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+unzip android-ndk-r29-linux.zip
+# Result: ~/android-ndk-r29/
+```
+Or install it from Android Studio: **SDK Manager → SDK Tools → NDK (Side by side)**.
+
+### 3. Ninja build system
+
+```sh
+sudo apt-get install ninja-build      # Ubuntu/Debian
+# brew install ninja                  # macOS
+```
+
+### 4. Java 17 JDK
+
+```sh
+sudo apt-get install openjdk-17-jdk   # Ubuntu/Debian
+```
+
+---
+
+## Quick Start — build your Lua game as an APK
+
+This is the complete flow for a new Android developer.  Replace the paths with your own.
+
+**Step 1 — tell your shell where the NDK lives** (must be done in every new terminal, or add to `~/.bashrc`):
+```sh
+export NDK_ROOT=~/android-ndk-r29
+```
+
+**Step 2 — create a build directory outside the engine repo and run cmake:**
+```sh
+mkdir -p ~/tower-defense-android && cd ~/tower-defense-android
+
+cmake ~/mini-mbm \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=jni \
+    -DGAME_PACKAGE=com.example.tower_defense \
+    -DGAME_NAME="Tower Defense" \
+    -DGAME_APP_DIR=~/tower-defense-android/android-studio \
+    -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
+```
+
+> **`GAME_ASSETS_DIR` must be an absolute path** — do not use `~` for this variable.
+
+CMake will print the generated project location at the end:
+```
+  Android Studio project generated at:
+    /home/michel/tower-defense-android/android-studio
+
+  Open in Android Studio:
+    studio "/home/michel/tower-defense-android/android-studio"
+    (or: File → Open → select the folder above)
+
+  Build from the command line:
+    cd "/home/michel/tower-defense-android/android-studio" && ./gradlew assembleDebug
+```
+
+**Step 3 — build the APK:**
+```sh
+cd ~/tower-defense-android/android-studio
+./gradlew assembleDebug
+```
+
+The APK will be at:
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+**Step 4 — install on a connected device** (USB debugging must be enabled on the device):
+```sh
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+> **gradle-wrapper.jar missing?**  If the automatic download failed, run once inside
+> the generated folder:
+> ```sh
+> gradle wrapper --gradle-version 8.7
+> ```
+
+---
+
+## Modern NativeActivity approach (current)
+
+The Android target has been modernised to follow the same pattern as the iOS port:
+**CMake generates the entire project**; no manual Android Studio setup is required.
+
+| Old approach | New approach |
+|---|---|
+| 14-step manual Android Studio project | One `cmake` command generates everything |
+| Java `GLSurfaceView` + JNI bridge | C++ `android_native_app_glue` + `NativeActivity` |
+| Java `FileJniEngine` for asset I/O | NDK `AAssetManager` C API |
+| `AudioManager` JNI calls | `AUDIO=jni` (backward compat) or `AUDIO=opensl` |
+| `MY_GAME(JNIEnv*, jobject)` | `MY_GAME()` — no JNI args needed |
+
+A single thin Java class (`MbmActivity.java`) is kept for device services (vibrate,
+locale query) that still require a `Context`, but all game and engine logic is pure C++.
+
+---
+
+## Generating an Android Studio project
+
+```sh
+# Set NDK_ROOT before invoking CMake
+export NDK_ROOT=~/android-ndk-r29
+
+mkdir -p build/android_arm64 && cd build/android_arm64
+cmake ../.. \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=jni
+```
+
+CMake will:
+1. Configure the engine build for the specified ABI.
+2. Emit all Gradle template files into `build/android_arm64/android-studio/`.
+3. Download `gradle-wrapper.jar` automatically (requires internet access on first run).
+
+Then open the generated project in Android Studio:
+```sh
+# Android Studio → File → Open → select the android-studio/ folder
+# — or from the command line:
+cd build/android_arm64/android-studio && ./gradlew assembleDebug
+```
+
+> **gradle-wrapper.jar missing?**  If the automatic download failed, run once inside
+> the generated folder:
+> ```sh
+> gradle wrapper --gradle-version 8.7
+> ```
+
+---
+
+## CMake variables for the Gradle project
+
+| Variable | Default | Description |
+|---|---|---|
+| `GAME_PACKAGE` | `com.mini.mbm.game` | Java package name (application ID) |
+| `GAME_NAME` | `mini-mbm` | App display name / project name |
+| `GRADLE_VERSION` | `8.7` | Gradle wrapper version |
+| `GRADLE_ABI_FILTERS` | `"arm64-v8a", "x86_64"` | Groovy abiFilters list |
+| `ANDROID_SDK_ROOT` | `$ANDROID_HOME` or `$ANDROID_SDK_ROOT` | Path for `local.properties` |
+| `GAME_APP_DIR` | `<build_dir>/android-studio` | Where generated project is written |
+| `GAME_ASSETS_DIR` | _(empty)_ | Path to your game's assets folder — served directly into the APK |
+
+Override any of these with `-D` flags on the `cmake` command:
+```sh
+cmake ../.. -DPLAT=Android ... \
+    -DGAME_PACKAGE=com.example.tower_defense \
+    -DGAME_NAME="Tower Defense" \
+    -DGAME_APP_DIR=~/tower-defense-android
+```
+
+---
+
+## Placing the project outside the engine repo
+
+The generated Gradle project can live anywhere — it does not belong inside the engine repo.
+A typical multi-project layout:
+
+```
+~/mini-mbm/              ← engine repo (shared across games)
+~/tower-defense/         ← game repo (assets, Lua scripts, C++ scenes)
+~/tower-defense-android/ ← generated Android Studio project (add to .gitignore)
+```
+
+```sh
+mkdir -p ~/tower-defense-android && cd ~/tower-defense-android
+cmake ~/mini-mbm \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_LUA=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=jni \
+    -DGAME_PACKAGE=com.example.tower_defense \
+    -DGAME_NAME="Tower Defense" \
+    -DGAME_APP_DIR=~/tower-defense-android/android-studio \
+    -DGAME_ASSETS_DIR=~/tower-defense/assets
+```
+
+---
+
+## Audio backends
+
+| `AUDIO=` | Description | Status |
+|---|---|---|
+| `jni` | Java `SoundPool` / `MediaPlayer` via JNI (default) | Stable, backward compatible |
+| `opensl` | NDK OpenSL ES — pure C++, no Java audio calls | Available (API ≥ 21) |
+| `none` | Disabled | Silently drops all audio calls |
+
+To use OpenSL ES:
+```sh
+cmake ../.. -DPLAT=Android ... -DAUDIO=opensl
+```
+
+OpenSL ES limitations:
+- `setPitch()` is a no-op (pitch shifting requires `SLPlaybackRateItf`, which is optional
+  and not universally supported; return value is `true` to avoid breaking callers).
+- `setPan()` stores the value but does not apply it (stereo position `SLStereoPositionItf`
+  availability varies by device).
+- Only formats natively supported by the device's OpenSL ES implementation will decode
+  (WAV PCM is universally supported; OGG/MP3 support is device-dependent via MIME type).
+
+---
+
+## Build modes (Lua vs. pure C++)
+
+| CMake flag | Entry point | Notes |
+|---|---|---|
+| `-DUSE_LUA=1` | `main-native-activity.cpp` (Lua path) | `mbm::LUA_MANAGER` runs `main.lua` |
+| _(no flag)_ | `main-native-activity.cpp` + `my-scene.cpp` | Subclass `MY_SCENE`, override `init()` |
+
+The `android_main()` NativeActivity entry point is the same file for both paths; the
+`#ifdef USE_LUA` guard inside it selects the Lua manager or the `MY_GAME` C++ object.
+
+---
+
+## Key source files
+
+| File | Purpose |
+|---|---|
+| `platform-android/main-native-activity.cpp` | `android_main()` entry; touch/key/lifecycle input |
+| `platform-android/my-scene.h` / `my-scene.cpp` | C++ scene — edit these for a custom game |
+| `platform-android/MbmActivity.java` | Thin `NativeActivity` subclass; vibrate / locale helpers |
+| `platform-android/templates/` | Gradle project templates (`*.in` files) |
+| `platform-android/gradle/` | Gradle wrapper scripts (configured at CMake time) |
+| `src/core_mbm/specific-android.cpp` | NDK system integration (`AAssetManager`, `ALooper`) |
+| `src/core_mbm/audio-jni-android.cpp` | JNI audio backend (AUDIO=jni) |
+| `src/core_mbm/audio-opensl-android.cpp` | OpenSL ES audio backend (AUDIO=opensl) |
+
+---
+
+## Legacy files (kept for reference)
+
+The following files remain in the repo as archive and are **not used by the build**:
+
+| File | Notes |
+|---|---|
+| `platform-android/main.cpp` | Old C++ JNI entry point (replaced by `main-native-activity.cpp`) |
+| `platform-android/main-lua.cpp` | Old Lua JNI entry point (replaced by `main-native-activity.cpp`) |
+| `platform-android/scene-1.h` / `scene-1.cpp` | Old scene with `JNIEnv*` constructor |
+| `platform-android/AndroidManifest.xml` | Old hand-crafted manifest |
+| `platform-android/com/` | 12 Java classes for the old JNI bridge |
+
+---
+
+## NDK version
+
+Tested with **NDK r29** (`~/android-ndk-r29`).  Set `NDK_ROOT` before invoking CMake:
+```sh
+export NDK_ROOT=~/android-ndk-r29
+```
