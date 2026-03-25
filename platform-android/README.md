@@ -56,7 +56,7 @@ cmake ~/mini-mbm \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=jni \
+    -DAUDIO=opensl \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \

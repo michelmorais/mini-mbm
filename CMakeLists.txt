@@ -54,7 +54,7 @@ function(SHOW_OPTIONS_SELECTED)
         message("-DUSE_VR=0                 : Provide VR class embedded on LUA engine (Default 1 (Linux, Windows), Default 0 (Android), use -DDISABLE_VR=1 to disable)")
     endif()
 
-    message("-DAUDIO=${AUDIO}               : Select the audio engine available. Default: Linux -DAUDIO=portaudio , Windows -DAUDIO=audiere , Android -DAUDIO=jni (or opensl) , MacOs -DAUDIO=avfoundation , -DAUDIO=none will remove audio dependency")
+    message("-DAUDIO=${AUDIO}               : Select the audio engine available. Default: Linux -DAUDIO=portaudio , Windows -DAUDIO=audiere , Android -DAUDIO=opensl (or jni) , MacOs -DAUDIO=avfoundation , -DAUDIO=none will remove audio dependency")
 
     if(USE_ALL)
         message("-DUSE_ALL=1                : Enable all features available")
@@ -317,7 +317,7 @@ else()
         set(FOLDER_ARCHITECTURE     ${CMAKE_ANDROID_ARCH_ABI})
 
         if(NOT AUDIO)
-            set(AUDIO jni)
+            set(AUDIO opensl)
         endif()
 
         if(NOT DEFINED ENV{NDK_ROOT})
