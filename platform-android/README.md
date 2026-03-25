@@ -79,19 +79,44 @@ CMake will print the generated project location at the end:
 ```
 
 **Step 3 — build the APK:**
+
+#### Debug build (development / testing)
 ```sh
 cd ~/tower-defense-android/android-studio
 ./gradlew assembleDebug
 ```
+Output: `app/build/outputs/apk/debug/app-debug.apk`
 
-The APK will be at:
+A debug APK is signed automatically with a throwaway debug key.  You can side-load it directly onto any device that has **USB debugging** enabled.  It includes debugger symbols, is not size-optimized, and cannot be uploaded to the Play Store.
+
+#### Release build (distribution / Play Store)
+```sh
+cd ~/tower-defense-android/android-studio
+./gradlew assembleRelease
 ```
-app/build/outputs/apk/debug/app-debug.apk
+Output: `app/build/outputs/apk/release/app-release-unsigned.apk`
+
+A release APK must be **signed with your own keystore** before it can be installed or published. Create a keystore once (keep it safe — you need the same key for every update):
+```sh
+keytool -genkey -v -keystore ~/my-release-key.jks \
+        -alias my-key -keyalg RSA -keysize 2048 -validity 10000
+```
+Then sign the APK:
+```sh
+# Sign
+$ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+    --ks ~/my-release-key.jks \
+    --out app-release.apk \
+    app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
 **Step 4 — install on a connected device** (USB debugging must be enabled on the device):
 ```sh
+# Debug
 adb install app/build/outputs/apk/debug/app-debug.apk
+
+# Release (after signing)
+adb install app-release.apk
 ```
 
 > **gradle-wrapper.jar missing?**  If the automatic download failed, run once inside
@@ -99,6 +124,42 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 > ```sh
 > gradle wrapper --gradle-version 8.7
 > ```
+
+---
+
+## Building from Android Studio (GUI)
+
+After opening the project (**File → Open → select the `android-studio/` folder**) and clicking **Trust Project**:
+
+#### Run on a device or emulator (debug)
+1. Connect your phone via USB (or start an emulator from **Device Manager**).
+2. Click the green **▶ Run** button in the toolbar (or press **Shift+F10**).
+3. Android Studio builds a debug APK, installs it, and launches the app automatically.
+
+#### Build an APK without running
+- **Build → Build Bundle(s) / APK(s) → Build APK(s)**
+- The output path is shown in a balloon notification bottom-right; click **locate** to open it in the file manager.
+
+#### Switch between Debug and Release
+- In the toolbar, click the **Build Variants** panel (bottom-left tab, or **View → Tool Windows → Build Variants**).
+- Change `app` from `debug` to `release`.
+- Then **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+
+> Note: a release build from Android Studio also requires signing.  Use **Build → Generate Signed Bundle / APK** for a guided workflow that lets you pick your keystore.
+
+---
+
+## Assets folder in Android Studio
+
+The assets live **outside** the generated project folder (at the path you passed to `-DGAME_ASSETS_DIR`).  Gradle knows about them via `assets.srcDirs` in `app/build.gradle`, but Android Studio's default **"Android" project view** only shows virtual nodes and may not display the external folder.
+
+To see your asset files inside Android Studio:
+
+1. At the top of the **Project** panel, click the dropdown that says **"Android"**.
+2. Switch to **"Project"** view.
+3. Navigate to `app → src → main` — you will see an `assets` symlink/folder pointing to your external path.
+
+Alternatively, since the assets folder is just a normal directory on disk, you can edit files in it directly with any editor; they will be picked up by the next `./gradlew assemble*` build without re-running cmake.
 
 ---
 
