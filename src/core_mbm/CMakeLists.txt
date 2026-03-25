@@ -230,7 +230,7 @@ endif()
     endif()
 
     find_library(ANDROID_LOG_LIB log)
-    target_link_libraries(core_mbm log android)#android log
+    target_link_libraries(core_mbm log android EGL GLESv2)
 
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")

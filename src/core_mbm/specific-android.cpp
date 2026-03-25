@@ -55,6 +55,12 @@ namespace mbm
     jclassAudioManagerJniEngine(nullptr),
     jclassFileJniEngine(nullptr),
     jclassKeyCodeJniEngine(nullptr),
+    jclassLoaderGlobal(nullptr),
+    jmethodLoadClass(nullptr),
+    eglDisplay(EGL_NO_DISPLAY),
+    eglSurface(EGL_NO_SURFACE),
+    eglContext(EGL_NO_CONTEXT),
+    eglConfig(nullptr),
     filter_GL_TEXTURE_WRAP_S(GL_CLAMP_TO_EDGE),
     filter_GL_TEXTURE_WRAP_T(GL_CLAMP_TO_EDGE),
     filter_GL_TEXTURE_MIN_FILTER(GL_NEAREST),
@@ -74,18 +80,49 @@ namespace mbm
     void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost)
     {
         // If not lost we are quitting — clean up all references.
-        if (wasDeviceLost == false)
+        if (wasDeviceLost == false)  // full clean shutdown (destructor)
         {
             this->jenv                         = nullptr;
             this->jclassDoCommandsJniEngine    = nullptr;
             this->jclassAudioManagerJniEngine  = nullptr;
             this->jclassFileJniEngine          = nullptr;
             this->jclassKeyCodeJniEngine       = nullptr;
+            this->jclassLoaderGlobal           = nullptr;
+            this->jmethodLoadClass             = nullptr;
             this->assetManager                 = nullptr;
             this->nativeWindow                 = nullptr;
             this->index_string_utf             = 0;
             memset(this->packageName, 0, sizeof(this->packageName));
             memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
+            // destroy everything
+            if (this->eglDisplay != EGL_NO_DISPLAY)
+            {
+                eglMakeCurrent(this->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                if (this->eglContext != EGL_NO_CONTEXT)
+                {
+                    eglDestroyContext(this->eglDisplay, this->eglContext);
+                    this->eglContext = EGL_NO_CONTEXT;
+                }
+                if (this->eglSurface != EGL_NO_SURFACE)
+                {
+                    eglDestroySurface(this->eglDisplay, this->eglSurface);
+                    this->eglSurface = EGL_NO_SURFACE;
+                }
+                eglTerminate(this->eglDisplay);
+                this->eglDisplay = EGL_NO_DISPLAY;
+            }
+        }
+        else  // device-lost (window destroyed) — keep EGL context alive, just destroy surface
+        {
+            if (this->eglDisplay != EGL_NO_DISPLAY)
+            {
+                eglMakeCurrent(this->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                if (this->eglSurface != EGL_NO_SURFACE)
+                {
+                    eglDestroySurface(this->eglDisplay, this->eglSurface);
+                    this->eglSurface = EGL_NO_SURFACE;
+                }
+            }
         }
     }
 
@@ -97,12 +134,56 @@ namespace mbm
         return retPath.c_str();
     }
 
+    // Use the app's ClassLoader (set up by initClassLoader) to find a class by its
+    // slash-separated name (e.g. "com/mini/mbm/MbmActivity").  Falls back to
+    // FindClass when no class loader is cached — FindClass works correctly on the
+    // main JVM thread (JNI_OnLoad) but NOT from attached native threads.
+    static jclass findClassViaLoader(JNIEnv *env, jobject loaderObj, jmethodID loadMethod,
+                                     const char *slashName)
+    {
+        if (loaderObj && loadMethod)
+        {
+            // ClassLoader.loadClass() requires dot-separated names.
+            std::string dotName(slashName);
+            for (char &c : dotName) if (c == '/') c = '.';
+            jstring nameStr = env->NewStringUTF(dotName.c_str());
+            jclass local = static_cast<jclass>(
+                env->CallObjectMethod(loaderObj, loadMethod, nameStr));
+            env->DeleteLocalRef(nameStr);
+            if (env->ExceptionCheck()) { env->ExceptionClear(); local = nullptr; }
+            return local;
+        }
+        return env->FindClass(slashName);
+    }
+
+    void SPECIFIC_AUX_CONTEXT_DEVICE::initClassLoader(jobject activityObj)
+    {
+        if (!jenv || !activityObj) return;
+        // Retrieve the Activity's ClassLoader — works from any JVM-attached thread.
+        jclass actClass = jenv->GetObjectClass(activityObj);
+        jmethodID getLoader = jenv->GetMethodID(actClass, "getClassLoader",
+                                                 "()Ljava/lang/ClassLoader;");
+        jenv->DeleteLocalRef(actClass);
+        if (!getLoader) return;
+        jobject localLoader = jenv->CallObjectMethod(activityObj, getLoader);
+        if (!localLoader) return;
+        jclassLoaderGlobal = jenv->NewGlobalRef(localLoader);
+        jenv->DeleteLocalRef(localLoader);
+        // java/lang/ClassLoader is a system class — FindClass works here.
+        jclass loaderClass = jenv->FindClass("java/lang/ClassLoader");
+        jmethodLoadClass   = jenv->GetMethodID(loaderClass, "loadClass",
+                                               "(Ljava/lang/String;)Ljava/lang/Class;");
+        jenv->DeleteLocalRef(loaderClass);
+        INFO_LOG("initClassLoader: app ClassLoader cached");
+    }
+
     jclass SPECIFIC_AUX_CONTEXT_DEVICE::tryGetClass(const char *nameClass)
     {
         if (!jenv) return nullptr;
         snprintf(this->packageName, sizeof(this->packageName), "%s/%s",
                  this->packageNameMiniMBMClasses, nameClass);
-        jclass localClass = jenv->FindClass(this->packageName);
+        jclass localClass = findClassViaLoader(jenv, jclassLoaderGlobal, jmethodLoadClass,
+                                               this->packageName);
         if (localClass == nullptr || jenv->ExceptionCheck())
         {
             jenv->ExceptionClear();
@@ -130,7 +211,8 @@ namespace mbm
     jclass SPECIFIC_AUX_CONTEXT_DEVICE::getClass(const char *nameClass)
     {
         snprintf(this->packageName, sizeof(this->packageName), "%s/%s", this->packageNameMiniMBMClasses, nameClass);
-        jclass localClass = jenv->FindClass(this->packageName);
+        jclass localClass = findClassViaLoader(jenv, jclassLoaderGlobal, jmethodLoadClass,
+                                               this->packageName);
         if (localClass == nullptr)
         {
             ERROR_LOG( "FindClass -> [%s] not found!!!", this->packageName);
@@ -172,9 +254,12 @@ namespace mbm
 
     void SPECIFIC_AUX_CONTEXT_DEVICE::addPathDroid(const char *fileName)
     {
-        // No JNI needed — delegate directly to the C++ path manager.
-        if (fileName)
-            util::addPath(fileName);
+        // NativeActivity: path registration via JNI is not needed.
+        // util::addPath (the only caller on Android) already stores the path in
+        // lsPath after calling this function, so nothing extra is required here.
+        // The old JNI implementation called a Java FileJniEngine method, which is
+        // gone in the NativeActivity build.
+        (void)fileName;
     }
 
     int SPECIFIC_AUX_CONTEXT_DEVICE::existFileOnAssets(const char *fileName)

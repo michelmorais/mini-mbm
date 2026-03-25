@@ -252,6 +252,11 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                 if (jenv)
                 {
                     ctx->jenv = jenv;
+                    // android_native_app_glue runs android_main on a new native thread.
+                    // FindClass on a non-main thread uses the bootstrap class loader and
+                    // cannot see app classes.  initClassLoader captures the Activity's
+                    // ClassLoader so that getClass/tryGetClass can use it instead.
+                    ctx->initClassLoader(app->activity->clazz);
                     ctx->cacheJavaClasses(PACKAGE_NAME_CLASS);
                 }
 

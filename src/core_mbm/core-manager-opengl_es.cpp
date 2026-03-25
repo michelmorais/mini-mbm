@@ -95,9 +95,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
 
     void CORE_MANAGER::swapBuffers()
     {
-        #if !defined (ANDROID)
         eglSwapBuffers(this->device->specificContextDevice->eglDisplay, this->device->specificContextDevice->eglSurface);
-        #endif
     }
 
     bool CORE_MANAGER::resetDeviceWithNewDimensions(int newWidth, int newHeight)

@@ -57,6 +57,7 @@ cmake ~/mini-mbm \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=jni \
+    -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.example.tower_defense \
     -DGAME_NAME="Tower Defense" \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
@@ -110,13 +111,53 @@ $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
     app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
-**Step 4 — install on a connected device** (USB debugging must be enabled on the device):
+**Step 4 — install and run on a connected device** (USB debugging must be enabled on the device):
 ```sh
-# Debug
+# Debug — install
 adb install app/build/outputs/apk/debug/app-debug.apk
 
-# Release (after signing)
+# Release — install (after signing)
 adb install app-release.apk
+
+# Launch from the command line (no need to tap the icon)
+adb shell am start -n com.example.tower_defense/com.mini.mbm.MbmActivity
+```
+
+**Step 5 — read log output in the terminal:**
+```sh
+# Show only your app's output (filters out all Android system noise)
+adb logcat --pid=$(adb shell pidof -s com.example.tower_defense)
+```
+
+If the app crashes before `pidof` can catch it, use this instead — it captures the crash reason:
+```sh
+# Clear old logs first, then stream tagged output
+adb logcat -c
+adb logcat AndroidRuntime:E DEBUG:E mini-mbm:V *:S
+```
+
+| Tag | What it shows |
+|---|---|
+| `AndroidRuntime:E` | Java-level crashes and unhandled exceptions |
+| `DEBUG:E` | Native crashes (signal/segfault, with backtrace) |
+| `mini-mbm:V` | Engine log output (`__android_log_print` calls) |
+| `*:S` | Silences everything else |
+
+To see **all** output from your app including `LOGI`/`LOGW`/`LOGE` from the engine:
+```sh
+adb logcat -v time | grep -E "com.example.tower_defense|mini.mbm|FATAL|signal [0-9]"
+```
+
+To save a full log to a file for later inspection:
+```sh
+# Terminal 1 — start recording
+adb logcat -c && adb logcat -v threadtime > /tmp/android.log
+
+# Terminal 2 — launch the app
+adb shell am start -n com.example.tower_defense/com.mini.mbm.MbmActivity
+
+# After the crash, Ctrl+C in terminal 1, then search for the cause
+grep -E "FATAL|Error|signal|backtrace|mini.mbm|lua" /tmp/android.log | head -80
 ```
 
 > **gradle-wrapper.jar missing?**  If the automatic download failed, run once inside
@@ -272,6 +313,7 @@ cmake ~/mini-mbm \
     -DUSE_LUA=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=jni \
+    -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.example.tower_defense \
     -DGAME_NAME="Tower Defense" \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \

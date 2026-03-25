@@ -150,8 +150,11 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         ${ANDROID_NDK}/sources/android/native_app_glue)
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
-    target_link_libraries(mini-mbm android_native_app_glue)
-    target_link_libraries(mini-mbm android log)
+    # --whole-archive forces ANativeActivity_onCreate (defined in android_native_app_glue)
+    # to be exported from the shared library. Without it the linker dead-strips the symbol
+    # because nothing in our code directly calls it — Android calls it from outside.
+    target_link_libraries(mini-mbm -Wl,--whole-archive android_native_app_glue -Wl,--no-whole-archive)
+    target_link_libraries(mini-mbm android log EGL GLESv2)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 

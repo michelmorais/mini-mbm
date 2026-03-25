@@ -49,7 +49,74 @@ namespace mbm
 
     bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
-        //For ANDROID it is initialized from JAVA side
+        auto* ctx = this->device->specificContextDevice;
+
+        // ---------------------------------------------------------------
+        // EGL initialisation — must happen before any GL call
+        // ---------------------------------------------------------------
+        if (ctx->eglDisplay == EGL_NO_DISPLAY)
+        {
+            // First-time init: create display, context and window surface
+            ctx->eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+            eglInitialize(ctx->eglDisplay, nullptr, nullptr);
+
+            const EGLint configAttribs[] = {
+                EGL_RED_SIZE,        8,
+                EGL_GREEN_SIZE,      8,
+                EGL_BLUE_SIZE,       8,
+                EGL_DEPTH_SIZE,      24,
+                EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL_NONE
+            };
+            EGLint numConfigs = 0;
+            eglChooseConfig(ctx->eglDisplay, configAttribs, &ctx->eglConfig, 1, &numConfigs);
+            if (numConfigs == 0)
+            {
+                // Fallback: relax depth size
+                const EGLint fallbackAttribs[] = {
+                    EGL_RED_SIZE,        8,
+                    EGL_GREEN_SIZE,      8,
+                    EGL_BLUE_SIZE,       8,
+                    EGL_DEPTH_SIZE,      16,
+                    EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
+                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                    EGL_NONE
+                };
+                eglChooseConfig(ctx->eglDisplay, fallbackAttribs, &ctx->eglConfig, 1, &numConfigs);
+            }
+
+            EGLint format = 0;
+            eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
+
+            ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
+
+            const EGLint ctxAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+            ctx->eglContext = eglCreateContext(ctx->eglDisplay, ctx->eglConfig, EGL_NO_CONTEXT, ctxAttribs);
+
+            eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext);
+        }
+        else if (ctx->eglSurface == EGL_NO_SURFACE)
+        {
+            // Resume after device-lost: context is alive, only the surface needs recreation
+            EGLint format = 0;
+            eglGetConfigAttrib(ctx->eglDisplay, ctx->eglConfig, EGL_NATIVE_VISUAL_ID, &format);
+            ANativeWindow_setBuffersGeometry(ctx->nativeWindow, 0, 0, format);
+            ctx->eglSurface = eglCreateWindowSurface(ctx->eglDisplay, ctx->eglConfig, ctx->nativeWindow, nullptr);
+            eglMakeCurrent(ctx->eglDisplay, ctx->eglSurface, ctx->eglSurface, ctx->eglContext);
+        }
+
+        // Query actual surface dimensions and use them
+        {
+            EGLint surfW = 0, surfH = 0;
+            eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_WIDTH,  &surfW);
+            eglQuerySurface(ctx->eglDisplay, ctx->eglSurface, EGL_HEIGHT, &surfH);
+            if (surfW > 0) width  = surfW;
+            if (surfH > 0) height = surfH;
+        }
+
+        // ---------------------------------------------------------------
         int x = width;
         int y = height;
         // Initialize window position

@@ -778,6 +778,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         if(USE_LSQLITE3)
             string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_LSQLITE3=1\"")
         endif()
+        if(USE_STL_STATIC)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_STL_STATIC=1\"")
+        endif()
         set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
 
         # ── Create the output directory tree ─────────────────────────────────────────
