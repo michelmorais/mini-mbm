@@ -20,7 +20,8 @@
 #include <string.h>
 #include <lua-wrap/require_embedded.h>
 
-//Basically Plugins Android, workaround however could be in other platforms as well
+// Plugins for Android and iOS: dynamic .so/.dylib loading is blocked by the sandbox,
+// so all plugins must be statically linked and registered via this embedded loader.
 #if defined USE_LSQLITE3
 extern "C" 
 {

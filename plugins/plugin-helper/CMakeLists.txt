@@ -32,17 +32,23 @@ file(GLOB_RECURSE SOURCES "${PLUGIN_HELPER_INC}/*.cpp" )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${PLUGIN_HELPER_LIBRARY} SHARED ${SOURCES} )
-
-
-target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${LUA_LIBRARY})
-
-# For Linux / Windows we have the executable mini-mbm and the library ibcore_mbm.so
-# For Android we have libcore_mbm.so and libmini-mbm.so
-if(PLAT_LOWER STREQUAL "android")
-  #target_link_libraries(${PLUGIN_HELPER_LIBRARY} mini-mbm)
-  target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${PLUGIN_HELPER_LIBRARY} STATIC ${SOURCES})
 else()
-  target_link_libraries(${PLUGIN_HELPER_LIBRARY} ${CORE_MBM_LIBRARY})
+    add_library(${PLUGIN_HELPER_LIBRARY} SHARED ${SOURCES})
+endif()
+
+# On iOS all plugins are STATIC; Lua and core_mbm are provided by mini-mbm at
+# final link — skip to avoid duplicate-library warnings.
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${PLUGIN_HELPER_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    # For Linux / Windows we have the executable mini-mbm and the library libcore_mbm.so
+    # For Android we have libcore_mbm.so and libmini-mbm.so
+    if(PLAT_LOWER STREQUAL "android")
+      #target_link_libraries(${PLUGIN_HELPER_LIBRARY} mini-mbm)
+      target_link_libraries(${PLUGIN_HELPER_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+    else()
+      target_link_libraries(${PLUGIN_HELPER_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+    endif()
 endif()
 

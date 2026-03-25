@@ -24,7 +24,12 @@
 // Metal and Cocoa headers require the Objective-C runtime.
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
-#import <Cocoa/Cocoa.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_IOS
+    #import <UIKit/UIKit.h>
+#else
+    #import <Cocoa/Cocoa.h>
+#endif
 
 #include "core-exports.h"
 #include <primitives.h>
@@ -74,8 +79,12 @@ namespace mbm
         id<MTLDevice>        mtlDevice      = nil;
         id<MTLCommandQueue>  commandQueue   = nil;
         CAMetalLayer*        metalLayer     = nil;
+#if TARGET_OS_IOS
+        UIView*              metalView      = nil; // MBMMetalView — set by MetalViewController before initGraphics()
+#else
         NSWindow*            window         = nil;
         id                   windowDelegate = nil; // MBMWindowDelegate (opaque to avoid circular header dep)
+#endif
 
         // Per-frame objects (valid between beginRender / swapBuffers)
         id<CAMetalDrawable>           currentDrawable      = nil;

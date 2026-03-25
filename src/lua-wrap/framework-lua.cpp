@@ -125,7 +125,7 @@ namespace mbm
         return iv;
     }
 
-    #if !defined ANDROID
+    #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
     int onExecuteInOtherThread(lua_State *lua)
     {
         std::string command              = luaL_checkstring(lua,1);
@@ -663,7 +663,15 @@ namespace mbm
             }
             else if (strcasecmp(what, "macos") == 0)
             {
-    #if defined(__APPLE__) && !defined(ANDROID)
+    #if defined(__APPLE__) && !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
+                lua_pushboolean(lua, 1);
+    #else
+                lua_pushboolean(lua, 0);
+    #endif
+            }
+            else if (strcasecmp(what, "ios") == 0)
+            {
+    #if defined(MBM_PLATFORM_IOS)
                 lua_pushboolean(lua, 1);
     #else
                 lua_pushboolean(lua, 0);
@@ -688,7 +696,8 @@ namespace mbm
         {
             DEVICE *device = DEVICE::getInstance();
             if (strcasecmp(what, "windows") == 0 || strcasecmp(what, "android") == 0 ||
-                strcasecmp(what, "linux") == 0   || strcasecmp(what, "macos") == 0)
+                strcasecmp(what, "linux") == 0   || strcasecmp(what, "macos") == 0 ||
+                strcasecmp(what, "ios") == 0)
             {
     #if defined _WIN32
                 lua_pushboolean(lua, strcasecmp(what, "windows") == 0 ? 1 : 0);
@@ -696,6 +705,8 @@ namespace mbm
                 lua_pushboolean(lua, strcasecmp(what, "android") == 0 ? 1 : 0);
     #elif defined __linux__ && !defined(__APPLE__)
                 lua_pushboolean(lua, strcasecmp(what, "linux") == 0 ? 1 : 0);
+    #elif defined(MBM_PLATFORM_IOS)
+                lua_pushboolean(lua, strcasecmp(what, "ios") == 0 ? 1 : 0);
     #elif defined(__APPLE__)
                 lua_pushboolean(lua, strcasecmp(what, "macos") == 0 ? 1 : 0);
     #else
@@ -2572,7 +2583,7 @@ namespace mbm
             {"setMinMaxWindowSize", onSetMinMaxWindowSizeLua},
             {"pauseAudioOnPauseGame", onPauseAudioOnPauseGame },
             
-    #if !defined ANDROID
+    #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
             {"executeInThread", onExecuteInOtherThread},
             #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},

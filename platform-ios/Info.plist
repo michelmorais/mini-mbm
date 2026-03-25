@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App identity — values are substituted by CMake configure_file().
+         Pass -DGAME_BUNDLE_ID=com.yourcompany.yourgame and -DGAME_NAME="My Game"
+         at cmake configure time to override the defaults. -->
+    <key>CFBundleIdentifier</key>
+    <string>com.mini.mbm.tower-defense</string>
+    <key>CFBundleName</key>
+    <string>Tower Defense Monster</string>
+    <key>CFBundleDisplayName</key>
+    <string>Tower Defense Monster</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>mini-mbm</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <!-- iOS deployment -->
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>MinimumOSVersion</key>
+    <string>14.0</string>
+
+    <!-- Supported interface orientations (landscape by default) -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- Hide status bar on launch -->
+    <key>UIStatusBarHidden</key>
+    <true/>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+
+    <!-- Required device capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>metal</string>
+        <string>arm64</string>
+    </array>
+
+    <!-- Launch screen (storyboard name, or leave empty for a black launch screen) -->
+    <key>UILaunchStoryboardName</key>
+    <string></string>
+</dict>
+</plist>

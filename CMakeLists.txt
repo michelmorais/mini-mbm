@@ -182,7 +182,7 @@ if(NOT PLAT)
     message("******************************************************************************************************")
     message("Platform NOT defined!")
     message("Please type:")
-    message("cmake -DPLAT= <Windows>, <Linux>, <Android> or <Apple>" )
+    message("cmake -DPLAT= <Windows>, <Linux>, <Android>, <MacOs> or <iOS>" )
     SHOW_ANDROID_OPTIONS()
     message("Please remove the folder 'CMakeFiles' and the file 'CMakeCache.txt' before try to run 'cmake' again!")
     message("")
@@ -194,6 +194,14 @@ if(NOT PLAT)
     message(SEND_ERROR "Platform NOT defined! Aborting...")
 else()
     STRING(TOLOWER "${PLAT}" PLAT_LOWER)
+
+    # Backward compatibility: -DPLAT=Apple was the old name for macOS.
+    # Accept it silently so existing scripts keep working.
+    if(PLAT_LOWER STREQUAL "apple")
+        message(WARNING "PLAT=Apple is deprecated. Use PLAT=MacOs instead.")
+        set(PLAT_LOWER "macos")
+        set(PLAT "MacOs")
+    endif()
 
     if(PLAT_LOWER STREQUAL "android")
 
@@ -369,10 +377,10 @@ else()
             set(AUDIO portaudio)
         endif()
         
-    elseif(PLAT_LOWER STREQUAL "apple")
+    elseif(PLAT_LOWER STREQUAL "macos")
 
         set(CMAKE_SYSTEM_NAME           "Darwin")
-        set(ENGINE_TARGET_PLATFORM      "Apple")
+        set(ENGINE_TARGET_PLATFORM      "MacOs")
         set(FOLDER_ARCHITECTURE          "arm64") #macos with M1, M2, M3, M4 ...
         #success
         set(CMAKE_SUCCESS_SET_PLAT           1)
@@ -384,6 +392,42 @@ else()
 
         if(NOT AUDIO)
             set(AUDIO avfoundation)
+        endif()
+
+    elseif(PLAT_LOWER STREQUAL "ios")
+
+        # These must be in the CMake cache before project() runs its compiler-detection
+        # step, otherwise the Xcode generator cannot find the iOS SDK clang.
+        # Using CACHE ... FORCE guarantees that even on a fresh (empty-cache) configure.
+        set(CMAKE_SYSTEM_NAME           "iOS"    CACHE STRING "Target platform" FORCE)
+        set(CMAKE_OSX_SYSROOT           "iphoneos" CACHE STRING "iOS SDK sysroot" FORCE)
+        set(CMAKE_OSX_ARCHITECTURES     "arm64"  CACHE STRING "iOS architectures" FORCE)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0"   CACHE STRING "iOS deployment target" FORCE)
+
+        set(ENGINE_TARGET_PLATFORM      "iOS")
+        set(FOLDER_ARCHITECTURE         "iphoneos_arm64")
+        add_definitions(-DMBM_PLATFORM_IOS)
+
+        # Suppress the CMake Xcode-generator quirk that adds a red "Resources/Info.plist"
+        # reference to every static library target.  We provide our own Info.plist only
+        # for the mini-mbm app target via MACOSX_BUNDLE_INFO_PLIST, so auto-generation
+        # is not needed anywhere.
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            set(CMAKE_XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+        endif()
+
+        # Allow the caller to override for Simulator:  -DCMAKE_OSX_SYSROOT=iphonesimulator
+        # Note: command-line -D values are stored in the cache first, so they win over FORCE here only
+        # if passed on the very same cmake invocation.  Wipe the build dir to change the sysroot.
+        #success
+        set(CMAKE_SUCCESS_SET_PLAT           1)
+
+        if(NOT DISABLE_VR)
+            set(DISABLE_VR 1)   # No VR on iOS
+        endif()
+
+        if(NOT AUDIO)
+            set(AUDIO avfoundation)   # AVFoundation works on iOS unchanged
         endif()
 
     else()
@@ -406,7 +450,12 @@ endif()
 if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     #Here starts to check project/working C/C++ compiler
-    project(mini-mbm)
+    # Use GAME_NAME for the project name so -G Xcode produces <GameName>.xcodeproj
+    if(DEFINED GAME_NAME)
+        project(${GAME_NAME})
+    else()
+        project(mini-mbm)
+    endif()
     
     #set(CMAKE_VERBOSE_MAKEFILE on)
 
@@ -479,34 +528,49 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if(NOT DEFINED USE_LUA)
         set(USE_LUA 0)
     endif()
-    if(PLAT_LOWER STREQUAL "android")
-        if(NOT DEFINED USE_IMGUI)
-            set(USE_IMGUI 0)
-        endif()
-        if(NOT DEFINED USE_BOX2D)
-            set(USE_BOX2D 0)
-        endif()
-        if(NOT DEFINED USE_BOX2D_LIQUID_FUN)
-            set(USE_BOX2D_LIQUID_FUN 0)
-        endif()
-        if(NOT DEFINED USE_LSQLITE3)
-            set(USE_LSQLITE3 0)
-        endif()
-        if(NOT DEFINED USE_BULLET3D)
-            set(USE_BULLET3D 0)
-        endif()
+    # Default all plugin flags to 0 so they must be explicitly opted in
+    if(NOT DEFINED USE_IMGUI)
+        set(USE_IMGUI 0)
+    endif()
+    if(NOT DEFINED USE_BOX2D)
+        set(USE_BOX2D 0)
+    endif()
+    if(NOT DEFINED USE_BOX2D_LIQUID_FUN)
+        set(USE_BOX2D_LIQUID_FUN 0)
+    endif()
+    if(NOT DEFINED USE_LSQLITE3)
+        set(USE_LSQLITE3 0)
+    endif()
+    if(NOT DEFINED USE_BULLET3D)
+        set(USE_BULLET3D 0)
+    endif()
+    if(NOT DEFINED USE_TILEMAP)
+        set(USE_TILEMAP 0)
     endif()
 
     if(USE_ALL)
         message(STATUS "Enabling all features available")
         set(USE_VR                  1)
         set(USE_LUA                 1)
-        if(PLAT_LOWER STREQUAL "android")
-            set(USE_BOX2D               1)
-            set(USE_BOX2D_LIQUID_FUN    1)
-            set(USE_IMGUI               1)
-            set(USE_LSQLITE3            1)
-        endif()
+        set(USE_BOX2D               1)
+        set(USE_BOX2D_LIQUID_FUN    1)
+        set(USE_IMGUI               1)
+        set(USE_LSQLITE3            1)
+        set(USE_TILEMAP             1)
+    endif()
+
+    # On iOS all plugins are compiled as STATIC archives and linked into a single
+    # executable.  box2d and box2d-liquid-fun share large amounts of object code
+    # (b2World, b2Body, …) so having both in the same link produces duplicate-symbol
+    # errors.  When USE_ALL is used (or the user enables both manually), keep only
+    # box2d and drop liquid-fun automatically.
+    if(PLAT_LOWER STREQUAL "ios" AND USE_BOX2D AND USE_BOX2D_LIQUID_FUN)
+        message(WARNING
+            "iOS static build: box2d and box2d-liquid-fun share symbols and cannot "
+            "both be linked into the same binary.  Disabling USE_BOX2D_LIQUID_FUN. "
+            "To use liquid-fun instead, pass -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 "
+            "explicitly (do not use -DUSE_ALL=1).")
+        set(USE_BOX2D_LIQUID_FUN 0)
     endif()
 
     OPTION(DEBUG_SET_GET_GLOBAL "debug getGlobal and setglobal lua" OFF) # Disabled by default
@@ -563,7 +627,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             message(STATUS " Defaulting to USE_DIRECTX9 backend...")
             set(USE_DIRECTX9 1)
             add_definitions(-DUSE_DIRECTX9)
-        elseif(${PLAT} STREQUAL "Apple")
+        elseif(${PLAT} STREQUAL "MacOs")
+            message(STATUS " Defaulting to USE_METAL backend...")
+            set(USE_METAL 1)
+            add_definitions(-DUSE_METAL)
+        elseif(${PLAT} STREQUAL "iOS")
             message(STATUS " Defaulting to USE_METAL backend...")
             set(USE_METAL 1)
             add_definitions(-DUSE_METAL)
@@ -597,8 +665,10 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         message(STATUS " Configuration for Android is set...")
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         message(STATUS " Configuration for Linux (Debian, ubuntu,...) is set...")
-    elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
-        message(STATUS " Configuration for Apple (MacOs, Darwin ) is set...")
+    elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
+        message(STATUS " Configuration for MacOs (Darwin) is set...")
+    elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+        message(STATUS " Configuration for iOS is set...")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -647,6 +717,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
             set(CMAKE_CXX_FLAGS " -fPIC -O3 -Wall ${_G_DEBUG} -std=c++17")
             set(CMAKE_C_FLAGS "-O3 -Wall")
+        elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+            set(CMAKE_CXX_FLAGS " -fPIC ${OPTIMIZED} -Wall ${_G_DEBUG} -std=c++17")
+            set(CMAKE_C_FLAGS "${OPTIMIZED} -Wall")
         endif()
 
     else()
@@ -670,7 +743,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
             set(CMAKE_CXX_FLAGS " -fPIC -O3 -Wall ${_G_DEBUG} -std=c++17")
             set(CMAKE_C_FLAGS "-O3 -Wall")
-        elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+        elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
             set(CMAKE_CXX_FLAGS " -fPIC ${OPTIMIZED} -Wall ${_G_DEBUG} -std=c++17")
             set(CMAKE_C_FLAGS "${OPTIMIZED} -Wall")
         else()
@@ -689,11 +762,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_definitions(-DAUDIO_ENGINE_NONE)
     endif()
 
+    if (USE_LUA)
+        add_definitions(-DUSE_LUA)
+    endif()
+
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
     add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 
     if (USE_LUA)
-        add_definitions(-DUSE_LUA)
         add_subdirectory(${LUA_LIB} 			${LUA_LIB})
     endif()
 
@@ -720,15 +796,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                 add_subdirectory(${SQLITE_LIB} 		${SQLITE_LIB})
             endif()
         else()
-            message(STATUS "LUA NOT defined plugins...")
-            add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
-            add_subdirectory(${SQLITE_LIB} 		    ${SQLITE_LIB})
-            add_subdirectory(${BOX2D_LUA_LIB}       ${BOX2D_LUA_LIB})
-            #This is to build box2d-liquid-fun only (no LUA wrapper)
-            #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
-            add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
-            #This is to build box2d-liquid-fun only (no LUA wrapper)
-            #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
+            if(USE_IMGUI)
+                add_subdirectory(${IMGUI_LIB} 			${IMGUI_LIB})
+            endif()
+            if(USE_LSQLITE3)
+                add_subdirectory(${SQLITE_LIB} 		    ${SQLITE_LIB})
+            endif()
+            if(USE_BOX2D)
+                add_subdirectory(${BOX2D_LUA_LIB}       ${BOX2D_LUA_LIB})
+            endif()
+            if(USE_BOX2D_LIQUID_FUN)
+                #This is to build box2d-liquid-fun only (no LUA wrapper)
+                #add_subdirectory(${BOX2D_LIQUID_FUN_LIB}            ${BOX2D_LIQUID_FUN_LIB})
+                add_subdirectory(${BOX2D_LIQUID_FUN_LUA_LIB}        ${BOX2D_LIQUID_FUN_LUA_LIB})
+            endif()
         endif()
     else()
         message(STATUS "LUA NOT defined for ANDROID plugins...")
@@ -747,7 +828,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     #The following plugins are supposed to be 'helpers' in editor. We are not going to build it for Android
-    if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA)
+    if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA AND USE_TILEMAP)
         add_subdirectory(${TILED_LIB}       ${TILED_LIB})
     endif()
 
@@ -767,7 +848,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_subdirectory(${PORT_AUDIO_LIB} 			${PORT_AUDIO_LIB})
     endif()
 
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         add_subdirectory(${TEST_LIB} 				${TEST_LIB})
     endif()
 
@@ -782,9 +863,25 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     SHOW_OPTIONS_SELECTED()
     SHOW_OTHERS_OPTIONS_ENGINE()
 
+    # iOS + Xcode generator: tell the developer which project to open
+    if(PLAT_LOWER STREQUAL "ios" AND CMAKE_GENERATOR STREQUAL "Xcode")
+        if(DEFINED GAME_NAME)
+            set(_XCODEPROJ_NAME "${GAME_NAME}")
+        else()
+            set(_XCODEPROJ_NAME "mini-mbm")
+        endif()
+        message("")
+        message("******************************************************************************************************")
+        message("  Xcode project generated.  Open it with:")
+        message("    open \"${CMAKE_BINARY_DIR}/${_XCODEPROJ_NAME}.xcodeproj\"")
+        message("  Then: Signing & Capabilities → set your Team → press ⌘R")
+        message("******************************************************************************************************")
+        message("")
+    endif()
+
     # Show all built targets at the end of the build (must depend on ALL targets so it runs last)
     set(LS_TARGET_DEPS mini-mbm core_mbm)
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         list(APPEND LS_TARGET_DEPS testLib)
     endif()
     if(USE_LUA)
@@ -803,26 +900,51 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                 list(APPEND LS_TARGET_DEPS ${SQLITE3_LUA_LIBRARY})
             endif()
         else()
-            list(APPEND LS_TARGET_DEPS ${IMGUI_LIBRARY} ${SQLITE3_LUA_LIBRARY} ${BOX2D_LUA_LIBRARY} ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+            if(USE_IMGUI)
+                list(APPEND LS_TARGET_DEPS ${IMGUI_LIBRARY})
+            endif()
+            if(USE_LSQLITE3)
+                list(APPEND LS_TARGET_DEPS ${SQLITE3_LUA_LIBRARY})
+            endif()
+            if(USE_BOX2D)
+                list(APPEND LS_TARGET_DEPS ${BOX2D_LUA_LIBRARY})
+            endif()
+            if(USE_BOX2D_LIQUID_FUN)
+                list(APPEND LS_TARGET_DEPS ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+            endif()
             if(${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
                 list(APPEND LS_TARGET_DEPS lua-${LUA_LIB_VERSION}.exe)
             endif()
         endif()
     endif()
-    if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA)
+    if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA AND USE_TILEMAP)
         list(APPEND LS_TARGET_DEPS ${TILED_LIBRARY})
     endif()
-    if(${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    if(${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         list(APPEND LS_TARGET_DEPS shortcuts)
     endif()
     find_program(LS ls HINTS /bin)
     find_program(DU du HINTS /usr/bin /bin)
     if (LS AND DU)
+        # Write a cmake -P script so that directory checks work reliably
+        # (sh -c quoting is fragile when CMake expands variables into the command list)
+        set(_SHOW_BUILT_SCRIPT "${CMAKE_BINARY_DIR}/show_built.cmake")
+        file(WRITE "${_SHOW_BUILT_SCRIPT}"
+            "message(\"--- Shared libraries / executables ---\")\n"
+            "execute_process(COMMAND ${LS} -lSh \"${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/\")\n"
+            "message(\"--- Static libraries ---\")\n"
+            "if(EXISTS \"${FOLDER_LIB}/${FOLDER_ARCHITECTURE}\")\n"
+            "  execute_process(COMMAND ${LS} -lSh \"${FOLDER_LIB}/${FOLDER_ARCHITECTURE}/\")\n"
+            "else()\n"
+            "  message(\"none\")\n"
+            "endif()\n"
+            "message(\"--- Totals ---\")\n"
+            "execute_process(COMMAND ${DU} -sh \"${FOLDER_BIN}/${FOLDER_ARCHITECTURE}\")\n"
+            "if(EXISTS \"${FOLDER_LIB}/${FOLDER_ARCHITECTURE}\")\n"
+            "  execute_process(COMMAND ${DU} -sh \"${FOLDER_LIB}/${FOLDER_ARCHITECTURE}\")\n"
+            "endif()\n")
         add_custom_target(show_built ALL
-            COMMAND ${LS} -lSh "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/*"
-            COMMAND ${CMAKE_COMMAND} -E echo ""
-            COMMAND ${CMAKE_COMMAND} -E echo "Total:"
-            COMMAND ${DU} -sh "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}"
+            COMMAND ${CMAKE_COMMAND} -P "${_SHOW_BUILT_SCRIPT}"
             DEPENDS ${LS_TARGET_DEPS}
             COMMENT "Built targets in ${FOLDER_BIN}/${FOLDER_ARCHITECTURE}:")
     else()

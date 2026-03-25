@@ -15,8 +15,10 @@ elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_LINUX)
 elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_LINUX)
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     message(STATUS " CMAkE sqlite3 Configuration for Apple (not working yet!!!) is set...")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI -DLUA_USE_IOS)
 else()
   message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
@@ -36,7 +38,7 @@ endif()
 #Bring the headers, such as xxx.h into the project
 include_directories(${SQLITE_INCLUDE} ${SRC_INCLUDES} ${LUA_INCLUDE})
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -44,14 +46,27 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
     #pthreads
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
-    ####
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    #pthreads — libc on iOS already includes pthread; REQUIRED avoids link errors
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
 endif()
 
 file(GLOB SOURCES "${SQLITE_SRC}/*.c" "${SQLITE_SRC}/*.cpp")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
-#Generate the static library from the sources
-add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES} )
+# iOS requires static libraries (App Store sandbox)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${SQLITE3_LUA_LIBRARY} STATIC ${SOURCES})
+else()
+    add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES})
+endif()
 
-target_link_libraries(${SQLITE3_LUA_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${SQLITE3_LUA_LIBRARY} ${CORE_MBM_LIBRARY})
+# On iOS lsqlite3 is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
+# static deps to the consumer, duplicating the explicit links in mini-mbm's
+# target_link_libraries calls and triggering ld duplicate-library warnings.
+# Both Lua and core_mbm are provided by mini-mbm at final link.
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+endif()

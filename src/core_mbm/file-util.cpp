@@ -48,6 +48,9 @@
     #include <sys/stat.h>
     #include <sys/types.h>
     #include <errno.h>
+    #if defined(__APPLE__)
+        #include <TargetConditionals.h>
+    #endif
 #endif
 
 #include <random>
@@ -481,6 +484,32 @@ namespace util
             return fopen(fileName, mode);
         }
 #else
+        // iOS sandbox: the app bundle is read-only; only ~/Documents is writable.
+        // Redirect any write path that is not already under $HOME to Documents/
+        // so that save files land in the writable sandbox.  This covers both
+        // relative names ("tower-defense.data") and root-absolute paths that
+        // arrive when CWD was "/" ("/tower-defense.data").
+#if TARGET_OS_IOS
+        if (mode && strchr(mode, 'w') && fileName)
+        {
+            const char *home = getenv("HOME");
+            if (home && strncmp(fileName, home, strlen(home)) != 0)
+            {
+                // Strip any leading path components — keep only the basename.
+                const char *base = strrchr(fileName, '/');
+                base = base ? base + 1 : fileName;
+                if (base && base[0])
+                {
+                    std::string docPath(home);
+                    docPath += "/Documents/";
+                    docPath += base;
+                    FILE *fp = fopen(docPath.c_str(), mode);
+                    if (fp)
+                        return fp;
+                }
+            }
+        }
+#endif
         return fopen(fileName, mode);
 #endif
     }

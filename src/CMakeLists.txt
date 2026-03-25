@@ -32,11 +32,21 @@ if (USE_LUA)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-lua.cpp)
-    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-MacOs.mm)
         set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
+        set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-iOS.mm)
+        set(IOS_PLATFORM_SOURCES
+            ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm)
+        set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC} ${IOS_PLATFORM_SOURCES}
             PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
@@ -56,9 +66,19 @@ else()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-android/scene-1.cpp)
-    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-macos/my-scene.cpp)
+    elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-ios/main-lua.mm)
+        set(IOS_PLATFORM_SOURCES
+            ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm
+            ${CMAKE_SOURCE_DIR}/platform-ios/my-scene.mm)
+        # iOS uses UIApplicationMain; my-scene.mm is compiled but active only when USE_LUA is off
+        set_source_files_properties(${MAIN} ${IOS_PLATFORM_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -164,7 +184,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
@@ -184,6 +204,120 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
     endif()
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework Cocoa")
+
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    # iOS static-link plugin definitions (same workaround as Android — dynamic loading is blocked)
+    if(USE_LSQLITE3)
+        add_definitions(-DUSE_LSQLITE3)
+    endif()
+    if(USE_BOX2D_LIQUID_FUN)
+        add_definitions(-DUSE_BOX2D_LIQUID_FUN)
+    endif()
+    if(USE_BOX2D)
+        add_definitions(-DUSE_BOX2D)
+    endif()
+    if(USE_BULLET3D)
+        add_definitions(-DUSE_BULLET3D)
+    endif()
+    if(USE_IMGUI)
+        add_definitions(-DUSE_IMGUI)
+    endif()
+
+    if (USE_LUA)
+        add_executable(mini-mbm ${MAIN}
+                            ${IOS_PLATFORM_SOURCES}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES}
+                            ${LIB_MINIMBM_LUA_SRC}
+                            ${LIB_MINIMBM_LUA_PLATFORM_SRC})
+    else()
+        add_executable(mini-mbm ${MAIN}
+                            ${IOS_PLATFORM_SOURCES}
+                            ${SOURCES}
+                            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+                            ${BULLET3D_WRAP_SOURCES}
+                            ${TINYFILEDIALOGS_SOURCES})
+    endif()
+    # ── Per-game identity ─────────────────────────────────────────────────────
+    # Override at configure time from your game repo's build script:
+    #   -DGAME_BUNDLE_ID=com.yourcompany.yourgame
+    #   -DGAME_NAME="Tower Defense"
+    #   -DGAME_ASSETS_DIR=/path/to/tower-defense/assets
+    if(NOT DEFINED GAME_BUNDLE_ID)
+        set(GAME_BUNDLE_ID "com.mini.mbm.mini-mbm")
+    endif()
+    if(NOT DEFINED GAME_NAME)
+        set(GAME_NAME "mini-mbm")
+    endif()
+    set(IOS_BUNDLE_ID "${GAME_BUNDLE_ID}")
+    set(IOS_APP_NAME  "${GAME_NAME}")
+    # Write Info.plist into the source tree so Xcode's navigator can find it.
+    # (Placing it in CMAKE_BINARY_DIR causes the Xcode navigator to show it red,
+    #  even though the build still works — this avoids that cosmetic issue.)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist.in
+        ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist
+        @ONLY)
+    message(STATUS "iOS bundle ID : ${GAME_BUNDLE_ID}")
+    message(STATUS "iOS app name  : ${GAME_NAME}")
+
+    set_target_properties(mini-mbm PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${GAME_BUNDLE_ID}")
+    target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+    target_link_libraries(mini-mbm "-framework UIKit")
+    target_link_libraries(mini-mbm "-framework Metal")
+    target_link_libraries(mini-mbm "-framework AVFoundation")
+    target_link_libraries(mini-mbm "-framework AudioToolbox")
+    target_link_libraries(mini-mbm "-framework Foundation")
+
+    # ── Game assets ───────────────────────────────────────────────────────────
+    # With -G Xcode: files are added as target sources with MACOSX_PACKAGE_LOCATION
+    # so they appear in the Xcode project navigator (editable like in Android Studio)
+    # and Xcode copies them into the .app bundle under assets/ automatically.
+    # With make: fall back to a POST_BUILD copy_directory (no navigator needed).
+    # NOTE: adding new files to GAME_ASSETS_DIR requires re-running cmake so that
+    # CMake's GLOB_RECURSE picks them up — the build itself does not need a clean.
+    if(DEFINED GAME_ASSETS_DIR)
+        if(NOT IS_DIRECTORY "${GAME_ASSETS_DIR}")
+            message(WARNING "GAME_ASSETS_DIR '${GAME_ASSETS_DIR}' does not exist or is not a directory — no assets will be bundled. Check the path (tilde ~ is not expanded inside double-quoted cmake -D values).")
+        endif()
+        message(STATUS "iOS assets dir: ${GAME_ASSETS_DIR}")
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            # Collect every file (not directories) under GAME_ASSETS_DIR
+            file(GLOB_RECURSE _GAME_ASSET_FILES
+                LIST_DIRECTORIES FALSE
+                "${GAME_ASSETS_DIR}/*")
+            foreach(_asset_file ${_GAME_ASSET_FILES})
+                # Compute path relative to GAME_ASSETS_DIR, e.g. "image/hero.png"
+                file(RELATIVE_PATH _rel_path "${GAME_ASSETS_DIR}" "${_asset_file}")
+                # Keep only the directory component, e.g. "image"
+                get_filename_component(_rel_dir "${_rel_path}" DIRECTORY)
+                if(_rel_dir)
+                    set(_pkg_loc "assets/${_rel_dir}")
+                else()
+                    set(_pkg_loc "assets")
+                endif()
+                # Tell Xcode: this file is a resource to be placed in assets/<subdir>/
+                set_source_files_properties("${_asset_file}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "${_pkg_loc}")
+            endforeach()
+            target_sources(mini-mbm PRIVATE ${_GAME_ASSET_FILES})
+            # Mirror the source directory tree in the Xcode navigator
+            source_group(TREE "${GAME_ASSETS_DIR}" PREFIX "assets" FILES ${_GAME_ASSET_FILES})
+        else()
+            # make generator: simple directory copy post-build
+            add_custom_command(TARGET mini-mbm POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${GAME_ASSETS_DIR}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>/assets"
+                COMMENT "Copying game assets from ${GAME_ASSETS_DIR}")
+        endif()
+    endif()
+
 else()
     message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
 endif()
@@ -218,6 +352,36 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
     if(USE_IMGUI)
         message(STATUS "USE_IMGUI is enabled, ${IMGUI_LIBRARY} for ANDROID will be linked as workaround")
+        target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
+    endif()
+
+endif()
+
+# plugins for iOS must also be statically linked (App Store sandbox forbids user-space dylibs)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+
+    if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D)
+        message(STATUS "USE_BOX2D is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+    endif()
+
+    if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
+    endif()
+
+    if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled — linking statically for iOS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 
@@ -306,7 +470,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         COMMAND cmake -E echo ""
         COMMAND cmake -E echo "---------------------------------------------")
     endif()
-elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     set(REDIRECT_SHELL                    "'>>'")
     if(USE_LUA)
         add_custom_target(

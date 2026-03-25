@@ -61,6 +61,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
   - [Windows (Visual Studio)](#windows-visual-studio)
   - [Android (CMake + NDK)](#android-cmake--ndk)
   - [macOS (CMake)](#macos-cmake)
+  - [iOS (Metal, Xcode)](#ios-metal-xcode)
   - [CMake Option Flags](#cmake-option-flags)
 - [Project Structure](#project-structure)
 - [Third-Party Libraries](#third-party-libraries)
@@ -192,6 +193,53 @@ int main() {
 
 ---
 
+### Option C: iOS (Metal, Xcode)
+
+The iOS port uses UIKit + Metal.  It requires **Xcode 15+** with the iOS SDK installed.
+
+**Quick build** (compile check, no signing):
+
+```bash
+mkdir -p build/ios && cd build/ios
+cmake ../.. \
+    -DPLAT=iOS \
+    -DUSE_LUA=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=/path/to/your/game/assets
+make -j$(sysctl -n hw.logicalcpu)
+```
+
+**Xcode project** (required for device/simulator deployment):
+
+```bash
+mkdir -p build/ios_xcode && cd build/ios_xcode
+cmake ../.. \
+    -DPLAT=iOS -DUSE_LUA=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=avfoundation \
+    -DGAME_BUNDLE_ID=com.yourcompany.yourgame \
+    -DGAME_NAME="My Game" \
+    -DGAME_ASSETS_DIR=/path/to/your/game/assets \
+    -G Xcode
+open "My Game.xcodeproj"   # name matches -DGAME_NAME; set Team in Signing & Capabilities, press ⌘R
+```
+
+> **Game identity & assets** — pass `-DGAME_BUNDLE_ID`, `-DGAME_NAME`, and
+> `-DGAME_ASSETS_DIR` to customise each game without editing any CMake file.
+> Assets are copied into the `.app` bundle automatically after every build.
+
+> **All plugins are statically linked** on iOS — the App Store sandbox forbids
+> bare dynamic libraries.  Touch events are routed via UIKit (`onTouchDown/Move/Up`).
+> Orientation is locked to **landscape** by default.
+
+For full details on the iOS architecture, static linking rationale, asset workflow,
+build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
+[platform-ios/README.md](platform-ios/README.md).
+
+---
+
 ## Features at a Glance
 
 | Category | Highlights |
@@ -204,7 +252,7 @@ int main() {
 | **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
-| **Platforms** | Windows, Linux, macOS, Android |
+| **Platforms** | Windows, Linux, macOS, Android, iOS |
 | **Camera** | 2D/3D camera with projection/view matrices, billboard, azimuth, pixel-perfect mode |
 | **Shaders** | Custom FX system with per-variable min/max animation, PS + VS support |
 | **Security** | AES encryption for scripts and assets (PlusAES) |
@@ -680,7 +728,7 @@ cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=audiere
 make -j$(nproc)
 
 # On Mac (Metal + AVFoundation audio is default)
-cmake -B build -DPLAT=Apple -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc)
+cmake -B build -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(sysctl -n hw.logicalcpu)
 ```
 
 **Output locations:**
@@ -748,7 +796,7 @@ make -j$(nproc)
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Apple -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+cmake .. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
 make -j$(nproc)
 ```
 
@@ -758,11 +806,88 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 
 > **Note:** The Metal rendering backend is selected automatically when building for Apple (`-DUSE_METAL=1` is the default).
 
+### iOS (Metal, Xcode)
+
+Requires **Xcode 15+** with the iOS SDK (`xcode-select -p` should point to Xcode).
+
+> **First-time setup:** Open Xcode once and complete the first-launch SDK install, then run
+> `sudo xcodebuild -license accept && xcodebuild -runFirstLaunch` to install platform tools.
+
+#### 1. Generate the Xcode project
+
+Run this once from the repo root:
+
+```bash
+mkdir -p build && cd build
+cmake .. -DPLAT=iOS -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=avfoundation -DCMAKE_BUILD_TYPE=Debug  -G Xcode
+```
+
+This writes the Xcode project to `build/<GAME_NAME>.xcodeproj` (or `build/mini-mbm.xcodeproj` if `-DGAME_NAME` is not set).
+
+#### 2a. Build from the command line (Simulator)
+
+No code signing is required for Simulator builds.
+
+> **Important:** Run all `xcodebuild` commands from the **repo root** (`mini-mbm/`), not from inside `build/`.
+
+```bash
+# See which simulators are available (shows OS version headers + device names):
+xcrun simctl list devices available | grep -E "iOS [0-9]|iPhone|iPad"
+
+# The output groups devices under OS version headers, e.g.:
+#   -- iOS 26.1 --
+#       iPhone 17 (8B35B6FC-...) (Shutdown)
+# Use the device name and its section header as the OS value:
+#   -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1"
+
+# Build (from repo root — substitute name and OS from the output above):
+xcodebuild -project "build/My Game.xcodeproj" \
+           -scheme mini-mbm \
+           -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1" \
+           -configuration Debug \
+           build 2>&1 | tee /tmp/ios-build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+```
+
+#### 2b. Build from the Xcode IDE
+
+1. **Open the project:**
+   ```bash
+   open "build/My Game.xcodeproj"
+   ```
+2. **Select the scheme** in the toolbar — it should already show `mini-mbm`.
+3. **Select the destination** (next to the scheme selector):
+   - For Simulator: pick any *iPhone* or *iPad* simulator from the list.
+   - For a physical device: connect the device via USB and select it.
+4. **Build:** press **⌘B** (Product → Build).  
+   Errors appear in the **Issue Navigator** (⌘5, triangle icon in the left sidebar).
+5. **Run:** press **⌘R** to build and launch in the selected Simulator or device.
+
+#### 3. Deploy to a physical device
+
+1. Connect your iPhone/iPad via USB.
+2. In Xcode, open the **Signing & Capabilities** tab for the `mini-mbm` target.
+3. Set **Team** to your Apple Developer account and enter a unique **Bundle Identifier**
+   (e.g. `com.yourname.mini-mbm`).
+4. Select the device in the destination selector, then press **⌘R**.
+
+#### Notes
+
+- All plugins are **statically linked** on iOS — dynamic loading is blocked by the App Store sandbox.
+- The launcher dialog is disabled; the engine starts `Resources/main.lua` directly.
+- `os.execute` and `executeInThread` are no-ops on iOS (not available on the platform).
+- File dialogs (`openFileDialog` / `saveFileDialog`) return `nullptr` on iOS.
+- Touch events map to `onTouchDown` / `onTouchMove` / `onTouchUp`; mouse events are not used.
+- Orientation is locked to **landscape** by default.  To add portrait support, edit
+  `platform-ios/Info.plist` (`UISupportedInterfaceOrientations`) and the
+  `supportedInterfaceOrientations` method in `platform-ios/MetalViewController.mm`.
+- To build for the **Simulator** with a different deployment target you can pass
+  `-DCMAKE_OSX_SYSROOT=iphonesimulator` to the cmake command.
+
 ### CMake Option Flags
 
 | Flag | Default | Description |
 |---|---|---|
-| `-DPLAT=` | **(required)** | Target platform: `Linux`, `Windows`, `Android`, or `Apple` |
+| `-DPLAT=` | **(required)** | Target platform: `Linux`, `Windows`, `Android`, `MacOs`, or `iOS` |
 | `-DCMAKE_BUILD_TYPE=` | `Release` | `Debug` or `Release` |
 | `-DUSE_ALL=1` | `OFF` | Enable all features (Lua, VR, and on Android all plugins) |
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |

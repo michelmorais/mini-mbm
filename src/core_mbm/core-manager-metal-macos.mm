@@ -16,7 +16,7 @@
 
 #if defined(USE_METAL)
 #if !defined(ANDROID)
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !TARGET_OS_IOS
 
 #include <core-manager.h>
 #include <texture-manager.h>
@@ -474,6 +474,6 @@ namespace mbm
 
 } // namespace mbm
 
-#endif // __APPLE__
+#endif // __APPLE__ && !TARGET_OS_IOS
 #endif // !ANDROID
 #endif // USE_METAL

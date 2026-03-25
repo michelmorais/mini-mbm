@@ -33,7 +33,7 @@
 //      restore after the modal session ends.
 //   3. dispatch_sync(main_queue) guarantees the panel runs on the main thread.
 
-#if defined(__APPLE__) && !defined(ANDROID)
+#if defined(__APPLE__) && !defined(ANDROID) && !TARGET_OS_IOS
 
 #import <Cocoa/Cocoa.h>
 #include <core_mbm/dialog-util.h>
@@ -310,4 +310,4 @@ namespace dialog_util
     }
 }
 
-#endif // defined(__APPLE__) && !defined(ANDROID)
+#endif // defined(__APPLE__) && !defined(ANDROID) && !TARGET_OS_IOS

@@ -782,7 +782,7 @@ namespace mbm
         }
     }
 
-    #if !defined ANDROID
+    #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
     void CORE_MANAGER::execute_system_cmd_thread(const char* command)//execute system command in other thread
     {
         auto fNextThreadName = []() -> std::string

@@ -92,6 +92,23 @@ extern "C" void avfoundation_audio_release(void)
     }
 }
 
+extern "C" void avfoundation_audio_pause(void)
+{
+    // pause() suspends the hardware without tearing down the graph,
+    // so resume can restart it cheaply.
+    if (g_avf_engine && [g_avf_engine isRunning])
+        [g_avf_engine pause];
+}
+
+extern "C" void avfoundation_audio_resume(void)
+{
+    if (g_avf_engine && ![g_avf_engine isRunning]) {
+        NSError *err = nil;
+        if (![g_avf_engine startAndReturnError:&err])
+            NSLog(@"[mini-mbm] AVAudioEngine resume failed: %@", err.localizedDescription);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // AVFAudioData — per-instance data (ObjC++ PIMPL; defined here, forward-
 // declared in audio.h so the C++ header stays ObjC-free)

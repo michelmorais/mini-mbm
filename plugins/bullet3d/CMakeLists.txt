@@ -35,9 +35,15 @@ file(GLOB_RECURSE SOURCES "${BULLET3D_SOURCE}/*.cpp" "${BULLET3D_PLUGIN_SOURCE}/
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${BULLET_3D_LIBRARY} SHARED ${SOURCES} )
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${BULLET_3D_LIBRARY} STATIC ${SOURCES})
+else()
+    add_library(${BULLET_3D_LIBRARY} SHARED ${SOURCES})
+endif()
 
-target_link_libraries(${BULLET_3D_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${BULLET_3D_LIBRARY} ${CORE_MBM_LIBRARY})
-target_link_libraries(${BULLET_3D_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${BULLET_3D_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${BULLET_3D_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+    target_link_libraries(${BULLET_3D_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
+endif()
 

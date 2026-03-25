@@ -23,7 +23,7 @@ message(STATUS "Building IMGUI lib...")
 file(GLOB_RECURSE IM_GUI_SOURCES        "${IMGUI_SRC}/*.cpp")
 
 # On Apple/Metal builds, gather .mm sources and apply ARC.
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
+if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
     file(GLOB_RECURSE IM_GUI_MM_SOURCES "${IMGUI_SRC}/*.mm")
     list(APPEND IM_GUI_SOURCES ${IM_GUI_MM_SOURCES})
     if (IM_GUI_MM_SOURCES)
@@ -32,7 +32,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
     endif()
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_BACKENDS}/imgui_impl_win32.cpp")
 endif()
 
@@ -66,7 +66,7 @@ else()
     list(REMOVE_ITEM IM_GUI_SOURCES "${IMGUI_SRC}/imgui_demo_stubs.cpp")
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Apple")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
 
     find_package(X11 REQUIRED)
 
@@ -76,7 +76,7 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STRE
 
     include_directories(${X11_INCLUDE_DIR})
     ####
-  endif()
+endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(  ${IMGUI_INCLUDE}
@@ -107,25 +107,35 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 endif()
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${IMGUI_LIBRARY} STATIC ${IM_GUI_SOURCES})
+else()
+    add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})
+endif()
 
 if (USE_OPENGL_ES)
   target_compile_definitions(${IMGUI_LIBRARY} PRIVATE IMGUI_IMPL_OPENGL_ES2 IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 endif()
 if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
-  target_link_libraries(${IMGUI_LIBRARY} d3d9)
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE d3d9)
 endif()
 
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "Apple" AND USE_METAL)
-  target_link_libraries(${IMGUI_LIBRARY} "-framework Metal")
-  target_link_libraries(${IMGUI_LIBRARY} "-framework Foundation")
-  target_link_libraries(${IMGUI_LIBRARY} "-framework QuartzCore")
+if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework Metal")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework Foundation")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE "-framework QuartzCore")
 endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
-  target_link_libraries(${IMGUI_LIBRARY} ${OPENGLES2_LIBRARY})
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${OPENGLES2_LIBRARY})
 endif()
 
-target_link_libraries(${IMGUI_LIBRARY} ${LUA_LIBRARY})
-target_link_libraries(${IMGUI_LIBRARY} ${PLUGIN_HELPER_LIBRARY})
-target_link_libraries(${IMGUI_LIBRARY} ${CORE_MBM_LIBRARY})
+# On iOS ImGui is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
+# static deps to the consumer, duplicating the explicit links in mini-mbm's
+# target_link_libraries calls and triggering ld duplicate-library warnings.
+# All of Lua, plugin_helper and core_mbm are provided by mini-mbm at final link.
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${LUA_LIBRARY})
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
+    target_link_libraries(${IMGUI_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
+endif()
