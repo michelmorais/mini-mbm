@@ -66,7 +66,7 @@ namespace mbm
 		virtual bool isLoaded() = 0;
         AUDIO_INTERFACE(const int _idScene) noexcept;
         virtual ~AUDIO_INTERFACE();
-        void *userData;
+        void *userData;// field is used by the Lua binding to store the Lua reference to the audio object, so it should not be used for other purposes
 		bool isPersist()const noexcept;
 		virtual const char* getFileName() const noexcept = 0;
 	  protected:

@@ -97,7 +97,7 @@ static void opensl_release_engine()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-instance state (stored in AUDIO::userData)
+// Per-instance state (stored in AUDIO::oslPlayer)
 // ─────────────────────────────────────────────────────────────────────────────
 struct OSLPlayer {
     SLObjectItf playerObj  = nullptr;
@@ -131,7 +131,7 @@ AUDIO::AUDIO(const int newIdScene)
 AUDIO::~AUDIO()
 {
     std::lock_guard<std::mutex> lk(g_engineMutex);
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (d) {
         if (d->playerObj) {
             (*d->playerObj)->Destroy(d->playerObj);
@@ -142,7 +142,7 @@ AUDIO::~AUDIO()
             d->asset = nullptr;
         }
         delete d;
-        this->userData = nullptr;
+        this->oslPlayer = nullptr;
     }
     opensl_release_engine();
     fileName.clear();
@@ -235,14 +235,14 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     if (loop && d->seekIf)
         (*d->seekIf)->SetLoop(d->seekIf, SL_BOOLEAN_TRUE, 0, SL_TIME_UNKNOWN);
 
-    this->userData = d;
+    this->oslPlayer = d;
     fileName = util::getBaseName(filenameSound);
     return true;
 }
 
 bool AUDIO::play(const bool loop)
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -260,7 +260,7 @@ bool AUDIO::play(const bool loop)
 bool AUDIO::pause()
 {
     if (!isPlaying()) return false;
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -274,7 +274,7 @@ bool AUDIO::pause()
 bool AUDIO::resume()
 {
     if (state != AUDIO_PLAYING) return false;
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf || !d->paused) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -286,7 +286,7 @@ bool AUDIO::resume()
 
 bool AUDIO::stop()
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -299,7 +299,7 @@ bool AUDIO::stop()
 
 bool AUDIO::reset()
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -315,7 +315,7 @@ bool AUDIO::reset()
 bool AUDIO::isPlaying()
 {
     if (state == AUDIO_STOPPED) return false;
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return false;
     SLuint32 ps = SL_PLAYSTATE_STOPPED;
     {
@@ -332,13 +332,13 @@ bool AUDIO::isPlaying()
 
 bool AUDIO::isPaused()
 {
-    const auto* d = static_cast<const OSLPlayer*>(this->userData);
+    const auto* d = static_cast<const OSLPlayer*>(this->oslPlayer);
     return d && d->paused;
 }
 
 bool AUDIO::setVolume(const float volume)
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->volumeIf) return false;
     std::lock_guard<std::mutex> lk(g_engineMutex);
     d->volumeF = volume;
@@ -348,13 +348,13 @@ bool AUDIO::setVolume(const float volume)
 
 float AUDIO::getVolume()
 {
-    const auto* d = static_cast<const OSLPlayer*>(this->userData);
+    const auto* d = static_cast<const OSLPlayer*>(this->oslPlayer);
     return d ? d->volumeF : 1.0f;
 }
 
 bool AUDIO::setPan(const float pan)
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d) return false;
     d->panF = pan;
     // Basic OpenSL ES without SL_IID_STEREOPOSITION is not universally available on all
@@ -365,7 +365,7 @@ bool AUDIO::setPan(const float pan)
 
 float AUDIO::getPan()
 {
-    const auto* d = static_cast<const OSLPlayer*>(this->userData);
+    const auto* d = static_cast<const OSLPlayer*>(this->oslPlayer);
     return d ? d->panF : 0.0f;
 }
 
@@ -380,7 +380,7 @@ float AUDIO::getPitch() { return 1.0f; }
 
 int AUDIO::getLength()
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->playIf) return 0;
     SLmillisecond dur = 0;
     std::lock_guard<std::mutex> lk(g_engineMutex);
@@ -390,7 +390,7 @@ int AUDIO::getLength()
 
 bool AUDIO::setPosition(const int pos)
 {
-    auto* d = static_cast<OSLPlayer*>(this->userData);
+    auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (!d || !d->seekIf) return false;
     std::lock_guard<std::mutex> lk(g_engineMutex);
     (*d->seekIf)->SetPosition(d->seekIf, static_cast<SLmillisecond>(pos), SL_SEEKMODE_FAST);

@@ -86,6 +86,8 @@ namespace mbm
 		audiere::OutputStreamPtr sound;
 	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
 		std::unique_ptr<PA_WAVE> pa_wave;
+	#elif defined(AUDIO_ENGINE_ANDROID_OPENSL) //  AUDIO_ENGINE_ANDROID_OPENSL -----------------------------------------------
+		void* oslPlayer = nullptr; // OSLPlayer*, defined in audio-opensl-android.cpp
 	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------
 		struct AVFAudioData;  // defined in audio-avfoundation.mm (Objective-C++)
 		std::unique_ptr<AVFAudioData> avf_data;
