@@ -104,12 +104,16 @@ static GAME* s_game = nullptr;
         args.push_back("--addPath");
         args.push_back(resourcePath + "/assets");
         // Documents directory: writable sandbox location for save files.
-        // Adding it as a read path lets the engine find files written there.
+        // Change the working directory to Documents so that Lua's native
+        // fopen (used by luaL_dofile and io.open) resolves relative paths
+        // there instead of the read-only filesystem root "/".
         const char *home = getenv("HOME");
         if (home)
         {
+            std::string docsPath = std::string(home) + "/Documents";
+            chdir(docsPath.c_str());
             args.push_back("--addPath");
-            args.push_back(std::string(home) + "/Documents");
+            args.push_back(docsPath);
         }
     }
     args.push_back("--scene");
