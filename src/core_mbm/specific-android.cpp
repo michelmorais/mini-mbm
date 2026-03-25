@@ -53,7 +53,6 @@ namespace mbm
     assetManager(nullptr),
     nativeWindow(nullptr),
     jclassDoCommandsJniEngine(nullptr),
-    jclassAudioManagerJniEngine(nullptr),
     jclassFileJniEngine(nullptr),
     jclassKeyCodeJniEngine(nullptr),
     jclassLoaderGlobal(nullptr),
@@ -85,7 +84,6 @@ namespace mbm
         {
             this->jenv                         = nullptr;
             this->jclassDoCommandsJniEngine    = nullptr;
-            this->jclassAudioManagerJniEngine  = nullptr;
             this->jclassFileJniEngine          = nullptr;
             this->jclassKeyCodeJniEngine       = nullptr;
             this->jclassLoaderGlobal           = nullptr;
@@ -204,7 +202,6 @@ namespace mbm
         this->jclassDoCommandsJniEngine    = this->getClass("MbmActivity");
         // The following classes are part of the legacy JNI bridge.
         // They are silently skipped when the NativeActivity build omits them.
-        this->jclassAudioManagerJniEngine  = this->tryGetClass("AudioManagerJniEngine");
         this->jclassFileJniEngine          = this->tryGetClass("FileJniEngine");
         this->jclassKeyCodeJniEngine       = this->tryGetClass("KeyCodeJniEngine");
     }

@@ -168,6 +168,20 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
 
     AAsset* asset = AAssetManager_open(mgr, relPath, AASSET_MODE_UNKNOWN);
     if (!asset) {
+        // The Lua side may pass just "01.wav" while the file lives in "sounds/01.wav".
+        // Search through the engine's registered paths (mbm.addPath) to find it.
+        std::vector<std::string> paths;
+        util::getAllPaths(paths);
+        for (const auto& dir : paths) {
+            std::string tryPath = dir + "/" + relPath;
+            // Strip leading slashes — AAssetManager expects relative paths.
+            const char* p = tryPath.c_str();
+            while (*p == '/') ++p;
+            asset = AAssetManager_open(mgr, p, AASSET_MODE_UNKNOWN);
+            if (asset) break;
+        }
+    }
+    if (!asset) {
         OPENSL_ERR("Cannot open asset: %s", filenameSound);
         return false;
     }

@@ -585,7 +585,6 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         AAssetManager*   assetManager;   // NDK asset manager — replaces FileJniEngine JNI
         ANativeWindow*   nativeWindow;   // current ANativeWindow for EGL surface creation
         jclass           jclassDoCommandsJniEngine;     // thin MbmActivity: vibrate / doCommands
-        jclass           jclassAudioManagerJniEngine;   // legacy JNI audio backend (AUDIO=jni)
         jclass           jclassFileJniEngine;           // Lua file dialogs
         jclass           jclassKeyCodeJniEngine;        // Lua key mapping
         jobject          jclassLoaderGlobal;            // app ClassLoader (for FindClass on native threads)

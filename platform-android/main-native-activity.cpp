@@ -334,6 +334,15 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
 // ---------------------------------------------------------------------------
 void android_main(struct android_app* app)
 {
+    // Reset all file-scope statics so a second launch into the same process
+    // (Android keeps the process alive after ANativeActivity_finish) starts
+    // from a clean state.
+    s_game        = nullptr;
+    s_running     = false;
+    s_windowReady = false;
+    s_touchMap.clear();
+    s_nextTouchID = 0;
+
     app->onAppCmd     = onAppCmd;
     app->onInputEvent = onInputEvent;
 
