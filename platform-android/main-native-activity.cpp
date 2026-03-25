@@ -216,6 +216,8 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                 constexpr bool doSwapBuffers = false;
                 constexpr int px = 0, py = 0;
                 s_game->onLostDevice(doSwapBuffers, w, h, px, py);
+                s_windowReady = true;
+                s_running     = true;
             }
             else
             {

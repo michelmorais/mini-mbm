@@ -11,6 +11,8 @@ import android.app.NativeActivity;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.content.Context;
+import android.view.View;
+import android.view.WindowManager;
 
 /**
  * Thin NativeActivity wrapper for mini-mbm.
@@ -35,6 +37,26 @@ public class MbmActivity extends NativeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setImmersiveMode();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            setImmersiveMode();
+        }
+    }
+
+    private void setImmersiveMode() {
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+          | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+          | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+          | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+          | View.SYSTEM_UI_FLAG_FULLSCREEN
+          | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     // -------------------------------------------------------------------------

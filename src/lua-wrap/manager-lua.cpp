@@ -645,9 +645,6 @@ namespace mbm
         void SCENE_SCRIPT::onTouchDown(int key, float x, float y)
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-    #if !defined ANDROID
-            key = key + 1;
-    #endif
             lua_getglobal(this->lua, "onTouchDown");
             if (lua_isfunction(this->lua, -1))
             {
@@ -708,11 +705,7 @@ namespace mbm
             lua_getglobal(this->lua, "onTouchUp");
             if (lua_isfunction(this->lua, -1))
             {
-    #ifdef ANDROID
                 lua_pushinteger(this->lua, key);
-    #else
-                lua_pushinteger(this->lua, key + 1);
-    #endif
                 lua_pushinteger(this->lua, (int)x);
                 lua_pushinteger(this->lua, (int)y);
                 if (lua_pcall(this->lua, 3, 0, 0))
@@ -744,11 +737,7 @@ namespace mbm
             if (lua_isfunction(this->lua, -1))
             {
 
-    #ifdef ANDROID
                 lua_pushinteger(this->lua, key);
-    #else
-                lua_pushinteger(this->lua, key + 1);
-    #endif
                 lua_pushinteger(this->lua, (int)x);
                 lua_pushinteger(this->lua, (int)y);
                 if (lua_pcall(this->lua, 3, 0, errfunc))
