@@ -94,7 +94,8 @@ static void opensl_release_engine()
     if (--g_refCount <= 0) {
         if (g_outputMixObj) { (*g_outputMixObj)->Destroy(g_outputMixObj); g_outputMixObj = nullptr; }
         if (g_engineObj)    { (*g_engineObj)->Destroy(g_engineObj); g_engineObj = nullptr; g_engineIf = nullptr; }
-        g_refCount = 0;
+        g_refCount    = 0;
+        g_playerCount = 0; // all players are invalid once the engine is gone
     }
 }
 
@@ -136,7 +137,10 @@ AUDIO::~AUDIO()
     auto* d = static_cast<OSLPlayer*>(this->oslPlayer);
     if (d) {
         if (d->playerObj) {
-            (*d->playerObj)->Destroy(d->playerObj);
+            // Guard against a destroyed engine (e.g. if all other instances were
+            // released first) — calling Destroy on an orphaned player would crash.
+            if (g_engineIf != nullptr)
+                (*d->playerObj)->Destroy(d->playerObj);
             d->playerObj = nullptr;
             --g_playerCount;
         }
@@ -186,7 +190,8 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     }
     if (!asset) {
         OPENSL_ERR("Cannot open asset: %s", filenameSound);
-        opensl_release_engine();
+        // NOTE: do NOT call opensl_release_engine() here — AUDIO_MANAGER::load()
+        // deletes this AUDIO object on failure, and ~AUDIO() always calls it.
         return false;
     }
 
@@ -195,8 +200,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     if (fd < 0) {
         AAsset_close(asset);
         OPENSL_ERR("AAsset_openFileDescriptor failed for: %s", filenameSound);
-        opensl_release_engine();
-        return false;
+        return false; // ~AUDIO() handles opensl_release_engine()
     }
 
     // Hard cap prevents SL_RESULT_MEMORY_FAILURE when too many concurrent players
@@ -206,8 +210,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
                    "Reduce sound_pool size or the number of concurrent sounds.",
                    MAX_PLAYERS, filenameSound);
         AAsset_close(asset);
-        opensl_release_engine();
-        return false;
+        return false; // ~AUDIO() handles opensl_release_engine()
     }
 
     // Data source: Android FD locator
@@ -233,8 +236,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
         OPENSL_ERR("CreateAudioPlayer failed: %d", (int)r);
         AAsset_close(asset);
         delete d;
-        opensl_release_engine();
-        return false;
+        return false; // ~AUDIO() handles opensl_release_engine()
     }
 
     r = (*d->playerObj)->Realize(d->playerObj, SL_BOOLEAN_FALSE);
@@ -243,8 +245,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
         (*d->playerObj)->Destroy(d->playerObj);
         AAsset_close(asset);
         delete d;
-        opensl_release_engine();
-        return false;
+        return false; // ~AUDIO() handles opensl_release_engine()
     }
 
     ++g_playerCount;

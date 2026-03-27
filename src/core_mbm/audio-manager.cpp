@@ -289,6 +289,23 @@ namespace mbm
             }
         }
     }
+
+    // Unlike destroy(), destroyNow() skips the scene-lifetime deferral and
+    // immediately deletes the C++ AUDIO object, freeing its OpenSL player slot.
+    // The caller is responsible for nulling any Lua userdata pointer that held
+    // this audio object to prevent use-after-free.
+    void AUDIO_MANAGER::destroyNow(AUDIO* that)
+    {
+        if (!AUDIO_MANAGER::instance || !that) return;
+        that->stop();
+        auto& a = AUDIO_MANAGER::instance->audios;
+        auto it = std::find(a.begin(), a.end(), that);
+        if (it != a.end()) a.erase(it);
+        auto& d = AUDIO_MANAGER::instance->audiosToDelete;
+        auto it2 = std::find(d.begin(), d.end(), that);
+        if (it2 != d.end()) d.erase(it2);
+        delete that; // ~AUDIO() frees the OpenSL player slot immediately
+    }
     
     void AUDIO_MANAGER::release()
     {

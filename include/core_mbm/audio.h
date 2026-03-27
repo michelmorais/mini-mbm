@@ -121,6 +121,7 @@ namespace mbm
 		API_IMPL static AUDIO_MANAGER* getInstance();
 		API_IMPL AUDIO* load(const char *fileNameSound, const bool loop, const bool inMemory);
 		API_IMPL static void destroy(AUDIO* that);
+		API_IMPL static void destroyNow(AUDIO* that); // immediately frees the player slot (bypasses scene-lifetime deferral)
 		API_IMPL static void releaseStaticInstance();
 		API_IMPL void release()override;
 		API_IMPL void stopAll()override;
