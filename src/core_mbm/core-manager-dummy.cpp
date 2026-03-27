@@ -50,10 +50,11 @@ namespace mbm
         this->stepRestoreInfo  = 0.1f;
         this->stepRestore      = STEP_RES_INIT_GL;
         this->which_for        = WFOR_INITIAL;
-        this->changeScene      = true;
-        this->__sceneWasInit   = false;
-        this->keyCapsLockState = false;
-        this->wasGamePausedBeforeOnStop = false;
+        this->changeScene               = true;
+        this->__sceneWasInit            = false;
+        this->loopVariablesInitialized  = false;
+        this->keyCapsLockState          = false;
+        this->wasGamePausedBeforeOnStop  = false;
         REMINDER_TODO
     }
     

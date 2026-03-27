@@ -40,6 +40,7 @@ namespace mbm
         this->which_for                 = WFOR_INITIAL;
         this->changeScene               = true;
         this->__sceneWasInit            = false;
+        this->loopVariablesInitialized  = false;
         this->keyCapsLockState          = false;
         this->wasGamePausedBeforeOnStop  = false;
     }

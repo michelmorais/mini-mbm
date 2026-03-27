@@ -1108,6 +1108,7 @@ namespace mbm
             {
                 this->release();
                 ERROR_AT(__LINE__,__FILE__, "error on add animation!!");
+                return; // mesh is now null; do not continue iterating
             }
         }
         // carregamos a textura do estagio 2

@@ -79,10 +79,11 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         this->stepRestoreInfo  = 0.1f;
         this->stepRestore      = STEP_RES_INIT_GL;
         this->which_for        = WFOR_INITIAL;
-        this->changeScene      = true;
-        this->__sceneWasInit   = false;
-        this->keyCapsLockState = false;
-        this->wasGamePausedBeforeOnStop = false;
+        this->changeScene               = true;
+        this->__sceneWasInit            = false;
+        this->loopVariablesInitialized  = false;
+        this->keyCapsLockState          = false;
+        this->wasGamePausedBeforeOnStop  = false;
     #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
         this->device->specificContextDevice->initializeWi32Callbacks(this);
     #endif

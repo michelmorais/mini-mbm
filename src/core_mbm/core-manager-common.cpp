@@ -46,7 +46,6 @@ namespace mbm
 
     int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
     {
-        static bool variablesInitialized = false;
         static int loopCallCount = 0;
         loopCallCount++;
         if (loopCallCount <= 3)
@@ -55,7 +54,7 @@ namespace mbm
                      device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
-        if (!variablesInitialized)
+        if (!this->loopVariablesInitialized)
         {
             INFO_LOG("CORE_MANAGER::loop() first-time init");
             // Cfg shader from resource----
@@ -70,7 +69,7 @@ namespace mbm
             this->device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
-            variablesInitialized = true;
+            this->loopVariablesInitialized = true;
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
