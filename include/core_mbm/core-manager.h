@@ -273,6 +273,7 @@ namespace mbm
         bool keyCapsLockState;
         bool windowBorder;
         bool enableResizeWindow;
+        STEP_RETORE getStepRestore() const noexcept { return stepRestore; }
       private:
         bool                                    wasGamePausedBeforeOnStop;
         bool                                    loopVariablesInitialized;

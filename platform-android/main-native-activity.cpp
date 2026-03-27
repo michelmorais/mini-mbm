@@ -59,6 +59,7 @@ static MY_GAME*           s_game = nullptr;
 
 static bool s_running        = false;
 static bool s_windowReady    = false;
+static bool s_isRestoring    = false; // true while onLostDevice steps are in progress
 
 // ---------------------------------------------------------------------------
 // Multi-touch tracking: map pointer-id → stable integer finger index.
@@ -216,9 +217,10 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                 ctx->absPath = absPath;
                 ctx->apkPath = apkPath;
                 ctx->nativeWindow = app->window;
-                constexpr bool doSwapBuffers = false;
-                constexpr int px = 0, py = 0;
-                s_game->onLostDevice(doSwapBuffers, w, h, px, py);
+                // Kick off the restore state machine — each step runs as one frame
+                // in the main loop (see s_isRestoring below), so Android can render
+                // the hourglass / loading progress while textures reload.
+                s_isRestoring = true;
                 s_windowReady = true;
                 s_running     = true;
             }
@@ -343,6 +345,7 @@ void android_main(struct android_app* app)
     s_game        = nullptr;
     s_running     = false;
     s_windowReady = false;
+    s_isRestoring = false;
     s_touchMap.clear();
     s_nextTouchID = 1;
 
@@ -391,9 +394,22 @@ void android_main(struct android_app* app)
                 continue;
             }
 
-            constexpr bool singleLoop    = true;
-            constexpr bool doSwapBuffers = true;
-            s_game->loop(singleLoop, doSwapBuffers);
+            if (s_isRestoring)
+            {
+                // Advance onLostDevice one step per frame so Android stays
+                // responsive and the hourglass / progress screen is presented.
+                constexpr bool doSwapBuffers = true;
+                const int w = ANativeWindow_getWidth(app->window);
+                const int h = ANativeWindow_getHeight(app->window);
+                if (s_game->onLostDevice(doSwapBuffers, w, h, 0, 0))
+                    s_isRestoring = false; // all steps done, resume normal loop
+            }
+            else
+            {
+                constexpr bool singleLoop    = true;
+                constexpr bool doSwapBuffers = true;
+                s_game->loop(singleLoop, doSwapBuffers);
+            }
         }
     }
 }
