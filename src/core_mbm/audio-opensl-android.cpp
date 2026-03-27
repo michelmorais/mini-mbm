@@ -44,11 +44,13 @@ namespace mbm
 // ─────────────────────────────────────────────────────────────────────────────
 // Global OpenSL ES engine (shared; ref-counted across all AUDIO instances)
 // ─────────────────────────────────────────────────────────────────────────────
-static SLObjectItf  g_engineObj    = nullptr;
-static SLEngineItf  g_engineIf     = nullptr;
-static SLObjectItf  g_outputMixObj = nullptr;
-static int          g_refCount     = 0;
-static std::mutex   g_engineMutex;
+static SLObjectItf   g_engineObj    = nullptr;
+static SLEngineItf   g_engineIf     = nullptr;
+static SLObjectItf   g_outputMixObj = nullptr;
+static int           g_refCount     = 0;
+static int           g_playerCount  = 0;   // live CreateAudioPlayer instances
+static constexpr int MAX_PLAYERS    = 32;  // safe floor for all Android versions
+static std::mutex    g_engineMutex;
 
 static bool opensl_init_engine()
 {
@@ -136,6 +138,7 @@ AUDIO::~AUDIO()
         if (d->playerObj) {
             (*d->playerObj)->Destroy(d->playerObj);
             d->playerObj = nullptr;
+            --g_playerCount;
         }
         if (d->asset) {
             AAsset_close(d->asset);
@@ -183,6 +186,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     }
     if (!asset) {
         OPENSL_ERR("Cannot open asset: %s", filenameSound);
+        opensl_release_engine();
         return false;
     }
 
@@ -191,6 +195,18 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     if (fd < 0) {
         AAsset_close(asset);
         OPENSL_ERR("AAsset_openFileDescriptor failed for: %s", filenameSound);
+        opensl_release_engine();
+        return false;
+    }
+
+    // Hard cap prevents SL_RESULT_MEMORY_FAILURE when too many concurrent players
+    // are requested (OpenSL ES limit is typically 32 on Android).
+    if (g_playerCount >= MAX_PLAYERS) {
+        OPENSL_ERR("Player cap (%d) reached; skipping '%s'. "
+                   "Reduce sound_pool size or the number of concurrent sounds.",
+                   MAX_PLAYERS, filenameSound);
+        AAsset_close(asset);
+        opensl_release_engine();
         return false;
     }
 
@@ -203,9 +219,10 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
     SLDataLocator_OutputMix outLoc = { SL_DATALOCATOR_OUTPUTMIX, g_outputMixObj };
     SLDataSink sink                = { &outLoc, nullptr };
 
-    // Request volume and (optionally) seek interfaces
+    // Request volume and seek interfaces.  Seek is required so play() can always
+    // rewind to position 0 for replay (FD source stays at EOF after first play).
     const SLInterfaceID ids[]   = { SL_IID_VOLUME, SL_IID_SEEK };
-    const SLboolean     reqs[]  = { SL_BOOLEAN_TRUE, SL_BOOLEAN_FALSE };
+    const SLboolean     reqs[]  = { SL_BOOLEAN_TRUE, SL_BOOLEAN_TRUE  };
 
     auto* d = new OSLPlayer();
     d->asset = asset;
@@ -216,6 +233,7 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
         OPENSL_ERR("CreateAudioPlayer failed: %d", (int)r);
         AAsset_close(asset);
         delete d;
+        opensl_release_engine();
         return false;
     }
 
@@ -225,8 +243,11 @@ bool AUDIO::load(const char* filenameSound, const bool loop, const bool inMemory
         (*d->playerObj)->Destroy(d->playerObj);
         AAsset_close(asset);
         delete d;
+        opensl_release_engine();
         return false;
     }
+
+    ++g_playerCount;
 
     (*d->playerObj)->GetInterface(d->playerObj, SL_IID_PLAY,   &d->playIf);
     (*d->playerObj)->GetInterface(d->playerObj, SL_IID_VOLUME, &d->volumeIf);
@@ -246,10 +267,16 @@ bool AUDIO::play(const bool loop)
     if (!d || !d->playIf) return false;
     {
         std::lock_guard<std::mutex> lk(g_engineMutex);
-        if (d->seekIf)
+        // Stop and seek to 0 before (re)playing.  An AndroidFD-backed player leaves
+        // the file position at EOF after the first play; without this, a second
+        // play() call immediately re-hits EOF and produces silence.
+        (*d->playIf)->SetPlayState(d->playIf, SL_PLAYSTATE_STOPPED);
+        if (d->seekIf) {
+            (*d->seekIf)->SetPosition(d->seekIf, 0, SL_SEEKMODE_FAST);
             (*d->seekIf)->SetLoop(d->seekIf,
                                   loop ? SL_BOOLEAN_TRUE : SL_BOOLEAN_FALSE,
                                   0, SL_TIME_UNKNOWN);
+        }
         (*d->playIf)->SetPlayState(d->playIf, SL_PLAYSTATE_PLAYING);
         d->paused = false;
     }
