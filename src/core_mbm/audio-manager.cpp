@@ -22,6 +22,7 @@
 #include <scene.h>
 #include <core-manager.h>
 #include <util-interface.h>
+#include <algorithm>
 
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
     #if defined (USE_OPENGL_ES)
