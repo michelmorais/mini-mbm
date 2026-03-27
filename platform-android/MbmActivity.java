@@ -11,6 +11,7 @@ import android.app.NativeActivity;
 import android.os.Bundle;
 import android.os.Vibrator;
 import android.content.Context;
+import android.media.AudioManager;
 import android.view.View;
 import android.view.WindowManager;
 
@@ -37,6 +38,8 @@ public class MbmActivity extends NativeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Route hardware volume buttons to the media stream used by OpenSL ES.
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
         setImmersiveMode();
     }
 

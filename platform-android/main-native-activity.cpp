@@ -64,7 +64,7 @@ static bool s_windowReady    = false;
 // Multi-touch tracking: map pointer-id → stable integer finger index.
 // ---------------------------------------------------------------------------
 static std::map<int32_t, int> s_touchMap;
-static int                    s_nextTouchID = 0;
+static int                    s_nextTouchID = 1; // 1-based: primary finger = 1, matching VK_LBUTTON convention
 
 static int touchID(int32_t pointerId)
 {
@@ -80,7 +80,7 @@ static void releaseTouch(int32_t pointerId)
 {
     s_touchMap.erase(pointerId);
     if (s_touchMap.empty())
-        s_nextTouchID = 0;
+        s_nextTouchID = 1; // reset to 1 so next single touch is always key=1
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +162,9 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
     if (eventType == AINPUT_EVENT_TYPE_KEY)
     {
         const int32_t keyCode = AKeyEvent_getKeyCode(event);
+        // Let the system handle volume keys so the hardware buttons control media volume.
+        if (keyCode == AKEYCODE_VOLUME_UP || keyCode == AKEYCODE_VOLUME_DOWN)
+            return 0;
         const int32_t action  = AKeyEvent_getAction(event);
         if (action == AKEY_EVENT_ACTION_DOWN)
         {
@@ -341,7 +344,7 @@ void android_main(struct android_app* app)
     s_running     = false;
     s_windowReady = false;
     s_touchMap.clear();
-    s_nextTouchID = 0;
+    s_nextTouchID = 1;
 
     app->onAppCmd     = onAppCmd;
     app->onInputEvent = onInputEvent;
