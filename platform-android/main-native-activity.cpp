@@ -166,6 +166,14 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
         // Let the system handle volume keys so the hardware buttons control media volume.
         if (keyCode == AKEYCODE_VOLUME_UP || keyCode == AKEYCODE_VOLUME_DOWN)
             return 0;
+        // Back button → quit cleanly; consume the event so the system doesn't handle it.
+        if (keyCode == AKEYCODE_BACK)
+        {
+            const int32_t action = AKeyEvent_getAction(event);
+            if (action == AKEY_EVENT_ACTION_UP && s_game)
+                s_game->device->run = false;
+            return 1;
+        }
         const int32_t action  = AKeyEvent_getAction(event);
         if (action == AKEY_EVENT_ACTION_DOWN)
         {
