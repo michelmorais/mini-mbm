@@ -49,6 +49,21 @@ export NDK_ROOT=~/android-ndk-r29
 ```sh
 mkdir -p ~/tower-defense-android && cd ~/tower-defense-android
 
+# Using the dyanmic libc++_shared.so (copied to the folder of application)
+cmake ~/mini-mbm \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=opensl \
+    -DGAME_PACKAGE=com.mini.mbm.tower_defense \
+    -DGAME_NAME="Tower Defense" \
+    -DGAME_APP_DIR=~/tower-defense-android/android-studio \
+    -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
+
+# or with STL static
 cmake ~/mini-mbm \
     -DPLAT=Android \
     -DANDROID_ABI=arm64-v8a \
