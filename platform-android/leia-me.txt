@@ -1,3 +1,4 @@
+Esse tutorial está obsoleto, porem pode se entender como era no inicio. Melhor ler README.md no folder platform-android
 Como criar um projeto utilizando a lib mbm no Android?
 
 1 – Utilizando Android Studio versão 3.5.1

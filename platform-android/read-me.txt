@@ -1,3 +1,5 @@
+This tutorial is outdated, but you can still understand how it was in the beginning. It's best to read the README.md file in platform-android.
+
 Tutorial creating a project using the lib mbm Android.
 
 Here I will demonstrate how to create a project to run over android studio using the native lib mbm.
