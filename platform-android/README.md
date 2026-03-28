@@ -205,6 +205,206 @@ After opening the project (**File → Open → select the `android-studio/` fold
 
 ---
 
+## Alternative — build libraries with Make + manual Android Studio project
+
+Instead of letting Gradle drive the native build, you can compile the shared libraries
+yourself with `make` and copy them into a hand-crafted Android Studio project.  This is
+the traditional workflow and gives you full control over the build and project layout.
+
+### Step 1 — configure and build with CMake + Make
+
+```sh
+export NDK_ROOT=~/android-ndk-r29
+
+mkdir -p ~/my-game-android && cd ~/my-game-android
+
+cmake ~/mini-mbm \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=opensl
+
+make -j$(nproc)
+```
+
+> You can omit the `GAME_PACKAGE`, `GAME_NAME`, `GAME_APP_DIR` and `GAME_ASSETS_DIR`
+> flags — they are only used for the automatic Gradle project generation.
+
+When the build completes you will see a summary like this:
+
+```
+[100%] Built targets in ~/mini-mbm/bin/release/arm64-v8a:
+--- Shared libraries / executables ---
+total 16M
+-rwxr-xr-x 1 user user 8.9M libc++_shared.so
+-rwxr-xr-x 1 user user 2.2M libcore_mbm.so
+-rwxr-xr-x 1 user user 1.3M ImGui.so
+-rwxr-xr-x 1 user user 1.2M lsqlite3.so
+-rwxr-xr-x 1 user user 873K libmini-mbm.so
+-rwxr-xr-x 1 user user 585K box2dLiquidFun.so
+-rwxr-xr-x 1 user user 381K box2d.so
+-rwxr-xr-x 1 user user 324K liblua-5.4.1.so
+-rwxr-xr-x 1 user user 128K plugin_helper.so
+```
+
+> If you used `-DUSE_STL_STATIC=1`, `libc++_shared.so` will **not** appear (the STL
+> is linked statically into every library) and you do **not** need to copy it.
+
+The exact set of `.so` files depends on the flags you passed to CMake (e.g. `USE_ALL`,
+`USE_BOX2D`, `USE_IMGUI`, etc.).  All shared libraries that need to ship in the APK
+are placed in the output directory.
+
+### Step 2 — build for additional ABIs (optional)
+
+To support both 64-bit and 32-bit devices, repeat the build for each ABI in a
+**separate build directory**:
+
+```sh
+# arm64-v8a (already done above)
+mkdir -p ~/my-game-android/arm64 && cd ~/my-game-android/arm64
+cmake ~/mini-mbm -DPLAT=Android -DANDROID_ABI=arm64-v8a  ... && make -j$(nproc)
+
+# x86_64 (emulators)
+mkdir -p ~/my-game-android/x86_64 && cd ~/my-game-android/x86_64
+cmake ~/mini-mbm -DPLAT=Android -DANDROID_ABI=x86_64     ... && make -j$(nproc)
+```
+
+Each ABI produces its libraries under `bin/release/<ABI>/`.
+
+### Step 3 — create an Android Studio project
+
+1. Open **Android Studio → File → New → New Project**.
+2. Select **No Activity** (or **Empty Activity** — you will replace the activity class).
+3. Set the **minimum SDK** to **API 24** (Android 7.0 Nougat) or higher.
+4. Set the **language** to **Java** and finish creating the project.
+
+### Step 4 — add MbmActivity.java
+
+Copy the thin `NativeActivity` wrapper into your project's Java source tree.  The
+package path **must** be `com/mini/mbm/`:
+
+```sh
+# From the root of your Android Studio project
+mkdir -p app/src/main/java/com/mini/mbm
+cp ~/mini-mbm/platform-android/MbmActivity.java \
+   app/src/main/java/com/mini/mbm/
+```
+
+### Step 5 — copy the shared libraries into `jniLibs`
+
+Create the `jniLibs` folder under `app/src/main` and copy **all** `.so` files from
+the build output, preserving the ABI subfolder name:
+
+```sh
+# arm64-v8a
+mkdir -p app/src/main/jniLibs/arm64-v8a
+cp ~/mini-mbm/bin/release/arm64-v8a/*.so \
+   app/src/main/jniLibs/arm64-v8a/
+
+# x86_64 (if you built it)
+mkdir -p app/src/main/jniLibs/x86_64
+cp ~/mini-mbm/bin/release/x86_64/*.so \
+   app/src/main/jniLibs/x86_64/
+```
+
+> **Important:** The ABI folder name (`arm64-v8a`, `x86_64`, etc.) must match exactly.
+> Android loads native libraries from `jniLibs/<ABI>/` at runtime.
+>
+> If you did **not** use `-DUSE_STL_STATIC=1`, make sure `libc++_shared.so` is included
+> — without it the app will crash immediately with an `UnsatisfiedLinkError`.
+
+### Step 6 — add your game assets
+
+Create the `assets` folder and copy your game files (Lua scripts, textures, audio, etc.):
+
+```sh
+mkdir -p app/src/main/assets
+cp -r ~/my-game/assets/* app/src/main/assets/
+```
+
+The engine reads files from this folder at runtime via the Android `AAssetManager` API.
+At minimum, a Lua-based game needs `main.lua` in the assets root.
+
+### Step 7 — configure AndroidManifest.xml
+
+Replace the generated `AndroidManifest.xml` with one that declares `MbmActivity` as a
+`NativeActivity`.  Use the engine's template as reference:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:hasCode="true"
+        android:icon="@mipmap/ic_launcher">
+
+        <activity
+            android:name="com.mini.mbm.MbmActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="true">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="mini-mbm" />
+
+            <intent-filter>
+                <action   android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+```
+
+> The `android:value` in the `meta-data` tag must match the library name **without** the
+> `lib` prefix and `.so` suffix.  For example, if your main library is `libmini-mbm.so`,
+> the value is `mini-mbm`.
+
+### Step 8 — remove externalNativeBuild from build.gradle
+
+Since you are providing pre-built `.so` files, your `app/build.gradle` must **not**
+contain an `externalNativeBuild` block.  If Android Studio generated one, delete it.
+Make sure the `android` block includes the `jniLibs` source set:
+
+```groovy
+android {
+    // ...
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+}
+```
+
+### Step 9 — build and run
+
+Connect a device (or start an emulator) and click **▶ Run** in Android Studio, or build
+from the command line:
+
+```sh
+cd ~/MyGame
+./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.example.mygame/com.mini.mbm.MbmActivity
+```
+
+### When to rebuild and re-copy
+
+You only need to re-copy the `.so` files when:
+- You change engine source code or CMake flags and rebuild with `make`.
+- You update the NDK version.
+
+Asset changes (Lua scripts, textures, audio) only require re-copying to `assets/` and
+rebuilding the APK — no native recompilation needed.
+
+---
+
 ## Assets folder
 
 The assets live **outside** the generated project folder, at the path you passed to `-DGAME_ASSETS_DIR`.  They flow through the build in three stages:
