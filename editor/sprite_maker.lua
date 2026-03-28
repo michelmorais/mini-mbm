@@ -3667,7 +3667,7 @@ function onSaveSpriteBinary()
 end
 
 function onTouchDown(key,x,y)
-    isClickedMouseLeft = key == 1
+    isClickedMouseLeft = key == 0
     camera2d.mx = x
     camera2d.my = y
     if tPivotShape.visible and tPivotShape:isOver(x,y) then

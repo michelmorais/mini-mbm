@@ -2460,7 +2460,7 @@ function onTouchDown(key,x,y)
         tMovingObjectMap.mx = x
         tMovingObjectMap.my = y
     elseif not tImGui.IsAnyWindowHovered() then
-        isClickedMouseLeft = (key == 1)
+        isClickedMouseLeft = (key == 0)
         camera2d.mx = x
         camera2d.my = y
         tClicked = {x = x, y = y}

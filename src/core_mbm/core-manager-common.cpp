@@ -46,12 +46,12 @@ namespace mbm
 
     int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
     {
-        static int loopCallCount = 0;
-        loopCallCount++;
-        if (loopCallCount <= 3)
-            INFO_LOG("CORE_MANAGER::loop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
-                     loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
-                     device ? (void*)device->scene : nullptr);
+        //static int loopCallCount = 0;
+        //loopCallCount++;
+        //if (loopCallCount <= 3)
+        //    INFO_LOG("CORE_MANAGER::loop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
+        //             loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
+        //             device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
         if (!this->loopVariablesInitialized)
@@ -61,7 +61,6 @@ namespace mbm
             if (!this->device->cfg.parserCFGFromResource())
             {
                 ERROR_LOG("CORE_MANAGER::loop() parserCFGFromResource FAILED");
-                PRINT_IF_DEBUG("\nerror on Parse CFG from resource.");
                 return -1;
             }
             this->device->cfg.sortShader();
@@ -274,9 +273,9 @@ namespace mbm
                     break;
                 }
             }
-            if (loopCallCount <= 3)
-                INFO_LOG("CORE_MANAGER::loop() about to update/render (frame %d) changeScene=%d swapStep=%d",
-                         loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
+            //if (loopCallCount <= 3)
+            //    INFO_LOG("CORE_MANAGER::loop() about to update/render (frame %d) changeScene=%d swapStep=%d",
+            //             loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done

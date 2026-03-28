@@ -65,7 +65,7 @@ static bool s_isRestoring    = false; // true while onLostDevice steps are in pr
 // Multi-touch tracking: map pointer-id → stable integer finger index.
 // ---------------------------------------------------------------------------
 static std::map<int32_t, int> s_touchMap;
-static int                    s_nextTouchID = 1; // 1-based: primary finger = 1, matching VK_LBUTTON convention
+static int                    s_nextTouchID = 0; // 0-based: primary finger = 0, matching desktop convention (0=left, 1=right, 2=middle)
 
 static int touchID(int32_t pointerId)
 {
@@ -81,7 +81,7 @@ static void releaseTouch(int32_t pointerId)
 {
     s_touchMap.erase(pointerId);
     if (s_touchMap.empty())
-        s_nextTouchID = 1; // reset to 1 so next single touch is always key=1
+        s_nextTouchID = 0; // reset to 0 so next single touch is always key=0
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ void android_main(struct android_app* app)
     s_windowReady = false;
     s_isRestoring = false;
     s_touchMap.clear();
-    s_nextTouchID = 1;
+    s_nextTouchID = 0;
 
     app->onAppCmd     = onAppCmd;
     app->onInputEvent = onInputEvent;

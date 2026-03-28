@@ -945,7 +945,7 @@ function onTouchDown(key,x,y)
     if cCoroutineLoadScene then return end
     local anyObj           = false
     local anyWindowHovered = tWindowsArea:IsAnyWindowHovered(x,y)
-    isClickedMouseLeft     = key == 1 and not anyWindowHovered
+    isClickedMouseLeft     = key == 0 and not anyWindowHovered
     camera2d.mx            = x
     camera2d.my            = y
     bEnableMoveWorld       = true
@@ -988,7 +988,7 @@ function onTouchMove(key,x,y)
             camera2d.my = y
             camera2d:setPos(camera2d.x + px,camera2d.y - py)
         end
-    elseif key == 1 then
+    elseif key == 0 then
         local mx,my = mbm.to2dw(x,y)
         if bClickedOverAnyMesh then
             bMovingAnyMesh = true
@@ -1024,7 +1024,7 @@ end
 
 function onTouchUp(key,x,y)
     if cCoroutineLoadScene then return end
-    if key == 1 and isClickedMouseLeft and bEnableMoveWorld == false then
+    if key == 0 and isClickedMouseLeft and bEnableMoveWorld == false then
         if not bMovingAnyMesh and bClickedOverAnyMesh then
             for i=1, #tSelectedObjs do
                 local tObj = tSelectedObjs[i]
@@ -2152,7 +2152,7 @@ tLogicScene.onInitScene = function(self)
 end
 
 tLogicScene.onTouchDown = function(self,key,x,y)
-    isClickedMouseLeft = key == 1
+    isClickedMouseLeft = key == 0
     camera2d.mx = x
     camera2d.my = y
 end

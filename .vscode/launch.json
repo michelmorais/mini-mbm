@@ -17,7 +17,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/bin/debug/linux_x86/mini-mbm",
-      "args": [],
+      "args": ["/home/michel/tower-defense/main.lua", "-w", "1920", "-h", "1080", "-ew", "1920", "-eh", "1080"],
       "cwd": "${workspaceFolder}/bin/debug/linux_x86",
       "stopAtEntry": false,
       "preLaunchTask": "Build mini-mbm (Linux Debug)",

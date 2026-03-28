@@ -527,7 +527,7 @@ end
 
 function onTouchDown(key,x,y)
     if not tImGui.IsAnyWindowHovered() then
-        isClickedMouseleft = key == 1
+        isClickedMouseleft = key == 0
         camera2d.mx = x
         camera2d.my = y
     end
