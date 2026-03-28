@@ -222,11 +222,11 @@ else()
         set(CMAKE_ANDROID_NDK           ${NDK_ROOT})
 
         if(USE_STL_STATIC)
-            set(CMAKE_ANDROID_STL_TYPE      c++_static)#c++_shared (CMAKE_ANDROID_STL_TYPE does not work!!!)
-            set(ANDROID_STL                 c++_static)#c++_shared
+            set(CMAKE_ANDROID_STL_TYPE  c++_static CACHE STRING "" FORCE)
+            set(ANDROID_STL             c++_static CACHE STRING "" FORCE)
         else()
-            set(CMAKE_ANDROID_STL_TYPE      c++_shared)#gnustl_static (CMAKE_ANDROID_STL_TYPE does not work!!!)
-            set(ANDROID_STL                 c++_shared)#gnustl_static
+            set(CMAKE_ANDROID_STL_TYPE  c++_shared CACHE STRING "" FORCE)
+            set(ANDROID_STL             c++_shared CACHE STRING "" FORCE)
         endif()
         
         set(APP_OPTIM                   release)
@@ -780,6 +780,12 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         endif()
         if(USE_STL_STATIC)
             string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_STL_STATIC=1\"")
+        else()
+            # When not using static STL, explicitly tell the NDK toolchain to
+            # use c++_shared.  Without this, the toolchain defaults to c++_static
+            # (a cache variable that overrides the normal set() in this file),
+            # and libc++_shared.so never gets copied/packaged into the APK.
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DANDROID_STL=c++_shared\"")
         endif()
         set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
 
