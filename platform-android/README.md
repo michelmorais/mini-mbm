@@ -213,6 +213,10 @@ the traditional workflow and gives you full control over the build and project l
 
 ### Step 1 — configure and build with CMake + Make
 
+The manual workflow supports both **Lua** and **pure C++** game modes.
+
+#### Lua mode (recommended for scripted games)
+
 ```sh
 export NDK_ROOT=~/android-ndk-r29
 
@@ -229,6 +233,34 @@ cmake ~/mini-mbm \
 
 make -j$(nproc)
 ```
+
+In Lua mode the engine loads `main.lua` from the assets folder at runtime.  Your game
+logic lives entirely in Lua scripts.
+
+#### Pure C++ mode
+
+```sh
+export NDK_ROOT=~/android-ndk-r29
+
+mkdir -p ~/my-game-android && cd ~/my-game-android
+
+cmake ~/mini-mbm \
+    -DPLAT=Android \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_NATIVE_API_LEVEL=24 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=opensl
+
+make -j$(nproc)
+```
+
+Without `-DUSE_LUA=1`, the engine compiles `platform-android/my-scene.cpp` into the
+library instead of the Lua wrapper.  Your game logic goes in `MY_SCENE::init()` and
+`MY_SCENE::update()` — edit `my-scene.h` / `my-scene.cpp` before building.
+
+> In both modes the output library is `libmini-mbm.so` and the rest of the steps below
+> are identical.
 
 > You can omit the `GAME_PACKAGE`, `GAME_NAME`, `GAME_APP_DIR` and `GAME_ASSETS_DIR`
 > flags — they are only used for the automatic Gradle project generation.
