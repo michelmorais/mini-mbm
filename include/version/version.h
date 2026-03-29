@@ -65,8 +65,9 @@
     5.0   Include Directx 9 backend support. Refactoried core-manager-opengl_es to core-manager-renderer with support to Directx9 and Opengl-ES and future renderers.
     5.1   Updated IM-GUI version to 1.92.6
     5.2   Introduced MacOs support
+    5.3   Modernized Android Project, Added native Activity,removed old Java wrapper for AUDIO jni, added support to generate project on Android Studio using cmake
 */
-#define MBM_VERSION "5.2" // MBM_VERSION must be in format X.Y"
+#define MBM_VERSION "5.3" // MBM_VERSION must be in format X.Y"
 #endif
 
 #endif
