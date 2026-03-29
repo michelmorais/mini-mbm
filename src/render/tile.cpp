@@ -247,7 +247,7 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 if (anim->fx.shader.render(&this->backGroundMap) == false)
                 {
-					device->enableFilteringAfterPixelPerfect();
+                    device->enableFilteringAfterPixelPerfect();
                     return false;
                 }
             }
@@ -279,6 +279,7 @@ namespace mbm
         VEC3 renderPos(position.x, position.y, z_value);
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
 
         anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.shader.update();
@@ -308,6 +309,7 @@ namespace mbm
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
+
         if(ptr_TileInfo->map.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
         {
             if(render_left_to_right)
@@ -318,17 +320,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -338,17 +343,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -361,17 +369,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -381,17 +392,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -407,17 +421,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -427,17 +444,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -450,17 +470,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -470,22 +493,26 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
             }
         }
+        device->enableFilteringAfterPixelPerfect();
         return true;
     }
 
@@ -507,8 +534,10 @@ namespace mbm
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
-            if (this->mesh->render(bTileIndex->index, shader,idTextureOverrideStage2) == false)
+            if (this->mesh->render(bTileIndex->index, shader, idTextureOverrideStage2) == false)
+            {
                 return false;
+            }
         }
         return true;
     }
