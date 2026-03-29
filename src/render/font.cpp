@@ -812,7 +812,7 @@ namespace mbm
     {
         std::string ret;
         bool insideSpecialLetter = false;
-        const unsigned int s = text.size();
+        const unsigned int s = static_cast<unsigned int>(text.size());
         for (unsigned int i = 0; i < s; i++)
         {
             auto index = static_cast<unsigned char>(text[i]);

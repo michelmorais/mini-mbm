@@ -114,7 +114,7 @@ namespace mbm
         */
         TEXT_DRAW * draw = getTextDrawFromRawTable(lua, 1, 1);
         const char *what = luaL_checkstring(lua, 2);
-        const int   len  = strlen(what);
+        const int   len  = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:
@@ -221,7 +221,7 @@ namespace mbm
         */
         TEXT_DRAW * draw = getTextDrawFromRawTable(lua, 1, 1);
         const char *what = luaL_checkstring(lua, 2);
-        const int   len  = strlen(what);
+        const int   len  = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:

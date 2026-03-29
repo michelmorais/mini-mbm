@@ -43,7 +43,7 @@ namespace mbm
     void getTypeWordRenderizableLua(lua_State * lua, const int index, bool & is2dw, bool & is2ds, bool & is3d)
     {
         const char *type = luaL_checkstring(lua, index);
-        const int len = strlen(type);
+        const int len = static_cast<int>(strlen(type));
         switch (len)
         {
             case 0:
@@ -813,7 +813,7 @@ namespace mbm
         */
         RENDERIZABLE *ptr  = getRenderizableFromRawTable(lua, 1, 1);
         const char *       what = luaL_checkstring(lua, 2);
-        const int          len  = strlen(what);
+        const int          len  = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:
@@ -905,7 +905,7 @@ namespace mbm
         */
         RENDERIZABLE *ptr  = getRenderizableFromRawTable(lua, 1, 1);
         const char *       what = luaL_checkstring(lua, 2);
-        const int          len  = strlen(what);
+        const int          len  = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:

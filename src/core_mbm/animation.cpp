@@ -1391,7 +1391,7 @@ namespace mbm
             for (std::vector<ANIMATION_STATE>::size_type i = 0; i < this->lsAnimationState.size(); ++i)
             {
                 const ANIMATION_STATE& state = this->lsAnimationState[i];
-                mbm::ANIMATION* anim = animationManager->getAnimation(i);
+                mbm::ANIMATION* anim = animationManager->getAnimation(static_cast<uint32_t>(i));
                 if (anim == nullptr)
                 {
                     anim = animationManager->getAnimation(animationManager->addAnimation());

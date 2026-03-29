@@ -625,7 +625,7 @@ namespace mbm
 
     unsigned int TILE::getTotalLayer()const
     {
-        return lsVisible.size(); //we can trust on it
+        return static_cast<unsigned int>(lsVisible.size()); //we can trust on it
     }
 
     uint16_t TILE::getTileID(const float x, const float y,const uint32_t index_layer,uint16_t * brick_ID_found) const

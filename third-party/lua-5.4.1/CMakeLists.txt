@@ -35,10 +35,17 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
   if(CMAKE_GENERATOR STREQUAL "Xcode")
     set_target_properties(lua-${LUA_LIB_VERSION} PROPERTIES
         XCODE_ATTRIBUTE_INFOPLIST_FILE ""
-        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO
+        XCODE_ATTRIBUTE_OTHER_LIBTOOLFLAGS "-no_warning_for_no_symbols")
   endif()
 else()
   add_library(lua-${LUA_LIB_VERSION} SHARED ${SOURCES})
+endif()
+
+# Suppress -Wshorten-64-to-32 in Lua sources — third-party code we don't patch.
+if(APPLE)
+  set_source_files_properties(${SOURCES} PROPERTIES
+      COMPILE_FLAGS "-Wno-shorten-64-to-32")
 endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")

@@ -55,6 +55,16 @@ file(GLOB_RECURSE MINI_Z_SOURCES            "${MINIZ_DIR}/*.c")
 file(GLOB_RECURSE STB_SOURCES               "${STB_DIR}/*.c")
 file(GLOB_RECURSE LODE_PNG_SOURCES          "${LODE_PNG_DIR}/*.cpp")
 
+# Suppress warnings in third-party sources that we don't own and don't want to patch.
+if(APPLE)
+    set_source_files_properties(${LODE_PNG_SOURCES} PROPERTIES
+        COMPILE_FLAGS "-Wno-shorten-64-to-32")
+    set_source_files_properties(${MINI_Z_SOURCES} PROPERTIES
+        COMPILE_FLAGS "-Wno-#warnings")
+    set_source_files_properties(${STB_SOURCES} PROPERTIES
+        COMPILE_FLAGS "-Wno-tautological-pointer-compare")
+endif()
+
 if (${AUDIO} STREQUAL "audiere")
     add_definitions(-DAUDIO_ENGINE_AUDIERE)
 elseif (${AUDIO} STREQUAL "portaudio")
@@ -198,7 +208,8 @@ add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
 if(PLAT_LOWER STREQUAL "ios" AND CMAKE_GENERATOR STREQUAL "Xcode")
     set_target_properties(core_mbm PROPERTIES
         XCODE_ATTRIBUTE_INFOPLIST_FILE ""
-        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO)
+        XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO
+        XCODE_ATTRIBUTE_OTHER_LIBTOOLFLAGS "-no_warning_for_no_symbols")
 endif()
 
 if(MBM_ENABLE_MESH_LEGACY_V7)

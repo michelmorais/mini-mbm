@@ -225,7 +225,7 @@ namespace mbm
         this->fileName = colorAsString;
         COLOR color;
         colorAsString++;
-        int len = strlen(colorAsString);
+        int len = static_cast<int>(strlen(colorAsString));
         if (len == 8)
         {
             char alpha[3] = {0,0,0};
@@ -233,13 +233,13 @@ namespace mbm
             colorAsString++;
             alpha[1] = *colorAsString;
             colorAsString++;
-            const int n = strtol(colorAsString,nullptr, 16);
+            const int n = static_cast<int>(strtol(colorAsString,nullptr, 16));
             color = COLOR(n);
             color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
         }
         else if (len == 6)
         {
-            const int n = strtol(colorAsString, nullptr, 16);
+            const int n = static_cast<int>(strtol(colorAsString, nullptr, 16));
             color = COLOR(n);
             color.a = 1.0f;
         }
@@ -614,7 +614,7 @@ namespace mbm
             do
             {
                 infoGif.fileNames.push_back(nextNameGif);
-                const uint32_t len  = nextNameGif.size();
+                const uint32_t len  = static_cast<uint32_t>(nextNameGif.size());
                 const int16_t mydelay = len == (texture->fileName.size() - 3) ?  * reinterpret_cast<int16_t*>(&texture->fileName[len+1]) : 1;
                 float fdelay = static_cast<float>(mydelay) * 0.01f;
                 infoGif.interval.push_back(fdelay);
@@ -626,7 +626,7 @@ namespace mbm
                 ++i;
             }while(texture);
             
-            infoGif.totalFrames = infoGif.fileNames.size();
+            infoGif.totalFrames = static_cast<uint32_t>(infoGif.fileNames.size());
             return infoGif.totalFrames > 0;
         }
         int w = 0;
@@ -657,7 +657,7 @@ namespace mbm
                     newNameGif += fileNameBase;
 
                     texture->fileName = newNameGif;
-                    const int len = texture->fileName.size();
+                    const int len = static_cast<int>(texture->fileName.size());
                     texture->fileName += "   ";
                     texture->fileName[len+1] = img[start+size];
                     texture->fileName[len+2] = img[start+size+1];
@@ -677,7 +677,7 @@ namespace mbm
             }
         }
         free(img);
-        infoGif.totalFrames = infoGif.fileNames.size();
+        infoGif.totalFrames = static_cast<uint32_t>(infoGif.fileNames.size());
         return infoGif.totalFrames > 0;
     }
     

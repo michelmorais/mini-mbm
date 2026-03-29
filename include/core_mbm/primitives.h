@@ -327,7 +327,7 @@ struct API_IMPL COLOR
         COLOR color(0.0f, 0.0f, 0.0f, 0.0f);
         if (stringAsColor == nullptr)
             return color;
-        int len = strlen(stringAsColor);
+        int len = static_cast<int>(strlen(stringAsColor));
         if ((len == 9 && stringAsColor[0] == '#') || (len == 7 && stringAsColor[0] == '#'))
         {
             len = len - 1;
@@ -341,13 +341,13 @@ struct API_IMPL COLOR
             stringAsColor++;
             alpha[1] = *stringAsColor;
             stringAsColor++;
-            const int n = strtol(stringAsColor, nullptr, 16);
+            const int n = static_cast<int>(strtol(stringAsColor, nullptr, 16));
             color       = COLOR(n);
             color.a     = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
         }
         else if (len == 6)
         {
-            const int n = strtol(stringAsColor, nullptr, 16);
+            const int n = static_cast<int>(strtol(stringAsColor, nullptr, 16));
             color       = COLOR(n);
             color.a     = 1.0f;
         }

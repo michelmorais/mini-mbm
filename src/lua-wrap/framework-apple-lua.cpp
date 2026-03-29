@@ -244,7 +244,7 @@ namespace mbm
     // core-manager-metal-macos.mm.
     int getKeyCode(const char *key)
     {
-        const int len = strlen(key);
+        const int len = static_cast<int>(strlen(key));
         if (len == 1)
         {
             switch (key[0])
