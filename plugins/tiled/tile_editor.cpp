@@ -2228,11 +2228,15 @@ namespace mbm
                     tileMap.layers.emplace_back(layer);
                 }
 
-                // Always synthesize z from layer index — repairs old files where z was
-                // incorrectly saved as 0 due to a bug in a previous loadBinary version.
+                // For old files where offset[2] was never written (stored as 0),
+                // synthesize a safe default from the layer index. If a non-zero value
+                // was read from the file, it is a user-defined z and must be kept.
                 for (size_t i = 0; i < tileMap.layers.size(); i++)
                 {
-                    tileMap.layers[i]->offset.z = static_cast<float>(i + 1) * z_offset_interval;
+                    if(tileMap.layers[i]->offset.z == 0.0f)
+                    {
+                        tileMap.layers[i]->offset.z = static_cast<float>(i + 1) * z_offset_interval;
+                    }
                 }
 
                 auto addToRightPlace = [] (DYNAMIC_VAR* var, TILED_MAP & tileMap, const std::string & name,const std::string & owner) -> void

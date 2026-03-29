@@ -271,9 +271,12 @@ namespace mbm
             return false;
         }
         const util::BTILE_LAYER* layer = & ptr_TileInfo->layers[index_layer];
-        position.z                     = z_value;
         const float offset_x           = layer->offset[0] * scale.x;
         const float offset_y           = layer->offset[1] * scale.y;
+
+        // Build a local position carrying z_value so the parent's position.z is
+        // never mutated — that would corrupt the sort key for the next frame.
+        VEC3 renderPos(position.x, position.y, z_value);
 
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
 
@@ -283,24 +286,24 @@ namespace mbm
         anim->fx.setBlendOp();
 
         TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
-        VEC3 thePosBrick(this->position);
+        VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
         if (this->is3D)
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &this->scale);
             matrixPerspective = &device->camera.matrixPerspective;
         }
         else if(this->is2dS)
         {
             thePosBrick = VEC3(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                                    this->position.y * device->camera.scaleScreen2d.y, z_value);
             device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
             matrixPerspective = &device->camera.matrixPerspective2d;
         }
         else
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &scale);
             matrixPerspective = &device->camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
@@ -995,8 +998,6 @@ namespace mbm
 
     bool TILE_LAYER::render()
     {
-        // Sync the parent's z so renderLayer builds the correct MVP matrix.
-        ptr_tileMap->position.z = this->position.z;
         return ptr_tileMap->renderLayer(indexLayer, this->position.z);
     }
 
