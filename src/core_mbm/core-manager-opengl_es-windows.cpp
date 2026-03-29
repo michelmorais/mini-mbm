@@ -100,7 +100,6 @@ namespace mbm
         }
         device->specificContextDevice->window.setMinSizeAllowed(800,600);
         device->specificContextDevice->window.askOnExit = false;
-        device->specificContextDevice->window.exitOnEsc = false;
         HWND mNativeWindow = device->specificContextDevice->window.getHwnd();
         RECT rect;
         if (!GetClientRect(mNativeWindow, &rect))
