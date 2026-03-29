@@ -923,12 +923,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {
@@ -963,12 +968,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {
@@ -1003,12 +1013,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {

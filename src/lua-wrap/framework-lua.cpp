@@ -677,6 +677,14 @@ namespace mbm
                 lua_pushboolean(lua, 0);
     #endif
             }
+            else if (strcasecmp(what, "debug") == 0)
+            {
+    #if defined DEBUG || defined _DEBUG
+                lua_pushboolean(lua, 1);
+    #else
+                lua_pushboolean(lua, 0);
+    #endif
+            }
             else
             {
                 lua_pushboolean(lua, 0);
@@ -822,6 +830,14 @@ namespace mbm
             else if (strcasecmp(what, "backend_engine") == 0 || strcasecmp(what, "engine") == 0)
             {
                 lua_pushstring(lua, device->getBackendEngineName());
+            }
+            else if (strcasecmp(what, "debug") == 0)
+            {
+    #if defined DEBUG || defined _DEBUG
+                lua_pushboolean(lua, 1);
+    #else
+                lua_pushboolean(lua, 0);
+    #endif
             }
             else
             {
@@ -2511,9 +2527,6 @@ namespace mbm
         lua_settop(lua,0);
 
         luaL_Reg regMbmFrameworkMethods[] = {
-    #if defined USE_DX
-            {"addText", onNewFontDxLua},
-    #endif
             {"loadScene", OnNewScene},
             {"getRealSizeScreen", onGetRealSizeBackBuffer},
             {"getDisplayMetrics", onGetDisplayMetrics},
@@ -2585,7 +2598,7 @@ namespace mbm
             
     #if !defined(ANDROID) && !defined(MBM_PLATFORM_IOS)
             {"executeInThread", onExecuteInOtherThread},
-            #endif
+    #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
