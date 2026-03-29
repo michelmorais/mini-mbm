@@ -1018,7 +1018,7 @@ function main_menu_particle()
 end
 
 function onTouchDown(key,x,y)
-    isClickedMouseLeft = key == 1
+    isClickedMouseLeft = key == 0
     camera2d.mx = x
     camera2d.my = y
     

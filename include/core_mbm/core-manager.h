@@ -273,8 +273,10 @@ namespace mbm
         bool keyCapsLockState;
         bool windowBorder;
         bool enableResizeWindow;
+        STEP_RETORE getStepRestore() const noexcept { return stepRestore; }
       private:
         bool                                    wasGamePausedBeforeOnStop;
+        bool                                    loopVariablesInitialized;
         std::map<int, bool>                     __keyPressed;
         std::list<EVENT_KEY>                    lsEvents;
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;

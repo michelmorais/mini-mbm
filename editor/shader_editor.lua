@@ -1037,8 +1037,8 @@ end
 
 function onTouchDown(key,x,y)
     local not_anyWindowHovered =  not tImGui.IsAnyWindowHovered()
-    isClickedMouseleft  = not_anyWindowHovered and  key == 1
-    isClickedMouseRight = not_anyWindowHovered and  key == 2
+    isClickedMouseleft  = not_anyWindowHovered and  key == 0
+    isClickedMouseRight = not_anyWindowHovered and  key == 1
     camera2d.mx = x
     camera2d.my = y
 

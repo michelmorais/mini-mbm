@@ -545,9 +545,6 @@
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
       <Filter>Source Files\audio</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-jni-android.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>

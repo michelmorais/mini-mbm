@@ -278,7 +278,6 @@
     <ClCompile Include="..\..\include\plusWindows\defaultThemePlusWindows.cpp" />
     <ClCompile Include="..\..\include\plusWindows\plusWindows.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp" />
-    <ClCompile Include="..\..\src\core_mbm\audio-jni-android.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-none.cpp" />
     <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp" />

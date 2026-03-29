@@ -249,7 +249,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
@@ -386,7 +386,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
 | Windows | Audiere | `-DAUDIO=audiere` |
-| Android | JNI (SoundPool) | `-DAUDIO=jni` |
+| Android | OpenSL ES | `-DAUDIO=opensl` |
 | All | None (silent) | `-DAUDIO=none` |
 
 ### Supported File Formats by Platform
@@ -756,41 +756,70 @@ msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /m /v:minimal
 
 ### Android (CMake + NDK)
 
-Ensure `NDK_ROOT` points to your Android NDK installation.
+Ensure `NDK_ROOT` points to your Android NDK installation before invoking CMake.
 
 ```bash
-# arm64-v8a
-mkdir build-android && cd build-android
-cmake .. \
+export NDK_ROOT=~/android-ndk-r29
+```
+
+CMake **generates a complete Android Studio project** (Gradle files, `AndroidManifest.xml`,
+`local.properties`, Gradle wrapper) in `<build_dir>/android-studio/` — no manual Android
+Studio project setup required.
+
+```bash
+mkdir -p build/android_arm64 && cd build/android_arm64
+cmake ../.. \
   -DPLAT=Android \
   -DANDROID_ABI=arm64-v8a \
   -DANDROID_NATIVE_API_LEVEL=24 \
   -DCMAKE_BUILD_TYPE=Release \
-  -DUSE_ALL=1
-make -j$(nproc)
-
-# armeabi-v7a
-cmake .. \
-  -DPLAT=Android \
-  -DANDROID_ABI=armeabi-v7a \
-  -DANDROID_NATIVE_API_LEVEL=24 \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DUSE_ALL=1
-make -j$(nproc)
+  -DUSE_LUA=1 \
+  -DUSE_ALL=1 \
+  -DMBM_ENABLE_MESH_LEGACY_V7=1
 ```
 
-**Deployment to an Android Studio project:**
-1. Create an Android Studio project (min SDK API 16+)
-2. Copy Java classes from `platform-android/com/mini/mbm/` to your project
-3. Copy built `.so` files into `app/src/main/jniLibs/<abi>/`
-4. Create `app/src/main/assets/` for Lua scripts and game resources
-5. Extend `MainJniEngine` in your Activity class
-6. Configure `AndroidManifest.xml` per the example in `platform-android/`
+CMake prints the project location at the end of configure — open it in Android Studio or
+build from the command line:
 
-**Android-specific flags:**
+```bash
+cd build/android_arm64/android-studio
+./gradlew assembleDebug          # debug APK
+./gradlew assembleRelease        # release APK (requires signing config)
+```
+
+**Per-game identity** (override defaults with `-D` flags):
+
+| Variable | Default | Description |
+|---|---|---|
+| `GAME_PACKAGE` | `com.mini.mbm.game` | Java application ID |
+| `GAME_NAME` | `mini-mbm` | App display name |
+| `GRADLE_VERSION` | `8.7` | Gradle wrapper version |
+| `GRADLE_ABI_FILTERS` | `"arm64-v8a", "x86_64"` | NDK ABI filters (Groovy list) |
+| `GAME_APP_DIR` | `<build>/android-studio` | Output folder for the Gradle project |
+| `GAME_ASSETS_DIR` | _(empty)_ | Absolute path to your game's assets folder — included in the APK |
+| `ANDROID_SDK_ROOT` | `$ANDROID_HOME` | Path written into `local.properties` |
+
+Example for a separate game project:
+
+```bash
+cmake ~/mini-mbm \
+  -DPLAT=Android \
+  -DANDROID_ABI=arm64-v8a -DANDROID_NATIVE_API_LEVEL=24 \
+  -DUSE_LUA=1 -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+  -DGAME_PACKAGE=com.example.tower_defense \
+  -DGAME_NAME="Tower Defense" \
+  -DGAME_APP_DIR=~/tower-defense-android \
+  -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
+```
+
+**Audio options:**
+- `-DAUDIO=opensl` — NDK OpenSL ES, pure C++ (API ≥ 21, **recommended**)
+- `-DAUDIO=none` — silent (no audio dependency)
+
+**Other Android-specific flags:**
 - `-DUSE_STL_STATIC=1` — link `c++_static` instead of `c++_shared`
 - VR is disabled by default on Android
-- Audio defaults to JNI
+- See [platform-android/README.md](platform-android/README.md) for full architecture notes
 
 ### macOS (CMake)
 
@@ -902,7 +931,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
 | `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
-| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `jni` (Android), or `none` |
+| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `opensl` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 
 > On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
@@ -949,7 +978,7 @@ mini-mbm/
 ├── third-party/                # Third-party libraries (see below)
 ├── platform-linux/             # Linux entry points (main.cpp, main-lua.cpp)
 ├── platform-msvs/              # Windows Visual Studio solution
-├── platform-android/           # Android JNI entry point + Java classes
+├── platform-android/           # Android NativeActivity entry point + Java helper
 ├── platform-macos/             # macOS entry points
 ├── modules/                    # Additional modules (obj importer, test)
 ├── CMakeLists.txt              # Root CMake build file
@@ -1158,7 +1187,7 @@ int main() {
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
-| **Áudio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
+| **Áudio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Plataformas** | Windows, Linux, macOS, Android |
@@ -1243,7 +1272,7 @@ O motor utiliza seus próprios formatos binários otimizados para assets de jogo
 | **Vulkan** | — | 🚧 Planejado | `-DUSE_VULKAN=1` |
 | **Metal** | macOS, iOS | ✅ Estável | `-DUSE_METAL=1` |
 
-O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e JNI (Android).
+O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e NativeActivity (Android).
 
 ---
 

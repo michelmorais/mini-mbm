@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,22 +17,48 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#include <audio-interface.h>
+#ifndef MY_SCENE_ANDROID_H
+#define MY_SCENE_ANDROID_H
 
-namespace mbm
+#include <core_mbm/scene.h>
+#include <render/texture-view.h>
+#include <core_mbm/core-manager.h>
+
+
+class MY_SCENE : public mbm::SCENE
 {
-    AUDIO_INTERFACE::AUDIO_INTERFACE(const int _idScene) noexcept:
-    idScene(_idScene),
-    state(AUDIO_STOPPED),
-	userData(nullptr),
-	bPersistent(true)
-    {}
+public:
+    mbm::TEXTURE_VIEW* texBox;
+    MY_SCENE();
+    virtual ~MY_SCENE();
+    void init();
+    void logic();
+    void startLoading() {}
+    void endLoading()   {}
+    const char* getSceneName() noexcept { return "my-scene-android"; }
 
-	AUDIO_INTERFACE::~AUDIO_INTERFACE()
-	= default;
+    void onTouchDown(int key, float x, float y);
+    void onTouchUp(int key, float x, float y);
+    void onTouchMove(int key, float x, float y);
+    void onTouchZoom(float zoom);
+    void onFinalizeScene();
+    void onKeyDown(int key);
+    void onKeyUp(int key);
+    void onKeyDownJoystick(int player, int key);
+    void onKeyUpJoystick(int player, int key);
+    void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+    void onInfoDeviceJoystick(int player, int maxNumberButton,
+                              const char* strDeviceName, const char* extraInfo);
+    void onResizeWindow();
+};
 
-	bool AUDIO_INTERFACE::isPersist()const noexcept
-	{
-		return bPersistent;
-	}
-}
+class MY_GAME : public mbm::CORE_MANAGER
+{
+public:
+    MY_SCENE myScene;
+    bool existScene(const int idScene) override;
+    MY_GAME();
+    virtual ~MY_GAME();
+};
+
+#endif

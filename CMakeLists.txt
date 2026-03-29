@@ -54,7 +54,7 @@ function(SHOW_OPTIONS_SELECTED)
         message("-DUSE_VR=0                 : Provide VR class embedded on LUA engine (Default 1 (Linux, Windows), Default 0 (Android), use -DDISABLE_VR=1 to disable)")
     endif()
 
-    message("-DAUDIO=${AUDIO}               : Select the audio engine available. Default: Linux -DAUDIO=portaudio , Windows -DAUDIO=audiere , Android -DAUDIO=jni , MacOs -DAUDIO=avfoundation , -DAUDIO=none will remove audio dependency")
+    message("-DAUDIO=${AUDIO}               : Select the audio engine available. Default: Linux -DAUDIO=portaudio , Windows -DAUDIO=audiere , Android -DAUDIO=opensl , MacOs -DAUDIO=avfoundation , -DAUDIO=none will remove audio dependency")
 
     if(USE_ALL)
         message("-DUSE_ALL=1                : Enable all features available")
@@ -222,11 +222,11 @@ else()
         set(CMAKE_ANDROID_NDK           ${NDK_ROOT})
 
         if(USE_STL_STATIC)
-            set(CMAKE_ANDROID_STL_TYPE      c++_static)#c++_shared (CMAKE_ANDROID_STL_TYPE does not work!!!)
-            set(ANDROID_STL                 c++_static)#c++_shared
+            set(CMAKE_ANDROID_STL_TYPE  c++_static CACHE STRING "" FORCE)
+            set(ANDROID_STL             c++_static CACHE STRING "" FORCE)
         else()
-            set(CMAKE_ANDROID_STL_TYPE      c++_shared)#gnustl_static (CMAKE_ANDROID_STL_TYPE does not work!!!)
-            set(ANDROID_STL                 c++_shared)#gnustl_static
+            set(CMAKE_ANDROID_STL_TYPE  c++_shared CACHE STRING "" FORCE)
+            set(ANDROID_STL             c++_shared CACHE STRING "" FORCE)
         endif()
         
         set(APP_OPTIM                   release)
@@ -317,7 +317,7 @@ else()
         set(FOLDER_ARCHITECTURE     ${CMAKE_ANDROID_ARCH_ABI})
 
         if(NOT AUDIO)
-            set(AUDIO jni)
+            set(AUDIO opensl)
         endif()
 
         if(NOT DEFINED ENV{NDK_ROOT})
@@ -663,6 +663,196 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(LIB_audiere_HELD "third-party/audiere-1.9.4/lib/audiere")
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         message(STATUS " Configuration for Android is set...")
+
+        # ── Android Gradle project generation ────────────────────────────────────────
+        # These variables can be overridden on the cmake command line:
+        #   -DGAME_PACKAGE=com.example.mygame
+        #   -DGAME_NAME=MyGame
+        #   -DGRADLE_VERSION=8.7
+        #   -DGRADLE_ABI_FILTERS="\"arm64-v8a\", \"x86_64\""
+        #   -DANDROID_SDK_ROOT=/path/to/sdk
+        #   -DGAME_APP_DIR=/path/to/output
+        #   -DGAME_ASSETS_DIR=/path/to/your/game/assets
+        if(NOT DEFINED GAME_PACKAGE)
+            set(GAME_PACKAGE "com.mini.mbm.game")
+        endif()
+        if(NOT DEFINED GAME_NAME)
+            set(GAME_NAME "mini-mbm")
+        endif()
+        if(NOT DEFINED GRADLE_VERSION)
+            set(GRADLE_VERSION "8.7")
+        endif()
+        if(NOT DEFINED GRADLE_ABI_FILTERS)
+            set(GRADLE_ABI_FILTERS "\"arm64-v8a\", \"x86_64\"")
+        endif()
+        if(NOT DEFINED GAME_APP_DIR)
+            set(GAME_APP_DIR "${CMAKE_BINARY_DIR}/android-studio")
+        endif()
+        # Expand leading ~ to $ENV{HOME} (CMake does not expand ~ in -D values)
+        if(GAME_APP_DIR MATCHES "^~/")
+            string(REGEX REPLACE "^~/" "$ENV{HOME}/" GAME_APP_DIR "${GAME_APP_DIR}")
+        endif()
+        if(NOT IS_ABSOLUTE "${GAME_APP_DIR}")
+            get_filename_component(GAME_APP_DIR "${GAME_APP_DIR}" ABSOLUTE)
+        endif()
+
+        # Optional: path to the game's assets folder.
+        # When set, Gradle will serve assets directly from this directory (no copying).
+        if(NOT DEFINED GAME_ASSETS_DIR)
+            set(GAME_ASSETS_DIR "")
+        endif()
+        # Normalise to an absolute path so the generated build.gradle always works
+        # regardless of where ./gradlew is invoked from.
+        if(GAME_ASSETS_DIR MATCHES "^~/")
+            string(REGEX REPLACE "^~/" "$ENV{HOME}/" GAME_ASSETS_DIR "${GAME_ASSETS_DIR}")
+        endif()
+        if(GAME_ASSETS_DIR AND NOT IS_ABSOLUTE "${GAME_ASSETS_DIR}")
+            get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
+        endif()
+        # Build the Groovy snippet used in sourceSets { main { assets.srcDirs = [...] } }
+        if(GAME_ASSETS_DIR)
+            set(GRADLE_ASSETS_SRCDIRS "assets.srcDirs = ['${GAME_ASSETS_DIR}']")
+            message(STATUS "Android game assets: ${GAME_ASSETS_DIR}")
+        else()
+            set(GRADLE_ASSETS_SRCDIRS "")
+        endif()
+
+        # Locate Android SDK root (needed for local.properties)
+        if(NOT DEFINED ANDROID_SDK_ROOT)
+            if(DEFINED ENV{ANDROID_HOME})
+                set(ANDROID_SDK_ROOT "$ENV{ANDROID_HOME}")
+            elseif(DEFINED ENV{ANDROID_SDK_ROOT})
+                set(ANDROID_SDK_ROOT "$ENV{ANDROID_SDK_ROOT}")
+            else()
+                # Try common default locations
+                if(EXISTS "$ENV{HOME}/Android/Sdk")
+                    set(ANDROID_SDK_ROOT "$ENV{HOME}/Android/Sdk")
+                elseif(EXISTS "$ENV{HOME}/Library/Android/sdk")
+                    set(ANDROID_SDK_ROOT "$ENV{HOME}/Library/Android/sdk")
+                elseif(EXISTS "$ENV{LOCALAPPDATA}/Android/Sdk")
+                    set(ANDROID_SDK_ROOT "$ENV{LOCALAPPDATA}/Android/Sdk")
+                else()
+                    set(ANDROID_SDK_ROOT "/path/to/Android/Sdk")
+                    message(WARNING "ANDROID_SDK_ROOT not set — update local.properties after generation.")
+                endif()
+            endif()
+        endif()
+        if(NOT ANDROID_SDK_ROOT STREQUAL "/path/to/Android/Sdk")
+            message(STATUS "Android SDK found at: ${ANDROID_SDK_ROOT}")
+        endif()
+
+        # Read NDK version from source.properties so Gradle's ndkVersion matches
+        set(ANDROID_NDK_VERSION "")
+        set(_NDK_PROPS "${NDK_ROOT}/source.properties")
+        if(EXISTS "${_NDK_PROPS}")
+            file(STRINGS "${_NDK_PROPS}" _ndk_rev_line REGEX "^Pkg\.Revision")
+            if(_ndk_rev_line MATCHES "Pkg\.Revision *= *([0-9]+\\.[0-9]+\\.[0-9]+)")
+                set(ANDROID_NDK_VERSION "${CMAKE_MATCH_1}")
+            endif()
+        endif()
+        if(ANDROID_NDK_VERSION STREQUAL "")
+            set(ANDROID_NDK_VERSION "29.0.14206865")
+            message(WARNING "Could not read NDK version from source.properties — defaulting to ${ANDROID_NDK_VERSION}")
+        else()
+            message(STATUS "NDK version: ${ANDROID_NDK_VERSION}")
+        endif()
+
+        # Build the cmake arguments string for the Gradle DSL (Groovy quoted-string list)
+        set(_GRADLE_CMAKE_ARGS "\"-DPLAT=Android\"")
+        string(APPEND _GRADLE_CMAKE_ARGS ", \"-DAUDIO=${AUDIO}\"")
+        if(USE_LUA)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_LUA=1\"")
+        endif()
+        if(USE_ALL)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_ALL=1\"")
+        endif()
+        if(USE_BOX2D)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_BOX2D=1\"")
+        endif()
+        if(USE_BOX2D_LIQUID_FUN)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_BOX2D_LIQUID_FUN=1\"")
+        endif()
+        if(USE_IMGUI)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_IMGUI=1\"")
+        endif()
+        if(USE_LSQLITE3)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_LSQLITE3=1\"")
+        endif()
+        if(USE_STL_STATIC)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DUSE_STL_STATIC=1\"")
+        else()
+            # When not using static STL, explicitly tell the NDK toolchain to
+            # use c++_shared.  Without this, the toolchain defaults to c++_static
+            # (a cache variable that overrides the normal set() in this file),
+            # and libc++_shared.so never gets copied/packaged into the APK.
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DANDROID_STL=c++_shared\"")
+        endif()
+        set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
+
+        # ── Create the output directory tree ─────────────────────────────────────────
+        set(_AND_APP_MAIN "${GAME_APP_DIR}/app/src/main")
+        file(MAKE_DIRECTORY "${_AND_APP_MAIN}/java/com/mini/mbm")
+        file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/values")
+        file(MAKE_DIRECTORY "${GAME_APP_DIR}/gradle/wrapper")
+
+        set(_AND_TMPL  "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/templates")
+        set(_AND_GRDLE "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/gradle")
+
+        # ── Configure template files (@ONLY prevents CMake variable expansion) ───────
+        configure_file("${_AND_TMPL}/AndroidManifest.xml.in"
+                       "${_AND_APP_MAIN}/AndroidManifest.xml" @ONLY)
+        configure_file("${_AND_TMPL}/app-build.gradle.in"
+                       "${GAME_APP_DIR}/app/build.gradle" @ONLY)
+        configure_file("${_AND_TMPL}/root-build.gradle.in"
+                       "${GAME_APP_DIR}/build.gradle" @ONLY)
+        configure_file("${_AND_TMPL}/settings.gradle.in"
+                       "${GAME_APP_DIR}/settings.gradle" @ONLY)
+        configure_file("${_AND_TMPL}/local.properties.in"
+                       "${GAME_APP_DIR}/local.properties" @ONLY)
+        configure_file("${_AND_TMPL}/strings.xml.in"
+                       "${_AND_APP_MAIN}/res/values/strings.xml" @ONLY)
+        file(COPY "${_AND_TMPL}/proguard-rules.pro"
+             DESTINATION "${GAME_APP_DIR}/app")
+
+        # ── Gradle wrapper scripts ────────────────────────────────────────────────────
+        configure_file("${_AND_GRDLE}/gradlew"
+                       "${GAME_APP_DIR}/gradlew" @ONLY)
+        configure_file("${_AND_GRDLE}/gradlew.bat"
+                       "${GAME_APP_DIR}/gradlew.bat" @ONLY)
+        configure_file("${_AND_GRDLE}/wrapper/gradle-wrapper.properties.in"
+                       "${GAME_APP_DIR}/gradle/wrapper/gradle-wrapper.properties" @ONLY)
+
+        # ── Copy MbmActivity.java (thin NativeActivity wrapper) ───────────────────────
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/MbmActivity.java"
+             DESTINATION "${_AND_APP_MAIN}/java/com/mini/mbm")
+
+        # Make gradlew executable on POSIX hosts (file(CHMOD) is CMake-native, no subprocess)
+        if(NOT WIN32)
+            file(CHMOD "${GAME_APP_DIR}/gradlew"
+                 PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                             GROUP_READ GROUP_EXECUTE
+                             WORLD_READ WORLD_EXECUTE)
+        endif()
+
+        # ── Download gradle-wrapper.jar (binary — cannot be stored in repo as text) ──
+        set(_WRAPPER_JAR "${GAME_APP_DIR}/gradle/wrapper/gradle-wrapper.jar")
+        if(NOT EXISTS "${_WRAPPER_JAR}")
+            message(STATUS "Downloading gradle-wrapper.jar for Gradle ${GRADLE_VERSION}...")
+            file(DOWNLOAD
+                "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar"
+                "${_WRAPPER_JAR}"
+                TIMEOUT 60
+                STATUS _dl_status
+                LOG _dl_log)
+            list(GET _dl_status 0 _dl_code)
+            if(NOT _dl_code EQUAL 0)
+                message(WARNING
+                    "Could not download gradle-wrapper.jar automatically.\n"
+                    "Run once inside '${GAME_APP_DIR}':\n"
+                    "  gradle wrapper --gradle-version ${GRADLE_VERSION}")
+            endif()
+        endif()
+
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         message(STATUS " Configuration for Linux (Debian, ubuntu,...) is set...")
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
@@ -875,6 +1065,25 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         message("  Xcode project generated.  Open it with:")
         message("    open \"${CMAKE_BINARY_DIR}/${_XCODEPROJ_NAME}.xcodeproj\"")
         message("  Then: Signing & Capabilities → set your Team → press ⌘R")
+        message("******************************************************************************************************")
+        message("")
+    endif()
+
+    # Android: show where the Gradle project was generated
+    if(PLAT_LOWER STREQUAL "android" AND DEFINED GAME_APP_DIR)
+        message("")
+        message("******************************************************************************************************")
+        message("  Android Studio project generated at:")
+        message("    ${GAME_APP_DIR}")
+        message("")
+        message("  Open in Android Studio:")
+        message("    studio \"${GAME_APP_DIR}\"")
+        message("    (or: File → Open → select the folder above)")
+        message("")
+        message("  Build from the command line:")
+        message("    cd \"${GAME_APP_DIR}\" && ./gradlew assembleDebug")
+        message("  If gradle-wrapper.jar is missing, run once in that folder:")
+        message("    gradle wrapper --gradle-version ${GRADLE_VERSION}")
         message("******************************************************************************************************")
         message("")
     endif()

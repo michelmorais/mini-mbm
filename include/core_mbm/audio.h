@@ -77,15 +77,12 @@ namespace mbm
 		API_IMPL OnEndStreamCallBack getOnEndstream() const;
 		API_IMPL const char* getFileName() const noexcept override;
         OnEndStreamCallBack onEndStreamCallBack;
-	#if defined(AUDIO_ENGINE_ANDROID_JNI) //  AUDIO_ENGINE_ANDROID_JNI ------------------------------------------------------
-    private:
-        bool log(const char *erro, const char *arg1, const int line);
-        bool onNew_AudioJniEngine(int *retIndexJni);
-    public:
-    #elif defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
+	#if defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
 		audiere::OutputStreamPtr sound;
 	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
 		std::unique_ptr<PA_WAVE> pa_wave;
+	#elif defined(AUDIO_ENGINE_ANDROID_OPENSL) //  AUDIO_ENGINE_ANDROID_OPENSL -----------------------------------------------
+		void* oslPlayer = nullptr; // OSLPlayer*, defined in audio-opensl-android.cpp
 	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------
 		struct AVFAudioData;  // defined in audio-avfoundation.mm (Objective-C++)
 		std::unique_ptr<AVFAudioData> avf_data;
@@ -119,6 +116,7 @@ namespace mbm
 		API_IMPL static AUDIO_MANAGER* getInstance();
 		API_IMPL AUDIO* load(const char *fileNameSound, const bool loop, const bool inMemory);
 		API_IMPL static void destroy(AUDIO* that);
+		API_IMPL static void destroyNow(AUDIO* that); // immediately frees the player slot (bypasses scene-lifetime deferral)
 		API_IMPL static void releaseStaticInstance();
 		API_IMPL void release()override;
 		API_IMPL void stopAll()override;
@@ -139,8 +137,7 @@ namespace mbm
 		};
 
 		static audiere::AudioDevicePtr	audioDevice;
-#elif defined(AUDIO_ENGINE_ANDROID_JNI)
-        void streamStopped(const int indexJNI)override;
+
 #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 		LPDIRECTSOUND8		m_directSound; //for DSBCAPS_CTRL3D , DSBCAPS_PRIMARYBUFFER  must be present and must be used with LPDIRECTSOUND instead of LPDIRECTSOUND8
 #endif

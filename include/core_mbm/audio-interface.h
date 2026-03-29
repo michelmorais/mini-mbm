@@ -39,9 +39,6 @@ namespace mbm
 		virtual void stopAll() = 0;
 		virtual void update(CORE_MANAGER* coreManager,const int idScene) = 0;
 		virtual void release() = 0;
-		#ifdef ANDROID
-		virtual void streamStopped(const int indexJNI) = 0;
-		#endif
 	};
 
     enum STATE_AUDIO : char
@@ -56,9 +53,6 @@ namespace mbm
     {
       public:
 		int idScene;
-	#ifdef ANDROID
-        int indexJNI;
-	#endif
         STATE_AUDIO state;
 		virtual bool setVolume(const float volume) = 0;
         virtual bool pause() = 0;
@@ -66,7 +60,7 @@ namespace mbm
 		virtual bool isLoaded() = 0;
         AUDIO_INTERFACE(const int _idScene) noexcept;
         virtual ~AUDIO_INTERFACE();
-        void *userData;
+        void *userData;// field is used by the Lua binding to store the Lua reference to the audio object, so it should not be used for other purposes
 		bool isPersist()const noexcept;
 		virtual const char* getFileName() const noexcept = 0;
 	  protected:

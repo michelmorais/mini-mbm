@@ -22,6 +22,7 @@
 #include <scene.h>
 #include <core-manager.h>
 #include <util-interface.h>
+#include <algorithm>
 
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
     #if defined (USE_OPENGL_ES)
@@ -289,6 +290,23 @@ namespace mbm
             }
         }
     }
+
+    // Unlike destroy(), destroyNow() skips the scene-lifetime deferral and
+    // immediately deletes the C++ AUDIO object, freeing its OpenSL player slot.
+    // The caller is responsible for nulling any Lua userdata pointer that held
+    // this audio object to prevent use-after-free.
+    void AUDIO_MANAGER::destroyNow(AUDIO* that)
+    {
+        if (!AUDIO_MANAGER::instance || !that) return;
+        that->stop();
+        auto& a = AUDIO_MANAGER::instance->audios;
+        auto it = std::find(a.begin(), a.end(), that);
+        if (it != a.end()) a.erase(it);
+        auto& d = AUDIO_MANAGER::instance->audiosToDelete;
+        auto it2 = std::find(d.begin(), d.end(), that);
+        if (it2 != d.end()) d.erase(it2);
+        delete that; // ~AUDIO() frees the OpenSL player slot immediately
+    }
     
     void AUDIO_MANAGER::release()
     {
@@ -394,20 +412,7 @@ namespace mbm
     }
     #endif
 
-#if defined(AUDIO_ENGINE_ANDROID_JNI)
-    void AUDIO_MANAGER::streamStopped(const int indexJNI)
-    {
-        for (size_t i = 0; i < audios.size(); ++i)
-        {
-            AUDIO* my_audio = audios[i];
-            if (my_audio->indexJNI == indexJNI)
-            {
-                if(my_audio->onEndStreamCallBack)
-                    my_audio->onEndStreamCallBack(my_audio);
-            }
-        }
-    }
-#endif
+
     void AUDIO_MANAGER::releaseStaticInstance()
     {
         if (AUDIO_MANAGER::instance)

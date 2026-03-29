@@ -46,15 +46,21 @@ namespace mbm
 
     int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
     {
-        static bool variablesInitialized = false;
+        //static int loopCallCount = 0;
+        //loopCallCount++;
+        //if (loopCallCount <= 3)
+        //    INFO_LOG("CORE_MANAGER::loop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
+        //             loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
+        //             device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
-        if (!variablesInitialized)
+        if (!this->loopVariablesInitialized)
         {
+            INFO_LOG("CORE_MANAGER::loop() first-time init");
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
-                PRINT_IF_DEBUG("\nerror on Parse CFG from resource.");
+                ERROR_LOG("CORE_MANAGER::loop() parserCFGFromResource FAILED");
                 return -1;
             }
             this->device->cfg.sortShader();
@@ -62,7 +68,7 @@ namespace mbm
             this->device->updateFps();
             initEnableRenders();
             this->_updateDimFrustum();
-            variablesInitialized = true;
+            this->loopVariablesInitialized = true;
             this->device->camera.expectedScreen.x = this->device->backBufferWidth;
             this->device->camera.expectedScreen.y = this->device->backBufferHeight;
         }
@@ -267,6 +273,9 @@ namespace mbm
                     break;
                 }
             }
+            //if (loopCallCount <= 3)
+            //    INFO_LOG("CORE_MANAGER::loop() about to update/render (frame %d) changeScene=%d swapStep=%d",
+            //             loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
             this->update();
             this->render();
             if(doSwapBuffers)// some backend engines need to control when swap buffers is done
@@ -692,8 +701,10 @@ namespace mbm
             }
             else if (changeScene)
             {
+                INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->__swapBackBufferStep);
                 if (this->device->__swapBackBufferStep == 3)
                 {
+                    INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
                     this->reinitTimers();
                     enableRender(this->device->scene->getIdScene());
                     this->device->scene->wasUnloadedScene = false;
@@ -912,12 +923,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {
@@ -952,12 +968,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {
@@ -992,12 +1013,17 @@ namespace mbm
                         const bool    enableRender = ptr->enableRender;
                         ptr->alwaysRenderize = false;
                         ptr->enableRender = false;
+                        //position and angle can be reloaded from MESH_MBM::loadImpl, so we need to save them before call onRestoreDevice and restore after that, to avoid objects be moved or rotated to wrong position/angle after restore
+                        const VEC3 positionBefore = ptr->position;
+                        const VEC3 angleBefore = ptr->angle;
                         if (ptr->onRestoreDevice())
                         {
                             ptr->alwaysRenderize = alwaysRenderize;
                             ptr->enableRender = enableRender;
                             ptr->onRestoreAnimationsState();
                         }
+                        ptr->position = positionBefore;
+                        ptr->angle = angleBefore;
                         this->indexOnRestore = (i + 1);
                         if (++j >= this->totalForByLoop)
                         {

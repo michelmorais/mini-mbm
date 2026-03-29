@@ -23,6 +23,7 @@
 #include <core_mbm/device.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/scene.h>
+#include <android/configuration.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 
@@ -168,7 +169,7 @@ namespace mbm
         device->run         = false;
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->scene->onFinalizeScene();
-        device->specificContextDevice->callQuitInJava();
+        device->specificContextDevice->callQuit();
         return 0;
     }
 
@@ -244,6 +245,7 @@ namespace mbm
     {
     
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassKeyCodeJniEngine) return 0;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyCode", "(Ljava/lang/String;)I");
         if (mid == NULL)
@@ -266,6 +268,7 @@ namespace mbm
     {
     
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassKeyCodeJniEngine) return nullptr;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassKeyCodeJniEngine, "getKeyName", "(I)Ljava/lang/String;");
         if (mid == NULL)
@@ -287,28 +290,22 @@ namespace mbm
 
     int onGetIdiom(lua_State *lua)
     {
-        const char *     methodName = "getIdiom";
-        const char *     signature  = "()Ljava/lang/String;"; //(string) void
+        // Pure C++ implementation using AConfiguration — no JNI required.
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
+        if (cJni->assetManager)
         {
-            return lua_error_debug(lua, "method not found:%s", methodName);
+            AConfiguration* config = AConfiguration_new();
+            AConfiguration_fromAssetManager(config, cJni->assetManager);
+            char lang[3] = {};
+            AConfiguration_getLanguage(config, lang);
+            AConfiguration_delete(config);
+            if (lang[0] != 0)
+            {
+                lua_pushstring(lua, lang);
+                return 1;
+            }
         }
-        jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid);
-        if (ret)
-        {
-            const char *newRet = jenv->GetStringUTFChars(ret, 0);
-            const char *r      = cJni->getStrToDelete(newRet);
-            jenv->ReleaseStringUTFChars(ret, newRet);
-            lua_pushstring(lua, r);
-            jenv->DeleteLocalRef(ret);
-        }
-        else
-        {
-            lua_pushstring(lua, "Unknown");
-        }
+        lua_pushstring(lua, "en");
         return 1;
     }
 
@@ -543,6 +540,7 @@ namespace mbm
         const char *methodName = "messageBox";
         const char *signature = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z"; // boolean (string,string,string)
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassFileJniEngine) return false;
         JNIEnv *         jenv = cJni->jenv;
         jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)
@@ -606,6 +604,7 @@ namespace mbm
         const char *      methodName = "openFolder";
         const char *      signature  = "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"; // String (string)
         SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
+        if (!cJni->jclassFileJniEngine) { lua_pushnil(lua); return 1; }
         JNIEnv *          jenv       = cJni->jenv;
         jmethodID         mid        = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, methodName, signature);
         if (mid == NULL)

@@ -2924,9 +2924,8 @@ namespace mbm
         callEventsManager        = nullptr;
         neverClose               = false;
         run                      = true;
-        askOnExit                = true;
+        askOnExit                = false;
         hideOnExit               = false;
-        exitOnEsc                = true;
         subMenu                  = 0;
         isWin32Initialized       = false;
         onScrollMouseEvent       = nullptr;
@@ -3602,8 +3601,7 @@ namespace mbm
         w->hwndLastTrackBar          = nullptr;
         w->hideOnExit                = true;
         w->askOnExit                 = false;
-        w->exitOnEsc                 = false;
-
+        
         if (parent)
         {
             parent->setFocus();
@@ -7834,43 +7832,7 @@ namespace mbm
         {
             if (ptrWin->neverClose)
                 return false;
-            if (ptrWin->exitOnEsc && keyEsc)
-            {
-                mbm::WINPLUS_TYPE_CURSOR cursor = ptrWin->getCursor();
-                ptrWin->setCursor(mbm::WINPLUS_CURSOR_ARROW);
-                if (ptrWin->neverClose)
-                    return false;
-                if (ptrWin->askOnExit)
-                {
-                    if (ptrWin->messageBoxQuestion("DESEJA SAIR?"))
-                    {
-                        ptrWin->run = false;
-                        closeAllWindows();
-                        // TODO: check this
-                        if (windowHandle && *(int *)windowHandle)
-                            DestroyWindow(windowHandle);
-                        return true;
-                    }
-                }
-                else
-                {
-                    ptrWin->run = false;
-                    closeAllWindows();
-                    if (windowHandle && *(int *)windowHandle)
-                        DestroyWindow(windowHandle);
-                    return true;
-                }
-                ptrWin->setCursor(cursor);
-            }
-            else if (!keyEsc)
-            {
-                ptrWin->run = false;
-                closeAllWindows();
-                ptrWin->run = false;
-                return true;
-            }
-            if (ptrWin->neverClose)
-                return false;
+            return true;
         }
         return false;
     }
@@ -8287,11 +8249,6 @@ namespace mbm
                         ptr->ptrWindow->onKeyboardDown(ptr->ptrWindow, (int)(wParam));
                     if (ptr->ptrWindow->callEventsManager)
                         ptr->ptrWindow->callEventsManager->onKeyDown(ptr->hwnd, (int)(wParam));
-                }
-                if (wParam == VK_ESCAPE)
-                {
-                    if (!exitNow(windowHandle, true))
-                        return 0;
                 }
                 return 0;
             }
@@ -10138,7 +10095,6 @@ namespace mbm
             SetLayeredWindowAttributes(w.getHwnd(), RGB(colorKeiyng[0], colorKeiyng[1], colorKeiyng[2]), 0, LWA_COLORKEY);
         }
         w.setAlwaysOnTop(true);
-        w.exitOnEsc                = false;
         drawSplash.coutDownTimeOut = 20;
         DWORD newTimerMiliSec      = (timeMiliSec / 20) + 1;
         int   id                   = w.addTimer(newTimerMiliSec, __DRAW_SPLASH::onTimeOutSplah, nullptr);
@@ -10169,7 +10125,6 @@ namespace mbm
         }
         drawSplash.bmpSplash.load(w.getHwnd(), ID_IMAGE_RESOURCE);
         w.setAlwaysOnTop(true);
-        w.exitOnEsc                = false;
         drawSplash.coutDownTimeOut = 20;
         DWORD newTimerMiliSec      = (timeMiliSec / 20) + 1;
         int   id                   = w.addTimer(newTimerMiliSec, __DRAW_SPLASH::onTimeOutSplah, nullptr);
@@ -10204,7 +10159,6 @@ namespace mbm
         drawSplash.bmpSplash.load(w.getHwnd(), ID_IMAGE_RESOURCE);
         drawSplash.bmpProgress.load(w.getHwnd(), ID_IMAGE_PROGRESS);
         w.setAlwaysOnTop(true);
-        w.exitOnEsc                = false;
         drawSplash.coutDownTimeOut = 20;
         DWORD newTimerMiliSec      = (timeMiliSec / 20) + 1;
         int   id                   = w.addTimer(newTimerMiliSec, __DRAW_SPLASH::onTimeOutSplah, nullptr);
@@ -10236,7 +10190,6 @@ namespace mbm
         drawSplash.bmpSplash.load(w.getHwnd(), ID_IMAGE_RESOURCE);
         drawSplash.bmpProgress.load(w.getHwnd(), ID_IMAGE_PROGRESS);
         w.setAlwaysOnTop(true);
-        w.exitOnEsc                = false;
         drawSplash.coutDownTimeOut = 20;
         DWORD newTimerMiliSec      = (timeMiliSec / 20) + 1;
         int   id                   = w.addTimer(newTimerMiliSec, __DRAW_SPLASH::onTimeOutSplah, nullptr);

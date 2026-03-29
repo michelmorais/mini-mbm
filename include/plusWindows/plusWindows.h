@@ -919,7 +919,6 @@ class WINDOW
     bool          neverClose;
     bool          askOnExit;
     bool          hideOnExit;
-    bool          exitOnEsc;
     
 
     API_IMPL bool init(mbm::MONITOR &monitor, const char *nameApp, const bool enableResize = false,

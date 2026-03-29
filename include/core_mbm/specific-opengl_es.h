@@ -35,6 +35,8 @@
     #include <GLES2/gl2.h>
     #include <jni.h>
     #include <string>
+    #include <android/asset_manager.h>
+    #include <android/native_window.h>
 #elif defined __MINGW32__ || defined __CYGWIN__
     #include <gles/EGL/egl.h>
     #include <gles/GLES2/gl2.h>
@@ -55,7 +57,7 @@
 #endif
 
 #ifdef _DEBUG
-#include <util-interface.h>
+#include "util-interface.h"
 #endif
 
 namespace log_util
@@ -574,16 +576,25 @@ void printGLString(const char *name, GLenum s);
 void printGLStringNewLine(const char *name, GLenum s, const char delimit);
 
 #if defined(ANDROID)
+
     struct SPECIFIC_AUX_CONTEXT_DEVICE
     {
       public:
-        JNIEnv *    jenv;
-        std::string absPath, apkPath;
-        jclass      jclassFileJniEngine;
-        jclass      jclassDoCommandsJniEngine;
-        jclass      jclassKeyCodeJniEngine;
-        jclass      jclassInstanceActivityEngine;
-        jclass      jclassAudioManagerJniEngine;
+        JNIEnv *         jenv;
+        std::string      absPath, apkPath;
+        AAssetManager*   assetManager;   // NDK asset manager — replaces FileJniEngine JNI
+        ANativeWindow*   nativeWindow;   // current ANativeWindow for EGL surface creation
+        jclass           jclassDoCommandsJniEngine;     // thin MbmActivity: vibrate / doCommands
+        jclass           jclassFileJniEngine;           // Lua file dialogs
+        jclass           jclassKeyCodeJniEngine;        // Lua key mapping
+        jobject          jclassLoaderGlobal;            // app ClassLoader (for FindClass on native threads)
+        jmethodID        jmethodLoadClass;              // ClassLoader.loadClass method
+
+        // EGL context created and owned by NativeActivity C++ code
+        EGLDisplay       eglDisplay;
+        EGLSurface       eglSurface;
+        EGLContext       eglContext;
+        EGLConfig        eglConfig;
 
         GLint filter_GL_TEXTURE_WRAP_S;
         GLint filter_GL_TEXTURE_WRAP_T;
@@ -597,16 +608,18 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         
         void release(const bool wasDeviceLost);
         const char *getStrToDelete(const char *str);
+        void initClassLoader(jobject activityObj);  // must be called before cacheJavaClasses on native threads
         void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
-        void callQuitInJava();
-        void streamStopped(const int indexJNI);
+        void callQuit();
+
       private:
         char              packageName[255];
         char              packageNameMiniMBMClasses[255];
         std::string       retPath;
         std::string       buffer_new_stringUTF[10];
         int               index_string_utf;
-        jclass getClass(const char *nameClass);
+        jclass getClass(const char *nameClass);       // aborts if class not found
+        jclass tryGetClass(const char *nameClass);    // returns nullptr silently if not found
       public:
         const char* get_safe_string_utf(const char* string_input);
         #if _DEBUG

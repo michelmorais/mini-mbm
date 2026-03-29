@@ -192,7 +192,7 @@ namespace mbm
         device->setAppReturnCode(top == 1 && lua_type(lua, 1) == LUA_TNUMBER ? lua_tointeger(lua, 1) : 0);
         device->scene->onFinalizeScene();
     #ifdef ANDROID
-        device->callQuitInJava();
+        device->specificContextDevice->callQuit();
     #endif
         return 0;
     }

@@ -34,10 +34,18 @@ extern "C"
 
 namespace mbm
 {
+    // Returns the AUDIO** stored inside the Lua userdata (raw index 1 of the table).
+    // Returns nullptr if the userdata is absent or already nulled by destroyNow.
+    AUDIO **getAudioUDFromRawTable(lua_State *lua, const int rawi, const int indexTable)
+    {
+        return static_cast<AUDIO **>(lua_check_userType(lua, rawi, indexTable, L_USER_TYPE_AUDIO));
+    }
+
     AUDIO *getAudioFromRawTable(lua_State *lua, const int rawi, const int indexTable)
     {
-        auto **ud = static_cast<AUDIO **>(lua_check_userType(lua,rawi,indexTable,L_USER_TYPE_AUDIO));
-        return *ud;
+        auto **ud = getAudioUDFromRawTable(lua, rawi, indexTable);
+        // *ud may be nullptr if audio:destroy() already freed the C++ object.
+        return (ud && *ud) ? *ud : nullptr;
     }
 
 	int onReleaseAudioLua(AUDIO * audio, lua_State * lua)
@@ -60,23 +68,36 @@ namespace mbm
 
     int onDestroyAudioLua(lua_State *lua)
     {
-        AUDIO *               audio   = getAudioFromRawTable(lua, 1, 1);
+        AUDIO *audio = getAudioFromRawTable(lua, 1, 1);
+        if (!audio) return 0; // already freed by audio:destroy() — nothing to do
 		#if DEBUG_FREE_LUA || defined DEBUG_AUDIO
 		static int v = 1;
 		PRINT_IF_DEBUG("destroying user data from audio LUA %d [%s]\n", v++, audio->fileName.c_str());
 		#endif
-		return onReleaseAudioLua(audio,lua);
+		return onReleaseAudioLua(audio, lua);
     }
 
 	int onForceDestroyAudioLua(lua_State *lua)
 	{
-		AUDIO * audio = getAudioFromRawTable(lua, 1, 1);
+		// Get the double pointer so we can null it after immediate deletion.
+		auto **ud = getAudioUDFromRawTable(lua, 1, 1);
+		if (!ud || !*ud) return 0; // already destroyed
+		AUDIO *audio = *ud;
 		#if DEBUG_FREE_LUA || defined DEBUG_AUDIO
 		PRINT_IF_DEBUG("Force destroy %s\n", audio->fileName.c_str());
 		#endif
-		auto audio_manager = mbm::AUDIO_MANAGER::getInstance();
-		audio_manager->setPersist(audio,false);
-		return onReleaseAudioLua(audio, lua);
+		auto *audio_manager = mbm::AUDIO_MANAGER::getInstance();
+		audio_manager->setPersist(audio, false);
+		// Clean up the Lua-side state (userData, callbacks).
+		// This also calls AUDIO_MANAGER::destroy() which moves 'audio' to the
+		// pending-delete list — destroyNow() will then find and delete it.
+		onReleaseAudioLua(audio, lua);
+		// Immediately free the C++ object and its OpenSL player slot so that
+		// new sounds can be loaded within the same scene.
+		audio_manager->destroyNow(audio);
+		// Null the inner pointer so __gc is a no-op if it fires later.
+		*ud = nullptr;
+		return 0;
 	}
 
     int onPlayAudio(lua_State *lua)

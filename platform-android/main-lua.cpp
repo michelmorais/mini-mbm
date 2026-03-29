@@ -54,7 +54,6 @@ void MiniMbmEngine_onKeyDownJoystick(JNIEnv *env, jobject obj, int player, int k
 void MiniMbmEngine_onKeyUpJoystick(JNIEnv *env, jobject obj, int player, int key);
 void MiniMbmEngine_onMoveJoystick(JNIEnv *env, jobject obj, int player, float lx, float ly, float rx, float ry);
 void MiniMbmEngine_onInfoDeviceJoystick(JNIEnv *env, jobject obj, int player, int maxNumberButton, jstring jstrDeviceName,jstring jextraInfo);
-void MiniMbmEngine_streamStopped(JNIEnv *env, jobject obj, int indexJNI);
 bool MiniMbmEngine_onRestoreDevice(JNIEnv *env, jobject obj, jint width, jint height);
 void MiniMbmEngine_onStop(JNIEnv *env, jobject obj);
 void MiniMbmEngine_onCallBackCommands(JNIEnv *env, jobject obj, jstring param1, jstring param2);
@@ -250,15 +249,6 @@ void MiniMbmEngine_onInfoDeviceJoystick(JNIEnv *env, jobject obj, int player, in
     }
 }
 
-void MiniMbmEngine_streamStopped(JNIEnv *env, jobject obj, int indexJNI)
-{
-    if (game && game->device->scene)
-    {
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE * cJni = game->device->specificContextDevice;
-        cJni->streamStopped(indexJNI);
-    }
-}
-
 /*void MiniMbmEngine_onEndSceneByQuiting(JNIEnv *env, jobject obj)
 {
     if (game && game->device->scene && game->__sceneWasInit && game->device->scene->wasUnloadedScene == false)
@@ -403,7 +393,6 @@ static JNINativeMethod methodTableJNI[] = {
     {"onKeyUpJoystick", "(II)V",											(void *)MiniMbmEngine_onKeyUpJoystick},
     {"onMoveJoystick", "(IFFFF)V",											(void *)MiniMbmEngine_onMoveJoystick},
     {"onInfoDeviceJoystick", "(IILjava/lang/String;Ljava/lang/String;)V",	(void *)MiniMbmEngine_onInfoDeviceJoystick},
-    {"streamStopped", "(I)V",	                  							(void *)MiniMbmEngine_streamStopped},
     {"onRestoreDevice", "(II)Z",											(void *)MiniMbmEngine_onRestoreDevice},
     {"onStop", "()V",														(void *)MiniMbmEngine_onStop},
     {"onCallBackCommands", "(Ljava/lang/String;Ljava/lang/String;)V",		(void *)MiniMbmEngine_onCallBackCommands}};

@@ -20,6 +20,10 @@
 #ifdef ANDROID
 
 #include <unistd.h>
+#include <sys/stat.h>
+#include <cstring>
+#include <android/asset_manager.h>
+#include <stb_image.h>
 #include <platform/mismatch-platform.h>
 #include <core_mbm/util-interface.h>
             
@@ -46,15 +50,22 @@ namespace mbm
     jenv(nullptr),
     absPath(""),
     apkPath(""),
-    jclassFileJniEngine(nullptr),
+    assetManager(nullptr),
+    nativeWindow(nullptr),
     jclassDoCommandsJniEngine(nullptr),
+    jclassFileJniEngine(nullptr),
     jclassKeyCodeJniEngine(nullptr),
-    jclassInstanceActivityEngine(nullptr),
-    jclassAudioManagerJniEngine(nullptr),
+    jclassLoaderGlobal(nullptr),
+    jmethodLoadClass(nullptr),
+    eglDisplay(EGL_NO_DISPLAY),
+    eglSurface(EGL_NO_SURFACE),
+    eglContext(EGL_NO_CONTEXT),
+    eglConfig(nullptr),
     filter_GL_TEXTURE_WRAP_S(GL_CLAMP_TO_EDGE),
     filter_GL_TEXTURE_WRAP_T(GL_CLAMP_TO_EDGE),
     filter_GL_TEXTURE_MIN_FILTER(GL_NEAREST),
-    filter_GL_TEXTURE_MAG_FILTER(GL_LINEAR)
+    filter_GL_TEXTURE_MAG_FILTER(GL_LINEAR),
+    index_string_utf(0)
     {
         memset(this->packageName, 0, sizeof(this->packageName));
         memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
@@ -68,19 +79,49 @@ namespace mbm
     
     void SPECIFIC_AUX_CONTEXT_DEVICE::release(const bool wasDeviceLost)
     {
-	//if not lost , we want to quit, so we clean up all
-        if(wasDeviceLost == false)
+        // If not lost we are quitting — clean up all references.
+        if (wasDeviceLost == false)  // full clean shutdown (destructor)
         {
-            this->jenv                          = nullptr;
-            this->jclassFileJniEngine           = nullptr;
-            this->jclassDoCommandsJniEngine     = nullptr;
-            this->jclassKeyCodeJniEngine        = nullptr;
-            this->jclassInstanceActivityEngine  = nullptr;
-            this->jclassAudioManagerJniEngine   = nullptr;
-            this->index_string_utf              = 0;
-        
+            this->jenv                         = nullptr;
+            this->jclassDoCommandsJniEngine    = nullptr;
+            this->jclassFileJniEngine          = nullptr;
+            this->jclassKeyCodeJniEngine       = nullptr;
+            this->jclassLoaderGlobal           = nullptr;
+            this->jmethodLoadClass             = nullptr;
+            this->assetManager                 = nullptr;
+            this->nativeWindow                 = nullptr;
+            this->index_string_utf             = 0;
             memset(this->packageName, 0, sizeof(this->packageName));
             memset(this->packageNameMiniMBMClasses, 0, sizeof(this->packageNameMiniMBMClasses));
+            // destroy everything
+            if (this->eglDisplay != EGL_NO_DISPLAY)
+            {
+                eglMakeCurrent(this->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                if (this->eglContext != EGL_NO_CONTEXT)
+                {
+                    eglDestroyContext(this->eglDisplay, this->eglContext);
+                    this->eglContext = EGL_NO_CONTEXT;
+                }
+                if (this->eglSurface != EGL_NO_SURFACE)
+                {
+                    eglDestroySurface(this->eglDisplay, this->eglSurface);
+                    this->eglSurface = EGL_NO_SURFACE;
+                }
+                eglTerminate(this->eglDisplay);
+                this->eglDisplay = EGL_NO_DISPLAY;
+            }
+        }
+        else  // device-lost (window destroyed) — keep EGL context alive, just destroy surface
+        {
+            if (this->eglDisplay != EGL_NO_DISPLAY)
+            {
+                eglMakeCurrent(this->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+                if (this->eglSurface != EGL_NO_SURFACE)
+                {
+                    eglDestroySurface(this->eglDisplay, this->eglSurface);
+                    this->eglSurface = EGL_NO_SURFACE;
+                }
+            }
         }
     }
 
@@ -92,20 +133,84 @@ namespace mbm
         return retPath.c_str();
     }
 
+    // Use the app's ClassLoader (set up by initClassLoader) to find a class by its
+    // slash-separated name (e.g. "com/mini/mbm/MbmActivity").  Falls back to
+    // FindClass when no class loader is cached — FindClass works correctly on the
+    // main JVM thread (JNI_OnLoad) but NOT from attached native threads.
+    static jclass findClassViaLoader(JNIEnv *env, jobject loaderObj, jmethodID loadMethod,
+                                     const char *slashName)
+    {
+        if (loaderObj && loadMethod)
+        {
+            // ClassLoader.loadClass() requires dot-separated names.
+            std::string dotName(slashName);
+            for (char &c : dotName) if (c == '/') c = '.';
+            jstring nameStr = env->NewStringUTF(dotName.c_str());
+            jclass local = static_cast<jclass>(
+                env->CallObjectMethod(loaderObj, loadMethod, nameStr));
+            env->DeleteLocalRef(nameStr);
+            if (env->ExceptionCheck()) { env->ExceptionClear(); local = nullptr; }
+            return local;
+        }
+        return env->FindClass(slashName);
+    }
+
+    void SPECIFIC_AUX_CONTEXT_DEVICE::initClassLoader(jobject activityObj)
+    {
+        if (!jenv || !activityObj) return;
+        // Retrieve the Activity's ClassLoader — works from any JVM-attached thread.
+        jclass actClass = jenv->GetObjectClass(activityObj);
+        jmethodID getLoader = jenv->GetMethodID(actClass, "getClassLoader",
+                                                 "()Ljava/lang/ClassLoader;");
+        jenv->DeleteLocalRef(actClass);
+        if (!getLoader) return;
+        jobject localLoader = jenv->CallObjectMethod(activityObj, getLoader);
+        if (!localLoader) return;
+        jclassLoaderGlobal = jenv->NewGlobalRef(localLoader);
+        jenv->DeleteLocalRef(localLoader);
+        // java/lang/ClassLoader is a system class — FindClass works here.
+        jclass loaderClass = jenv->FindClass("java/lang/ClassLoader");
+        jmethodLoadClass   = jenv->GetMethodID(loaderClass, "loadClass",
+                                               "(Ljava/lang/String;)Ljava/lang/Class;");
+        jenv->DeleteLocalRef(loaderClass);
+        INFO_LOG("initClassLoader: app ClassLoader cached");
+    }
+
+    jclass SPECIFIC_AUX_CONTEXT_DEVICE::tryGetClass(const char *nameClass)
+    {
+        if (!jenv) return nullptr;
+        snprintf(this->packageName, sizeof(this->packageName), "%s/%s",
+                 this->packageNameMiniMBMClasses, nameClass);
+        jclass localClass = findClassViaLoader(jenv, jclassLoaderGlobal, jmethodLoadClass,
+                                               this->packageName);
+        if (localClass == nullptr || jenv->ExceptionCheck())
+        {
+            jenv->ExceptionClear();
+            INFO_LOG("tryGetClass: [%s] not found (optional — skipped)", this->packageName);
+            return nullptr;
+        }
+        jclass globalClass = reinterpret_cast<jclass>(jenv->NewGlobalRef(localClass));
+        INFO_LOG("tryGetClass: [%s] cached", this->packageName);
+        return globalClass;
+    }
+
     void SPECIFIC_AUX_CONTEXT_DEVICE::cacheJavaClasses(const char *_packageNameMiniMBMClasses)
     {
-        strncpy(packageNameMiniMBMClasses, _packageNameMiniMBMClasses,sizeof(packageNameMiniMBMClasses)-1);
-        this->jclassFileJniEngine              = this->getClass("FileJniEngine");
-        this->jclassDoCommandsJniEngine        = this->getClass("DoCommandsJniEngine");
-        this->jclassKeyCodeJniEngine           = this->getClass("KeyCodeJniEngine");
-        this->jclassInstanceActivityEngine     = this->getClass("InstanceActivityEngine");
-        this->jclassAudioManagerJniEngine      = this->getClass("AudioManagerJniEngine");
+        if (!jenv) return;
+        strncpy(packageNameMiniMBMClasses, _packageNameMiniMBMClasses, sizeof(packageNameMiniMBMClasses) - 1);
+        // MbmActivity is always required in the APK.
+        this->jclassDoCommandsJniEngine    = this->getClass("MbmActivity");
+        // The following classes are part of the legacy JNI bridge.
+        // They are silently skipped when the NativeActivity build omits them.
+        this->jclassFileJniEngine          = this->tryGetClass("FileJniEngine");
+        this->jclassKeyCodeJniEngine       = this->tryGetClass("KeyCodeJniEngine");
     }
 
     jclass SPECIFIC_AUX_CONTEXT_DEVICE::getClass(const char *nameClass)
     {
         snprintf(this->packageName, sizeof(this->packageName), "%s/%s", this->packageNameMiniMBMClasses, nameClass);
-        jclass localClass = jenv->FindClass(this->packageName);
+        jclass localClass = findClassViaLoader(jenv, jclassLoaderGlobal, jmethodLoadClass,
+                                               this->packageName);
         if (localClass == nullptr)
         {
             ERROR_LOG( "FindClass -> [%s] not found!!!", this->packageName);
@@ -147,243 +252,172 @@ namespace mbm
 
     void SPECIFIC_AUX_CONTEXT_DEVICE::addPathDroid(const char *fileName)
     {
-        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "addPath", "(Ljava/lang/String;)V");
-        if (mid == nullptr)
-        {
-            ERROR_LOG( "method addPath not found!");
-            return;
-        }
-        jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(fileName));//fixed issue using local std::string
-        if (jstr == nullptr)
-        {
-            ERROR_LOG( "error on call NewStringUTF!");
-            return;
-        }
-        jenv->CallStaticVoidMethod(cJni->jclassFileJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
+        // NativeActivity: path registration via JNI is not needed.
+        // util::addPath (the only caller on Android) already stores the path in
+        // lsPath after calling this function, so nothing extra is required here.
+        // The old JNI implementation called a Java FileJniEngine method, which is
+        // gone in the NativeActivity build.
+        (void)fileName;
     }
 
     int SPECIFIC_AUX_CONTEXT_DEVICE::existFileOnAssets(const char *fileName)
     {
         if (fileName == nullptr)
             return -1;
-        if (strcmp(fileName, util::getDecompressModelFileName()) == 0) // nao iremos perguntar ao android se existe este arquivo pois nos criamos la
+        // The decompressed model temp file is always created by us — always present.
+        if (strcmp(fileName, util::getDecompressModelFileName()) == 0)
             return 0;
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "existFileOnAssets", "(Ljava/lang/String;)Z");
-        if (mid == nullptr)
-            return this->onFailExistFile(__LINE__, __FILE__, "method existFileOnAssets not found!");
-        jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(fileName));//fixed issue using local std::string
-        if (jstr == nullptr)
-            return this->onFailExistFile(__LINE__, __FILE__, "error on call NewStringUTF!");
-        jboolean exist = (jboolean)jenv->CallStaticBooleanMethod(cJni->jclassFileJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
-        if (exist)
-            return 0;
-        return -1;
+        if (!cJni->assetManager)
+            return this->onFailExistFile(__LINE__, __FILE__, "assetManager is null!");
+        AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
+        if (asset == nullptr)
+            return -1;
+        AAsset_close(asset);
+        return 0;
     }
 
-    const char * SPECIFIC_AUX_CONTEXT_DEVICE::copyFileFromAsset(const char *fileName, const char *mode)
+    const char * SPECIFIC_AUX_CONTEXT_DEVICE::copyFileFromAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "copyFileFromAsset",
-                                                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-        if (mid == nullptr)
+        if (!cJni->assetManager || cJni->absPath.empty())
+            return fileName;
+        AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_BUFFER);
+        if (!asset)
+            return fileName;
+        const off_t len = AAsset_getLength(asset);
+        if (len <= 0)
         {
-            ERROR_LOG( "method copyFileFromAsset not found!");
-            return nullptr;
+            AAsset_close(asset);
+            return fileName;
         }
-        jstring jFileName = jenv->NewStringUTF(cJni->get_safe_string_utf(fileName));//fixed issue using local std::string
-        if (jFileName == nullptr)
+        this->retPath = cJni->absPath;
+        if (this->retPath.back() != '/' && this->retPath.back() != '\\')
+            this->retPath += '/';
+        this->retPath += fileName;
+        // Ensure all parent directories exist (e.g. absPath/logic/ for "logic/scene.lua")
         {
-            ERROR_LOG( "error on call NewStringUTF!");
-            return nullptr;
+            const std::string dir = this->retPath.substr(0, this->retPath.rfind('/'));
+            for (size_t i = 1; i < dir.size(); ++i) {
+                if (dir[i] == '/') {
+                    mkdir(dir.substr(0, i).c_str(), 0755);
+                }
+            }
+            mkdir(dir.c_str(), 0755);
         }
-        jstring jMode = jenv->NewStringUTF(cJni->get_safe_string_utf(mode));//fixed issue using local std::string
-        if (jMode == nullptr)
+        FILE* fp = fopen(this->retPath.c_str(), "wb");
+        if (!fp)
         {
-            jenv->DeleteLocalRef(jFileName);
-            ERROR_LOG( "error on call DeleteLocalRef!");
-            return nullptr;
+            ERROR_LOG("copyFileFromAsset: fopen failed for '%s'", this->retPath.c_str());
+            AAsset_close(asset);
+            return fileName;
         }
-        jobject ret = jenv->CallStaticObjectMethod(cJni->jclassFileJniEngine, mid, jFileName, jMode);
-        if (ret)
-        {
-            const char *newPath = jenv->GetStringUTFChars((jstring)ret, nullptr);
-            this->retPath       = newPath;
-            jenv->ReleaseStringUTFChars((jstring)ret, newPath);
-            jenv->DeleteLocalRef(jFileName);
-            jenv->DeleteLocalRef(jMode);
-            jenv->DeleteLocalRef(ret);
-            return this->retPath.c_str();
-        }
-        jenv->DeleteLocalRef(jFileName);
-        jenv->DeleteLocalRef(jMode);
-        return fileName;
+        const void* buf = AAsset_getBuffer(asset);
+        fwrite(buf, 1, static_cast<size_t>(len), fp);
+        fclose(fp);
+        AAsset_close(asset);
+        return this->retPath.c_str();
     }
 
     uint8_t * SPECIFIC_AUX_CONTEXT_DEVICE::getImageDataFromDroid(const char *fileName, int *width, int *height)
     {
-        if(fileName == nullptr)
+        if (fileName == nullptr)
         {
-            ERROR_LOG( "fileName on getBytesImage is null!");
+            ERROR_LOG("fileName on getImageDataFromDroid is null!");
             return nullptr;
         }
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-        JNIEnv *         jenv = cJni->jenv;
-        jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "getBytesImage", "(Ljava/lang/String;)[B");
-        if (mid == nullptr)
+        if (!cJni->assetManager)
         {
-            ERROR_LOG( "method getBytesImage not found!");
+            ERROR_LOG("assetManager is null in getImageDataFromDroid!");
             return nullptr;
         }
-        static std::string buffer_filename;
-        buffer_filename = cJni->get_safe_string_utf(fileName);
-        jstring jstr = jenv->NewStringUTF(buffer_filename.c_str());//fixed issue using local std::string
-        if (jstr == nullptr)
+        AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_BUFFER);
+        if (!asset)
         {
-            ERROR_LOG( "error on call NewStringUTF!");
+            ERROR_LOG("Failed to open asset: %s", fileName);
             return nullptr;
         }
-        jbyteArray pixels = (jbyteArray)jenv->CallStaticObjectMethod(cJni->jclassFileJniEngine, mid, jstr);
-        if (pixels == nullptr)
+        const off_t    len    = AAsset_getLength(asset);
+        const uint8_t* rawBuf = static_cast<const uint8_t*>(AAsset_getBuffer(asset));
+        if (!rawBuf || len <= 0)
         {
-            ERROR_LOG("Failed to load from android using getBytesImage method");
-            jenv->DeleteLocalRef(jstr);
-            jstr = nullptr;
+            AAsset_close(asset);
+            ERROR_LOG("Asset buffer empty: %s", fileName);
             return nullptr;
         }
-        jenv->DeleteLocalRef(jstr);
-        jstr                   = nullptr;
-        jfieldID fidwidthImage = jenv->GetStaticFieldID(cJni->jclassFileJniEngine, "widthImage", "I");
-        if (nullptr == fidwidthImage)
+        int w = 0, h = 0, channels = 0;
+        // Decode via stb_image — returns RGB (3 channels) to match the old Java path.
+        uint8_t* decoded = stbi_load_from_memory(rawBuf, static_cast<int>(len),
+                                                  &w, &h, &channels, 3);
+        AAsset_close(asset);
+        if (!decoded)
         {
-            ERROR_LOG( "Error on get image width!");
+            ERROR_LOG("stbi_load_from_memory failed for: %s", fileName);
             return nullptr;
         }
-        jint widthImage = jenv->GetStaticIntField(cJni->jclassFileJniEngine, fidwidthImage);
-        if (widthImage == 0)
-        {
-            ERROR_LOG( "image with ZERO!");
-            return nullptr;
-        }
-
-        jfieldID fidHeightImage = jenv->GetStaticFieldID(cJni->jclassFileJniEngine, "heightImage", "I");
-        if (nullptr == fidHeightImage)
-        {
-            ERROR_LOG( "Error on get image height!");
-            return nullptr;
-        }
-        jint heightImage = jenv->GetStaticIntField(cJni->jclassFileJniEngine, fidHeightImage);
-        if (heightImage == 0)
-        {
-            ERROR_LOG( "image height ZERO!");
-            return nullptr;
-        }
-
-        *width        = widthImage;
-        *height       = heightImage;
-        jbyte *buffer = nullptr;
-        if (widthImage < 0 || heightImage < 0) // foi gerado a textura no android então só precisamos pegar o idTexture
-        {
-            buffer = new jbyte[4];
-            this->jenv->GetByteArrayRegion(pixels, 0, 4, buffer);
-        }
-        else
-        {
-            buffer = new jbyte[widthImage * heightImage * 3];
-            this->jenv->GetByteArrayRegion(pixels, 0, widthImage * heightImage * 3, buffer);
-        }
-        jenv->DeleteLocalRef(pixels);
-        return (uint8_t *)buffer;
+        *width  = w;
+        *height = h;
+        // Copy into a new[]-allocated buffer so the engine can safely delete[] it.
+        const size_t size   = static_cast<size_t>(w) * static_cast<size_t>(h) * 3;
+        uint8_t*     result = new uint8_t[size];
+        memcpy(result, decoded, size);
+        stbi_image_free(decoded);
+        return result;
     }
 
-    FILE * SPECIFIC_AUX_CONTEXT_DEVICE::fopenAsset(const char *fileName, const char *mode)
+    FILE * SPECIFIC_AUX_CONTEXT_DEVICE::fopenAsset(const char *fileName, const char * /*mode*/)
     {
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-        JNIEnv *         jenv                  = cJni->jenv;
-        jmethodID mid = jenv->GetStaticMethodID(cJni->jclassFileJniEngine, "openFD", "(Ljava/lang/String;)Ljava/io/FileDescriptor;");
-        if (mid == nullptr)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "method openFD not found!");
-        jstring jstr = jenv->NewStringUTF(cJni->get_safe_string_utf(fileName));//fixed issue using local std::string
-        if (jstr == nullptr)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on call NewStringUTF!");
-        jobject fd_sys = (jobject)jenv->CallStaticObjectMethod(cJni->jclassFileJniEngine, mid, jstr);
-        jenv->DeleteLocalRef(jstr);
-        jstr = nullptr;
-        if (fd_sys == nullptr)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on call CallStaticObjectMethod!");
-        jclass fdClass = jenv->FindClass("java/io/FileDescriptor");
-        if (fdClass == nullptr)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on call FindClass FileDescriptor!");
-        jfieldID fdClassDescriptorFieldID = jenv->GetFieldID(fdClass, "descriptor", "I");
-        if (fdClassDescriptorFieldID == nullptr)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on call GetFieldID descriptor!");
-        jint fd = jenv->GetIntField(fd_sys, fdClassDescriptorFieldID);
-        if (fd == 0)
-            return nullptr;
-        jfieldID fidOffset = jenv->GetStaticFieldID(cJni->jclassFileJniEngine, "offset", "J");
-        if (nullptr == fidOffset)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on get offset from file!");
-        jlong offset = jenv->GetStaticLongField(cJni->jclassFileJniEngine, fidOffset);
-
-        jfieldID fidLen = jenv->GetStaticFieldID(cJni->jclassFileJniEngine, "len", "J");
-        if (nullptr == fidLen)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "error on get len from file!");
-        jlong len = jenv->GetStaticLongField(cJni->jclassFileJniEngine, fidLen);
-        if (len == 0)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "len from file ZERO!");
-        // int myfd = dup(fd);
-        FILE *fp = fdopen(fd, mode);
-        if (!fp)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed fdopen method!");
-        fseek(fp, offset, SEEK_CUR);
-        auto *data        = new uint8_t[len];
-        const char *   currentPath = cJni->absPath.c_str();
+        if (!cJni->assetManager)
+            return onFailOpenFile(__LINE__, __FILE__, "assetManager is null!");
+        AAsset* asset = AAssetManager_open(cJni->assetManager, fileName, AASSET_MODE_STREAMING);
+        if (!asset)
+            return onFailOpenFile(__LINE__, __FILE__, "AAssetManager_open failed!");
+        const off_t len = AAsset_getLength(asset);
+        if (len <= 0)
+        {
+            AAsset_close(asset);
+            return onFailOpenFile(__LINE__, __FILE__, "asset length is 0!");
+        }
+        auto* data = new uint8_t[static_cast<size_t>(len)];
+        const off_t bytesRead = AAsset_read(asset, data, static_cast<size_t>(len));
+        AAsset_close(asset);
+        if (bytesRead != len)
+        {
+            delete[] data;
+            return onFailOpenFile(__LINE__, __FILE__, "AAsset_read returned unexpected size!");
+        }
+        const char* currentPath = cJni->absPath.c_str();
         if (!currentPath || strlen(currentPath) == 0)
         {
-            fclose(fp);
             delete[] data;
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "absPath not set!");
+            return onFailOpenFile(__LINE__, __FILE__, "absPath not set!");
         }
-        std::string newFileTemp(currentPath);
-        newFileTemp += "compatibility.temp";
-        if (!fread(data, len, 1, fp))
-        {
-            fclose(fp);
-            delete[] data;
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed to read data from file asset!");
-        }
-        fclose(fp);
-        fp = fopen(newFileTemp.c_str(), "wb");
+        std::string tempPath(currentPath);
+        if (tempPath.back() != '/' && tempPath.back() != '\\')
+            tempPath += '/';
+        tempPath += "compatibility.temp";
+        FILE* fp = fopen(tempPath.c_str(), "wb");
         if (!fp)
         {
             delete[] data;
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed to create temp file asset @@@!");
+            return onFailOpenFile(__LINE__, __FILE__, "failed to create temp file!");
         }
-        if (!fwrite(data, len, 1, fp))
+        if (!fwrite(data, static_cast<size_t>(len), 1, fp))
         {
             fclose(fp);
             delete[] data;
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed to write to file tmp!");
+            return onFailOpenFile(__LINE__, __FILE__, "failed to write temp file!");
         }
         delete[] data;
-        if (fflush(fp))
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed to flush file temp!");
-        if (fclose(fp) == EOF)
-            return (FILE *)this->onFailOpenFile(__LINE__, __FILE__, "failed to close file temp!");
-        jenv->DeleteLocalRef(fd_sys);
-        jenv->DeleteLocalRef(fdClass);
-        return fopen(newFileTemp.c_str(), "rb");
+        fflush(fp);
+        fclose(fp);
+        return fopen(tempPath.c_str(), "rb");
     }
  
     const char* SPECIFIC_AUX_CONTEXT_DEVICE::get_safe_string_utf(const char* string_input)//fixed issue Android keep memory to string
@@ -397,33 +431,29 @@ namespace mbm
         return buffer_new_stringUTF[index_string_utf++].c_str();
     }
 
-    void SPECIFIC_AUX_CONTEXT_DEVICE::callQuitInJava()
+    void SPECIFIC_AUX_CONTEXT_DEVICE::callQuit()
     {
-        jfieldID fidRun = this->jenv->GetStaticFieldID(this->jclassInstanceActivityEngine, "run", "Z");
-        if (nullptr == fidRun)
-        {
-            PRINT_IF_DEBUG( "wasn't found variable \"run\" class: %s", this->jclassInstanceActivityEngine);
-            return;
-        }
-        this->jenv->SetStaticBooleanField(this->jclassInstanceActivityEngine, fidRun, false);
+        // Signal the android_main loop to stop via the engine's run flag.
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        if (device)
+            device->run = false;
     }
 
     
-    void SPECIFIC_AUX_CONTEXT_DEVICE::streamStopped(const int indexJNI)
-    {
-        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        AUDIO_MANAGER_INTERFACE* audioManager = device->getAudioManagerInterface();
-        if(audioManager)
-            audioManager->streamStopped(indexJNI);
-    }
+
 };
 
 int access_file(const char *fileName, int)
 {
+    if (!fileName || fileName[0] == '\0')
+        return -1;
+    // Check the real filesystem first (covers files already extracted to absPath).
+    if (access(fileName, F_OK) == 0)
+        return 0;
+    // Fall back to AAssetManager for files still inside the APK.
     mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
     mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
-    std::string fileName_buffer(fileName ? fileName : "");
-    return cJni->existFileOnAssets(fileName_buffer.c_str());
+    return cJni->existFileOnAssets(fileName);
 }
 
 #endif

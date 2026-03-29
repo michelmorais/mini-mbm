@@ -388,7 +388,6 @@ namespace mbm
             idCustomScript = w.addButton(temp_app_custom, 380 + 10 - adjusted_custom, 180, adjusted_custom, 20, -1, onSelectUserScript);
         }
 
-        w.exitOnEsc = false;
         w.enterLoop(nullptr);
         w.run = false;
         w.closeWindow();
