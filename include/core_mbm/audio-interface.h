@@ -39,9 +39,6 @@ namespace mbm
 		virtual void stopAll() = 0;
 		virtual void update(CORE_MANAGER* coreManager,const int idScene) = 0;
 		virtual void release() = 0;
-		#ifdef ANDROID
-		virtual void streamStopped(const int indexJNI) = 0;
-		#endif
 	};
 
     enum STATE_AUDIO : char
@@ -56,9 +53,6 @@ namespace mbm
     {
       public:
 		int idScene;
-	#ifdef ANDROID
-        int indexJNI;
-	#endif
         STATE_AUDIO state;
 		virtual bool setVolume(const float volume) = 0;
         virtual bool pause() = 0;

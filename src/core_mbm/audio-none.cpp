@@ -45,7 +45,7 @@ namespace mbm
         #else
         #pragma message("Audio engine NONE is used, all functions are disabled")
         #endif
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=jni to enable it via cmake.");
+        ERROR_AT(__LINE__,__FILE__,"AUDIO::AUDIO is disabled\nDefine: AUDIO=portaudio or AUDIO=audiere or AUDIO=opensl to enable it via cmake.");
     }
 
     AUDIO::~AUDIO()

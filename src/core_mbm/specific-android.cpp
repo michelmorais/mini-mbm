@@ -440,13 +440,7 @@ namespace mbm
     }
 
     
-    void SPECIFIC_AUX_CONTEXT_DEVICE::streamStopped(const int indexJNI)
-    {
-        mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
-        AUDIO_MANAGER_INTERFACE* audioManager = device->getAudioManagerInterface();
-        if(audioManager)
-            audioManager->streamStopped(indexJNI);
-    }
+
 };
 
 int access_file(const char *fileName, int)

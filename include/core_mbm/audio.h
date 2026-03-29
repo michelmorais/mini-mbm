@@ -77,12 +77,7 @@ namespace mbm
 		API_IMPL OnEndStreamCallBack getOnEndstream() const;
 		API_IMPL const char* getFileName() const noexcept override;
         OnEndStreamCallBack onEndStreamCallBack;
-	#if defined(AUDIO_ENGINE_ANDROID_JNI) //  AUDIO_ENGINE_ANDROID_JNI ------------------------------------------------------
-    private:
-        bool log(const char *erro, const char *arg1, const int line);
-        bool onNew_AudioJniEngine(int *retIndexJni);
-    public:
-    #elif defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
+	#if defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
 		audiere::OutputStreamPtr sound;
 	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
 		std::unique_ptr<PA_WAVE> pa_wave;
@@ -142,10 +137,7 @@ namespace mbm
 		};
 
 		static audiere::AudioDevicePtr	audioDevice;
-#elif defined(AUDIO_ENGINE_ANDROID_JNI)
-        void streamStopped(const int indexJNI)override;
-#elif defined(AUDIO_ENGINE_ANDROID_OPENSL)
-        void streamStopped(const int indexJNI)override;  // no-op: OpenSL ES manages end-of-stream natively
+
 #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 		LPDIRECTSOUND8		m_directSound; //for DSBCAPS_CTRL3D , DSBCAPS_PRIMARYBUFFER  must be present and must be used with LPDIRECTSOUND instead of LPDIRECTSOUND8
 #endif

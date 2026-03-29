@@ -611,7 +611,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit);
         void initClassLoader(jobject activityObj);  // must be called before cacheJavaClasses on native threads
         void cacheJavaClasses(const char *_packageNameMiniMBMClasses);
         void callQuit();
-        void streamStopped(const int indexJNI);
+
       private:
         char              packageName[255];
         char              packageNameMiniMBMClasses[255];

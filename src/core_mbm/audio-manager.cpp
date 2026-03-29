@@ -412,22 +412,7 @@ namespace mbm
     }
     #endif
 
-#if defined(AUDIO_ENGINE_ANDROID_JNI)
-    void AUDIO_MANAGER::streamStopped(const int indexJNI)
-    {
-        for (size_t i = 0; i < audios.size(); ++i)
-        {
-            AUDIO* my_audio = audios[i];
-            if (my_audio->indexJNI == indexJNI)
-            {
-                if(my_audio->onEndStreamCallBack)
-                    my_audio->onEndStreamCallBack(my_audio);
-            }
-        }
-    }
-#elif defined(AUDIO_ENGINE_ANDROID_OPENSL)
-    void AUDIO_MANAGER::streamStopped(const int /*indexJNI*/) {}  // no-op: OpenSL ES manages end-of-stream natively
-#endif
+
     void AUDIO_MANAGER::releaseStaticInstance()
     {
         if (AUDIO_MANAGER::instance)

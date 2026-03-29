@@ -574,7 +574,6 @@ cmake ~/mini-mbm \
 | `AUDIO=` | Description | Status |
 |---|---|---|
 | `opensl` | NDK OpenSL ES — pure C++, no Java audio calls | **Recommended** (API ≥ 21) |
-| `jni` | Java `SoundPool` / `MediaPlayer` via JNI | Legacy — requires Java audio classes in APK |
 | `none` | Disabled | Silently drops all audio calls |
 
 To use OpenSL ES:
@@ -615,7 +614,6 @@ The `android_main()` NativeActivity entry point is the same file for both paths;
 | `platform-android/gradle/` | Gradle wrapper scripts (configured at CMake time) |
 | `src/core_mbm/specific-android.cpp` | NDK system integration (`AAssetManager`, `ALooper`) |
 | `src/core_mbm/audio-opensl-android.cpp` | OpenSL ES audio backend (`AUDIO=opensl`, recommended) |
-| `src/core_mbm/audio-jni-android.cpp` | Legacy JNI audio backend (`AUDIO=jni`) |
 
 ---
 
@@ -634,13 +632,14 @@ The following files remain in the repo as archive and are **not used by the Nati
 
 ### Removed files
 
-The following JNI audio classes were removed after the switch to OpenSL ES (`-DAUDIO=opensl`).
+The following JNI audio files were removed after the switch to OpenSL ES (`-DAUDIO=opensl`).
 They are no longer needed and have been deleted from the repository:
 
 - `AudioJniEngine.java`
 - `AudioManagerJniEngine.java`
 - `MusicJniEngine.java`
 - `SoundJniEngine.java`
+- `src/core_mbm/audio-jni-android.cpp`
 
 ---
 

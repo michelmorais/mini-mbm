@@ -386,7 +386,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
 | Windows | Audiere | `-DAUDIO=audiere` |
-| Android | OpenSL ES (recommended) or JNI | `-DAUDIO=opensl` / `-DAUDIO=jni` |
+| Android | OpenSL ES | `-DAUDIO=opensl` |
 | All | None (silent) | `-DAUDIO=none` |
 
 ### Supported File Formats by Platform
@@ -814,7 +814,6 @@ cmake ~/mini-mbm \
 
 **Audio options:**
 - `-DAUDIO=opensl` — NDK OpenSL ES, pure C++ (API ≥ 21, **recommended**)
-- `-DAUDIO=jni` — Java `SoundPool`/`MediaPlayer` via JNI (legacy)
 - `-DAUDIO=none` — silent (no audio dependency)
 
 **Other Android-specific flags:**
@@ -932,7 +931,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
 | `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
-| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `jni` (Android), or `none` |
+| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `opensl` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 
 > On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
@@ -1188,7 +1187,7 @@ int main() {
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
-| **Áudio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), JNI (Android) |
+| **Áudio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Plataformas** | Windows, Linux, macOS, Android |
@@ -1273,7 +1272,7 @@ O motor utiliza seus próprios formatos binários otimizados para assets de jogo
 | **Vulkan** | — | 🚧 Planejado | `-DUSE_VULKAN=1` |
 | **Metal** | macOS, iOS | ✅ Estável | `-DUSE_METAL=1` |
 
-O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e JNI (Android).
+O backend OpenGL ES utiliza EGL + GLES2 via X11 (Linux/macOS), Win32 (Windows) e NativeActivity (Android).
 
 ---
 

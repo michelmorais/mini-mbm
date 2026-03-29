@@ -23,9 +23,6 @@ namespace mbm
 {
     AUDIO_INTERFACE::AUDIO_INTERFACE(const int _idScene) noexcept:
     idScene(_idScene),
-#if defined(ANDROID)
-    indexJNI(0),
-#endif
     state(AUDIO_STOPPED),
 	userData(nullptr),
 	bPersistent(true)
