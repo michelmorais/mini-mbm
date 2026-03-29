@@ -914,7 +914,7 @@ namespace mbm
     TILE_LAYER::TILE_LAYER(TILE* parent, uint32_t layerIndex)
     : RENDERIZABLE(parent->getIdScene(), TYPE_CLASS_TILE_LAYER,
                    parent->is3D, parent->is2dS)
-    , indexLayer(layerIndex)
+    , indexLayer(layerIndex)// indexLayer is stored here, immutable for the lifetime of this object
     , ptr_tileMap(parent)
     {
         // Use the layer's z offset if non-zero; otherwise leave at 0 so

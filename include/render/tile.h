@@ -77,8 +77,8 @@ namespace mbm
         API_IMPL ANIMATION_MANAGER*           getAnimationManager() override;
         API_IMPL uint32_t                     getLayerIndex()  const noexcept;
     protected:
-        uint32_t indexLayer;
-        TILE*    ptr_tileMap;
+        const uint32_t indexLayer;
+        TILE*          ptr_tileMap;
         virtual bool isOnFrustum()     override;
         virtual bool render()          override;
         virtual bool onRestoreDevice() override;
