@@ -49,6 +49,9 @@ namespace mbm
     
     void TILE::release()
     {
+        for (auto* l : lsLayerRenderizables)
+            delete l;
+        lsLayerRenderizables.clear();
         this->releaseAnimation();
         this->lsVisible.clear();
         this->mesh                  = nullptr;
@@ -135,7 +138,9 @@ namespace mbm
                 {
                     loadBufferBackGroundTexture();
                 }
-                lsVisible.resize(ptr_TileInfo->map.layerCount,true);
+                lsVisible.resize(ptr_TileInfo->map.layerCount, true);
+                for (uint32_t i = 0; i < ptr_TileInfo->map.layerCount; ++i)
+                    lsLayerRenderizables.push_back(new TILE_LAYER(this, i));
             }
             else
             {
@@ -207,14 +212,7 @@ namespace mbm
         if (this->mesh)
         {
             IS_ON_FRUSTUM verify(this);
-            bool ret = verify.isOnFrustum(this->is3D, this->is2dS);
-            if(ret == false)
-            {
-                ANIMATION *anim = this->getAnimation();
-                mbm::DEVICE* device = mbm::DEVICE::getInstance();
-                anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
-            }
-            return ret;
+            return verify.isOnFrustum(this->is3D, this->is2dS);
         }
         return false;
     }
@@ -230,7 +228,6 @@ namespace mbm
             auto * anim               = this->getAnimation(0);
             if(loadBufferBackGroundTexture() && anim)
             {
-                mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
@@ -249,17 +246,6 @@ namespace mbm
                 MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, &device->camera.matrixPerspective2d);
                 if (anim->fx.shader.render(&this->backGroundMap) == false)
                 {
-					device->enableFilteringAfterPixelPerfect();
-                    return false;
-                }
-            }
-        }
-        for (size_t i = 0; i < ptr_TileInfo->map.layerCount; i++)
-        {
-            if(lsVisible[i])
-            {
-                if (renderLayer(i) == false)
-                {
                     device->enableFilteringAfterPixelPerfect();
                     return false;
                 }
@@ -269,7 +255,7 @@ namespace mbm
         return true;
     }
 
-    bool TILE::renderLayer(const uint32_t index_layer)
+    bool TILE::renderLayer(const uint32_t index_layer, const float z_value)
     {
         ANIMATION *anim            = getAnimation(index_layer);
         if(anim == nullptr)
@@ -284,11 +270,15 @@ namespace mbm
             return false;
         }
         const util::BTILE_LAYER* layer = & ptr_TileInfo->layers[index_layer];
-        position.z                     = layer->offset[2];
         const float offset_x           = layer->offset[0] * scale.x;
         const float offset_y           = layer->offset[1] * scale.y;
 
+        // Build a local position carrying z_value so the parent's position.z is
+        // never mutated — that would corrupt the sort key for the next frame.
+        VEC3 renderPos(position.x, position.y, z_value);
+
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->disableFilteringForPixelPerfect();
 
         anim->updateAnimation(device->delta, this, this->onEndAnimation, this->onEndFx);
         anim->fx.shader.update();
@@ -296,28 +286,29 @@ namespace mbm
         anim->fx.setBlendOp();
 
         TEXTURE* idTextureOverrideStage2 = anim->fx.textureOverrideStage2 ? anim->fx.textureOverrideStage2 : nullptr;
-        VEC3 thePosBrick(this->position);
+        VEC3 thePosBrick(renderPos);
         const MATRIX *matrixPerspective = nullptr;
         if (this->is3D)
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &this->position, &this->angle, &this->scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &this->scale);
             matrixPerspective = &device->camera.matrixPerspective;
         }
         else if(this->is2dS)
         {
             thePosBrick = VEC3(this->position.x * device->camera.scaleScreen2d.x,
-                                    this->position.y * device->camera.scaleScreen2d.y, this->position.z);
+                                    this->position.y * device->camera.scaleScreen2d.y, z_value);
             device->transformeScreen2dToWorld2d_scaled(this->position.x, this->position.y, thePosBrick);
             MatrixTranslationRotationScale(&SHADER::modelView, &thePosBrick, &this->angle, &this->scale);
             matrixPerspective = &device->camera.matrixPerspective2d;
         }
         else
         {
-            MatrixTranslationRotationScale(&SHADER::modelView, &position, &this->angle, &scale);
+            MatrixTranslationRotationScale(&SHADER::modelView, &renderPos, &this->angle, &scale);
             matrixPerspective = &device->camera.matrixPerspective2d;
         }
         const bool render_left_to_right = ptr_TileInfo->map.renderDirection[0] == 1; // render_left_to_right == 1
         const bool render_top_to_down   = ptr_TileInfo->map.renderDirection[1] == 1; // render_top_to_down == 1
+
         if(ptr_TileInfo->map.typeMap == util::BTILE_TYPE_ORIENTATION_ISOMETRIC)
         {
             if(render_left_to_right)
@@ -328,17 +319,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -348,17 +342,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -371,17 +368,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -391,17 +391,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -417,17 +420,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -437,17 +443,20 @@ namespace mbm
                     {
                         for (uint32_t i = 0; i < ptr_TileInfo->map.count_width_tile; i++)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -460,17 +469,20 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j-1,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j - 1,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
@@ -480,22 +492,26 @@ namespace mbm
                     {
                         for (uint32_t i = ptr_TileInfo->map.count_width_tile; i > 0; i--)
                         {
-                            if(renderBrick( ptr_TileInfo,
-                                            layer->lsIndexTiles,
-                                            &anim->fx.shader,
-                                            idTextureOverrideStage2,
-                                            i-1,
-                                            j,
-                                            offset_x,
-                                            offset_y,
-                                            &thePosBrick,
-                                            matrixPerspective) == false)
+                            if (renderBrick(ptr_TileInfo,
+                                layer->lsIndexTiles,
+                                &anim->fx.shader,
+                                idTextureOverrideStage2,
+                                i - 1,
+                                j,
+                                offset_x,
+                                offset_y,
+                                &thePosBrick,
+                                matrixPerspective) == false)
+                            {
+                                device->enableFilteringAfterPixelPerfect();
                                 return false;
+                            }
                         }
                     }
                 }
             }
         }
+        device->enableFilteringAfterPixelPerfect();
         return true;
     }
 
@@ -517,17 +533,31 @@ namespace mbm
             SHADER::modelView._41 = (bTileIndex->x * scale.x) + offset_x + pos->x;
             SHADER::modelView._42 = (bTileIndex->y * scale.y) + offset_y + pos->y;
             MatrixMultiply(&SHADER::mvpMatrix, &SHADER::modelView, matrixPerspective);
-            if (this->mesh->render(bTileIndex->index, shader,idTextureOverrideStage2) == false)
+            if (this->mesh->render(bTileIndex->index, shader, idTextureOverrideStage2) == false)
+            {
                 return false;
+            }
         }
         return true;
     }
     
     bool TILE::onRestoreDevice()
     {
+        // Preserve runtime z values (may have been changed via setZLayer)
+        std::vector<float> savedLayerZ(lsLayerRenderizables.size());
+        for (size_t i = 0; i < lsLayerRenderizables.size(); ++i)
+            savedLayerZ[i] = lsLayerRenderizables[i]->position.z;
+        // Destroy layer renderizables; load() will recreate them
+        for (auto* l : lsLayerRenderizables)
+            delete l;
+        lsLayerRenderizables.clear();
+
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
+            // Restore user-modified z values (load resets them from file data)
+            for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedLayerZ.size(); ++i)
+                lsLayerRenderizables[i]->position.z = savedLayerZ[i];
             #if defined DEBUG_RESTORE
             PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
@@ -588,9 +618,9 @@ namespace mbm
     void TILE::setLayerVisible(const unsigned int index, const bool visible)
     {
         if (index < lsVisible.size())
-        {
             lsVisible[index] = visible;
-        }
+        if (index < lsLayerRenderizables.size())
+            lsLayerRenderizables[index]->enableRender = visible;
     }
 
     unsigned int TILE::getTotalLayer()const
@@ -848,23 +878,15 @@ namespace mbm
 
     float TILE::getZLayer(const uint32_t indexLayer) const
     {
-        const auto * ptr_TileInfo = this->getTileInfo();
-        if(ptr_TileInfo && indexLayer < ptr_TileInfo->map.layerCount)
-        {
-            return ptr_TileInfo->layers[indexLayer].offset[2];
-        }
+        if (indexLayer < lsLayerRenderizables.size())
+            return lsLayerRenderizables[indexLayer]->position.z;
         return 0.0f;
     }
 
     void  TILE::setZLayer(const uint32_t indexLayer, const float z)
     {
-        const util::BTILE_INFO * ptr_TileInfo = this->mesh ? mesh->getInfoTile() : nullptr;
-        if(ptr_TileInfo && indexLayer < ptr_TileInfo->map.layerCount)
-        {
-            if(clone_bTileInfo == nullptr)
-                clone_bTileInfo = ptr_TileInfo->clone();
-            clone_bTileInfo->layers[indexLayer].offset[2] = z;
-        }
+        if (indexLayer < lsLayerRenderizables.size())
+            lsLayerRenderizables[indexLayer]->position.z = z;
     }
 
 
@@ -905,6 +927,114 @@ namespace mbm
         }
         return nullptr;
     }
+
+    TILE_LAYER* TILE::getLayerRenderizable(uint32_t index) const noexcept
+    {
+        if (index < lsLayerRenderizables.size())
+            return lsLayerRenderizables[index];
+        return nullptr;
+    }
+
+    // -------------------------------------------------------------------------
+    // TILE_LAYER implementation
+    // -------------------------------------------------------------------------
+
+    TILE_LAYER::TILE_LAYER(TILE* parent, uint32_t layerIndex)
+    : RENDERIZABLE(parent->getIdScene(), TYPE_CLASS_TILE_LAYER,
+                   parent->is3D, parent->is2dS)
+    , indexLayer(layerIndex)// indexLayer is stored here, immutable for the lifetime of this object
+    , ptr_tileMap(parent)
+    {
+        // Use the layer's z offset if non-zero; otherwise leave at 0 so
+        // DEVICE::addRenderizable auto-assigns a decreasing z value.
+        const auto* ptr_TileInfo = parent->getTileInfo();
+        if (ptr_TileInfo && layerIndex < ptr_TileInfo->map.layerCount)
+        {
+            const float layerZ = ptr_TileInfo->layers[layerIndex].offset[2];
+            if (layerZ != 0.0f)
+                position.z = layerZ;
+        }
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->addRenderizable(this);
+    }
+
+    TILE_LAYER::~TILE_LAYER()
+    {
+        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        device->removeRenderizable(this);
+    }
+
+    FVF_PROVIDE_BY_ENGINE TILE_LAYER::getFvfFromBuffer() const noexcept
+    {
+        return ptr_tileMap->getFvfFromBuffer();
+    }
+
+    const INFO_PHYSICS* TILE_LAYER::getInfoPhysics() const
+    {
+        return ptr_tileMap->getInfoPhysics();
+    }
+
+    const MESH_MBM* TILE_LAYER::getMesh() const
+    {
+        return ptr_tileMap->getMesh();
+    }
+
+    bool TILE_LAYER::isLoaded() const
+    {
+        return ptr_tileMap->isLoaded();
+    }
+
+    FX* TILE_LAYER::getFx() const
+    {
+        ANIMATION* anim = ptr_tileMap->getAnimation(indexLayer);
+        if (anim)
+            return &anim->fx;
+        return nullptr;
+    }
+
+    ANIMATION_MANAGER* TILE_LAYER::getAnimationManager()
+    {
+        return ptr_tileMap->getAnimationManager();
+    }
+
+    uint32_t TILE_LAYER::getLayerIndex() const noexcept
+    {
+        return indexLayer;
+    }
+
+    bool TILE_LAYER::isOnFrustum()
+    {
+        if (!ptr_tileMap->isLoaded())
+            return false;
+        // All layers share the same spatial extent as the parent TILE.
+        IS_ON_FRUSTUM verify(ptr_tileMap);
+        bool ret = verify.isOnFrustum(ptr_tileMap->is3D, ptr_tileMap->is2dS);
+        if (!ret)
+        {
+            // Update this layer's animation even when off-screen so timing stays correct.
+            ANIMATION* anim = ptr_tileMap->getAnimation(indexLayer);
+            if (anim)
+            {
+                mbm::DEVICE* device = mbm::DEVICE::getInstance();
+                anim->updateAnimation(device->delta, ptr_tileMap,
+                                      ptr_tileMap->onEndAnimation,
+                                      ptr_tileMap->onEndFx);
+            }
+        }
+        return ret;
+    }
+
+    bool TILE_LAYER::render()
+    {
+        return ptr_tileMap->renderLayer(indexLayer, this->position.z);
+    }
+
+    bool TILE_LAYER::onRestoreDevice()
+    {
+        return true; // The parent TILE handles mesh/texture restore.
+    }
+
+    // -------------------------------------------------------------------------
 
     TILE_OBJ::TILE_OBJ(TILE* tileMap, MESH_MBM * pMesh, const uint32_t tileID, const uint32_t indexLayer)
     : RENDERIZABLE(tileMap->getIdScene(), TYPE_CLASS_TILE_OBJ, tileMap->is3D && tileMap->is2dS == false, tileMap->is2dS),

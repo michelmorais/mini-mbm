@@ -405,6 +405,17 @@ function drawLayerTab(item_width)
                 end
             end
 
+            tImGui.Text(tLang.L("offset_z"))
+            local result, fValue = tImGui.InputFloat('##LayerOffSetZ' .. id, tLayer.offsetZ or 0, 0.001, 0.01, "%.4f", flags)
+            if result then
+                tLayer.offsetZ = fValue
+                if tTile:updateLayer(i,tLayer) == false then
+                    tUtil.showMessageWarn(tLang.L("could_not_update_offset_z_on_layer"))
+                else
+                    addHistoric()
+                end
+            end
+
             local sShaderName = tTile:getNameShaderLayer(i)
             if  sShaderName == 'tint.ps' then
                 if tImGui.TreeNodeEx(tLang.L("tint_options"), flag_selected_node, id .. '-tint') then

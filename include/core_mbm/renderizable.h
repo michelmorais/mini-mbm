@@ -58,6 +58,7 @@ namespace mbm
         TYPE_CLASS_RENDER_2_TEX      = 15,
         TYPE_CLASS_TILE              = 16,
         TYPE_CLASS_TILE_OBJ          = 17,
+        TYPE_CLASS_TILE_LAYER        = 18,
     };
 
     class RENDERIZABLE

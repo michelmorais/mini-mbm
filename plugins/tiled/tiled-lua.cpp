@@ -529,6 +529,9 @@ static int onGetLayerTiledEditorLua(lua_State * lua)
     lua_push_vec2(lua,tileEditor->getOffsetLayer(index));
     lua_setfield(lua,-2,"offset");
 
+    lua_pushnumber(lua,tileEditor->getOffsetLayerZ(index));
+    lua_setfield(lua,-2,"offsetZ");
+
     lua_pushinteger(lua,((unsigned int)tileEditor->getTintAnimTypeLayer(index)) + 1);
     lua_setfield(lua,-2,"tintAnimType");
 
@@ -549,7 +552,7 @@ static int onUpdateLayerTiledEditorLua(lua_State * lua)
 {
     mbm::TILE_EDITOR * tileEditor  = getTileEditorFromRawTable(lua,1,1);
     uint32_t index                 = luaL_checkinteger(lua,2);
-    lua_check_is_table(lua, 3, "{visible,minTint,maxTint,offset,tintAnimType,tintAnimTime}");
+    lua_check_is_table(lua, 3, "{visible,minTint,maxTint,offset,offsetZ,tintAnimType,tintAnimTime}");
     if(index == 0 )
     {
         mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
@@ -564,6 +567,10 @@ static int onUpdateLayerTiledEditorLua(lua_State * lua)
 
         lua_getfield(lua, 3, "offset");
         tileEditor->setOffsetLayer(index,lua_pop_vec2(lua,lua_gettop(lua)));
+        lua_pop(lua, 1);
+
+        lua_getfield(lua, 3, "offsetZ");
+        tileEditor->setOffsetLayerZ(index, (float)lua_tonumber(lua, lua_gettop(lua)));
         lua_pop(lua, 1);
 
         lua_getfield(lua, 3, "minTint");
