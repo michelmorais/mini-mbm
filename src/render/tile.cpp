@@ -228,7 +228,6 @@ namespace mbm
             auto * anim               = this->getAnimation(0);
             if(loadBufferBackGroundTexture() && anim)
             {
-                mbm::DEVICE* device = mbm::DEVICE::getInstance();
                 const float width_tile    = static_cast<float>(ptr_TileInfo->map.size_width_tile  * scale.x);
                 const float height_tile   = static_cast<float>(ptr_TileInfo->map.size_height_tile * scale.y);
                 const float width_map     = static_cast<float>(width_tile  * ptr_TileInfo->map.count_width_tile);
