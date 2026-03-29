@@ -248,7 +248,7 @@ namespace mbm
         }
         else
         {
-            lua_pushnumber(lua, device->fps);
+            lua_pushnumber(lua, device->real_fps);// assume the user want the real fps if not specify
         }
         return 1;
     }
