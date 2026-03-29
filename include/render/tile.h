@@ -36,6 +36,7 @@ namespace mbm
 {
 
     class TILE;
+    class TILE_LAYER;
 
     class TILE_OBJ : public RENDERIZABLE
     {
@@ -62,10 +63,32 @@ namespace mbm
         MESH_MBM *  ptr_Mesh;
     };
 
+    class TILE_LAYER : public RENDERIZABLE
+    {
+        friend class TILE;
+    public:
+        API_IMPL TILE_LAYER(TILE* parent, uint32_t layerIndex);
+        API_IMPL virtual ~TILE_LAYER();
+        FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
+        API_IMPL virtual const INFO_PHYSICS*  getInfoPhysics() const override;
+        API_IMPL virtual const MESH_MBM*      getMesh()        const override;
+        API_IMPL virtual bool                 isLoaded()       const override;
+        API_IMPL FX*                          getFx()          const override;
+        API_IMPL ANIMATION_MANAGER*           getAnimationManager() override;
+        API_IMPL uint32_t                     getLayerIndex()  const noexcept;
+    protected:
+        uint32_t indexLayer;
+        TILE*    ptr_tileMap;
+        virtual bool isOnFrustum()     override;
+        virtual bool render()          override;
+        virtual bool onRestoreDevice() override;
+    };
+
     class TILE : public RENDERIZABLE, public ANIMATION_MANAGER
     {
     public:
         friend class RENDER_2_TEXTURE;
+        friend class TILE_LAYER;
         API_IMPL TILE(const SCENE *scene, const bool _is3d, const bool _is2dScreen);
         API_IMPL virtual ~TILE();
         API_IMPL void release();
@@ -86,6 +109,7 @@ namespace mbm
         API_IMPL bool setTileID(const int x,const int y,const uint32_t brickID,const uint32_t indexLayer);
         API_IMPL float getZLayer(const uint32_t indexLayer) const;
         API_IMPL void  setZLayer(const uint32_t indexLayer, const float z);
+        API_IMPL TILE_LAYER* getLayerRenderizable(uint32_t index) const noexcept;
         API_IMPL FX*  getFx() const override;
         API_IMPL ANIMATION_MANAGER*  getAnimationManager() override;
         FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
@@ -93,7 +117,7 @@ namespace mbm
     private:
         bool                    isOnFrustum() override;
         bool                    render() override;
-        bool                    renderLayer(const uint32_t index_layer);
+        bool                    renderLayer(const uint32_t index_layer, const float z_value);
         bool                    onRestoreDevice() override;
         const INFO_PHYSICS *	getInfoPhysics() const override;
         const MESH_MBM *        getMesh() const override;
@@ -110,6 +134,7 @@ namespace mbm
                                             const MATRIX *matrixPerspective) const;
         MESH_MBM *              mesh;
         std::vector<TILE_OBJ*>	lsTileObjs;
+        std::vector<TILE_LAYER*> lsLayerRenderizables;
         std::vector<bool>		lsVisible;
     private:
         util::BTILE_INFO *		  clone_bTileInfo;

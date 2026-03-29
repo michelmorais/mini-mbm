@@ -280,6 +280,7 @@ namespace mbm
             case TYPE_CLASS_RENDER_2_TEX        : return "render-to-texture";
             case TYPE_CLASS_TILE                : return "tile";
             case TYPE_CLASS_TILE_OBJ            : return "tile-obj";
+            case TYPE_CLASS_TILE_LAYER          : return "tile-layer";
             default                             : return "unknown";
         }
     }

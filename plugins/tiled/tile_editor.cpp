@@ -484,6 +484,37 @@ namespace mbm
         }
     }
 
+    float        TILE_EDITOR::getOffsetLayerZ(const uint32_t index) const
+    {
+        if(index < tileMap.layers.size())
+        {
+            return tileMap.layers[index]->offset.z;
+        }
+        return 0.0f;
+    }
+
+    void         TILE_EDITOR::setOffsetLayerZ(const uint32_t index, const float value)
+    {
+        if(index < tileMap.layers.size())
+        {
+            float newZ = value;
+            // Prevent this layer from crossing (going above) its predecessor in z.
+            // z_offset_interval is negative, so adding it gives one minimum step below.
+            if(index > 0 && newZ >= tileMap.layers[index - 1]->offset.z)
+            {
+                newZ = tileMap.layers[index - 1]->offset.z + z_offset_interval;
+            }
+            const float delta = newZ - tileMap.layers[index]->offset.z;
+            tileMap.layers[index]->offset.z = newZ;
+            // Propagate the same delta to all subsequent layers so their relative
+            // spacing is preserved and render order always matches layer array order.
+            for(uint32_t i = index + 1; i < tileMap.layers.size(); i++)
+            {
+                tileMap.layers[i]->offset.z += delta;
+            }
+        }
+    }
+
     bool TILE_EDITOR::existLayer(const uint32_t index) const
     {
         if(index < tileMap.layers.size())
@@ -2508,7 +2539,7 @@ namespace mbm
                 tileInfo->layers[k].lsIndexTiles       = lsIndexTiles;
                 tileInfo->layers[k].offset[0]          = tileMap.layers[k]->offset.x;
                 tileInfo->layers[k].offset[1]          = tileMap.layers[k]->offset.y;
-                tileInfo->layers[k].offset[2]          = (float)(k + 1) * z_offset_interval; // always derived from index, never from stale in-memory value
+                tileInfo->layers[k].offset[2]          = tileMap.layers[k]->offset.z;
                 auto & layer                           = tileMap.layers[k];
 
                 for (uint32_t i = 0; i < tileMap.count_width_tile; i++)

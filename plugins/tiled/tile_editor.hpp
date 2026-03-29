@@ -152,10 +152,12 @@ namespace mbm
         float                       getTintAnimTimeLayer(const uint32_t index) const;
         const char *                getNamePsShaderLayer(const uint32_t index) const;
         VEC2                        getOffsetLayer(const uint32_t index) const;
+        float                       getOffsetLayerZ(const uint32_t index) const;
         void                        setLayerVisible(const uint32_t index, bool value);
         void                        setMinTintLayer(const uint32_t index,   const COLOR & value);
         void                        setMaxTintLayer(const uint32_t index,   const COLOR & value);
         void                        setOffsetLayer(const uint32_t index, const VEC2 & value);
+        void                        setOffsetLayerZ(const uint32_t index, const float value);
         bool                        existLayer(const uint32_t index) const;
         bool                        addLayer();
         void                        eraseLayer(const uint32_t index);
