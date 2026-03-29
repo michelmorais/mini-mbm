@@ -20,7 +20,7 @@ exact checklist to follow when adding a new backend (e.g. Xbox/PlayStation).
 | `src/core_mbm/audio-portaudio.cpp` | Backend: PortAudio (Linux default / cross-platform). Guard: `AUDIO_ENGINE_PORT_AUDIO` |
 | `src/core_mbm/audio-opensl-android.cpp` | Backend: OpenSL ES (Android, current). Guard: `AUDIO_ENGINE_ANDROID_OPENSL` |
 | `src/core_mbm/audio-avfoundation.mm` | Backend: AVFoundation (macOS / iOS). Guard: `AUDIO_ENGINE_AVFOUNDATION` |
-| `src/core_mbm/audio-jni-android.cpp` | Backend: Android JNI / MediaPlayer (legacy, unused). Guard: `AUDIO_ENGINE_JNI` |
+| `src/core_mbm/audio-jni-android.cpp` | *(removed)* — was the legacy Android JNI / MediaPlayer backend. |
 | `src/core_mbm/audio-none.cpp` | Stub backend (no audio). Guard: `AUDIO_ENGINE_NONE` |
 | `src/lua-wrap/audio-lua.cpp` | Lua binding layer. Registers `audio` global, manages Lua userdata lifetime. |
 | `assets/logic/audio_manager.lua` (game) | High-level Lua audio manager: sound pools, music/sfx distinction, `release()`. |
@@ -53,7 +53,7 @@ Pass `-DAUDIO=<value>` at configure time:
 | `portaudio` | `AUDIO_ENGINE_PORT_AUDIO` | Linux |
 | `audiere` | `AUDIO_ENGINE_AUDIERE` | Windows (MinGW/MSVC) |
 | `none` | `AUDIO_ENGINE_NONE` | explicit opt-out |
-| `jni` | `AUDIO_ENGINE_JNI` | (legacy Android, do not use) |
+| ~~`jni`~~ | ~~`AUDIO_ENGINE_JNI`~~ | *(removed)* |
 
 The selection logic lives in `src/core_mbm/CMakeLists.txt` (lines 58–82 and 214–254).
 
@@ -216,13 +216,10 @@ Lua: tSound:destroy()
 - WAV only.
 - `~AUDIO()` destroys the wave reader.
 
-### 6.6 JNI / MediaPlayer (Android legacy — `audio-jni-android.cpp`)
+### 6.6 JNI / MediaPlayer (removed)
 
-- Each `AUDIO` holds an `indexJNI` (int handle into a Java-side pool).
-- All operations are JNI calls to `AudioManagerJniEngine.java`.
-- `~AUDIO()` calls `onDestroyAudioJniEngine(indexJNI)` via JNI.
-- **Status**: superseded by OpenSL ES. Do not use for new development.
-  See Section 9 for removal.
+The legacy JNI / MediaPlayer backend (`audio-jni-android.cpp`) has been
+removed. It was superseded by OpenSL ES. See Section 9 for details.
 
 ---
 
@@ -284,23 +281,17 @@ their OpenSL player slots so achievement sounds can load in the same scene.
 
 ---
 
-## 9. Removing `audio-jni-android.cpp`
+## 9. JNI Backend Removal (completed)
 
-`audio-jni-android.cpp` is **safe to delete**. It is only compiled when
-`AUDIO_ENGINE_JNI` is defined, which requires `-DAUDIO=jni`. This is never set
-by any active build configuration (Android now always uses `-DAUDIO=opensl`).
-
-Steps to remove:
+The legacy JNI / MediaPlayer backend has been fully removed:
 1. `git rm src/core_mbm/audio-jni-android.cpp`
-2. In `src/core_mbm/CMakeLists.txt`, remove the two blocks that reference `jni`:
-   - Line ~61: `elseif (${AUDIO} STREQUAL "jni") add_definitions(-DAUDIO_ENGINE_ANDROID_JNI)`
-   - Line ~218-220: `elseif(${AUDIO} STREQUAL "jni") ... add_definitions(-DAUDIO_ENGINE_JNI)`
-3. In `include/core_mbm/audio.h`, remove the `AUDIO_ENGINE_ANDROID_JNI` private member block.
-4. In `include/core_mbm/audio-interface.h`, the `indexJNI` field is declared
-   under `#ifdef ANDROID`. If JNI is the only user, remove it too
-   (but first verify `audio-opensl-android.cpp` does not use `indexJNI` —
-   it does not; it uses `oslPlayer`).
-5. In `CMakeLists.txt` (root), remove the `jni` references in the help message (line 57).
+2. Removed `AUDIO=jni` blocks from `src/core_mbm/CMakeLists.txt`.
+3. Removed `AUDIO_ENGINE_ANDROID_JNI` private members from `audio.h`.
+4. Removed `indexJNI` field from `audio-interface.h` (OpenSL ES does not use it).
+5. Removed `streamStopped()` virtual chain from `audio-interface.h`, `audio-manager.cpp`,
+   `specific-opengl_es.h`, and `specific-android.cpp`.
+6. Removed `streamStopped` JNI callback from `platform-android/main.cpp` and `main-lua.cpp`.
+7. Removed `jni` references from root `CMakeLists.txt` help message.
 
 ---
 
@@ -403,9 +394,8 @@ In the root `CMakeLists.txt`:
 
 ### Step 9 — audio-interface.h additions (if needed)
 
-The `AUDIO_MANAGER_INTERFACE` has a `streamStopped(int indexJNI)` virtual
-under `#ifdef ANDROID`. If your backend needs an async end-of-stream callback:
-- Add a new virtual under your own guard macro.
+If your backend needs an async end-of-stream callback:
+- Add a virtual to `AUDIO_MANAGER_INTERFACE` under your own guard macro.
 - Implement it in `audio-manager.cpp` to forward to the correct `AUDIO` instance.
 
 ### Step 10 — Test with the engine's `destroyNow()` path
@@ -444,7 +434,7 @@ Run through the four scenarios in Section 4 mentally against your implementation
 | Platform | Build flag | Backend | Format support |
 |---|---|---|---|
 | Android (current) | `-DAUDIO=opensl` | OpenSL ES | WAV, OGG, MP3 (via Android codec) |
-| Android (legacy) | `-DAUDIO=jni` | JNI/MediaPlayer | WAV, OGG, MP3 (do not use) |
+| Android (legacy) | ~~`-DAUDIO=jni`~~ | ~~JNI/MediaPlayer~~ | *(removed)* |
 | Linux | `-DAUDIO=portaudio` | PortAudio | WAV only (stb_vorbis possible) |
 | Linux (alt) | `-DAUDIO=audiere` | Audiere 1.9.4 | WAV, OGG, MP3, FLAC, MOD |
 | Windows (MinGW/MSVC) | `-DAUDIO=audiere` | Audiere 1.9.4 | WAV, OGG, MP3, FLAC, MOD |
