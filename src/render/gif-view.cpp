@@ -24,7 +24,7 @@
 #include <string>
 #include <core_mbm/scene.h>
 
-#if (defined _DEBUG || defined DEBUG_RESTORE)
+#if (defined _DEBUG || defined DEBUG)
     #include <log-util.h>
 #endif
 
@@ -325,7 +325,7 @@ namespace mbm
         util::split(result, this->fileName.c_str(), '|');
         if (result.size() != 3)
         {
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_IF_DEBUG("Restore information missing");
 #endif
             return false;
@@ -337,13 +337,13 @@ namespace mbm
 
         if (this->load(result[0].c_str(), width, height))
         {
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_INFO_IF_DEBUG("Gif [%s] successfully restored", log_util::basename(result[0].c_str()));
 #endif
             // later the engine will fill in the animation state with onRestoreAnimationsState
             return true;
         }
-#if defined DEBUG_RESTORE
+#if defined DEBUG
         PRINT_IF_DEBUG("Failed to restore Gif [%s]", log_util::basename(result[0].c_str()));
 #endif
         return false;

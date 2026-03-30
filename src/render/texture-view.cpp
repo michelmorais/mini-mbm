@@ -24,7 +24,7 @@
 #include <util-interface.h>
 #include <core_mbm/scene.h>
 
-#if (defined _DEBUG || defined DEBUG_RESTORE)
+#if (defined _DEBUG || defined DEBUG)
     #include <log-util.h>
 #endif
 
@@ -306,7 +306,7 @@ namespace mbm
             const auto height           = static_cast<float>(atof(result[3].c_str()));
             const bool  alpha_color     = result[4].compare("1") == 0;
             const bool ret = this->load(fileNameTexture,width,height,alpha_color);
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             if(ret)
             {
                 PRINT_INFO_IF_DEBUG( "texture [%s] successfully restored", log_util::basename(fileNameTexture));
@@ -318,7 +318,7 @@ namespace mbm
 #endif
             return ret;
         }
-        #if defined DEBUG_RESTORE
+        #if defined DEBUG
         PRINT_IF_DEBUG( "Failed to restore texture  [%s]",log_util::basename(this->fileName.c_str()));
         #endif
         return false;

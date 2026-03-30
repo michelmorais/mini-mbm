@@ -128,11 +128,6 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
 			INFO_LOG("mode _DEBUG ON");
 			#endif
 			
-			#if defined DEBUG_RESTORE
-			INFO_LOG("mode DEBUG_RESTORE ON");
-			#endif
-
-			
 			#if defined STACK_TRACE_DEBUG
 			INFO_LOG("mode STACK_TRACE_DEBUG ON");
 			#endif

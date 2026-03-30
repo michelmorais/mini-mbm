@@ -97,7 +97,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;DEBUG_RESTORE;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>LIB_MBM_EXPORTS;LUA_COMPAT_ALL;CORE_EXPORTS;USE_VR;AUDIO_ENGINE_DIRECT_SOUND_8;USE_PLUSAES;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>

@@ -333,14 +333,14 @@ namespace mbm
         }
         if(ret && this->createAnimationAndShader2Line())
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("line successfully restored");
             #endif
             return true;
         }
         else
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("Failed to restore line");
             #endif
             return false;

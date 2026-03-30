@@ -558,7 +558,7 @@ namespace mbm
             // Restore user-modified z values (load resets them from file data)
             for (size_t i = 0; i < lsLayerRenderizables.size() && i < savedLayerZ.size(); ++i)
                 lsLayerRenderizables[i]->position.z = savedLayerZ[i];
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_INFO_IF_DEBUG( "Tile [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             for( auto & tileObj : lsTileObjs)
@@ -569,7 +569,7 @@ namespace mbm
         }
         else
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG( "Failed to restore tile  [%s]", log_util::basename(this->fileName.c_str()));
             #endif
             return false;

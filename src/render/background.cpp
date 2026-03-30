@@ -146,7 +146,7 @@ namespace mbm
             }
             else // Textura
             {
-#if defined DEBUG_RESTORE
+#if defined DEBUG
                 PRINT_IF_DEBUG("Failed to restore [%s]", log_util::basename(this->fileName.c_str()));
 #endif
                 return false;
@@ -171,7 +171,7 @@ namespace mbm
                 this->text = result[2];
             }
             this->lsAnimation[this->indexCurrentAnimation]->restartAnimation();
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_INFO_IF_DEBUG("background [%s] successfully restored", log_util::basename(fileName));
 #endif
             // later the engine will fill in the animation state with onRestoreAnimationsState
@@ -187,7 +187,7 @@ namespace mbm
                 delete this->buffer;
             this->buffer = nullptr;
             this->texture = nullptr;
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_INFO_IF_DEBUG("background [%s] successfully restored", log_util::basename(fileName));
 #endif
             return this->loadTexture(fileName, alpha_color);

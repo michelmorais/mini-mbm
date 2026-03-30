@@ -484,14 +484,14 @@ namespace mbm
                       _sizeOfParticle,
             false) == false)
         {
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_IF_DEBUG("Particle [%s] failed to restore", log_util::basename(result[0].c_str()));
 #endif
             return this->releaseOnFail();
         }
         this->control.moveFrom(backupControl);//restore backup copy move
         
-        #if defined DEBUG_RESTORE
+        #if defined DEBUG
         PRINT_INFO_IF_DEBUG("Particle [%s] successfully restored",log_util::basename( result[0].c_str()));
         #endif
         return true;
