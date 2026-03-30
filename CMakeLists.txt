@@ -19,6 +19,22 @@ cmake_policy(SET CMP0054 NEW)
 set(CMAKE_SUCCESS_SET_PLAT           0)
 set(OPTIMIZED                    "-O3")
 
+# On Apple platforms, suppress the "has no symbols" ranlib/libtool warning that
+# fires for platform-specific .cpp files that compile to empty object files when
+# their backend #ifdefs don't apply (e.g. OpenGL ES objects in an iOS Metal build).
+if(APPLE)
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+        # Xcode drives its own libtool — set the build setting directly.
+        set(CMAKE_XCODE_ATTRIBUTE_OTHER_LIBTOOLFLAGS "-no_warning_for_no_symbols")
+    else()
+        # Makefile / Ninja generators use ar + ranlib.
+        set(CMAKE_C_ARCHIVE_CREATE   "<CMAKE_AR> Scr <TARGET> <LINK_FLAGS> <OBJECTS>")
+        set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> Scr <TARGET> <LINK_FLAGS> <OBJECTS>")
+        set(CMAKE_C_ARCHIVE_FINISH   "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+        set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+    endif()
+endif()
+
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
 
 if (CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")

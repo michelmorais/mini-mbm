@@ -173,7 +173,7 @@ namespace mbm
         {
             dynamicIndex[i] = indexArray[i];
         }
-        util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
+        util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), static_cast<unsigned int>(dynamicVertex.size()), 0, static_cast<unsigned int>(dynamicUV.size()));
         mesh = mehManager->loadDynamicIndex(nickName, sizeVertexBuffer, indexArray.get(), _sizeIndexArray,info_draw_mode,dynamic_shape_info);
         if (mesh)
         {
@@ -319,12 +319,12 @@ namespace mbm
                 dynamicVertex = std::move(vertex);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
-                mesh = mehManager->loadDynamicIndex(nickName,vertex.size(), pIndex, lsIndex.size(),nullptr,dynamic_shape_info);
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), static_cast<unsigned int>(dynamicVertex.size()), 0, static_cast<unsigned int>(dynamicUV.size()));
+                mesh = mehManager->loadDynamicIndex(nickName,static_cast<unsigned int>(vertex.size()), pIndex, static_cast<unsigned int>(lsIndex.size()),nullptr,dynamic_shape_info);
             }
             else
             {
-                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, vertex.size(), pIndex,lsIndex.size(),nullptr);
+                mesh = mehManager->loadIndex(nickName, pVertex, nullptr, pUv, static_cast<unsigned int>(vertex.size()), pIndex,static_cast<unsigned int>(lsIndex.size()),nullptr);
             }
         }
         if (mesh)
@@ -481,7 +481,7 @@ namespace mbm
                 dynamicVertex = std::move(vertex);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), static_cast<unsigned int>(dynamicVertex.size()), 0, static_cast<unsigned int>(dynamicUV.size()));
                 mesh = mehManager->loadDynamicIndex(nickName,3 * total_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
 
             }
@@ -560,7 +560,7 @@ namespace mbm
                 dynamicVertex = std::move(vertex);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), static_cast<unsigned int>(dynamicVertex.size()), 0, static_cast<unsigned int>(dynamicUV.size()));
                 mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
             }
             else
@@ -711,7 +711,7 @@ namespace mbm
                 dynamicVertex = std::move(vertex);
                 dynamicUV     = std::move(uv);
                 dynamicIndex  = lsIndex;
-                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), dynamicVertex.size(), 0, dynamicUV.size());
+                util::DYNAMIC_SHAPE dynamic_shape_info(dynamicVertex.data(), nullptr, dynamicUV.data(), static_cast<unsigned int>(dynamicVertex.size()), 0, static_cast<unsigned int>(dynamicUV.size()));
                 mesh = mehManager->loadDynamicIndex(nickName,size_vertex, pIndex, size_index,nullptr,dynamic_shape_info);
             }
             else

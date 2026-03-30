@@ -139,11 +139,11 @@ namespace mbm
         const bool ret = this->load(this->fileName.c_str());
         if (ret)
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_INFO_IF_DEBUG( "Mesh [%s] successfully restored",log_util::basename(this->fileName.c_str()));
             #endif
         }
-        #if defined DEBUG_RESTORE
+        #if defined DEBUG
         else
         {
             PRINT_IF_DEBUG( "Failed to restore mesh [%s]",log_util::basename( this->fileName.c_str()));

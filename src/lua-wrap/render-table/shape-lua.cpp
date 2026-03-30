@@ -594,7 +594,7 @@ namespace mbm
 			lua_pushstring(lua,"uv");
 			lua_setfield(lua,-2,"name");
 
-            push_uint16_arrayFromTable(lua,index_read_only.data(),index_read_only.size(),true);
+            push_uint16_arrayFromTable(lua,index_read_only.data(),static_cast<unsigned int>(index_read_only.size()),true);
 
 			if (lua_pcall(lua, nargs, nresults, 0))
                 lua_error_debug(lua, "\n%s", luaL_checkstring(lua, -1));
@@ -619,12 +619,12 @@ namespace mbm
                     lua_pop(lua,1);
 					if(strcasecmp(name,"vertex") == 0)
 					{
-						get3ArrayFromTableWithField(lua,index,dynamicVertex.data(),dynamicVertex.size(),"x","y","z");
+						get3ArrayFromTableWithField(lua,index,dynamicVertex.data(),static_cast<unsigned int>(dynamicVertex.size()),"x","y","z");
 						++index_iteration;
 					}
 					else if(strcasecmp(name,"uv") == 0)
 					{
-						get2ArrayFromTableWithField(lua,index,dynamicUV.data(),dynamicUV.size(),"u","v");
+						get2ArrayFromTableWithField(lua,index,dynamicUV.data(),static_cast<unsigned int>(dynamicUV.size()),"u","v");
 						++index_iteration;
 					}
 				}

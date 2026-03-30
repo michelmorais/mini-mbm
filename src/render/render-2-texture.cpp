@@ -436,12 +436,12 @@ namespace mbm
             this->infoPhysics.getBounds(&widthFrame, &heightFrame);
             if (this->load(static_cast<const unsigned int>(widthFrame), static_cast<const unsigned int>(heightFrame), width, height, fileNameTexture, hasAlpha) == nullptr)
                 return false;
-#if defined DEBUG_RESTORE
+#if defined DEBUG
             PRINT_INFO_IF_DEBUG("rende2texture [%s] successfully restored", log_util::basename(fileNameTexture));
 #endif
             return true;
         }
-        #if defined DEBUG_RESTORE
+        #if defined DEBUG
         PRINT_IF_DEBUG("Failed to restore rende2texture [%s]",log_util::basename(this->fileName.c_str()));
         #endif
         return false;

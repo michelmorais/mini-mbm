@@ -155,14 +155,14 @@ namespace mbm
         this->mesh = nullptr;
         if(this->load(this->fileName.c_str()))
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_INFO_IF_DEBUG("sprite [%s] successfully restored", log_util::basename(this->fileName.c_str()));
             #endif
             return true;
         }
         else
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("Failed to restore sprite  [%s]", log_util::basename(this->fileName.c_str()));
             #endif
             return false;

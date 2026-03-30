@@ -41,7 +41,7 @@ public:
         }
         for (int n = 0; n < _argc; n++)
         {
-            const int string_size = strlen(argv[n].c_str());
+            const int string_size = static_cast<int>(strlen(argv[n].c_str()));
             _argv[n] = new char[string_size+1];
             _argv[n][string_size] = 0;
             snprintf(_argv[n],string_size +1,"%s",argv[n].c_str());
@@ -362,8 +362,8 @@ namespace mbm
         std::string source(source_in_out ? source_in_out : "");
         log_util::replaceString(source, _from, _to);
         snprintf(source_in_out,size_of_source,"%s",source.c_str());
-        const int len_dest  =  source_in_out ? strlen(source_in_out) : 0;
-        const int len_result = source.length();
+        const int len_dest  =  source_in_out ? static_cast<int>(strlen(source_in_out)) : 0;
+        const int len_result = static_cast<int>(source.length());
         if(source_in_out && len_dest != len_result)
         {
             ERROR_LOG("'replace_string' received a too short string to store the result");

@@ -82,7 +82,7 @@ namespace usage
         std::vector<std::string> ret;
         DIR* dir = nullptr;
         const char* search_path = path ? path : "../editor";
-        const uint32_t l = strlen(search_path);
+        const uint32_t l = static_cast<uint32_t>(strlen(search_path));
         struct dirent* ent = nullptr;
         if ((dir = opendir(search_path)) != nullptr)
         {

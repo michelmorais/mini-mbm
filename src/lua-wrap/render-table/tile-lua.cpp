@@ -311,7 +311,7 @@ namespace mbm
                 {
                     case util::BTILE_OBJ_TYPE_RECT:
                     {
-                        const unsigned int s = obj->lsPoints.size();
+                        const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f) + tile->position.x;
                         const float py       = (s > 0 ? obj->lsPoints[0]->y * tile->scale.y: 0.0f) + tile->position.y;
                         const float width    =  s > 1 ? obj->lsPoints[1]->x * tile->scale.x: 0.0f;
@@ -330,7 +330,7 @@ namespace mbm
                     break;
                     case util::BTILE_OBJ_TYPE_CIRCLE:
                     {
-                        const unsigned int s = obj->lsPoints.size();
+                        const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         lua_pushstring(lua,"circle");
                         lua_setfield(lua, -2, "type");
                         const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f)  + tile->position.x;
@@ -346,7 +346,7 @@ namespace mbm
                     break;
                     case util::BTILE_OBJ_TYPE_POLYLINE:
                     {
-                        const unsigned int s = obj->lsPoints.size();
+                        const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         lua_pushstring(lua,"line");
                         lua_setfield(lua, -2, "type");
                         lua_newtable(lua);
@@ -365,7 +365,7 @@ namespace mbm
                     break;
                     case util::BTILE_OBJ_TYPE_POINT:
                     {
-                        const unsigned int s = obj->lsPoints.size();
+                        const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         const float px       = (s > 0 ? obj->lsPoints[0]->x * tile->scale.x: 0.0f) + tile->position.x;
                         const float py       = (s > 0 ? obj->lsPoints[0]->y * tile->scale.y: 0.0f) + tile->position.y;
                         lua_pushstring(lua,"point");
@@ -378,7 +378,7 @@ namespace mbm
                     break;
                     case util::BTILE_OBJ_TYPE_TRIANGLE:
                     {
-                        const unsigned int s = obj->lsPoints.size();
+                        const unsigned int s = static_cast<unsigned int>(obj->lsPoints.size());
                         lua_pushstring(lua,"triangle");
                         lua_setfield(lua, -2, "type");
                         for (int j = 0; j < 3; j++)

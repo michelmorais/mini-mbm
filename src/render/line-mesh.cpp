@@ -44,7 +44,7 @@ namespace mbm
     {
         arrayLinesVec3 = std::move(arrayPoints);
         const int vertexStartSubset = 0;
-        const int vertexCountSubset = arrayLinesVec3.size();
+        const int vertexCountSubset = static_cast<int>(arrayLinesVec3.size());
         if (buffer.isLoadedBuffer())
         {
             if (buffer.sizeOfArrayVertex != arrayLinesVec3.size())
@@ -62,7 +62,7 @@ namespace mbm
             infoDraw.mode_cull_face = util::CULL_MODE::CULL_FRONT_AND_BACK;
             infoDraw.mode_draw = util::MODE_DRAW::MODE_DRAW_LINE_STRIP;
             infoDraw.mode_front_face_direction = util::FACE_DIRECTION::CCW;
-            if (buffer.loadBuffer(arrayLinesVec3.data(), nullptr, nullptr, arrayLinesVec3.size(), totalSubsets, &vertexStartSubset, &vertexCountSubset, &infoDraw, isDynamic) == false)
+            if (buffer.loadBuffer(arrayLinesVec3.data(), nullptr, nullptr, static_cast<uint32_t>(arrayLinesVec3.size()), totalSubsets, &vertexStartSubset, &vertexCountSubset, &infoDraw, isDynamic) == false)
             {
                 arrayLinesVec3.clear();
                 return false;
@@ -85,7 +85,7 @@ namespace mbm
     
     unsigned int MY_LINES::getSize() const
     {
-        return arrayLinesVec3.size();
+        return static_cast<unsigned int>(arrayLinesVec3.size());
     }
 
     bool MY_LINES::renderLines(SHADER* shader)
@@ -333,14 +333,14 @@ namespace mbm
         }
         if(ret && this->createAnimationAndShader2Line())
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("line successfully restored");
             #endif
             return true;
         }
         else
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("Failed to restore line");
             #endif
             return false;

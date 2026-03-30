@@ -25,7 +25,7 @@
 #include <core_mbm/shader-resource.h>
 #include <static-resource/resource-particle.h>
 
-#if (defined _DEBUG || defined DEBUG_RESTORE)
+#if (defined _DEBUG || defined DEBUG)
     #include <core_mbm/log-util.h>
 #endif
 
@@ -373,7 +373,7 @@ namespace mbm
         {
             return this->releaseOnFail();
         }
-        #if defined DEBUG_RESTORE
+        #if defined DEBUG
         PRINT_INFO_IF_DEBUG("Particle [%s] successfully restored",log_util::basename(fileNameTexture ));
         #endif
         return true;

@@ -340,7 +340,7 @@ namespace mbm
         */
         const char *what = luaL_checkstring(lua, 2);
         VEC2 *      vec2 = getVec2FromRawTable(lua, 1, 1);
-        const int   len  = strlen(what);
+        const int   len  = static_cast<int>(strlen(what));
         if (len == 1)
         {
             switch (what[0])
@@ -368,7 +368,7 @@ namespace mbm
         */
         const char *what = luaL_checkstring(lua, 2);
         VEC2 *      vec2 = getVec2FromRawTable(lua, 1, 1);
-        const int   len  = strlen(what);
+        const int   len  = static_cast<int>(strlen(what));
         if (len == 1)
         {
             switch (what[0])

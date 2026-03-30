@@ -490,7 +490,7 @@ namespace mbm
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
-        const int            len       = strlen(what);
+        const int            len       = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:
@@ -543,7 +543,7 @@ namespace mbm
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
-        const int            len       = strlen(what);
+        const int            len       = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:
@@ -600,7 +600,7 @@ namespace mbm
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
-        const int            len       = strlen(what);
+        const int            len       = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:
@@ -652,7 +652,7 @@ namespace mbm
         auto *userScene = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);
         CAMERA *             camera    = &device->camera;
         const char *         what      = luaL_checkstring(lua, 2);
-        const int            len       = strlen(what);
+        const int            len       = static_cast<int>(strlen(what));
         switch (len)
         {
             case 1:

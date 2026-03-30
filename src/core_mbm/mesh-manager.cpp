@@ -1700,7 +1700,7 @@ namespace mbm
             util::EXTRA_HEADER extra;
             const std::string& path = ls_paths[i];
             extra.type = 1;
-            extra.sizeExtraHeader = path.size();
+            extra.sizeExtraHeader = static_cast<int32_t>(path.size());
             if (!util::writeExtraHeaderV8(file, extra))
                 return log_util::onFailed(file, __FILE__, __LINE__, "failed to save EXTRA_HEADER [%s]", fileOut);
             if (!util::addToFileBinary(fileOut, path.data(), path.size(), &file))
@@ -2366,7 +2366,7 @@ namespace mbm
                                     {
                                         COLOR color;
                                         const char* sColor = &pch[1];
-                                        int len = strlen(sColor);
+                                        int len = static_cast<int>(strlen(sColor));
                                         if (len == 8)
                                         {
                                             char alpha[3] = {0,0,0};
@@ -2374,13 +2374,13 @@ namespace mbm
                                             sColor++;
                                             alpha[1] = *sColor;
                                             sColor++;
-                                            const int n = strtol(sColor,nullptr, 16);
+                                            const int n = static_cast<int>(strtol(sColor,nullptr, 16));
                                             color = COLOR(n);
                                             color.a = strtol(alpha, nullptr, 16) * 1.0f / 255.0f;
                                         }
                                         else if (len == 6)
                                         {
-                                            const int n = strtol(sColor, nullptr, 16);
+                                            const int n = static_cast<int>(strtol(sColor, nullptr, 16));
                                             color = COLOR(n);
                                             color.a = 1.0f;
                                         }
@@ -4052,7 +4052,7 @@ namespace mbm
                                                      : buffer[currentFrame].pBufferGL->totalSubset);
             for (std::vector<int>::size_type i = 0; i < totalIdTexture; ++i)
             {
-                buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, i);
+                buffer[currentFrame].pBufferGL->setTextureByStage(lsIdTexture[i], 0, static_cast<uint32_t>(i));
             }
         }
         fclose(fp);
@@ -4764,7 +4764,7 @@ namespace mbm
             const util::BTILE_INFO* thatInfoTile = meshMemory->getInfoTile();
             this->extraInfo = thatInfoTile->clone();
         }
-        headerMesh.totalAnimation = meshMemory->infoAnimation.lsHeaderAnim.size();
+        headerMesh.totalAnimation = static_cast<int32_t>(meshMemory->infoAnimation.lsHeaderAnim.size());
         for (int i = 0; i < headerMesh.totalAnimation; ++i)
         {
             const util::INFO_ANIMATION::INFO_HEADER_ANIM* pInfoAnim = meshMemory->infoAnimation.lsHeaderAnim[i];
@@ -4794,8 +4794,8 @@ namespace mbm
                 {
                     infoStepShader->dataPS = new util::INFO_SHADER_DATA(
                         pInfoStepShader->dataPS->lenVars * 4,
-                        strlen(pInfoStepShader->dataPS->fileNameShader) + 1,
-                        pInfoStepShader->dataPS->fileNameTextureStage2 ? strlen(pInfoStepShader->dataPS->fileNameTextureStage2) + 1 : 0);
+                        static_cast<int>(strlen(pInfoStepShader->dataPS->fileNameShader) + 1),
+                        pInfoStepShader->dataPS->fileNameTextureStage2 ? static_cast<int>(strlen(pInfoStepShader->dataPS->fileNameTextureStage2) + 1) : 0);
                     strcpy(infoStepShader->dataPS->fileNameShader, pInfoStepShader->dataPS->fileNameShader);
                     if (infoStepShader->dataPS->fileNameTextureStage2)
                         strcpy(infoStepShader->dataPS->fileNameTextureStage2, pInfoStepShader->dataPS->fileNameTextureStage2);
@@ -4813,8 +4813,8 @@ namespace mbm
                 {
                     infoStepShader->dataVS = new util::INFO_SHADER_DATA(
                         pInfoStepShader->dataVS->lenVars * 4,
-                        strlen(pInfoStepShader->dataVS->fileNameShader) + 1,
-                        pInfoStepShader->dataVS->fileNameTextureStage2 ? strlen(pInfoStepShader->dataVS->fileNameTextureStage2) + 1 : 0);
+                        static_cast<int>(strlen(pInfoStepShader->dataVS->fileNameShader) + 1),
+                        pInfoStepShader->dataVS->fileNameTextureStage2 ? static_cast<int>(strlen(pInfoStepShader->dataVS->fileNameTextureStage2) + 1) : 0);
                     strcpy(infoStepShader->dataVS->fileNameShader, pInfoStepShader->dataVS->fileNameShader);
                     if (infoStepShader->dataVS->fileNameTextureStage2)
                         strcpy(infoStepShader->dataVS->fileNameTextureStage2, pInfoStepShader->dataVS->fileNameTextureStage2);

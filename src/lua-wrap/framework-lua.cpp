@@ -943,7 +943,7 @@ namespace mbm
         if (saveAs)
         {
             std::string strSaveAs(saveAs);
-            const int   len = strlen(saveAs);
+            const int   len = static_cast<int>(strlen(saveAs));
             if (len > 4)
             {
                 const char *f = &saveAs[len - 4];
@@ -1570,7 +1570,7 @@ namespace mbm
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
-        const int passlen = strlen(password);
+        const int passlen = static_cast<int>(strlen(password));
         char good_password[17] = {0};
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
@@ -1684,7 +1684,7 @@ namespace mbm
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
-        const int passlen = strlen(password);
+        const int passlen = static_cast<int>(strlen(password));
         char good_password[17] = { 0 };
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
@@ -2006,7 +2006,7 @@ namespace mbm
         {
             char                tmp[1024] = "";
             std::vector<float> *lsVec     = lsMapVar.second;
-            const unsigned int  s         = lsVec->size();
+            const unsigned int  s         = static_cast<unsigned int>(lsVec->size());
             if (s == 1)
             {
                 snprintf(tmp, sizeof(tmp), "%s %f ", minMaxDefault, lsVec->at(0));
@@ -2053,7 +2053,7 @@ namespace mbm
             if (name.size())
             {
                 const char *pName = name.c_str();
-                const int   len   = name.size();
+                const int   len   = static_cast<int>(name.size());
                 if (len > 3)
                 {
                     bool        validName = false;
@@ -2194,7 +2194,7 @@ namespace mbm
                             {
                                 const char *       varName = it->first.c_str();
                                 const char *       typeVar = nullptr;
-                                const unsigned int s       = it->second->size();
+                                const unsigned int s       = static_cast<unsigned int>(it->second->size());
                                 if (s == 1)
                                     typeVar = "float";
                                 else if (s == 2)
@@ -2449,7 +2449,7 @@ namespace mbm
         std::map<std::string,std::vector<std::string>> folderAndFiles;
         if(path)
         {
-            const int len = strlen(path);
+            const int len = static_cast<int>(strlen(path));
             if(path[len-1] == '\\' || path[len-1] == '/')
             {
                 new_path = path;

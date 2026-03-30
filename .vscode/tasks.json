@@ -4,7 +4,7 @@
     {
       "label": "Build mini-mbm (Linux Debug)",
       "type": "shell",
-      "command": "mkdir -p build/linux_debug && cd build/linux_debug && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)",
+      "command": "mkdir -p build/linux_debug && cd build/linux_debug && cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && make -j$(nproc)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -32,7 +32,7 @@
     {
       "label": "Build mini-mbm (macOS Debug)",
       "type": "shell",
-      "command": "mkdir -p build/macos_debug && cd build/macos_debug && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DCMAKE_BUILD_TYPE=Debug && make -j$(sysctl -n hw.logicalcpu)",
+      "command": "mkdir -p build/macos_debug && cd build/macos_debug && cmake ../.. -DPLAT=MacOs -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DCMAKE_BUILD_TYPE=Debug && make -j$(sysctl -n hw.logicalcpu)",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -60,7 +60,7 @@
     {
       "label": "Build mini-mbm (Windows MinGW Debug)",
       "type": "shell",
-      "command": "if not exist build\\mingw_debug mkdir build\\mingw_debug && cd build\\mingw_debug && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DDEBUG_RESTORE=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && mingw32-make -j%NUMBER_OF_PROCESSORS%",
+      "command": "if not exist build\\mingw_debug mkdir build\\mingw_debug && cd build\\mingw_debug && cmake ../.. -G \"MinGW Makefiles\" -DPLAT=Windows -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug && mingw32-make -j%NUMBER_OF_PROCESSORS%",
       "options": {
         "cwd": "${workspaceFolder}"
       },

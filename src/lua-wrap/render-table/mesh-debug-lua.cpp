@@ -324,10 +324,10 @@ namespace mbm
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
         lua_settop(lua,0);
         lua_newtable(lua); // array
-        const unsigned int sCube = meshDebug->mesh.infoPhysics.lsCube.size();
-        const unsigned int sTria = meshDebug->mesh.infoPhysics.lsTriangle.size();
-        const unsigned int sSphe = meshDebug->mesh.infoPhysics.lsSphere.size();
-        const unsigned int sComp = meshDebug->mesh.infoPhysics.lsCubeComplex.size();
+        const unsigned int sCube = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsCube.size());
+        const unsigned int sTria = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsTriangle.size());
+        const unsigned int sSphe = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsSphere.size());
+        const unsigned int sComp = static_cast<unsigned int>(meshDebug->mesh.infoPhysics.lsCubeComplex.size());
         int index_array = 1; 
         
         if (sCube)
@@ -806,7 +806,7 @@ namespace mbm
     int onGetTotalFrameMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        lua_pushinteger(lua, meshDebug->mesh.buffer.size());
+        lua_pushinteger(lua, static_cast<lua_Integer>(meshDebug->mesh.buffer.size()));
         return 1;
     }
 
@@ -817,7 +817,7 @@ namespace mbm
         if (indexFrame < (const unsigned int)meshDebug->mesh.buffer.size())
         {
             util::BUFFER_MESH_DEBUG *buffer = meshDebug->mesh.buffer[indexFrame];
-            lua_pushinteger(lua, buffer->subset.size());
+            lua_pushinteger(lua, static_cast<lua_Integer>(buffer->subset.size()));
             return 1;
         }
         else
@@ -844,10 +844,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -867,10 +867,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -965,10 +965,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame, indexSubset);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame, indexSubset);
         }
     }
 
@@ -1044,10 +1044,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1151,10 +1151,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame+1, indexSubset+1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame+1, indexSubset+1);
         }
     }
 
@@ -1189,10 +1189,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1251,10 +1251,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame +1, indexSubset +1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame +1, indexSubset +1);
         }
     }
 
@@ -1284,10 +1284,10 @@ namespace mbm
         else
         {
             const int tSubset =
-                indexFrame < meshDebug->mesh.buffer.size() ? meshDebug->mesh.buffer[indexFrame]->subset.size() : 0;
+                indexFrame < meshDebug->mesh.buffer.size() ? static_cast<int>(meshDebug->mesh.buffer[indexFrame]->subset.size()) : 0;
             return lua_error_debug(lua, "\nOut of bound[indexFrame(total %d),indexSubset(total %d)\n"
                             "indexFrame %d indexSubset %d",
-                       meshDebug->mesh.buffer.size(), tSubset, indexFrame + 1, indexSubset + 1);
+                       static_cast<int>(meshDebug->mesh.buffer.size()), tSubset, indexFrame + 1, indexSubset + 1);
         }
     }
 
@@ -1305,7 +1305,7 @@ namespace mbm
     {
         const int          top       = lua_gettop(lua);
         MESH_DEBUG_LUA *   meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
-        const unsigned int indexFrame = top > 1 ? (unsigned int)luaL_checkinteger(lua, 2) - 1 : meshDebug->mesh.buffer.size() - 1;
+        const unsigned int indexFrame = top > 1 ? (unsigned int)luaL_checkinteger(lua, 2) - 1 : static_cast<unsigned int>(meshDebug->mesh.buffer.size()) - 1;
         unsigned int ret = meshDebug->mesh.addSubset(indexFrame);
         lua_pushinteger(lua, ret);
         return 1;
@@ -1426,8 +1426,8 @@ namespace mbm
     {
         if(fx->ptrCurrentShader)
         {
-            const unsigned int sTexStage2    = textureStage2 ? strlen(textureStage2): 0;
-            const unsigned int sizeFileName  = fx->ptrCurrentShader->fileName.size();
+            const unsigned int sTexStage2    = textureStage2 ? static_cast<unsigned int>(strlen(textureStage2)): 0;
+            const unsigned int sizeFileName  = static_cast<unsigned int>(fx->ptrCurrentShader->fileName.size());
             const unsigned int totalVar      = fx->ptrCurrentShader->getTotalVar();
             const unsigned int sizeArrayVarInBytes = totalVar * 4;
             auto dataInfo = new util::INFO_SHADER_DATA(sizeArrayVarInBytes, 

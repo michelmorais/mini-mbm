@@ -812,7 +812,7 @@ namespace mbm
     {
         std::string ret;
         bool insideSpecialLetter = false;
-        const unsigned int s = text.size();
+        const unsigned int s = static_cast<unsigned int>(text.size());
         for (unsigned int i = 0; i < s; i++)
         {
             auto index = static_cast<unsigned char>(text[i]);
@@ -1124,7 +1124,7 @@ namespace mbm
     {
         if (this->lsText.size() == 0)
         {
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("there is no font to be loaded\n[%s]", log_util::basename(this->fileName.c_str()));
             #endif
         }
@@ -1139,7 +1139,7 @@ namespace mbm
                 const auto spaceWidth       = static_cast<short>(std::atoi(lsRet[2].c_str()));
                 const auto spaceHeight      = static_cast<short>(std::atoi(lsRet[3].c_str()));
                 const bool ret = this->loadFont(fileNameMbmOrTtf, heightLetter, spaceWidth, spaceHeight,false);
-                #if defined DEBUG_RESTORE
+                #if defined DEBUG
                 if(ret)
                 {
                     PRINT_INFO_IF_DEBUG("Font [%s] successfully restored", log_util::basename(fileNameMbmOrTtf));
@@ -1151,7 +1151,7 @@ namespace mbm
                 #endif
                 return ret;
             }
-            #if defined DEBUG_RESTORE
+            #if defined DEBUG
             PRINT_IF_DEBUG("Failed to restore font [%s]", log_util::basename(this->fileName.c_str()));
             #endif
         }

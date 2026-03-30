@@ -421,7 +421,7 @@ namespace mbm
         {
             for (size_t i = 1; i <= sizeBuffer; ++i)
             {
-                lua_rawgeti(lua,index, i);
+                lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
                 lsArrayOut[i-1]  = (unsigned char)lua_tointeger(lua,-1);
                 lua_pop(lua,1);
             }
@@ -438,8 +438,8 @@ namespace mbm
 
         for (size_t i = 1, j =0; i <= rawlen; i+=2, ++j)
         {
-            lua_rawgeti(lua,index, i);
-            lua_rawgeti(lua,index, i+1);
+            lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
+            lua_rawgeti(lua,index, static_cast<lua_Integer>(i+1));
             xyz_out[j]   = VEC3(lua_tonumber(lua, -2),lua_tonumber(lua, -1),0.0f);
             lua_pop(lua, 2);
         }
@@ -452,9 +452,9 @@ namespace mbm
 
         for (size_t i = 1, j =0; i <= rawlen; i+=3, ++j)
         {
-            lua_rawgeti(lua,index, i);
-            lua_rawgeti(lua,index, i+1);
-            lua_rawgeti(lua,index, i+2);
+            lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
+            lua_rawgeti(lua,index, static_cast<lua_Integer>(i+1));
+            lua_rawgeti(lua,index, static_cast<lua_Integer>(i+2));
             xyz_out[j]   = VEC3(lua_tonumber(lua, -3),lua_tonumber(lua, -2),lua_tonumber(lua, -1));
             lua_pop(lua, 3);
         }
@@ -467,7 +467,7 @@ namespace mbm
         {
             for (size_t i = 1; i <= sizeBuffer; ++i)
             {
-                lua_rawgeti(lua,index, i);
+                lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
                 lsArrayOut[i-1] = lua_tonumber(lua,-1);
                 lua_pop(lua,1);
             }
@@ -485,7 +485,7 @@ namespace mbm
         {
             for (size_t i = 1,j=0; i <= rawlen; i++, j+=2)
             {
-                lua_rawgeti(lua,index, i);
+                lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
                 lua_getfield(lua, -1, field_a);
                 lua_getfield(lua, -2, field_b);
                 lsArrayOut[j]   = lua_tonumber(lua, -2);
@@ -506,7 +506,7 @@ namespace mbm
         {
             for (size_t i = 1,j=0; i <= rawlen; i++, j+=3)
             {
-                lua_rawgeti(lua,index, i);
+                lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
                 lua_getfield(lua, -1, field_a);
                 lua_getfield(lua, -2, field_b);
                 lua_getfield(lua, -3, field_c);
@@ -529,7 +529,7 @@ namespace mbm
         {
             for (size_t i = 1; i <= sizeBuffer; ++i)
             {
-                lua_rawgeti(lua,index, i);
+                lua_rawgeti(lua,index, static_cast<lua_Integer>(i));
                 lsArrayOut[i-1] = (unsigned short int)lua_tointeger(lua, -1);
                 lua_pop(lua,1);
             }
@@ -649,7 +649,7 @@ namespace mbm
     void push2VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b)
     {
         lua_newtable(lua);
-        const unsigned int s = vec.size();
+        const unsigned int s = static_cast<unsigned int>(vec.size());
         const float * pData  = vec.data();
         for(unsigned int i=0,j = 1; i < s; i += 2, ++j)
         {
@@ -668,7 +668,7 @@ namespace mbm
     void push3VectorArrayToTableWithField(lua_State * lua, const std::vector<float> & vec, const char* field_a, const char* field_b, const char* field_c)
     {
         lua_newtable(lua);
-        const unsigned int s = vec.size();
+        const unsigned int s = static_cast<unsigned int>(vec.size());
         const float * pData  = vec.data();
         for(unsigned int i=0,j = 1; i < s; i += 3, ++j)
         {
@@ -1670,7 +1670,7 @@ namespace mbm
             }
             for (std::size_t i=0; i<lenTable; ++i)
             {
-                lua_rawgeti(lua, indexTable, (i + 1));
+                lua_rawgeti(lua, indexTable, static_cast<lua_Integer>(i + 1));
                 const int res = setPhysicsFromTablePureLua(lua, infoPhysics,top+1,lineMesh,false);
                 lua_pop(lua, 1);
                 if(res != 0)
@@ -1700,7 +1700,7 @@ namespace mbm
             }
             for (std::size_t i=0; i<lenTable; ++i)
             {
-                lua_rawgeti(lua, indexTable, (i + 1));
+                lua_rawgeti(lua, indexTable, static_cast<lua_Integer>(i + 1));
                 const int res = setPhysicsFromTablePureLua(lua, infoPhysicsOut,top+1,nullptr,false);
                 lua_pop(lua, 1);
                 if(res != 0)

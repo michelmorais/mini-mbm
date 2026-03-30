@@ -54,7 +54,7 @@ namespace mbm
     }
     void USER_DATA_SCENE_LUA::remove(TIMER_CALL_BACK *obj)
     {
-        const unsigned int s = lsTimerCallBack.size();
+        const unsigned int s = static_cast<unsigned int>(lsTimerCallBack.size());
         for (unsigned int i = 0; i < s; ++i)
         {
             TIMER_CALL_BACK *obj2remove = lsTimerCallBack[i];
@@ -68,7 +68,7 @@ namespace mbm
     void USER_DATA_SCENE_LUA::remove(RENDERIZABLE *obj)
     {
         obj->enableRender = false;
-        unsigned int s = lsLuaCallBackOnTouchAsynchronous.size();
+        unsigned int s = static_cast<unsigned int>(lsLuaCallBackOnTouchAsynchronous.size());
         for (unsigned int i = 0; i < s; ++i)
         {
             RENDERIZABLE *obj2remove = lsLuaCallBackOnTouchAsynchronous[i];
@@ -78,7 +78,7 @@ namespace mbm
                 break;
             }
         }
-        s = lsLuaCallBackOnTouchSynchronous.size();
+        s = static_cast<unsigned int>(lsLuaCallBackOnTouchSynchronous.size());
         for (unsigned int i = 0; i < s; ++i)
         {
             RENDERIZABLE *obj2remove = lsLuaCallBackOnTouchSynchronous[i];
