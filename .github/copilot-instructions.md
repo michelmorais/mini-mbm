@@ -324,6 +324,36 @@ ERROR_AT(lineNum, fileName, "message");
 
 ---
 
+## Game Development
+
+### Game Project Template
+
+When creating a new standalone Lua game project (e.g., `/home/michel/tower-defense`):
+
+1. Copy `game-template/.github/copilot-instructions.md` → `<game-folder>/.github/copilot-instructions.md`.  
+   VS Code Copilot auto-loads it, giving the agent full mini-mbm Lua API knowledge without engine source being present.
+2. Copy `game-template/main.lua` as the entry-point script for the game.
+3. Run the game: `./mini-mbm main.lua` (or `./bin/debug/linux_x86/mini-mbm main.lua`).
+
+### Key Resources
+
+| Resource | Path | Purpose |
+|---|---|---|
+| Lua API reference (canonical) | `docs/lua-api.md` | Full API: all `mbm.*` functions, render types, plugins, constants |
+| Game project template | `game-template/` | Starting point for new standalone game folders |
+| Game copilot context | `game-template/.github/copilot-instructions.md` | Self-contained API context for game projects |
+| Scaffolding skill | `.github/skills/lua-game/SKILL.md` | Invoke when scaffolding a new game from the engine repo |
+
+### Lua API Quick Summary
+
+- **Lifecycle callbacks**: `onInitScene()`, `logic(delta)`, `onKeyDown(key)`, `onKeyUp(key)`, `onTouchDown(key,x,y)`, `onTouchUp(key,x,y)`, `onTouchMove(key,x,y)`, `onTouchZoom(zoom)`, `onKeyDownJoystick(player,key)`, `onMoveJoystick(player,lx,ly,rx,ry)`
+- **Namespace**: `mbm.*` — ~60 functions for scene control, display, camera, asset paths, file system, input, coordinate transforms, shaders, dialogs, encryption, and system info
+- **Render type constructors** (globals): `sprite`, `mesh`, `texture`, `gif`, `backGround`, `font`, `particle`, `shape`, `lineMesh`, `tile`, `render2texture`, `vec2`, `vec3`
+- **Coordinate type strings**: `"2dw"` (2D world), `"2ds"` (2D screen/HUD), `"3d"` (3D world)
+- **Plugins**: `require "box2d"`, `require "ImGui"` (returns as `tImGui`), `require "lsqlite3"`, `require "box2dLiquidFun"`
+
+---
+
 ## Third-Party Libraries (bundled in `third-party/`)
 
 | Library | Version | Use |
