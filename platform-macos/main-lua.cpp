@@ -187,7 +187,7 @@ int main(const int argc,const char **argv)
     {
         if (index_app_selected > -1 && index_app_selected < size_app)
             mbm::set_scene(default_applications[index_app_selected].script_path);
-        ret = mbm::loop();
+        ret = mbm::onLoop();
     }
     if (temporary_folder_path.size() > 0)
     {

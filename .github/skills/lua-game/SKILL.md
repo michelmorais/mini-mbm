@@ -80,7 +80,7 @@ function onInitScene()
     player:load("assets/sprites/player.spt")
 end
 
-function onLogicScene(delta)
+function onLoop(delta)
     if keys_held[KEY_LEFT]  then player.x = player.x - speed * delta end
     if keys_held[KEY_RIGHT] then player.x = player.x + speed * delta end
     if keys_held[KEY_UP]    then player.y = player.y + speed * delta end
@@ -103,7 +103,7 @@ function onTouchMove(key, x, y) end
 | Callback | Purpose |
 |---|---|
 | `onInitScene()` | Load assets, init state — called once |
-| `onLogicScene(delta)` | Per-frame — movement, AI, physics step |
+| `onLoop(delta)` | Per-frame — movement, AI, physics step |
 | `onKeyDown(key)` / `onKeyUp(key)` | Keyboard input |
 | `onTouchDown(key,x,y)` etc. | Mouse/touch input (x,y in screen pixels) |
 
@@ -116,7 +116,7 @@ function onTouchMove(key, x, y) end
 
 ### Asset Loading
 
-Always load in `onInitScene()`, never in `onLogicScene()`.
+Always load in `onInitScene()`, never in `onLoop()`.
 
 ```lua
 -- Sprite
@@ -168,7 +168,7 @@ obj:destroy()                 -- remove from scene, then assign nil
 ```lua
 local cam = mbm.getCamera("2d")
 -- Follow player:
-function onLogicScene(delta)
+function onLoop(delta)
     cam.x = player.x
     cam.y = player.y
 end
@@ -203,7 +203,7 @@ function onInitScene()
     )
 end
 
-function onLogicScene(delta) world:step(delta) end
+function onLoop(delta) world:step(delta) end
 ```
 
 ### ImGui for in-game menus / debug
@@ -211,7 +211,7 @@ function onLogicScene(delta) world:step(delta) end
 ```lua
 local tImGui = require "ImGui"
 
-function onLogicScene(delta)
+function onLoop(delta)
     if tImGui.Begin("Pause Menu") then
         if tImGui.Button("Resume") then paused = false end
         if tImGui.Button("Quit")   then mbm.quit() end
@@ -226,11 +226,11 @@ end
 
 - [ ] Game folder created
 - [ ] `.github/copilot-instructions.md` copied from `game-template/`
-- [ ] `main.lua` created with `onInitScene`, `onLogicScene`, key callbacks
+- [ ] `main.lua` created with `onInitScene`, `onLoop`, key callbacks
 - [ ] `mbm.addPath(script_dir)` at top so assets resolve correctly
 - [ ] `mbm.setColor(r,g,b)` sets background
 - [ ] All `sprite:new` / `font:new` / etc. done inside `onInitScene`
-- [ ] `onLogicScene(delta)` uses `delta` for movement speed (frame-rate independent)
+- [ ] `onLoop(delta)` uses `delta` for movement speed (frame-rate independent)
 - [ ] Key codes resolved once in `onInitScene` via `mbm.getKeyCode()`
 
 ---
@@ -253,11 +253,11 @@ Topics covered there but not repeated here:
 
 | Mistake | Correct Approach |
 |---|---|
-| Calling `sprite:new()` inside `onLogicScene()` | Call in `onInitScene()` only |
+| Calling `sprite:new()` inside `onLoop()` | Call in `onInitScene()` only |
 | Hard-coding key integers | Use `mbm.getKeyCode("ESC")` |
 | Moving with fixed pixel amounts | Multiply by `delta` for frame-rate independence |
 | Using `"3"` as coord type | Use `"3d"` (the string `"3"` also works but is ambiguous) |
-| Calling ImGui outside `onLogicScene()` | All ImGui calls must be inside `onLogicScene(delta)` |
+| Calling ImGui outside `onLoop()` | All ImGui calls must be inside `onLoop(delta)` |
 | Using `obj:anim()` | The correct method is `obj:setAnim(name)` or `obj:setAnim(index)` |
 | Using `obj:checkCollision()` | The correct method is `obj:collide(other)` or `obj:collide(x,y)` |
 | Using `obj:isOnFrustum()` | The correct method is `obj:isOnScreen()` |

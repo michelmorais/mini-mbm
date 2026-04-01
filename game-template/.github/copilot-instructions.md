@@ -36,7 +36,7 @@ The engine calls these Lua globals in your script. Define any you need:
 | Function | When | Notes |
 |---|---|---|
 | `onInitScene()` | Once at load | Load assets, set camera, initialize state |
-| `onLogicScene(delta)` | Every frame | `delta` = seconds since last frame. All game logic here. |
+| `onLoop(delta)` | Every frame | `delta` = seconds since last frame. All game logic here. |
 | `onTouchDown(key, x, y)` | Mouse/touch press | `x,y` in screen pixels |
 | `onTouchUp(key, x, y)` | Mouse/touch release | |
 | `onTouchMove(key, x, y)` | Mouse/touch move | |
@@ -48,7 +48,7 @@ The engine calls these Lua globals in your script. Define any you need:
 | `onMoveJoystick(player, lx, ly, rx, ry)` | Analog stick | Values in [-1, 1] |
 | `onInfoDeviceJoystick(player, maxBtn, name, extra)` | Gamepad connected | |
 
-**The per-frame callback is `onLogicScene(delta)`. There is no `logic` callback.**
+**The per-frame callback is `onLoop(delta)`.**
 
 ---
 
@@ -498,7 +498,7 @@ world:addDynamicBody(player_sprite, density?, friction?, restitution?)
 world:addKinematicBody(platform_sprite)
 
 -- Per-frame: advance physics
-function onLogicScene(delta)
+function onLoop(delta)
     world:step(delta)
 end
 
@@ -521,8 +521,8 @@ world:destroy()
 ```lua
 local tImGui = require "ImGui"
 
--- ALL ImGui calls must be inside onLogicScene(delta):
-function onLogicScene(delta)
+-- ALL ImGui calls must be inside onLoop(delta):
+function onLoop(delta)
     local open = tImGui.Begin("My Window", false,
         tImGui.Flags("ImGuiWindowFlags_MenuBar"))
     if open then
@@ -634,7 +634,7 @@ function onInitScene()
     player:load("player.spt")
 end
 
-function onLogicScene(delta)
+function onLoop(delta)
     if keys[mbm.getKeyCode("LEFT")]  then player.x = player.x - speed * delta end
     if keys[mbm.getKeyCode("RIGHT")] then player.x = player.x + speed * delta end
     if keys[mbm.getKeyCode("UP")]    then player.y = player.y + speed * delta end
@@ -659,7 +659,7 @@ end
 ### Pattern: Collision between two objects
 
 ```lua
-function onLogicScene(delta)
+function onLoop(delta)
     if player:collide(enemy) then
         player.visible = false
         mbm.loadScene("game-over.lua")
@@ -678,7 +678,7 @@ function onInitScene()
     hud_label = hud_font:add("Score: 0", -300, 250)  -- "2ds" position
 end
 
-function onLogicScene(delta)
+function onLoop(delta)
     hud_label.text = "Score: " .. tostring(score)
 end
 ```
@@ -686,7 +686,7 @@ end
 ### Pattern: Camera follow player
 
 ```lua
-function onLogicScene(delta)
+function onLoop(delta)
     local cam = mbm.getCamera("2d")
     cam.x = player.x
     cam.y = player.y
@@ -725,7 +725,7 @@ function onInitScene()
     world:addDynamicBody(ball, 1.0, 0.3, 0.5)
 end
 
-function onLogicScene(delta)
+function onLoop(delta)
     world:step(delta)
 end
 ```

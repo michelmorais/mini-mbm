@@ -383,7 +383,7 @@ namespace mbm
             }
         }
         
-        void SCENE_SCRIPT::onLogicScene()
+        void SCENE_SCRIPT::onLoop()
         {
             if (this->wasError && __onErrorStop__)
                 return;
@@ -402,14 +402,14 @@ namespace mbm
                 else
                     return;
             }
-            lua_getglobal(this->lua, "onLogicScene");
+            lua_getglobal(this->lua, "onLoop");
             if (lua_isfunction(this->lua, -1))
             {
                 lua_pushnumber(this->lua, device->delta);
                 if (lua_pcall(this->lua, 1, 0, 0) != LUA_OK)
                 {
                     this->wasError = true;
-                    lua_print_line(lua,TYPE_LOG_ERROR,"[%s] ->\n[%s]->\n[%s]", "onLogicScene", luaL_checkstring(lua, -1), this->scriptLua.c_str());
+                    lua_print_line(lua,TYPE_LOG_ERROR,"[%s] ->\n[%s]->\n[%s]", "onLoop", luaL_checkstring(lua, -1), this->scriptLua.c_str());
                 }
                 lua_settop(lua,0);
             }
@@ -1363,7 +1363,7 @@ namespace mbm
     #if (defined _WIN32 || defined __linux__ || defined __APPLE__) && !defined ANDROID && !defined MBM_PLATFORM_IOS
             constexpr bool singleLoop    = false;
             constexpr bool doSwapBuffers = true;
-            return this->loop(singleLoop, doSwapBuffers);
+            return this->onLoop(singleLoop, doSwapBuffers);
     #else
             return 0;
     #endif

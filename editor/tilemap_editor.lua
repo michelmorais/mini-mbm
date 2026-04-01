@@ -2690,7 +2690,7 @@ function onKeyUp(key)
     keyShiftPressed = false
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_tiled()
     if bEnableMainTabBar then
         main_tab_bar()

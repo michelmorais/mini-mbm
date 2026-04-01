@@ -158,7 +158,7 @@ void MY_SCENE::onInitScene()
     }
 }
 
-void MY_SCENE::onLogicScene()
+void MY_SCENE::onLoop()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     if (statusText)

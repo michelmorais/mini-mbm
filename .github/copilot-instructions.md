@@ -112,7 +112,7 @@ Every C++ game creates two classes in `my-scene.h` / `my-scene.cpp`:
 Implement these virtual methods:
 ```cpp
 void onInitScene();           // load assets, set up camera
-void onLogicScene();          // per-frame logic (called every loop)
+void onLoop();                // per-frame logic (called every loop)
 void startLoading();          // called before async load
 void endLoading();            // called when loading completes
 void onResizeWindow();        // handle window resize
@@ -149,7 +149,7 @@ int main() {
     GAME game;
     const bool singleLoop = true, doSwapBuffers = false;
     if (game.initGraphics("Window Title"))
-        return game.loop(singleLoop, doSwapBuffers);
+        return game.onLoop(singleLoop, doSwapBuffers);
     return -1;
 }
 ```
@@ -206,7 +206,7 @@ class PLUGIN {
     virtual void onMoveJoystick(int player, float lx, float ly, float rx, float ry) = 0;
     virtual void onInfoDeviceJoystick(int player, int maxNumberButton, ...) = 0;
     virtual void onPrepare() = 0;  // once before render loop starts
-    virtual void onLoop(float delta) = 0;
+    virtual void onLoop() = 0;
     virtual void onRender() = 0;
     virtual void onDestroy() = 0;
 };
@@ -317,7 +317,7 @@ ERROR_AT(lineNum, fileName, "message");
 ## Lua Scripting
 
 - Engine loads `main.lua` (or argument-specified script) via `SCENE_SCRIPT`
-- Scene lifecycle in Lua: `onInitScene()`, `onLogicScene(delta)`, touch/key callbacks
+- Scene lifecycle in Lua: `onInitScene()`, `onLoop(delta)`, touch/key callbacks
   > Note: `startLoading()` and `endLoading()` are C++ pure virtuals only — they have no Lua callback equivalent.
 - Lua API namespace: `mbm.*` (e.g., `mbm.newSprite2dS()`, `mbm.getFps()`, `mbm.quit()`)
 - Plugins loaded via `require "box2d"` / `require "ImGui"` etc.
@@ -348,7 +348,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 
 ### Lua API Quick Summary
 
-- **Lifecycle callbacks**: `onInitScene()`, `onLogicScene(delta)`, `onKeyDown(key)`, `onKeyUp(key)`, `onTouchDown(key,x,y)`, `onTouchUp(key,x,y)`, `onTouchMove(key,x,y)`, `onTouchZoom(zoom)`, `onKeyDownJoystick(player,key)`, `onMoveJoystick(player,lx,ly,rx,ry)`
+- **Lifecycle callbacks**: `onInitScene()`, `onLoop(delta)`, `onKeyDown(key)`, `onKeyUp(key)`, `onTouchDown(key,x,y)`, `onTouchUp(key,x,y)`, `onTouchMove(key,x,y)`, `onTouchZoom(zoom)`, `onKeyDownJoystick(player,key)`, `onMoveJoystick(player,lx,ly,rx,ry)`
 - **Namespace**: `mbm.*` — ~60 functions for scene control, display, camera, asset paths, file system, input, coordinate transforms, shaders, dialogs, encryption, and system info
 - **Render type constructors** (globals): `sprite`, `mesh`, `texture`, `gif`, `backGround`, `font`, `particle`, `shape`, `lineMesh`, `tile`, `render2texture`, `vec2`, `vec3`
 - **Coordinate type strings**: `"2dw"` (2D world), `"2ds"` (2D screen/HUD), `"3d"` (3D world)

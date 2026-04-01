@@ -31,7 +31,7 @@ public:
     void startLoading();
     void endLoading();
     void onInitScene();
-    void onLogicScene();
+    void onLoop();
     void onTouchDown(int key, float x, float y);
     void onTouchUp(int key, float x, float y);
     void onTouchMove(int key, float x, float y);

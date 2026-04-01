@@ -44,23 +44,23 @@ namespace mbm
         this->device->scene = currentScene;
     }
 
-    int CORE_MANAGER::loop(const bool singleLoop, const bool doSwapBuffers)
+    int CORE_MANAGER::onLoop(const bool singleLoop, const bool doSwapBuffers)
     {
         //static int loopCallCount = 0;
         //loopCallCount++;
         //if (loopCallCount <= 3)
-        //    INFO_LOG("CORE_MANAGER::loop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
+        //    INFO_LOG("CORE_MANAGER::onLoop() call #%d singleLoop=%d doSwap=%d device=%p scene=%p",
         //             loopCallCount, (int)singleLoop, (int)doSwapBuffers, (void*)device,
         //             device ? (void*)device->scene : nullptr);
         if (!device)
             return -1;
         if (!this->loopVariablesInitialized)
         {
-            INFO_LOG("CORE_MANAGER::loop() first-time init");
+            INFO_LOG("CORE_MANAGER::onLoop() first-time init");
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
-                ERROR_LOG("CORE_MANAGER::loop() parserCFGFromResource FAILED");
+                ERROR_LOG("CORE_MANAGER::onLoop() parserCFGFromResource FAILED");
                 return -1;
             }
             this->device->cfg.sortShader();
@@ -96,7 +96,7 @@ namespace mbm
                 {
                     case UNKNOWN: 
                     {
-                        ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::loop() - Unknown event type %d.", event.eventType);
+                        ERROR_AT(__LINE__,__FILE__, "CORE_MANAGER::onLoop() - Unknown event type %d.", event.eventType);
                     }
                     break;
                     case ONMOVEWINDOW:
@@ -110,12 +110,12 @@ namespace mbm
                             static_cast<int>(event.y) == static_cast<int>(this->device->backBufferHeight))
                         {
                             #if defined _DEBUG || defined DEBUG
-                            WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
+                            WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with same dimensions %dx%d, ignoring.", static_cast<int>(event.x), static_cast<int>(event.y));
                             #endif
                             break;
                         }
                         #if defined _DEBUG || defined DEBUG
-                        WARN_LOG("CORE_MANAGER::loop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
+                        WARN_LOG("CORE_MANAGER::onLoop() - ONRESIZEWINDOW event with dimensions %dx%d.", static_cast<int>(event.x), static_cast<int>(event.y));
                         #endif
                         this->device->backBufferWidth  = event.x;
                         this->device->backBufferHeight = event.y;
@@ -274,7 +274,7 @@ namespace mbm
                 }
             }
             //if (loopCallCount <= 3)
-            //    INFO_LOG("CORE_MANAGER::loop() about to update/render (frame %d) changeScene=%d swapStep=%d",
+            //    INFO_LOG("CORE_MANAGER::onLoop() about to update/render (frame %d) changeScene=%d swapStep=%d",
             //             loopCallCount, (int)this->changeScene, this->device->__swapBackBufferStep);
             this->update();
             this->render();
@@ -709,7 +709,7 @@ namespace mbm
                     enableRender(this->device->scene->getIdScene());
                     this->device->scene->wasUnloadedScene = false;
                     this->device->orderRender.reInit();
-                    this->device->scene->init();
+                    this->device->scene->onInitScene();
                     this->device->setFakeFps(120,60);
                     this->device->resumeTimer();
                     this->__sceneWasInit          = true;
@@ -726,7 +726,7 @@ namespace mbm
             }
             else
             {
-                this->device->scene->logic();
+                this->device->scene->onLoop();
             }
         }
     }

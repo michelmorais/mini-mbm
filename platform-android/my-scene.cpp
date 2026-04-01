@@ -40,7 +40,7 @@ void MY_SCENE::onInitScene()
     texBox->load("wooden-box.jpg", 200, 200);
 }
 
-void MY_SCENE::onLogicScene()
+void MY_SCENE::onLoop()
 {
 }
 

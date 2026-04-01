@@ -416,7 +416,7 @@ void android_main(struct android_app* app)
             {
                 constexpr bool singleLoop    = true;
                 constexpr bool doSwapBuffers = true;
-                s_game->loop(singleLoop, doSwapBuffers);
+                s_game->onLoop(singleLoop, doSwapBuffers);
             }
         }
     }

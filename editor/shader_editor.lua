@@ -1223,7 +1223,7 @@ function showMeshStatus(delta)
     tImGui.End()
 end
 
-function loop(delta)
+function onLoop(delta)
     mainMenuShader()
     if bTextureViewOpened then
         local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0,ImGuiWindowFlags_NoMove == 0)

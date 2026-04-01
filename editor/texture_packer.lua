@@ -1837,7 +1837,7 @@ function onKeyUp(key)
     end
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_texture_packer()
 
     if bTextureViewOpened then

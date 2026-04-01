@@ -48,7 +48,7 @@ void MY_SCENE::onInitScene()
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
 }
 
-void MY_SCENE::onLogicScene()
+void MY_SCENE::onLoop()
 {
     
 }

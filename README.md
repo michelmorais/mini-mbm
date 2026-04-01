@@ -102,7 +102,7 @@ function onInitScene()
     player.speed = 3
 end
 
-function loop(delta)
+function onLoop(delta)
     -- move right each frame (delta-time multiplied)
     player:move(player.speed, 0)
 end
@@ -184,7 +184,7 @@ public:
 int main() {
     GAME game;
     if (game.initGraphics("My First Game"))
-        return game.loop(false, true);
+        return game.onLoop(false, true);
     return -1;
 }
 ```
@@ -293,7 +293,7 @@ The engine is built around three central classes:
 └─────────────────────────────────────────────────┘
 ```
 
-**In C++ mode**, you subclass `mbm::CORE_MANAGER` (your game) and `mbm::SCENE` (each game screen), then call `initGraphics()` + `loop()`:
+**In C++ mode**, you subclass `mbm::CORE_MANAGER` (your game) and `mbm::SCENE` (each game screen), then call `initGraphics()` + `onLoop()`:
 
 ```cpp
 #include <core_mbm/core-manager.h>
@@ -314,7 +314,7 @@ int main() {
     game.initGraphics("My Game");
     const bool singleLoop    = false;
     const bool doSwapBuffers = true;
-    game.loop(singleLoop, doSwapBuffers);
+    game.onLoop(singleLoop, doSwapBuffers);
 }
 ```
 
@@ -462,7 +462,7 @@ function onInitScene()
     tSprite.y = 200
 end
 
-function loop(delta)
+function onLoop(delta)
     -- Called every frame — game logic goes here
     tSprite:move(2, 0)  -- moves right (delta-time multiplied)
 end
@@ -1118,7 +1118,7 @@ function onInitScene()
     player.speed = 3
 end
 
-function loop(delta)
+function onLoop(delta)
     -- move para a direita a cada frame (multiplicado por delta-time)
     player:move(player.speed, 0)
 end
@@ -1181,7 +1181,7 @@ public:
 int main() {
     GAME game;
     if (game.initGraphics("Meu Jogo"))
-        return game.loop(false, true);
+        return game.onLoop(false, true);
     return -1;
 }
 ```
@@ -1218,7 +1218,7 @@ O motor é construído em torno de três classes centrais:
 - **`DEVICE`** — Singleton (`DEVICE::getInstance()`). Gerencia o back buffer, câmera, listas de renderização (3D, 2D-world, 2D-screen, render-to-texture), frustum culling, detecção de colisão (AABB 2D/3D), transformações de coordenadas, ray casting, controle de z-order e FPS/delta/timers.
 - **`SCENE`** — Classe base que você implementa para cada tela do jogo. Métodos virtuais: `init()`, `logic()`, `startLoading()`, `endLoading()`, callbacks de input, e transição de cenas via ponteiro `nextScene`.
 
-**No modo C++**, você herda de `mbm::CORE_MANAGER` (seu jogo) e `mbm::SCENE` (cada tela), depois chama `initGraphics()` + `loop()`.
+**No modo C++**, você herda de `mbm::CORE_MANAGER` (seu jogo) e `mbm::SCENE` (cada tela), depois chama `initGraphics()` + `onLoop()`.
 
 **No modo Lua**, o motor fornece `mbm::LUA_MANAGER` que gerencia o carregamento de cenas a partir de scripts Lua — sem necessidade de herdar classes C++ para a lógica do jogo.
 
@@ -1310,7 +1310,7 @@ function onInitScene()
     tSprite.y = 200
 end
 
-function loop(delta)
+function onLoop(delta)
     -- Chamado a cada frame — lógica do jogo aqui
     tSprite:move(2, 0)  -- move para a direita (multiplicado por delta-time)
 end

@@ -23,7 +23,7 @@ int main()
 {
     GAME game;
     if(game.initGraphics("Hello-world"))
-        return game.loop(false, true);
+        return game.onLoop(false, true);
     return -1;
 }
 

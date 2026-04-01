@@ -32,7 +32,7 @@ class MY_SCENE : public mbm::SCENE
 	void startLoading();
 	void endLoading();
     void onInitScene();
-    void onLogicScene();
+    void onLoop();
     void onTouchDown(int key, float x, float y);
     void onTouchUp(int key, float x, float y);
     void onTouchMove(int, float x, float y);

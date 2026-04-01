@@ -46,7 +46,7 @@ void MY_SCENE::onInitScene()
     device->camera.focus    = mbm::VEC3(0, 280, 0);
 }
 
-void MY_SCENE::onLogicScene()
+void MY_SCENE::onLoop()
 {
 }
 

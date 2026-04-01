@@ -2328,7 +2328,7 @@ function showSetScaleCam()
 end
 ]]--
 
-function loop(delta)
+function onLoop(delta)
     
     if cCoroutineLoadScene then
         local sStatus = coroutine.status (cCoroutineLoadScene)

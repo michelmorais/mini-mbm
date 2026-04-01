@@ -28,6 +28,6 @@ int main()
     constexpr bool singleLoop    = false;
     constexpr bool doSwapBuffers = true;
     if (game.initGraphics("Hello-world"))
-        return game.loop(singleLoop, doSwapBuffers);
+        return game.onLoop(singleLoop, doSwapBuffers);
     return -1;
 }

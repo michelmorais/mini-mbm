@@ -42,7 +42,7 @@ extern "C"
 };
 
 void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstring absPath, jstring apkPath,jint expectedWidth,jint expectedHeight);
-void MiniMbmEngine_loop(JNIEnv *env, jobject obj);
+void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj);
 void MiniMbmEngine_quit(JNIEnv *env, jobject obj);
 void MiniMbmEngine_onTouchDown(JNIEnv *env, jobject obj, int key, float x, float y);
 void MiniMbmEngine_onTouchUp(JNIEnv *env, jobject obj, int key, float x, float y);
@@ -158,12 +158,12 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     env->ReleaseStringUTFChars(apkPath, _apkPath);
 }
 
-void MiniMbmEngine_loop(JNIEnv *env, jobject obj)
+void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj)
 {
     if (game)
     {
         game->device->ptrManager = game;
-        game->loop(env, obj);
+        game->onLoop(env, obj);
     }
 }
 

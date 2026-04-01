@@ -32,7 +32,7 @@ public:
     MY_SCENE();
     virtual ~MY_SCENE();
     void onInitScene();
-    void onLogicScene();
+    void onLoop();
     void startLoading() {}
     void endLoading()   {}
     const char* getSceneName() noexcept { return "my-scene-android"; }

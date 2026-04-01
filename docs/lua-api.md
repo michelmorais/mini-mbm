@@ -31,7 +31,7 @@ The engine calls these global functions in your Lua script. Define the ones you 
 | Function | When Called | Notes |
 |---|---|---|
 | `onInitScene()` | Once when the scene first loads | Load assets, set camera, set up state here |
-| `onLogicScene(delta)` | Every frame | `delta` = seconds since last frame (float). Main game loop. |
+| `onLoop(delta)` | Every frame | `delta` = seconds since last frame (float). Main game loop. |
 | `onTouchDown(key, x, y)` | Mouse button press / touch begin | `key` = button id; `x,y` in screen pixels |
 | `onTouchUp(key, x, y)` | Mouse button release / touch end | Same coords as `onTouchDown` |
 | `onTouchMove(key, x, y)` | Mouse cursor / finger move | Called while touch is held |
@@ -673,7 +673,7 @@ local box2d = require "box2d"
 ```lua
 local world = box2d:new()
 world:setGravity(0, -10)
-world:step(delta)                               -- advance physics (call in onLogicScene())
+world:step(delta)                               -- advance physics (call in onLoop())
 
 -- Add bodies (pass a renderizable as the shape source)
 world:addDynamicBody(renderizable, density?, friction?, restitution?)
@@ -722,7 +722,7 @@ Dear ImGui immediate-mode UI. Load with:
 ```lua
 local tImGui = require "ImGui"
 ```
-**All ImGui calls must happen inside `onLogicScene(delta)`.** They are immediate-mode — call every frame.
+**All ImGui calls must happen inside `onLoop(delta)`.** They are immediate-mode — call every frame.
 
 ### Window Management
 

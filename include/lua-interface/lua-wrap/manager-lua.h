@@ -57,7 +57,7 @@ namespace mbm
         virtual ~SCENE_SCRIPT();
 
         void onInitScene() override;
-        void onLogicScene() override;
+        void onLoop() override;
         void onCallBackCommands(const char *functionNameCallBack,const char *param) override;
         void onRestore(const int percent) override;
         void onTouchDown(int key, float x, float y) override;

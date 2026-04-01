@@ -52,7 +52,7 @@ namespace mbm
         virtual ~SCENE() = default;
 
         virtual void onInitScene() = 0;
-        virtual void onLogicScene() = 0;
+        virtual void onLoop() = 0;
         virtual void startLoading() = 0;
         virtual void * get_lua_state();//if we are using lua we should be able to retrieve the current state
         virtual void endLoading() = 0;

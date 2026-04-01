@@ -98,7 +98,7 @@ Use the templates in [assets/](./assets/):
 void startLoading();          // called by engine before async asset load begins
 void endLoading();            // called by engine when async load completes
 void onInitScene();           // load assets, set up scene (first frame)
-void onLogicScene();          // per-frame game logic
+void onLoop();                // per-frame game logic
 void onResizeWindow();        // handle window/viewport resize
 void onFinalizeScene();       // cleanup before scene is destroyed
 // Input events:
@@ -248,8 +248,8 @@ See [platform-files reference](./references/platform-files.md) and [cmake-integr
 
 | Mode | Linux/macOS/Windows | Android | iOS |
 |---|---|---|---|
-| C++ | `int main() { GAME g; g.initGraphics("…"); g.loop(false,true); }` | JNI `MiniMbmEngine_init(…)` + `loop(singleLoop=true, swapBuffers=false)` | `UIApplicationMain(…)` → `MetalViewController::viewDidLoad` |
-| Lua | `mbm::loop()` via mini-mbm-lib | `mbm::loop()` via NativeActivity glue | `UIApplicationMain(…)` → MetalViewController Lua path |
+| C++ | `int main() { GAME g; g.initGraphics("…"); g.onLoop(false,true); }` | JNI `MiniMbmEngine_init(…)` + `onLoop(singleLoop=true, swapBuffers=false)` | `UIApplicationMain(…)` → `MetalViewController::viewDidLoad` |
+| Lua | `mbm::onLoop()` via mini-mbm-lib | `mbm::onLoop()` via NativeActivity glue | `UIApplicationMain(…)` → MetalViewController Lua path |
 
 ### Source Language
 

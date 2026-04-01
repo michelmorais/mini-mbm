@@ -44,7 +44,7 @@ The engine calls these Lua globals in your script:
 | Function | When called |
 |---|---|
 | `onInitScene()` | Once when the scene is first loaded |
-| `loop(delta)` | Every frame — **all ImGui calls must happen here** |
+| `onLoop(delta)` | Every frame — **all ImGui calls must happen here** |
 | `onTouchDown(key,x,y)` | Mouse button / touch press |
 | `onTouchMove(key,x,y)` | Mouse / touch move |
 | `onTouchUp(key,x,y)` | Mouse button / touch release |
@@ -52,8 +52,7 @@ The engine calls these Lua globals in your script:
 | `onKeyDown(key)` | Keyboard key press |
 | `onKeyUp(key)` | Keyboard key release |
 
-**Important**: There is no `onLogicScene`. The per-frame callback is `loop(delta)`.  
-All ImGui rendering and state logic lives inside `loop(delta)`.
+**Important**: All ImGui rendering and state logic lives inside `onLoop(delta)`.
 
 ---
 
@@ -116,7 +115,7 @@ function onInitScene()
     tUtil.sMessageOverlay = tLang.L("welcome_my_tool")   -- add key to language.lua
 end
 
-function loop(delta)
+function onLoop(delta)
     showMainMenu()
     showMainPanel()
     tUtil.showOverlayMessage()
@@ -318,7 +317,7 @@ end
 -- Trigger once:
 tImGui.OpenPopup("popup_id")
 
--- Inside loop():
+-- Inside onLoop():
 local is_open, _ = tImGui.BeginPopupModal("popup_id", false,
                        tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'))
 if is_open then
@@ -603,7 +602,7 @@ if sTexFile then
     tex_alpha_pattern.visible = false  -- toggle via menu option
 end
 
--- In loop(delta): keep it centered on camera
+-- In onLoop(delta): keep it centered on camera
 tex_alpha_pattern:setPos(camera2d.x, camera2d.y)
 ```
 
@@ -668,7 +667,7 @@ Follow these invariants taken from every existing editor:
 3. `tUtil = require "editor_utils"` on line 2 after ImGui
 4. `tLang` is available automatically after `editor_utils` loads
 5. `function onInitScene()` — all engine objects created here
-6. `function loop(delta)` — all ImGui calls happen here, nothing else calls ImGui
+6. `function onLoop(delta)` — all ImGui calls happen here, nothing else calls ImGui
 7. Set `tUtil.sMessageOverlay` in `onInitScene()` to welcome text
 8. Create `tLineCenterX` / `tLineCenterY` as the standard origin cross
 9. Create `tex_alpha_pattern` with `tUtil.createAlphaPattern()` if you show textures
@@ -758,7 +757,7 @@ end
 -- In onInitScene():
 bEnableMoveWindow = false
 
--- In loop() flag calculation:
+-- In onLoop() flag calculation:
 local flags = bEnableMoveWindow and tImGui.Flags('ImGuiWindowFlags_MenuBar')
            or tImGui.Flags('ImGuiWindowFlags_MenuBar', 'ImGuiWindowFlags_NoMove')
 
@@ -806,7 +805,7 @@ bPendingDelete  = true
 sPendingMessage = 'Delete this item?'
 tImGui.OpenPopup("confirm_delete")
 
--- In loop():
+-- In onLoop():
 local is_open, _ = tImGui.BeginPopupModal("confirm_delete", false,
                        tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize'))
 if is_open then
@@ -851,8 +850,8 @@ Before committing a new editor tool, verify:
 - [ ] All text uses `tLang.L("key")` — no hardcoded English strings
 - [ ] New strings added to both `M.en` and `M.pt_br` in `language.lua`
 - [ ] `tUtil.sMessageOverlay` set in `onInitScene()`
-- [ ] `loop(delta)` contains all ImGui calls
-- [ ] `tUtil.showOverlayMessage()` called at end of `loop(delta)`
+- [ ] `onLoop(delta)` contains all ImGui calls
+- [ ] `tUtil.showOverlayMessage()` called at end of `onLoop(delta)`
 - [ ] `ImGuiWindowFlags_NoMove` cached in `onInitScene()`, not recomputed per frame
 - [ ] `tWindowsTitle` table used for all ImGui window IDs
 - [ ] Mouse input guards `tImGui.IsAnyWindowHovered()` before world interaction
