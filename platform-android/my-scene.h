@@ -31,8 +31,8 @@ public:
     mbm::TEXTURE_VIEW* texBox;
     MY_SCENE();
     virtual ~MY_SCENE();
-    void init();
-    void logic();
+    void onInitScene();
+    void onLogicScene();
     void startLoading() {}
     void endLoading()   {}
     const char* getSceneName() noexcept { return "my-scene-android"; }

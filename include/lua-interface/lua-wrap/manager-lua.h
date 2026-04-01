@@ -56,8 +56,8 @@ namespace mbm
         SCENE_SCRIPT(const char *nameFileScriptLua, const bool _noSplash,RENDERIZABLE * previousSplash);
         virtual ~SCENE_SCRIPT();
 
-        void init() override;
-        void logic() override;
+        void onInitScene() override;
+        void onLogicScene() override;
         void onCallBackCommands(const char *functionNameCallBack,const char *param) override;
         void onRestore(const int percent) override;
         void onTouchDown(int key, float x, float y) override;

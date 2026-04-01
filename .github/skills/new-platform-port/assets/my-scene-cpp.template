@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -39,7 +39,7 @@ void MY_SCENE::endLoading()
     INFO_LOG("End loading scene...");
 }
 
-void MY_SCENE::init()
+void MY_SCENE::onInitScene()
 {
     mbm::DEVICE *device = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
@@ -47,7 +47,7 @@ void MY_SCENE::init()
     util::addPath(__FILE__); // little trick to add the source dir to asset search paths when debugging
 }
 
-void MY_SCENE::logic()
+void MY_SCENE::onLogicScene()
 {
 }
 

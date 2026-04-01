@@ -80,7 +80,7 @@ function onInitScene()
     player:load("assets/sprites/player.spt")
 end
 
-function logic(delta)
+function onLogicScene(delta)
     if keys_held[KEY_LEFT]  then player.x = player.x - speed * delta end
     if keys_held[KEY_RIGHT] then player.x = player.x + speed * delta end
     if keys_held[KEY_UP]    then player.y = player.y + speed * delta end
@@ -103,7 +103,7 @@ function onTouchMove(key, x, y) end
 | Callback | Purpose |
 |---|---|
 | `onInitScene()` | Load assets, init state — called once |
-| `logic(delta)` | Per-frame — movement, AI, physics step |
+| `onLogicScene(delta)` | Per-frame — movement, AI, physics step |
 | `onKeyDown(key)` / `onKeyUp(key)` | Keyboard input |
 | `onTouchDown(key,x,y)` etc. | Mouse/touch input (x,y in screen pixels) |
 
@@ -116,7 +116,7 @@ function onTouchMove(key, x, y) end
 
 ### Asset Loading
 
-Always load in `onInitScene()`, never in `logic()`.
+Always load in `onInitScene()`, never in `onLogicScene()`.
 
 ```lua
 -- Sprite
@@ -134,7 +134,7 @@ lbl.text   = "new text"         -- update any time
 
 -- Particle
 local p = particle:new("2dw", x, y)
-p:load("fire.pt")               -- or configure with setMin/Max* methods
+p:load("fire.ptl")              -- or configure with setMin/Max* methods
 ```
 
 ### Common Object Properties (all render types)
@@ -151,13 +151,16 @@ obj:setScale(sx, sy)
 obj:setAngle(ax, ay, az)
 obj:move(vx, vy)              -- delta-scaled (frame-rate independent)
 obj:rotate("z", radians)      -- delta-scaled
-obj:checkCollision(other)     -- → bool  AABB vs AABB
-obj:checkCollision(x, y)      -- → bool  AABB vs screen point
+obj:collide(other)            -- → bool  AABB vs AABB
+obj:collide(x, y)             -- → bool  AABB vs screen point
 obj:getSize()                 -- → w, h
 obj:getAABB()                 -- → w, h
-obj:isOnFrustum()             -- → bool
-obj:anim("animName")          -- play animation
-obj:destroy()                 -- remove from scene
+obj:isOnScreen()              -- → bool
+obj:setAnim("animName")       -- play animation by name (or pass index)
+obj:getAnim()                 -- → name, index
+obj:getTotalAnim()            -- → total animation count
+obj:restartAnim()             -- restart from frame 1
+obj:destroy()                 -- remove from scene, then assign nil
 ```
 
 ### Camera
@@ -165,7 +168,7 @@ obj:destroy()                 -- remove from scene
 ```lua
 local cam = mbm.getCamera("2d")
 -- Follow player:
-function logic(delta)
+function onLogicScene(delta)
     cam.x = player.x
     cam.y = player.y
 end
@@ -200,7 +203,7 @@ function onInitScene()
     )
 end
 
-function logic(delta) world:step(delta) end
+function onLogicScene(delta) world:step(delta) end
 ```
 
 ### ImGui for in-game menus / debug
@@ -208,7 +211,7 @@ function logic(delta) world:step(delta) end
 ```lua
 local tImGui = require "ImGui"
 
-function logic(delta)
+function onLogicScene(delta)
     if tImGui.Begin("Pause Menu") then
         if tImGui.Button("Resume") then paused = false end
         if tImGui.Button("Quit")   then mbm.quit() end
@@ -223,11 +226,11 @@ end
 
 - [ ] Game folder created
 - [ ] `.github/copilot-instructions.md` copied from `game-template/`
-- [ ] `main.lua` created with `onInitScene`, `logic`, key callbacks
+- [ ] `main.lua` created with `onInitScene`, `onLogicScene`, key callbacks
 - [ ] `mbm.addPath(script_dir)` at top so assets resolve correctly
 - [ ] `mbm.setColor(r,g,b)` sets background
 - [ ] All `sprite:new` / `font:new` / etc. done inside `onInitScene`
-- [ ] `logic(delta)` uses `delta` for movement speed (frame-rate independent)
+- [ ] `onLogicScene(delta)` uses `delta` for movement speed (frame-rate independent)
 - [ ] Key codes resolved once in `onInitScene` via `mbm.getKeyCode()`
 
 ---
@@ -250,9 +253,11 @@ Topics covered there but not repeated here:
 
 | Mistake | Correct Approach |
 |---|---|
-| Calling `sprite:new()` inside `logic()` | Call in `onInitScene()` only |
+| Calling `sprite:new()` inside `onLogicScene()` | Call in `onInitScene()` only |
 | Hard-coding key integers | Use `mbm.getKeyCode("ESC")` |
 | Moving with fixed pixel amounts | Multiply by `delta` for frame-rate independence |
 | Using `"3"` as coord type | Use `"3d"` (the string `"3"` also works but is ambiguous) |
-| Calling ImGui outside `logic()` | All ImGui calls must be inside `logic(delta)` |
-| Referencing `onLogicScene` | The callback is `logic(delta)`, not `onLogicScene` |
+| Calling ImGui outside `onLogicScene()` | All ImGui calls must be inside `onLogicScene(delta)` |
+| Using `obj:anim()` | The correct method is `obj:setAnim(name)` or `obj:setAnim(index)` |
+| Using `obj:checkCollision()` | The correct method is `obj:collide(other)` or `obj:collide(x,y)` |
+| Using `obj:isOnFrustum()` | The correct method is `obj:isOnScreen()` |

@@ -150,10 +150,10 @@ namespace mbm
             return this->lua;
         }
 
-        void SCENE_SCRIPT::init() 
+        void SCENE_SCRIPT::onInitScene() 
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            INFO_LOG("SCENE_SCRIPT::init() enter - scriptLua=[%s] noSplash=%d logo_was_init=%d",
+            INFO_LOG("SCENE_SCRIPT::onInitScene() enter - scriptLua=[%s] noSplash=%d logo_was_init=%d",
                      this->scriptLua.c_str(), (int)this->noSplash, (int)SCENE_SCRIPT::logo_was_init);
             if (this->lua == nullptr)
             {
@@ -383,7 +383,7 @@ namespace mbm
             }
         }
         
-        void SCENE_SCRIPT::logic()
+        void SCENE_SCRIPT::onLogicScene()
         {
             if (this->wasError && __onErrorStop__)
                 return;
@@ -402,14 +402,14 @@ namespace mbm
                 else
                     return;
             }
-            lua_getglobal(this->lua, "loop");
+            lua_getglobal(this->lua, "onLogicScene");
             if (lua_isfunction(this->lua, -1))
             {
                 lua_pushnumber(this->lua, device->delta);
                 if (lua_pcall(this->lua, 1, 0, 0) != LUA_OK)
                 {
                     this->wasError = true;
-                    lua_print_line(lua,TYPE_LOG_ERROR,"[%s] ->\n[%s]->\n[%s]", "loop", luaL_checkstring(lua, -1), this->scriptLua.c_str());
+                    lua_print_line(lua,TYPE_LOG_ERROR,"[%s] ->\n[%s]->\n[%s]", "onLogicScene", luaL_checkstring(lua, -1), this->scriptLua.c_str());
                 }
                 lua_settop(lua,0);
             }

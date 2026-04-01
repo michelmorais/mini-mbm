@@ -91,6 +91,42 @@ public:
 
 Include: `#include <core_mbm/plugin-callback.h>`
 
+### 1d. PLUGIN_IDENTIFIER — userdata type guard
+
+Every plugin that exposes Lua userdata must declare a `PLUGIN_IDENTIFIER` so the engine can validate that a userdata object belongs to this plugin before calling into it:
+
+```cpp
+// myplugin-class-lua.cpp  (module scope — one per plugin, not per class)
+static int PLUGIN_IDENTIFIER = 1;   // initial value; overwritten at load time
+```
+
+**Registration** — call once inside `luaopen_myplugin` (or `registerClassMyPlugin`):
+
+```cpp
+// Creates the "_usertype_plugin" metatable field and writes its integer id back:
+PLUGIN_IDENTIFIER = mbm::lua_create_metatable_identifier(lua, "_usertype_plugin", PLUGIN_IDENTIFIER);
+```
+
+**Validation** — at the top of every Lua C callback that receives plugin userdata:
+
+```cpp
+int onSomeMethodLua(lua_State *lua)
+{
+    // Retrieve the L_USER_TYPE integer stored in the metatable:
+    int L_USER_TYPE_PLUGIN = lua_tointeger(lua, lua_upvalueindex(1));  // or from global
+    if (L_USER_TYPE_PLUGIN != PLUGIN_IDENTIFIER) {
+        return lua_error_debug(lua, "Invalid plugin userdata — wrong plugin type");
+    }
+    MY_PLUGIN_WRAP *self = static_cast<MY_PLUGIN_WRAP *>(lua_touserdata(lua, 1));
+    // ... proceed
+}
+```
+
+**How it works:**
+- `lua_create_metatable_identifier` stores an auto-incrementing integer in the Lua registry under `"_usertype_plugin"` and returns it.
+- The returned value overwrites the compile-time `1` in `PLUGIN_IDENTIFIER`, giving each plugin a unique runtime id.
+- Comparing `L_USER_TYPE_PLUGIN == PLUGIN_IDENTIFIER` guards against passing one plugin's userdata to another plugin's functions.
+
 ---
 
 ## 2. File Layout

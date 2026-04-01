@@ -31,7 +31,7 @@ The engine calls these global functions in your Lua script. Define the ones you 
 | Function | When Called | Notes |
 |---|---|---|
 | `onInitScene()` | Once when the scene first loads | Load assets, set camera, set up state here |
-| `logic(delta)` | Every frame | `delta` = seconds since last frame (float). Main game loop. |
+| `onLogicScene(delta)` | Every frame | `delta` = seconds since last frame (float). Main game loop. |
 | `onTouchDown(key, x, y)` | Mouse button press / touch begin | `key` = button id; `x,y` in screen pixels |
 | `onTouchUp(key, x, y)` | Mouse button release / touch end | Same coords as `onTouchDown` |
 | `onTouchMove(key, x, y)` | Mouse cursor / finger move | Called while touch is held |
@@ -43,7 +43,26 @@ The engine calls these global functions in your Lua script. Define the ones you 
 | `onMoveJoystick(player, lx, ly, rx, ry)` | Gamepad analog stick | Values in [-1, 1] |
 | `onInfoDeviceJoystick(player, maxBtn, name, extra)` | Gamepad connected | `name` = device name string |
 
-**Important:** There is no `onLogicScene`. The per-frame callback is `logic(delta)`.
+---
+
+## 1b. Method Syntax: `:` vs `.`
+
+Lua distinguishes between **method calls** (`:`) and **property access** (`.`):
+
+```lua
+-- Method call (`:`) — passes the object as implicit first argument:
+obj:setPos(100, 200)     -- correct
+obj:destroy()            -- correct
+
+-- Property access (`.`) — reads or writes a field directly:
+obj.x = 100              -- correct
+obj.visible = false      -- correct
+
+-- Common mistake: calling a method with `.` instead of `:`:
+obj.setPos(100, 200)     -- WRONG — self is not passed
+```
+
+Rule of thumb: if the operation *does something*, use `:`; if you're *reading or writing a value*, use `.`.
 
 ---
 
@@ -277,12 +296,12 @@ All constructors follow the pattern: `TypeName:new(coordType, x?, y?, z?)`.
 | Global Name | Coord Types | Asset Format | Description |
 |---|---|---|---|
 | `sprite` | `2dw`, `2ds`, `3d` | `.spt` | Animated 2D/3D sprite |
-| `mesh` | `3d` | `.mbm` | 3D mesh |
+| `mesh` | `3d` | `.msh` | 3D mesh |
 | `texture` | `2dw`, `2ds`, `3d` | PNG, JPG, BMP, etc. | Plain textured quad |
 | `gif` | `2dw`, `2ds` | `.gif` | Animated GIF |
 | `backGround` | `2dw`, `3d` | various | Scrolling background or 3D backdrop |
-| `font` | — | bitmap font file | Font renderer (see §7.4) |
-| `particle` | `2dw`, `2ds`, `3d` | config table/file | Particle emitter |
+| `font` | — | `.fnt` (pre-parsed binary) or `.ttf`/`.otf`/`.true-font` (runtime parsed) | Font renderer (see §7.4) |
+| `particle` | `2dw`, `2ds`, `3d` | `.ptl` config file or configure manually | Particle emitter |
 | `shape` | `2dw`, `2ds`, `3d` | procedural | Procedurally generated mesh |
 | `lineMesh` | `2dw`, `2ds`, `3d` | procedural | Line-based geometry |
 | `tile` | `2dw` | tile-map file | Tile map with layers |
@@ -302,11 +321,11 @@ hudBg:load("hud_bg.png")
 
 -- 3D mesh
 local cube = mesh:new("3d", 0, 0, -500)
-cube:load("cube.mbm")
+cube:load("cube.msh")
 
 -- Particle emitter
 local sparks = particle:new("2dw", 0, 0, 0)
-sparks:load("sparks.pt")
+sparks:load("sparks.ptl")
 
 -- Procedural rectangle shape
 local box = shape:new("2dw", 100, 200)
@@ -357,14 +376,14 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 |---|---|---|---|
 | `obj:getSize` | `(considerScale?: bool)` | w, h [, d] | Object dimensions. 3D returns depth too. |
 | `obj:getAABB` | `(update?: bool)` | w, h [, d] | Axis-aligned bounding box. Pass `true` to force recalc. |
-| `obj:isOnFrustum` | `()` | bool | Whether the object is inside the camera frustum |
+| `obj:isOnScreen` | `()` | bool | Whether the object is visible within the camera frustum |
 | `obj:isLoaded` | `()` | bool | Whether the asset is fully loaded |
 
 ### 6.4 Collision
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:checkCollision` | `(other)` or `(x, y)` | bool | AABB collision vs another object, or vs screen point |
+| `obj:collide` | `(other)` or `(x, y)` | bool | AABB collision vs another object, or vs screen point |
 | `obj:isOver` | `(x, y)` | bool | Is screen point (x, y) inside the object's bounding rect |
 
 ### 6.5 Physics
@@ -377,24 +396,42 @@ obj.alwaysRender = true   -- render even when off-screen / outside frustum
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `obj:anim` | `(name: string)` | — | Play a named animation |
-| `obj.anim.status` | (property) | int | Current animation state (see §9 constants) |
+| `obj:setAnim` | `(name: string\|index: int)` | — | Play animation by name or index |
+| `obj:getAnim` | `(index?: int)` | name, index | Get current (or nth) animation name and index |
+| `obj:addAnim` | `(name, type, frames, fps, startFrame?)` | — | Define a new animation on the object |
+| `obj:getTotalAnim` | `()` | int | Number of animations defined |
+| `obj:getTotalFrame` | `()` | int | Total frames in current animation |
+| `obj:getIndexFrame` | `()` | int | Current frame index (1-based) |
+| `obj:restartAnim` | `()` | — | Restart animation from frame 1 |
+| `obj:isEndedAnim` | `()` | bool | Whether a non-looping animation has finished |
+| `obj:onEndAnim` | `(callback)` | — | Call `callback()` when animation ends |
+| `obj:onEndFx` | `(callback)` | — | Call `callback()` when shader effect ends |
+| `obj:setTypeAnim` | `(type: int)` | — | Set animation loop type using `mbm.*` constants |
+| `obj:forceEndAnimFx` | `()` | — | Immediately stop the current shader animation effect |
+| `obj:setTexture` | `(textureName: string)` | bool | Replace the object's texture at runtime |
+| `obj:setColor` | `(r, g, b, a?)` | — | Tint the object (0–255 per channel) |
 | `obj:setPixelShader` | `(shaderName: string, varValues?: table)` | bool | Apply a pixel shader |
 | `obj:setVertexShader` | `(shaderName: string, varValues?: table)` | bool | Apply a vertex shader |
 | `obj:getShader` | `()` | table | Get current shader config (`name`, `var` values) |
 | `obj:setBlend` | `(srcBlend, dstBlend, op?)` | — | Set blend mode using `mbm.*` blend constants |
+| `obj:getBlend` | `()` | srcBlend, dstBlend, op | Get current blend mode |
 
-### 6.7 Ordering
+### 6.7 Depth / Ordering
 
-| Method | Signature | Returns | Description |
-|---|---|---|---|
-| `obj:setOrder` | `(order: int)` | — | Z-sort order (higher = drawn later / on top) |
-| `obj:getOrder` | `()` | int | Current render order |
+Draw order (depth-sorting) is controlled via the `obj.z` property:
+
+```lua
+obj.z = -10   -- push further back (draws earlier, appears behind)
+obj.z =  10   -- push forward   (draws later,  appears in front)
+```
+
+For 2D world objects in the same layer, higher `z` values render on top. For tile maps, each tile layer is rendered at a specific `z` depth — you can insert 3D or 2D mesh objects between layers by assigning a matching `z` value, enabling correct depth sorting (e.g., a character sprite walking behind trees by placing the character between two tile layers).
 
 ### 6.8 Destroy
 
 ```lua
 obj:destroy()    -- removes from scene and frees memory immediately
+obj = nil        -- also assign nil to prevent accidental access and allow Lua GC
 ```
 Objects are also garbage-collected automatically when they go out of scope (via `__gc`).
 
@@ -470,7 +507,7 @@ bg:setFront3d("fg.mbm")      -- 3D foreground mesh
 
 ```lua
 local p = particle:new("2dw", x, y)
-p:load("fire.pt")        -- load from config file, or configure manually:
+p:load("fire.ptl")       -- load from config file, or configure manually:
 
 p:setMinOffset(x, y, z)   p:getMinOffset()
 p:setMaxOffset(x, y, z)   p:getMaxOffset()
@@ -536,6 +573,13 @@ local tmap = tile:new("2dw")
 tmap:load("map.tmx")   -- Tiled TMX format or engine format
 -- tile maps have layers accessible via tmap:getLayer(name)
 -- use the tiled plugin (require "tiled") for advanced tile operations
+```
+
+Each tile layer is rendered at its own `z` depth. To mix sprites/meshes with tile layers (e.g., a character that walks behind foreground trees), assign the character sprite a `z` value between the two layer depths:
+
+```lua
+-- assume background layer z = -5, foreground (tree) layer z = 5
+character.z = 0   -- renders after background, before trees
 ```
 
 ### 7.11 render2texture
@@ -629,7 +673,7 @@ local box2d = require "box2d"
 ```lua
 local world = box2d:new()
 world:setGravity(0, -10)
-world:step(delta)                               -- advance physics (call in logic())
+world:step(delta)                               -- advance physics (call in onLogicScene())
 
 -- Add bodies (pass a renderizable as the shape source)
 world:addDynamicBody(renderizable, density?, friction?, restitution?)
@@ -678,7 +722,7 @@ Dear ImGui immediate-mode UI. Load with:
 ```lua
 local tImGui = require "ImGui"
 ```
-**All ImGui calls must happen inside `logic(delta)`.** They are immediate-mode — call every frame.
+**All ImGui calls must happen inside `onLogicScene(delta)`.** They are immediate-mode — call every frame.
 
 ### Window Management
 

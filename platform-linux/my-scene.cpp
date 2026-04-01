@@ -40,7 +40,7 @@ void MY_SCENE::endLoading()
 	INFO_LOG("End loading scene...");
 }
 
-void MY_SCENE::init() 
+void MY_SCENE::onInitScene() 
 {
     mbm::DEVICE *device = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
@@ -48,7 +48,7 @@ void MY_SCENE::init()
     util::addPath(__FILE__);//little trick to add path of file image when debuging VS
 }
 
-void MY_SCENE::logic()
+void MY_SCENE::onLogicScene()
 {
     
 }

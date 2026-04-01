@@ -51,8 +51,8 @@ namespace mbm
         SCENE() noexcept;
         virtual ~SCENE() = default;
 
-        virtual void init() = 0;
-        virtual void logic() = 0;
+        virtual void onInitScene() = 0;
+        virtual void onLogicScene() = 0;
         virtual void startLoading() = 0;
         virtual void * get_lua_state();//if we are using lua we should be able to retrieve the current state
         virtual void endLoading() = 0;

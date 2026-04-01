@@ -72,7 +72,7 @@ end
 
 
 -- ---------------------------------------------------------------------------
--- logic(delta)
+-- onLogicScene(delta)
 -- Called EVERY FRAME.
 -- delta = seconds since last frame (use it to make movement frame-rate
 -- independent, e.g.  obj:move(speed * delta, 0)).
@@ -81,7 +81,7 @@ end
 -- Track which keys are currently held
 local keys_held = {}
 
-function logic(delta)
+function onLogicScene(delta)
     -- Example: move player on held arrow keys
     if player then
         if keys_held[KEY_LEFT]  then player.x = player.x - MOVE_SPEED * delta end

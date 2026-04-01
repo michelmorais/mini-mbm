@@ -92,6 +92,30 @@ Use the templates in [assets/](./assets/):
 - [my-scene.cpp template](./assets/my-scene-cpp.template)
 - [main.cpp template](./assets/main-cpp.template)
 
+**Required overrides in `MY_SCENE`.** Every platform must implement all of these pure virtuals from `mbm::SCENE`:
+
+```cpp
+void startLoading();          // called by engine before async asset load begins
+void endLoading();            // called by engine when async load completes
+void onInitScene();           // load assets, set up scene (first frame)
+void onLogicScene();          // per-frame game logic
+void onResizeWindow();        // handle window/viewport resize
+void onFinalizeScene();       // cleanup before scene is destroyed
+// Input events:
+void onTouchDown(int key, float x, float y);
+void onTouchUp(int key, float x, float y);
+void onTouchMove(int key, float x, float y);
+void onTouchZoom(float zoom);
+void onKeyDown(int key);
+void onKeyUp(int key);
+void onKeyDownJoystick(int player, int key);
+void onKeyUpJoystick(int player, int key);
+void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+void onInfoDeviceJoystick(int player, int maxBtn, const char *name, const char *extra);
+```
+
+> `startLoading` and `endLoading` are called by the engine's async loading system. In the simplest case they can be `INFO_LOG("...")` stubs, but they must be present — the base class declares them as pure virtual.
+
 For ObjC++ platforms (macOS-like), use `.mm` extensions and add `-fobjc-arc` to those source files in CMake.
 For native-activity platforms (Android-like), there is no `int main()`; use the NativeActivity + `android_native_app_glue` pattern with JNI entry points.
 

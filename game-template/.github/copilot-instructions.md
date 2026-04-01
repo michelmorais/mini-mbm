@@ -36,7 +36,7 @@ The engine calls these Lua globals in your script. Define any you need:
 | Function | When | Notes |
 |---|---|---|
 | `onInitScene()` | Once at load | Load assets, set camera, initialize state |
-| `logic(delta)` | Every frame | `delta` = seconds since last frame. All game logic here. |
+| `onLogicScene(delta)` | Every frame | `delta` = seconds since last frame. All game logic here. |
 | `onTouchDown(key, x, y)` | Mouse/touch press | `x,y` in screen pixels |
 | `onTouchUp(key, x, y)` | Mouse/touch release | |
 | `onTouchMove(key, x, y)` | Mouse/touch move | |
@@ -48,7 +48,7 @@ The engine calls these Lua globals in your script. Define any you need:
 | `onMoveJoystick(player, lx, ly, rx, ry)` | Analog stick | Values in [-1, 1] |
 | `onInfoDeviceJoystick(player, maxBtn, name, extra)` | Gamepad connected | |
 
-**There is no `onLogicScene`. Use `logic(delta)` for the per-frame callback.**
+**The per-frame callback is `onLogicScene(delta)`. There is no `logic` callback.**
 
 ---
 
@@ -253,11 +253,11 @@ local fnt = font:new("roboto.fnt", height?, spaceW?, spaceH?, savePng?)
 
 **Asset formats:**
 - `sprite` → `.spt`
-- `mesh` → `.mbm`
+- `mesh` → `.msh`
 - `texture` → `.png`, `.jpg`, `.bmp`, etc.
 - `gif` → `.gif`
-- `font` → bitmap font file (`.fnt` or similar)
-- `particle` → `.pt` config or configure manually
+- `font` → `.fnt` (pre-parsed binary font, created with the font_maker editor) or `.ttf`/`.otf`/`.true-font` (runtime parsed by engine)
+- `particle` → `.ptl` config file or configure manually
 - `backGround` / `shape` / `lineMesh` → procedural or load from file
 
 ---
@@ -294,10 +294,10 @@ obj.alwaysRender = true     -- render even when off-screen
 ```lua
 obj:getSize(considerScale?) -- → w, h  (or w, h, d for 3D)
 obj:getAABB(update?)        -- → w, h  (AABB dimensions)
-obj:isOnFrustum()           -- → bool
+obj:isOnScreen()            -- → bool
 obj:isLoaded()              -- → bool
-obj:checkCollision(other)   -- → bool (AABB vs AABB)
-obj:checkCollision(x, y)    -- → bool (AABB vs screen point)
+obj:collide(other)          -- → bool (AABB vs AABB)
+obj:collide(x, y)           -- → bool (AABB vs screen point)
 obj:isOver(x, y)            -- → bool (point inside bounding rect)
 obj:getPhysics()            -- → table of {type,x,y,z,width,height,...}
 ```
@@ -305,20 +305,23 @@ obj:getPhysics()            -- → table of {type,x,y,z,width,height,...}
 ### Animation & Shaders
 
 ```lua
-obj:anim("run")             -- play named animation
-obj.anim.status             -- → mbm.PAUSED|GROWING|GROWING_LOOP|etc.
+obj:setAnim("run")          -- play animation by name (or pass index)
+obj:getAnim()               -- → name, index
+obj:getTotalAnim()          -- → total animation count
+obj:restartAnim()           -- restart from frame 1
 obj:setPixelShader(name, vars?)   -- attach pixel shader
 obj:setVertexShader(name, vars?)  -- attach vertex shader
 obj:getShader()             -- → {name, var = {...}} table
 obj:setBlend(src, dst, op?) -- blend mode via mbm.* constants
-obj:setOrder(n)             -- z-sort order (higher = on top)
-obj:getOrder()              -- → int
+-- Depth: use obj.z property (no setOrder/getOrder methods)
+-- obj.z = 10   -- higher z = renders on top
 ```
 
 ### Destroy
 
 ```lua
-obj:destroy()   -- remove from scene immediately (or let GC handle it)
+obj:destroy()   -- remove from scene immediately
+obj = nil       -- also assign nil to prevent further access
 ```
 
 ---
@@ -328,7 +331,7 @@ obj:destroy()   -- remove from scene immediately (or let GC handle it)
 ```lua
 local s = sprite:new("2dw", 0, 0)
 s:load("hero.spt")          -- returns bool
-s:anim("walk")              -- play animation by name
+s:setAnim("walk")           -- play animation by name
 s.visible = false           -- hide
 ```
 
@@ -336,7 +339,7 @@ s.visible = false           -- hide
 
 ```lua
 local m = mesh:new("3d", 0, 0, -300)
-m:load("enemy.mbm")
+m:load("enemy.msh")
 m:setAngle(0, 0.5, 0)      -- face a direction
 ```
 
@@ -382,7 +385,7 @@ fnt:setSizeLetter(size)
 
 ```lua
 local fire = particle:new("2dw", 0, -100)
-fire:load("fire.pt")            -- from config file, OR configure:
+fire:load("fire.ptl")           -- from config file, OR configure:
 fire:setMinOffset(  -5,  0, 0)
 fire:setMaxOffset(   5, 10, 0)
 fire:setMinDirection(-1,  5, 0)
@@ -495,7 +498,7 @@ world:addDynamicBody(player_sprite, density?, friction?, restitution?)
 world:addKinematicBody(platform_sprite)
 
 -- Per-frame: advance physics
-function logic(delta)
+function onLogicScene(delta)
     world:step(delta)
 end
 
@@ -518,8 +521,8 @@ world:destroy()
 ```lua
 local tImGui = require "ImGui"
 
--- ALL ImGui calls must be inside logic(delta):
-function logic(delta)
+-- ALL ImGui calls must be inside onLogicScene(delta):
+function onLogicScene(delta)
     local open = tImGui.Begin("My Window", false,
         tImGui.Flags("ImGuiWindowFlags_MenuBar"))
     if open then
@@ -631,7 +634,7 @@ function onInitScene()
     player:load("player.spt")
 end
 
-function logic(delta)
+function onLogicScene(delta)
     if keys[mbm.getKeyCode("LEFT")]  then player.x = player.x - speed * delta end
     if keys[mbm.getKeyCode("RIGHT")] then player.x = player.x + speed * delta end
     if keys[mbm.getKeyCode("UP")]    then player.y = player.y + speed * delta end
@@ -656,8 +659,8 @@ end
 ### Pattern: Collision between two objects
 
 ```lua
-function logic(delta)
-    if player:checkCollision(enemy) then
+function onLogicScene(delta)
+    if player:collide(enemy) then
         player.visible = false
         mbm.loadScene("game-over.lua")
     end
@@ -675,7 +678,7 @@ function onInitScene()
     hud_label = hud_font:add("Score: 0", -300, 250)  -- "2ds" position
 end
 
-function logic(delta)
+function onLogicScene(delta)
     hud_label.text = "Score: " .. tostring(score)
 end
 ```
@@ -683,7 +686,7 @@ end
 ### Pattern: Camera follow player
 
 ```lua
-function logic(delta)
+function onLogicScene(delta)
     local cam = mbm.getCamera("2d")
     cam.x = player.x
     cam.y = player.y
@@ -722,7 +725,7 @@ function onInitScene()
     world:addDynamicBody(ball, 1.0, 0.3, 0.5)
 end
 
-function logic(delta)
+function onLogicScene(delta)
     world:step(delta)
 end
 ```
