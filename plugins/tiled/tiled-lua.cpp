@@ -502,6 +502,19 @@ static int onGetNameShaderLayerTiledEditorLua(lua_State * lua)
     return 1;
 }
 
+static int onRemoveShaderLayerTiledEditorLua(lua_State * lua)
+{
+    mbm::TILE_EDITOR * tileEditor  = getTileEditorFromRawTable(lua,1,1);
+    uint32_t index                 = luaL_checkinteger(lua,2);
+    if(index == 0 )
+    {
+        mbm::lua_error_debug(lua,"expected index one based. Got [%d]",index);
+    }
+    index--;
+    tileEditor->removeShaderLayer(index);
+    return 0;
+}
+
 static int onGetLayerTiledEditorLua(lua_State * lua)
 {
     mbm::TILE_EDITOR * tileEditor  = getTileEditorFromRawTable(lua,1,1);
@@ -1838,6 +1851,7 @@ int onNewTileEditorLua(lua_State *lua)
         { "getTotalLayer",               onGetTotalLayerTiledEditorLua },
         { "getLayer",                    onGetLayerTiledEditorLua },
         { "getNameShaderLayer",          onGetNameShaderLayerTiledEditorLua },
+        { "removeShaderFromLayer",       onRemoveShaderLayerTiledEditorLua },
         { "newLayer",                    onNewLayerTiledEditorLua },
         { "updateLayer",                 onUpdateLayerTiledEditorLua },
         { "deleteLayer",                 onDeleteLayerTiledEditorLua },

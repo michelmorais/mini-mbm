@@ -165,7 +165,7 @@ int main(const int argc,const char **argv)
         {
             mbm::set_scene(default_applications[index_app_selected].script_path);
         }
-        ret = mbm::loop();
+        ret = mbm::onLoop();
     }
     if (temporary_folder_path.size() > 0)
     {

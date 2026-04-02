@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2004-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -134,8 +134,8 @@ class MY_SCENE : public mbm::SCENE
     virtual ~MY_SCENE();
     void startLoading();
     void endLoading();
-    void init();
-    void logic();
+    void onInitScene();
+    void onLoop();
     void onTouchDown(int key, float x, float y);
     void onTouchUp(int key, float x, float y);
     void onTouchMove(int, float x, float y);

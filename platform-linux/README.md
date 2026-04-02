@@ -168,7 +168,7 @@ cd platform-linux
 
 | File | Purpose |
 |---|---|
-| `main.cpp` | C++ mode entry point — instantiates `GAME`, calls `initGraphics()` + `loop()` |
+| `main.cpp` | C++ mode entry point — instantiates `GAME`, calls `initGraphics()` + `onLoop()` |
 | `main-lua.cpp` | Lua mode entry point — instantiates `LUA_MANAGER`, loads a `.lua` scene |
 | `my-scene.cpp` / `my-scene.h` | Example `SCENE` subclass — starting point for your own game |
 | `.clang-tidy.sh` | Helper script to run `clang-tidy` with project compile commands |

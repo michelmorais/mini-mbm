@@ -715,7 +715,7 @@ function main_menu_asset()
     end
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_asset()
     showAssets()
     showCurrentSelection()

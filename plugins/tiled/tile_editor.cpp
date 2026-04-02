@@ -316,6 +316,15 @@ namespace mbm
         return 0;
     }
 
+    void TILE_EDITOR::removeShaderLayer(const uint32_t index)
+    {
+        if(index < tileMap.layers.size())
+        {
+            auto & layer = tileMap.layers[index];
+            layer->fx.fxPS->ptrCurrentShader = nullptr;
+        }
+    }
+
     const char * TILE_EDITOR::getNamePsShaderLayer(const uint32_t index) const 
     {
         if(index < tileMap.layers.size())

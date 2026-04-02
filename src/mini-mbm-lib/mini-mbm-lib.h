@@ -121,8 +121,8 @@ extern "C"
 #endif
 
 
-        //when all args are set, call loop
-        LIB_IMP_API int  loop();
+        //when all args are set, call onLoop
+        LIB_IMP_API int  onLoop();
     }
 }
 

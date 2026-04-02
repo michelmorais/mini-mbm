@@ -426,6 +426,7 @@ function colorRGBAMinMax(ps_vs_name,tVar)
     local flags = 0
     local ret   = false
     if tImGui.TreeNodeEx(tVar.name,flags) then
+        tImGui.TextDisabled('Current color')
         local flag_color = tImGui.Flags('ImGuiColorEditFlags_HDR','ImGuiColorEditFlags_NoLabel')
         local label      = 'Select the current color for ' .. tVar.name .. '##Current Color' .. ps_vs_name .. tVar.name
         local tColor     = { r = tVar.value[1], g = tVar.value[2], b = tVar.value[3], a = tVar.value[4]}
@@ -438,6 +439,7 @@ function colorRGBAMinMax(ps_vs_name,tVar)
             ret           = true
         end
 
+        tImGui.TextDisabled('Minimum color')
         local label      = 'Select the minimum color for ' .. tVar.name .. '##Minimum Color' .. ps_vs_name .. tVar.name
         local tColor     = { r = tVar.min[1], g = tVar.min[2], b = tVar.min[3], a = tVar.min[4]}
         local clicked, tRgb = tImGui.ColorEdit4(label, tColor, flag_color)
@@ -449,6 +451,7 @@ function colorRGBAMinMax(ps_vs_name,tVar)
             ret         = true
         end
 
+        tImGui.TextDisabled('Maximum color')
         local label      = 'Select the maximum color for ' .. tVar.name .. '##Maximum Color' .. ps_vs_name .. tVar.name
         local tColor     = { r = tVar.max[1], g = tVar.max[2], b = tVar.max[3], a = tVar.max[4]}
         local clicked, tRgb = tImGui.ColorEdit4(label, tColor, flag_color)
@@ -473,6 +476,7 @@ function inputFloatMinMax(ps_vs_name,tVar,index,sAlias,sTreeName)
         local step       =  (tVar.max[index] - tVar.min[index]) * 0.05
         local step_fast  =  step * 5
         local format     = "%.7f"
+        tImGui.TextDisabled(sAlias .. ' current')
         local result, fValue = tImGui.InputFloat(label, tVar.value[index], step, step_fast, format, flags)
         if result then
             if fValue >= tVar.min[index] and fValue <= tVar.max[index] then
@@ -1223,7 +1227,7 @@ function showMeshStatus(delta)
     tImGui.End()
 end
 
-function loop(delta)
+function onLoop(delta)
     mainMenuShader()
     if bTextureViewOpened then
         local closed_clicked = tUtil.showTextureAssets(tWindowsTitle.title_image_selector,tTexturesToEditor,0,0,ImGuiWindowFlags_NoMove == 0)

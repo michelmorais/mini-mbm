@@ -306,7 +306,7 @@ namespace mbm
     }
 
 
-    int loop()
+    int onLoop()
     {
      #if defined (WIN32)
         char    myExe[MAX_PATH] = "";

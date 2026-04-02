@@ -119,11 +119,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     int ret = 0;
     if(disable_select_monitor)
     {
-        ret = mbm::loop();
+        ret = mbm::onLoop();
     }
     else if(mbm::select_resolution(nullptr,0,allowFullScreen,full_screen_checked))
     {
-        ret = mbm::loop();
+        ret = mbm::onLoop();
     }
     if(temporary_folder_path.size() > 0)
     {

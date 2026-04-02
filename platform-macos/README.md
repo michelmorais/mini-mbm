@@ -149,6 +149,6 @@ make -j$(sysctl -n hw.logicalcpu)
 
 | File | Purpose |
 |---|---|
-| `main.cpp` | C++ mode entry point — instantiates `GAME`, calls `initGraphics()` + `loop()` |
+| `main.cpp` | C++ mode entry point — instantiates `GAME`, calls `initGraphics()` + `onLoop()` |
 | `main-lua.cpp` | Lua mode entry point — instantiates `LUA_MANAGER`, loads a `.lua` scene |
 | `my-scene.cpp` / `my-scene.h` | Example `SCENE` subclass — starting point for your own game |

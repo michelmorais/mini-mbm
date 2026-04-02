@@ -1141,7 +1141,7 @@ function showParticleStatus(delta)
     tImGui.End()
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_particle()
     tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
 

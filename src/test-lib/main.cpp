@@ -34,7 +34,7 @@ int main()
     constexpr bool singleLoop    = false;
     constexpr bool doSwapBuffers = true;
     if(game.initGraphics("Hello-world", 1600, 900, 100, 100, true, true))
-        return game.loop(singleLoop, doSwapBuffers);
+        return game.onLoop(singleLoop, doSwapBuffers);
     return -1;
 }
 

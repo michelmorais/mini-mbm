@@ -446,7 +446,7 @@ Required steps:
    that is a separate value the game loop never reads directly.  Do **not** multiply
    input coordinates by the scale factor before comparing with `backBufferWidth/Height`.
 3. Push events into `CORE_MANAGER::lsEvents` using `EVENT_KEY` structs.
-4. Call `CORE_MANAGER::loop(singleLoop, doSwapBuffers)` to drive the game loop.
+4. Call `CORE_MANAGER::onLoop(singleLoop, doSwapBuffers)` to drive the game loop.
 
 Mouse/touch Y origin: the engine origin is **bottom-left** (Y increases upward), matching
 OpenGL convention.  Most desktop OSes put Y=0 at the top of the window.  Apply Y-flip:
@@ -469,7 +469,7 @@ float ey = backBufferHeight - os_y;  // both in logical points — no scale fact
 > `ShowWindow` / `XMapWindow`, **not** when you create the window object.  Reading
 > `contentView.bounds` (macOS) or the equivalent before the window is visible gives the
 > *requested* size, not the *actual* size.  This creates a mismatch: `expectedScreen` is
-> set once on the first `loop()` tick from `backBufferWidth/Height`, and if those values
+> set once on the first `onLoop()` tick from `backBufferWidth/Height`, and if those values
 > are wrong (e.g. 1 600 instead of 1 470) then `adjustScaleScreen2d()` computes a scale
 > ≠ 1 every frame, offsetting every `is2dS` object.  
 > Fix: pump the run-loop for ≥ 50 ms after showing the window, then read the actual
@@ -1374,7 +1374,7 @@ application model with UIKit/UIView:
 | Window | `NSWindow` | `UIWindow` + `UIView` |
 | Event loop | `NSApplication` run loop + `handleEventFromWindow` | `UIApplicationMain` + `CADisplayLink` |
 | Metal surface | `CAMetalLayer` in `NSView` | `CAMetalLayer` as backing layer of `MBMMetalView` |
-| Frame tick | `LUA_MANAGER::run()` blocking loop | `CADisplayLink` → `loop(true, true)` per frame |
+| Frame tick | `LUA_MANAGER::run()` blocking loop | `CADisplayLink` → `onLoop(true, true)` per frame |
 | File dialog | `dialog-util-macos.mm` (tinyfiledialogs) | `dialog-util-ios.mm` (stub, returns `nullptr`) |
 | Launcher dialog | `mini-mbm-lib-MacOs.mm` (Cocoa panel) | `mini-mbm-lib-iOS.mm` (stub, returns `false`) |
 
@@ -1385,12 +1385,12 @@ is guarded in `manager-lua.cpp`:
 
 ```cpp
 #if (defined _WIN32 || defined __linux__ || defined __APPLE__) && !defined ANDROID && !defined MBM_PLATFORM_IOS
-    loop(false, true);   // blocking desktop loop
+    onLoop(false, true);   // blocking desktop loop
 #endif
 ```
 
 After `run()` returns immediately, `MetalViewController` starts a `CADisplayLink` that
-calls `loop(true, true)` once per display refresh (60 or 120 Hz).
+calls `onLoop(true, true)` once per display refresh (60 or 120 Hz).
 
 ---
 

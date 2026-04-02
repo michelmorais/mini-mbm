@@ -130,7 +130,7 @@ namespace mbm
     }
 
     // -------------------------------------------------------------------------
-    // handleEventFromWindow — called every frame inside loop().
+    // handleEventFromWindow — called every frame inside onLoop().
     //
     // On iOS all input events are delivered asynchronously via UIResponder
     // callbacks (touchesBegan/Moved/Ended/Cancelled) which call onTouchDown,

@@ -218,7 +218,7 @@ namespace mbm
         bool initializeWindowx11();
     #endif
 
-        API_IMPL int loop(const bool singleLoop, const bool doSwapBuffers);
+        API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
     
 
         API_IMPL void getScreenSize(int *width,int *height);

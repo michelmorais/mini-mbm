@@ -151,6 +151,7 @@ namespace mbm
         TYPE_ANIMATION              getTintAnimTypeLayer(const uint32_t index) const;
         float                       getTintAnimTimeLayer(const uint32_t index) const;
         const char *                getNamePsShaderLayer(const uint32_t index) const;
+        void                        removeShaderLayer(const uint32_t index);
         VEC2                        getOffsetLayer(const uint32_t index) const;
         float                       getOffsetLayerZ(const uint32_t index) const;
         void                        setLayerVisible(const uint32_t index, bool value);

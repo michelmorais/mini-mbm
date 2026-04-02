@@ -39,14 +39,14 @@ void MY_SCENE::endLoading()
     INFO_LOG("End loading scene...");
 }
 
-void MY_SCENE::init()
+void MY_SCENE::onInitScene()
 {
     mbm::DEVICE* device = mbm::DEVICE::getInstance();
     device->camera.position = mbm::VEC3(0, 280, -900);
     device->camera.focus    = mbm::VEC3(0, 280, 0);
 }
 
-void MY_SCENE::logic()
+void MY_SCENE::onLoop()
 {
 }
 

@@ -91,6 +91,7 @@ function onInitScene()
     tCircleEditVuBrick.z = -100
     iClickedAndSelectedBrick = false
     tInitialBrickAdjustUv = {}
+    bEnableMoveWindow = true
     tClicked = {x = 0, y = 0}
     tOverBrick = {x = 0, y = 0}
     tToolsBrickLayerSize = {x = 0, y = 0}
@@ -417,7 +418,10 @@ function drawLayerTab(item_width)
             end
 
             local sShaderName = tTile:getNameShaderLayer(i)
-            if  sShaderName == 'tint.ps' then
+            if sShaderName == nil or sShaderName == 'null' then
+                tImGui.TextDisabled(tLang.L("use_shader_editor"))
+                tImGui.TextDisabled(tLang.L("add_shader"))
+            elseif  sShaderName == 'tint.ps' then
                 if tImGui.TreeNodeEx(tLang.L("tint_options"), flag_selected_node, id .. '-tint') then
 
                     tImGui.PushItemWidth(item_width - 40)
@@ -471,6 +475,10 @@ function drawLayerTab(item_width)
 
                     if tImGui.Button(tLang.L("restart_animation_btn"), {x=item_width - 40,y=0}) then
                         tTile:updateLayer(i,tLayer)
+                    end
+
+                    if tImGui.Button(tLang.L("remove_tint"), {x=item_width - 40,y=0}) then
+                        tTile:removeShaderFromLayer(i)
                     end
 
                     tImGui.PopItemWidth()
@@ -2690,7 +2698,7 @@ function onKeyUp(key)
     keyShiftPressed = false
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_tiled()
     if bEnableMainTabBar then
         main_tab_bar()

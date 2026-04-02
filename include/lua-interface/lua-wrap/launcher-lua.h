@@ -75,7 +75,7 @@ function onInitScene()
     end
 end
 
-function loop(delta)
+function onLoop(delta)
     if cCoroutineLoadScene then
         
         local __status = coroutine.status (cCoroutineLoadScene)
@@ -115,7 +115,7 @@ function loop(delta)
             end
         end
     elseif __t_my_class and type(__t_my_class.loop) == 'function' then
-        __t_my_class:loop(delta)
+        __t_my_class:onLoop(delta)
     end
 end
 

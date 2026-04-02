@@ -1007,7 +1007,7 @@ function showMeshTreeWindow()
     tImGui.End()
 end
 
-function loop(delta)
+function onLoop(delta)
     main_menu_mesh_debug()
     showMeshTreeWindow()
     updatePreviewMesh()

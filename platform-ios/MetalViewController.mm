@@ -193,7 +193,7 @@ static GAME* s_game = nullptr;
 
     constexpr bool singleLoop    = true;
     constexpr bool doSwapBuffers = true;
-    s_game->loop(singleLoop, doSwapBuffers);
+    s_game->onLoop(singleLoop, doSwapBuffers);
 }
 
 // ── Handle view layout changes (rotation, split-screen) ─────────────────────

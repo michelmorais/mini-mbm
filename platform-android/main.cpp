@@ -41,7 +41,7 @@ extern "C"
 };
 
 void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstring absPath, jstring apkPath);
-void MiniMbmEngine_loop(JNIEnv *env, jobject obj);
+void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj);
 void MiniMbmEngine_onTouchDown(JNIEnv *env, jobject obj, int key, float x, float y);
 void MiniMbmEngine_onTouchUp(JNIEnv *env, jobject obj, int key, float x, float y);
 void MiniMbmEngine_onTouchMove(JNIEnv *env, jobject obj, int key, float x, float y);
@@ -93,21 +93,21 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             constexpr bool singleLoop = true;
             constexpr bool doSwapBuffers = false;
             if(game->initGraphics(nameAplication, width, height, border))
-				game->loop(singleLoop, doSwapBuffers);
+				game->onLoop(singleLoop, doSwapBuffers);
         }
     }
     env->ReleaseStringUTFChars(absPath, _absPath);
     env->ReleaseStringUTFChars(apkPath, _apkPath);
 }
 
-void MiniMbmEngine_loop(JNIEnv *env, jobject obj)
+void MiniMbmEngine_onLoop(JNIEnv *env, jobject obj)
 {
     if (game)
     {
         constexpr bool singleLoop = true;
         constexpr bool doSwapBuffers = false;
         game->device->ptrManager = game;
-        game->loop(singleLoop, doSwapBuffers);
+        game->onLoop(singleLoop, doSwapBuffers);
     }
 }
 
