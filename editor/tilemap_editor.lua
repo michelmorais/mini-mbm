@@ -91,6 +91,7 @@ function onInitScene()
     tCircleEditVuBrick.z = -100
     iClickedAndSelectedBrick = false
     tInitialBrickAdjustUv = {}
+    bEnableMoveWindow = true
     tClicked = {x = 0, y = 0}
     tOverBrick = {x = 0, y = 0}
     tToolsBrickLayerSize = {x = 0, y = 0}
