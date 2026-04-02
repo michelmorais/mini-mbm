@@ -473,6 +473,10 @@ function drawLayerTab(item_width)
                         tTile:updateLayer(i,tLayer)
                     end
 
+                    if tImGui.Button(tLang.L("remove_tint"), {x=item_width - 40,y=0}) then
+                        tTile:removeShaderFromLayer(i)
+                    end
+
                     tImGui.PopItemWidth()
                     tImGui.TreePop()
                 end
