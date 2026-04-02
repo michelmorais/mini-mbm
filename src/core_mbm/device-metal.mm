@@ -57,7 +57,7 @@ namespace mbm
         instanceDevice = nullptr;
     }
 
-    void DEVICE::setDephtTest(const bool enable)
+    void DEVICE::setDepthTest(const bool enable)
     {
         // Toggle the flag read by SHADER::render() / renderDynamic() to choose between
         // the depth-enabled (less + write) and depth-disabled (always + no-write) states.

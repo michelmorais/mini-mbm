@@ -280,7 +280,7 @@ front-faces in submission order.
 - Use `less` depth comparison with depth writes enabled for normal 3D objects.
 - Depth range is **[0, 1]** (see §5).
 
-The engine also calls `DEVICE::setDephtTest(bool)` and `DEVICE::clearDepth()` — implement
+The engine also calls `DEVICE::setDepthTest(bool)` and `DEVICE::clearDepth()` — implement
 these to enable/disable the depth test and clear the depth buffer on demand.
 
 On Metal the depth format of the `MTLRenderPipelineState` must match the format declared in
@@ -635,7 +635,7 @@ a `blend.ps`-specific constraint; pixel shaders that use only `sample0` (e.g.
 | `src/core_mbm/core-manager-metal.mm` | Metal | `beginRender` with depth buffer, `renderToTargets` stub |
 | `src/core_mbm/core-manager-metal-macos.mm` | Metal/macOS | Event loop, Y-flip, Retina scale |
 | `src/core_mbm/texture-manager-metal.mm` | Metal | Texture upload using lodepng decode path |
-| `src/core_mbm/device-metal.mm` | Metal | `setProjectionMode`, `setDephtTest`, `clearDepth` |
+| `src/core_mbm/device-metal.mm` | Metal | `setProjectionMode`, `setDepthTest`, `clearDepth` |
 | `src/core_mbm/shader-opengl_es.cpp` | OpenGL ES | Reference for culling, winding, uniform upload |
 | `src/core_mbm/shader-directx9.cpp` | D3D9 | Reference for dynamic buffer lock/unlock pattern |
 | `src/core_mbm/primitives.cpp` | All | `MatrixPerspectiveFovLH`, `MatrixLookAtLH`, `MatrixOrthoLH` |
@@ -791,7 +791,7 @@ should be fully visible.  The result is incorrect overlap between 2dw objects �
 whose back-to-front order is correct per their Z value appear to be occluded by other 2dw
 objects (or by invisible 3D geometry remnants in the depth buffer).
 
-The same root cause also means that `setDephtTest(false)` **must** be functional for the
+The same root cause also means that `setDepthTest(false)` **must** be functional for the
 2ds pass; if it is a no-op, 2ds screen-space UI elements can be occluded by 2dw objects
 behind them.
 
@@ -800,7 +800,7 @@ behind them.
 #### Part 1 — clear depth between 3D and 2dw passes (`core-manager-common.cpp`)
 
 Call `device->clearDepth()` immediately after `setProjectionMode(false)` and before the
-first `setDephtTest(true)` / 2dw draw loop:
+first `setDepthTest(true)` / 2dw draw loop:
 
 ```cpp
 device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
@@ -808,7 +808,7 @@ device->totalObjectsIsRendering2D = 0;
 // Clear the depth buffer so 3D perspective depth values do not occlude 2dw
 // objects whose depth comes from the orthographic projection.
 device->clearDepth();
-device->setDephtTest(true);
+device->setDepthTest(true);
 for (auto ptrRender : lsRender2dw)
     ...
 ```
@@ -870,7 +870,7 @@ void DEVICE::clearDepth()
 }
 ```
 
-#### Part 3 — implement `setDephtTest` on Metal (`device-metal.mm` + `specific-metal.h`)
+#### Part 3 — implement `setDepthTest` on Metal (`device-metal.mm` + `specific-metal.h`)
 
 Metal bakes the depth-stencil state into the pipeline (`MTLDepthStencilState`).  Unlike
 OpenGL or D3D you cannot toggle depth testing with a single API call — you must pre-build
@@ -878,13 +878,13 @@ two states and switch between them at draw time.
 
 1. Add a flag to `SPECIFIC_AUX_CONTEXT_DEVICE` (`specific-metal.h`):
    ```cpp
-   // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDephtTest)
+   // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDepthTest)
    bool depthTestEnabled = true;
    ```
 
-2. Implement `setDephtTest`:
+2. Implement `setDepthTest`:
    ```objc
-   void DEVICE::setDephtTest(const bool enable)
+   void DEVICE::setDepthTest(const bool enable)
    {
        specificContextDevice->depthTestEnabled = enable;
    }
@@ -906,7 +906,7 @@ two states and switch between them at draw time.
 | File | Change |
 |---|---|
 | `src/core_mbm/core-manager-common.cpp` | Added `device->clearDepth()` between 3D and 2dw loops |
-| `src/core_mbm/device-metal.mm` | Implemented `clearDepth()` (encoder restart) and `setDephtTest()` |
+| `src/core_mbm/device-metal.mm` | Implemented `clearDepth()` (encoder restart) and `setDepthTest()` |
 | `include/core_mbm/specific-metal.h` | Added `bool depthTestEnabled = true` to context struct |
 | `src/core_mbm/shader-metal.mm` | `render()` and `renderDynamic()` select depth state via `depthTestEnabled` |
 | `src/core_mbm/device-opengl_es.cpp` | `clearDepth()` — removed `GL_COLOR_BUFFER_BIT` |

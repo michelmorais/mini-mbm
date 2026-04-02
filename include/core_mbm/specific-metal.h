@@ -110,7 +110,7 @@ namespace mbm
         id<MTLSamplerState> nearestSampler  = nil;
         bool useNearestSampler              = false;
 
-        // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDephtTest).
+        // Tracks whether depth testing is currently enabled (toggled by DEVICE::setDepthTest).
         // SHADER::render() reads this to choose between defaultDepthStencilState and noDepthStencilState.
         bool depthTestEnabled               = true;
 

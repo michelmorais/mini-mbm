@@ -101,7 +101,7 @@ namespace mbm
         API_IMPL void removeObjectByIdSceneScene(const int idScene);
         API_IMPL void stopRender2Texture2(RENDERIZABLE *ptr);
         API_IMPL void removeRenderizable(RENDERIZABLE *object);
-        API_IMPL void setDephtTest(const bool enable);
+        API_IMPL void setDepthTest(const bool enable);
         API_IMPL void refreshDevice();
         API_IMPL bool rayCast(const float sx, const float sy, VEC3 *rayOriginOut, VEC3 *rayDir) const;
         API_IMPL bool transformeScreen2dToWorld3d_scaled(const float x, const float y, VEC3 *out,const float howFarZFromCamera) const;

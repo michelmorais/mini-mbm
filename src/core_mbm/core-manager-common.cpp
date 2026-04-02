@@ -496,19 +496,19 @@ namespace mbm
             // ends the current command encoder and starts a new one that preserves the
             // colour attachment (3D scene) while clearing depth to 1.0.
             device->clearDepth();
-            device->setDephtTest(true);
+            device->setDepthTest(true);
             for (auto ptrRender : lsRender2dw)
             {
                 if (ptrRender->render())
                     device->totalObjectsIsRendering2D++;
             }
-            device->setDephtTest(false);
+            device->setDepthTest(false);
             for (auto ptrRender : lsRender2ds)
             {
                 if (ptrRender->render())
                     ++device->totalObjectsIsRendering2D;
             }
-            device->setDephtTest(true);
+            device->setDepthTest(true);
 
             for (unsigned int i = 0; i < this->lsPlugins.size(); ++i)
             {
@@ -869,7 +869,7 @@ namespace mbm
             if (this->beginRender())
             {
                 device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-                device->setDephtTest(false);
+                device->setDepthTest(false);
                 device->clearDepthColored();
                 if (device->scene)
                     device->scene->onRestore(0); //true means: no call restore,  just to prepare the screen.
@@ -886,7 +886,7 @@ namespace mbm
         else if (stepRestore == STEP_RES_OBJ)
         {
             device->setProjectionMode(false, device->backBufferWidth, device->backBufferHeight);
-            device->setDephtTest(false);
+            device->setDepthTest(false);
             device->clearDepthColored();
             switch (this->which_for)
             {

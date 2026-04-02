@@ -60,7 +60,7 @@ namespace mbm
         REMINDER_TODO
     }
 
-    void DEVICE::setDephtTest(const bool enable)
+    void DEVICE::setDepthTest(const bool enable)
     {
         REMINDER_TODO
     }

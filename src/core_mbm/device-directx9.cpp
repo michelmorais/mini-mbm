@@ -57,7 +57,7 @@ namespace mbm
         instanceDevice = nullptr;
     }
 
-    void DEVICE::setDephtTest(const bool enable)
+    void DEVICE::setDepthTest(const bool enable)
     {
         if (enable)
         {
