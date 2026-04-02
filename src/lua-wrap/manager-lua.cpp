@@ -1136,9 +1136,9 @@ namespace mbm
             pLuaManager->device = mbm::DEVICE::getInstance();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
-            this->nameAplication = "Mini-mbm " MBM_VERSION " ";
-            this->nameAplication += pLuaManager->device->getBackendEngineName();
-            this->nameAplication += " Compiled: " __DATE__;
+            this->nameApplication = "Mini-mbm " MBM_VERSION " ";
+            this->nameApplication += pLuaManager->device->getBackendEngineName();
+            this->nameApplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
             int _h = 0;
@@ -1158,7 +1158,7 @@ namespace mbm
     #endif
             this->windowBorder   = true;
             this->hasValueTextureLogo = false;
-            INFO_LOG("%s", this->nameAplication.c_str());
+            INFO_LOG("%s", this->nameApplication.c_str());
         }
 
         LUA_MANAGER::LUA_MANAGER(const std::vector<std::string> & args)
@@ -1168,8 +1168,8 @@ namespace mbm
             onDoNativeCommand = nullptr;
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
-            this->nameAplication = "Mini-mbm " MBM_VERSION;
-            this->nameAplication += " Compiled: " __DATE__;
+            this->nameApplication = "Mini-mbm " MBM_VERSION;
+            this->nameApplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
             int _h = 0;
@@ -1197,7 +1197,7 @@ namespace mbm
             this->hasValueTextureLogo = false;
             this->parserArgs(args);
             if(pLuaManager->device->verbose)
-                INFO_LOG("%s", this->nameAplication.c_str());
+                INFO_LOG("%s", this->nameApplication.c_str());
         }
 
         LUA_MANAGER::LUA_MANAGER(const int argc, const char **argv)
@@ -1207,8 +1207,8 @@ namespace mbm
             pLuaManager->device = mbm::DEVICE::getInstance();
             log_util::setScriptPrintLine(onScriptPrintLine);
             util::setOnAddPathScript(onAddPathScript);
-            this->nameAplication = "Mini-mbm " MBM_VERSION;
-            this->nameAplication += " Compiled: " __DATE__;
+            this->nameApplication = "Mini-mbm " MBM_VERSION;
+            this->nameApplication += " Compiled: " __DATE__;
     #if defined _WIN32
             int _w = 0;
             int _h = 0;
@@ -1240,7 +1240,7 @@ namespace mbm
             }
             this->parserArgs(lsArg);
             if(device->verbose)
-                INFO_LOG("%s", this->nameAplication.c_str());
+                INFO_LOG("%s", this->nameApplication.c_str());
         }
     #endif // Not ANDROID
         
@@ -1324,7 +1324,7 @@ namespace mbm
             getExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch);
             setExpectedSizeOfWindow(_expectedWidth,_expectedHeight,s_stretch.c_str());
 
-            if (this->initGraphics(this->nameAplication.c_str(), this->widthWindow, this->heightWindow, device->windowPositionX, device->windowPositionY, border,this->enableResizeWindow))
+            if (this->initGraphics(this->nameApplication.c_str(), this->widthWindow, this->heightWindow, device->windowPositionX, device->windowPositionY, border,this->enableResizeWindow))
             {
                 if (this->fileNameInitialLua.size())
                 {
@@ -1596,9 +1596,9 @@ namespace mbm
                                     break;
                                     case NAME_APP: 
                                     {   
-                                        if(this->nameAplication.size())
-                                            this->nameAplication += " ";
-                                        this->nameAplication += argv[i];
+                                        if(this->nameApplication.size())
+                                            this->nameApplication += " ";
+                                        this->nameApplication += argv[i];
                                     }
                                     break;
                                     case ADD_PATH: { util::addPath(arg);}
@@ -1691,7 +1691,7 @@ namespace mbm
                         break;
                         case NAME_APP: 
                         { 
-                            this->nameAplication = argv[i];
+                            this->nameApplication = argv[i];
                         }
                         break;
                         case ADD_PATH: { util::addPath(arg);}

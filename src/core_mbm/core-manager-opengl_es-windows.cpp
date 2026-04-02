@@ -81,17 +81,17 @@ namespace mbm
         this->device->specificContextDevice->release(wasDeviceLost);
     }
 
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char *nameApplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
         int x = width;
         int y = height;
-        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
         DEVICE* device = DEVICE::getInstance();
         // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        device->specificContextDevice->window.setNameAplication(nameAplication);
-        if (!device->specificContextDevice->window.init(nameAplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
+        device->specificContextDevice->window.setNameAplication(nameApplication);
+        if (!device->specificContextDevice->window.init(nameApplication, x, y, px, py, enable_resize, enable_resize, enable_resize, false, nullptr, border == false,
             this->device->specificContextDevice->idIcon,false))
         {
             device->specificContextDevice->window.messageBox("error on init app ... will be closed ");

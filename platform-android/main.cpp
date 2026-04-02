@@ -79,7 +79,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         if (game)
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);
-            const char *nameAplication = "Hello-world";
+            const char *nameApplication = "Hello-world";
 			game->device->ptrManager       = game;
             game->device->backBufferWidth  = static_cast<float>(width);
             game->device->backBufferHeight = static_cast<float>(height);
@@ -92,7 +92,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
             constexpr bool border = false;
             constexpr bool singleLoop = true;
             constexpr bool doSwapBuffers = false;
-            if(game->initGraphics(nameAplication, width, height, border))
+            if(game->initGraphics(nameApplication, width, height, border))
 				game->onLoop(singleLoop, doSwapBuffers);
         }
     }

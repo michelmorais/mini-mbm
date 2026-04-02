@@ -48,7 +48,7 @@ namespace mbm
         // On Android, window movement is not applicable
     }
 
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char *nameApplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
         auto* ctx = this->device->specificContextDevice;
 
@@ -171,7 +171,7 @@ namespace mbm
         // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
         GLViewport(0, 0, x <= 0 ? 800 : x, y <= 0 ? 600 : y);
         GLClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         GLDepthRangef(0.0f, 1.0f);

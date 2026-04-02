@@ -64,7 +64,7 @@ namespace mbm
                                      const int  /*px*/, const int  /*py*/,
                                      const bool /*border*/, const bool /*enable_resize*/)
     {
-        this->nameAplication = nameApplication ? nameApplication : "Mini-mbm";
+        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
 
         this->device->initializeSpecificContext();
         SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;

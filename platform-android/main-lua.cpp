@@ -110,12 +110,12 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
         cJni->absPath         = _absPath ? _absPath : "";
         cJni->apkPath         = _apkPath ? _apkPath : "";
         cJni->cacheJavaClasses(PACKAGE_NAME_CLASS);
-        const char* nameAplication = _apkPath ? _apkPath : "mini-mbm Android application";
+        const char* nameApplication = _apkPath ? _apkPath : "mini-mbm Android application";
         constexpr int px = 0;
         constexpr int py = 0;
         constexpr bool border = false;
         constexpr bool enable_resize = false;
-        game->initGraphics(nameAplication, static_cast<int>(width),static_cast<int>(height), px, py, border, enable_resize);
+        game->initGraphics(nameApplication, static_cast<int>(width),static_cast<int>(height), px, py, border, enable_resize);
         game->setExpectedSizeOfWindow(static_cast<int>(expectedWidth),static_cast<int>(expectedHeight),"y");
     }
     else

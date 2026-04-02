@@ -72,12 +72,12 @@ namespace mbm
         REMINDER_TODO
     }
     
-    bool CORE_MANAGER::initGraphics(const char* nameAplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char* nameApplication, int width, int height, const int px, const int py, const bool border, const bool enable_resize)
     {
         int x = width;
         int y = height;
         DEVICE* device = DEVICE::getInstance();
-        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
         REMINDER_TODO
         
         //TODO: set version from your backend engine

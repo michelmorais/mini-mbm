@@ -2950,7 +2950,7 @@ namespace mbm
         min_size_height = 0;
         max_size_width  = 0;
         max_size_height = 0;
-        strcpy(nameAplication, "WIN PLUS");
+        strcpy(nameApplication, "WIN PLUS");
     }
     WINDOW::~WINDOW()
     {
@@ -3041,7 +3041,7 @@ namespace mbm
             return true;
         enableDpiAwarenessOnce();
         if (nameApp)
-            strcpy(nameAplication, nameApp);
+            strcpy(nameApplication, nameApp);
 #if UNICODE
         WCHAR *className = getNextClassNameWindow();
 #else
@@ -3134,12 +3134,12 @@ namespace mbm
                 hWin = heightScreen;
         }
 #if UNICODE
-        WCHAR *tmp_nameAplication = mbm::toWchar(nameAplication, nullptr);
+        WCHAR *tmp_nameAplication = mbm::toWchar(nameApplication, nullptr);
         this->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, 0, 0, wWin, hWin, nullptr, nullptr,
                                      GetModuleHandleW(nullptr), nullptr);
         delete[] tmp_nameAplication;
 #else
-        this->hwnd      = CreateWindowExA(dwExStyle, className, nameAplication, dwStyle, positionX, positionY, wWin, hWin, nullptr, nullptr,
+        this->hwnd      = CreateWindowExA(dwExStyle, className, nameApplication, dwStyle, positionX, positionY, wWin, hWin, nullptr, nullptr,
                                      GetModuleHandleA(nullptr), nullptr);
 #endif
 
@@ -3195,11 +3195,11 @@ namespace mbm
     void WINDOW::setNameAplication(const char *nameApp)
     {
         if (nameApp)
-            strcpy(nameAplication, nameApp);
+            strcpy(nameApplication, nameApp);
     }
     const char * WINDOW::getNameAplication() const
     {
-        return nameAplication;
+        return nameApplication;
     }
     bool WINDOW::isEnableRender(HWND hwndIgnore)
     {
@@ -7389,14 +7389,14 @@ namespace mbm
             bool visible = me->ptrWindow->isVisible;
             if(visible == false)
                 me->ptrWindow->show();
-            ret                      = MessageBoxA(me->hwnd, buffer, me->ptrWindow->nameAplication, flag) == IDYES;
+            ret                      = MessageBoxA(me->hwnd, buffer, me->ptrWindow->nameApplication, flag) == IDYES;
             UnhookWindowsHookEx(mbm::WINDOW::hookMsgProc);
             if(visible == false)
                 me->ptrWindow->hide();
         }
         else
         {
-            ret = MessageBoxA(this->hwnd, buffer, this->nameAplication, flag) == IDYES;
+            ret = MessageBoxA(this->hwnd, buffer, this->nameApplication, flag) == IDYES;
         }
         mbm::WINDOW::hookMsgProc = nullptr;
         delete[] buffer;
@@ -7432,14 +7432,14 @@ namespace mbm
                 me->ptrWindow->show();
             const DWORD idThread     = GetCurrentThreadId();
             mbm::WINDOW::hookMsgProc = SetWindowsHookExA(WH_CALLWNDPROCRET, GetMsgProc, 0, idThread);
-            MessageBoxA(hwnd, buffer, me->ptrWindow->nameAplication, flag);
+            MessageBoxA(hwnd, buffer, me->ptrWindow->nameApplication, flag);
             UnhookWindowsHookEx(mbm::WINDOW::hookMsgProc);
             if(visible == false)
                 me->ptrWindow->hide();
         }
         else
         {
-            MessageBoxA(hwnd, buffer, this->nameAplication, flag);
+            MessageBoxA(hwnd, buffer, this->nameApplication, flag);
         }
         mbm::WINDOW::hookMsgProc = nullptr;
         delete[] buffer;

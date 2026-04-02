@@ -45,11 +45,11 @@
 
 namespace mbm
 {
-    bool CORE_MANAGER::initGraphics(const char *nameAplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
+    bool CORE_MANAGER::initGraphics(const char *nameApplication, int width, int height, const int px, const int py, const bool border,const bool enable_resize)
     {
         int x = width;
         int y = height;
-        this->nameAplication = nameAplication ? nameAplication : "Mini-mbm";
+        this->nameApplication = nameApplication ? nameApplication : "Mini-mbm";
         this->windowBorder = border;
         this->enableResizeWindow = enable_resize;
         //char * dpyName = nullptr;
@@ -90,7 +90,7 @@ namespace mbm
         // Check if we're reusing an existing window (lost device recovery)
         const bool reusingWindow = (this->device->specificContextDevice->window_x11 != 0);
         
-        this->device->specificContextDevice->make_x_window(nameAplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
+        this->device->specificContextDevice->make_x_window(nameApplication, px, py, static_cast<uint32_t>(width), static_cast<uint32_t>(height), this->windowBorder, this->enableResizeWindow);
 
       
         

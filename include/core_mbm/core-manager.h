@@ -213,7 +213,7 @@ namespace mbm
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
     #endif
         API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
-        API_IMPL bool initGraphics(const char *nameAplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
+        API_IMPL bool initGraphics(const char *nameApplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
     #if (defined  (__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
         bool initializeWindowx11();
     #endif
@@ -282,7 +282,7 @@ namespace mbm
         std::list<INFO_JOYSTICK_INIT_PLAYER>    lsInfoJoystick;
         std::vector<PLUGIN*>                    lsPlugins;
         std::mutex mutexEvents;
-        std::string  nameAplication;
+        std::string  nameApplication;
         EVENT_KEY    lastEvent;
         WHICH_FOR    which_for;
         STEP_RETORE  stepRestore;

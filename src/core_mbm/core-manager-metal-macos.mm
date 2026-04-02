@@ -112,7 +112,7 @@ namespace mbm
                                      const int px, const int py,
                                      const bool border, const bool enable_resize)
     {
-        this->nameAplication       = nameApplication ? nameApplication : "Mini-mbm";
+        this->nameApplication       = nameApplication ? nameApplication : "Mini-mbm";
         this->windowBorder         = border;
         this->enableResizeWindow   = enable_resize;
 
@@ -165,7 +165,7 @@ namespace mbm
             ERROR_LOG("Metal: failed to create NSWindow.");
             return false;
         }
-        [ctx->window setTitle:[NSString stringWithUTF8String:nameAplication.c_str()]];
+        [ctx->window setTitle:[NSString stringWithUTF8String:nameApplication.c_str()]];
 
         // Borderless (fullscreen) window: raise above the menu bar and
         // auto-hide the menu bar + dock so they don't overlap the content.

@@ -832,7 +832,7 @@ namespace mbm
             constexpr bool wasLostDevice = true;
             this->ReleaseGraphics(wasLostDevice);
 
-            if (initGraphics(this->nameAplication.c_str(), width, height, px, py, this->windowBorder, this->enableResizeWindow))
+            if (initGraphics(this->nameApplication.c_str(), width, height, px, py, this->windowBorder, this->enableResizeWindow))
             {
                 // Reapply previous 2D scaling
                 this->device->camera.expectedScreen = expectedScreenBefore;

@@ -99,7 +99,7 @@ namespace mbm
     class LUA_MANAGER : public CORE_MANAGER
     {
       public:
-        std::string                 nameAplication;
+        std::string                 nameApplication;
         std::string                 fileNameInitialLua;
         std::string                 string_to_execute;
         std::vector<SCENE_SCRIPT *> lsScene;

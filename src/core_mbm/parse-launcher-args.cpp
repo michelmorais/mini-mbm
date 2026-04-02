@@ -31,7 +31,7 @@ enum ARGS_WINDWON
 struct STORE_DATA_ARG
 {
     std::string fileNameInitialLua;
-    std::string nameAplication;
+    std::string nameApplication;
     std::vector<unsigned int> width_list;
     std::vector<unsigned int> height_list;
     std::vector<unsigned int> expected_width_list;
@@ -39,7 +39,7 @@ struct STORE_DATA_ARG
 };
 
 const char* PARSE_laucher_ARGS::getFileNameInitialLua() const { return this->data_arg->fileNameInitialLua.c_str(); }
-const char* PARSE_laucher_ARGS::getNameApplication() const { return this->data_arg->nameAplication.c_str(); }
+const char* PARSE_laucher_ARGS::getNameApplication() const { return this->data_arg->nameApplication.c_str(); }
 bool PARSE_laucher_ARGS::getWidthHeight(unsigned int& width, unsigned int& height) const
 {
     if (this->data_arg->width_list.size() > 0 && this->data_arg->height_list.size() > 0)
@@ -380,7 +380,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                         break;
                         case NAME_APP: 
                         {   
-                            this->data_arg->nameAplication = the_arg;
+                            this->data_arg->nameApplication = the_arg;
                         }
                         break;
                         case ADD_PATH: { util::addPath(arg);}
@@ -455,7 +455,7 @@ void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
                 break;
                 case NAME_APP: 
                 { 
-                    this->data_arg->nameAplication = the_arg;
+                    this->data_arg->nameApplication = the_arg;
                 }
                 break;
                 case ADD_PATH: { util::addPath(arg);}

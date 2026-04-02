@@ -1184,7 +1184,7 @@ class WINDOW
   protected:
     bool usingDoubleBuffer;
     int  dialogunitTabStopInPixel;
-    char nameAplication[MAX_PATH];
+    char nameApplication[MAX_PATH];
     std::map<int, void *> lsObjectsContext;
     EVENTS_WIN32*                     callEventsManager;
     HWND                              hwnd;

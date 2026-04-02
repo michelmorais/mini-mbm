@@ -55,9 +55,9 @@ namespace mbm
         LUA_MANAGER::pLuaManager = this;
         log_util::setScriptPrintLine(onScriptPrintLine);
         util::setOnAddPathScript(onAddPathScript);
-        this->nameAplication = "Mini-mbm " MBM_VERSION " ";
-        this->nameAplication += device->getBackendEngineName();
-        this->nameAplication += "\n Compiled: " __DATE__;
+        this->nameApplication = "Mini-mbm " MBM_VERSION " ";
+        this->nameApplication += device->getBackendEngineName();
+        this->nameApplication += "\n Compiled: " __DATE__;
         this->widthWindow        = 800;
         this->heightWindow       = 600;
         this->maximizedWindow    = false;
@@ -69,7 +69,7 @@ namespace mbm
 #endif
         device->specificContextDevice->jenv = env;
         this->hasValueTextureLogo = false;
-        INFO_LOG("%s", this->nameAplication.c_str());
+        INFO_LOG("%s", this->nameApplication.c_str());
     }
     #endif
 };
