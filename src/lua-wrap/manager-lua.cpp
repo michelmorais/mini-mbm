@@ -272,7 +272,7 @@ namespace mbm
             }
             else
             {
-                bool sucess                 = false;
+                bool success                 = false;
                 SCENE_SCRIPT::logo_was_init = true;
                 INFO_LOG("SCENE_SCRIPT::init scriptLua=[%s]", this->scriptLua.c_str());
                 const char *copied = device->copyFileFromAsset(this->scriptLua.c_str(), "rt");
@@ -285,13 +285,13 @@ namespace mbm
                     {
                         INFO_LOG("SCENE_SCRIPT::init doLauncher succeeded");
                         this->fileNameScriptLuaFinal = newPath;
-                        sucess = true;
+                        success = true;
                     }
                     else if (!luaL_dofile(this->lua, newPath))
                     {
                         INFO_LOG("SCENE_SCRIPT::init luaL_dofile succeeded for [%s]", newPath);
                         this->fileNameScriptLuaFinal = newPath;
-                        sucess                       = true;
+                        success                       = true;
                     }
                     else
                     {
@@ -302,7 +302,7 @@ namespace mbm
                         {
                             INFO_LOG("SCENE_SCRIPT::init doFileAsString succeeded");
                             this->fileNameScriptLuaFinal = this->scriptLua;
-                            sucess                       = true;
+                            success                       = true;
                         }
                         else
         #endif
@@ -325,12 +325,12 @@ namespace mbm
                         if(this->doLauncher(newPath))
                         {
                             this->fileNameScriptLuaFinal = newPath;
-                            sucess = true;
+                            success = true;
                         }
                         else if (!luaL_dofile(this->lua, newPath))
                         {
                             this->fileNameScriptLuaFinal = newPath;
-                            sucess                       = true;
+                            success                       = true;
                         }
                         else
                         {
@@ -338,7 +338,7 @@ namespace mbm
                             if (this->doFileAsString(this->scriptLua.c_str()))
                             {
                                 this->fileNameScriptLuaFinal = this->scriptLua;
-                                sucess                       = true;
+                                success                       = true;
                             }
                             else
         #endif
@@ -354,7 +354,7 @@ namespace mbm
                         lua_print_line(lua,TYPE_LOG_ERROR,"error on open file %s!", "main.lua");
                     }
                 }
-                if (sucess)
+                if (success)
                 {
                     lua_getglobal(this->lua, "onInitScene");
                     if (lua_isfunction(this->lua, -1))
@@ -1030,7 +1030,7 @@ namespace mbm
             if (fp)
             {
     #if _DEBUG
-                INFO_LOG("file %s sucess opened!", this->scriptLua.c_str());
+                INFO_LOG("file %s success opened!", this->scriptLua.c_str());
     #endif
                 char        line[4096];
                 std::string script_str;
