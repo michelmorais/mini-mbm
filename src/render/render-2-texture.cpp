@@ -456,6 +456,9 @@ namespace mbm
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
         #elif defined(USE_DIRECTX9) || defined(USE_METAL)
             mbm::fillVertexQuadTexture(_position, uv, width, height, normal, true);
+        #elif defined(USE_DUMMY_BACK_END_ENGINE) // In the dummy backend, we don't have a real texture, so we can choose either way. We choose false to avoid confusion when debugging, but it doesn't matter.
+            //just to be able to compile the dummy backend, but this function is not used in this backend, so the flip parameter is not relevant
+            mbm::fillVertexQuadTexture(_position, uv, width, height, normal, false);
         #else
             #error "Unknown graphics API (You must define new graphics API or adjust the existing ones in render-2-texture.cpp)"
         #endif
