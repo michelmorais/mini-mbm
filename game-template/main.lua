@@ -19,6 +19,14 @@ if script_dir then
     mbm.addPath(script_dir)
 end
 
+mbm.addPath("assets")  -- add "assets" subfolder to search path for loading assets
+mbm.addPath("scenes")  -- add "scenes" subfolder to search path for loading scenes
+mbm.addPath("scenes/fonts") -- add "scenes/fonts" subfolder to search path for loading fonts
+mbm.addPath("scenes/sprites") -- add "scenes/sprites" subfolder to search path for loading sprites
+mbm.addPath("scenes/tilesets") -- add "scenes/tilesets" subfolder to search path for loading tilesets
+mbm.addPath("scenes/textures") -- add "scenes/textures" subfolder to search path for loading textures
+mbm.addPath("scenes/sounds") -- add "scenes/sounds" subfolder to search path for loading sounds
+
 -- ---------------------------------------------------------------------------
 -- State — declare all your game objects here so they are accessible from
 -- every lifecycle callback.
