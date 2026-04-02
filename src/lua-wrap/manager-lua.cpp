@@ -79,7 +79,7 @@ namespace mbm
             this->wasError              = false;
             this->textureLogo           = nullptr;
             this->textureRestore        = nullptr;
-            this->loadSceneOnFirtLoop   = false;
+            this->loadSceneOnFirstLoop   = false;
             this->__onErrorStop__       = false;
             this->userData              = &this->dataScene;
             //this->time_resize_window    = 0.0f;
@@ -388,9 +388,9 @@ namespace mbm
             if (this->wasError && __onErrorStop__)
                 return;
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
-            if (this->loadSceneOnFirtLoop)
+            if (this->loadSceneOnFirstLoop)
             {
-                this->loadSceneOnFirtLoop = false;
+                this->loadSceneOnFirstLoop = false;
                 std::string str("mbm.loadScene('");
                 str += this->strNameSceneLoadOnFirtLoop;
                 str += "')";
@@ -1745,7 +1745,7 @@ namespace mbm
                 log_util::replaceString(nameSceneTmp,"\\\\","/");
                 log_util::replaceString(nameSceneTmp,"\\","/");
                 auto *curScene          = static_cast<SCENE_SCRIPT*>(luaManager->device->scene);
-                curScene->loadSceneOnFirtLoop        = true;
+                curScene->loadSceneOnFirstLoop        = true;
                 curScene->strNameSceneLoadOnFirtLoop = std::move(nameSceneTmp);
                 lua_pushboolean(lua, 1);
                 return 1;

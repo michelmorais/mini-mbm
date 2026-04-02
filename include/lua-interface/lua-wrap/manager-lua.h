@@ -49,7 +49,7 @@ namespace mbm
         bool               __onErrorStop__;
         TEXTURE_VIEW        *textureLogo;
         TEXTURE_VIEW        *textureRestore;
-        bool               loadSceneOnFirtLoop;
+        bool               loadSceneOnFirstLoop;
         const bool         noSplash;
         std::string        strNameSceneLoadOnFirtLoop;
         
