@@ -32,6 +32,13 @@ fi
 
 mkdir -p "${DEST}"
 cp -r "${TEMPLATE_DIR}/." "${DEST}/"
+mkdir -p "${DEST}/assets"
+mkdir -p "${DEST}/assets/sounds"
+mkdir -p "${DEST}/assets/sprites"
+mkdir -p "${DEST}/assets/tilesets"
+mkdir -p "${DEST}/assets/fonts"
+mkdir -p "${DEST}/assets/textures"
+mkdir -p "${DEST}/scenes"
 
 echo "Game template copied to: ${DEST}"
 echo "Run your game with:"
