@@ -417,7 +417,10 @@ function drawLayerTab(item_width)
             end
 
             local sShaderName = tTile:getNameShaderLayer(i)
-            if  sShaderName == 'tint.ps' then
+            if sShaderName == nil or sShaderName == 'null' then
+                tImGui.TextDisabled(tLang.L("use_shader_editor"))
+                tImGui.TextDisabled(tLang.L("add_shader"))
+            elseif  sShaderName == 'tint.ps' then
                 if tImGui.TreeNodeEx(tLang.L("tint_options"), flag_selected_node, id .. '-tint') then
 
                     tImGui.PushItemWidth(item_width - 40)
