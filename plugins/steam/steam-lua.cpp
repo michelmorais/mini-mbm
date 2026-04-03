@@ -31,9 +31,14 @@
 static int PLUGIN_IDENTIFIER = 1;
 
 // ---------------------------------------------------------------------------
-// Singleton pointer -- one Steam connection per process
+// Process-level Steam state
+// g_steamGlobalReady: set to true on the first successful SteamAPI_InitEx.
+//   Never reset — Steam is initialized once for the lifetime of the process.
+// g_steamInstance: points to the active per-scene STEAM_LUA object.
+//   Replaced each time require "steam" is called in a new scene.
 // ---------------------------------------------------------------------------
-static STEAM_LUA *g_steamInstance = nullptr;
+bool        g_steamGlobalReady = false;
+static STEAM_LUA *g_steamInstance  = nullptr;
 
 namespace mbm
 {

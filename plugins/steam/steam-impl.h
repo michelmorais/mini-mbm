@@ -29,9 +29,15 @@
 
 #include <steam/steam_api.h>
 
+#include <cstdlib>
 #include <memory>
 #include <vector>
 #include <algorithm>
+
+// Defined in steam-lua.cpp.
+// True once SteamAPI_InitEx has succeeded for this process — never reset to false.
+// Guards against re-initializing Steam on scene changes.
+extern bool g_steamGlobalReady;
 
 extern "C"
 {
@@ -211,20 +217,29 @@ public:
 
     void onSubscribe(int /*width*/, int /*height*/, void * /*context*/, void * /*renderDevice*/) override
     {
-        SteamErrMsg errMsg = {};
-        ESteamAPIInitResult result = SteamAPI_InitEx(&errMsg);
-        if (result == k_ESteamAPIInitResult_OK)
+        if (!g_steamGlobalReady)
         {
-            m_bReady = true;
-            INFO_LOG("Steam initialized successfully. App ID: %u", SteamUtils()->GetAppID());
-            SteamUserStats()->RequestCurrentStats();
+            // SteamAPI_InitEx is called at most once per process lifetime.
+            // Calling it again after SteamAPI_Shutdown (or a second time without
+            // shutting down) is not supported by Valve and can cause crashes.
+            SteamErrMsg errMsg = {};
+            ESteamAPIInitResult result = SteamAPI_InitEx(&errMsg);
+            if (result == k_ESteamAPIInitResult_OK)
+            {
+                g_steamGlobalReady = true;
+                INFO_LOG("Steam initialized successfully. App ID: %u", SteamUtils()->GetAppID());
+                SteamUserStats()->RequestCurrentStats();
+                // Shut down exactly once when the process exits, regardless of
+                // how many scenes loaded and unloaded the Steam plugin.
+                std::atexit([] { SteamAPI_Shutdown(); INFO_LOG("SteamAPI shut down."); });
+            }
+            else
+            {
+                ERROR_LOG("SteamAPI_Init failed: %s", errMsg);
+                ERROR_LOG("Make sure the Steam client is running and steam_appid.txt is in the game directory.");
+            }
         }
-        else
-        {
-            m_bReady = false;
-            ERROR_LOG("SteamAPI_Init failed: %s", errMsg);
-            ERROR_LOG("Make sure the Steam client is running and steam_appid.txt is in the game directory.");
-        }
+        m_bReady = g_steamGlobalReady;
     }
 
     void onResizeWindow(int /*width*/, int /*height*/) override {}
@@ -264,12 +279,14 @@ public:
 
     void onDestroy() override
     {
-        if (m_bReady)
-        {
-            SteamAPI_Shutdown();
-            m_bReady = false;
-            INFO_LOG("SteamAPI shut down.");
-        }
+        // Do NOT call SteamAPI_Shutdown here.
+        // Steam is a process-lifetime resource: shutting it down between scenes
+        // would break the Steam overlay, pending callbacks, and any subsequent
+        // scene that uses require "steam". Shutdown is handled by std::atexit
+        // registered on the first successful SteamAPI_InitEx call.
+        m_bReady = false;
+        // Clearing the vectors destroys the unique_ptrs, whose destructors
+        // cancel the CCallResults and release any held Lua registry refs.
         m_pendingFinds.clear();
         m_pendingUploads.clear();
         m_pendingDownloads.clear();
