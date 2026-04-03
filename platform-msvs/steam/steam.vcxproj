@@ -1,18 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  steam.vcxproj — Visual Studio 2022 project for the mini-mbm Steam plugin.
-
-  Prerequisites
-  -------------
-  1. Download the Steamworks SDK from https://partner.steamgames.com/downloads/list
-  2. Set the environment variable STEAMWORKS_SDK_PATH to the extracted SDK root.
-     Example:  setx STEAMWORKS_SDK_PATH "C:\steamworks_sdk"
-  3. Place steam_appid.txt (containing your App ID) next to mini-mbm.exe
-     before running in development. The file is NOT needed for retail builds —
-     Steam sets the App ID automatically when the game is launched via the client.
-  4. Copy steam_api64.dll (x64) or steam_api.dll (x86) from
-     $(STEAMWORKS_SDK_PATH)\redistributable_bin\ to the same directory as mini-mbm.exe.
--->
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
