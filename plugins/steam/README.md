@@ -40,7 +40,10 @@ Replace `Debug` with `Release` for distribution builds.
    setx STEAMWORKS_SDK_PATH "C:\steamworks_sdk"
    ```
    Restart Visual Studio after setting the variable.
-3. Build the **steam** project (or build the whole solution; steam will build as a dependency).
+3. The **steam** project is disabled by default in Configuration Manager (no `steam_api` headers are available without the SDK). To enable it:
+   - Go to **Build → Configuration Manager**
+   - Check the **Build** checkbox for the **steam** project in all desired configurations
+4. Build the **steam** project.
 
 ### Windows (CMake + MinGW)
 
