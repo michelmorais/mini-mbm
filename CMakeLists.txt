@@ -498,6 +498,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(BOX2D_LUA_LIB              ${PLUGINS}/box2d)
     set(BOX2D_LIQUID_FUN_LUA_LIB   ${PLUGINS}/box2d-liquid-fun-lua)
     set(TILED_LIB   		       ${PLUGINS}/tiled)
+    set(STEAM_LUA_LIB              ${PLUGINS}/steam)
     set(AUDIERE                    ${THIRD_PARTY}/audiere-1.9.4)
     set(PORT_AUDIO_LIB 		       ${THIRD_PARTY}/portaudio)
     set(BOX2D_LIB                  ${THIRD_PARTY}/box2d-${BOX2DLIB_VERSION})
@@ -514,6 +515,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     set(BOX2D_LIQUID_FUN_LIBRARY        box2d-liquid-fun-${BOX2D_LIQUID_FUN_LIB_VERSION})
     set(BOX2D_LIQUID_FUN_LUA_LIBRARY    box2dLiquidFun)
     set(IMGUI_LIBRARY                   ImGui)
+    set(STEAM_LIBRARY                   steam)
     set(TILED_LIBRARY                   tilemap)
     set(AUDIERE_LIBRARY                 audiere)
     set(PORT_AUDIO_WRAPPER_LIBRARY      pa_wrapper)
@@ -563,6 +565,15 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     if(NOT DEFINED USE_TILEMAP)
         set(USE_TILEMAP 0)
     endif()
+    if(NOT DEFINED USE_STEAM)
+        set(USE_STEAM 0)
+    endif()
+    # STEAMWORKS_SDK_PATH: path to the Steamworks SDK (required when USE_STEAM=1)
+    # Each developer sets this to their own SDK download from the Steamworks partner portal.
+    # Example: -DSTEAMWORKS_SDK_PATH=/home/user/steamworks_sdk
+    if(NOT DEFINED STEAMWORKS_SDK_PATH)
+        set(STEAMWORKS_SDK_PATH "")
+    endif()
 
     if(USE_ALL)
         message(STATUS "Enabling all features available")
@@ -573,6 +584,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(USE_IMGUI               1)
         set(USE_LSQLITE3            1)
         set(USE_TILEMAP             1)
+        # USE_STEAM is intentionally NOT set by USE_ALL — it requires
+        # STEAMWORKS_SDK_PATH which must be supplied by each developer.
     endif()
 
     # On iOS all plugins are compiled as STATIC archives and linked into a single
@@ -1036,6 +1049,17 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #The following plugins are supposed to be 'helpers' in editor. We are not going to build it for Android
     if(NOT PLAT_LOWER STREQUAL "android" AND USE_LUA AND USE_TILEMAP)
         add_subdirectory(${TILED_LIB}       ${TILED_LIB})
+    endif()
+
+    # Steam plugin: Windows, Linux, and macOS only (not Android, not iOS)
+    # Requires -DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk
+    if(USE_STEAM AND USE_LUA AND NOT PLAT_LOWER STREQUAL "android" AND NOT ENGINE_TARGET_PLATFORM STREQUAL "iOS")
+        if(NOT STEAMWORKS_SDK_PATH OR STEAMWORKS_SDK_PATH STREQUAL "")
+            message(SEND_ERROR "USE_STEAM=1 requires -DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk (download from the Steamworks partner portal)")
+        else()
+            message(STATUS "Steam plugin enabled, SDK at ${STEAMWORKS_SDK_PATH}")
+            add_subdirectory(${STEAM_LUA_LIB}   ${STEAM_LUA_LIB})
+        endif()
     endif()
 
     # TODO: Check bullet3d plugin and module
