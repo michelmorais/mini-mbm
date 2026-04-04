@@ -75,14 +75,19 @@ mingw32-make -j%NUMBER_OF_PROCESSORS%
 
 ## Runtime Deployment
 
-Copy the appropriate Steam shared library next to your game executable:
+The Steam shared library is copied automatically to the output directory as a post-build step:
+
+- **Windows**: `copy-steam-dll.bat` runs after building the `steam` VS project — copies `steam_api64.dll` (x64) or `steam_api.dll` (Win32) to `$(OutDir)`.
+- **Linux / macOS**: CMake's `POST_BUILD` step copies `libsteam_api.so` or `libsteam_api.dylib` alongside the engine binary in `bin/debug/<arch>/` or `bin/release/<arch>/`.
+
+For **final distribution**, also include the Steam library in your shipped game folder:
 
 | Platform | Library |
 |---|---|
 | Windows x64 | `redistributable_bin\win64\steam_api64.dll` |
 | Windows x86 | `redistributable_bin\steam_api.dll` |
-| Linux x64 | `redistributable_bin\linux64\libsteam_api.so` |
-| macOS | `redistributable_bin\osx\libsteam_api.dylib` |
+| Linux x64 | `redistributable_bin/linux64/libsteam_api.so` |
+| macOS | `redistributable_bin/osx/libsteam_api.dylib` |
 
 ---
 

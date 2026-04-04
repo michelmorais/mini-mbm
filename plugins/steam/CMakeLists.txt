@@ -48,9 +48,23 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     target_link_libraries(${STEAM_LIBRARY} PRIVATE
         "${STEAMWORKS_SDK_PATH}/redistributable_bin/linux64/libsteam_api.so")
+    # Copy libsteam_api.so next to the engine binary after every build
+    add_custom_command(TARGET ${STEAM_LIBRARY} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${STEAMWORKS_SDK_PATH}/redistributable_bin/linux64/libsteam_api.so"
+            "$<TARGET_FILE_DIR:${STEAM_LIBRARY}>/libsteam_api.so"
+        COMMENT "Copying libsteam_api.so to output directory"
+    )
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     target_link_libraries(${STEAM_LIBRARY} PRIVATE
         "${STEAMWORKS_SDK_PATH}/redistributable_bin/osx/libsteam_api.dylib")
+    # Copy libsteam_api.dylib next to the engine binary after every build
+    add_custom_command(TARGET ${STEAM_LIBRARY} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${STEAMWORKS_SDK_PATH}/redistributable_bin/osx/libsteam_api.dylib"
+            "$<TARGET_FILE_DIR:${STEAM_LIBRARY}>/libsteam_api.dylib"
+        COMMENT "Copying libsteam_api.dylib to output directory"
+    )
 endif()
 
 # On iOS the static library is absorbed by the final mini-mbm link.
