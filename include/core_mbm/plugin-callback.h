@@ -22,6 +22,20 @@
 #define PLUGIN_CALL_BACK_H
 /*
     The methods on Plugin callback are the real order call
+	onSubscribe and onDestroy are called for each scene, onLoop and onRender are called every frame, the others are called when the event happens.
+    The engine may enqueue scene destruction rather than executing it synchronously. This means:
+    `onDestroy` of the **old** scene's plugin instance may fire **after** `onSubscribe` of the **new** scene's instance.
+    Both instances may be alive simultaneously for a short window.
+
+	If the plugin that you need in LUA does not need any of the events, you can just implement empty methods for those events.
+	For example, if you only need onLoop, you might not need this interface at all, and just implement as normal library in LUA.
+	See example as tiny_obj_loader, which is a pure Lua library that does not need to subscribe to the engine and does not implement PLUGIN interface. 
+    It just provides a Lua function to parse OBJ files and returns the data as Lua tables.
+	Other example is tilemap, which is a plugin that implements PLUGIN interface and subscribe to the engine. 
+	It provides a Lua function to create a tile map editor, it has a internanal mbm::L_USER_TYPE::L_USER_TYPE_PLUGIN defined in class-identifier.h.
+
+    
+
 */
 
 class PLUGIN
