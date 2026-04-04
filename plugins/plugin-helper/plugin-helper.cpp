@@ -1716,7 +1716,114 @@ namespace mbm
         return 0;
     }
 
-    
+    // ---------------------------------------------------------------------------
+    // Plugin infrastructure helpers
+    // ---------------------------------------------------------------------------
+
+    void plugin_stamp_userdata(lua_State *lua, int *plugin_id)
+    {
+        // Userdata must be at the top of the stack.
+        luaL_getmetatable(lua, "_usertype_plugin");
+        if (lua_type(lua, -1) == LUA_TTABLE)
+        {
+            lua_rawgeti(lua, -1, 1);
+            *plugin_id = lua_tointeger(lua, -1);
+            lua_pop(lua, 1); // pop integer; leave metatable, then setmetatable pops it
+        }
+        else
+        {
+            lua_pop(lua, 1);
+            lua_create_metatable_identifier(lua, "_usertype_plugin", *plugin_id);
+        }
+        lua_setmetatable(lua, -2);
+    }
+
+    void plugin_doSubscribe(lua_State *lua, int index_plugin, const char *plugin_name)
+    {
+        bool         bRegistered                = false;
+        unsigned int index_plugin_subscription  = 0xffffffff;
+
+        lua_getglobal(lua, "mbm");
+        if (lua_type(lua, -1) == LUA_TTABLE)
+        {
+            lua_getfield(lua, -1, "doSubscribe");
+            if (lua_isfunction(lua, -1))
+            {
+                lua_pushvalue(lua, index_plugin);
+                constexpr int nargs    = 1;
+                constexpr int nresults = 1;
+                if (lua_pcall(lua, nargs, nresults, 0) == LUA_OK)
+                {
+                    if (lua_type(lua, -1) == LUA_TNUMBER)
+                    {
+                        index_plugin_subscription = static_cast<unsigned int>(lua_tointeger(lua, -1));
+                        if (index_plugin_subscription != 0xffffffff)
+                            bRegistered = true;
+                    }
+                }
+            }
+        }
+
+        if (bRegistered)
+        {
+            const int total_in_stack = lua_gettop(lua);
+            if (total_in_stack > index_plugin)
+                lua_pop(lua, total_in_stack - index_plugin);
+        }
+        else
+        {
+            lua_settop(lua, 0);
+            luaL_error(lua,
+                "%s plugin: could not subscribe to mbm.doSubscribe().\n"
+                "Ensure the plugin is loaded from within a running mini-mbm scene.\n"
+                "subscription index [%u]",
+                plugin_name, index_plugin_subscription);
+        }
+    }
+
+    void plugin_register_factory(lua_State *lua, const char *global_name, const char *metatable_name, const luaL_Reg *factory_methods)
+    {
+        luaL_newmetatable(lua, metatable_name);
+        luaL_setfuncs(lua, factory_methods, 0);
+        lua_setglobal(lua, global_name);
+        lua_settop(lua, 0);
+    }
+
+    void *plugin_check_userdata(lua_State *lua, int rawi, int indexTable, int plugin_id, const char *type_name)
+    {
+        const int typeObj = lua_type(lua, indexTable);
+        if (typeObj != LUA_TTABLE)
+        {
+            if (typeObj == LUA_TNONE)
+                lua_error_debug(lua, "expected: [%s]. got [nil]", type_name);
+            else
+                lua_error_debug(lua, "expected: [%s]. got [%s]", type_name, lua_typename(lua, typeObj));
+            return nullptr; // unreachable — lua_error_debug calls luaL_error
+        }
+        lua_rawgeti(lua, indexTable, rawi);
+        void *p = lua_touserdata(lua, -1);
+        if (p != nullptr)
+        {
+            if (lua_getmetatable(lua, -1))
+            {
+                lua_rawgeti(lua, -1, 1);
+                const int id = lua_tointeger(lua, -1);
+                lua_pop(lua, 3); // integer + metatable + userdata
+                if (id == plugin_id)
+                    return p;
+            }
+            else
+            {
+                lua_pop(lua, 1); // userdata
+            }
+        }
+        else
+        {
+            lua_pop(lua, 1); // nil/userdata
+        }
+        lua_error_debug(lua, "expected: [%s]. userdata type mismatch (plugin_id %d != %d)", type_name, plugin_id, plugin_id);
+        return nullptr; // unreachable
+    }
 
 
 }

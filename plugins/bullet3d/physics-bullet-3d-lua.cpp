@@ -590,9 +590,7 @@ struct USER_DATA_PHYSICS_3D
     void registerClassBullet3d(lua_State *lua)
     {
         luaL_Reg regBullet3dMMethods[] = {{"new", onNewBullet3dLua}, {"__gc", onDestroyBullet3dLua}, {nullptr, nullptr}};
-        luaL_newmetatable(lua, "_mbmBullet3d");
-        luaL_setfuncs(lua, regBullet3dMMethods, 0);
-        lua_setglobal(lua, "bullet3d");
+        mbm::plugin_register_factory(lua, "bullet3d", "_mbmBullet3d", regBullet3dMMethods);
     }
 
     const char* getVersionBullet()

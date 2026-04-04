@@ -20,15 +20,15 @@
 #include "bullet-3d-lua.h"
 #include "physics-bullet-3d-lua.h"
 
-int luaopen_bullet3d (lua_State * lua)
+int luaopen_bullet3d (lua_State *lua)
 {
     mbm::registerClassBullet3d(lua);
-    return 0;
+    lua_pushboolean(lua, 1);
+    return 1;
 }
 
 int luaopen_libbullet3d (lua_State *lua)
 {
-    mbm::registerClassBullet3d(lua);
-    return 0;
+    return luaopen_bullet3d(lua);
 }
 

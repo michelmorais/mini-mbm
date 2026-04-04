@@ -20,17 +20,15 @@
 #include "box2d-lua.h"
 #include "physics-box-2d-lua.h"
 
-int luaopen_box2d (lua_State * lua)
+int luaopen_box2d (lua_State *lua)
 {
     mbm::registerClassBox2d(lua);
-    lua_pushboolean(lua,1);
+    lua_pushboolean(lua, 1);
     return 1;
 }
 
 int luaopen_libbox2d (lua_State *lua)
 {
-    mbm::registerClassBox2d(lua);
-    lua_pushboolean(lua,1);
-    return 1;
+    return luaopen_box2d(lua);
 }
 
