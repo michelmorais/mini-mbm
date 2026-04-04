@@ -25,7 +25,7 @@
 #define STEAM_IMPL_H
 
 #include <core_mbm/plugin-callback.h>
-#include <core_mbm/log-util.h>
+#include <core_mbm/util-interface.h>
 
 #include <steam/steam_api.h>
 
@@ -228,7 +228,8 @@ public:
             {
                 g_steamGlobalReady = true;
                 INFO_LOG("Steam initialized successfully. App ID: %u", SteamUtils()->GetAppID());
-                SteamUserStats()->RequestCurrentStats();
+                // RequestCurrentStats() was removed in Steamworks SDK 1.61 — stats are
+                // now requested automatically by the Steam client on init.
                 // Shut down exactly once when the process exits, regardless of
                 // how many scenes loaded and unloaded the Steam plugin.
                 std::atexit([] { SteamAPI_Shutdown(); INFO_LOG("SteamAPI shut down."); });

@@ -35,11 +35,22 @@ Replace `Debug` with `Release` for distribution builds.
 ### Windows (Visual Studio 2022)
 
 1. Open `platform-msvs/mini-mbm.sln` in Visual Studio 2022.
-2. Set the environment variable `STEAMWORKS_SDK_PATH` to your SDK root:
-   ```bat
-   setx STEAMWORKS_SDK_PATH "C:\steamworks_sdk"
-   ```
-   Restart Visual Studio after setting the variable.
+2. Set the `STEAMWORKS_SDK_PATH` environment variable so Visual Studio can find the SDK headers and libraries. Do this **before** opening (or after restarting) Visual Studio by one of these methods:
+
+   **Option A — Windows Settings (recommended, permanent):**
+   - Open the Start menu and search for **"Edit the system environment variables"**
+   - Click **Environment Variables…**
+   - Under *User variables*, click **New**
+   - Name: `STEAMWORKS_SDK_PATH`  Value: `C:\steamworks_sdk` *(your actual path)*
+   - Click OK on all dialogs, then **restart Visual Studio**
+
+   **Option B — Command Prompt (current user, permanent):**
+   - Open a Command Prompt (not VS Developer Prompt — a plain `cmd.exe`)
+   - Run: `setx STEAMWORKS_SDK_PATH "C:\steamworks_sdk"`
+   - **Restart Visual Studio** after running this — VS reads environment variables at launch, not live
+
+   Either way, verify it worked: open a *new* Command Prompt and type `echo %STEAMWORKS_SDK_PATH%` — it should print your path.
+
 3. The **steam** project is disabled by default in Configuration Manager (no `steam_api` headers are available without the SDK). To enable it:
    - Go to **Build → Configuration Manager**
    - Check the **Build** checkbox for the **steam** project in all desired configurations

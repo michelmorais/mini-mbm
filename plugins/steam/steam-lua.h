@@ -42,6 +42,17 @@ extern "C"
     #include <lua.h>
 }
 
+#ifdef WIN32
+    #pragma comment(lib, "lua5.4.lib")
+    #pragma comment(lib, "core_mbm.lib")
+    #pragma comment(lib, "plugin-helper.lib")
+    #ifdef _WIN64
+        #pragma comment(lib, "steam_api64.lib")
+    #else
+        #pragma comment(lib, "steam_api.lib")
+    #endif
+#endif
+
 // ---------------------------------------------------------------------------
 // Plugin entry points
 // Both forms are exported so that both `require "steam"` and
