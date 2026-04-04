@@ -64,63 +64,14 @@ static int onNewSteamLua(lua_State *lua)
     *udata          = that;
     g_steamInstance = that;
 
-    // Apply the engine's plugin-identity metatable so mbm.subscribe() can
-    // validate that this userdata really is a PLUGIN instance.
-    luaL_getmetatable(lua, "_usertype_plugin");
-    if (lua_type(lua, -1) == LUA_TTABLE)
-    {
-        lua_rawgeti(lua, -1, 1);
-        PLUGIN_IDENTIFIER = lua_tointeger(lua, -1);
-        lua_pop(lua, 1);
-    }
-    else
-    {
-        lua_pop(lua, 1);
-        mbm::lua_create_metatable_identifier(lua, "_usertype_plugin", PLUGIN_IDENTIFIER);
-    }
-    lua_setmetatable(lua, -2);          // sets plugin metatable on userdata
+    // Apply the engine's plugin-identity metatable (reads/creates PLUGIN_IDENTIFIER).
+    mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);
 
     lua_rawseti(lua, -2, 1);            // stores userdata as table[1]
 
     // Auto-subscribe to the engine so onSubscribe/onLoop/onDestroy are called
-    bool bRegistered                       = false;
-    const int index_plugin                 = lua_gettop(lua);
-    unsigned int index_plugin_subscription = 0xffffffff;
-
-    lua_getglobal(lua, "mbm");
-    if (lua_type(lua, -1) == LUA_TTABLE)
-    {
-        lua_getfield(lua, -1, "doSubscribe");
-        if (lua_isfunction(lua, -1))
-        {
-            lua_pushvalue(lua, index_plugin);
-            constexpr int nargs    = 1;
-            constexpr int nresults = 1;
-            if (lua_pcall(lua, nargs, nresults, 0) == LUA_OK)
-            {
-                if (lua_type(lua, -1) == LUA_TNUMBER)
-                {
-                    index_plugin_subscription = static_cast<unsigned int>(lua_tointeger(lua, -1));
-                    if (index_plugin_subscription != 0xffffffff)
-                        bRegistered = true;
-                }
-            }
-        }
-    }
-
-    if (bRegistered)
-    {
-        const int total_in_stack = lua_gettop(lua);
-        if (total_in_stack > index_plugin)
-            lua_pop(lua, total_in_stack - index_plugin);
-    }
-    else
-    {
-        lua_settop(lua, 0);
-        luaL_error(lua,
-            "steam plugin: could not subscribe to mbm.subscribe().\n"
-            "Ensure the Steam plugin is loaded from within a running mini-mbm scene.");
-    }
+    const int index_plugin = lua_gettop(lua);
+    mbm::plugin_doSubscribe(lua, index_plugin, "steam");
 
     that->m_lua = lua;
     return 1;

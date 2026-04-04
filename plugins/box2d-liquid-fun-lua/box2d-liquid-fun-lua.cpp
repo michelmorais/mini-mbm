@@ -20,17 +20,15 @@
 #include "box2d-liquid-fun-lua.h"
 #include "physics-box-2d-liquid-fun-lua.h"
 
-int luaopen_box2dLiquidFun (lua_State * lua)
+int luaopen_box2dLiquidFun (lua_State *lua)
 {
     mbm::registerClassBox2dLiquidFun(lua);
-    lua_pushboolean(lua,1);
+    lua_pushboolean(lua, 1);
     return 1;
 }
 
 int luaopen_libbox2dLiquidFun (lua_State *lua)
 {
-    mbm::registerClassBox2dLiquidFun(lua);
-    lua_pushboolean(lua,1);
-    return 1;
+    return luaopen_box2dLiquidFun(lua);
 }
 

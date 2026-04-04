@@ -7174,76 +7174,21 @@ int onNewimguiLua(lua_State *lua)
     IMGUI_LUA * that            = new IMGUI_LUA();
     *udata                      = that;
 
-    /* Make our class as plugin mbm compatible to the engine. */
-    luaL_getmetatable(lua,"_usertype_plugin");//are we using the module in the mbm engine?
-
-    if(lua_type(lua,-1) == LUA_TTABLE) //Yes
-    {
-        lua_rawgeti(lua,-1, 1);
-        //this value is auto set by this module. It is set in the metatable to make sure that we can convert the userdata to ** IMGUI_LUA
-        PLUGIN_IDENTIFIER  = lua_tointeger(lua,-1);//update the identifier of pluging
-        lua_pop(lua,1);
-    }
-    else
-    {
-        lua_pop(lua, 1);
-        mbm::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
-    }
-    lua_setmetatable(lua,-2);
-    /* end plugin code*/
+    // Apply the engine's plugin-identity metatable (reads/creates PLUGIN_IDENTIFIER).
+    mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);
 
     lua_rawseti(lua, -2, 1);//set usedata as the first member in the table
 
-    bool bRegistered                       = false;
-    const int index_plugin                 = lua_gettop(lua);
-    unsigned int index_plugin_subscription = 0xffffffff;
-    lua_getglobal(lua,"mbm");//auto subscribe
-    if(lua_type(lua,-1) == LUA_TTABLE)
-    {
-        lua_getfield(lua,-1,"doSubscribe");
-        if(lua_isfunction(lua,-1))
-        {
-            lua_pushvalue(lua,index_plugin);
-            constexpr int nargs    = 1;
-            constexpr int nresults = 1; //index plugin registered
-            if(lua_pcall(lua,nargs,nresults,0) == LUA_OK )
-            {
-                if(lua_type(lua,-1) == LUA_TNUMBER)
-                {
-                    unsigned int index_plugin_subscription = lua_tointeger(lua,-1);
-                    if(index_plugin_subscription != 0xffffffff)
-                    {
-                        bRegistered = true;
-                    }
-                }
-            }
-        }
-    }
-    if(bRegistered)
-    {
-        const int total_in_stack = lua_gettop(lua);
-        if(total_in_stack > index_plugin)
-        {
-            const int total_pop = total_in_stack - index_plugin;
-            lua_pop(lua,total_pop);
-        }
-    }
-    else
-    {
-        lua_settop(lua,0);
-        luaL_error(lua,"Error registering plugin...\nModule is defined to use PLUGIN_CALLBACK however could not subscribe to mbm.subscribe function!\n index of subscription [%d]",index_plugin_subscription);
-    }
+    // Auto-subscribe to the engine so onSubscribe/onLoop/onRender/onDestroy are called.
+    const int index_plugin = lua_gettop(lua);
+    mbm::plugin_doSubscribe(lua, index_plugin, "ImGui");
     return 1;
 }
 
 void registerClassimgui(lua_State *lua)
 {
     luaL_Reg regimguiMethods[]  = {{"new", onNewimguiLua}, {"__gc", onDestroyimguiLua}, {nullptr, nullptr}};
-    luaL_newmetatable(lua, "_mbmImGui_LUA");
-    luaL_setfuncs(lua, regimguiMethods, 0);
-    // this is your table registered on lua. use: t_imgui = imgui.new()
-    lua_setglobal(lua, "imgui"); 
-    lua_settop(lua,0);
+    mbm::plugin_register_factory(lua, "imgui", "_mbmImGui_LUA", regimguiMethods);
     printf("ImGui version %s\n", ImGui::GetVersion());
 }
 

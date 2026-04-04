@@ -95,6 +95,32 @@ namespace mbm
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLuaToLineMesh(lua_State *lua,INFO_PHYSICS* infoPhysics,LINE_MESH * lineMesh);
     extern "C" PLUGIN_HELPER_API int onSetPhysicsFromTableLua(lua_State *lua,const int indexTable,INFO_PHYSICS* infoPhysicsOut);
 
+    // ---------------------------------------------------------------------------
+    // Plugin infrastructure helpers — eliminate boilerplate shared by all plugins
+    // ---------------------------------------------------------------------------
+
+    // Applies the engine's "_usertype_plugin" metatable to the userdata at the
+    // top of the stack and writes the runtime plugin-identifier into *plugin_id.
+    // If the metatable does not yet exist it is created (standalone / test mode).
+    // The userdata remains at the top of the stack after the call.
+    extern "C" PLUGIN_HELPER_API void plugin_stamp_userdata(lua_State *lua, int *plugin_id);
+
+    // Calls mbm.doSubscribe(plugin_table) using the plugin table at index_plugin.
+    // On success it restores the stack to index_plugin (extra values are popped).
+    // On failure it calls luaL_error — this function does not return on error.
+    extern "C" PLUGIN_HELPER_API void plugin_doSubscribe(lua_State *lua, int index_plugin, const char *plugin_name);
+
+    // Creates a global factory table for a plugin class.
+    // Equivalent to: luaL_newmetatable → luaL_setfuncs → lua_setglobal → lua_settop(lua,0).
+    // factory_methods must be a NULL-terminated luaL_Reg array.
+    extern "C" PLUGIN_HELPER_API void plugin_register_factory(lua_State *lua, const char *global_name, const char *metatable_name, const luaL_Reg *factory_methods);
+
+    // Extracts and validates a PLUGIN_IDENTIFIER-stamped userdata from
+    // a Lua table at indexTable, at raw index rawi.
+    // Returns the raw void* (the double-pointer itself: T** cast to void*).
+    // Calls luaL_error on type mismatch — never returns nullptr on success.
+    extern "C" PLUGIN_HELPER_API void *plugin_check_userdata(lua_State *lua, int rawi, int indexTable, int plugin_id, const char *type_name);
+
 }
 
 

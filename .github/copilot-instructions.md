@@ -220,6 +220,11 @@ All plugins link against `plugin-helper`. It provides:
 - `USER_DATA_RENDER_LUA`, `USER_DATA_SCENE_LUA` — Lua callback ref containers
 - Shader helpers: `onLoadNewShaderLua`, `onSetPixelShaderLua`, etc.
 - `PLUGIN_HELPER_API` export macro (dllexport/visibility default)
+- **Plugin infrastructure helpers** (use these instead of hand-rolling):
+  - `plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER)` — applies `_usertype_plugin` metatable to userdata at stack top; reads/creates the runtime plugin id
+  - `plugin_doSubscribe(lua, index_plugin, name)` — calls `mbm.doSubscribe`; cleans stack on success; `luaL_error` on failure
+  - `plugin_register_factory(lua, global_name, metatable_name, luaL_Reg*)` — one-liner for the `luaL_newmetatable → luaL_setfuncs → lua_setglobal → lua_settop` factory pattern
+  - `plugin_check_userdata(lua, rawi, indexTable, plugin_id, type_name)` — extracts and validates a `PLUGIN_IDENTIFIER`-stamped userdata; `luaL_error` on mismatch
 
 ### CMake library naming
 `set(CMAKE_SHARED_LIBRARY_PREFIX "")` — plugins have no `lib` prefix.

@@ -24,7 +24,8 @@ extern "C" MY_PLUGIN_API int luaopen_libmyplugin(lua_State *lua);
 ```
 
 - Both names are required: `luaopen_<name>` for `require "myplugin"` and `luaopen_lib<name>` for `require "libmyplugin"`.
-- Both call the **same** internal `mbm::registerClassMyPlugin(lua)` function, then `lua_pushboolean(lua, 1); return 1;`.
+- **`luaopen_libmyplugin` must always delegate to `luaopen_myplugin`** — never duplicate the body.
+- For pure-Lua plugins (§1e) the entry point calls `luaL_newlib` and returns the table. For PLUGIN-type plugins it calls `plugin_doSubscribe` (see §1d) and returns the plugin table.
 
 ### 1b. Export macro pattern (copy from existing plugin)
 
@@ -96,36 +97,33 @@ Include: `#include <core_mbm/plugin-callback.h>`
 Every plugin that exposes Lua userdata must declare a `PLUGIN_IDENTIFIER` so the engine can validate that a userdata object belongs to this plugin before calling into it:
 
 ```cpp
-// myplugin-class-lua.cpp  (module scope — one per plugin, not per class)
-static int PLUGIN_IDENTIFIER = 1;   // initial value; overwritten at load time
+// myplugin-lua.cpp  (module scope — one per plugin, not per class)
+static int PLUGIN_IDENTIFIER = 1;   // initial value; overwritten at load time by plugin_stamp_userdata
 ```
 
-**Registration** — call once inside `luaopen_myplugin` (or `registerClassMyPlugin`):
+**Registration** — call once inside `onNewMyPluginLua`, after creating the userdata and before `lua_rawseti`:
 
 ```cpp
-// Creates the "_usertype_plugin" metatable field and writes its integer id back:
-PLUGIN_IDENTIFIER = mbm::lua_create_metatable_identifier(lua, "_usertype_plugin", PLUGIN_IDENTIFIER);
+// One line replaces the ~12-line _usertype_plugin metatable block:
+mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);
 ```
+
+This applies the engine's `_usertype_plugin` metatable to the userdata at the top of the stack _and_ writes the runtime plugin-identifier into `PLUGIN_IDENTIFIER`.
 
 **Validation** — at the top of every Lua C callback that receives plugin userdata:
 
 ```cpp
 int onSomeMethodLua(lua_State *lua)
 {
-    // Retrieve the L_USER_TYPE integer stored in the metatable:
-    int L_USER_TYPE_PLUGIN = lua_tointeger(lua, lua_upvalueindex(1));  // or from global
-    if (L_USER_TYPE_PLUGIN != PLUGIN_IDENTIFIER) {
-        return lua_error_debug(lua, "Invalid plugin userdata — wrong plugin type");
-    }
-    MY_PLUGIN_WRAP *self = static_cast<MY_PLUGIN_WRAP *>(lua_touserdata(lua, 1));
-    // ... proceed
+    // Extracts and validates a PLUGIN_IDENTIFIER-stamped userdata from table at stack index 1.
+    MY_PLUGIN **pp = static_cast<MY_PLUGIN **>(
+        mbm::plugin_check_userdata(lua, 1, 1, PLUGIN_IDENTIFIER, "MyPlugin"));
+    MY_PLUGIN *self = *pp;
+    // ... proceed safely
 }
 ```
 
-**How it works:**
-- `lua_create_metatable_identifier` stores an auto-incrementing integer in the Lua registry under `"_usertype_plugin"` and returns it.
-- The returned value overwrites the compile-time `1` in `PLUGIN_IDENTIFIER`, giving each plugin a unique runtime id.
-- Comparing `L_USER_TYPE_PLUGIN == PLUGIN_IDENTIFIER` guards against passing one plugin's userdata to another plugin's functions.
+`plugin_check_userdata` calls `luaL_error` on type mismatch — it never returns `nullptr` on success.
 
 ### 1e. Alternative: Pure Lua library (no PLUGIN interface)
 
@@ -495,27 +493,69 @@ endif()
 
 ## 6. Entry Point Implementation
 
+### For pure-Lua plugins (§1e)
+
 ```cpp
 // myplugin-lua.cpp
 #include "myplugin-lua.h"
-#include "myplugin-class-lua.h"   // wherever registerClassMyPlugin lives
+#include <some_third_party_lib.h>
+
+static int onDoThingLua(lua_State *lua) { /* ... */ return 1; }
+
+static const luaL_Reg mylib[] = { { "doThing", onDoThingLua }, { NULL, NULL } };
+
+int luaopen_myplugin(lua_State *lua)     { luaL_newlib(lua, mylib); return 1; }
+int luaopen_libmyplugin(lua_State *lua)  { return luaopen_myplugin(lua); }
+```
+
+### For full PLUGIN-interface plugins
+
+```cpp
+// myplugin-lua.cpp
+#include "myplugin-lua.h"
+#include "myplugin-class-lua.h"   // declares registerClassMyPlugin + MY_PLUGIN
+#include <plugin-helper/plugin-helper.h>
+
+static int PLUGIN_IDENTIFIER       = 1;
+static MY_PLUGIN *g_myPluginInst   = nullptr;   // singleton; see §2d
+
+// Factory registered under registerClassMyPlugin:
+static int onNewMyPluginLua(lua_State *lua)
+{
+    lua_settop(lua, 0);
+
+    mbm::registerClassMyPlugin(lua);   // builds the luaL_newlib function table (left on stack)
+
+    auto **udata   = static_cast<MY_PLUGIN **>(lua_newuserdata(lua, sizeof(MY_PLUGIN *)));
+    MY_PLUGIN *that = new MY_PLUGIN();
+    *udata          = that;
+    g_myPluginInst  = that;
+
+    mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);   // applies _usertype_plugin metatable
+
+    lua_rawseti(lua, -2, 1);   // table[1] = userdata
+
+    const int index_plugin = lua_gettop(lua);
+    mbm::plugin_doSubscribe(lua, index_plugin, "myplugin");   // subscribes; luaL_error on fail
+
+    return 1;
+}
+
+// registerClassMyPlugin uses plugin_register_factory internally:
+void mbm::registerClassMyPlugin(lua_State *lua)
+{
+    luaL_Reg factory[] = { {"new", onNewMyPluginLua}, {"__gc", onDestroyMyPluginLua}, {nullptr, nullptr} };
+    mbm::plugin_register_factory(lua, "myplugin", "_mbmMyPlugin", factory);
+}
 
 int luaopen_myplugin(lua_State *lua)
 {
-    mbm::registerClassMyPlugin(lua);
-    lua_pushboolean(lua, 1);
-    return 1;
+    mbm::registerClassMyPlugin(lua);   // registers global factory + auto-creates instance
+    return onNewMyPluginLua(lua);
 }
 
-int luaopen_libmyplugin(lua_State *lua)
-{
-    mbm::registerClassMyPlugin(lua);
-    lua_pushboolean(lua, 1);
-    return 1;
-}
+int luaopen_libmyplugin(lua_State *lua) { return luaopen_myplugin(lua); }   // always delegate
 ```
-
-The `registerClassMyPlugin` function uses standard Lua metatable registration (`luaL_newmetatable`, `lua_setfield`, etc.).
 
 ---
 
@@ -523,7 +563,22 @@ The `registerClassMyPlugin` function uses standard Lua metatable registration (`
 
 `plugins/plugin-helper/` is a **shared library** (`plugin_helper`) that all plugins link against. It provides:
 
-### Userdata validation
+### Plugin infrastructure helpers (use these — do NOT hand-roll)
+```cpp
+// Applies _usertype_plugin metatable to userdata at stack top; writes runtime id to *plugin_id.
+void plugin_stamp_userdata(lua_State *lua, int *plugin_id);
+
+// Calls mbm.doSubscribe(plugin_table) at index_plugin; cleans stack on success; luaL_error on fail.
+void plugin_doSubscribe(lua_State *lua, int index_plugin, const char *plugin_name);
+
+// Creates global factory table: luaL_newmetatable → luaL_setfuncs → lua_setglobal → lua_settop(lua,0).
+void plugin_register_factory(lua_State *lua, const char *global_name, const char *metatable_name, const luaL_Reg *factory_methods);
+
+// Extracts a PLUGIN_IDENTIFIER-stamped userdata (T**) from table[rawi]; luaL_error on mismatch.
+void *plugin_check_userdata(lua_State *lua, int rawi, int indexTable, int plugin_id, const char *type_name);
+```
+
+### Engine-type userdata validation (for L_USER_TYPE_* based types)
 ```cpp
 void *lua_check_userType(lua_State *lua, int rawi, int indexTable, L_USER_TYPE expectedType);
 void *lua_get_userType_no_throw(lua_State *lua, int rawi, int indexTable, L_USER_TYPE expectedType);

@@ -39,7 +39,8 @@ extern "C"
 }
 
 
-extern "C" TILED_IMP_API int luaopen_tilemap (lua_State * lua);
+extern "C" TILED_IMP_API int luaopen_tilemap   (lua_State *lua);
+extern "C" TILED_IMP_API int luaopen_libtilemap(lua_State *lua);
 
 
 #endif // ! TILED_HEADER_H

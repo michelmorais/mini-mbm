@@ -2173,10 +2173,7 @@ namespace mbm
     void registerClassBox2dLiquidFun(lua_State *lua)
     {
         luaL_Reg regBox2dMMethods[] = {{"new", onNewBox2dLua}, {"__gc", onDestroyBox2dlfLua}, {"getVersion", getVersionBox2dlf}, {nullptr, nullptr}};
-        luaL_newmetatable(lua, "_mbmBox2dLiquidFun");
-        luaL_setfuncs(lua, regBox2dMMethods, 0);
-        lua_setglobal(lua, "box2dLiquidFun");
-        lua_settop(lua,0);
+        mbm::plugin_register_factory(lua, "box2dLiquidFun", "_mbmBox2dLiquidFun", regBox2dMMethods);
     }
 
     enum EVENT_CONTACT_B2 : short

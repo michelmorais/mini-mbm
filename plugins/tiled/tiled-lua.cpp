@@ -41,45 +41,9 @@ mbm::TILE_EDITOR *getTileEditorFromRawTable(lua_State *lua, const int rawi, cons
 
 mbm::TILE_EDITOR *getTileEditorFromRawTable(lua_State *lua, const int rawi, const int indexTable)
 {
-    const int typeObj = lua_type(lua, indexTable);
-    if (typeObj != LUA_TTABLE)
-    {
-        if(typeObj == LUA_TNONE)
-            mbm::lua_error_debug(lua, "expected: [plugin]. got [nil]");
-        else
-        {
-            char message[255] = "";
-            snprintf(message,sizeof(message),"expected: [plugin]. got [%s]",lua_typename(lua, typeObj));
-            mbm::lua_error_debug(lua, message);
-        }
-        return nullptr;
-    }
-    lua_rawgeti(lua, indexTable, rawi);
-    void *p = lua_touserdata(lua, -1);
-    if (p != nullptr) 
-    {  /* value is a userdata? */
-        if (lua_getmetatable(lua, -1))
-        {  /* does it have a metatable? */
-            lua_rawgeti(lua,-1, 1);
-            const int L_USER_TYPE_PLUGIN  = lua_tointeger(lua,-1);
-            lua_pop(lua, 3);
-            if(L_USER_TYPE_PLUGIN == PLUGIN_IDENTIFIER)//Is it really a plugin defined by the engine ?
-            {
-                mbm::TILE_EDITOR **ud = static_cast<mbm::TILE_EDITOR **>(p);
-                if(ud && *ud)
-                    return *ud;
-            }
-        }
-        else
-        {
-            lua_pop(lua, 2);
-        }
-    }
-    else
-    {
-        lua_pop(lua, 1);
-    }
-    return nullptr;
+    void *p = mbm::plugin_check_userdata(lua, rawi, indexTable, PLUGIN_IDENTIFIER, "TileEditor");
+    mbm::TILE_EDITOR **ud = static_cast<mbm::TILE_EDITOR **>(p);
+    return (ud && *ud) ? *ud : nullptr;
 }
 
 void lua_check_is_table(lua_State *lua, const int index,const char * table_name)
@@ -1919,20 +1883,7 @@ int onNewTileEditorLua(lua_State *lua)
     *udata                    = that;
 
     /* Make our class as plugin mbm compatible to the engine. */
-    luaL_getmetatable(lua,"_usertype_plugin");//are we using the module in the mbm engine?
-
-    if(lua_type(lua,-1) == LUA_TTABLE) //Yes
-    {
-        lua_rawgeti(lua,-1, 1);
-        PLUGIN_IDENTIFIER  = lua_tointeger(lua,-1);//update the identifier of pluging
-        lua_pop(lua,1);
-    }
-    else
-    {
-        lua_pop(lua, 1);
-        mbm::lua_create_metatable_identifier(lua,"_usertype_plugin",PLUGIN_IDENTIFIER);//No, we just have to create a metatable to identify the module
-    }
-    lua_setmetatable(lua,-2);
+    mbm::plugin_stamp_userdata(lua, &PLUGIN_IDENTIFIER);
     /* end plugin code*/
 
     lua_rawseti(lua, -2, 1);//set usedata as the first member in the table
@@ -1954,10 +1905,7 @@ int onDestroyTileEditorLua(lua_State *lua)
 void registerClassTileEditor(lua_State *lua)
 {
     luaL_Reg regMethodsTileEditorMethods[]  = {{"new", onNewTileEditorLua}, {"__gc", onDestroyTileEditorLua}, {nullptr, nullptr}};
-    luaL_newmetatable(lua, "_mbmTileEditorLUA");
-    luaL_setfuncs(lua, regMethodsTileEditorMethods, 0);
-    lua_setglobal(lua, "TileEditor"); 
-    lua_settop(lua,0);
+    mbm::plugin_register_factory(lua, "TileEditor", "_mbmTileEditorLUA", regMethodsTileEditorMethods);
 }
 
 //The name of this C function is the string "luaopen_" concatenated with
@@ -1970,6 +1918,11 @@ int luaopen_tilemap (lua_State *lua)
 {
     registerClassTileEditor(lua);
     return onNewTileEditorLua(lua);
+}
+
+int luaopen_libtilemap (lua_State *lua)
+{
+    return luaopen_tilemap(lua);
 }
 
 
