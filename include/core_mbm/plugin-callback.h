@@ -21,21 +21,67 @@
 #ifndef PLUGIN_CALL_BACK_H
 #define PLUGIN_CALL_BACK_H
 /*
-    The methods on Plugin callback are the real order call
-	onSubscribe and onDestroy are called for each scene, onLoop and onRender are called every frame, the others are called when the event happens.
-    The engine may enqueue scene destruction rather than executing it synchronously. This means:
-    `onDestroy` of the **old** scene's plugin instance may fire **after** `onSubscribe` of the **new** scene's instance.
-    Both instances may be alive simultaneously for a short window.
+    PLUGIN — engine callback interface for shared-library plugins.
 
-	If the plugin that you need in LUA does not need any of the events, you can just implement empty methods for those events.
-	For example, if you only need onLoop, you might not need this interface at all, and just implement as normal library in LUA.
-	See example as tiny_obj_loader, which is a pure Lua library that does not need to subscribe to the engine and does not implement PLUGIN interface. 
-    It just provides a Lua function to parse OBJ files and returns the data as Lua tables.
-	Other example is tilemap, which is a plugin that implements PLUGIN interface and subscribe to the engine. 
-	It provides a Lua function to create a tile map editor, it has a internanal mbm::L_USER_TYPE::L_USER_TYPE_PLUGIN defined in class-identifier.h.
+    WHEN TO USE THIS INTERFACE
+    --------------------------
+    Inherit from PLUGIN when your plugin needs any of the following:
+      - Per-frame updates (onLoop / onRender)
+      - Input events (touch, keyboard, joystick)
+      - Access to the graphics backend (renderDevice in onSubscribe)
+      - Per-scene init/teardown lifecycle (onSubscribe / onDestroy)
 
-    
+    If the plugin only exposes stateless utility functions to Lua (parsing,
+    encoding, math), do NOT inherit from PLUGIN. Instead register a luaL_Reg
+    table and return it from luaopen_ via luaL_newlib. The caller then does:
+        local mp = require "myplugin"   -- mp is the table
+    See modules/obj_importer_lua/ (tiny_obj_loader) for this pattern.
 
+    CALL ORDER
+    ----------
+    require "myplugin"  ->  luaopen_myplugin()  ->  onSubscribe()
+    every frame         ->  onLoop(delta)  ->  onRender()
+    scene ends          ->  onDestroy()
+    next scene          ->  luaopen_myplugin() again from scratch  ->  onSubscribe()
+
+    DEFERRED DESTRUCTION RACE
+    -------------------------
+    The engine may enqueue scene destruction rather than executing it
+    synchronously. This means onDestroy() of the OLD scene's plugin instance
+    may fire AFTER onSubscribe() of the NEW scene's instance. Both instances
+    can be alive simultaneously for a short window. Never rely on onDestroy
+    being called before the next onSubscribe.
+
+    PROCESS-LIFETIME vs SCENE-LIFETIME RESOURCES
+    ---------------------------------------------
+    Some external libraries (e.g. Steam, a GPU context, a network layer) must
+    be initialized once per process and must NOT be shut down between scenes.
+    Guard them with a process-global bool flag:
+
+        bool g_myLibReady = false;
+
+        void onSubscribe(...) override {
+            if (!g_myLibReady) {
+                if (MyLib_Init() == OK) {
+                    g_myLibReady = true;
+                    std::atexit([] { MyLib_Shutdown(); });
+                }
+            }
+            m_bReady = g_myLibReady;
+        }
+
+        void onDestroy() override {
+            m_bReady = false;           // do NOT call MyLib_Shutdown() here
+            m_pendingRequests.clear();  // release only per-scene state
+        }
+
+    See plugins/steam/steam-impl.h for a real-world example of this pattern.
+
+    TILEMAP EXAMPLE
+    ---------------
+    plugins/tiled/ implements PLUGIN and subscribes to the engine.
+    It exposes a Lua tile-map editor and uses the internal userdata type
+    mbm::L_USER_TYPE::L_USER_TYPE_PLUGIN defined in class-identifier.h.
 */
 
 class PLUGIN
