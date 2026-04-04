@@ -54,11 +54,9 @@ Replace `Debug` with `Release` for distribution builds.
 3. The **steam** project is disabled by default in Configuration Manager (no `steam_api` headers are available without the SDK). To enable it:
    - Go to **Build → Configuration Manager**
    - Check the **Build** checkbox for the **steam** project in all desired configurations
-4. Build the **steam** project.
-5. Copy the Steam runtime DLL next to `mini-mbm.exe` (from your SDK root):
-   - **x64**: `redistributable_bin\win64\steam_api64.dll`
-   - **x86**: `redistributable_bin\steam_api.dll`
-6. Place `steam_appid.txt` (containing just your App ID number, e.g. `480`) next to `mini-mbm.exe` for development runs.
+4. Build the **steam** project.  
+   After a successful build, `copy-steam-dll.bat` runs automatically and copies the correct Steam DLL (`steam_api64.dll` or `steam_api.dll`) into the output folder (e.g. `platform-msvs\Debug\`). No manual copy is needed.
+5. Place `steam_appid.txt` (containing just your App ID number, e.g. `480`) next to `mini-mbm.exe` for development runs.
 
 ### Windows (CMake + MinGW)
 
