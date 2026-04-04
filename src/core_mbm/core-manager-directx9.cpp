@@ -458,7 +458,6 @@ namespace mbm
         if(plugin != nullptr)
         {
             this->lsPlugins.push_back(plugin);
-            // TODO: check this
             void * handle = this->device->specificContextDevice->window.getHwnd();
             void * renderDevice = this->device->specificContextDevice->pd3dDevice;
             plugin->onSubscribe(static_cast<int>(this->device->backBufferWidth),static_cast<int>(this->device->backBufferHeight), handle, renderDevice);

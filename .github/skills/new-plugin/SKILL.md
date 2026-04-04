@@ -127,11 +127,216 @@ int onSomeMethodLua(lua_State *lua)
 - The returned value overwrites the compile-time `1` in `PLUGIN_IDENTIFIER`, giving each plugin a unique runtime id.
 - Comparing `L_USER_TYPE_PLUGIN == PLUGIN_IDENTIFIER` guards against passing one plugin's userdata to another plugin's functions.
 
+### 1e. Alternative: Pure Lua library (no PLUGIN interface)
+
+If your plugin only needs to expose a set of **stateless utility functions** to Lua — no per-frame updates, no engine backend access, no render hooks, no persistent C++ state per scene — you do **not** need to inherit from `PLUGIN` at all.
+
+**When to choose this path:**
+- The plugin wraps a standalone library (parser, codec, algorithm) with no connection to the render loop.
+- There is no `onLoop`, `onSubscribe`, or `onDestroy` work to do.
+- You do not need to allocate per-scene C++ objects or hold Lua registry refs across frames.
+
+**Real example:** `modules/obj_importer_lua/` — parses `.obj` mesh files and returns Lua tables. Loaded with `require "tiny_obj_loader"`.
+
+#### File layout (minimal — 2 files)
+
+```
+plugins/myplugin/
+├── CMakeLists.txt          # Only links LUA_LIBRARY — no core_mbm, no plugin_helper
+├── myplugin-lua.h          # Export macro + luaopen_ declarations (same as §1b)
+└── myplugin-lua.cpp        # luaL_Reg table + luaopen_ implementations
+```
+
+No `myplugin-wrap.h`, no `myplugin-class-lua.cpp`, no `PLUGIN_IDENTIFIER` needed.
+
+#### Implementation pattern
+
+```cpp
+// myplugin-lua.cpp
+#include "myplugin-lua.h"
+#include <some_third_party_lib.h>   // whatever you're wrapping
+
+// ---- Lua C function --------------------------------------------------------
+
+static int onDoThingLua(lua_State *lua)
+{
+    const char *input = luaL_checkstring(lua, 1);
+    // ... call third-party lib, push results onto Lua stack ...
+    lua_pushboolean(lua, 1);
+    return 1;
+}
+
+// ---- Function table --------------------------------------------------------
+
+static const luaL_Reg mylib[] =
+{
+    { "doThing",  onDoThingLua },
+    { NULL,       NULL         }
+};
+
+// ---- Entry points ----------------------------------------------------------
+
+// luaopen_ returns the function table directly as the require result.
+// Contrast with the PLUGIN style, which returns true (boolean) after
+// subscribing to the engine — the API lives on mbm.* or a created object.
+int luaopen_myplugin(lua_State *lua)
+{
+    luaL_newlib(lua, mylib);
+    return 1;   // the table is the require result; caller does: local mp = require "myplugin"
+}
+
+int luaopen_libmyplugin(lua_State *lua)
+{
+    return luaopen_myplugin(lua);
+}
+```
+
+#### Lua usage
+
+```lua
+local mp = require "myplugin"   -- mp IS the table returned by luaL_newlib
+mp.doThing("hello")
+```
+
+Compare with the full PLUGIN style where `require` returns `true` and the real API is accessed through engine-managed objects.
+
+#### CMakeLists.txt differences
+
+The pure-library CMakeLists is simpler — it does **not** link `core_mbm` or `plugin_helper`:
+
+```cmake
+set(CMAKE_SHARED_LIBRARY_PREFIX "")
+
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    add_library(${MYPLUGIN_LIBRARY} STATIC ${SOURCES})
+else()
+    add_library(${MYPLUGIN_LIBRARY} SHARED ${SOURCES})
+endif()
+
+# Only Lua is needed — no core_mbm, no plugin_helper
+if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+    target_link_libraries(${MYPLUGIN_LIBRARY} PRIVATE ${LUA_LIBRARY})
+endif()
+```
+
+#### Decision guide
+
+| Need | Use |
+|---|---|
+| `onLoop`, `onSubscribe`, `onDestroy`, input events, render access | Full `PLUGIN` interface (§1c) |
+| Userdata objects managed by the engine | Full `PLUGIN` interface + `PLUGIN_IDENTIFIER` (§1d) |
+| Stateless utility functions, pure data parsing/conversion | Pure Lua library — `luaL_newlib` (§1e) |
+
 ---
 
-## 2. File Layout
+## 2. PLUGIN Lifecycle — Pitfalls and Rules
 
-Every plugin lives under `plugins/<myplugin>/`. Minimum required files:
+Understanding the lifetime of a PLUGIN instance is critical. Getting it wrong causes crashes or double-initialization bugs that are hard to reproduce.
+
+### 2a. How the engine calls PLUGIN methods
+
+```
+require "myplugin"          → luaopen_myplugin()
+                              → registerClassMyPlugin()    (builds Lua table)
+                              → new MY_PLUGIN()            (allocates instance)
+                              → mbm.subscribe(table)       (engine stores pointer)
+                              → onSubscribe()              (first callback — initialize resources)
+
+per-frame                   → onLoop(delta)
+                            → onRender()
+
+scene ends                  → onDestroy()                  (release/close resources)
+                              (instance may not be deleted immediately — see §2c)
+
+next scene, require again   → luaopen_myplugin() is called again from scratch
+                              → new MY_PLUGIN() → onSubscribe() → ...
+```
+
+### 2b. Process-lifetime vs scene-lifetime resources
+
+**The most dangerous pitfall:** some external libraries must be initialized **once per process** and must not be shut down between scenes. If `onDestroy` shuts them down, and the next scene immediately re-initializes them, you may hit:
+
+- Double-init crashes (library not designed for it)
+- Broken callbacks that were registered before shutdown
+- Memory corruption from partially-torn-down global state
+
+**Rule:** if the underlying library has a process-global init/shutdown API (e.g. `SteamAPI_InitEx` / `SteamAPI_Shutdown`, a GPU context, a network layer), treat it as a **process-lifetime resource**:
+
+```cpp
+// Global flag — defined in myplugin-lua.cpp, declared extern in myplugin-impl.h
+bool g_myPluginGlobalReady = false;
+
+void MY_PLUGIN::onSubscribe(int, int, void *, void *) override
+{
+    if (!g_myPluginGlobalReady)
+    {
+        // Initialize only on the very first load — never again for this process.
+        if (MyLib_Init() == SUCCESS)
+        {
+            g_myPluginGlobalReady = true;
+            // Register shutdown via atexit so it runs once at process exit,
+            // regardless of how many scenes load/unload this plugin.
+            std::atexit([] { MyLib_Shutdown(); });
+        }
+        else
+        {
+            ERROR_LOG("MyLib_Init failed.");
+        }
+    }
+    m_bReady = g_myPluginGlobalReady;
+}
+
+void MY_PLUGIN::onDestroy() override
+{
+    // Do NOT call MyLib_Shutdown() here.
+    // Only release per-scene state: cancel async requests, release Lua refs,
+    // free scene-scoped allocations, set m_bReady = false.
+    m_bReady = false;
+    m_pendingRequests.clear();   // destructors release Lua registry refs
+}
+```
+
+**Per-scene resources** (textures, file handles, Lua callback refs, etc.) are safe to release in `onDestroy`.
+
+### 2c. The deferred-destruction race
+
+The engine may enqueue scene destruction rather than executing it synchronously. This means:
+
+- `onDestroy` of the **old** scene's plugin instance may fire **after** `onSubscribe` of the **new** scene's instance.
+- Both instances may be alive simultaneously for a short window.
+
+**Consequence:** if `onDestroy` shuts down a global library and `onSubscribe` tries to initialize it again in the same frame, the result is undefined.
+
+Using the `g_myPluginGlobalReady` flag (§2b) eliminates this race entirely: `onSubscribe` only calls `MyLib_Init` once, and `onDestroy` never touches the global state.
+
+### 2d. The singleton pointer
+
+Plugins that expose a Lua API where callback functions need access to engine state (pending async requests, Lua state, etc.) use a module-level singleton pointer:
+
+```cpp
+// myplugin-lua.cpp
+static MY_PLUGIN *g_myPluginInstance = nullptr;
+
+namespace mbm {
+    MY_PLUGIN *getMyPluginInstance() noexcept { return g_myPluginInstance; }
+}
+```
+
+Set it inside `luaopen_myplugin` when creating the instance, and **do not** clear it in `onDestroy` — any Lua functions that fire during the frame will still read the pointer. The pointer is overwritten the next time `require "myplugin"` is called in a new scene.
+
+### 2e. Summary table
+
+| Resource type | Initialize in | Shut down in | Example |
+|---|---|---|---|
+| Process-global library | `onSubscribe` (guarded by `g_*GlobalReady`) | `std::atexit` lambda | Steam, network layer |
+| Per-scene allocations | `onSubscribe` | `onDestroy` | Textures, file handles |
+| Async request lists | populated during `onLoop` | `onDestroy` (clear vector, destructors release refs) | `CCallResult`, network requests |
+| Lua registry refs | acquired in Lua callbacks | Released in async result handler or `onDestroy` | `luaL_ref` / `luaL_unref` |
+| Singleton pointer | set in `luaopen_` | Never cleared (overwritten on next load) | `g_myPluginInstance` |
+
+---
+
+## 3. File Layout `plugins/<myplugin>/`. Minimum required files:
 
 ```
 plugins/myplugin/
@@ -153,7 +358,7 @@ plugins/myplugin/
 
 ---
 
-## 3. CMakeLists.txt Template
+## 4. CMakeLists.txt Template
 
 ```cmake
 cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
@@ -216,7 +421,7 @@ endif()
 
 ---
 
-## 4. Wire the Plugin into the Root Build
+## 5. Wire the Plugin into the Root Build
 
 Edit **`CMakeLists.txt`** (root) in **exactly** four places:
 
@@ -288,7 +493,7 @@ endif()
 
 ---
 
-## 5. Entry Point Implementation
+## 6. Entry Point Implementation
 
 ```cpp
 // myplugin-lua.cpp
@@ -314,7 +519,7 @@ The `registerClassMyPlugin` function uses standard Lua metatable registration (`
 
 ---
 
-## 6. What plugin-helper Provides
+## 7. What plugin-helper Provides
 
 `plugins/plugin-helper/` is a **shared library** (`plugin_helper`) that all plugins link against. It provides:
 
@@ -381,7 +586,7 @@ int onSetPhysicsFromTableLuaToLineMesh(lua_State *lua, INFO_PHYSICS *infoPhysics
 
 ---
 
-## 7. Include Patterns
+## 8. Include Patterns
 
 ```cpp
 // Engine / core headers (angle-bracket, relative to include/)
@@ -402,7 +607,7 @@ extern "C" {
 
 ---
 
-## 8. C++ Coding Conventions (Mandatory)
+## 9. C++ Coding Conventions (Mandatory)
 
 - **License block**: MIT license in box-drawing-character frame at top of every `.h` and `.cpp`
 - **Include guards**: `#ifndef FOO_H` / `#define FOO_H` (not `#pragma once`)
@@ -416,7 +621,7 @@ extern "C" {
 
 ---
 
-## 9. Build Command to Test
+## 10. Build Command to Test
 
 ```sh
 # Linux Debug — full feature build
@@ -432,7 +637,7 @@ The plugin `.so` will be output to `bin/debug/linux_x86/myplugin.so`.
 
 ---
 
-## 10. Lua Usage Pattern (for plugin consumers)
+## 11. Lua Usage Pattern (for plugin consumers)
 
 ```lua
 local myplugin = require "myplugin"   -- loads myplugin.so / myplugin.dll
@@ -445,19 +650,22 @@ local myplugin = require "libmyplugin"
 
 ---
 
-## 11. Real Examples to Reference
+## 12. Real Examples to Reference
 
-| Plugin | Path | Notes |
-|--------|------|-------|
-| box2d (simplest) | [plugins/box2d/](../../../plugins/box2d/) | Physics — wraps third-party lib, no PLUGIN interface |
-| tiled (no third-party) | [plugins/tiled/](../../../plugins/tiled/) | Inlines plugin-helper sources directly instead of linking |
-| imGui (complex) | [plugins/imGui/](../../../plugins/imGui/) | Backend selection, Metal `.mm`, release/debug source exclusion |
-| plugin-helper | [plugins/plugin-helper/](../../../plugins/plugin-helper/) | Shared helper library — not a Lua plugin itself |
+| Plugin | Path | Style | Notes |
+|--------|------|-------|-------|
+| tiny_obj_loader | [modules/obj_importer_lua/](../../../modules/obj_importer_lua/) | Pure Lua library (§1e) | `luaL_newlib` — no PLUGIN interface, parses OBJ files |
+| box2d (simplest) | [plugins/box2d/](../../../plugins/box2d/) | Full PLUGIN | Physics — wraps third-party lib |
+| tiled (no third-party) | [plugins/tiled/](../../../plugins/tiled/) | Full PLUGIN | Inlines plugin-helper sources directly instead of linking |
+| steam | [plugins/steam/](../../../plugins/steam/) | Full PLUGIN | Process-lifetime init guard (`g_steamGlobalReady`) — lifecycle §2 |
+| imGui (complex) | [plugins/imGui/](../../../plugins/imGui/) | Full PLUGIN | Backend selection, Metal `.mm`, release/debug source exclusion |
+| plugin-helper | [plugins/plugin-helper/](../../../plugins/plugin-helper/) | — | Shared helper library — not a Lua plugin itself |
 
 ---
 
-## 12. Checklist
+## 13. Checklist
 
+**Full PLUGIN interface (engine hooks needed):**
 - [ ] `plugins/myplugin/CMakeLists.txt` — project uses `${MYPLUGIN_LIBRARY}`, has `set(CMAKE_SHARED_LIBRARY_PREFIX "")`, iOS uses `STATIC`
 - [ ] `plugins/myplugin/myplugin-lua.h` — unique export macro, `extern "C"` Lua includes, both `luaopen_` signatures
 - [ ] `plugins/myplugin/myplugin-lua.cpp` — both entry points call same `registerClass*` function and `return 1`
@@ -467,3 +675,9 @@ local myplugin = require "libmyplugin"
 - [ ] Include guards (not `#pragma once`) in every new header
 - [ ] Plugin links `${PLUGIN_HELPER_LIBRARY}`, `${LUA_LIBRARY}`, `${CORE_MBM_LIBRARY}` (non-iOS only)
 - [ ] Build tested with `make -j$(nproc)` or VS Code build task
+
+**Pure Lua library (no engine hooks — §1e):**
+- [ ] `luaopen_` uses `luaL_newlib(lua, mylib)` and returns 1 (the table, not `true`)
+- [ ] CMakeLists only links `${LUA_LIBRARY}` — no `core_mbm`, no `plugin_helper`
+- [ ] No `PLUGIN_IDENTIFIER`, no `PLUGIN` inheritance, no `mbm::registerClass*`
+- [ ] `require "myplugin"` in Lua assigns the returned table directly (e.g. `local mp = require "myplugin"`)

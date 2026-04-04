@@ -7200,7 +7200,7 @@ int onNewimguiLua(lua_State *lua)
     lua_getglobal(lua,"mbm");//auto subscribe
     if(lua_type(lua,-1) == LUA_TTABLE)
     {
-        lua_getfield(lua,-1,"subscribe");
+        lua_getfield(lua,-1,"doSubscribe");
         if(lua_isfunction(lua,-1))
         {
             lua_pushvalue(lua,index_plugin);

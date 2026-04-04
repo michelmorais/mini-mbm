@@ -2351,7 +2351,7 @@ namespace mbm
         return 0;
     }
 
-    int onSubscribePlugin(lua_State *lua)
+    int doSubscribePlugin(lua_State *lua)
     {
         PLUGIN **ud              = static_cast<PLUGIN **>(lua_check_userType(lua,1,1,L_USER_TYPE_PLUGIN));
         PLUGIN * pPlugin         = *ud;
@@ -2589,7 +2589,7 @@ namespace mbm
             {"shuffle", onDoShuffle},
             {"undoShuffle", onUndoShuffle},
             {"getSplash", OnGetSplash },
-            {"subscribe", onSubscribePlugin},
+            {"doSubscribe", doSubscribePlugin},
             {"loadTexture", onLoadDetailedTexture},
             {"listFiles", onlistFiles},
             {"enableTextureFilter", enableTextureFilterLua},
