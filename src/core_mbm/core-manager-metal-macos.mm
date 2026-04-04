@@ -165,7 +165,7 @@ namespace mbm
             ERROR_LOG("Metal: failed to create NSWindow.");
             return false;
         }
-        [ctx->window setTitle:[NSString stringWithUTF8String:nameApplication.c_str()]];
+        [ctx->window setTitle:[NSString stringWithUTF8String:this->nameApplication.c_str()]];
 
         // Borderless (fullscreen) window: raise above the menu bar and
         // auto-hide the menu bar + dock so they don't overlap the content.
