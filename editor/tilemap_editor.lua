@@ -2654,7 +2654,7 @@ function onRedo()
 end
 
 function onKeyDown(key)
-    if key == mbm.getKeyCode('control') then
+    if key == mbm.getKeyCode('control') or key == mbm.getKeyCode('windows') then
         keyControlPressed = true
     elseif key == mbm.getKeyCode('shift') then
         keyShiftPressed = true
