@@ -106,7 +106,7 @@
       <EnableUAC>false</EnableUAC>
     </Link>
     <PostBuildEvent>
-      <Command>"$(MSBuildThisFileDirectory)copy-steam-dll.bat" "$(OutDir)" "Win32"</Command>
+      <Command>"$(MSBuildProjectDirectory)\copy-steam-dll.bat" "$(OutDir)" "Win32"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -127,7 +127,7 @@
       <EnableUAC>false</EnableUAC>
     </Link>
     <PostBuildEvent>
-      <Command>"$(MSBuildThisFileDirectory)copy-steam-dll.bat" "$(OutDir)" "Win32"</Command>
+      <Command>"$(MSBuildProjectDirectory)\copy-steam-dll.bat" "$(OutDir)" "Win32"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -145,7 +145,7 @@
       <EnableUAC>false</EnableUAC>
     </Link>
     <PostBuildEvent>
-      <Command>"$(MSBuildThisFileDirectory)copy-steam-dll.bat" "$(OutDir)" "x64"</Command>
+      <Command>"$(MSBuildProjectDirectory)\copy-steam-dll.bat" "$(OutDir)" "x64"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -166,7 +166,7 @@
       <EnableUAC>false</EnableUAC>
     </Link>
     <PostBuildEvent>
-      <Command>"$(MSBuildThisFileDirectory)copy-steam-dll.bat" "$(OutDir)" "x64"</Command>
+      <Command>"$(MSBuildProjectDirectory)\copy-steam-dll.bat" "$(OutDir)" "x64"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
 
