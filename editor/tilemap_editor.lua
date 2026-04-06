@@ -384,7 +384,7 @@ function drawLayerTab(item_width)
 
             tImGui.Text(tLang.L("offset_x"))
             local step       =  1
-            local step_fast  =  10
+            local step_fast  =  50
             local result, iValue = tImGui.InputInt('##LayerOffSetX'.. id, tLayer.offset.x, step, step_fast, flags)
             if result and iValue > -999999999 and iValue < 999999999 then
                 tLayer.offset.x = iValue
