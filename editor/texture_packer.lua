@@ -56,6 +56,7 @@ function onInitScene()
     sLastTextureOpened  = ''
     bViewTextureOptions  = false
     bTextureViewOpened   = false
+    bPrintDebug          = false
     scale                = 1
 
     tTextureOptions = { fWidth    = 1024, 
@@ -1042,23 +1043,58 @@ elseif tTextureOptions.bSortBySizeDescending then
                 end)
         end
 
+        local sNameAlgorithm = ""
         if tTextureOptions.iCurrentAlgorithm == 1 then -- 'Follow bigger or lower Texture'
             iTotalIn, iTotalSelected = draw_followed_by_bigger_or_lower_texture_algorithm()
+            sNameAlgorithm = tLang.L("follow_bigger_or_lower_texture")
         elseif tTextureOptions.iCurrentAlgorithm == 2 then -- 'First Fit algorithm'
             iTotalIn, iTotalSelected = draw_first_fit_algorithm()
+            sNameAlgorithm = tLang.L("first_fit_algorithm")
         elseif tTextureOptions.iCurrentAlgorithm == 3 then -- 'Best Fit algorithm'
             iTotalIn, iTotalSelected = draw_best_fit_algorithm()
+            sNameAlgorithm = tLang.L("best_fit_algorithm")
         elseif tTextureOptions.iCurrentAlgorithm == 4 then -- 'Grid-based placement'
             iTotalIn, iTotalSelected = draw_grid_based_placement_algorithm()
+            sNameAlgorithm = tLang.L("grid_based_placement")
         elseif tTextureOptions.iCurrentAlgorithm == 5 then -- 'Grid-force fit placement'
             iTotalIn, iTotalSelected = draw_grid_force_fit_placement_algorithm()
+            sNameAlgorithm = tLang.L("grid_force_fit_placement")
         elseif tTextureOptions.iCurrentAlgorithm > 5 then
+            sNameAlgorithm = tLang.L("grid_force_fit_placement")
             tTextureOptions.iCurrentAlgorithm = 5
         elseif tTextureOptions.iCurrentAlgorithm < 1 then
+            sNameAlgorithm = tLang.L("follow_bigger_or_lower_texture")
             tTextureOptions.iCurrentAlgorithm = 1
         end
 
         applyRotationToTextures()
+
+        if bPrintDebug then
+            bPrintDebug = false
+            print(string.format("Algorithm: %s, Total In: %d, Total Selected: %d", sNameAlgorithm, iTotalIn, iTotalSelected))
+            for i=1, #tTexturesToEditor do
+                local tTexture = tTexturesToEditor[i]
+                local tTex     = tTexture.tTex
+                if tTex and tTexture.isSelected and tTex.visible then
+                    local tDesc = tTexturesToEditor[i]
+                    local w,h = tTex:getSize()
+                    print(string.format("Texture [%s] %d position: (%.2f, %.2f), width: %d, height: %d, original width: %d, original height: %d scaled: (%.2f, %.2f) out of bounds: %s", 
+                        tUtil.getShortName(tDesc.file_name), 
+                        i, 
+                        tTex.x, 
+                        tTex.y, 
+                        w, 
+                        h, 
+                        tDesc.width, 
+                        tDesc.height, 
+                        tTex.sx, 
+                        tTex.sy,
+                        tTexture.isOutOfBounds))
+                elseif tTex and tTexture.isSelected and tTex.visible == false then
+                    print(string.format("Texture [%s] %d is selected but not visible (probably couldn't fit in)", tUtil.getShortName(tTexture.file_name), i))
+                end
+            end
+        end
 
         tLine:setScale(scale,scale)
         showPendingTextureMessage(iTotalIn == iTotalSelected, 'Status of Texture',string.format('%d of %d are inside.\nTotal existent %d',iTotalIn,iTotalSelected,#tTexturesToEditor))
@@ -1650,6 +1686,7 @@ function main_menu_texture_packer()
             end
 
             tImGui.Separator()
+
             local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then
                 mbm.quit()
@@ -1721,6 +1758,14 @@ function main_menu_texture_packer()
                     end
                 end
                 tImGui.EndMenu()
+            end
+
+            if mbm.is('debug') then
+                local label  = "Debug: print texture info with algorithm"
+                local size   =  {x=0,y=0}
+                if tImGui.Button(label, size) then
+                    bPrintDebug = true
+                end
             end
 
             tImGui.EndMenu()
