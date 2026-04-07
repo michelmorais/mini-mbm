@@ -496,6 +496,9 @@ function countTotalInOut()
     local topBound    =  tRender.height * 0.5 - (tTextureOptions.iOffsetY or 0)
     local rightBound  =  tRender.width * 0.5
     local bottomBound = -tRender.height * 0.5
+    -- small epsilon to absorb floating-point rounding when canvas size is not
+    -- divisible by the grid count (e.g. 2048/5 = 409.6 is not exact in IEEE 754)
+    local eps = 0.5
 
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
@@ -510,7 +513,7 @@ function countTotalInOut()
                 local right  = x + (w * 0.5)
                 local top    = y + (h * 0.5)
                 local bottom = y - (h * 0.5)
-                if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
+                if left >= (leftBound - eps) and right <= (rightBound + eps) and bottom >= (bottomBound - eps) and top <= (topBound + eps) then
                     iTotalIn = iTotalIn + 1
                     tTexture.isOutOfBounds = false
                 else
