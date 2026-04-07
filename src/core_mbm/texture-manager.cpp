@@ -1016,6 +1016,57 @@ namespace mbm
     #error "platform not suported"
 #endif
 
+    bool TEXTURE_MANAGER::getAlphaBounds(const char* fileName,
+                                          uint32_t& outX, uint32_t& outY,
+                                          uint32_t& outW, uint32_t& outH,
+                                          uint8_t alphaThreshold)
+    {
+        if (fileName == nullptr)
+            return false;
+
+        // Resolve to full path using the same search mechanism as load()
+        bool fileExists = false;
+        const char* fullPath = util::getFullPath(fileName, &fileExists);
+        if (!fileExists)
+            fullPath = fileName; // try as-is
+
+        int w = 0, h = 0, comp = 0;
+        // Always force 4 channels (RGBA) so alpha is in channel index 3
+        stbi_uc* data = stbi_load(fullPath, &w, &h, &comp, 4);
+        if (data == nullptr || w <= 0 || h <= 0)
+        {
+            if (data) free(data);
+            return false;
+        }
+
+        int minX = w, minY = h, maxX = -1, maxY = -1;
+        const int stride = w * 4;
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                const uint8_t alpha = data[y * stride + x * 4 + 3];
+                if (alpha > alphaThreshold)
+                {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        free(data);
+
+        if (maxX < 0) // fully transparent
+            return false;
+
+        outX = static_cast<uint32_t>(minX);
+        outY = static_cast<uint32_t>(minY);
+        outW = static_cast<uint32_t>(maxX - minX + 1);
+        outH = static_cast<uint32_t>(maxY - minY + 1);
+        return true;
+    }
+
     void TEXTURE_MANAGER::getAllTexturesFullPaths(std::vector<std::string> &result)
     {
         for (auto& texture : lsTextures)

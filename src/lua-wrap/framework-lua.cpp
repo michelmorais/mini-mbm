@@ -136,6 +136,32 @@ namespace mbm
 
     #endif
 
+    int onGetAlphaBoundsLua(lua_State *lua)
+    {
+        const int top = lua_gettop(lua);
+        const char *fileName       = luaL_checkstring(lua, 1);
+        const uint8_t threshold    = top >= 2 ? static_cast<uint8_t>(luaL_checkinteger(lua, 2)) : 0;
+        TEXTURE_MANAGER *tm        = TEXTURE_MANAGER::getInstance();
+        uint32_t outX = 0, outY = 0, outW = 0, outH = 0;
+        if (tm->getAlphaBounds(fileName, outX, outY, outW, outH, threshold))
+        {
+            lua_newtable(lua);
+            lua_pushinteger(lua, static_cast<lua_Integer>(outX));
+            lua_setfield(lua, -2, "x");
+            lua_pushinteger(lua, static_cast<lua_Integer>(outY));
+            lua_setfield(lua, -2, "y");
+            lua_pushinteger(lua, static_cast<lua_Integer>(outW));
+            lua_setfield(lua, -2, "w");
+            lua_pushinteger(lua, static_cast<lua_Integer>(outH));
+            lua_setfield(lua, -2, "h");
+        }
+        else
+        {
+            lua_pushnil(lua);
+        }
+        return 1;
+    }
+
     int onGenerateImageResourceHeaderFromPng(lua_State *lua)
     {
         const char *pngPath = luaL_checkstring(lua,1);
@@ -2600,6 +2626,7 @@ namespace mbm
             {"executeInThread", onExecuteInOtherThread},
     #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
+            {"getAlphaBounds", onGetAlphaBoundsLua},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
         device->scene       = scene;

@@ -80,7 +80,8 @@ function onInitScene()
                         indexReferenceTexture = 1,
                         iCurrentAlgorithm = 1,
                         bFilter   = true,
-                        bGridForceFitScale = false, 
+                        bGridForceFitScale = false,
+                        bAlphaRectForceFit = false,
                         bLastGridForceFitScaleWasEnabled = false,
                         scaleImage= 1,
                         sumScaleImageX=0,
@@ -158,6 +159,7 @@ function onLoadTextureConfiguration()
                 tTexturesToEditor[i].iAnglePerTextureRZ = tTexturesToEditorLoaded[i].iAnglePerTextureRZ or 0
                 tTexturesToEditor[i].fScalePerTextureSX = tTexturesToEditorLoaded[i].fScalePerTextureSX or 0
                 tTexturesToEditor[i].fScalePerTextureSY = tTexturesToEditorLoaded[i].fScalePerTextureSY or 0
+                computeAndCacheAlphaBounds(i)
                 tRender:add(tTex)
             end
             bTextureViewOpened = true
@@ -211,6 +213,7 @@ function onSaveTextureConfiguration()
             fp:write(string.format("tTextureOptions.sumScaleImageX = %f\n",  tTextureOptions.sumScaleImageX))
             fp:write(string.format("tTextureOptions.sumScaleImageY = %f\n",  tTextureOptions.sumScaleImageY))
             fp:write(string.format("tTextureOptions.bOnlySelectedTextures = %s\n",  tTextureOptions.bOnlySelectedTextures))
+            fp:write(string.format("tTextureOptions.bAlphaRectForceFit = %s\n",  tTextureOptions.bAlphaRectForceFit))
             
             local stRgba = string.format("{ r = %f, g = %f, b = %f, a = %f}",
                                         tTextureOptions.tRgba.r,
@@ -264,6 +267,7 @@ function onOpenTextures()
                 local tTex   = texture:new('2dw')
                 tTex:load(tDesc.file_name,tDesc.width,tDesc.height)
                 tTexturesToEditor[i].tTex = tTex
+                computeAndCacheAlphaBounds(i)
                 tRender:add(tTex)
             end
         end
@@ -289,6 +293,7 @@ function onOpenTexturesFromFolder()
                     local tTex   = texture:new('2dw')
                     tTex:load(tDesc.file_name,tDesc.width,tDesc.height)
                     tTexturesToEditor[i].tTex = tTex
+                    computeAndCacheAlphaBounds(i)
                     tRender:add(tTex)
                 end
             end
@@ -345,6 +350,30 @@ function adjustTextureSize()
             tUtil.showMessageWarn(tLang.L("failed_to_create_dynamic_texture"))
         end
     end
+end
+
+-- Compute and cache the alpha-bounded rect for texture i.
+-- Stores result in tTexturesToEditor[i].alphaBounds = {x,y,w,h} or nil.
+function computeAndCacheAlphaBounds(i)
+    local tDesc = tTexturesToEditor[i]
+    if tDesc and tDesc.file_name and tDesc.alphaBounds == nil then
+        tDesc.alphaBounds = mbm.getAlphaBounds(tDesc.file_name) -- nil when fully transparent
+    end
+end
+
+-- Return effective (w, h) for placement, respecting the alpha-rect option and current scale.
+-- For algorithms 1-4: used when indexReferenceTexture == 4.
+-- For algorithm 5:    used when bAlphaRectForceFit == true.
+function getAlphaEffectiveSize(i)
+    local tTexture = tTexturesToEditor[i]
+    local tTex     = tTexture.tTex
+    if tTexture.alphaBounds then
+        local ab     = tTexture.alphaBounds
+        local scaleX = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0) + (tTexture.fScalePerTextureSX or 0)
+        local scaleY = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0) + (tTexture.fScalePerTextureSY or 0)
+        return ab.w * scaleX, ab.h * scaleY
+    end
+    return tTex:getSize()
 end
 
 function getBiggerTextureSize()
@@ -417,6 +446,8 @@ function draw_first_fit_algorithm()
 
             if tTextureOptions.indexReferenceTexture == 3 then
                 width, height  = tTex:getSize()
+            elseif tTextureOptions.indexReferenceTexture == 4 then
+                width, height = getAlphaEffectiveSize(i)
             end
             
             -- Include spacing when checking collisions, but center placement uses real size
@@ -550,6 +581,8 @@ function draw_followed_by_bigger_or_lower_texture_algorithm()
                 apply_scale_for_tex(i)
                 if tTextureOptions.indexReferenceTexture == 3 then
                     width, height = tTex:getSize()
+                elseif tTextureOptions.indexReferenceTexture == 4 then
+                    width, height = getAlphaEffectiveSize(i)
                 end
                 if i == 1 then
                     local half_width_tex  = width  * 0.5
@@ -586,6 +619,8 @@ function draw_followed_by_bigger_or_lower_texture_algorithm()
                 apply_scale_for_tex(i)
                 if tTextureOptions.indexReferenceTexture == 3 then
                     width, height = tTex:getSize()
+                elseif tTextureOptions.indexReferenceTexture == 4 then
+                    width, height = getAlphaEffectiveSize(i)
                 end
                 
                 if (bCheckTile and iCountMaxTile >= tTextureOptions.iMaxTileCount) or ((x - (width  * 0.5) ) > x_final) then
@@ -656,6 +691,8 @@ function draw_best_fit_algorithm()
 
             if tTextureOptions.indexReferenceTexture == 3 then
                 width, height = tTex:getSize()
+            elseif tTextureOptions.indexReferenceTexture == 4 then
+                width, height = getAlphaEffectiveSize(i)
             end
             
             local checkW = width + (tTextureOptions.iSpaceX or 0)
@@ -783,6 +820,8 @@ function draw_grid_based_placement_algorithm()
 
             if tTextureOptions.indexReferenceTexture == 3 then
                 width, height = tTex:getSize()
+            elseif tTextureOptions.indexReferenceTexture == 4 then
+                width, height = getAlphaEffectiveSize(i)
             end
 
             -- required cells to cover texture (ceil to allow spanning multiple cells)
@@ -962,7 +1001,13 @@ function draw_grid_force_fit_placement_algorithm()
                     -- compute scaling to force-fit into cell (respect spacing)
                     local avail_w = math.max(1, cell_w - (tTextureOptions.iSpaceX or 0))
                     local avail_h = math.max(1, cell_h - (tTextureOptions.iSpaceY or 0))
-                    local w,h = tTex:getSize()
+                    local w, h
+                    if tTextureOptions.bAlphaRectForceFit and tTexturesToEditor[i].alphaBounds then
+                        w = tTexturesToEditor[i].alphaBounds.w
+                        h = tTexturesToEditor[i].alphaBounds.h
+                    else
+                        w, h = tTex:getSize()
+                    end
                     
                     local fitScale = 1
                     if w > 0 and h > 0 then
@@ -1076,7 +1121,8 @@ function drawSpriteSheet()
             bPrintDebug = false
             --
             local sRefTex = (tTextureOptions.indexReferenceTexture == 1) and 'bigger' or
-                            (tTextureOptions.indexReferenceTexture == 2) and 'lower'  or 'per-texture'
+                            (tTextureOptions.indexReferenceTexture == 2) and 'lower'  or
+                            (tTextureOptions.indexReferenceTexture == 4) and 'alpha rect' or 'per-texture'
             local sSortBy = tTextureOptions.bSortByName           and 'name'       or
                             tTextureOptions.bSortBySizeAscending   and 'size asc'   or
                             tTextureOptions.bSortBySizeDescending  and 'size desc'  or 'none'
@@ -1084,9 +1130,10 @@ function drawSpriteSheet()
             print(string.format("  Canvas: %dx%d  alpha:%s  powerOf2:%s",
                 tTextureOptions.fWidth, tTextureOptions.fHeight,
                 tostring(tTextureOptions.bAlpha), tostring(tTextureOptions.bPowerOf2)))
-            print(string.format("  Grid: %dx%d  axisY:%s  forceFitScale:%s  maxTile:%d",
+            print(string.format("  Grid: %dx%d  axisY:%s  forceFitScale:%s  alphaRectForceFit:%s  maxTile:%d",
                 tTextureOptions.iGridX, tTextureOptions.iGridY,
                 tostring(tTextureOptions.bAxisY), tostring(tTextureOptions.bGridForceFitScale),
+                tostring(tTextureOptions.bAlphaRectForceFit),
                 tTextureOptions.iMaxTileCount))
             print(string.format("  Spacing: x=%d y=%d  Offset: x=%d y=%d",
                 tTextureOptions.iSpaceX,  tTextureOptions.iSpaceY,
@@ -1100,18 +1147,25 @@ function drawSpriteSheet()
                 if tTex and tTexture.isSelected and tTex.visible then
                     local tDesc = tTexturesToEditor[i]
                     local w,h = tTex:getSize()
-                    print(string.format("Texture [%s] %d position: (%.2f, %.2f), width: %d, height: %d, original width: %d, original height: %d scaled: (%.2f, %.2f) out of bounds: %s", 
-                        tUtil.getShortName(tDesc.file_name), 
-                        i, 
-                        tTex.x, 
-                        tTex.y, 
-                        w, 
-                        h, 
-                        tDesc.width, 
-                        tDesc.height, 
-                        tTex.sx, 
+                    local sAlphaBounds = 'none'
+                    if tDesc.alphaBounds then
+                        sAlphaBounds = string.format("x=%d,y=%d,w=%d,h=%d",
+                            tDesc.alphaBounds.x, tDesc.alphaBounds.y,
+                            tDesc.alphaBounds.w, tDesc.alphaBounds.h)
+                    end
+                    print(string.format("Texture [%s] %d position: (%.2f, %.2f), width: %d, height: %d, original width: %d, original height: %d scaled: (%.2f, %.2f) out of bounds: %s alphaBounds: %s",
+                        tUtil.getShortName(tDesc.file_name),
+                        i,
+                        tTex.x,
+                        tTex.y,
+                        w,
+                        h,
+                        tDesc.width,
+                        tDesc.height,
+                        tTex.sx,
                         tTex.sy,
-                        tTexture.isOutOfBounds))
+                        tTexture.isOutOfBounds,
+                        sAlphaBounds))
                 elseif tTex and tTexture.isSelected and tTex.visible == false then
                     print(string.format("Texture [%s] %d is selected but not visible (probably couldn't fit in)", tUtil.getShortName(tTexture.file_name), i))
                 end
@@ -1331,6 +1385,8 @@ function showTextureOptions()
                 sDirection = 'bigger'
             elseif tTextureOptions.indexReferenceTexture == 2 then
                 sDirection = 'lower'
+            elseif tTextureOptions.indexReferenceTexture == 4 then
+                sDirection = 'alpha rect'
             else
                 sDirection = 'texture size'
             end
@@ -1367,10 +1423,11 @@ function showTextureOptions()
                 tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("bigger_texture_reference"), tTextureOptions.indexReferenceTexture or 1, 1)
                 tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("lower_texture_reference"), tTextureOptions.indexReferenceTexture, 2)
                 tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("texture_size_reference"), tTextureOptions.indexReferenceTexture, 3)
+                tTextureOptions.indexReferenceTexture = tImGui.RadioButton(tLang.L("alpha_rect_reference"), tTextureOptions.indexReferenceTexture, 4)
                 if tTextureOptions.indexReferenceTexture < 1 then
                     tTextureOptions.indexReferenceTexture = 1
-                elseif tTextureOptions.indexReferenceTexture > 3 then
-                    tTextureOptions.indexReferenceTexture = 3
+                elseif tTextureOptions.indexReferenceTexture > 4 then
+                    tTextureOptions.indexReferenceTexture = 4
                 end
 
                 tImGui.NewLine()
@@ -1394,6 +1451,7 @@ function showTextureOptions()
                 else
                     tTextureOptions.bLastGridForceFitScaleWasEnabled = false
                 end
+                tTextureOptions.bAlphaRectForceFit = tImGui.Checkbox(tLang.L("alpha_rect_fit") .. '##AlphaRectForceFit', tTextureOptions.bAlphaRectForceFit)
                 tImGui.NewLine()
                 showSortOptions()
             end

@@ -113,6 +113,16 @@ namespace mbm
         API_IMPL static bool generateImageResourceHeaderFromPng(const char* pngPath,
             const char* outputHeaderPath, const char* resourceName,
             char* strMessageError = nullptr, size_t strMessageErrorLen = 0);
+
+        // Compute the tight non-transparent bounding rectangle of an image file.
+        // Scans the image with stbi_load (RGBA always forced) and returns the smallest
+        // axis-aligned rect that contains every pixel with alpha > alphaThreshold.
+        // outX / outY are the top-left offset from image origin (0-based).
+        // Returns false if the image cannot be read or is fully transparent.
+        API_IMPL bool getAlphaBounds(const char* fileName,
+                                     uint32_t& outX, uint32_t& outY,
+                                     uint32_t& outW, uint32_t& outH,
+                                     uint8_t alphaThreshold = 0);
     
         API_IMPL void getAllTexturesFullPaths(std::vector<std::string> &result);
         API_IMPL void setTextureCapabilities(const uint32_t maxTextureSizeFound, uint32_t maxTextureWidthFound, uint32_t maxTextureHeightFound);
