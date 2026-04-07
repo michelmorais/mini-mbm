@@ -1031,7 +1031,7 @@ function drawSpriteSheet()
                     end
                     return (a.file_name or '') < (b.file_name or '')
                 end)
-elseif tTextureOptions.bSortBySizeDescending then
+        elseif tTextureOptions.bSortBySizeDescending then
                 table.sort(tTexturesToEditor, function(a, b)
                     local aw, ah = 0,0
                     local bw, bh = 0,0
@@ -1074,7 +1074,26 @@ elseif tTextureOptions.bSortBySizeDescending then
 
         if bPrintDebug then
             bPrintDebug = false
+            --
+            local sRefTex = (tTextureOptions.indexReferenceTexture == 1) and 'bigger' or
+                            (tTextureOptions.indexReferenceTexture == 2) and 'lower'  or 'per-texture'
+            local sSortBy = tTextureOptions.bSortByName           and 'name'       or
+                            tTextureOptions.bSortBySizeAscending   and 'size asc'   or
+                            tTextureOptions.bSortBySizeDescending  and 'size desc'  or 'none'
             print(string.format("Algorithm: %s, Total In: %d, Total Selected: %d", sNameAlgorithm, iTotalIn, iTotalSelected))
+            print(string.format("  Canvas: %dx%d  alpha:%s  powerOf2:%s",
+                tTextureOptions.fWidth, tTextureOptions.fHeight,
+                tostring(tTextureOptions.bAlpha), tostring(tTextureOptions.bPowerOf2)))
+            print(string.format("  Grid: %dx%d  axisY:%s  forceFitScale:%s  maxTile:%d",
+                tTextureOptions.iGridX, tTextureOptions.iGridY,
+                tostring(tTextureOptions.bAxisY), tostring(tTextureOptions.bGridForceFitScale),
+                tTextureOptions.iMaxTileCount))
+            print(string.format("  Spacing: x=%d y=%d  Offset: x=%d y=%d",
+                tTextureOptions.iSpaceX,  tTextureOptions.iSpaceY,
+                tTextureOptions.iOffsetX, tTextureOptions.iOffsetY))
+            print(string.format("  Scale: base=%.3f  adjustX=%.3f  adjustY=%.3f  refTex=%s  sortBy=%s",
+                tTextureOptions.scaleImage, tTextureOptions.sumScaleImageX, tTextureOptions.sumScaleImageY,
+                sRefTex, sSortBy))
             for i=1, #tTexturesToEditor do
                 local tTexture = tTexturesToEditor[i]
                 local tTex     = tTexture.tTex
@@ -1763,14 +1782,12 @@ function main_menu_texture_packer()
                 tImGui.EndMenu()
             end
 
-            if mbm.is('debug') then
-                local label  = "Debug: print texture info with algorithm"
-                local size   =  {x=0,y=0}
-                if tImGui.Button(label, size) then
-                    bPrintDebug = true
-                end
+            local label  = "Debug: print texture info with algorithm"
+            local size   =  {x=0,y=0}
+            if tImGui.Button(label, size) then
+                bPrintDebug = true
             end
-
+            
             tImGui.EndMenu()
         end
 
