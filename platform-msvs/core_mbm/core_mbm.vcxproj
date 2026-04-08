@@ -381,7 +381,7 @@
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c" />
     <ClCompile Include="..\..\third-party\wave\RIFFFile.cpp" />
     <ClCompile Include="..\..\third-party\wave\WAVE.cpp" />
-    <ClCompile Include="core_mbm.cpp" />
+    <ClCompile Include="core-mbm-Windows-dll-entry.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\core_mbm\new-backend-instructions.md" />

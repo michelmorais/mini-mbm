@@ -2,8 +2,10 @@
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include <Windows.h>
 
+#if defined(USE_OPENGL_ES)
 #pragma comment(lib, "libEGL.dll.lib")
 #pragma comment(lib, "libGLESv2.dll.lib")
+#endif
 
 
 BOOL APIENTRY DllMain( HMODULE hModule,
