@@ -376,6 +376,28 @@ function getAlphaEffectiveSize(i)
     return tTex:getSize()
 end
 
+-- Returns (dx, dy): render-space offset from image center to alpha content center,
+-- scaled by the current texture scale.
+-- To make the alpha center land on the layout slot (cx, cy): tTex:setPos(cx - dx, cy - dy)
+-- Returns (0, 0) when no alphaBounds is available.
+function getAlphaPositionOffset(i)
+    local tTexture = tTexturesToEditor[i]
+    local ab       = tTexture.alphaBounds
+    if ab == nil then return 0, 0 end
+    local imgW = tTexture.width  or 0
+    local imgH = tTexture.height or 0
+    if imgW <= 0 or imgH <= 0 then return 0, 0 end
+    local scaleX = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageX or 0) + (tTexture.fScalePerTextureSX or 0)
+    local scaleY = (tTextureOptions.scaleImage or 1) + (tTextureOptions.sumScaleImageY or 0) + (tTexture.fScalePerTextureSY or 0)
+    -- alpha content center in image pixel coords (y-down, top-left origin)
+    local alpha_cx = ab.x + ab.w * 0.5
+    local alpha_cy = ab.y + ab.h * 0.5
+    -- offset from image center to alpha center in render space (y-up)
+    local dx = (alpha_cx - imgW * 0.5) * scaleX
+    local dy = -(alpha_cy - imgH * 0.5) * scaleY
+    return dx, dy
+end
+
 function getBiggerTextureSize()
     local width, height = 0,0
     for i=1, #tTexturesToEditor do
@@ -482,7 +504,9 @@ function draw_first_fit_algorithm()
                             -- place texture: compute center using real width/height and per-texture offsets
                             local center_x = left + (width * 0.5) + (tTexture.iOffsetPerTextureX or 0)
                             local center_y = top  - (height * 0.5) + (tTexture.iOffsetPerTextureY or 0)
-                            tTex:setPos(center_x, center_y)
+                            local adx, ady = 0, 0
+                            if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                            tTex:setPos(center_x - adx, center_y - ady)
 
                             -- store inflated rect to reserve spacing area
                             table.insert(placed, { left = left, right = right, top = top, bottom = bottom })
@@ -530,6 +554,9 @@ function countTotalInOut()
     -- small epsilon to absorb floating-point rounding when canvas size is not
     -- divisible by the grid count (e.g. 2048/5 = 409.6 is not exact in IEEE 754)
     local eps = 0.5
+    -- when alpha rect mode is active, check only the visible (non-transparent) content area
+    local bAlphaMode = tTextureOptions.indexReferenceTexture == 4 or
+                       (tTextureOptions.bAlphaRectForceFit and tTextureOptions.iCurrentAlgorithm == 5)
 
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
@@ -537,13 +564,24 @@ function countTotalInOut()
         if tTex and tTexture.isSelected then
             iTotalSelected = iTotalSelected + 1
             if tTex.visible then
-                local w,h    = tTex:getSize()
-                local x      = tTex.x
-                local y      = tTex.y
-                local left   = x - (w * 0.5)
-                local right  = x + (w * 0.5)
-                local top    = y + (h * 0.5)
-                local bottom = y - (h * 0.5)
+                local left, right, top, bottom
+                if bAlphaMode and tTexture.alphaBounds then
+                    -- image was positioned so alpha center = layout slot; check the alpha area
+                    local adx, ady = getAlphaPositionOffset(i)
+                    local alpha_cx = tTex.x + adx
+                    local alpha_cy = tTex.y + ady
+                    local aw, ah   = getAlphaEffectiveSize(i)
+                    left   = alpha_cx - aw * 0.5
+                    right  = alpha_cx + aw * 0.5
+                    top    = alpha_cy + ah * 0.5
+                    bottom = alpha_cy - ah * 0.5
+                else
+                    local w, h = tTex:getSize()
+                    left   = tTex.x - w * 0.5
+                    right  = tTex.x + w * 0.5
+                    top    = tTex.y + h * 0.5
+                    bottom = tTex.y - h * 0.5
+                end
                 if left >= (leftBound - eps) and right <= (rightBound + eps) and bottom >= (bottomBound - eps) and top <= (topBound + eps) then
                     iTotalIn = iTotalIn + 1
                     tTexture.isOutOfBounds = false
@@ -591,7 +629,9 @@ function draw_followed_by_bigger_or_lower_texture_algorithm()
                     y = y - half_height_tex
                 end
 
-                tTex:setPos(x,y)
+                local adx, ady = 0, 0
+                if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                tTex:setPos(x - adx, y - ady)
 
                 if tTextureOptions.iMaxTileCount > 0 then
                     iCountMaxTile = iCountMaxTile + 1
@@ -636,7 +676,9 @@ function draw_followed_by_bigger_or_lower_texture_algorithm()
                     y = y - half_height_tex
                 end
 
-                tTex:setPos(x,y)
+                local adx, ady = 0, 0
+                if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                tTex:setPos(x - adx, y - ady)
 
                 if tTextureOptions.iMaxTileCount > 0 then
                     iCountMaxTile = iCountMaxTile + 1
@@ -736,7 +778,9 @@ function draw_best_fit_algorithm()
                 -- compute actual center using real width/height and per-texture offsets
                 local center_x = bestCandidate.left + (width * 0.5) + (tTexture.iOffsetPerTextureX or 0)
                 local center_y = bestCandidate.top  - (height * 0.5) + (tTexture.iOffsetPerTextureY or 0)
-                tTex:setPos(center_x, center_y)
+                local adx, ady = 0, 0
+                if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                tTex:setPos(center_x - adx, center_y - ady)
 
                 table.insert(placed, bestCandidate)
             else
@@ -865,7 +909,9 @@ function draw_grid_based_placement_algorithm()
                                 local bottom= center_y - (height * 0.5)
 
                                 if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
-                                    tTex:setPos(center_x, center_y)
+                                    local adx, ady = 0, 0
+                                    if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                                    tTex:setPos(center_x - adx, center_y - ady)
                                     iCountMaxTile = iCountMaxTile + 1
                                     placed = true
                                     break
@@ -904,7 +950,9 @@ function draw_grid_based_placement_algorithm()
                                 local bottom= center_y - (height * 0.5)
 
                                 if left >= leftBound and right <= rightBound and bottom >= bottomBound and top <= topBound then
-                                    tTex:setPos(center_x, center_y)
+                                    local adx, ady = 0, 0
+                                    if tTextureOptions.indexReferenceTexture == 4 then adx, ady = getAlphaPositionOffset(i) end
+                                    tTex:setPos(center_x - adx, center_y - ady)
                                     iCountMaxTile = iCountMaxTile + 1
                                     placed = true
                                     break
@@ -1027,7 +1075,13 @@ function draw_grid_force_fit_placement_algorithm()
                         if finalScale <= 0 then finalScale = 0.0001 end
                         fMinScale = math.min(fMinScale, finalScale)
                     end
-                    tTex:setPos(center_x, center_y)
+                    -- when alpha rect centering is enabled and not using force-fit scale,
+                    -- offset position so alpha content center = cell center
+                    local adx, ady = 0, 0
+                    if tTextureOptions.bAlphaRectForceFit and not tTextureOptions.bGridForceFitScale then
+                        adx, ady = getAlphaPositionOffset(i)
+                    end
+                    tTex:setPos(center_x - adx, center_y - ady)
 
                     iCountMaxTile = iCountMaxTile + 1
                     nextCell = nextCell + 1
@@ -1045,6 +1099,19 @@ function draw_grid_force_fit_placement_algorithm()
             local tTex     = tTexture.tTex
             if tTex and tTexture.isSelected and tTex.visible then
                 tTex:setScale(fMinScale, fMinScale)
+                -- when alpha rect centering is also enabled, reposition so alpha center = cell center
+                if tTextureOptions.bAlphaRectForceFit then
+                    local ab = tTexture.alphaBounds
+                    if ab then
+                        local imgW = tTexture.width  or 0
+                        local imgH = tTexture.height or 0
+                        if imgW > 0 and imgH > 0 then
+                            local dx = ((ab.x + ab.w * 0.5) - imgW * 0.5) * fMinScale
+                            local dy = -((ab.y + ab.h * 0.5) - imgH * 0.5) * fMinScale
+                            tTex:setPos(tTex.x - dx, tTex.y - dy)
+                        end
+                    end
+                end
             end
         end
         tTextureOptions.scaleImage = fMinScale
