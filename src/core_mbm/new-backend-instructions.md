@@ -277,7 +277,11 @@ front-faces in submission order.
 - Create a depth texture / renderbuffer matching the backbuffer dimensions every frame
   (or create once and resize on window resize).
 - Attach it to the render pass with a clear value of `1.0` (far plane).
-- Use `less` depth comparison with depth writes enabled for normal 3D objects.
+- Use **less-or-equal** depth comparison with depth writes enabled for normal 3D objects.
+  This matches `GLDepthFunc(GL_LEQUAL)` used on all OpenGL ES platforms.  Using strict
+  `less` breaks tile maps: transparent bricks write Z to the depth buffer; the next brick
+  at the identical Z (same layer, overlapping pixel) fails the strict test and is
+  discarded, showing a white/clear hole instead of the blended result.  See §A4.
 - Depth range is **[0, 1]** (see §5).
 
 The engine also calls `DEVICE::setDepthTest(bool)` and `DEVICE::clearDepth()` — implement
@@ -1523,3 +1527,45 @@ The same pattern is used for Android; see the `BUILD_ANDROID` block in
 `supportedInterfaceOrientations`, matching the `UISupportedInterfaceOrientations` keys in
 `Info.plist` (LandscapeLeft + LandscapeRight).  To add portrait support remove both
 restrictions.
+
+---
+
+## A4. Tile-map alpha transparency — depth comparison must be `LessEqual`
+
+### Problem
+
+When a tile map layer contains bricks that overlap (e.g. a wide/tall brick that extends
+into an adjacent cell), transparent (alpha < 1) pixels from the first brick are written to
+the depth buffer.  The second brick occupies exactly the same Z value (same layer, same
+orthographic depth).  With a strict `Less` depth test the second brick's fragments at those
+overlapping pixels **fail** (equal is not less) and are discarded entirely.  The result is
+a white or clear rectangle wherever two semi-transparent bricks overlap — only visible on
+Metal/iOS/macOS because all OpenGL ES platforms (Linux, Windows, Android) already use
+`GL_LEQUAL`.
+
+### Root cause
+
+`getOrCreateDepthStencilState()` in `src/core_mbm/shader-metal.mm` created the
+`MTLDepthStencilState` with `MTLCompareFunctionLess` instead of
+`MTLCompareFunctionLessEqual`.
+
+This affects **both macOS and iOS** — they share the same `shader-metal.mm`.
+
+### Fix
+
+In `src/core_mbm/shader-metal.mm`, `getOrCreateDepthStencilState()`:
+
+```objc
+// Before (incorrect — breaks overlapping same-Z tile bricks with alpha)
+dsd.depthCompareFunction = MTLCompareFunctionLess;
+
+// After (correct — matches GL_LEQUAL on all OpenGL ES platforms)
+dsd.depthCompareFunction = MTLCompareFunctionLessEqual;
+```
+
+### Rule for new backends
+
+Always use **less-or-equal** (LEQUAL / `<=`) as the default depth comparison function.
+Tile map layers render multiple bricks at the exact same Z; a strict `Less` function
+discards any brick that shares depth with a previously rendered brick in the same
+pass.

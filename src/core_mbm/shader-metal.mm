@@ -107,13 +107,16 @@ static MTLWinding metalWinding(uint32_t mode_front_face_direction)
         : MTLWindingClockwise;
 }
 
-// Lazily creates a depth-stencil state: less comparison, depth writes enabled.
+// Lazily creates a depth-stencil state: less-or-equal comparison, depth writes enabled.
+// LessEqual (not Less) mirrors GLDepthFunc(GL_LEQUAL) used by all OpenGL ES platforms.
+// This allows same-Z tiles in the same layer to overwrite each other so that transparent
+// bricks do not block subsequently rendered bricks at the identical depth value.
 static id<MTLDepthStencilState> getOrCreateDepthStencilState(mbm::SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
 {
     if (!ctx->defaultDepthStencilState)
     {
         MTLDepthStencilDescriptor* dsd = [MTLDepthStencilDescriptor new];
-        dsd.depthCompareFunction = MTLCompareFunctionLess;
+        dsd.depthCompareFunction = MTLCompareFunctionLessEqual;
         dsd.depthWriteEnabled    = YES;
         ctx->defaultDepthStencilState =
             [ctx->mtlDevice newDepthStencilStateWithDescriptor:dsd];
