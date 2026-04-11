@@ -1,7 +1,7 @@
 --[[
 -------------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2020      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2020-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -18,183 +18,489 @@
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Scene Editor 2d World and 2d Screen
+   Scene Editor 2D — Grid / Panel Based Layout
 
    This is a script based on mbm engine.
 
-   Scene Editor 2d meant to create your scene 2d easier.
+   Scene Editor 2D with grid/panel system for resolution-independent 2D scene layout.
 
    More info at: https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d
 
 ]]--
 
-tImGui        =     require "ImGui"
-tUtil         =     require "editor_utils"
+tImGui        = require "ImGui"
+tUtil         = require "editor_utils"
 
-function onInitScene()
-    camera2d		 = mbm.getCamera("2d")
-    tLineCenterX     = line:new("2dw",0,0,50)
-    tLineCenterY     = line:new("2dw",0,0,50)
-    tLineScreen2d    = line:new("2dw")
-    tLineCenterX:add({-9999999,0, 9999999,0})
-    tLineCenterY:add({0,-9999999, 0,9999999})
-    local xRes = 800
-    local yRes = 600
-    local tRectangleScreen = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2  }
-    tLineScreen2d:add(tRectangleScreen)
-    tLineScreen2d:setColor(0.7,0.7,0.7)
-    tWindowsTitle    = {    title_image_selector    = "title_image_selector",
-                            title_meshes            = "title_meshes",
-                            title_mesh_info         = "title_mesh_info",
-                            title_loading           = "title_loading",
-                            title_adding_mesh       = "title_adding_mesh",
-                          }
-    tLineCenterX:setColor(1,0,0)
-    tLineCenterY:setColor(0,1,0)
-    camera2d.iIteration         = 0
-    bEnableMoveWorld            = true
-    bClickedOverAnyMesh         = false
-    bMovingAnyMesh              = false
-    tUtil.sMessageOverlay       = 'Welcome to Scene Editor 2D!!!'
-    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
-    ImGuiTreeNodeFlags_Selected = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
-    local sTextureFileName      = tUtil.createAlphaPattern(1024,768,32,{r=240,g=240,b=240},{r=125,g=125,b=125})
-    if sTextureFileName ~= nil then
-        local iW, iH      = mbm.getSizeScreen()
-        tex_alpha_pattern  = texture:new('2dw')
-        tex_alpha_pattern:load(sTextureFileName)
-        tex_alpha_pattern:setSize(iW, iH)
-        tex_alpha_pattern.z       = 99
-        tex_alpha_pattern.visible = false
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Constants
+-- ─────────────────────────────────────────────────────────────────────────────
+local PANEL_DEPTH_COLORS = {
+    {r=0.50, g=0.50, b=0.50, a=0.15},  -- depth 0: gray
+    {r=0.30, g=0.50, b=0.80, a=0.15},  -- depth 1: blue
+    {r=0.30, g=0.70, b=0.40, a=0.15},  -- depth 2: green
+    {r=0.80, g=0.75, b=0.20, a=0.15},  -- depth 3: yellow
+    {r=0.85, g=0.50, b=0.20, a=0.15},  -- depth 4: orange
+    {r=0.70, g=0.30, b=0.70, a=0.15},  -- depth 5: purple
+    {r=0.20, g=0.75, b=0.75, a=0.15},  -- depth 6: teal
+}
+
+local PANEL_BORDER_COLORS = {
+    {r=0.60, g=0.60, b=0.60},  -- depth 0
+    {r=0.40, g=0.60, b=1.00},  -- depth 1
+    {r=0.30, g=0.85, b=0.45},  -- depth 2
+    {r=1.00, g=0.90, b=0.20},  -- depth 3
+    {r=1.00, g=0.60, b=0.20},  -- depth 4
+    {r=0.85, g=0.40, b=0.85},  -- depth 5
+    {r=0.25, g=0.90, b=0.90},  -- depth 6
+}
+
+local SELECTED_BORDER_COLOR = {r=1, g=1, b=0}
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Resolution table (preserved from original editor)
+-- ─────────────────────────────────────────────────────────────────────────────
+local tResolution = {
+    {x = 800 , y = 600  , comment = 'XVGA'},
+    {x = 1024, y = 768  , comment = ''},
+    {x = 1280, y = 720  , comment = 'Standard High Density (HD)'},
+    {x = 1280, y = 736  , comment = ''},
+    {x = 1280, y = 752  , comment = ''},
+    {x = 1280, y = 768  , comment = 'WXGA'},
+    {x = 1334, y = 750  , comment = 'Apple phones only'},
+    {x = 1280, y = 800  , comment = 'WXGA'},
+    {x = 1920, y = 1080 , comment = 'Standard Full HD Display'},
+    {x = 2360, y = 1640 , comment = 'iPad Air / iPad Pro'},
+    {x = 2560, y = 1440 , comment = 'Standard Quad HD Display'},
+    {x = 3840, y = 2160 , comment = 'Standard Ultra HD Display'},
+}
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Forward declarations / globals set in onInitScene
+-- ─────────────────────────────────────────────────────────────────────────────
+local camera2d
+local tLineCenterX, tLineCenterY, tLineScreen2d
+local tex_alpha_pattern
+local tWindowsArea
+local ImGuiWindowFlags_NoMove
+local ImGuiTreeNodeFlags_Selected
+
+-- Editor state
+local tPanels         = {}      -- tree of panels
+local tFreeMeshes     = {}      -- objects not in any panel
+local tSelectedPanel  = nil     -- currently selected panel ref
+local tSelectedObjs   = {}      -- selected object list (for move/properties)
+local tAllMesh        = {}      -- flat list of ALL objects (panels + free)
+local iNextPanelId    = 1       -- auto-increment panel id counter
+
+-- UI state
+local bShowPanelBrowser   = true
+local bShowPanelProps     = false
+local bShowMeshList       = false
+local bShowAddingMesh     = false
+local bShowDetailOfMesh   = true
+local bShowGridDialog     = false
+local bEnableMoveWorld    = true
+local bEnableMoveWindow   = false
+local bClickedOverAnyMesh = false
+local bMovingAnyMesh      = false
+local isClickedMouseLeft  = false
+local keyControlPressed   = false
+local keyShiftPressed     = false
+local sLastMeshAdd        = ''
+local sLastEditorFileName = ''
+local tFollowCam          = nil
+local tLastMeshAdded      = nil
+local cCoroutineLoadScene = nil
+local v1                  = nil
+
+-- sTextureShape* for object selection outlines
+local sTextureShapeOver    = '#86FF8686'
+local sTextureShapeSelected= '#8686FF48'
+
+-- Options (editor + launch)
+local tOptionsEditor = {}
+local tOptionsLaunch = {}
+
+-- Filter
+local tFilter = {
+    tWorld      = {'All', '2D World', '2D Screen'},
+    tType       = {'All Type','Font','Gif','Mesh','Particle','Sprite','Texture','Tile'},
+    tPhysicType = {'All Type','Static','Dynamic','Kinematic','Character'},
+}
+
+local tPhysicEditor = {
+    tType       = {'None','Static','Dynamic','Kinematic','Character'},
+    Static      = {type='static',    density=0, friction=0.3,                  scaleX=1, scaleY=1, sensor=false},
+    Dynamic     = {type='dynamic',   density=1, friction=10, restitution=0.1, scaleX=1, scaleY=1, sensor=false, bullet=false},
+    Kinematic   = {type='kinematic', density=1, friction=10, restitution=0.1, scaleX=1, scaleY=1, sensor=false, bullet=false},
+    Character   = {type='character', density=1, friction=10, restitution=0.1, scaleX=1, scaleY=1, sensor=false, bullet=false},
+}
+
+-- Window titles (ImGui unique IDs)
+local tWindowsTitle = {
+    title_panel_browser  = "title_panel_browser",
+    title_panel_props    = "title_panel_props",
+    title_meshes         = "title_meshes",
+    title_mesh_info      = "title_mesh_info",
+    title_loading        = "title_loading",
+    title_adding_mesh    = "title_adding_mesh",
+    title_grid_dialog    = "title_grid_dialog",
+    title_obj_assignment = "title_obj_assignment",
+}
+
+-- Grid dialog state
+local tGridDialog = {
+    iCols = 2,
+    iRows = 2,
+    sColPct = "50,50",
+    sRowPct = "50,50",
+    bCustomCols = false,
+    bCustomRows = false,
+    sName = "panel",
+    iWorldIndex = 1,  -- 1=2dw, 2=2ds
+    tWorldOptions = {"2D World", "2D Screen"},
+}
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Panel data model functions
+-- ─────────────────────────────────────────────────────────────────────────────
+
+--- Get depth color (cycles through palette)
+local function getDepthFillColor(depth)
+    local idx = (depth % #PANEL_DEPTH_COLORS) + 1
+    return PANEL_DEPTH_COLORS[idx]
+end
+
+local function getDepthBorderColor(depth)
+    local idx = (depth % #PANEL_BORDER_COLORS) + 1
+    return PANEL_BORDER_COLORS[idx]
+end
+
+--- Generate a unique panel id string
+local function generatePanelId()
+    local id = string.format("panel_%d", iNextPanelId)
+    iNextPanelId = iNextPanelId + 1
+    return id
+end
+
+--- Get the expected resolution (accounting for invert flag)
+local function getExpectedResolution()
+    local entry = tResolution[tOptionsEditor.iIndexResolution]
+    if tOptionsEditor.bInvertResolution then
+        return entry.y, entry.x
     else
-        print('Could not create the alpha pattern!')
+        return entry.x, entry.y
+    end
+end
+
+--- Compute a panel's absolute pixel rect given parent bounds
+--- For 2ds panels: anchor-based relative to parent
+--- For 2dw panels: world position + size (centered at origin like the resolution rect)
+local function computePanelRect(panel, parentRect)
+    if panel.world == "2ds" then
+        local a = panel.anchor
+        local pw = parentRect.w
+        local ph = parentRect.h
+        return {
+            x = parentRect.x + a.left * pw,
+            y = parentRect.y + a.top  * ph,
+            w = (a.right - a.left) * pw,
+            h = (a.bottom - a.top) * ph,
+        }
+    else -- 2dw
+        local wp = panel.worldPos
+        local ws = panel.worldSize
+        return {
+            x = wp.x - ws.w * 0.5,
+            y = wp.y - ws.h * 0.5,
+            w = ws.w,
+            h = ws.h,
+        }
+    end
+end
+
+--- Get the root rect (scene bounds) based on expected resolution
+local function getRootRect()
+    local xRes, yRes = getExpectedResolution()
+    return {x = -xRes * 0.5, y = -yRes * 0.5, w = xRes, h = yRes}
+end
+
+--- Create a new panel table
+local function createPanel(name, world, anchor, worldPos, worldSize, depth)
+    return {
+        id        = generatePanelId(),
+        name      = name or "panel",
+        world     = world or "2dw",
+        anchor    = anchor or {left=0, top=0, right=1, bottom=1},
+        worldPos  = worldPos  or {x=0, y=0},
+        worldSize = worldSize or {w=400, h=300},
+        depth     = depth or 0,
+        lineRef   = nil,
+        shapeRef  = nil,
+        objects   = {},
+        children  = {},
+    }
+end
+
+--- Destroy visual handles for a panel (recursive)
+local function destroyPanelVisuals(panel)
+    if panel.lineRef then
+        panel.lineRef:destroy()
+        panel.lineRef = nil
+    end
+    if panel.shapeRef then
+        panel.shapeRef:destroy()
+        panel.shapeRef = nil
+    end
+    for _, child in ipairs(panel.children) do
+        destroyPanelVisuals(child)
+    end
+end
+
+--- Destroy a panel and all its children, removing objects from tAllMesh
+local function destroyPanel(panel)
+    -- destroy child panels first
+    for _, child in ipairs(panel.children) do
+        destroyPanel(child)
+    end
+    -- destroy objects inside this panel
+    for _, obj in ipairs(panel.objects) do
+        obj:destroy()
+        if obj.tShape then obj.tShape:destroy() end
+        for j = #tAllMesh, 1, -1 do
+            if tAllMesh[j] == obj then
+                table.remove(tAllMesh, j)
+                break
+            end
+        end
+    end
+    panel.objects = {}
+    destroyPanelVisuals(panel)
+end
+
+--- Remove a panel from its parent's children list (or from tPanels root list)
+local function removePanelFromParent(panel, parentList)
+    parentList = parentList or tPanels
+    for i, p in ipairs(parentList) do
+        if p == panel then
+            table.remove(parentList, i)
+            return true
+        end
+        if removePanelFromParent(panel, p.children) then
+            return true
+        end
+    end
+    return false
+end
+
+--- Find the parent list that contains a panel
+local function findParentList(panel, parentList)
+    parentList = parentList or tPanels
+    for _, p in ipairs(parentList) do
+        if p == panel then return parentList end
+        local found = findParentList(panel, p.children)
+        if found then return found end
+    end
+    return nil
+end
+
+--- Traverse all panels calling fn(panel, parentRect, depth)
+local function traversePanels(panels, parentRect, depth, fn)
+    for _, panel in ipairs(panels) do
+        panel.depth = depth
+        local rect = computePanelRect(panel, parentRect)
+        panel._rect = rect  -- cache for use in rendering/interaction
+        fn(panel, rect, depth)
+        traversePanels(panel.children, rect, depth + 1, fn)
+    end
+end
+
+--- Rebuild visual line + shape objects for all panels
+local function rebuildPanelVisuals()
+    -- first destroy all existing visuals
+    for _, panel in ipairs(tPanels) do
+        destroyPanelVisuals(panel)
     end
 
-    tResolution = {
-		{x = 800 , y = 600  , comment = 'XVGA'},
-		{x = 1024, y = 768  , comment = ''},
-		{x = 1280, y = 720  , comment = 'Standard High Density (HD)'},
-		{x = 1280, y = 736  , comment = ''},
-		{x = 1280, y = 752  , comment = ''},
-		{x = 1280, y = 768  , comment = 'WXGA'},
-		{x = 1334, y = 750  , comment = 'Apple phones only'},
-		{x = 1280, y = 800  , comment = 'WXGA'},
-		{x = 1920, y = 1080 , comment = 'Standard Full HD Display'},
-		{x = 2560, y = 1440 , comment = 'Standard Quad HD Display'},
-        {x = 3840, y = 2160 , comment = 'Standard Ultra HD Display'}}
-    
-    
-    tFilter = {
-        tWorld      = {'All', '2D World', '2D Screen'},
-        tType       = {'All Type','Font', 'Gif', 'Mesh','Particle', 'Sprite', 'Texture', 'Tile' },
-        tPhysicType = {'All Type','Static', 'Dynamic', 'Kinematic', 'Character' },
-    }
+    local rootRect = getRootRect()
+    traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
+        -- Create border line
+        local ln = line:new("2dw")
+        local x1, y1 = rect.x, rect.y
+        local x2, y2 = rect.x + rect.w, rect.y + rect.h
+        ln:add({x1,y1, x1,y2, x2,y2, x2,y1, x1,y1})
+        local bc = getDepthBorderColor(depth)
+        ln:setColor(bc.r, bc.g, bc.b)
+        panel.lineRef = ln
 
-    tPhysicEditor   = {
-        tType       = {'None', 'Static', 'Dynamic', 'Kinematic', 'Character' },
-        Static      = {type = 'static',     density = 0, friction = 0.3,                   scaleX = 1, scaleY = 1, sensor = false},
-        Dynamic     = {type = 'dynamic',    density = 1, friction = 10, restitution = 0.1, scaleX = 1, scaleY = 1, sensor = false, bullet = false},
-        Kinematic   = {type = 'kinematic',  density = 1, friction = 10, restitution = 0.1, scaleX = 1, scaleY = 1, sensor = false, bullet = false},
-        Character   = {type = 'character',  density = 1, friction = 10, restitution = 0.1, scaleX = 1, scaleY = 1, sensor = false, bullet = false},
-    }
-
-    v1                      = vec2:new()
-    sTextureShapeOver       = '#86FF8686'
-    sTextureShapeSelected   = '#8686FF48'
-    iLastNodeSelected       = 0
-    iFiltered               = 0
-    tWindowsArea            = tUtil.onNewAnyWindowsHovered()
-    onNewSceneEditor()
+        -- Create fill shape
+        local sh = shape:new("2dw")
+        sh:setPos((x1+x2)*0.5, (y1+y2)*0.5)
+        sh:setScale(rect.w, rect.h, 1)
+        local fc = getDepthFillColor(depth)
+        local colorHex = string.format('#%02X%02X%02X%02X',
+            math.floor(fc.a*255), math.floor(fc.r*255),
+            math.floor(fc.g*255), math.floor(fc.b*255))
+        sh:setTexture(colorHex)
+        sh.z = 50 - depth  -- deeper panels render on top
+        panel.shapeRef = sh
+    end)
 end
 
+--- Reflow: reposition all objects within panels according to their anchors
+local function reflowPanelObjects()
+    local rootRect = getRootRect()
+    traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
+        for _, obj in ipairs(panel.objects) do
+            -- Position by anchor within panel rect
+            local ox = rect.x + obj.anchorX * rect.w
+            local oy = rect.y + obj.anchorY * rect.h
+            obj:setPos(ox, oy, obj.z)
 
-
-function shiftAddedMeshAccordingToOptions(tObj)
-    if not tOptionsEditor.bCenterOfScreen and tLastMeshAdded then
-        local w,h = tOptionsEditor.initialDisplacement.x, tOptionsEditor.initialDisplacement.y
-        if tOptionsEditor.tIncrementOnNewMesh.x then
-            if tOptionsEditor.tDirectionIncrementOnNewMesh.bRight then
-                tObj.x = tLastMeshAdded.x + w
-                tObj.tShape.x = tObj.x
-            else
-                tObj.x = tLastMeshAdded.x - w
-                tObj.tShape.x = tObj.x
+            -- Auto-fit: scale down if object exceeds panel bounds
+            local ow, oh = obj:getSize()
+            if ow > 0 and oh > 0 then
+                local maxW = rect.w
+                local maxH = rect.h
+                if ow > maxW or oh > maxH then
+                    local scale = math.min(maxW / ow, maxH / oh)
+                    obj.sx = obj.sx * scale
+                    obj.sy = obj.sy * scale
+                    local w2, h2 = obj:getSize()
+                    if obj.tShape then
+                        obj.tShape:setScale(w2, h2, 1)
+                    end
+                end
             end
-        else
-            tObj.x = tLastMeshAdded.x
-            tObj.tShape.x = tObj.x
         end
-        if tOptionsEditor.tIncrementOnNewMesh.y then
-            if tOptionsEditor.tDirectionIncrementOnNewMesh.bUp then
-                tObj.y = tLastMeshAdded.y + h
-                tObj.tShape.y = tObj.y
+    end)
+end
+
+--- Update panel visuals without full rebuild (just move existing line/shape)
+local function updatePanelVisuals()
+    local rootRect = getRootRect()
+    traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
+        if panel.lineRef then
+            local x1, y1 = rect.x, rect.y
+            local x2, y2 = rect.x + rect.w, rect.y + rect.h
+            panel.lineRef:set({x1,y1, x1,y2, x2,y2, x2,y1, x1,y1}, 1)
+            if panel == tSelectedPanel then
+                panel.lineRef:setColor(SELECTED_BORDER_COLOR.r, SELECTED_BORDER_COLOR.g, SELECTED_BORDER_COLOR.b)
             else
-                tObj.y = tLastMeshAdded.y - h
-                tObj.tShape.y = tObj.y
+                local bc = getDepthBorderColor(depth)
+                panel.lineRef:setColor(bc.r, bc.g, bc.b)
             end
-        else
-            tObj.y = tLastMeshAdded.y
-            tObj.tShape.y = tObj.y
+        end
+        if panel.shapeRef then
+            local cx = rect.x + rect.w * 0.5
+            local cy = rect.y + rect.h * 0.5
+            panel.shapeRef:setPos(cx, cy)
+            panel.shapeRef:setScale(rect.w, rect.h, 1)
+        end
+    end)
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Resolution rectangle (preserved from original)
+-- ─────────────────────────────────────────────────────────────────────────────
+local function updateRectangleLine()
+    local xRes, yRes = getExpectedResolution()
+    local r = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2}
+    tLineScreen2d:set(r, 1)
+    -- also update panel visuals when resolution changes
+    updatePanelVisuals()
+    reflowPanelObjects()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Hit-test: find which panel a world-space point is inside (deepest first)
+-- ─────────────────────────────────────────────────────────────────────────────
+local function pointInRect(px, py, rect)
+    return px >= rect.x and px <= rect.x + rect.w
+       and py >= rect.y and py <= rect.y + rect.h
+end
+
+local function hitTestPanel(px, py, panels, parentRect)
+    -- iterate in reverse so last (topmost) panel wins
+    for i = #panels, 1, -1 do
+        local panel = panels[i]
+        local rect = computePanelRect(panel, parentRect)
+        -- check children first (deeper panels)
+        local childHit = hitTestPanel(px, py, panel.children, rect)
+        if childHit then return childHit end
+        if pointInRect(px, py, rect) then
+            return panel
         end
     end
-    tLastMeshAdded = tObj
-    tFollowCam = tObj
+    return nil
 end
 
-function initialSetUpForAddedMesh(tObj)
-    table.insert(tAllMesh,tObj)
-    tObj.index = #tAllMesh
-    shiftAddedMeshAccordingToOptions(tObj)
-end
-
-function onAddMesh()
-    local fileName = mbm.openMultiFile(sLastMeshAdd,"tile","spt","ptl","png","msh","fnt","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
-    if fileName then
-		if type(fileName) == 'string' then
-			local tMeshTmp = tUtil.onAddMeshToEditor(fileName,true,"2dw")
-            if tMeshTmp then
-                initialSetUpForAddedMesh(tMeshTmp)
-				bShowMeshList = true
-                sLastMeshAdd = fileName
-			else
-                tUtil.showMessageWarn(tLang.L("failed_to_add_mesh"))
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Object selection helpers (preserved from original)
+-- ─────────────────────────────────────────────────────────────────────────────
+local function setSelectedObj(tObj, bValue)
+    if bValue then
+        if not tObj.isSelected then
+            tObj.bJustSelected = true
+            tObj.tShape:setTexture(sTextureShapeSelected)
+        else
+            tObj.bJustSelected = false
+        end
+        tObj.isSelected     = true
+        tObj.tShape.visible = true
+        local found = false
+        for _, that in ipairs(tSelectedObjs) do
+            if that == tObj then found = true; break end
+        end
+        if not found then
+            table.insert(tSelectedObjs, tObj)
+        end
+    else
+        tObj.isSelected     = false
+        tObj.tShape.visible = false
+        for i, that in ipairs(tSelectedObjs) do
+            if that == tObj then
+                table.remove(tSelectedObjs, i)
+                break
             end
-		elseif type(fileName) == 'table' then
-			local width = 0
-			for i=1, #fileName do
-				local tMeshTmp = tUtil.onAddMeshToEditor(fileName[i],true,"2dw")
-                if tMeshTmp then
-					tMeshTmp.x = tMeshTmp.x + width
-					local w,h = tMeshTmp:getSize()
-					width = width + w
-                    initialSetUpForAddedMesh(tMeshTmp)
-					sLastMeshAdd = fileName
-                    bShowMeshList = true
-                else
-                    tUtil.showMessageWarn(tLang.L("failed_to_add_mesh_alt"))
-				end
-			end
-		end
-	end
+        end
+    end
 end
 
-function onUnSelectAll()
-    for i=1, #tSelectedObjs do
-        local tObj          = tSelectedObjs[i]
+local function onUnSelectAll()
+    for _, tObj in ipairs(tSelectedObjs) do
         tObj.isSelected     = false
         tObj.tShape.visible = false
     end
     tSelectedObjs = {}
 end
 
-function onSelectAll()
+local function filter(tObj)
+    if tOptionsEditor.iIndexWorldMesh > 1 then
+        if tOptionsEditor.iIndexWorldMesh == 2 then
+            if tObj.is2ds then return false end
+        elseif tOptionsEditor.iIndexWorldMesh == 3 then
+            if not tObj.is2ds then return false end
+        end
+    end
+    if tOptionsEditor.iIndexTypeMeshFilter > 1 then
+        local sType = tFilter.tType[tOptionsEditor.iIndexTypeMeshFilter]:lower()
+        if tObj.type ~= sType then return false end
+    end
+    if tOptionsEditor.iIndexTypePhysicsFilter > 1 then
+        local sType = tFilter.tPhysicType[tOptionsEditor.iIndexTypePhysicsFilter]:lower()
+        if not tObj.tPhysicInfo or tObj.tPhysicInfo.type ~= sType then return false end
+    end
+    return true
+end
+
+local function onSelectAll()
     tSelectedObjs = {}
-    for i=1, #tAllMesh do
-        local tObj = tAllMesh[i]
+    for _, tObj in ipairs(tAllMesh) do
         if filter(tObj) and not tObj.isBlocked then
             tObj.isSelected     = true
             tObj.tShape.visible = true
-            table.insert(tSelectedObjs,tObj)
+            table.insert(tSelectedObjs, tObj)
         else
             tObj.isSelected     = false
             tObj.tShape.visible = false
@@ -202,10 +508,39 @@ function onSelectAll()
     end
 end
 
-function onInvertSelection()
+local function onDeleteSelected()
+    for _, tObj in ipairs(tSelectedObjs) do
+        for j = #tAllMesh, 1, -1 do
+            if tAllMesh[j] == tObj then
+                table.remove(tAllMesh, j)
+                break
+            end
+        end
+        -- also remove from panel objects list
+        if tObj.panelRef then
+            for j = #tObj.panelRef.objects, 1, -1 do
+                if tObj.panelRef.objects[j] == tObj then
+                    table.remove(tObj.panelRef.objects, j)
+                    break
+                end
+            end
+        else
+            for j = #tFreeMeshes, 1, -1 do
+                if tFreeMeshes[j] == tObj then
+                    table.remove(tFreeMeshes, j)
+                    break
+                end
+            end
+        end
+        tObj:destroy()
+        if tObj.tShape then tObj.tShape:destroy() end
+    end
     tSelectedObjs = {}
-    for i=1, #tAllMesh do
-        local tObj = tAllMesh[i]
+end
+
+local function onInvertSelection()
+    tSelectedObjs = {}
+    for _, tObj in ipairs(tAllMesh) do
         if filter(tObj) and not tObj.isBlocked then
             if tObj.isSelected then
                 tObj.isSelected     = false
@@ -213,7 +548,7 @@ function onInvertSelection()
             else
                 tObj.isSelected     = true
                 tObj.tShape.visible = true
-                table.insert(tSelectedObjs,tObj)
+                table.insert(tSelectedObjs, tObj)
             end
         else
             tObj.isSelected     = false
@@ -222,37 +557,714 @@ function onInvertSelection()
     end
 end
 
-function onDeleteSelected()
-    for i=1, #tSelectedObjs do
-        local tObj          = tSelectedObjs[i]
-        for j=1, #tAllMesh do
-            local that = tAllMesh[j]
-            if that == tObj then
-                table.remove(tAllMesh,j)
-                that:destroy()
-                that.tShape:destroy()
+local function updateVisibilityByFilter()
+    for _, tObj in ipairs(tAllMesh) do
+        if filter(tObj) then
+            tObj.visible = true
+        else
+            tObj.visible = false
+            tObj.tShape.visible = false
+        end
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- New scene / reset
+-- ─────────────────────────────────────────────────────────────────────────────
+local function onNewSceneEditor()
+    -- clear objects
+    if tSelectedObjs then onSelectAll(); onDeleteSelected() end
+    -- clear panels
+    for _, panel in ipairs(tPanels) do
+        destroyPanel(panel)
+    end
+    tPanels        = {}
+    tFreeMeshes    = {}
+    tSelectedPanel = nil
+    tSelectedObjs  = {}
+    tAllMesh       = {}
+    iNextPanelId   = 1
+
+    tOptionsEditor = {
+        iIndexResolution         = 1,
+        bInvertResolution        = false,
+        bDrawResolution          = true,
+        fSceneCamPos             = {x=0, y=0},
+        tColorBackground         = {r=tUtil.tColorBackground.r, g=tUtil.tColorBackground.g, b=tUtil.tColorBackground.b},
+        iIndexWorldMesh          = 1,
+        iIndexTypeMeshFilter     = 1,
+        iIndexTypePhysicsFilter  = 1,
+        sScaleAxis               = 'y',
+        sCurrentScriptExecution  = '',
+        sExtraScript             = '',
+    }
+
+    tOptionsLaunch = {
+        iIndexResolution  = 1,
+        bInvertResolution = false,
+    }
+
+    sLastMeshAdd        = ''
+    tLastMeshAdded      = nil
+    tFollowCam          = nil
+    sLastEditorFileName = ''
+    keyControlPressed   = false
+    keyShiftPressed     = false
+    bShowMeshList       = false
+    bShowAddingMesh     = false
+    bShowPanelBrowser   = true
+    bShowPanelProps     = false
+    bShowDetailOfMesh   = true
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Camera following (preserved from original)
+-- ─────────────────────────────────────────────────────────────────────────────
+local function cameraFollowing()
+    if not tFollowCam then return end
+    local iSpeedCam = 1000
+    local bAnyFollow = false
+    local iW, iH = mbm.getSizeScreen()
+    local w, h = tFollowCam:getSize()
+    if (w > iW or h > iH) and tFollowCam:isOnScreen() then
+        tFollowCam = nil
+        return
+    end
+    if camera2d.x + (iW*0.5) < (tFollowCam.x + w*0.5) then
+        camera2d:move(iSpeedCam, 0); bAnyFollow = true
+    elseif camera2d.x - (iW*0.5) > (tFollowCam.x - w*0.5) then
+        camera2d:move(-iSpeedCam, 0); bAnyFollow = true
+    end
+    if camera2d.y + (iH*0.5) < (tFollowCam.y + h*0.5) then
+        camera2d:move(0, iSpeedCam); bAnyFollow = true
+    elseif camera2d.y - (iH*0.5) > (tFollowCam.y - h*0.5) then
+        camera2d:move(0, -iSpeedCam); bAnyFollow = true
+    end
+    if not bAnyFollow and w < (iW*0.15) and h < (iH*0.15) then
+        camera2d.iIteration = camera2d.iIteration + 1
+        iSpeedCam = 200
+        if camera2d.x + (iW*0.15) < (tFollowCam.x + w*0.5) then
+            camera2d:move(iSpeedCam, 0); bAnyFollow = true
+        elseif camera2d.x - (iW*0.15) > (tFollowCam.x - w*0.5) then
+            camera2d:move(-iSpeedCam, 0); bAnyFollow = true
+        end
+        if camera2d.y + (iH*0.15) < (tFollowCam.y + h*0.5) then
+            camera2d:move(0, iSpeedCam); bAnyFollow = true
+        elseif camera2d.y - (iH*0.15) > (tFollowCam.y - h*0.5) then
+            camera2d:move(0, -iSpeedCam); bAnyFollow = true
+        end
+        if camera2d.iIteration > 120 then
+            camera2d.iIteration = 0
+            bAnyFollow = nil
+        end
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Loading progress overlay (preserved from original)
+-- ─────────────────────────────────────────────────────────────────────────────
+local function onProgress(fPercent)
+    local flags = {'ImGuiWindowFlags_NoDecoration','ImGuiWindowFlags_AlwaysAutoResize',
+                   'ImGuiWindowFlags_NoSavedSettings','ImGuiWindowFlags_NoFocusOnAppearing','ImGuiWindowFlags_NoNav'}
+    local iW, iH = mbm.getRealSizeScreen()
+    tImGui.SetNextWindowBgAlpha(0.85)
+    tImGui.SetNextWindowPos({x=0,y=0}, tImGui.Flags('ImGuiCond_Always'), {x=0,y=0})
+    tImGui.SetNextWindowSize({x=iW,y=iH}, tImGui.Flags('ImGuiCond_Always'))
+    local is_opened = tImGui.Begin(tLang.L(tWindowsTitle.title_loading), false, tImGui.Flags(flags))
+    if is_opened then
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_FrameBg'), {r=0,g=0,b=0.5,a=0.7})
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_PlotHistogram'), {r=0,g=1,b=0,a=1})
+        tImGui.SetCursorScreenPos({x=0, y=iH*0.5})
+        tImGui.ProgressBar(fPercent * 0.01, {x=-1,y=0}, '')
+        tImGui.PopStyleColor(2)
+        tImGui.SetCursorScreenPos({x=iW*0.48, y=(iH*0.5)+3})
+        tImGui.Text(string.format('Loading %.1f', fPercent))
+    end
+    tImGui.End()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass 2 — Panel Browser, Panel Properties, Grid Dialog
+-- ─────────────────────────────────────────────────────────────────────────────
+
+--- Helper: parse a comma-separated string of numbers into a table
+local function parsePercentages(str, count)
+    local parts = {}
+    for num in str:gmatch("[^,]+") do
+        local v = tonumber(num)
+        if v then table.insert(parts, v) end
+    end
+    -- If count doesn't match, distribute evenly
+    if #parts ~= count then
+        parts = {}
+        local each = 100 / count
+        for i = 1, count do parts[i] = each end
+    end
+    return parts
+end
+
+--- Helper: check if percentages sum to ~100
+local function percentagesValid(parts)
+    local sum = 0
+    for _, v in ipairs(parts) do sum = sum + v end
+    return math.abs(sum - 100) < 0.5
+end
+
+--- Recursive tree rendering for panel browser
+local function renderPanelTree(panels, parentRect)
+    for i, panel in ipairs(panels) do
+        local rect = computePanelRect(panel, parentRect)
+        local flags = 0
+        if panel == tSelectedPanel then
+            flags = ImGuiTreeNodeFlags_Selected
+        end
+        local label = string.format("%s [%s] (%d obj)##%s",
+            panel.name, panel.world, #panel.objects, panel.id)
+
+        -- Color the text by depth
+        local bc = getDepthBorderColor(panel.depth or 0)
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=bc.r, g=bc.g, b=bc.b, a=1})
+
+        local nodeOpen = tImGui.TreeNodeEx(label, flags)
+
+        tImGui.PopStyleColor(1)
+
+        -- Click to select this panel
+        if tImGui.IsItemClicked() then
+            tSelectedPanel  = panel
+            bShowPanelProps = true
+            updatePanelVisuals()
+        end
+
+        -- Right-click context menu
+        if tImGui.BeginPopupContextItem(panel.id .. "_ctx") then
+            if tImGui.MenuItem(tLang.L("add_child_panel")) then
+                local child = createPanel("child", panel.world,
+                    {left=0, top=0, right=1, bottom=1},
+                    {x=0, y=0}, {w=200, h=150},
+                    (panel.depth or 0) + 1)
+                table.insert(panel.children, child)
+                tSelectedPanel = child
+                bShowPanelProps = true
+                rebuildPanelVisuals()
+                tUtil.showMessage(string.format(tLang.L("panel_created_fmt"), child.name))
+            end
+            if tImGui.MenuItem(tLang.L("delete_panel")) then
+                if #panel.children > 0 then
+                    tUtil.showMessageWarn(tLang.L("panel_has_children_warn"))
+                else
+                    local pList = findParentList(panel)
+                    if pList then
+                        if panel == tSelectedPanel then tSelectedPanel = nil end
+                        local panelName = panel.name
+                        destroyPanel(panel)
+                        removePanelFromParent(panel, pList)
+                        rebuildPanelVisuals()
+                        tUtil.showMessage(string.format(tLang.L("panel_deleted_fmt"), panelName))
+                    end
+                end
+            end
+            tImGui.EndPopup()
+        end
+
+        if nodeOpen then
+            -- Show child panels
+            if #panel.children > 0 then
+                renderPanelTree(panel.children, rect)
+            end
+            -- Show objects inside panel (collapsed list)
+            for j, obj in ipairs(panel.objects) do
+                local objLabel = string.format("%s (%d)##obj_%s_%d", obj.type or "?", j, panel.id, j)
+                if tImGui.Selectable(objLabel, obj.isSelected) then
+                    if not keyControlPressed then onUnSelectAll() end
+                    setSelectedObj(obj, true)
+                    tFollowCam = obj
+                end
+            end
+            tImGui.TreePop()
+        end
+    end
+end
+
+--- Panel Browser window (left side)
+showPanelBrowser = function()
+    if not bShowPanelBrowser then return end
+    local width = 280
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, 0, width, width + 50)
+    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_browser"), true, flags)
+    if is_opened then
+        -- Root-level buttons
+        if tImGui.Button(tLang.L("add_root_panel"), {x=-1, y=0}) then
+            local p = createPanel("root_panel", "2dw",
+                {left=0, top=0, right=1, bottom=1},
+                {x=0, y=0}, {w=400, h=300}, 0)
+            table.insert(tPanels, p)
+            tSelectedPanel  = p
+            bShowPanelProps = true
+            rebuildPanelVisuals()
+            tUtil.showMessage(string.format(tLang.L("panel_created_fmt"), p.name))
+        end
+
+        if tImGui.Button(tLang.L("add_grid_nxm"), {x=-1, y=0}) then
+            bShowGridDialog = true
+        end
+
+        tImGui.Separator()
+
+        -- Tree view
+        if #tPanels == 0 then
+            tImGui.TextDisabled(tLang.L("no_panel_selected"))
+        else
+            local rootRect = getRootRect()
+            renderPanelTree(tPanels, rootRect)
+        end
+
+        -- Free objects section
+        if #tFreeMeshes > 0 then
+            tImGui.Separator()
+            if tImGui.TreeNode(string.format("%s (%d)##free_objs", tLang.L("free_object"), #tFreeMeshes)) then
+                for j, obj in ipairs(tFreeMeshes) do
+                    local objLabel = string.format("%s (%d)##free_%d", obj.type or "?", j, j)
+                    if tImGui.Selectable(objLabel, obj.isSelected) then
+                        if not keyControlPressed then onUnSelectAll() end
+                        setSelectedObj(obj, true)
+                        tFollowCam = obj
+                    end
+                end
+                tImGui.TreePop()
+            end
+        end
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+    if closed_clicked then bShowPanelBrowser = false end
+end
+
+--- Panel Properties window
+showPanelProperties = function()
+    if not bShowPanelProps or not tSelectedPanel then return end
+    local width = 300
+    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_panel_props, 0, 0, width, width + 50)
+    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_properties"), true, flags)
+    if is_opened then
+        local panel = tSelectedPanel
+        local step = 0.01
+        local step_fast = 0.05
+        local format = "%.3f"
+
+        -- Name
+        tImGui.Text(tLang.L("panel_name_label"))
+        local modified, newName = tImGui.InputText("##panel_name", panel.name, 128)
+        if modified and newName:len() > 0 then
+            panel.name = newName
+        end
+
+        -- World type
+        tImGui.Text(tLang.L("panel_world"))
+        local tWorldOpts = {"2D World", "2D Screen"}
+        local worldIdx = panel.world == "2ds" and 2 or 1
+        local ret, newIdx = tImGui.Combo("##panel_world_combo", worldIdx, tWorldOpts)
+        if ret then
+            panel.world = newIdx == 2 and "2ds" or "2dw"
+            rebuildPanelVisuals()
+        end
+
+        tImGui.Separator()
+
+        if panel.world == "2ds" then
+            -- Anchor editors
+            tImGui.Text(tLang.L("panel_anchor_left"))
+            local r1, v = tImGui.InputFloat("##anchor_l", panel.anchor.left, step, step_fast, format)
+            if r1 and v >= 0 and v < panel.anchor.right then
+                panel.anchor.left = v
+                rebuildPanelVisuals()
+                reflowPanelObjects()
+            end
+
+            tImGui.Text(tLang.L("panel_anchor_top"))
+            r1, v = tImGui.InputFloat("##anchor_t", panel.anchor.top, step, step_fast, format)
+            if r1 and v >= 0 and v < panel.anchor.bottom then
+                panel.anchor.top = v
+                rebuildPanelVisuals()
+                reflowPanelObjects()
+            end
+
+            tImGui.Text(tLang.L("panel_anchor_right"))
+            r1, v = tImGui.InputFloat("##anchor_r", panel.anchor.right, step, step_fast, format)
+            if r1 and v > panel.anchor.left and v <= 1 then
+                panel.anchor.right = v
+                rebuildPanelVisuals()
+                reflowPanelObjects()
+            end
+
+            tImGui.Text(tLang.L("panel_anchor_bottom"))
+            r1, v = tImGui.InputFloat("##anchor_b", panel.anchor.bottom, step, step_fast, format)
+            if r1 and v > panel.anchor.top and v <= 1 then
+                panel.anchor.bottom = v
+                rebuildPanelVisuals()
+                reflowPanelObjects()
+            end
+        else
+            -- World position/size
+            local stepW = 1.0
+            local stepW_fast = 10.0
+            local fmtW = "%.1f"
+
+            tImGui.Text(tLang.L("panel_world_pos_x"))
+            local r1, v = tImGui.InputFloat("##wp_x", panel.worldPos.x, stepW, stepW_fast, fmtW)
+            if r1 then panel.worldPos.x = v; rebuildPanelVisuals(); reflowPanelObjects() end
+
+            tImGui.Text(tLang.L("panel_world_pos_y"))
+            r1, v = tImGui.InputFloat("##wp_y", panel.worldPos.y, stepW, stepW_fast, fmtW)
+            if r1 then panel.worldPos.y = v; rebuildPanelVisuals(); reflowPanelObjects() end
+
+            tImGui.Text(tLang.L("panel_world_size_w"))
+            r1, v = tImGui.InputFloat("##ws_w", panel.worldSize.w, stepW, stepW_fast, fmtW)
+            if r1 and v > 0 then panel.worldSize.w = v; rebuildPanelVisuals(); reflowPanelObjects() end
+
+            tImGui.Text(tLang.L("panel_world_size_h"))
+            r1, v = tImGui.InputFloat("##ws_h", panel.worldSize.h, stepW, stepW_fast, fmtW)
+            if r1 and v > 0 then panel.worldSize.h = v; rebuildPanelVisuals(); reflowPanelObjects() end
+        end
+
+        tImGui.Separator()
+
+        -- Info
+        if panel._rect then
+            local r = panel._rect
+            tImGui.TextDisabled(string.format("Computed: %.0f×%.0f at (%.0f,%.0f)", r.w, r.h, r.x, r.y))
+        end
+        tImGui.TextDisabled(string.format("Depth: %d  |  Objects: %d  |  Children: %d",
+            panel.depth or 0, #panel.objects, #panel.children))
+
+        tImGui.Separator()
+
+        -- Delete button
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0.7, g=0.1, b=0.1, a=1})
+        if tImGui.Button(tLang.L("delete_panel"), {x=-1, y=0}) then
+            if #panel.children > 0 then
+                tUtil.showMessageWarn(tLang.L("panel_has_children_warn"))
+            else
+                local pList = findParentList(panel)
+                if pList then
+                    local panelName = panel.name
+                    tSelectedPanel = nil
+                    bShowPanelProps = false
+                    destroyPanel(panel)
+                    removePanelFromParent(panel, pList)
+                    rebuildPanelVisuals()
+                    tUtil.showMessage(string.format(tLang.L("panel_deleted_fmt"), panelName))
+                end
+            end
+        end
+        tImGui.PopStyleColor(1)
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+    if closed_clicked then bShowPanelProps = false end
+end
+
+--- Grid Creation Dialog (popup-style window)
+showGridDialog = function()
+    if not bShowGridDialog then return end
+
+    local iW, iH = mbm.getRealSizeScreen()
+    tImGui.SetNextWindowPos({x=iW*0.3, y=iH*0.2}, tImGui.Flags('ImGuiCond_Once'), {x=0,y=0})
+    tImGui.SetNextWindowSize({x=380, y=0}, tImGui.Flags('ImGuiCond_Once'))
+
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L("title_grid_dialog"), true,
+        tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings'))
+    if is_opened then
+        -- Target panel (or root)
+        if tSelectedPanel then
+            tImGui.Text(string.format("Target: %s", tSelectedPanel.name))
+        else
+            tImGui.Text("Target: Scene Root")
+        end
+
+        tImGui.Separator()
+
+        -- Name prefix
+        tImGui.Text(tLang.L("panel_name_label"))
+        local mod, newName = tImGui.InputText("##grid_name", tGridDialog.sName, 64)
+        if mod then tGridDialog.sName = newName end
+
+        -- World type
+        tImGui.Text(tLang.L("panel_world"))
+        local retW, idxW = tImGui.Combo("##grid_world", tGridDialog.iWorldIndex, tGridDialog.tWorldOptions)
+        if retW then tGridDialog.iWorldIndex = idxW end
+
+        tImGui.Separator()
+
+        -- Columns
+        tImGui.Text(tLang.L("grid_cols"))
+        local retC, newCols = tImGui.InputInt("##grid_cols", tGridDialog.iCols, 1, 1)
+        if retC and newCols >= 1 and newCols <= 20 then tGridDialog.iCols = newCols end
+
+        tGridDialog.bCustomCols = tImGui.Checkbox(tLang.L("grid_custom_pct"), tGridDialog.bCustomCols)
+        if tGridDialog.bCustomCols then
+            local modP, newPct = tImGui.InputText("##col_pct", tGridDialog.sColPct, 128)
+            if modP then tGridDialog.sColPct = newPct end
+        end
+
+        -- Rows
+        tImGui.Text(tLang.L("grid_rows"))
+        local retR, newRows = tImGui.InputInt("##grid_rows", tGridDialog.iRows, 1, 1)
+        if retR and newRows >= 1 and newRows <= 20 then tGridDialog.iRows = newRows end
+
+        tGridDialog.bCustomRows = tImGui.Checkbox(tLang.L("grid_custom_row_pct"), tGridDialog.bCustomRows)
+        if tGridDialog.bCustomRows then
+            local modP, newPct = tImGui.InputText("##row_pct", tGridDialog.sRowPct, 128)
+            if modP then tGridDialog.sRowPct = newPct end
+        end
+
+        tImGui.Separator()
+
+        -- Create button
+        if tImGui.Button(tLang.L("create_grid"), {x=-1, y=0}) then
+            -- Parse percentages
+            local colParts
+            if tGridDialog.bCustomCols then
+                colParts = parsePercentages(tGridDialog.sColPct, tGridDialog.iCols)
+                if not percentagesValid(colParts) then
+                    tUtil.showMessageWarn(tLang.L("grid_sum_not_100"))
+                    colParts = nil
+                end
+            else
+                colParts = parsePercentages("", tGridDialog.iCols)
+            end
+
+            local rowParts
+            if tGridDialog.bCustomRows then
+                rowParts = parsePercentages(tGridDialog.sRowPct, tGridDialog.iRows)
+                if not percentagesValid(rowParts) then
+                    tUtil.showMessageWarn(tLang.L("grid_row_sum_not_100"))
+                    rowParts = nil
+                end
+            else
+                rowParts = parsePercentages("", tGridDialog.iRows)
+            end
+
+            if colParts and rowParts then
+                local world = tGridDialog.iWorldIndex == 2 and "2ds" or "2dw"
+                local targetList = tSelectedPanel and tSelectedPanel.children or tPanels
+                local parentDepth = tSelectedPanel and (tSelectedPanel.depth or 0) or -1
+
+                -- For 2dw grids without a parent panel, compute from resolution
+                local parentRect
+                if tSelectedPanel then
+                    parentRect = tSelectedPanel._rect or computePanelRect(tSelectedPanel, getRootRect())
+                else
+                    parentRect = getRootRect()
+                end
+
+                -- Build columns cumulative fractions
+                local colFrac = {0}
+                for c = 1, #colParts do
+                    colFrac[c+1] = colFrac[c] + colParts[c] / 100
+                end
+                local rowFrac = {0}
+                for r = 1, #rowParts do
+                    rowFrac[r+1] = rowFrac[r] + rowParts[r] / 100
+                end
+
+                -- Create panels
+                for r = 1, tGridDialog.iRows do
+                    for c = 1, tGridDialog.iCols do
+                        local name = string.format("%s_%d_%d", tGridDialog.sName, r, c)
+                        local anchor = {
+                            left   = colFrac[c],
+                            top    = rowFrac[r],
+                            right  = colFrac[c+1],
+                            bottom = rowFrac[r+1],
+                        }
+
+                        local wp, ws
+                        if world == "2dw" then
+                            -- Convert anchor to world coordinates
+                            local x1 = parentRect.x + anchor.left * parentRect.w
+                            local y1 = parentRect.y + anchor.top  * parentRect.h
+                            local x2 = parentRect.x + anchor.right * parentRect.w
+                            local y2 = parentRect.y + anchor.bottom * parentRect.h
+                            wp = {x = (x1+x2)*0.5, y = (y1+y2)*0.5}
+                            ws = {w = x2-x1, h = y2-y1}
+                        else
+                            wp = {x=0, y=0}
+                            ws = {w=400, h=300}
+                        end
+
+                        local p = createPanel(name, world, anchor, wp, ws, parentDepth + 1)
+                        table.insert(targetList, p)
+                    end
+                end
+
+                rebuildPanelVisuals()
+                bShowGridDialog = false
+                tUtil.showMessage(string.format("%d×%d grid created.", tGridDialog.iRows, tGridDialog.iCols))
+            end
+        end
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+    if closed_clicked then bShowGridDialog = false end
+end
+
+-- Forward declarations for Pass 3 functions (assigned below)
+local onAddMesh, onDuplicated, showMeshList, showAddingMeshOptions, showDetailOfMesh
+-- Forward declaration for Pass 4 stub (used inside showMeshList)
+local showPropertiesForMesh = function(tObj) end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass 3 — Mesh list, object assignment, add mesh, duplicate
+-- ─────────────────────────────────────────────────────────────────────────────
+
+--- Assign an object to a panel (or free). Updates anchorX/Y from current position.
+local function assignObjectToPanel(tObj, panel)
+    -- Remove from previous panel / free list
+    if tObj.panelRef then
+        for j = #tObj.panelRef.objects, 1, -1 do
+            if tObj.panelRef.objects[j] == tObj then
+                table.remove(tObj.panelRef.objects, j)
+                break
+            end
+        end
+    else
+        for j = #tFreeMeshes, 1, -1 do
+            if tFreeMeshes[j] == tObj then
+                table.remove(tFreeMeshes, j)
                 break
             end
         end
     end
-    tSelectedObjs = {}
+
+    if panel then
+        tObj.panelRef = panel
+        tObj.is2ds    = (panel.world == "2ds")
+        table.insert(panel.objects, tObj)
+        -- Compute anchor from current world position
+        if panel._rect then
+            local r = panel._rect
+            if r.w > 0 and r.h > 0 then
+                tObj.anchorX = (tObj.x - r.x) / r.w
+                tObj.anchorY = (tObj.y - r.y) / r.h
+            else
+                tObj.anchorX = 0.5
+                tObj.anchorY = 0.5
+            end
+        else
+            tObj.anchorX = 0.5
+            tObj.anchorY = 0.5
+        end
+        -- Auto-fit if object exceeds panel bounds
+        if panel._rect then
+            local ow, oh = tObj:getSize()
+            local maxW = panel._rect.w
+            local maxH = panel._rect.h
+            if ow > 0 and oh > 0 and (ow > maxW or oh > maxH) then
+                local scale = math.min(maxW / ow, maxH / oh)
+                tObj.sx = tObj.sx * scale
+                tObj.sy = tObj.sy * scale
+                local w2, h2 = tObj:getSize()
+                if tObj.tShape then tObj.tShape:setScale(w2, h2, 1) end
+                tUtil.showMessage(tLang.L("auto_scaled_to_fit"))
+            end
+        end
+        tUtil.showMessage(string.format(tLang.L("object_assign_panel_fmt"), panel.name))
+    else
+        tObj.panelRef = nil
+        tObj.anchorX  = nil
+        tObj.anchorY  = nil
+        tObj.is2ds    = false
+        table.insert(tFreeMeshes, tObj)
+        tUtil.showMessage(tLang.L("object_assign_free"))
+    end
 end
 
-function onDuplicated()
-    if #tSelectedObjs > 0 then
-        for i=1, #tSelectedObjs do
-            tLastMeshAdded = tSelectedObjs[i]
-            local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName,true,"2dw",tLastMeshAdded.sText)
+--- Add a loaded mesh object into the editor tracking lists
+local function initialSetUpForAddedMesh(tObj)
+    table.insert(tAllMesh, tObj)
+    tObj.index = #tAllMesh
+    tObj.isSelected = false
+    tObj.isBlocked  = false
+    tObj.isBlockedX = false
+    tObj.isBlockedY = false
+    tObj.isBlockedZ = false
+
+    -- Assign to selected panel, or keep as free
+    if tSelectedPanel then
+        assignObjectToPanel(tObj, tSelectedPanel)
+        -- Position at panel center
+        if tSelectedPanel._rect then
+            local r = tSelectedPanel._rect
+            tObj:setPos(r.x + r.w * 0.5, r.y + r.h * 0.5, tObj.z)
+            tObj.anchorX = 0.5
+            tObj.anchorY = 0.5
+        end
+    else
+        tObj.panelRef = nil
+        tObj.anchorX  = nil
+        tObj.anchorY  = nil
+        table.insert(tFreeMeshes, tObj)
+    end
+
+    tLastMeshAdded = tObj
+    tFollowCam     = tObj
+end
+
+--- Add mesh via file picker (preserved flow from original)
+onAddMesh = function()
+    local fileName = mbm.openMultiFile(sLastMeshAdd,
+        "tile","spt","ptl","png","msh","fnt","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
+    if fileName then
+        if type(fileName) == 'string' then
+            local tMeshTmp = tUtil.onAddMeshToEditor(fileName, true, "2dw")
             if tMeshTmp then
-                tMeshTmp:setAnim(select(2,tLastMeshAdded:getAnim()))
+                initialSetUpForAddedMesh(tMeshTmp)
+                bShowMeshList = true
+                sLastMeshAdd  = fileName
+            else
+                tUtil.showMessageWarn(tLang.L("failed_to_add_mesh"))
+            end
+        elseif type(fileName) == 'table' then
+            local width = 0
+            for i = 1, #fileName do
+                local tMeshTmp = tUtil.onAddMeshToEditor(fileName[i], true, "2dw")
+                if tMeshTmp then
+                    tMeshTmp.x = tMeshTmp.x + width
+                    local w, h = tMeshTmp:getSize()
+                    width = width + w
+                    initialSetUpForAddedMesh(tMeshTmp)
+                    sLastMeshAdd  = fileName[i]
+                    bShowMeshList = true
+                else
+                    tUtil.showMessageWarn(tLang.L("failed_to_add_mesh_alt"))
+                end
+            end
+        end
+    end
+end
+
+--- Duplicate selected objects (preserved from original)
+onDuplicated = function()
+    if #tSelectedObjs > 0 then
+        for i = 1, #tSelectedObjs do
+            tLastMeshAdded = tSelectedObjs[i]
+            local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName, true, "2dw", tLastMeshAdded.sText)
+            if tMeshTmp then
+                tMeshTmp:setAnim(select(2, tLastMeshAdded:getAnim()))
                 if tLastMeshAdded.tPhysicInfo then
                     tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tLastMeshAdded.tPhysicInfo)
                 end
-                tMeshTmp.is2ds          = tLastMeshAdded.is2ds
-                tMeshTmp.isRelative2ds  = tLastMeshAdded.isRelative2ds
+                tMeshTmp.is2ds = tLastMeshAdded.is2ds
                 initialSetUpForAddedMesh(tMeshTmp)
+                -- Assign to same panel as original
+                if tLastMeshAdded.panelRef then
+                    assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
+                end
                 sLastMeshAdd = tLastMeshAdded.fileName
-			end
+            end
         end
         if #tSelectedObjs > 1 then
             tUtil.showMessage(string.format(tLang.L("meshes_duplicated_fmt"), #tSelectedObjs))
@@ -260,15 +1272,17 @@ function onDuplicated()
             tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
     elseif tLastMeshAdded then
-        local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName,true,"2dw",tLastMeshAdded.sText)
+        local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName, true, "2dw", tLastMeshAdded.sText)
         if tMeshTmp then
-            tMeshTmp:setAnim(select(2,tLastMeshAdded:getAnim()))
+            tMeshTmp:setAnim(select(2, tLastMeshAdded:getAnim()))
             if tLastMeshAdded.tPhysicInfo then
                 tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tLastMeshAdded.tPhysicInfo)
             end
-            tMeshTmp.is2ds          = tLastMeshAdded.is2ds
-            tMeshTmp.isRelative2ds  = tLastMeshAdded.isRelative2ds
+            tMeshTmp.is2ds = tLastMeshAdded.is2ds
             initialSetUpForAddedMesh(tMeshTmp)
+            if tLastMeshAdded.panelRef then
+                assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
+            end
             tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
     else
@@ -276,8 +1290,217 @@ function onDuplicated()
     end
 end
 
-function drawBlockButton(isBlocked,axis)
+--- Build a flat list of all panels for a combo dropdown
+local function buildPanelComboList(panels, out, prefix)
+    out = out or {}
+    prefix = prefix or ""
+    for _, panel in ipairs(panels) do
+        table.insert(out, {label = prefix .. panel.name, panel = panel})
+        buildPanelComboList(panel.children, out, prefix .. "  ")
+    end
+    return out
+end
 
+--- Mesh list window (preserved + adapted for panel assignment)
+showMeshList = function()
+    if not bShowMeshList then return end
+    local width = 300
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes, 0, 0, width, width + 50)
+    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
+    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, flags)
+    if is_opened then
+        -- Filter section
+        if tImGui.TreeNodeEx(string.format(tLang.L("filter"), #tAllMesh), 0, '##FilterMesh') then
+            local bAnyChange = false
+            tImGui.Text(tLang.L("world"))
+            local ret, current_item = tImGui.Combo('##WorldMeshFilter', tOptionsEditor.iIndexWorldMesh, tFilter.tWorld)
+            if ret then tOptionsEditor.iIndexWorldMesh = current_item; bAnyChange = true end
+
+            tImGui.Text(tLang.L("mesh_type"))
+            ret, current_item = tImGui.Combo('##TypeMeshFilter', tOptionsEditor.iIndexTypeMeshFilter, tFilter.tType)
+            if ret then tOptionsEditor.iIndexTypeMeshFilter = current_item; bAnyChange = true end
+
+            tImGui.Text(tLang.L("mesh_physics"))
+            ret, current_item = tImGui.Combo('##TypePhysicsFilter', tOptionsEditor.iIndexTypePhysicsFilter, tFilter.tPhysicType)
+            if ret then tOptionsEditor.iIndexTypePhysicsFilter = current_item; bAnyChange = true end
+
+            if bAnyChange then updateVisibilityByFilter() end
+            tImGui.TreePop()
+        end
+
+        -- Objects list
+        local iFiltered = 0
+        if tImGui.TreeNodeEx(string.format(tLang.L("objects") .. " (%d/%d)", iFiltered, #tAllMesh), 0, '##allMeshes') then
+            iFiltered = 0
+            for i, tObj in ipairs(tAllMesh) do
+                if filter(tObj) then
+                    iFiltered = iFiltered + 1
+                    local flags_selected = tObj.isSelected and ImGuiTreeNodeFlags_Selected or 0
+                    if tObj.isBlocked then
+                        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=0,b=0.3,a=1})
+                    end
+
+                    local panelLabel = ""
+                    if tObj.panelRef then panelLabel = " [" .. tObj.panelRef.name .. "]" end
+                    local node_open = tImGui.TreeNodeEx(
+                        string.format("%s (%d)%s", tObj.type, i, panelLabel), flags_selected)
+
+                    if (keyControlPressed or keyShiftPressed) and tImGui.IsItemClicked() then
+                        if not tObj.isBlocked then
+                            if tObj.isSelected then
+                                setSelectedObj(tObj, false)
+                            else
+                                setSelectedObj(tObj, true)
+                                tFollowCam = tObj
+                            end
+                        else
+                            tUtil.showMessageWarn(tLang.L("object_blocked"))
+                        end
+                    end
+
+                    if tObj.isBlocked then tImGui.PopStyleColor(1) end
+
+                    if node_open then
+                        -- Panel assignment combo
+                        tImGui.Text(tLang.L("assign_to_panel"))
+                        local tPanelList = buildPanelComboList(tPanels)
+                        local comboLabels = {tLang.L("free_object")}
+                        local currentIdx = 1
+                        for j, entry in ipairs(tPanelList) do
+                            table.insert(comboLabels, entry.label)
+                            if tObj.panelRef == entry.panel then currentIdx = j + 1 end
+                        end
+
+                        local retA, newIdxA = tImGui.Combo("##assign_" .. i, currentIdx, comboLabels)
+                        if retA then
+                            if newIdxA == 1 then
+                                assignObjectToPanel(tObj, nil)
+                            else
+                                assignObjectToPanel(tObj, tPanelList[newIdxA - 1].panel)
+                            end
+                        end
+
+                        -- Anchor display for panel-assigned objects
+                        if tObj.panelRef and tObj.anchorX then
+                            tImGui.PushItemWidth(150)
+                            tImGui.Text(tLang.L("anchor_x"))
+                            local rAx, vAx = tImGui.InputFloat("##anchorX_" .. i, tObj.anchorX, 0.01, 0.05, "%.3f")
+                            if rAx then
+                                tObj.anchorX = math.max(0, math.min(1, vAx))
+                                if tObj.panelRef._rect then
+                                    local r = tObj.panelRef._rect
+                                    tObj:setPos(r.x + tObj.anchorX * r.w, tObj.y, tObj.z)
+                                end
+                            end
+                            tImGui.Text(tLang.L("anchor_y"))
+                            local rAy, vAy = tImGui.InputFloat("##anchorY_" .. i, tObj.anchorY, 0.01, 0.05, "%.3f")
+                            if rAy then
+                                tObj.anchorY = math.max(0, math.min(1, vAy))
+                                if tObj.panelRef._rect then
+                                    local r = tObj.panelRef._rect
+                                    tObj:setPos(tObj.x, r.y + tObj.anchorY * r.h, tObj.z)
+                                end
+                            end
+                            tImGui.PopItemWidth()
+                        end
+
+                        -- Object properties (Pass 4 will fill this)
+                        showPropertiesForMesh(tObj)
+                        tImGui.TreePop()
+                    end
+                else
+                    setSelectedObj(tObj, false)
+                end
+            end
+            tImGui.TreePop()
+        end
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+    if closed_clicked then bShowMeshList = false end
+end
+
+--- Options when adding mesh window (preserved from original)
+showAddingMeshOptions = function()
+    if not bShowAddingMesh then return end
+    local width = 300
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_adding_mesh, 0, 0, width, width + 50)
+    local is_opened, closed_clicked = tImGui.Begin(
+        tLang.L(tWindowsTitle.title_adding_mesh), true, ImGuiWindowFlags_NoMove)
+    if is_opened then
+        -- Target panel info
+        if tSelectedPanel then
+            tImGui.TextDisabled(string.format("Target panel: %s", tSelectedPanel.name))
+        else
+            tImGui.TextDisabled("Objects will be added as free (no panel)")
+        end
+        tImGui.Separator()
+
+        local title_duplicated = tLang.L("duplicate_last_mesh")
+        if #tSelectedObjs > 0 then
+            title_duplicated = tLang.L("duplicate_all_mesh_selected")
+        end
+        if tImGui.Button(title_duplicated, {x=200, y=0}) then
+            onDuplicated()
+        end
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+    if closed_clicked then bShowAddingMesh = false end
+end
+
+--- Detail overlay for single selected mesh (preserved from original)
+showDetailOfMesh = function()
+    if not bShowDetailOfMesh or #tSelectedObjs ~= 1 then return end
+    local tObj = tSelectedObjs[1]
+    local flags = {'ImGuiWindowFlags_AlwaysAutoResize','ImGuiWindowFlags_NoSavedSettings','ImGuiWindowFlags_NoFocusOnAppearing'}
+    tImGui.SetNextWindowBgAlpha(0.75)
+    tImGui.SetNextWindowPos({x=300, y=25}, tImGui.Flags('ImGuiCond_Once'), {x=0,y=0})
+    local is_opened, closed_clicked = tImGui.Begin(
+        tLang.L(tWindowsTitle.title_mesh_info), true, tImGui.Flags(flags))
+    if is_opened then
+        local sWorld = tObj.is2ds and '2d Screen' or '2d World'
+        tImGui.Text(string.format('Type:%s (%s)(%d)', tObj.type, sWorld, tObj.iIndex or 0))
+        tImGui.Text(string.format('File:%s', tUtil.getShortName(tObj.fileName, false)))
+        tImGui.Text(string.format('Position: X:%g Y:%g Z:%g', tObj.x, tObj.y, tObj.z))
+        tImGui.Text(string.format('Scale   : X:%g Y:%g Z:%g', tObj.sx, tObj.sy, tObj.sz))
+        tImGui.Text(string.format('Angle   : X:%g Y:%g Z:%g', tObj.ax, tObj.ay, tObj.az))
+
+        if tObj.panelRef then
+            tImGui.Text(string.format('Panel: %s', tObj.panelRef.name))
+            if tObj.anchorX then
+                tImGui.Text(string.format('Anchor: %.3f, %.3f', tObj.anchorX, tObj.anchorY))
+            end
+        else
+            tImGui.Text('Panel: (free)')
+        end
+
+        if tObj.sText then
+            tImGui.Text(tLang.L("text_label_2"))
+            tImGui.Text(tObj.sText)
+        end
+        if tObj.tPhysicInfo then
+            local tp = tObj.tPhysicInfo
+            tImGui.Text(tLang.L("physics_colon"))
+            if tp.type       then tImGui.Text(string.format('Type (%s)', tp.type)) end
+            if tp.density    then tImGui.Text(string.format('Density (%g)', tp.density)) end
+            if tp.friction   then tImGui.Text(string.format('Friction (%g)', tp.friction)) end
+            if tp.restitution then tImGui.Text(string.format('Restitution (%g)', tp.restitution)) end
+            if tp.scaleX     then tImGui.Text(string.format('Scale X:%g Y:%g', tp.scaleX, tp.scaleY)) end
+            if type(tp.sensor) == 'boolean' then tImGui.Text(string.format('Sensor <%s>', tostring(tp.sensor))) end
+            if type(tp.bullet) == 'boolean' then tImGui.Text(string.format('Bullet <%s>', tostring(tp.bullet))) end
+        end
+    end
+    if closed_clicked then bShowDetailOfMesh = false end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass 4 — Object property tree nodes
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local function drawBlockButton(isBlocked, axis)
     tImGui.SameLine()
     local label
     if isBlocked then
@@ -291,13 +1514,13 @@ function drawBlockButton(isBlocked,axis)
     return isBlocked
 end
 
-function treeNodePosition(tObj)
-    local flags  = 0
-    if tImGui.TreeNodeEx(tLang.L("position"),flags, string.format("Position-%d",tObj.iIndex)) then
-        local step       =  1.0
-        local step_fast  =  10.0
-        local format     = "%.3f"
-        local flags      =  0
+local function treeNodePosition(tObj)
+    local flags = 0
+    if tImGui.TreeNodeEx(tLang.L("position"), flags, string.format("Position-%d", tObj.iIndex)) then
+        local step      = 1.0
+        local step_fast = 10.0
+        local format    = "%.3f"
+        local inputFlags = 0
         tImGui.PushItemWidth(150)
 
         if tObj.is2ds then
@@ -305,22 +1528,32 @@ function treeNodePosition(tObj)
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
         end
-        local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, flags)
-        tObj.isBlockedX      = drawBlockButton(tObj.isBlockedX,'X')
+
+        local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, inputFlags)
+        tObj.isBlockedX = drawBlockButton(tObj.isBlockedX, 'X')
         if result and not tObj.isBlockedX then
             tObj.x = fValue
             tObj.tShape.x = fValue
+            -- Update anchor if panel-assigned
+            if tObj.panelRef and tObj.panelRef._rect then
+                local r = tObj.panelRef._rect
+                if r.w > 0 then tObj.anchorX = (fValue - r.x) / r.w end
+            end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##Mesh(s)', tObj.y, step, step_fast, format, flags)
-        tObj.isBlockedY      = drawBlockButton(tObj.isBlockedY, 'Y')
+        result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##Mesh(s)', tObj.y, step, step_fast, format, inputFlags)
+        tObj.isBlockedY = drawBlockButton(tObj.isBlockedY, 'Y')
         if result and not tObj.isBlockedY then
             tObj.y = fValue
             tObj.tShape.y = fValue
+            if tObj.panelRef and tObj.panelRef._rect then
+                local r = tObj.panelRef._rect
+                if r.h > 0 then tObj.anchorY = (fValue - r.y) / r.h end
+            end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("axis_z") .. '##Mesh(s)', tObj.z, step, step_fast, format, flags)
-        tObj.isBlockedZ      = drawBlockButton(tObj.isBlockedZ,'Z')
+        result, fValue = tImGui.InputFloat(tLang.L("axis_z") .. '##Mesh(s)', tObj.z, step, step_fast, format, inputFlags)
+        tObj.isBlockedZ = drawBlockButton(tObj.isBlockedZ, 'Z')
         if result and not tObj.isBlockedZ then
             tObj.z = fValue
             tObj.tShape.z = fValue - 1
@@ -331,37 +1564,38 @@ function treeNodePosition(tObj)
     end
 end
 
-function treeNodeScale(tObj)
-    local flags  = 0
-    if tImGui.TreeNodeEx(tLang.L("scale"),flags, string.format("Scale-%d",tObj.iIndex)) then
-        local step       =  0.02
-        local step_fast  =  0.1
-        local format     = "%.3f"
-        local flags      =  0
+local function treeNodeScale(tObj)
+    local flags = 0
+    if tImGui.TreeNodeEx(tLang.L("scale"), flags, string.format("Scale-%d", tObj.iIndex)) then
+        local step      = 0.02
+        local step_fast = 0.1
+        local format    = "%.3f"
+        local inputFlags = 0
         tImGui.PushItemWidth(150)
-        local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, flags)
+
+        local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
                 tObj.sx = fValue
-                local w,h,d = tObj:getSize()
+                local w, h, d = tObj:getSize()
                 tObj.tShape.sx = w
             end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, flags)
+        result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
                 tObj.sy = fValue
-                local w,h,d = tObj:getSize()
+                local w, h, d = tObj:getSize()
                 tObj.tShape.sy = h
             end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("scale_sz") .. '##Mesh(s)', tObj.sz, step, step_fast, format, flags)
+        result, fValue = tImGui.InputFloat(tLang.L("scale_sz") .. '##Mesh(s)', tObj.sz, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
                 tObj.sz = fValue
-                local w,h,d = tObj:getSize()
+                local w, h, d = tObj:getSize()
                 if d then
                     tObj.tShape.sz = d
                 end
@@ -373,15 +1607,16 @@ function treeNodeScale(tObj)
     end
 end
 
-function treeNodeAngle(tObj)
-    local flags  = 0
-    if tImGui.TreeNodeEx(tLang.L("angle"),flags, string.format("Angle-%d",tObj.iIndex)) then
-        local step       =  1.0
-        local step_fast  =  5.0
-        local format     = "%.2f"
-        local flags      =  0
+local function treeNodeAngle(tObj)
+    local flags = 0
+    if tImGui.TreeNodeEx(tLang.L("angle"), flags, string.format("Angle-%d", tObj.iIndex)) then
+        local step      = 1.0
+        local step_fast = 5.0
+        local format    = "%.2f"
+        local inputFlags = 0
         tImGui.PushItemWidth(150)
-        local result, fValue = tImGui.InputFloat(tLang.L("angle_ax") .. '##Mesh(s)', math.deg(tObj.ax), step, step_fast, format, flags)
+
+        local result, fValue = tImGui.InputFloat(tLang.L("angle_ax") .. '##Mesh(s)', math.deg(tObj.ax), step, step_fast, format, inputFlags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -390,7 +1625,7 @@ function treeNodeAngle(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("angle_ay") .. '##Mesh(s)', math.deg(tObj.ay), step, step_fast, format, flags)
+        result, fValue = tImGui.InputFloat(tLang.L("angle_ay") .. '##Mesh(s)', math.deg(tObj.ay), step, step_fast, format, inputFlags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -399,7 +1634,7 @@ function treeNodeAngle(tObj)
             end
         end
 
-        local result, fValue = tImGui.InputFloat(tLang.L("angle_az") .. '##Mesh(s)', math.deg(tObj.az), step, step_fast, format, flags)
+        result, fValue = tImGui.InputFloat(tLang.L("angle_az") .. '##Mesh(s)', math.deg(tObj.az), step, step_fast, format, inputFlags)
         if result then
             if fValue >= -360 and fValue <= 360 then
                 local radian   = math.rad(fValue)
@@ -413,16 +1648,148 @@ function treeNodeAngle(tObj)
     end
 end
 
-function showPropertiesForMesh(tObj)
-    
+local function treeNodeText(tObj)
+    local sText = tObj.sText
+    if sText then
+        local flags = 0
+        if tImGui.TreeNodeEx(tLang.L("text_label"), flags, string.format("Text-%d", tObj.iIndex)) then
+            tImGui.Text(tLang.L("text_label"))
+            local label = string.format("##Font-Text-%d", tObj.iIndex)
+            local size  = {x = -1, y = 100}
+
+            local modified, sNewText = tImGui.InputTextMultiline(label, sText, size, 0)
+            if modified then
+                tObj.sText = sNewText
+                tObj.text  = sNewText
+                local w, h, d = tObj:getSize(sNewText)
+                tObj.tShape:setScale(w, h, d or 1)
+            end
+            tImGui.TreePop()
+        end
+    end
+end
+
+local function treeNodeAnimation(tObj)
+    local flags = 0
+    if tImGui.TreeNodeEx(tLang.L("animation"), flags, string.format("Animation-%d", tObj.iIndex)) then
+        local label       = '##Animation' .. tostring(tObj.iIndex)
+        local tAnimations = {}
+        for i = 1, tObj:getTotalAnim() do
+            table.insert(tAnimations, string.format('%d:  %s', i, select(1, tObj:getAnim(i))))
+        end
+
+        local current_item    = select(2, tObj:getAnim())
+        local height_in_items = -1
+        local ret, new_item, item_as_string = tImGui.Combo(label, current_item, tAnimations, height_in_items)
+        if ret then
+            tObj:setAnim(new_item)
+        end
+        tImGui.TreePop()
+    end
+end
+
+local function treeNodePhysics(tObj)
+    local flags = 0
+    if tImGui.TreeNodeEx(tLang.L("physics"), flags, string.format("Physics-%d", tObj.iIndex)) then
+        local height_in_items = -1
+        tImGui.Text(tLang.L("type"))
+
+        local tPhysicInfo = tObj.tPhysicInfo or {type = 'None'}
+
+        local iType = 1
+        for i = 1, #tPhysicEditor.tType do
+            if tPhysicEditor.tType[i]:lower() == tPhysicInfo.type then
+                iType = i
+                break
+            end
+        end
+
+        local ret, current_item, item_as_string = tImGui.Combo(
+            string.format("##TypePhysics-%d", tObj.iIndex), iType, tPhysicEditor.tType, height_in_items)
+        if ret then
+            if item_as_string == 'None' then
+                tObj.tPhysicInfo = nil
+            else
+                tObj.tPhysicInfo = tUtil.deepCopyTable(tPhysicEditor[item_as_string])
+            end
+        end
+
+        if tPhysicInfo.density then
+            tImGui.Text(tLang.L("density"))
+            tImGui.SameLine()
+            tImGui.TextDisabled(tLang.L("unit_kg_m2"))
+            local result, fValue = tImGui.InputFloat(
+                string.format('##density-%d', tObj.iIndex), tPhysicInfo.density, 1.0, 2.0, "%.3f", 0)
+            if result and fValue >= 0 then
+                tPhysicInfo.density = fValue
+            end
+        end
+
+        if tPhysicInfo.friction then
+            tImGui.Text(tLang.L("friction"))
+            tImGui.SameLine()
+            tImGui.TextDisabled(tLang.L("unit_coefficient"))
+            local result, fValue = tImGui.InputFloat(
+                string.format('##Friction-%d', tObj.iIndex), tPhysicInfo.friction, 0.002, 0.02, "%.7f", 0)
+            if result and fValue >= 0 and fValue <= 1 then
+                tPhysicInfo.friction = fValue
+            end
+        end
+
+        if tPhysicInfo.restitution then
+            tImGui.Text(tLang.L("restitution"))
+            tImGui.SameLine()
+            tImGui.TextDisabled(tLang.L("unit_elasticity"))
+            local result, fValue = tImGui.InputFloat(
+                string.format('##Restitution-%d', tObj.iIndex), tPhysicInfo.restitution, 0.002, 0.02, "%.7f", 0)
+            if result and fValue >= 0 and fValue <= 1 then
+                tPhysicInfo.restitution = fValue
+            end
+        end
+
+        if tPhysicInfo.scaleX then
+            tImGui.Text(tLang.L("scale_x"))
+            tImGui.SameLine()
+            tImGui.TextDisabled(tLang.L("unit_scale_x"))
+            local result, fValue = tImGui.InputFloat(
+                string.format('##Scale X-%d', tObj.iIndex), tPhysicInfo.scaleX, 0.02, 0.2, "%.2f", 0)
+            if result and fValue > 0 and fValue <= 1000 then
+                tPhysicInfo.scaleX = fValue
+            end
+        end
+
+        if tPhysicInfo.scaleY then
+            tImGui.Text(tLang.L("scale_y"))
+            tImGui.SameLine()
+            tImGui.TextDisabled(tLang.L("unit_scale_y"))
+            local result, fValue = tImGui.InputFloat(
+                string.format('##Scale Y-%d', tObj.iIndex), tPhysicInfo.scaleY, 0.02, 0.2, "%.2f", 0)
+            if result and fValue > 0 and fValue <= 1000 then
+                tPhysicInfo.scaleY = fValue
+            end
+        end
+
+        if type(tPhysicInfo.sensor) == 'boolean' then
+            tPhysicInfo.sensor = tImGui.Checkbox(
+                string.format(tLang.L("sensor") .. '##%d', tObj.iIndex), tPhysicInfo.sensor)
+        end
+
+        if type(tPhysicInfo.bullet) == 'boolean' then
+            tPhysicInfo.bullet = tImGui.Checkbox(
+                string.format(tLang.L("bullet") .. '##%d', tObj.iIndex), tPhysicInfo.bullet)
+        end
+
+        tImGui.TreePop()
+    end
+end
+
+--- Full property editor for an object (called from showMeshList tree nodes)
+showPropertiesForMesh = function(tObj)
     local isBlocked = tObj.isBlocked or false
     if not isBlocked then
         local tWorld = {'2D World', '2D Screen'}
-        local iIndexWorldMesh = 1
-        if tObj.is2ds then
-            iIndexWorldMesh = 2
-        end
-        local ret, current_item, item = tImGui.Combo('##WorldObj' , iIndexWorldMesh, tWorld)
+        local iIndexWorldMesh = tObj.is2ds and 2 or 1
+        local ret, current_item = tImGui.Combo('##WorldObj' .. tObj.iIndex, iIndexWorldMesh, tWorld)
         if ret then
             if current_item == 1 then
                 tObj.is2ds = false
@@ -438,11 +1805,10 @@ function showPropertiesForMesh(tObj)
                 tObj.tShape.visible = false
             end
         end
-    
-        local bSelected = tImGui.Checkbox(tLang.L("selected"),tObj.isSelected)
 
+        local bSelected = tImGui.Checkbox(tLang.L("selected") .. '##' .. tObj.iIndex, tObj.isSelected)
         if bSelected ~= tObj.isSelected then
-            setSelectedObj(tObj,bSelected)
+            setSelectedObj(tObj, bSelected)
             if bSelected then
                 tFollowCam = tObj
             end
@@ -450,21 +1816,22 @@ function showPropertiesForMesh(tObj)
     end
 
     if isBlocked then
-        local idx     = tImGui.Flags('ImGuiCol_Text')
-        local color   = {r=1,g=0,b=0.3,a=1}
+        local idx   = tImGui.Flags('ImGuiCol_Text')
+        local color = {r = 1, g = 0, b = 0.3, a = 1}
         tImGui.PushStyleColor(idx, color)
     end
-    
-    local bBlocked  = tImGui.Checkbox(tLang.L("blocked"),isBlocked)
+
+    local bBlocked = tImGui.Checkbox(tLang.L("blocked") .. '##' .. tObj.iIndex, isBlocked)
     if bBlocked ~= isBlocked then
         tObj.isBlocked = bBlocked
         if bBlocked then
-            setSelectedObj(tObj,false)
+            setSelectedObj(tObj, false)
         end
     end
     if isBlocked then
         tImGui.PopStyleColor(1)
     end
+
     if not bBlocked then
         treeNodePosition(tObj)
         treeNodeScale(tObj)
@@ -475,653 +1842,15 @@ function showPropertiesForMesh(tObj)
     end
 end
 
-function treeNodeText(tObj)
-    local sText = tObj.sText
-    if sText then
-        local flags  = 0
-        if tImGui.TreeNodeEx(tLang.L("text_label"),flags, string.format("Text-%d",tObj.iIndex)) then
-            tImGui.Text(tLang.L("text_label"))
-            local label      = string.format("##Font-Text-%d",tObj.iIndex)
-            local size       = {x=-1,y=100}
-            local flags      = 0
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass 5 — Save / Load / Export
+-- ─────────────────────────────────────────────────────────────────────────────
 
-            local modified , sNewText = tImGui.InputTextMultiline(label,sText,size,flags)
-            if modified then
-                tObj.sText = sNewText
-                tObj.text = sNewText
-                local w,h,d = tObj:getSize(sNewText)
-                tObj.tShape:setScale(w,h,d or 1)
-            end
-            tImGui.TreePop()
-        end
-    end
+local function onSaveUserData(name, value, tOut)
+    -- placeholder for custom userdata serialisation (none needed currently)
 end
 
-
-function treeNodePhysics(tObj)
-    local flags  = 0
-    if tImGui.TreeNodeEx(tLang.L("physics"),flags, string.format("Physics-%d",tObj.iIndex)) then
-        local height_in_items  =  -1
-        tImGui.Text(tLang.L("type"))
-
-        local tPhysicInfo  = tObj.tPhysicInfo or {type = 'None'}
-        
-        local iType = 1
-        for i=1, #tPhysicEditor.tType do
-            if tPhysicEditor.tType[i]:lower() == tPhysicInfo.type then
-                iType = i
-                break
-            end
-        end
-
-        local ret, current_item, item_as_string = tImGui.Combo(string.format("##TypePhysics-%d",tObj.iIndex), iType, tPhysicEditor.tType, height_in_items)
-        if ret then
-            if item_as_string == 'None' then
-                tObj.tPhysicInfo = nil
-            else
-                tObj.tPhysicInfo = tUtil.deepCopyTable(tPhysicEditor[item_as_string])
-            end
-        end
-
-        
-        if tPhysicInfo.density then
-            local step       =  1.0
-            local step_fast  =  2.0
-            local format     = "%.3f"
-            tImGui.Text(tLang.L("density"))
-            tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L("unit_kg_m2"))
-            local result, fValue = tImGui.InputFloat(string.format('##density-%d',tObj.iIndex), tPhysicInfo.density, step, step_fast, format, flags)
-            if result and fValue >= 0 then
-                tPhysicInfo.density = fValue
-            end
-        end
-
-        if tPhysicInfo.friction then
-            local step       =  0.002
-            local step_fast  =  0.02
-            local format     = "%.7f"
-            tImGui.Text(tLang.L("friction"))
-            tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L("unit_coefficient"))
-            local result, fValue = tImGui.InputFloat(string.format('##Friction-%d',tObj.iIndex), tPhysicInfo.friction, step, step_fast, format, flags)
-            if result and fValue >= 0 and fValue <= 1 then
-                tPhysicInfo.friction = fValue
-            end
-        end
-
-        if tPhysicInfo.restitution then
-            local step       =  0.002
-            local step_fast  =  0.02
-            local format     = "%.7f"
-            tImGui.Text(tLang.L("restitution"))
-            tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L("unit_elasticity"))
-            local result, fValue = tImGui.InputFloat(string.format('##Restitution-%d',tObj.iIndex), tPhysicInfo.restitution, step, step_fast, format, flags)
-            if result and fValue >= 0 and fValue <= 1 then
-                tPhysicInfo.restitution = fValue
-            end
-        end
-
-        if tPhysicInfo.scaleX then
-            local step       =  0.02
-            local step_fast  =  0.2
-            local format     = "%.2f"
-            tImGui.Text(tLang.L("scale_x"))
-            tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L("unit_scale_x"))
-            local result, fValue = tImGui.InputFloat(string.format('##Scale X-%d',tObj.iIndex), tPhysicInfo.scaleX, step, step_fast, format, flags)
-            if result and fValue > 0 and fValue <= 1000 then
-                tPhysicInfo.scaleX = fValue
-            end
-        end
-
-        if tPhysicInfo.scaleY then
-            local step       =  0.02
-            local step_fast  =  0.2
-            local format     = "%.2f"
-            tImGui.Text(tLang.L("scale_y"))
-            tImGui.SameLine()
-            tImGui.TextDisabled(tLang.L("unit_scale_y"))
-            local result, fValue = tImGui.InputFloat(string.format('##Scale Y-%d',tObj.iIndex), tPhysicInfo.scaleY, step, step_fast, format, flags)
-            if result and fValue > 0 and fValue <= 1000 then
-                tPhysicInfo.scaleY = fValue
-            end
-        end
-
-        if type(tPhysicInfo.sensor) == 'boolean' then
-            tPhysicInfo.sensor = tImGui.Checkbox(string.format(tLang.L("sensor") .. '##%d',tObj.iIndex),tPhysicInfo.sensor)
-        end
-
-        if type(tPhysicInfo.bullet) == 'boolean' then
-            tPhysicInfo.bullet = tImGui.Checkbox(string.format(tLang.L("bullet") .. '##%d',tObj.iIndex),tPhysicInfo.bullet)
-        end
-
-        tImGui.TreePop()
-    end
-end
-
-function treeNodeAnimation(tObj)
-    local flags  = 0
-    if tImGui.TreeNodeEx(tLang.L("animation"),flags, string.format("Animation-%d",tObj.iIndex)) then
-        local label            = '##Animation' .. tostring(tObj.iIndex)
-        local tAnimations      = {}
-        for i=1, tObj:getTotalAnim() do
-            table.insert(tAnimations, string.format('%d:  %s',i,select(1,tObj:getAnim(i))))
-        end
-
-        local current_item     = select(2,tObj:getAnim())
-        local height_in_items  =  -1
-        local ret, current_item, item_as_string = tImGui.Combo(label, current_item, tAnimations, height_in_items)
-        if ret then
-            tObj:setAnim(current_item)
-        end
-        tImGui.TreePop()
-    end
-end
-
-function filter(tObj)
-    if tOptionsEditor.iIndexWorldMesh > 1 then -- not all worlds
-        if tOptionsEditor.iIndexWorldMesh == 2 then -- 2dw
-            if tObj.is2ds then
-                return false
-            end
-        elseif tOptionsEditor.iIndexWorldMesh == 3 then -- 2ds
-            if not tObj.is2ds then
-                return false
-            end
-        end
-    end
-    if tOptionsEditor.iIndexTypeMeshFilter > 1 then -- not all type of mesh
-        local sType = tFilter.tType[tOptionsEditor.iIndexTypeMeshFilter]:lower()
-        if tObj.type ~= sType then
-            return false
-        end
-    end
-
-    if tOptionsEditor.iIndexTypePhysicsFilter > 1 then -- not all type of physics
-        local sType = tFilter.tPhysicType[tOptionsEditor.iIndexTypePhysicsFilter]:lower()
-        if tObj.tPhysicInfo == nil or tObj.tPhysicInfo.type ~= sType then
-            return false
-        end
-    end
-
-    return true
-end
-
-function showAddingMeshOptions()
-    
-    if bShowAddingMesh then
-        local width        = 300
-        local tPosWin      = {x = 0, y = 0}
-        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_adding_mesh,tPosWin.x,tPosWin.y,width,width + 50)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_adding_mesh), true, ImGuiWindowFlags_NoMove)
-        if is_opened then
-            tOptionsEditor.bAddObjAs2dw = tImGui.Checkbox(tLang.L("add_mesh_as_2dw"),tOptionsEditor.bAddObjAs2dw)
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_disabled_2d_screen"))
-            tOptionsEditor.bCenterOfScreen = tImGui.Checkbox(tLang.L("add_mesh_at_center"),tOptionsEditor.bCenterOfScreen)
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_disabled_initial_pos"))
-            if not tOptionsEditor.bCenterOfScreen then
-                local step       =  1.0
-                local step_fast  =  10.0
-                local format     = "%.3f"
-                local flags      =  0
-
-                tImGui.PushItemWidth(200)
-                local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##InitialDisplacementX', tOptionsEditor.initialDisplacement.x, step, step_fast, format, flags)
-                if result and fValue >= 0 then
-                    tOptionsEditor.initialDisplacement.x = fValue
-                end
-                local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##InitialDisplacementY', tOptionsEditor.initialDisplacement.y, step, step_fast, format, flags)
-                if result and fValue >= 0 then
-                    tOptionsEditor.initialDisplacement.y = fValue
-                end
-                tImGui.PopItemWidth()
-
-                tOptionsEditor.tIncrementOnNewMesh.x = tImGui.Checkbox(tLang.L("increment_width_x"),tOptionsEditor.tIncrementOnNewMesh.x)
-                tImGui.SameLine()
-                tImGui.HelpMarker(tLang.L("help_initial_pos_x_width"))
-                tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = tImGui.Checkbox(tLang.L("to_right_on_x"),tOptionsEditor.tDirectionIncrementOnNewMesh.bRight)
-                tOptionsEditor.tIncrementOnNewMesh.y = tImGui.Checkbox(tLang.L("increment_height_y"),tOptionsEditor.tIncrementOnNewMesh.y)
-                tImGui.SameLine()
-                tImGui.HelpMarker(tLang.L("help_initial_pos_y_height"))
-                tOptionsEditor.tDirectionIncrementOnNewMesh.bUp = tImGui.Checkbox(tLang.L("to_up_on_y"),tOptionsEditor.tDirectionIncrementOnNewMesh.bUp)
-
-                if tImGui.Button(tLang.L("get_mesh_size"), {x=200,y=0}) then
-                    if tLastMeshAdded then
-                        tOptionsEditor.initialDisplacement.x, tOptionsEditor.initialDisplacement.y = tLastMeshAdded:getSize()
-                    else
-                        tOptionsEditor.initialDisplacement.x = 0
-                        tOptionsEditor.initialDisplacement.y = 0
-                    end
-                end
-
-            end
-
-            local title_duplicated = 'Duplicate Last Mesh Added'
-            if #tSelectedObjs > 0 then
-                title_duplicated = 'Duplicate All Mesh Selected'
-            end
-            if tImGui.Button(title_duplicated, {x=200,y=0}) then
-                onDuplicated()
-            end
-        end
-        tWindowsArea:addThisWindow()
-        tImGui.End()
-        if closed_clicked then
-            bShowAddingMesh = false
-        end
-    end
-end
-
-function updateVisibilityByFilter()
-    for i=1, #tAllMesh do
-        local tObj = tAllMesh[i]
-        if filter(tObj) then
-            tObj.visible = true
-        else
-            tObj.visible = false
-            tObj.tShape.visible = false
-        end
-    end
-end
-
-function showMeshList()
-    if bShowMeshList then
-        local width        = 300
-        local tPosWin      = {x = 0, y = 0}
-        tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes,tPosWin.x,tPosWin.y,width,width + 50)
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, ImGuiWindowFlags_NoMove)
-        if is_opened then
-            local flags  = 0
-            if tImGui.TreeNodeEx(string.format(tLang.L("filter"),#tAllMesh),flags,'##FilterMesh') then
-                local bAnyChange = false
-                tImGui.Text(tLang.L("world"))
-                local ret, current_item, item = tImGui.Combo('##WorldMeshFilter' , tOptionsEditor.iIndexWorldMesh, tFilter.tWorld)
-                if ret then
-                    tOptionsEditor.iIndexWorldMesh = current_item
-                    bAnyChange = true
-                end
-                tImGui.Text(tLang.L("mesh_type"))
-                local ret, current_item, item = tImGui.Combo('##TypeMeshFilter' , tOptionsEditor.iIndexTypeMeshFilter, tFilter.tType)
-                if ret then
-                    tOptionsEditor.iIndexTypeMeshFilter = current_item
-                    bAnyChange = true
-                end
-
-                tImGui.Text(tLang.L("mesh_physics"))
-                local ret, current_item, item = tImGui.Combo('##TypePhysicsFilter' , tOptionsEditor.iIndexTypePhysicsFilter, tFilter.tPhysicType)
-                if ret then
-                    tOptionsEditor.iIndexTypePhysicsFilter = current_item
-                    bAnyChange = true
-                end
-
-                if bAnyChange then
-                    updateVisibilityByFilter()
-                end
-                tImGui.TreePop()
-            end
-            if tImGui.TreeNodeEx(string.format(tLang.L("objects") .. " (%d/%d)",iFiltered,#tAllMesh),flags,'##allMeshes') then
-                iFiltered = 0
-                local iNodeClicked = 0
-                for i=1, #tAllMesh do
-                    local tObj = tAllMesh[i]
-                    if filter(tObj) then
-                        iFiltered = iFiltered + 1
-                        local flags_selected  = 0
-                        if tObj.isSelected then
-                            flags_selected = ImGuiTreeNodeFlags_Selected
-                        end
-                        if tObj.isBlocked then
-                            local idx     = tImGui.Flags('ImGuiCol_Text')
-                            local color   = {r=1,g=0,b=0.3,a=1}
-                            tImGui.PushStyleColor(idx, color)
-                        end
-                        local node_open =  tImGui.TreeNodeEx(string.format("%s (%d)",tObj.type,i), flags_selected)
-                        if (keyControlPressed or keyShiftPressed) and tImGui.IsItemClicked() then
-                            iNodeClicked = i
-                        end
-                        if tObj.isBlocked then
-                            tImGui.PopStyleColor(1)
-                        end
-                        if node_open then
-                            showPropertiesForMesh(tObj)
-                            tImGui.TreePop()
-                        end
-                    else
-                        setSelectedObj(tObj,false)
-                    end
-                end
-                if iNodeClicked > 0 then
-                    local tObj = tAllMesh[iNodeClicked]
-                    if keyControlPressed then
-                        if tObj.isBlocked then
-                            tUtil.showMessageWarn(tLang.L("object_blocked"))
-                        else
-                            if tObj.isSelected then
-                                tFollowCam = nil
-                                iLastNodeSelected = 0
-                                setSelectedObj(tObj,false)
-                            else
-                                tFollowCam = tObj
-                                setSelectedObj(tObj,true)
-                                iLastNodeSelected = iNodeClicked
-                            end
-                        end
-                    elseif keyShiftPressed then
-                        local sText = ''
-                        local bAnyBlocked = false
-                        if iLastNodeSelected > 0 then
-                            if iNodeClicked > iLastNodeSelected then
-                                for i = iLastNodeSelected, iNodeClicked do
-                                    local tObj = tAllMesh[i]
-                                    if tObj.isBlocked then
-                                        bAnyBlocked = true
-                                        sText = sText .. tostring(i) .. ', '
-                                    else
-                                        setSelectedObj(tObj,true)
-                                        tFollowCam = tObj
-                                    end
-                                end
-                            else
-                                for i = iNodeClicked, iLastNodeSelected do
-                                    local tObj = tAllMesh[i]
-                                    if tObj.isBlocked then
-                                        bAnyBlocked = true
-                                        sText = sText .. tostring(i) .. ', '
-                                    else
-                                        setSelectedObj(tObj,true)
-                                        tFollowCam = tObj
-                                    end
-                                end
-                            end
-                        else
-                            tFollowCam = tObj
-                            setSelectedObj(tObj,true)
-                            iLastNodeSelected = iNodeClicked
-                        end
-
-                        if bAnyBlocked then
-                            tUtil.showMessageWarn(string.format(tLang.L("objects_blocked_fmt"), sText))
-                        end
-                    end
-                end
-                tImGui.TreePop()
-            else
-                iFiltered = 0
-            end
-        end
-        tWindowsArea:addThisWindow()
-        tImGui.End()
-        if closed_clicked then
-            bShowMeshList = false
-        end
-    end
-end
-
-function onNewSceneEditor()
-    if tSelectedObjs == nil then
-        tSelectedObjs = {}
-    end
-    if tAllMesh == nil then
-        tAllMesh = {}
-    end
-    onSelectAll()
-    onDeleteSelected()
-    tOptionsEditor = {
-        iIndexResolution        = 1,
-        bInvertResolution       = false,
-        bDrawResolution         = true,
-        fSceneCamPos            = {x = 0, y = 0},
-        tColorBackground        = {r = tUtil.tColorBackground.r, g = tUtil.tColorBackground.g, b = tUtil.tColorBackground.b},
-        iIndexWorldMesh         = 1,
-        iIndexTypeMeshFilter    = 1,
-        iIndexTypePhysicsFilter = 1,
-        bAddObjAs2dw            = true,
-        bCenterOfScreen         = false,
-        initialDisplacement     = {x=0,y=0},
-        tIncrementOnNewMesh     = {x = true,y = false},
-        tDirectionIncrementOnNewMesh= {bRight = true,bUp = true},
-        sScaleAxis              = 'y',
-        sCurrentScriptExecution = '',
-        sExtraScript            = ''
-    }
-
-    tOptionsLaunch = {
-        iIndexResolution      = 1,
-        bInvertResolution     = false,
-    }
-    sLastMeshAdd            = ''
-    tSelectedObjs           = {}
-    bShowMeshList           = false
-    tLastMeshAdded          = nil
-    tFollowCam              = nil
-    sLastEditorFileName     = ''
-    keyControlPressed       = false
-    keyShiftPressed         = false
-    tAllMesh                = {}
-end
-
-function setSelectedObj(tObj,bValue)
-    if bValue then
-        if not tObj.isSelected then
-            tObj.bJustSelected = true
-            tObj.tShape:setTexture(sTextureShapeSelected)
-        else
-            tObj.bJustSelected = false
-        end
-        tObj.isSelected              = true
-        tObj.tShape.visible          = true
-
-        local bAlreadyInTheList = false
-
-        for i=1, #tSelectedObjs do
-            local that = tSelectedObjs[i]
-            if that == tObj then
-                bAlreadyInTheList = true
-                break
-            end
-        end
-        if bAlreadyInTheList == false then
-            table.insert(tSelectedObjs,tObj)
-        end
-    else
-        tObj.isSelected     = false
-        tObj.tShape.visible = false
-
-        for i=1, #tSelectedObjs do
-            local that = tSelectedObjs[i]
-            if that == tObj then
-                table.remove(tSelectedObjs,i)
-                break
-            end
-        end
-    end
-end
-
-function onTouchDown(key,x,y)
-    if cCoroutineLoadScene then return end
-    local anyObj           = false
-    local anyWindowHovered = tWindowsArea:IsAnyWindowHovered(x,y)
-    isClickedMouseLeft     = key == 0 and not anyWindowHovered
-    camera2d.mx            = x
-    camera2d.my            = y
-    bEnableMoveWorld       = true
-    bClickedOverAnyMesh    = false
-    bMovingAnyMesh         = false
-    tFollowCam             = nil
-    if isClickedMouseLeft then
-        local clickedX, clickedY = mbm.to2dw(x,y)
-        for i =1, #tAllMesh do
-            local tObj = tAllMesh[i]
-            if not tObj.isBlocked and tObj.visible and tObj:isOver(x,y) then
-                if keyControlPressed then
-                    setSelectedObj(tObj,true)
-                else
-                    onUnSelectAll()
-                    setSelectedObj(tObj,true)
-                end
-                bEnableMoveWorld             = false
-                bClickedOverAnyMesh          = true
-            end
-        end
-        --update positions to selected objects
-        for i=1, #tSelectedObjs do
-            local tObj      = tSelectedObjs[i]
-            tObj.originx    = tObj.x
-            tObj.originy    = tObj.y
-            tObj.clickedX   = clickedX
-            tObj.clickedY   = clickedY
-        end
-    end
-end
-
-function onTouchMove(key,x,y)
-    if cCoroutineLoadScene then return end
-    if bEnableMoveWorld then
-        if isClickedMouseLeft then
-            local px = (camera2d.mx - x) * camera2d.sx
-            local py = (camera2d.my - y) * camera2d.sy
-            camera2d.mx = x
-            camera2d.my = y
-            camera2d:setPos(camera2d.x + px,camera2d.y - py)
-        end
-    elseif key == 0 then
-        local mx,my = mbm.to2dw(x,y)
-        if bClickedOverAnyMesh then
-            bMovingAnyMesh = true
-            for i =1, #tSelectedObjs do
-                local tObj = tSelectedObjs[i]
-                v1:set(tObj.originx,tObj.originy)
-                v1:sub(tObj.clickedX,tObj.clickedY)
-                v1:add(mx,my)
-                if tObj.isBlockedX then
-                    v1.x = tObj.x
-                end
-                if tObj.isBlockedY then
-                    v1.y = tObj.y
-                end
-                tObj:setPos(v1.x,v1.y)
-            end
-        elseif not tWindowsArea:IsAnyWindowHovered(x,y) then
-            for i =1, #tAllMesh do
-                local tObj = tAllMesh[i]
-                if not tObj.isBlocked and tObj.visible and tObj:isOver(x,y) == true then
-                    tObj.tShape:setTexture(sTextureShapeOver)
-                    tObj.tShape.visible = true
-                elseif tObj.isSelected then
-                    tObj.tShape:setTexture(sTextureShapeSelected)
-                    tObj.tShape.visible = true
-                else
-                    tObj.tShape.visible = false
-                end
-            end
-        end
-    end
-end
-
-function onTouchUp(key,x,y)
-    if cCoroutineLoadScene then return end
-    if key == 0 and isClickedMouseLeft and bEnableMoveWorld == false then
-        if not bMovingAnyMesh and bClickedOverAnyMesh then
-            for i=1, #tSelectedObjs do
-                local tObj = tSelectedObjs[i]
-                if not tObj.bJustSelected and tObj:isOver(x,y) then
-                    setSelectedObj(tObj,false)
-                    break
-                end
-            end
-        end
-    end
-    isClickedMouseLeft  = false
-    bEnableMoveWorld    = false
-    bClickedOverAnyMesh = false
-    camera2d.mx         = x
-    camera2d.my         = y
-end
-
-function onTouchZoom(zoom)
-    if cCoroutineLoadScene then return end
-end
-
-function onKeyDown(key)
-    if cCoroutineLoadScene then return end
-    if key == mbm.getKeyCode('control') then
-        keyControlPressed = true
-    elseif key == mbm.getKeyCode('shift') then
-        keyShiftPressed = true
-    elseif keyControlPressed then
-        if key == mbm.getKeyCode('S') then -- Ctrl+S
-            onSaveSceneEditor()
-        elseif key == mbm.getKeyCode('O') then -- Ctrl+O
-            onLoadScene()
-        elseif key == mbm.getKeyCode('N') then -- Ctrl+N
-            onNewSceneEditor()
-        elseif key == mbm.getKeyCode('I') then -- Ctrl+I
-            onInvertSelection()
-        elseif key == mbm.getKeyCode('A') then -- Ctrl+A
-            onSelectAll()
-        elseif key == mbm.getKeyCode('M') then -- Ctrl+M
-            onAddMesh()
-        elseif key == mbm.getKeyCode('B') then -- Ctrl+B
-            onSaveSpriteBinary()
-        elseif key == mbm.getKeyCode('C') then -- Ctrl+C
-            if #tSelectedObjs == 1 then
-                tLastMeshAdded = tSelectedObjs[1]
-            end
-        elseif key == mbm.getKeyCode('D') or key == mbm.getKeyCode('V') then -- Ctrl+D
-            onDuplicated()
-        elseif key == mbm.getKeyCode('U') then -- Ctrl+U
-            onUnSelectAll()
-        elseif key == mbm.getKeyCode('R') then -- Ctrl+R
-            tOptionsEditor.tDirectionIncrementOnNewMesh.bRight = not tOptionsEditor.tDirectionIncrementOnNewMesh.bRight
-            if tOptionsEditor.tDirectionIncrementOnNewMesh.bRight then
-                tUtil.showMessage(tLang.L("duplicate_mesh_right_x"))
-            else
-                tUtil.showMessage(tLang.L("duplicate_mesh_left_x"))
-            end
-        elseif key == mbm.getKeyCode('delete') then -- Delete
-            onDeleteSelected()
-        elseif key == mbm.getKeyCode('L') then -- Ctrl+L
-            bShowMeshList = true
-        end
-    elseif key == mbm.getKeyCode('F5') then
-        onPlay()
-    elseif key == mbm.getKeyCode('esc') or mbm.getKeyName(key) == 'ESCAPE' then
-        onUnSelectAll()
-    end
-end
-
-
-function onKeyUp(key)
-    if cCoroutineLoadScene then return end
-    if key == mbm.getKeyCode('control') then
-        keyControlPressed = false
-    elseif key == mbm.getKeyCode('shift') then
-        keyShiftPressed = false
-    end
-end
-
-function onNewScene()
-    onSelectAll()
-    onDeleteSelected()
-    camera2d.x              = 0
-    camera2d.y              = 0
-    bShowMeshList           = false
-    tLastMeshAdded          = nil
-    tFollowCam              = nil
-    sLastEditorFileName     = ''
-    bShowAddingMesh         = false
-    bShowDetailOfMesh       = true
-end
-
-function onSaveUserData(name,value,tOut)
-    
-end
-
-function getHeader(fileName)
+local function getHeader(fileName)
     local sHeader = '' .. "--[[\n" .. [[
     Scene 2d - this file is meant to be used in the engine mbm
     More info at: https://mbm-documentation.readthedocs.io/en/latest/
@@ -1150,16 +1879,119 @@ function getHeader(fileName)
         local tNewLife   = tScene:addMesh(3)
 
 ]] .. "]]\n\n"
-    sHeader = sHeader:gsub('SCENE_NAME',tUtil.getShortName(fileName,false))
-    sHeader = sHeader:gsub('%.lua','')
+    sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false))
+    sHeader = sHeader:gsub('%.lua', '')
     return sHeader
 end
 
-function getSceneLoaderCode(xCam,yCam,sScaleAxis)
-    
+-- ── Serialisation helpers ────────────────────────────────────────────────────
+
+local function getIs2ds4Save(tObj)
+    if tObj.is2ds then return ',is2ds=true' end
+    return ''
+end
+
+local function getBlockFlag4Save(tObj)
+    if tObj.isBlocked then return ',isBlocked=true' end
+    return ''
+end
+
+local function getText4Font4Save(sText)
+    if sText then return ',sText=[[' .. sText .. ']]' end
+    return ''
+end
+
+local function getIndependentCalCam4Save(tObj)
+    if tObj.is2ds and tObj.isRelative2ds then return ',isRelative2ds=true' end
+    return ''
+end
+
+local function getPhysicInfo4Save(tPhysicInfo)
+    if tPhysicInfo then
+        local sRet = {}
+        if tPhysicInfo.type        then table.insert(sRet, string.format('type=%q', tPhysicInfo.type)) end
+        if tPhysicInfo.density     then table.insert(sRet, string.format('density=%g', tPhysicInfo.density)) end
+        if tPhysicInfo.friction    then table.insert(sRet, string.format('friction=%g', tPhysicInfo.friction)) end
+        if tPhysicInfo.restitution then table.insert(sRet, string.format('restitution=%g', tPhysicInfo.restitution)) end
+        if tPhysicInfo.scaleX      then table.insert(sRet, string.format('scaleX=%g', tPhysicInfo.scaleX)) end
+        if tPhysicInfo.scaleY      then table.insert(sRet, string.format('scaleY=%g', tPhysicInfo.scaleY)) end
+        if type(tPhysicInfo.sensor) == 'boolean' then table.insert(sRet, string.format('sensor=%s', tostring(tPhysicInfo.sensor))) end
+        if type(tPhysicInfo.bullet) == 'boolean' then table.insert(sRet, string.format('bullet=%s', tostring(tPhysicInfo.bullet))) end
+        return ',tPhysicInfo={' .. table.concat(sRet, ',') .. '}'
+    end
+    return ''
+end
+
+--- Serialize anchor & panel info for each object
+local function getPanelInfo4Save(tObj)
+    if tObj.panelRef then
+        local s = string.format(',panelId=%d', tObj.panelRef.id)
+        if tObj.anchorX then s = s .. string.format(',anchorX=%g', tObj.anchorX) end
+        if tObj.anchorY then s = s .. string.format(',anchorY=%g', tObj.anchorY) end
+        return s
+    end
+    return ''
+end
+
+--- Serialize panel tree recursively
+local function serializePanelTree(fp, panels, indent)
+    indent = indent or '    '
+    for _, panel in ipairs(panels) do
+        fp:write(string.format('%s{id=%d,name=%q,world=%q', indent, panel.id, panel.name, panel.world))
+        if panel.splitDir then
+            fp:write(string.format(',splitDir=%q', panel.splitDir))
+        end
+        if panel.pctList then
+            fp:write(',pctList={' .. table.concat(panel.pctList, ',') .. '}')
+        end
+        if #panel.children > 0 then
+            fp:write(',children={\n')
+            serializePanelTree(fp, panel.children, indent .. '    ')
+            fp:write(indent .. '}')
+        else
+            fp:write(',children={}')
+        end
+        fp:write('},\n')
+    end
+end
+
+local function getPhysicsFunction()
+    return [[
+
+tScene.addPhysics = function (self,tObj,tPhysicInfo)
+
+    if self.tPhysics == nil then
+        local gravity_x           = 0
+        local gravity_y           = -90.8
+        local scale_box_2d        = 10
+        local velocityIterations  = 10
+        local positionIterations  = 3
+        local multiplyStep        = 1
+        self.tPhysics = box2d:new(gravity_x,gravity_y,scale_box_2d,velocityIterations,positionIterations,multiplyStep)
+    end
+
+    if tPhysicInfo.type == 'static' then
+        self.tPhysics:addStaticBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor)
+    elseif tPhysicInfo.type == 'dynamic' then
+        self.tPhysics:addDynamicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
+    elseif tPhysicInfo.type == 'kinematic' then
+        self.tPhysics:addKinematicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
+    elseif tPhysicInfo.type == 'character' then
+        self.tPhysics:addDynamicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
+        self.tPhysics:setFixedRotation(tObj,true)
+        self.tPhysics:setSleepingAllowed(tObj,false)
+    else
+        print('error','Not found type of physic:' .. tostring(tPhysicInfo.type))
+    end
+end
+
+]]
+end
+
+local function getSceneLoaderCode(xCam, yCam, sScaleAxis)
     local sScene = [[
 tScene.updateCamera = (
-    function (self) 
+    function (self)
         local camera2d = mbm.getCamera('2d')
         camera2d:setPos(POS_CAM_X,POS_CAM_Y)
         camera2d:scaleToScreen(self.iExpectedWidth,self.iExpectedHeight,"AXIS_SCALE_CAM")
@@ -1175,7 +2007,7 @@ tScene.load = (
         self:updateCamera()
         local iYieldForEach      = 60
         local iByYield,stepYield = 0,0
-        if bEnableCoroutine then 
+        if bEnableCoroutine then
             if #self.tAllMeshInfo > iYieldForEach then
                 iByYield = math.ceil(#self.tAllMeshInfo / iYieldForEach)
             end
@@ -1251,8 +2083,8 @@ tScene._addMesh = (
                 tMeshTmp = tFont:add(tInfo.sText or "My text",sWorld)
                 tMeshTmp.tFont = tFont
             else
-                local heightFont 	  = tInfo.heightFont or 50
-                local spaceFont	      = tInfo.spaceFont  or 5
+                local heightFont      = tInfo.heightFont or 50
+                local spaceFont       = tInfo.spaceFont  or 5
                 local spaceHeightFont = tInfo.spaceHeightFont or 5
                 local tFont           = font:new(fileName,heightFont,spaceFont,spaceHeightFont)
                 if not tFont then
@@ -1311,7 +2143,7 @@ tScene._addMesh = (
         else
             tMeshTmp:setPos(tInfo.x,tInfo.y,tInfo.z)
         end
-        
+
         if tInfo.tPhysicInfo then
             self:addPhysics(tMeshTmp,tInfo.tPhysicInfo)
         end
@@ -1322,10 +2154,9 @@ tScene._addMesh = (
         return tMeshTmp
     end
     )
-    
+
 tScene.addMesh = (
     function(self,fileNameOrIndex)
-        
         if type(fileNameOrIndex) == 'number' then
             if fileNameOrIndex >= 1 and fileNameOrIndex <= #self.tAllMeshInfo then
                 local tInfo = self.tAllMeshInfo[fileNameOrIndex]
@@ -1350,8 +2181,8 @@ tScene.addMesh = (
     )
 
 tScene.add = tScene.addMesh
-    
-tScene.getAll = (--return a table for all already loaded meshes
+
+tScene.getAll = (
     function(self,fileName)
         local tAll = {}
         for i=1, #self.tAllMeshInfo do
@@ -1364,9 +2195,9 @@ tScene.getAll = (--return a table for all already loaded meshes
         return tAll
     end
     )
-    
+
 tScene.get = (
-    function(self,fileNameOrIndex)--get already loaded
+    function(self,fileNameOrIndex)
         if type(fileNameOrIndex) == 'number' then
             if fileNameOrIndex >= 1 and fileNameOrIndex <= #self.tMeshesLoaded then
                 return self.tMeshesLoaded[fileNameOrIndex]
@@ -1392,179 +2223,74 @@ tScene.get = (
 return tScene
 ]]
 
-    sScene = sScene:gsub('POS_CAM_X',tostring(xCam))
-    sScene = sScene:gsub('POS_CAM_Y',tostring(yCam))
-    sScene = sScene:gsub('AXIS_SCALE_CAM',sScaleAxis)
+    sScene = sScene:gsub('POS_CAM_X', tostring(xCam))
+    sScene = sScene:gsub('POS_CAM_Y', tostring(yCam))
+    sScene = sScene:gsub('AXIS_SCALE_CAM', sScaleAxis)
     if tOptionsEditor.sExtraScript and tOptionsEditor.sExtraScript:len() > 0 then
-        sScene = sScene:gsub('EXTRA_SCRIPT',string.format('\nif not mbm.include(%q) then\n    print("error on execute script",%q)\nend\n',tOptionsEditor.sExtraScript,tOptionsEditor.sExtraScript))
+        sScene = sScene:gsub('EXTRA_SCRIPT', string.format('\nif not mbm.include(%q) then\n    print("error on execute script",%q)\nend\n', tOptionsEditor.sExtraScript, tOptionsEditor.sExtraScript))
     else
-        sScene = sScene:gsub('EXTRA_SCRIPT','\n')
+        sScene = sScene:gsub('EXTRA_SCRIPT', '\n')
     end
     return sScene
 end
 
-function getPhysicsFunction()
+-- ── Save editor state (.scene_edit.lua) ──────────────────────────────────────
 
-    local sPhysics = [[
-
-tScene.addPhysics = function (self,tObj,tPhysicInfo)
-
-    if self.tPhysics == nil then
-        local gravity_x           = 0
-        local gravity_y           = -90.8
-        local scale_box_2d        = 10
-        local velocityIterations  = 10
-        local positionIterations  = 3
-        local multiplyStep        = 1
-        self.tPhysics = box2d:new(gravity_x,gravity_y,scale_box_2d,velocityIterations,positionIterations,multiplyStep)
-    end
-
-    if tPhysicInfo.type == 'static' then
-        self.tPhysics:addStaticBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor)
-    elseif tPhysicInfo.type == 'dynamic' then
-        self.tPhysics:addDynamicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
-    elseif tPhysicInfo.type == 'kinematic' then
-        self.tPhysics:addKinematicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
-    elseif tPhysicInfo.type == 'character' then
-        self.tPhysics:addDynamicBody(tObj,tPhysicInfo.density,tPhysicInfo.friction,tPhysicInfo.restitution,tPhysicInfo.scaleX,tPhysicInfo.scaleY,tPhysicInfo.sensor,tPhysicInfo.bullet)
-        self.tPhysics:setFixedRotation(tObj,true)
-        self.tPhysics:setSleepingAllowed(tObj,false)
-    else
-        print('error','Not found type of physic:' .. tostring(tPhysicInfo.type))
-    end
-end
-
-]]
-    return sPhysics
-end
-
-function getPhysicInfo4Save(tPhysicInfo)
-    if tPhysicInfo then
-        local sRet = {}
-        if tPhysicInfo.type then
-            table.insert(sRet,string.format('type=%q',tPhysicInfo.type))
-        end
-        if tPhysicInfo.density then
-            table.insert(sRet,string.format('density=%g',tPhysicInfo.density))
-        end
-
-        if tPhysicInfo.friction then
-            table.insert(sRet,string.format('friction=%g',tPhysicInfo.friction))
-        end
-
-        if tPhysicInfo.restitution then
-            table.insert(sRet,string.format('restitution=%g',tPhysicInfo.restitution))
-        end
-
-        if tPhysicInfo.scaleX then
-            table.insert(sRet,string.format('scaleX=%g',tPhysicInfo.scaleX))
-        end
-
-        if tPhysicInfo.scaleY then
-            table.insert(sRet,string.format('scaleY=%g',tPhysicInfo.scaleY))
-        end
-
-        if type(tPhysicInfo.sensor) == 'boolean' then
-            table.insert(sRet,string.format('sensor=%s',tostring(tPhysicInfo.sensor)))
-        end
-
-        if type(tPhysicInfo.bullet) == 'boolean' then
-            table.insert(sRet,string.format('bullet=%s',tostring(tPhysicInfo.bullet)))
-        end
-        return ',tPhysicInfo={' .. table.concat(sRet,',') .. '}'
-    else
-        return ''
-    end
-end
-
-function getText4Font4Save(sText)
-    if sText then
-        return ',sText=[[' .. sText .. ']]'
-    end
-    return ''
-end
-
-function getIndependentCalCam4Save(tObj)
-    if tObj.is2ds and tObj.isRelative2ds then
-        return ',isRelative2ds=true'
-    else
-        return ''
-    end
-end
-
-function getBlockFlag4Save(tObj)
-    if tObj.isBlocked then
-        return ',isBlocked=true'
-    else
-        return ''
-    end
-end
-
-
-function getIs2ds4Save(tObj)
-    if tObj.is2ds then
-        return ',is2ds=true'
-    else
-        return ''
-    end
-end
-
-function onSaveScene(sFileName)
-
+--- Saves the full scene: mesh info + panel tree + editor/launch options
+local function onSaveScene(sFileName)
     local oldLocaleNumeric = os.setlocale(nil, 'numeric')
     os.setlocale('C', 'numeric')
-    local fp = io.open(sFileName,"w")
+    local fp = io.open(sFileName, "w")
     if fp then
-        local tOptionsOut = {}
-
         fp:write(getHeader(sFileName))
 
         local bHasPhysics = false
-        for i=1, #tAllMesh do
-            local tObj = tAllMesh[i]
+        for _, tObj in ipairs(tAllMesh) do
             if type(tObj.tPhysicInfo) == 'table' then
                 bHasPhysics = true
                 break
             end
         end
-
         if bHasPhysics then
             fp:write('require "box2d"\n\n')
         end
 
         fp:write('local tScene = {}\n')
 
-
         if bHasPhysics then
             fp:write(getPhysicsFunction())
         end
 
+        -- Options editor
+        local tOptionsOut = {}
         fp:write('tScene.getOptionsEditor = function()\n    local')
-        tUtil.save('tOptionsEditor',tOptionsEditor,  tOptionsOut,  onSaveUserData)
-        
-        for i=1, #tOptionsOut do
-            local sLine = tOptionsOut[i]
-            fp:write('    ' ..  sLine .. '\n')
+        tUtil.save('tOptionsEditor', tOptionsEditor, tOptionsOut, onSaveUserData)
+        for _, sLine in ipairs(tOptionsOut) do
+            fp:write('    ' .. sLine .. '\n')
         end
-
         fp:write('    return tOptionsEditor\nend\n\n')
 
+        -- Options launch
         tOptionsOut = {}
         fp:write('tScene.getOptionsLaunch = function()\n    local')
-        tUtil.save('tOptionsLaunch',tOptionsLaunch,  tOptionsOut,  onSaveUserData)
-
-        for i=1, #tOptionsOut do
-            local sLine = tOptionsOut[i]
-            fp:write('    ' ..  sLine .. '\n')
+        tUtil.save('tOptionsLaunch', tOptionsLaunch, tOptionsOut, onSaveUserData)
+        for _, sLine in ipairs(tOptionsOut) do
+            fp:write('    ' .. sLine .. '\n')
         end
-
         fp:write('    return tOptionsLaunch\nend\n\n')
 
+        -- Panel tree (new for grid-based editor)
+        fp:write('tScene.tPanelTree = {\n')
+        serializePanelTree(fp, tPanels)
+        fp:write('}\n\n')
+
+        -- Paths
         local tPaths = mbm.getAllPaths()
-        for i=1, #tPaths do
-            fp:write(string.format('mbm.addPath(%q)\n', tPaths[i]))
+        for _, sPath in ipairs(tPaths) do
+            fp:write(string.format('mbm.addPath(%q)\n', sPath))
         end
 
+        -- Resolution
         local xRes, yRes
         if tOptionsEditor.bInvertResolution then
             xRes = tResolution[tOptionsEditor.iIndexResolution].y
@@ -1573,113 +2299,46 @@ function onSaveScene(sFileName)
             xRes = tResolution[tOptionsEditor.iIndexResolution].x
             yRes = tResolution[tOptionsEditor.iIndexResolution].y
         end
+        fp:write(string.format('\ntScene.iExpectedWidth   = %d', xRes))
+        fp:write(string.format('\ntScene.iExpectedHeight  = %d\n', yRes))
 
-        fp:write(string.format('\ntScene.iExpectedWidth   = %d',xRes))
-        fp:write(string.format('\ntScene.iExpectedHeight  = %d\n',yRes))
-
+        -- Mesh info table
         fp:write('\ntScene.tAllMeshInfo = {')
-        for i=1, #tAllMesh do
-            local tObj = tAllMesh[i]
-            fp:write(string.format('\n[%d]={fileName = %s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s},',
-            i,tUtil.getShortName(tObj.fileName,true),
-            tObj.x,tObj.y,tObj.z,
-            tObj.sx,tObj.sy,tObj.sz,
-            tObj.ax,tObj.ay,tObj.az,
-            tObj.type,
-            select(2,tObj:getAnim()),
-            getIs2ds4Save(tObj),
-            getPhysicInfo4Save(tObj.tPhysicInfo),
-            getBlockFlag4Save(tObj),
-            getText4Font4Save(tObj.sText),
-            getIndependentCalCam4Save(tObj)))
+        for i, tObj in ipairs(tAllMesh) do
+            fp:write(string.format(
+                '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s%s},',
+                i, tUtil.getShortName(tObj.fileName, true),
+                tObj.x, tObj.y, tObj.z,
+                tObj.sx, tObj.sy, tObj.sz,
+                tObj.ax, tObj.ay, tObj.az,
+                tObj.type,
+                select(2, tObj:getAnim()),
+                getIs2ds4Save(tObj),
+                getPhysicInfo4Save(tObj.tPhysicInfo),
+                getBlockFlag4Save(tObj),
+                getText4Font4Save(tObj.sText),
+                getIndependentCalCam4Save(tObj),
+                getPanelInfo4Save(tObj)))
         end
         fp:write('}\n\n')
 
         fp:write('tScene.tMeshesLoaded = {}\n')
         fp:write('tScene.tMeshesLoadedDictionary = {}\n\n')
-        fp:write(getSceneLoaderCode(tOptionsEditor.fSceneCamPos.x,tOptionsEditor.fSceneCamPos.y,tOptionsEditor.sScaleAxis))
+        fp:write(getSceneLoaderCode(tOptionsEditor.fSceneCamPos.x, tOptionsEditor.fSceneCamPos.y, tOptionsEditor.sScaleAxis))
         fp:close()
         os.setlocale(oldLocaleNumeric, 'numeric')
         return true
     else
         os.setlocale(oldLocaleNumeric, 'numeric')
-        print('error',string.format('Could not open the file [%s] for write',sFileName))
+        print('error', string.format('Could not open the file [%s] for write', sFileName))
         tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), sFileName))
         return false
     end
 end
 
-function onSetScript()
-    local fileName = mbm.openFile(tOptionsEditor.sExtraScript,"*.lua")
-    if fileName then
-        dofile(fileName)
-        tUtil.showMessage(tLang.L("script_executed"))
-        tOptionsEditor.sExtraScript = fileName
-    end
-end
-
-function onLoadScene()
-    local fileName = mbm.openFile(sLastEditorFileName,"*.lua")
-    if fileName then
-        onNewScene()
-        local tScene = dofile(fileName)
-        if tScene and type(tScene.getOptionsEditor) == 'function' then
-            tOptionsEditor = tScene:getOptionsEditor()
-            mbm.setColor(tOptionsEditor.tColorBackground.r,tOptionsEditor.tColorBackground.g,tOptionsEditor.tColorBackground.b)
-            updateRectangleLine()
-        else
-            tUtil.showMessageWarn(tLang.L("not_found_get_options_editor"))
-        end
-        if tScene and type(tScene.getOptionsLaunch) == 'function' then
-            tOptionsLaunch = tScene:getOptionsLaunch()
-        else
-            tUtil.showMessageWarn(tLang.L("not_found_get_options_launch"))
-        end
-        if tScene and type(tScene.tAllMeshInfo) == 'table' then
-            cCoroutineLoadScene = coroutine.create(
-            function()
-                local iYieldForEach            = 60
-                local bOldOption               = tOptionsEditor.bCenterOfScreen
-                tOptionsEditor.bCenterOfScreen = true
-                local iByYield,stepYield       = 0,0
-                if #tScene.tAllMeshInfo > iYieldForEach then
-                    iByYield = math.ceil(#tScene.tAllMeshInfo / iYieldForEach)
-                end
-                for i=1, #tScene.tAllMeshInfo do
-                    local tInfo = tScene.tAllMeshInfo[i]
-                    local tMeshTmp = tUtil.onAddMeshToEditor(tInfo.fileName,false,'2dw',tInfo.sText)
-                    if tMeshTmp then
-                        if tInfo.iAnim and tInfo.iAnim > 1 then
-                            tMeshTmp:setAnim(tInfo.iAnim)
-                        end
-                        tMeshTmp.tPhysicInfo = tInfo.tPhysicInfo
-                        initialSetUpForAddedMesh(tMeshTmp)
-                        tMeshTmp:setScale(tInfo.sx,tInfo.sy,tInfo.sz)
-                        tMeshTmp:setAngle(tInfo.ax,tInfo.ay,tInfo.az)
-                        tMeshTmp:setPos(tInfo.x,tInfo.y,tInfo.z)
-                        tMeshTmp.is2ds          = tInfo.is2ds
-                        tMeshTmp.isRelative2ds  = tInfo.isRelative2ds
-                        tMeshTmp.isBlocked      = tInfo.isBlocked
-                    end
-                    stepYield = stepYield + 1
-                    if stepYield >= iByYield then
-                        stepYield = 0
-                        coroutine.yield(i,#tScene.tAllMeshInfo)
-                    end
-                end
-                tOptionsEditor.bCenterOfScreen = bOldOption
-                sLastEditorFileName = fileName
-                updateVisibilityByFilter()
-            end)
-        else
-            tUtil.showMessageWarn(tLang.L("not_found_scene_table"))
-        end
-    end
-end
-
-function onSaveSceneEditor()
+local function onSaveSceneEditor()
     if sLastEditorFileName:len() == 0 then
-        local fileName = mbm.saveFile(sLastEditorFileName,'*.lua')
+        local fileName = mbm.saveFile(sLastEditorFileName, '*.lua')
         if fileName then
             if onSaveScene(fileName) then
                 sLastEditorFileName = fileName
@@ -1697,7 +2356,211 @@ function onSaveSceneEditor()
     end
 end
 
-function onPlay()
+-- ── Load editor state ────────────────────────────────────────────────────────
+
+--- Rebuild panel tree from saved data
+local function rebuildPanelsFromData(tSavedPanels, parent)
+    local result = {}
+    for _, pd in ipairs(tSavedPanels) do
+        local panel = createPanel(pd.name, pd.world, parent)
+        panel.id       = pd.id
+        panel.splitDir = pd.splitDir
+        panel.pctList  = pd.pctList
+        if pd.id >= iNextPanelId then
+            iNextPanelId = pd.id + 1
+        end
+        if pd.children and #pd.children > 0 then
+            panel.children = rebuildPanelsFromData(pd.children, panel)
+        end
+        table.insert(result, panel)
+    end
+    return result
+end
+
+local function onLoadScene()
+    local fileName = mbm.openFile(sLastEditorFileName, "*.lua")
+    if fileName then
+        onNewSceneEditor()
+        local tScene = dofile(fileName)
+        if tScene and type(tScene.getOptionsEditor) == 'function' then
+            tOptionsEditor = tScene:getOptionsEditor()
+            mbm.setColor(tOptionsEditor.tColorBackground.r, tOptionsEditor.tColorBackground.g, tOptionsEditor.tColorBackground.b)
+            updateRectangleLine()
+        else
+            tUtil.showMessageWarn(tLang.L("not_found_get_options_editor"))
+        end
+        if tScene and type(tScene.getOptionsLaunch) == 'function' then
+            tOptionsLaunch = tScene:getOptionsLaunch()
+        else
+            tUtil.showMessageWarn(tLang.L("not_found_get_options_launch"))
+        end
+
+        -- Rebuild panel tree if present
+        if tScene and type(tScene.tPanelTree) == 'table' then
+            tPanels = rebuildPanelsFromData(tScene.tPanelTree, nil)
+        end
+
+        if tScene and type(tScene.tAllMeshInfo) == 'table' then
+            cCoroutineLoadScene = coroutine.create(function()
+                local iYieldForEach            = 60
+                local bOldOption               = tOptionsEditor.bCenterOfScreen
+                tOptionsEditor.bCenterOfScreen = true
+                local iByYield, stepYield      = 0, 0
+                if #tScene.tAllMeshInfo > iYieldForEach then
+                    iByYield = math.ceil(#tScene.tAllMeshInfo / iYieldForEach)
+                end
+                for i = 1, #tScene.tAllMeshInfo do
+                    local tInfo = tScene.tAllMeshInfo[i]
+                    local tMeshTmp = tUtil.onAddMeshToEditor(tInfo.fileName, false, '2dw', tInfo.sText)
+                    if tMeshTmp then
+                        if tInfo.iAnim and tInfo.iAnim > 1 then
+                            tMeshTmp:setAnim(tInfo.iAnim)
+                        end
+                        tMeshTmp.tPhysicInfo = tInfo.tPhysicInfo
+                        initialSetUpForAddedMesh(tMeshTmp)
+                        tMeshTmp:setScale(tInfo.sx, tInfo.sy, tInfo.sz)
+                        tMeshTmp:setAngle(tInfo.ax, tInfo.ay, tInfo.az)
+                        tMeshTmp:setPos(tInfo.x, tInfo.y, tInfo.z)
+                        tMeshTmp.is2ds         = tInfo.is2ds
+                        tMeshTmp.isRelative2ds = tInfo.isRelative2ds
+                        tMeshTmp.isBlocked     = tInfo.isBlocked
+
+                        -- Restore panel assignment by id
+                        if tInfo.panelId then
+                            local targetPanel = nil
+                            local rootRect = getRootRect()
+                            traversePanels(tPanels, rootRect, 0, function(p)
+                                if p.id == tInfo.panelId then targetPanel = p end
+                            end)
+                            if targetPanel then
+                                assignObjectToPanel(tMeshTmp, targetPanel)
+                                if tInfo.anchorX then tMeshTmp.anchorX = tInfo.anchorX end
+                                if tInfo.anchorY then tMeshTmp.anchorY = tInfo.anchorY end
+                            end
+                        end
+                    end
+                    stepYield = stepYield + 1
+                    if iByYield > 0 and stepYield >= iByYield then
+                        stepYield = 0
+                        coroutine.yield(i, #tScene.tAllMeshInfo)
+                    end
+                end
+                tOptionsEditor.bCenterOfScreen = bOldOption
+                sLastEditorFileName = fileName
+                updateVisibilityByFilter()
+                -- Rebuild visuals for restored panels
+                rebuildPanelVisuals()
+            end)
+        else
+            tUtil.showMessageWarn(tLang.L("not_found_scene_table"))
+        end
+    end
+end
+
+-- ── Export clean game scene (.scene.lua) ─────────────────────────────────────
+
+local function onExportGameScene()
+    local fileName = mbm.saveFile(sLastEditorFileName, '*.lua')
+    if not fileName then return end
+
+    local oldLocaleNumeric = os.setlocale(nil, 'numeric')
+    os.setlocale('C', 'numeric')
+    local fp = io.open(fileName, "w")
+    if not fp then
+        os.setlocale(oldLocaleNumeric, 'numeric')
+        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), fileName))
+        return
+    end
+
+    fp:write(getHeader(fileName))
+
+    local bHasPhysics = false
+    for _, tObj in ipairs(tAllMesh) do
+        if type(tObj.tPhysicInfo) == 'table' then
+            bHasPhysics = true
+            break
+        end
+    end
+    if bHasPhysics then
+        fp:write('require "box2d"\n\n')
+    end
+
+    fp:write('local tScene = {}\n')
+    if bHasPhysics then
+        fp:write(getPhysicsFunction())
+    end
+
+    -- Paths
+    local tPaths = mbm.getAllPaths()
+    for _, sPath in ipairs(tPaths) do
+        fp:write(string.format('mbm.addPath(%q)\n', sPath))
+    end
+
+    -- Resolution
+    local xRes, yRes
+    if tOptionsEditor.bInvertResolution then
+        xRes = tResolution[tOptionsEditor.iIndexResolution].y
+        yRes = tResolution[tOptionsEditor.iIndexResolution].x
+    else
+        xRes = tResolution[tOptionsEditor.iIndexResolution].x
+        yRes = tResolution[tOptionsEditor.iIndexResolution].y
+    end
+    fp:write(string.format('\ntScene.iExpectedWidth   = %d', xRes))
+    fp:write(string.format('\ntScene.iExpectedHeight  = %d\n', yRes))
+
+    -- Clean mesh info (no editor-only fields like panelId, anchorX/Y, isBlocked)
+    fp:write('\ntScene.tAllMeshInfo = {')
+    for i, tObj in ipairs(tAllMesh) do
+        fp:write(string.format(
+            '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s},',
+            i, tUtil.getShortName(tObj.fileName, true),
+            tObj.x, tObj.y, tObj.z,
+            tObj.sx, tObj.sy, tObj.sz,
+            tObj.ax, tObj.ay, tObj.az,
+            tObj.type,
+            select(2, tObj:getAnim()),
+            getIs2ds4Save(tObj),
+            getPhysicInfo4Save(tObj.tPhysicInfo),
+            getText4Font4Save(tObj.sText),
+            getIndependentCalCam4Save(tObj)))
+    end
+    fp:write('}\n\n')
+
+    fp:write('tScene.tMeshesLoaded = {}\n')
+    fp:write('tScene.tMeshesLoadedDictionary = {}\n\n')
+    fp:write(getSceneLoaderCode(tOptionsEditor.fSceneCamPos.x, tOptionsEditor.fSceneCamPos.y, tOptionsEditor.sScaleAxis))
+    fp:close()
+    os.setlocale(oldLocaleNumeric, 'numeric')
+    tUtil.showMessage(string.format(tLang.L("scene_exported_ok_fmt"), fileName))
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass 6 — Menu bar, play, script generation
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local function onSetScript()
+    local fileName = mbm.openFile(tOptionsEditor.sExtraScript, "*.lua")
+    if fileName then
+        dofile(fileName)
+        tUtil.showMessage(tLang.L("script_executed"))
+        tOptionsEditor.sExtraScript = fileName
+    end
+end
+
+local function onNewScene()
+    onSelectAll()
+    onDeleteSelected()
+    camera2d.x          = 0
+    camera2d.y          = 0
+    bShowMeshList       = false
+    tLastMeshAdded      = nil
+    tFollowCam          = nil
+    sLastEditorFileName = ''
+    bShowAddingMesh     = false
+    bShowDetailOfMesh   = true
+end
+
+local function onPlay()
     local width, height
     if tOptionsLaunch.bInvertResolution then
         width  = tResolution[tOptionsLaunch.iIndexResolution].y
@@ -1723,413 +2586,7 @@ function onPlay()
     end
 end
 
-function main_menu_scene_editor_2d()
-   if (tImGui.BeginMainMenuBar()) then
-       if tImGui.BeginMenu(tLang.L("menu_file")) then
-           
-           local pressed,checked = tImGui.MenuItem(tLang.L("new_scene"), "Ctrl+N", false)
-           if pressed then
-               onNewScene()
-           end
-
-           local pressed,checked = tImGui.MenuItem(tLang.L("load_scene"), "Ctrl+O", false)
-           if pressed then
-               onLoadScene()
-           end
-
-           tImGui.Separator()
-           local pressed,checked = tImGui.MenuItem(tLang.L("set_extra_script"), 'Extension', false)
-           if pressed then
-               onSetScript()
-           end
-           tImGui.SameLine()
-           tImGui.HelpMarker(tLang.L("help_script_extra") .. tostring(tOptionsEditor.sExtraScript))
-
-           tImGui.Separator()
-           local pressed,checked = tImGui.MenuItem(tLang.L("save_scene"), "Ctrl+S", false)
-           if pressed then
-               onSaveSceneEditor()
-           end
-
-           if sLastEditorFileName and sLastEditorFileName:len() > 0 then
-                tImGui.SameLine()
-                tImGui.HelpMarker(sLastEditorFileName)
-           end
-
-           local pressed,checked = tImGui.MenuItem(tLang.L("save_scene_as"), nil, false)
-           if pressed then
-                local sEditorFileName = sLastEditorFileName
-                sLastEditorFileName =  ''
-                onSaveSceneEditor()
-                if sLastEditorFileName == '' then
-                    sLastEditorFileName = sEditorFileName
-                end
-           end
-
-           tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
-            if pressed then
-                mbm.quit()
-            end
-            
-           tWindowsArea:addThisWindow()
-           tImGui.EndMenu();
-       end
-        if tImGui.BeginMenu(tLang.L("menu_mesh")) then
-            local pressed,checked = tImGui.MenuItem(tLang.L("add_mesh"), 'Ctrl+M', false)
-            if pressed then
-               onAddMesh()
-            end
-            tImGui.Separator()
-            local title_duplicated = tLang.L("duplicate_last_mesh")
-            if #tSelectedObjs > 0 then
-                title_duplicated = tLang.L("duplicate_all_mesh_selected")
-            end
-            local pressed,checked = tImGui.MenuItem(title_duplicated, 'Ctrl+D', false)
-            if pressed then
-               onDuplicated()
-            end
-            local pressed,checked = tImGui.MenuItem(tLang.L("select_all_mesh"), 'Ctrl+A', false)
-            if pressed then
-                onSelectAll()
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("invert_selected_mesh"), 'Ctrl+I', false)
-            if pressed then
-                onInvertSelection()
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("unselect_all_mesh"), 'Ctrl+U', false)
-            if pressed then
-               onUnSelectAll()
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("delete_selected_mesh"), 'Ctrl+Delete', false)
-            if pressed then
-                onDeleteSelected()
-            end
-            
-            tImGui.Separator()
-           
-            local pressed,checked = tImGui.MenuItem(tLang.L("view_mesh_list"), 'Ctrl+L', false)
-            if pressed then
-               bShowMeshList  = true
-            end
-
-            tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem(tLang.L("view_options_adding_mesh"), nil, false)
-            if pressed then
-                bShowAddingMesh  = true
-            end
-
-            tImGui.Separator()
-            local pressed,checked = tImGui.MenuItem(tLang.L("view_detail_selected_mesh"), true, bShowDetailOfMesh)
-            if pressed then
-                bShowDetailOfMesh  = checked
-            end
-
-            tWindowsArea:addThisWindow()
-           tImGui.EndMenu()
-        end
-
-        if tImGui.BeginMenu(tLang.L("menu_world")) then
-            tImGui.Text(tLang.L("resolution_expected"))
-            tOptionsEditor.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"),tOptionsEditor.bInvertResolution)
-            local tResolutionString = {}
-            for i=1 , #tResolution do
-                if tOptionsEditor.bInvertResolution then
-                    table.insert(tResolutionString,string.format('%d x %d %s',tResolution[i].y,tResolution[i].x, tResolution[i].comment))
-                else
-                    table.insert(tResolutionString,string.format('%d x %d %s',tResolution[i].x,tResolution[i].y, tResolution[i].comment))
-                end
-            end
-            local ret, current_item, item = tImGui.Combo('##ComboResolution' , tOptionsEditor.iIndexResolution, tResolutionString)
-            if ret then
-                tOptionsEditor.iIndexResolution = current_item
-            end
-
-            tImGui.Text(tLang.L("axis_camera_scale"))
-            local indexAxis
-            if tOptionsEditor.sScaleAxis == 'x' then
-                indexAxis  = 1
-            elseif tOptionsEditor.sScaleAxis == 'y' then
-                indexAxis  = 2
-            else
-                indexAxis  = 3
-            end
-
-            local index_activated = tImGui.RadioButton(tLang.L("axis_x"), indexAxis, 1)
-            tImGui.SameLine()
-            index_activated       = tImGui.RadioButton('Y', index_activated, 2)
-            tImGui.SameLine()
-            index_activated       = tImGui.RadioButton(tLang.L("stretched"), index_activated, 3)
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_default_scale"))
-
-            if index_activated == 1 then
-                tOptionsEditor.sScaleAxis = 'x'
-            elseif index_activated == 2 then
-                tOptionsEditor.sScaleAxis = 'y'
-            else
-                tOptionsEditor.sScaleAxis = 'xy'
-            end
-
-            tOptionsEditor.bDrawResolution = tImGui.Checkbox(tLang.L("draw_resolution_rect"),tOptionsEditor.bDrawResolution)
-            updateRectangleLine()
-            
-            tImGui.Separator()
-            tImGui.Text(tLang.L("camera_position"))
-
-            local step       =  1.0
-            local step_fast  =  10.0
-            local format     = "%.2f"
-            local flags      =  0
-
-            local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##XCamera', camera2d.x, step, step_fast, format, flags)
-            if result then
-                camera2d.x = fValue
-            end
-
-            local result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##YCamera', camera2d.y, step, step_fast, format, flags)
-            if result then
-                camera2d.y = fValue
-            end
-
-            if tImGui.Button(tLang.L("set_initial_camera_pos"), {x=-1,y=0}) then
-                tOptionsEditor.fSceneCamPos.x = camera2d.x
-                tOptionsEditor.fSceneCamPos.y = camera2d.y
-            end
-
-            tImGui.Text(tLang.L("initial_scene_position"))
-            tImGui.TextDisabled(string.format('X:%.2f',tOptionsEditor.fSceneCamPos.x))
-            tImGui.TextDisabled(string.format('Y:%.2f',tOptionsEditor.fSceneCamPos.y))
-
-            tWindowsArea:addThisWindow()
-            tImGui.EndMenu()
-        end
-
-        if tImGui.BeginMenu(tLang.L("menu_options")) then
-            local pressed,checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
-            if pressed then
-               bEnableMoveWindow = checked
-               if bEnableMoveWindow then
-                   ImGuiWindowFlags_NoMove = 0
-               else
-                   ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
-               end
-            end
-
-            local pressed,checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
-            if pressed then
-               tex_alpha_pattern.visible = checked
-            end
-
-            tLang.renderLanguageSubmenu()
-
-            tImGui.Separator()
-            if tImGui.BeginMenu(tLang.L("background_color")) then
-                local sz        = tImGui.GetTextLineHeight()
-
-                local rounding  =  0
-                local flags     =  0
-
-                local colors    = { {'default',    tUtil.tColorBackground},
-                                        {'white',      {r=1,g=1,b=1,a=1}},
-                                        {'black',      {r=0,g=0,b=0,a=1}},
-                                        {'red',        {r=1,g=0,b=0,a=1}},
-                                        {'green',      {r=0,g=1,b=0,a=1}},
-                                        {'blue',       {r=0,g=0,b=1,a=1}},
-                                        {'cyan',       {r=0,g=1,b=1,a=1}},
-                                        {'yellow',     {r=1,g=1,b=0,a=1}},
-                                        {'magenta',    {r=1,g=0,b=1,a=1}}
-                                    }
-
-                for i=1, #colors do
-                    local winPos  = tImGui.GetCursorScreenPos()
-                    local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
-                    local name    = tLang.L(colors[i][1])
-                    local color   = colors[i][2]
-                    tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
-                    tImGui.Dummy({x =sz, y = sz})
-                    tImGui.SameLine()
-                    local pressed,checked = tImGui.MenuItem(name)
-                    if pressed then
-                        mbm.setColor(color.r,color.g,color.b)
-                        tOptionsEditor.tColorBackground = color
-                    end
-                end
-                tImGui.EndMenu()
-            end
-            tWindowsArea:addThisWindow()
-            tImGui.EndMenu()
-        end
-
-        if tImGui.BeginMenu(tLang.L("menu_run")) then
-            tImGui.Text(tLang.L("resolution"))
-            tOptionsLaunch.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"),tOptionsLaunch.bInvertResolution)
-            local tResolutionString = {}
-            for i=1 , #tResolution do
-                if tOptionsLaunch.bInvertResolution then
-                    table.insert(tResolutionString,string.format('%d x %d %s',tResolution[i].y,tResolution[i].x, tResolution[i].comment))
-                else
-                    table.insert(tResolutionString,string.format('%d x %d %s',tResolution[i].x,tResolution[i].y, tResolution[i].comment))
-                end
-            end
-            local ret, current_item, item = tImGui.Combo('##ComboResolution' , tOptionsLaunch.iIndexResolution, tResolutionString)
-            if ret then
-                tOptionsLaunch.iIndexResolution = current_item
-            end
-
-            if tImGui.Button(tLang.L("play"), {x=200,y=0}) then
-                onPlay()
-            end
-            tImGui.SameLine()
-            tImGui.TextDisabled('F5')
-
-            tImGui.Text(tLang.L("execute_script"))
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_execute_script_test"))
-            if tImGui.Button('...', {x=30,y=0}) then
-                local fileName = mbm.openFile(tOptionsEditor.sCurrentScriptExecution,"*.lua")
-                if fileName then
-                    tOptionsEditor.sCurrentScriptExecution = fileName
-                end
-            end
-
-            if tOptionsEditor.sCurrentScriptExecution:len() == 0 then
-                tImGui.SameLine()
-                if tImGui.Button(tLang.L("create_it_for_me"), {x=160,y=0}) then
-                    if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
-                        createBasicScriptForScene(tOptionsEditor.sCurrentScriptExecution)
-                    elseif sLastEditorFileName and sLastEditorFileName:len() > 0 then
-                        createBasicScriptForScene(sLastEditorFileName)
-                    else
-                        tUtil.showMessageWarn(tLang.L("no_scene_loaded_for_script"))
-                    end
-                end
-            end
-
-            if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
-                tImGui.TextDisabled(tUtil.getShortName(tOptionsEditor.sCurrentScriptExecution))
-                tImGui.SameLine()
-                tImGui.HelpMarker(tOptionsEditor.sCurrentScriptExecution)
-                tImGui.SameLine()
-                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=0,b=0.3,a=1})
-                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0,g=0,b=0.3,a=0})
-                if tImGui.Button('X', {x=40,y=0}) then
-                    tOptionsEditor.sCurrentScriptExecution = ''
-                end
-                tImGui.PopStyleColor(2)
-                if tImGui.IsItemHovered(0) then
-                    tImGui.BeginTooltip()
-                    tImGui.Text(tLang.L("clear_script"))
-                    tImGui.EndTooltip()
-                end
-
-            end
-            tImGui.EndMenu()
-            tWindowsArea:addThisWindow()
-        end
-
-        if tImGui.BeginMenu(tLang.L("menu_about")) then
-            local pressed,checked = tImGui.MenuItem(tLang.L("scene_editor_2d"), nil, false)
-            if pressed then
-                if mbm.is('windows') then
-                   os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
-                elseif mbm.is('linux') then
-                   os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
-                elseif mbm.is('macos') then
-                   os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
-                end
-            end
-            local pressed,checked = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
-            if pressed then
-                if mbm.is('windows') then
-                   os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('linux') then
-                   os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
-                elseif mbm.is('macos') then
-                   os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
-                end
-            end
-
-            if tImGui.BeginMenu(tLang.L("menu_version")) then
-                tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'),tImGui.GetVersion()))
-                tImGui.EndMenu()
-            end
-
-            tImGui.EndMenu()
-            tWindowsArea:addThisWindow()
-        end
-        tImGui.EndMainMenuBar()
-    end
-end
-
-function updateRectangleLine()
-    local xRes, yRes
-    if tOptionsEditor.bInvertResolution then
-        xRes = tResolution[tOptionsEditor.iIndexResolution].y
-        yRes = tResolution[tOptionsEditor.iIndexResolution].x
-    else
-        xRes = tResolution[tOptionsEditor.iIndexResolution].x
-        yRes = tResolution[tOptionsEditor.iIndexResolution].y
-    end
-    local tRectangleScreen = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2  }
-    tLineScreen2d:set(tRectangleScreen,1)
-end
-
-function cameraFollowing()
-    if tFollowCam then
-        local iSpeedCam = 1000
-        local bAnyFollow = false
-        local iW,iH = mbm.getSizeScreen()
-        local w,h = tFollowCam:getSize()
-        if (w > iW or h > iH) and tFollowCam:isOnScreen() then
-            tFollowCam = nil
-            return
-        end
-        if camera2d.x + (iW * 0.5)  < (tFollowCam.x + w * 0.5) then
-            camera2d:move(iSpeedCam,0)
-            bAnyFollow = true
-        elseif camera2d.x - (iW * 0.5)  > (tFollowCam.x - w * 0.5) then
-            camera2d:move(-iSpeedCam,0)
-            bAnyFollow = true
-        end
-        if camera2d.y + (iH * 0.5)  < (tFollowCam.y + h * 0.5) then
-            camera2d:move(0,iSpeedCam)
-            bAnyFollow = true
-        elseif camera2d.y - (iH * 0.5)  > (tFollowCam.y - h * 0.5) then
-            camera2d:move(0,-iSpeedCam)
-            bAnyFollow = true
-        end
-
-        if bAnyFollow == false and w < (iW * 0.15) and  h < (iH * 0.15) then
-            camera2d.iIteration = camera2d.iIteration + 1
-            iSpeedCam = 200
-            if camera2d.x + (iW * 0.15)  < (tFollowCam.x + w * 0.5) then
-                camera2d:move(iSpeedCam,0)
-                bAnyFollow = true
-            elseif camera2d.x - (iW * 0.15)  > (tFollowCam.x - w * 0.5) then
-                camera2d:move(-iSpeedCam,0)
-                bAnyFollow = true
-            end
-            if camera2d.y + (iH * 0.15)  < (tFollowCam.y + h * 0.5) then
-                camera2d:move(0,iSpeedCam)
-                bAnyFollow = true
-            elseif camera2d.y - (iH * 0.15)  > (tFollowCam.y - h * 0.5) then
-                camera2d:move(0,-iSpeedCam)
-                bAnyFollow = true
-            end
-            if camera2d.iIteration > 120 then --2 seconds
-                camera2d.iIteration = 0
-                bAnyFollow = nil
-            end
-        end
-    end
-end
-
-function createBasicScriptForScene(sFullSceneName)
-
+local function createBasicScriptForScene(sFullSceneName)
     local tDefaultScene = [[
 tScene = require "YOUR_SCENE"
 
@@ -2147,7 +2604,7 @@ tLogicScene.onInitScene = function(self)
     tScene:load(onProgress)
     bEnableMoveCamera  = true
     isClickedMouseLeft = false
-    
+
     --tScene:get() -- get any mesh to do something
 end
 
@@ -2180,195 +2637,650 @@ end
 return tLogicScene
 ]]
 
-    local sProjectName = sFullSceneName:gsub("\\",'/')
+    local sProjectName = sFullSceneName:gsub("\\", '/')
     local tProjectName = sProjectName:split('/')
-    sProjectName       = tProjectName[#tProjectName]:gsub('%..*$','')
-    tDefaultScene      = tDefaultScene:gsub('YOUR_SCENE',string.format('%s', sProjectName))
+    sProjectName       = tProjectName[#tProjectName]:gsub('%..*$', '')
+    tDefaultScene      = tDefaultScene:gsub('YOUR_SCENE', string.format('%s', sProjectName))
     local sTemp        = tProjectName[1] or ''
     local sSeparator   = '/'
     if mbm.is('windows') then
         sSeparator = '\\'
     end
-    for i=2, (#tProjectName - 1) do
+    for i = 2, (#tProjectName - 1) do
         sTemp = sTemp .. sSeparator .. tProjectName[i]
     end
 
-    local sFileToSave = string.format('%s%s%s-logic.lua',sTemp, sSeparator, sProjectName)
-
-    sFileToSave = mbm.saveFile(sFileToSave,'lua')
+    local sFileToSave = string.format('%s%s%s-logic.lua', sTemp, sSeparator, sProjectName)
+    sFileToSave = mbm.saveFile(sFileToSave, 'lua')
     if sFileToSave then
-        local fp = io.open(sFileToSave,"w")
+        local fp = io.open(sFileToSave, "w")
         if fp then
             fp:write(tDefaultScene)
             fp:close()
             tOptionsEditor.sCurrentScriptExecution = sFileToSave
             tUtil.showMessage(tLang.L("file_created_ok"))
         else
-            print('error',string.format('Could not open the file [%s] for write',sFileToSave))
+            print('error', string.format('Could not open the file [%s] for write', sFileToSave))
             tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), sFileToSave))
         end
     end
 end
 
-function showDetailOfMesh()
-    if bShowDetailOfMesh and #tSelectedObjs == 1 then
-        local tObj  = tSelectedObjs[1]
-        local flags = { 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing'}
-        tImGui.SetNextWindowBgAlpha(0.75);
-        local window_pos     = {x = 300, y = 25}
-        local window_pos_pivot = {x = 0, y = 0}
-        tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Once'), window_pos_pivot);
-        local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_info), true, tImGui.Flags(flags))
-        if is_opened then
-            local sWorld = '2d World'
-            if tObj.is2ds then
-                sWorld = '2d Screen'
-            end
-            tImGui.Text(string.format('Type:%s (%s)(%d)',tObj.type, sWorld,tObj.iIndex))
-            tImGui.Text(string.format('File:%s',tUtil.getShortName(tObj.fileName,false)))
-            tImGui.Text(string.format('Position: X:%g Y:%g Z:%g',tObj.x,tObj.y,tObj.z))
-            tImGui.Text(string.format('Scale   : X:%g Y:%g Z:%g',tObj.sx,tObj.sy,tObj.sz))
-            tImGui.Text(string.format('Angle   : X:%g Y:%g Z:%g',tObj.ax,tObj.ay,tObj.az))
+local function main_menu_scene_editor_2d()
+    if tImGui.BeginMainMenuBar() then
 
-            if tObj.sText then
-                tImGui.Text(tLang.L("text_label_2"))
-                tImGui.Text(tObj.sText)
+        -- ── File ─────────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_file")) then
+            local pressed
+            pressed = tImGui.MenuItem(tLang.L("new_scene"), "Ctrl+N", false)
+            if pressed then onNewScene() end
+
+            pressed = tImGui.MenuItem(tLang.L("load_scene"), "Ctrl+O", false)
+            if pressed then onLoadScene() end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("set_extra_script"), 'Extension', false)
+            if pressed then onSetScript() end
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L("help_script_extra") .. tostring(tOptionsEditor.sExtraScript))
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("save_scene"), "Ctrl+S", false)
+            if pressed then onSaveSceneEditor() end
+            if sLastEditorFileName and sLastEditorFileName:len() > 0 then
+                tImGui.SameLine()
+                tImGui.HelpMarker(sLastEditorFileName)
             end
-            if tObj.tPhysicInfo then
-                local tPhysicInfo = tObj.tPhysicInfo
-                tImGui.Text(tLang.L("physics_colon"))
-                if tPhysicInfo.type then
-                    tImGui.Text(string.format('Type (%s)',tPhysicInfo.type))
-                end
-                if tPhysicInfo.density then
-                    tImGui.Text(string.format('Density (%g)',tPhysicInfo.density))
-                end
-        
-                if tPhysicInfo.friction then
-                    tImGui.Text(string.format('Friction (%g)',tPhysicInfo.friction))
-                end
-        
-                if tPhysicInfo.restitution then
-                    tImGui.Text(string.format('Restitution (%g)',tPhysicInfo.restitution))
-                end
-        
-                if tPhysicInfo.scaleX then
-                    tImGui.Text(string.format('Scale X:%g Y:%g',tPhysicInfo.scaleX,tPhysicInfo.scaleY))
-                end
-        
-                if type(tPhysicInfo.sensor) == 'boolean' then
-                    tImGui.Text(string.format('Sensor <%s>',tostring(tPhysicInfo.sensor)))
-                end
-        
-                if type(tPhysicInfo.bullet) == 'boolean' then
-                    tImGui.Text(string.format('Bullet  <%s>',tostring(tPhysicInfo.bullet)))
+
+            pressed = tImGui.MenuItem(tLang.L("save_scene_as"), nil, false)
+            if pressed then
+                local sEditorFileName = sLastEditorFileName
+                sLastEditorFileName = ''
+                onSaveSceneEditor()
+                if sLastEditorFileName == '' then
+                    sLastEditorFileName = sEditorFileName
                 end
             end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("export_scene"), nil, false)
+            if pressed then onExportGameScene() end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
+            if pressed then mbm.quit() end
+
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
         end
-        if closed_clicked then
-            bShowDetailOfMesh = false
+
+        -- ── Mesh ─────────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_mesh")) then
+            local pressed, checked
+
+            pressed = tImGui.MenuItem(tLang.L("add_mesh"), 'Ctrl+M', false)
+            if pressed then onAddMesh() end
+
+            tImGui.Separator()
+            local title_dup = tLang.L("duplicate_last_mesh")
+            if #tSelectedObjs > 0 then
+                title_dup = tLang.L("duplicate_all_mesh_selected")
+            end
+            pressed = tImGui.MenuItem(title_dup, 'Ctrl+D', false)
+            if pressed then onDuplicated() end
+
+            pressed = tImGui.MenuItem(tLang.L("select_all_mesh"), 'Ctrl+A', false)
+            if pressed then onSelectAll() end
+
+            pressed = tImGui.MenuItem(tLang.L("invert_selected_mesh"), 'Ctrl+I', false)
+            if pressed then onInvertSelection() end
+
+            pressed = tImGui.MenuItem(tLang.L("unselect_all_mesh"), 'Ctrl+U', false)
+            if pressed then onUnSelectAll() end
+
+            pressed = tImGui.MenuItem(tLang.L("delete_selected_mesh"), 'Ctrl+Delete', false)
+            if pressed then onDeleteSelected() end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("view_mesh_list"), 'Ctrl+L', false)
+            if pressed then bShowMeshList = true end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("view_options_adding_mesh"), nil, false)
+            if pressed then bShowAddingMesh = true end
+
+            tImGui.Separator()
+            pressed, checked = tImGui.MenuItem(tLang.L("view_detail_selected_mesh"), true, bShowDetailOfMesh)
+            if pressed then bShowDetailOfMesh = checked end
+
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
         end
-        tWindowsArea:addThisWindow()
-        tImGui.End()
+
+        -- ── Grid (new) ──────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_grid")) then
+            local pressed, checked
+
+            pressed, checked = tImGui.MenuItem(tLang.L("panel_browser"), true, bShowPanelBrowser)
+            if pressed then bShowPanelBrowser = checked end
+
+            pressed, checked = tImGui.MenuItem(tLang.L("panel_properties"), true, bShowPanelProps)
+            if pressed then bShowPanelProps = checked end
+
+            tImGui.Separator()
+            pressed = tImGui.MenuItem(tLang.L("add_root_panel"), nil, false)
+            if pressed then
+                local newPanel = createPanel("panel_" .. iNextPanelId, tGridDialog.tWorldOptions[tGridDialog.iWorldIndex] == "2D Screen" and "2ds" or "2dw", nil)
+                table.insert(tPanels, newPanel)
+                tSelectedPanel = newPanel
+                bShowPanelProps = true
+                rebuildPanelVisuals()
+            end
+
+            pressed = tImGui.MenuItem(tLang.L("create_grid"), nil, false)
+            if pressed then bShowGridDialog = true end
+
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
+        end
+
+        -- ── World ────────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_world")) then
+            tImGui.Text(tLang.L("resolution_expected"))
+            tOptionsEditor.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"), tOptionsEditor.bInvertResolution)
+            local tResolutionString = {}
+            for i = 1, #tResolution do
+                if tOptionsEditor.bInvertResolution then
+                    table.insert(tResolutionString, string.format('%d x %d %s', tResolution[i].y, tResolution[i].x, tResolution[i].comment))
+                else
+                    table.insert(tResolutionString, string.format('%d x %d %s', tResolution[i].x, tResolution[i].y, tResolution[i].comment))
+                end
+            end
+            local ret, current_item = tImGui.Combo('##ComboResolution', tOptionsEditor.iIndexResolution, tResolutionString)
+            if ret then
+                tOptionsEditor.iIndexResolution = current_item
+            end
+
+            tImGui.Text(tLang.L("axis_camera_scale"))
+            local indexAxis
+            if tOptionsEditor.sScaleAxis == 'x' then indexAxis = 1
+            elseif tOptionsEditor.sScaleAxis == 'y' then indexAxis = 2
+            else indexAxis = 3
+            end
+
+            local index_activated = tImGui.RadioButton(tLang.L("axis_x"), indexAxis, 1)
+            tImGui.SameLine()
+            index_activated = tImGui.RadioButton('Y', index_activated, 2)
+            tImGui.SameLine()
+            index_activated = tImGui.RadioButton(tLang.L("stretched"), index_activated, 3)
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L("help_default_scale"))
+
+            if index_activated == 1 then tOptionsEditor.sScaleAxis = 'x'
+            elseif index_activated == 2 then tOptionsEditor.sScaleAxis = 'y'
+            else tOptionsEditor.sScaleAxis = 'xy'
+            end
+
+            tOptionsEditor.bDrawResolution = tImGui.Checkbox(tLang.L("draw_resolution_rect"), tOptionsEditor.bDrawResolution)
+            updateRectangleLine()
+
+            tImGui.Separator()
+            tImGui.Text(tLang.L("camera_position"))
+
+            local step      = 1.0
+            local step_fast = 10.0
+            local format    = "%.2f"
+
+            local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##XCamera', camera2d.x, step, step_fast, format, 0)
+            if result then camera2d.x = fValue end
+
+            result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##YCamera', camera2d.y, step, step_fast, format, 0)
+            if result then camera2d.y = fValue end
+
+            if tImGui.Button(tLang.L("set_initial_camera_pos"), {x = -1, y = 0}) then
+                tOptionsEditor.fSceneCamPos.x = camera2d.x
+                tOptionsEditor.fSceneCamPos.y = camera2d.y
+            end
+
+            tImGui.Text(tLang.L("initial_scene_position"))
+            tImGui.TextDisabled(string.format('X:%.2f', tOptionsEditor.fSceneCamPos.x))
+            tImGui.TextDisabled(string.format('Y:%.2f', tOptionsEditor.fSceneCamPos.y))
+
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
+        end
+
+        -- ── Options ──────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_options")) then
+            local pressed, checked
+
+            pressed, checked = tImGui.MenuItem(tLang.L("move_windows"), true, bEnableMoveWindow)
+            if pressed then
+                bEnableMoveWindow = checked
+                if bEnableMoveWindow then
+                    ImGuiWindowFlags_NoMove = 0
+                else
+                    ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
+                end
+            end
+
+            pressed, checked = tImGui.MenuItem(tLang.L("show_alpha_pattern"), true, tex_alpha_pattern.visible)
+            if pressed then tex_alpha_pattern.visible = checked end
+
+            tLang.renderLanguageSubmenu()
+
+            tImGui.Separator()
+            if tImGui.BeginMenu(tLang.L("background_color")) then
+                local sz       = tImGui.GetTextLineHeight()
+                local rounding = 0
+                local flags    = 0
+
+                local colors = {
+                    {'default',  tUtil.tColorBackground},
+                    {'white',    {r = 1, g = 1, b = 1, a = 1}},
+                    {'black',    {r = 0, g = 0, b = 0, a = 1}},
+                    {'red',      {r = 1, g = 0, b = 0, a = 1}},
+                    {'green',    {r = 0, g = 1, b = 0, a = 1}},
+                    {'blue',     {r = 0, g = 0, b = 1, a = 1}},
+                    {'cyan',     {r = 0, g = 1, b = 1, a = 1}},
+                    {'yellow',   {r = 1, g = 1, b = 0, a = 1}},
+                    {'magenta',  {r = 1, g = 0, b = 1, a = 1}},
+                }
+
+                for i = 1, #colors do
+                    local winPos = tImGui.GetCursorScreenPos()
+                    local p_max  = {x = winPos.x + sz, y = winPos.y + sz}
+                    local name   = tLang.L(colors[i][1])
+                    local color  = colors[i][2]
+                    tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
+                    tImGui.Dummy({x = sz, y = sz})
+                    tImGui.SameLine()
+                    pressed = tImGui.MenuItem(name)
+                    if pressed then
+                        mbm.setColor(color.r, color.g, color.b)
+                        tOptionsEditor.tColorBackground = color
+                    end
+                end
+                tImGui.EndMenu()
+            end
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
+        end
+
+        -- ── Run ──────────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_run")) then
+            tImGui.Text(tLang.L("resolution"))
+            tOptionsLaunch.bInvertResolution = tImGui.Checkbox(tLang.L("invert_width_height"), tOptionsLaunch.bInvertResolution)
+            local tResolutionString = {}
+            for i = 1, #tResolution do
+                if tOptionsLaunch.bInvertResolution then
+                    table.insert(tResolutionString, string.format('%d x %d %s', tResolution[i].y, tResolution[i].x, tResolution[i].comment))
+                else
+                    table.insert(tResolutionString, string.format('%d x %d %s', tResolution[i].x, tResolution[i].y, tResolution[i].comment))
+                end
+            end
+            local ret, current_item = tImGui.Combo('##ComboResolutionLaunch', tOptionsLaunch.iIndexResolution, tResolutionString)
+            if ret then
+                tOptionsLaunch.iIndexResolution = current_item
+            end
+
+            if tImGui.Button(tLang.L("play"), {x = 200, y = 0}) then
+                onPlay()
+            end
+            tImGui.SameLine()
+            tImGui.TextDisabled('F5')
+
+            tImGui.Text(tLang.L("execute_script"))
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L("help_execute_script_test"))
+            if tImGui.Button('...', {x = 30, y = 0}) then
+                local fileName = mbm.openFile(tOptionsEditor.sCurrentScriptExecution, "*.lua")
+                if fileName then
+                    tOptionsEditor.sCurrentScriptExecution = fileName
+                end
+            end
+
+            if tOptionsEditor.sCurrentScriptExecution:len() == 0 then
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L("create_it_for_me"), {x = 160, y = 0}) then
+                    if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
+                        createBasicScriptForScene(tOptionsEditor.sCurrentScriptExecution)
+                    elseif sLastEditorFileName and sLastEditorFileName:len() > 0 then
+                        createBasicScriptForScene(sLastEditorFileName)
+                    else
+                        tUtil.showMessageWarn(tLang.L("no_scene_loaded_for_script"))
+                    end
+                end
+            end
+
+            if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
+                tImGui.TextDisabled(tUtil.getShortName(tOptionsEditor.sCurrentScriptExecution))
+                tImGui.SameLine()
+                tImGui.HelpMarker(tOptionsEditor.sCurrentScriptExecution)
+                tImGui.SameLine()
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r = 1, g = 0, b = 0.3, a = 1})
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r = 0, g = 0, b = 0.3, a = 0})
+                if tImGui.Button('X', {x = 40, y = 0}) then
+                    tOptionsEditor.sCurrentScriptExecution = ''
+                end
+                tImGui.PopStyleColor(2)
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L("clear_script"))
+                    tImGui.EndTooltip()
+                end
+            end
+            tImGui.EndMenu()
+            tWindowsArea:addThisWindow()
+        end
+
+        -- ── About ────────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_about")) then
+            local pressed
+            pressed = tImGui.MenuItem(tLang.L("scene_editor_2d"), nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d"')
+                end
+            end
+            pressed = tImGui.MenuItem(tLang.L("mbm_engine"), nil, false)
+            if pressed then
+                if mbm.is('windows') then
+                    os.execute('start "" "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('linux') then
+                    os.execute('sensible-browser "https://mbm-documentation.readthedocs.io/en/latest/"')
+                elseif mbm.is('macos') then
+                    os.execute('open "https://mbm-documentation.readthedocs.io/en/latest/"')
+                end
+            end
+
+            if tImGui.BeginMenu(tLang.L("menu_version")) then
+                tImGui.TextDisabled(string.format('%s\nIMGUI: %s', mbm.get('version'), tImGui.GetVersion()))
+                tImGui.EndMenu()
+            end
+
+            tImGui.EndMenu()
+            tWindowsArea:addThisWindow()
+        end
+
+        tImGui.EndMainMenuBar()
     end
 end
 
-function onProgress(fPercent)
-    local flags             = {'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize', 'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing', 'ImGuiWindowFlags_NoNav'}
-    local iW, iH            = mbm.getRealSizeScreen()
-    local window_pos        = {x = 0, y = 0}
-    local window_pos_pivot  = {x = 0, y = 0}
-    tImGui.SetNextWindowBgAlpha(0.85);
-    tImGui.SetNextWindowPos(window_pos, tImGui.Flags('ImGuiCond_Always'), window_pos_pivot);
-    tImGui.SetNextWindowSize({x = iW, y = iH},tImGui.Flags('ImGuiCond_Always'))
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_loading), false, tImGui.Flags(flags))
-    if is_opened then
-        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_FrameBg') , {r=0,g=0,b=0.5,a=0.7})
-        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_PlotHistogram'), {r=0,g=1,b=0,a=1})
-        local size_arg  = {x = -1, y = 0}
-        local pos       = {x = 0, y = (iH * 0.5)}
-        local overlay   =  string.format('Loading %.1f',fPercent)
-        tImGui.SetCursorScreenPos(pos)
-        tImGui.ProgressBar(fPercent * 0.01, size_arg, '')
-        tImGui.PopStyleColor(2)
-        tImGui.SetCursorScreenPos({x = iW * 0.48, y = (iH * 0.5) + 3})
-        tImGui.Text(overlay)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- onInitScene
+-- ─────────────────────────────────────────────────────────────────────────────
+function onInitScene()
+    camera2d = mbm.getCamera("2d")
+    camera2d.iIteration = 0
+
+    -- Origin lines
+    tLineCenterX = line:new("2dw", 0, 0, 50)
+    tLineCenterY = line:new("2dw", 0, 0, 50)
+    tLineCenterX:add({-9999999,0, 9999999,0})
+    tLineCenterY:add({0,-9999999, 0,9999999})
+    tLineCenterX:setColor(1, 0, 0)
+    tLineCenterY:setColor(0, 1, 0)
+
+    -- Resolution boundary rectangle
+    tLineScreen2d = line:new("2dw")
+    local xRes, yRes = 800, 600
+    tLineScreen2d:add({-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2})
+    tLineScreen2d:setColor(0.7, 0.7, 0.7)
+
+    -- Alpha pattern background
+    local sTextureFileName = tUtil.createAlphaPattern(1024, 768, 32,
+        {r=240,g=240,b=240}, {r=125,g=125,b=125})
+    if sTextureFileName then
+        local iW, iH = mbm.getSizeScreen()
+        tex_alpha_pattern = texture:new('2dw')
+        tex_alpha_pattern:load(sTextureFileName)
+        tex_alpha_pattern:setSize(iW, iH)
+        tex_alpha_pattern.z       = 99
+        tex_alpha_pattern.visible = false
     end
-    tImGui.End()
+
+    v1 = vec2:new()
+
+    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
+    ImGuiTreeNodeFlags_Selected = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
+
+    tWindowsArea = tUtil.onNewAnyWindowsHovered()
+
+    tUtil.sMessageOverlay = 'Welcome to Scene Editor 2D!!!'
+
+    onNewSceneEditor()
 end
 
---[[
-width_camera = 1024 
-height_camera = 768
-function showSetScaleCam()
-    local width        = 300
-    local tPosWin      = {x = 0, y = 0}
-    tUtil.setInitialWindowPositionLeft('Camera adjust',tPosWin.x,tPosWin.y,width,width + 50)
-    local is_opened, closed_clicked = tImGui.Begin(tLang.L("title_camera_adjust"), true, 0)
-    if is_opened then
-        tImGui.Text(string.format('Camera  scale %f %f ',camera2d.sx,camera2d.sy))
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Input handlers
+-- ─────────────────────────────────────────────────────────────────────────────
+function onTouchDown(key, x, y)
+    if cCoroutineLoadScene then return end
+    local anyWindowHovered = tWindowsArea:IsAnyWindowHovered(x, y)
+    isClickedMouseLeft     = key == 0 and not anyWindowHovered
+    camera2d.mx = x
+    camera2d.my = y
+    bEnableMoveWorld    = true
+    bClickedOverAnyMesh = false
+    bMovingAnyMesh      = false
+    tFollowCam          = nil
 
-        local step       =  1
-        local step_fast  =  10
-        local flags      =  0
+    if isClickedMouseLeft then
+        local clickedX, clickedY = mbm.to2dw(x, y)
 
-        local result, iValue = tImGui.InputInt(tLang.L("width"), width_camera, step, step_fast, flags)
-        if result then
-            width_camera = iValue
+        -- Check if clicked on a panel (for panel selection)
+        local rootRect = getRootRect()
+        local hitPanel = hitTestPanel(clickedX, clickedY, tPanels, rootRect)
+        if hitPanel then
+            tSelectedPanel  = hitPanel
+            bShowPanelProps = true
+            updatePanelVisuals()
         end
 
-        local result, iValue = tImGui.InputInt(tLang.L("height"), height_camera, step, step_fast, flags)
-        if result then
-            height_camera = iValue
+        -- Check if clicked on an object
+        for _, tObj in ipairs(tAllMesh) do
+            if not tObj.isBlocked and tObj.visible and tObj:isOver(x, y) then
+                if keyControlPressed then
+                    setSelectedObj(tObj, true)
+                else
+                    onUnSelectAll()
+                    setSelectedObj(tObj, true)
+                end
+                bEnableMoveWorld    = false
+                bClickedOverAnyMesh = true
+            end
         end
 
-        camera2d:scaleToScreen(width_camera,height_camera,'y')
+        -- Save origin positions for dragging
+        for _, tObj in ipairs(tSelectedObjs) do
+            tObj.originx  = tObj.x
+            tObj.originy  = tObj.y
+            tObj.clickedX = clickedX
+            tObj.clickedY = clickedY
+        end
     end
-    tImGui.End()
 end
-]]--
 
+function onTouchMove(key, x, y)
+    if cCoroutineLoadScene then return end
+    if bEnableMoveWorld then
+        if isClickedMouseLeft then
+            local px = (camera2d.mx - x) * camera2d.sx
+            local py = (camera2d.my - y) * camera2d.sy
+            camera2d.mx = x
+            camera2d.my = y
+            camera2d:setPos(camera2d.x + px, camera2d.y - py)
+        end
+    elseif key == 0 then
+        local mx, my = mbm.to2dw(x, y)
+        if bClickedOverAnyMesh then
+            bMovingAnyMesh = true
+            for _, tObj in ipairs(tSelectedObjs) do
+                v1:set(tObj.originx, tObj.originy)
+                v1:sub(tObj.clickedX, tObj.clickedY)
+                v1:add(mx, my)
+                if tObj.isBlockedX then v1.x = tObj.x end
+                if tObj.isBlockedY then v1.y = tObj.y end
+                tObj:setPos(v1.x, v1.y)
+            end
+        elseif not tWindowsArea:IsAnyWindowHovered(x, y) then
+            for _, tObj in ipairs(tAllMesh) do
+                if not tObj.isBlocked and tObj.visible and tObj:isOver(x, y) then
+                    tObj.tShape:setTexture(sTextureShapeOver)
+                    tObj.tShape.visible = true
+                elseif tObj.isSelected then
+                    tObj.tShape:setTexture(sTextureShapeSelected)
+                    tObj.tShape.visible = true
+                else
+                    tObj.tShape.visible = false
+                end
+            end
+        end
+    end
+end
+
+function onTouchUp(key, x, y)
+    if cCoroutineLoadScene then return end
+    if key == 0 and isClickedMouseLeft and not bEnableMoveWorld then
+        if not bMovingAnyMesh and bClickedOverAnyMesh then
+            for _, tObj in ipairs(tSelectedObjs) do
+                if not tObj.bJustSelected and tObj:isOver(x, y) then
+                    setSelectedObj(tObj, false)
+                    break
+                end
+            end
+        end
+        -- After drag: update anchor for panel-assigned objects
+        if bMovingAnyMesh then
+            for _, tObj in ipairs(tSelectedObjs) do
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r = tObj.panelRef._rect
+                    tObj.anchorX = (tObj.x - r.x) / r.w
+                    tObj.anchorY = (tObj.y - r.y) / r.h
+                end
+            end
+        end
+    end
+    isClickedMouseLeft  = false
+    bEnableMoveWorld    = false
+    bClickedOverAnyMesh = false
+    camera2d.mx = x
+    camera2d.my = y
+end
+
+function onTouchZoom(zoom)
+    if cCoroutineLoadScene then return end
+end
+
+function onKeyDown(key)
+    if cCoroutineLoadScene then return end
+    if key == mbm.getKeyCode('control') then
+        keyControlPressed = true
+    elseif key == mbm.getKeyCode('shift') then
+        keyShiftPressed = true
+    elseif keyControlPressed then
+        if key == mbm.getKeyCode('S') then
+            onSaveSceneEditor()
+        elseif key == mbm.getKeyCode('O') then
+            onLoadScene()
+        elseif key == mbm.getKeyCode('N') then
+            onNewSceneEditor()
+            updateRectangleLine()
+        elseif key == mbm.getKeyCode('I') then
+            onInvertSelection()
+        elseif key == mbm.getKeyCode('A') then
+            onSelectAll()
+        elseif key == mbm.getKeyCode('M') then
+            onAddMesh()
+        elseif key == mbm.getKeyCode('D') or key == mbm.getKeyCode('V') then
+            onDuplicated()
+        elseif key == mbm.getKeyCode('U') then
+            onUnSelectAll()
+        elseif key == mbm.getKeyCode('delete') then
+            onDeleteSelected()
+        elseif key == mbm.getKeyCode('L') then
+            bShowMeshList = true
+        end
+    elseif key == mbm.getKeyCode('F5') then
+        onPlay()
+    elseif key == mbm.getKeyCode('esc') or mbm.getKeyName(key) == 'ESCAPE' then
+        onUnSelectAll()
+        tSelectedPanel = nil
+        updatePanelVisuals()
+    end
+end
+
+function onKeyUp(key)
+    if cCoroutineLoadScene then return end
+    if key == mbm.getKeyCode('control') then
+        keyControlPressed = false
+    elseif key == mbm.getKeyCode('shift') then
+        keyShiftPressed = false
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- onLoop — main frame dispatcher
+-- ─────────────────────────────────────────────────────────────────────────────
 function onLoop(delta)
-    
     if cCoroutineLoadScene then
-        local sStatus = coroutine.status (cCoroutineLoadScene)
-        if sStatus == 'suspended' or  sStatus == 'normal' then
+        local sStatus = coroutine.status(cCoroutineLoadScene)
+        if sStatus == 'suspended' or sStatus == 'normal' then
             local bRet, iCurrent, iTotal = coroutine.resume(cCoroutineLoadScene)
-            if  bRet == false then --error
-                print('error',iCurrent)
+            if not bRet then
                 tUtil.showMessageWarn(tostring(iCurrent))
             else
-                if iCurrent and iTotal then -- end of routine
-                    iTotal = iTotal + 1 --avoid call 100% twice
+                if iCurrent and iTotal then
+                    iTotal = iTotal + 1
                     onProgress(iCurrent / iTotal * 100)
                 end
             end
         elseif sStatus == 'dead' then
             cCoroutineLoadScene = nil
             local tSplash = mbm.getSplash()
-            if tSplash then
-                tSplash.visible = false
-            end
-            mbm.setFakeFps(120,60)
+            if tSplash then tSplash.visible = false end
+            mbm.setFakeFps(120, 60)
             onProgress(100)
         end
     else
         tWindowsArea = tUtil.onNewAnyWindowsHovered()
-        main_menu_scene_editor_2d()
-        for i=1, #tAllMesh do
-            local tObj  = tAllMesh[i]
+
+        -- Update index for all objects
+        for i, tObj in ipairs(tAllMesh) do
             tObj.iIndex = i
         end
-        tex_alpha_pattern:setPos(camera2d.x,camera2d.y)
+
+        -- Menu bar
+        main_menu_scene_editor_2d()
+
+        -- Resolution rect visibility
         tLineScreen2d.visible = tOptionsEditor.bDrawResolution
 
-        --showSetScaleCam()
+        -- Alpha pattern centered on camera
+        if tex_alpha_pattern then
+            tex_alpha_pattern:setPos(camera2d.x, camera2d.y)
+        end
+
+        -- Panel visuals update (selection highlight)
+        updatePanelVisuals()
+
+        -- ImGui panels
+        showPanelBrowser()
+        showPanelProperties()
+        showGridDialog()
         showMeshList()
         showAddingMeshOptions()
         showDetailOfMesh()
-        
+
+        -- Overlay messages
         tUtil.showOverlayMessage()
 
+        -- Camera follow
         cameraFollowing()
     end
 end
