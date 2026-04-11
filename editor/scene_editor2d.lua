@@ -856,7 +856,7 @@ showPanelProperties = function()
 
         -- Name
         tImGui.Text(tLang.L("panel_name_label"))
-        local modified, newName = tImGui.InputText("##panel_name", panel.name, 128)
+        local modified, newName = tImGui.InputText("##panel_name", panel.name, 0)
         if modified and newName:len() > 0 then
             panel.name = newName
         end
@@ -988,7 +988,7 @@ showGridDialog = function()
 
         -- Name prefix
         tImGui.Text(tLang.L("panel_name_label"))
-        local mod, newName = tImGui.InputText("##grid_name", tGridDialog.sName, 64)
+        local mod, newName = tImGui.InputText("##grid_name", tGridDialog.sName, 0)
         if mod then tGridDialog.sName = newName end
 
         -- World type
@@ -1005,7 +1005,7 @@ showGridDialog = function()
 
         tGridDialog.bCustomCols = tImGui.Checkbox(tLang.L("grid_custom_pct"), tGridDialog.bCustomCols)
         if tGridDialog.bCustomCols then
-            local modP, newPct = tImGui.InputText("##col_pct", tGridDialog.sColPct, 128)
+            local modP, newPct = tImGui.InputText("##col_pct", tGridDialog.sColPct, 0)
             if modP then tGridDialog.sColPct = newPct end
         end
 
@@ -1016,7 +1016,7 @@ showGridDialog = function()
 
         tGridDialog.bCustomRows = tImGui.Checkbox(tLang.L("grid_custom_row_pct"), tGridDialog.bCustomRows)
         if tGridDialog.bCustomRows then
-            local modP, newPct = tImGui.InputText("##row_pct", tGridDialog.sRowPct, 128)
+            local modP, newPct = tImGui.InputText("##row_pct", tGridDialog.sRowPct, 0)
             if modP then tGridDialog.sRowPct = newPct end
         end
 
