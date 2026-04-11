@@ -1938,6 +1938,11 @@ local function serializePanelTree(fp, panels, indent)
     indent = indent or '    '
     for _, panel in ipairs(panels) do
         fp:write(string.format('%s{id=%d,name=%q,world=%q', indent, panel.id, panel.name, panel.world))
+        if panel.anchor then
+            local a = panel.anchor
+            fp:write(string.format(',anchor={left=%s,top=%s,right=%s,bottom=%s}',
+                a.left, a.top, a.right, a.bottom))
+        end
         if panel.splitDir then
             fp:write(string.format(',splitDir=%q', panel.splitDir))
         end
@@ -2362,7 +2367,7 @@ end
 local function rebuildPanelsFromData(tSavedPanels, parent)
     local result = {}
     for _, pd in ipairs(tSavedPanels) do
-        local panel = createPanel(pd.name, pd.world, parent)
+        local panel = createPanel(pd.name, pd.world, pd.anchor)
         panel.id       = pd.id
         panel.splitDir = pd.splitDir
         panel.pctList  = pd.pctList
