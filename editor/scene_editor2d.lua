@@ -178,7 +178,7 @@ end
 
 --- Generate a unique panel id string
 local function generatePanelId()
-    local id = string.format("panel_%d", iNextPanelId)
+    local id = iNextPanelId
     iNextPanelId = iNextPanelId + 1
     return id
 end
