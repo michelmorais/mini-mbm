@@ -1726,6 +1726,17 @@ function main_menu_texture_packer()
                 end
             end
 
+            local pressed,checked = tImGui.MenuItem(string.format(tLang.L("save_xy_texture_png"), tTextureOptions.fWidth, tTextureOptions.fHeight), nil, false)
+            if pressed then
+                if tRender:isLoaded() then
+                    sFileNameTexture = string.format("%dx%d.png", tTextureOptions.fWidth, tTextureOptions.fHeight)
+                    onSaveTexture()
+                else
+                    tUtil.showMessageWarn(tLang.L("no_texture_loaded"))
+                end
+            end
+
+
             local pressed,checked = tImGui.MenuItem(tLang.L("generate_image_header"), nil, false)
             if pressed then
                 if #tTexturesToEditor > 0 then
