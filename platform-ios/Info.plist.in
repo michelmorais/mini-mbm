@@ -57,5 +57,16 @@
     <!-- Launch screen (storyboard name, or leave empty for a black launch screen) -->
     <key>UILaunchStoryboardName</key>
     <string></string>
+
+    <!-- Support both iPhone (1) and iPad (2) so the app runs full screen on iPad -->
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+        <integer>2</integer>
+    </array>
+
+    <!-- Disable iPadOS multitasking (Split View / Slide Over) to always fill the screen -->
+    <key>UIRequiresFullScreen</key>
+    <true/>
 </dict>
 </plist>
