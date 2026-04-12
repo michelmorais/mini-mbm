@@ -347,31 +347,39 @@ local function rebuildPanelVisuals()
     end)
 end
 
---- Reflow: reposition all objects within panels according to their anchors
+--- Reflow: reposition all objects within panels according to their anchors,
+--- then clamp scale and position so no object exceeds its panel bounds.
 local function reflowPanelObjects()
     local rootRect = getRootRect()
     traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
         for _, obj in ipairs(panel.objects) do
-            -- Position by anchor within panel rect
-            local ox = rect.x + obj.anchorX * rect.w
-            local oy = rect.y + obj.anchorY * rect.h
-            obj:setPos(ox, oy, obj.z)
-
-            -- Auto-fit: scale down if object exceeds panel bounds
+            -- 1. Cap scale so object fits inside the panel
             local ow, oh = obj:getSize()
-            if ow > 0 and oh > 0 then
-                local maxW = rect.w
-                local maxH = rect.h
-                if ow > maxW or oh > maxH then
-                    local scale = math.min(maxW / ow, maxH / oh)
+            if ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
+                if ow > rect.w or oh > rect.h then
+                    local scale = math.min(rect.w / ow, rect.h / oh)
                     obj.sx = obj.sx * scale
                     obj.sy = obj.sy * scale
-                    local w2, h2 = obj:getSize()
-                    if obj.tShape then
-                        obj.tShape:setScale(w2, h2, 1)
-                    end
+                    ow, oh = obj:getSize()
+                    if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
                 end
             end
+
+            -- 2. Place by anchor
+            local ox = rect.x + obj.anchorX * rect.w
+            local oy = rect.y + obj.anchorY * rect.h
+
+            -- 3. Clamp center so edges stay inside the panel
+            local hw = ow * 0.5
+            local hh = oh * 0.5
+            ox = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, ox))
+            oy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, oy))
+
+            obj:setPos(ox, oy, obj.z)
+
+            -- 4. Update anchor to reflect clamped position
+            if rect.w > 0 then obj.anchorX = (ox - rect.x) / rect.w end
+            if rect.h > 0 then obj.anchorY = (oy - rect.y) / rect.h end
         end
     end)
 end
