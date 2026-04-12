@@ -353,9 +353,11 @@ local function reflowPanelObjects()
     local rootRect = getRootRect()
     traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
         for _, obj in ipairs(panel.objects) do
-            -- 1. Cap scale so object fits inside the panel
+            local restricted = obj.isRestrictedToPanel ~= false
+
+            -- 1. Cap scale so object fits inside the panel (only when restricted)
             local ow, oh = obj:getSize()
-            if ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
+            if restricted and ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
                 if ow > rect.w or oh > rect.h then
                     local scale = math.min(rect.w / ow, rect.h / oh)
                     obj.sx = obj.sx * scale
@@ -369,15 +371,17 @@ local function reflowPanelObjects()
             local ox = rect.x + obj.anchorX * rect.w
             local oy = rect.y + obj.anchorY * rect.h
 
-            -- 3. Clamp center so edges stay inside the panel
-            local hw = ow * 0.5
-            local hh = oh * 0.5
-            ox = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, ox))
-            oy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, oy))
+            -- 3. Clamp center so edges stay inside the panel (only when restricted)
+            if restricted then
+                local hw = ow * 0.5
+                local hh = oh * 0.5
+                ox = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, ox))
+                oy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, oy))
+            end
 
             obj:setPos(ox, oy, obj.z)
 
-            -- 4. Update anchor to reflect clamped position
+            -- 4. Update anchor to reflect (possibly clamped) position
             if rect.w > 0 then obj.anchorX = (ox - rect.x) / rect.w end
             if rect.h > 0 then obj.anchorY = (oy - rect.y) / rect.h end
         end
@@ -1194,11 +1198,12 @@ end
 local function initialSetUpForAddedMesh(tObj)
     table.insert(tAllMesh, tObj)
     tObj.index = #tAllMesh
-    tObj.isSelected = false
-    tObj.isBlocked  = false
-    tObj.isBlockedX = false
-    tObj.isBlockedY = false
-    tObj.isBlockedZ = false
+    tObj.isSelected          = false
+    tObj.isBlocked           = false
+    tObj.isBlockedX          = false
+    tObj.isBlockedY          = false
+    tObj.isBlockedZ          = false
+    tObj.isRestrictedToPanel = true   -- default: respect panel bounds
 
     -- Assign to selected panel, or keep as free
     if tSelectedPanel then
@@ -1396,8 +1401,16 @@ showMeshList = function()
                             if rAx then
                                 tObj.anchorX = math.max(0, math.min(1, vAx))
                                 if tObj.panelRef._rect then
-                                    local r = tObj.panelRef._rect
-                                    tObj:setPos(r.x + tObj.anchorX * r.w, tObj.y, tObj.z)
+                                    local r  = tObj.panelRef._rect
+                                    local nx = r.x + tObj.anchorX * r.w
+                                    if tObj.isRestrictedToPanel ~= false then
+                                        local ow = tObj:getSize()
+                                        local hw = ow * 0.5
+                                        nx = math.max(r.x + hw, math.min(r.x + r.w - hw, nx))
+                                    end
+                                    tObj:setPos(nx, tObj.y, tObj.z)
+                                    tObj.tShape.x = nx
+                                    if r.w > 0 then tObj.anchorX = (nx - r.x) / r.w end
                                 end
                             end
                             tImGui.Text(tLang.L("anchor_y"))
@@ -1405,8 +1418,16 @@ showMeshList = function()
                             if rAy then
                                 tObj.anchorY = math.max(0, math.min(1, vAy))
                                 if tObj.panelRef._rect then
-                                    local r = tObj.panelRef._rect
-                                    tObj:setPos(tObj.x, r.y + tObj.anchorY * r.h, tObj.z)
+                                    local r  = tObj.panelRef._rect
+                                    local ny = r.y + tObj.anchorY * r.h
+                                    if tObj.isRestrictedToPanel ~= false then
+                                        local _, oh = tObj:getSize()
+                                        local hh = oh * 0.5
+                                        ny = math.max(r.y + hh, math.min(r.y + r.h - hh, ny))
+                                    end
+                                    tObj:setPos(tObj.x, ny, tObj.z)
+                                    tObj.tShape.y = ny
+                                    if r.h > 0 then tObj.anchorY = (ny - r.y) / r.h end
                                 end
                             end
                             tImGui.PopItemWidth()
@@ -1541,7 +1562,7 @@ local function treeNodePosition(tObj)
         tObj.isBlockedX = drawBlockButton(tObj.isBlockedX, 'X')
         if result and not tObj.isBlockedX then
             -- Clamp X to panel bounds
-            if tObj.panelRef and tObj.panelRef._rect then
+            if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                 local r  = tObj.panelRef._rect
                 local hw = (tObj:getSize()) * 0.5
                 fValue = math.max(r.x + hw, math.min(r.x + r.w - hw, fValue))
@@ -1558,7 +1579,7 @@ local function treeNodePosition(tObj)
         tObj.isBlockedY = drawBlockButton(tObj.isBlockedY, 'Y')
         if result and not tObj.isBlockedY then
             -- Clamp Y to panel bounds
-            if tObj.panelRef and tObj.panelRef._rect then
+            if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                 local r  = tObj.panelRef._rect
                 local _, hh = tObj:getSize()
                 hh = hh * 0.5
@@ -1609,7 +1630,7 @@ local function treeNodeScale(tObj)
                 local w, h, d = tObj:getSize()
                 tObj.tShape.sx = w
                 -- Shift X if edges now go out of panel bounds
-                if tObj.panelRef and tObj.panelRef._rect then
+                if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                     local r  = tObj.panelRef._rect
                     local hw = w * 0.5
                     local cx = math.max(r.x + hw, math.min(r.x + r.w - hw, tObj.x))
@@ -1639,7 +1660,7 @@ local function treeNodeScale(tObj)
                 local w, h, d = tObj:getSize()
                 tObj.tShape.sy = h
                 -- Shift Y if edges now go out of panel bounds
-                if tObj.panelRef and tObj.panelRef._rect then
+                if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                     local r  = tObj.panelRef._rect
                     local hh = h * 0.5
                     local cy = math.max(r.y + hh, math.min(r.y + r.h - hh, tObj.y))
@@ -1874,6 +1895,15 @@ showPropertiesForMesh = function(tObj)
                 tFollowCam = tObj
             end
         end
+
+        -- Restrict-to-panel toggle (only meaningful when object has a panel)
+        if tObj.panelRef then
+            local bRestrict = tObj.isRestrictedToPanel ~= false
+            local bNew = tImGui.Checkbox(tLang.L("restrict_to_panel") .. '##rp' .. tObj.iIndex, bRestrict)
+            if bNew ~= bRestrict then
+                tObj.isRestrictedToPanel = bNew
+            end
+        end
     end
 
     if isBlocked then
@@ -1998,6 +2028,10 @@ local function getPanelInfo4Save(tObj)
         local s = string.format(',panelId=%d', tObj.panelRef.id)
         if tObj.anchorX then s = s .. string.format(',anchorX=%g', tObj.anchorX) end
         if tObj.anchorY then s = s .. string.format(',anchorY=%g', tObj.anchorY) end
+        -- only write when false (true is the default, no need to bloat the file)
+        if tObj.isRestrictedToPanel == false then
+            s = s .. ',isRestrictedToPanel=false'
+        end
         return s
     end
     return ''
@@ -2511,6 +2545,8 @@ local function onLoadScene()
                                 assignObjectToPanel(tMeshTmp, targetPanel)
                                 if tInfo.anchorX then tMeshTmp.anchorX = tInfo.anchorX end
                                 if tInfo.anchorY then tMeshTmp.anchorY = tInfo.anchorY end
+                                -- false is the only non-default value saved
+                                tMeshTmp.isRestrictedToPanel = (tInfo.isRestrictedToPanel ~= false)
                             end
                         end
                     end
@@ -3202,7 +3238,7 @@ function onTouchMove(key, x, y)
                 if tObj.isBlockedX then v1.x = tObj.x end
                 if tObj.isBlockedY then v1.y = tObj.y end
                 -- Clamp to panel bounds so the object stays inside its assigned panel
-                if tObj.panelRef and tObj.panelRef._rect then
+                if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                     local r = tObj.panelRef._rect
                     local ow, oh = tObj:getSize()
                     local hw = ow * 0.5
@@ -3246,9 +3282,11 @@ function onTouchUp(key, x, y)
                     local r = tObj.panelRef._rect
                     tObj.anchorX = (tObj.x - r.x) / r.w
                     tObj.anchorY = (tObj.y - r.y) / r.h
-                    tUtil.showMessage(string.format(
-                        "[%s] anchor X=%.3f Y=%.3f",
-                        tObj.panelRef.name, tObj.anchorX, tObj.anchorY))
+                    if tObj.isRestrictedToPanel ~= false then
+                        tUtil.showMessage(string.format(
+                            "[%s] anchor X=%.3f Y=%.3f",
+                            tObj.panelRef.name, tObj.anchorX, tObj.anchorY))
+                    end
                 end
             end
         end
