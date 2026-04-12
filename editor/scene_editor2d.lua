@@ -220,16 +220,20 @@ local function computePanelRect(panel, parentRect)
             local cy = parentRect.y + (panel.cy or 0.5) * ph
             return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
         elseif pat == "width_prop" then
-            -- both axes scale with parent WIDTH (preserves panel aspect ratio)
+            -- both axes scale with parent WIDTH; clamped to fit parent (like isRestrictedToPanel)
             local w  = (panel.sizeW or 1) * pw
             local h  = (panel.sizeH or 1) * pw
+            local sc = math.min(pw / w, ph / h)
+            if sc < 1 then w = w * sc; h = h * sc end
             local cx = parentRect.x + (panel.cx or 0.5) * pw
             local cy = parentRect.y + (panel.cy or 0.5) * ph
             return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
         elseif pat == "height_prop" then
-            -- both axes scale with parent HEIGHT (preserves panel aspect ratio)
+            -- both axes scale with parent HEIGHT; clamped to fit parent (like isRestrictedToPanel)
             local w  = (panel.sizeW or 1) * ph
             local h  = (panel.sizeH or 1) * ph
+            local sc = math.min(pw / w, ph / h)
+            if sc < 1 then w = w * sc; h = h * sc end
             local cx = parentRect.x + (panel.cx or 0.5) * pw
             local cy = parentRect.y + (panel.cy or 0.5) * ph
             return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
@@ -2416,12 +2420,14 @@ local function _computePanelRect(panel, parentRect)
     elseif pat == "width_prop" then
         local w  = (panel.sizeW or 1) * pw
         local h  = (panel.sizeH or 1) * pw
+        local sc = math.min(pw/w, ph/h); if sc < 1 then w=w*sc; h=h*sc end
         local cx = parentRect.x + (panel.cx or 0.5) * pw
         local cy = parentRect.y + (panel.cy or 0.5) * ph
         return {x=cx-w*0.5, y=cy-h*0.5, w=w, h=h}
     elseif pat == "height_prop" then
         local w  = (panel.sizeW or 1) * ph
         local h  = (panel.sizeH or 1) * ph
+        local sc = math.min(pw/w, ph/h); if sc < 1 then w=w*sc; h=h*sc end
         local cx = parentRect.x + (panel.cx or 0.5) * pw
         local cy = parentRect.y + (panel.cy or 0.5) * ph
         return {x=cx-w*0.5, y=cy-h*0.5, w=w, h=h}
