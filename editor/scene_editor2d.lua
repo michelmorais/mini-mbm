@@ -967,12 +967,12 @@ showPanelProperties = function()
             local tPanelAnchorOpts = {
                 tLang.L("panel_type_stretch"),
                 tLang.L("panel_type_center"),
-                tLang.L("panel_type_width"),
-                tLang.L("panel_type_height"),
                 tLang.L("panel_type_width_prop"),
                 tLang.L("panel_type_height_prop"),
+                tLang.L("panel_type_width"),
+                tLang.L("panel_type_height"),
             }
-            local tPanelAnchorKeys = {"stretch", "center", "width", "height", "width_prop", "height_prop"}
+            local tPanelAnchorKeys = {"stretch", "center", "width_prop", "height_prop", "width", "height"}
             local curPAT = panel.panelAnchorType or "stretch"
             local curPATIdx = 1
             for i, k in ipairs(tPanelAnchorKeys) do if k == curPAT then curPATIdx = i; break end end
@@ -2849,8 +2849,12 @@ end
 
 local function onSaveSceneEditor()
     if sLastEditorFileName:len() == 0 then
-        local fileName = mbm.saveFile(sLastEditorFileName, '*.lua')
+        local fileName = mbm.saveFile(sLastEditorFileName, '*.gui.lua')
         if fileName then
+            -- ensure the file always carries the .gui.lua extension
+            if not fileName:match('%.gui%.lua$') then
+                fileName = fileName:gsub('%.lua$', '') .. '.gui.lua'
+            end
             if onSaveScene(fileName) then
                 sLastEditorFileName = fileName
                 tUtil.showMessage(string.format(tLang.L("scene_saved_ok_fmt"), sLastEditorFileName))
@@ -2894,7 +2898,7 @@ local function rebuildPanelsFromData(tSavedPanels, parent)
 end
 
 local function onLoadScene()
-    local fileName = mbm.openFile(sLastEditorFileName, "*.lua")
+    local fileName = mbm.openFile(sLastEditorFileName, "*.gui.lua")
     if fileName then
         onNewSceneEditor()
         local tScene = dofile(fileName)
@@ -2982,7 +2986,9 @@ end
 -- ── Export clean game scene (.scene.lua) ─────────────────────────────────────
 
 local function onExportGameScene()
-    local fileName = mbm.saveFile(sLastEditorFileName, '*.lua')
+    -- strip .gui from the editor filename so the export dialog defaults to e.g. "test.lua"
+    local exportDefault = sLastEditorFileName:gsub('%.gui%.lua$', '.lua')
+    local fileName = mbm.saveFile(exportDefault, '*.lua')  -- exported game scene stays *.lua
     if not fileName then return end
 
     local oldLocaleNumeric = os.setlocale(nil, 'numeric')

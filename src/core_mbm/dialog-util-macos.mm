@@ -60,10 +60,16 @@
     if (isDir)
         return YES;
 
-    NSString *ext = url.pathExtension.lowercaseString;
+    // Use hasSuffix: so compound extensions like "gui.lua" match "test.gui.lua".
+    // pathExtension only returns the last component ("lua"), which would fail
+    // for any multi-part extension.
+    NSString *fname = url.lastPathComponent.lowercaseString;
     for (NSString *allowed in self.allowedExtensions)
-        if ([allowed isEqualToString:ext])
+    {
+        NSString *suffix = [@"." stringByAppendingString:allowed];
+        if ([fname hasSuffix:suffix])
             return YES;
+    }
 
     return NO;
 }
