@@ -209,12 +209,26 @@ local function computePanelRect(panel, parentRect)
             return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
         elseif pat == "width" then
             local w  = (panel.sizeW or 1) * pw
-            local h  = (panel.sizeW or 1) * ph
+            local h  = (panel.sizeW or 1) * pw
             local cx = parentRect.x + (panel.cx or 0.5) * pw
             local cy = parentRect.y + (panel.cy or 0.5) * ph
             return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
         elseif pat == "height" then
-            local w  = (panel.sizeH or 1) * pw
+            local w  = (panel.sizeH or 1) * ph
+            local h  = (panel.sizeH or 1) * ph
+            local cx = parentRect.x + (panel.cx or 0.5) * pw
+            local cy = parentRect.y + (panel.cy or 0.5) * ph
+            return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
+        elseif pat == "width_prop" then
+            -- both axes scale with parent WIDTH (preserves panel aspect ratio)
+            local w  = (panel.sizeW or 1) * pw
+            local h  = (panel.sizeH or 1) * pw
+            local cx = parentRect.x + (panel.cx or 0.5) * pw
+            local cy = parentRect.y + (panel.cy or 0.5) * ph
+            return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
+        elseif pat == "height_prop" then
+            -- both axes scale with parent HEIGHT (preserves panel aspect ratio)
+            local w  = (panel.sizeW or 1) * ph
             local h  = (panel.sizeH or 1) * ph
             local cx = parentRect.x + (panel.cx or 0.5) * pw
             local cy = parentRect.y + (panel.cy or 0.5) * ph
@@ -951,28 +965,49 @@ showPanelProperties = function()
                 tLang.L("panel_type_center"),
                 tLang.L("panel_type_width"),
                 tLang.L("panel_type_height"),
+                tLang.L("panel_type_width_prop"),
+                tLang.L("panel_type_height_prop"),
             }
-            local tPanelAnchorKeys = {"stretch", "center", "width", "height"}
+            local tPanelAnchorKeys = {"stretch", "center", "width", "height", "width_prop", "height_prop"}
             local curPAT = panel.panelAnchorType or "stretch"
             local curPATIdx = 1
             for i, k in ipairs(tPanelAnchorKeys) do if k == curPAT then curPATIdx = i; break end end
             local patChanged, newPATIdx = tImGui.Combo("##panel_anchor_type", curPATIdx, tPanelAnchorOpts)
             if patChanged then
                 local newPAT = tPanelAnchorKeys[newPATIdx]
-                -- Convert between stretch and center/width/height without visual jump
-                if curPAT == "stretch" and newPAT ~= "stretch" then
+                local r = panel._rect
+                if curPAT == "stretch" then
+                    -- stretch -> any: derive cx/cy/sizeW/sizeH from current anchor fractions
                     local a = panel.anchor
                     panel.cx    = (a.left + a.right)  * 0.5
                     panel.cy    = (a.top  + a.bottom) * 0.5
                     panel.sizeW = a.right - a.left
                     panel.sizeH = a.bottom - a.top
-                elseif curPAT ~= "stretch" and newPAT == "stretch" then
+                    -- proportional: keep aspect ratio by adjusting the secondary fraction
+                    if r and r.w > 0 and r.h > 0 then
+                        if newPAT == "width_prop" then
+                            panel.sizeH = (r.h / r.w) * panel.sizeW
+                        elseif newPAT == "height_prop" then
+                            panel.sizeW = (r.w / r.h) * panel.sizeH
+                        end
+                    end
+                elseif newPAT == "stretch" then
+                    -- any -> stretch: convert back
                     local hw = (panel.sizeW or 1) * 0.5
                     local hh = (panel.sizeH or 1) * 0.5
                     panel.anchor.left   = math.max(0, (panel.cx or 0.5) - hw)
                     panel.anchor.right  = math.min(1, (panel.cx or 0.5) + hw)
                     panel.anchor.top    = math.max(0, (panel.cy or 0.5) - hh)
                     panel.anchor.bottom = math.min(1, (panel.cy or 0.5) + hh)
+                elseif newPAT == "width_prop" or newPAT == "height_prop" then
+                    -- non-stretch -> proportional: fix secondary fraction to preserve aspect ratio
+                    if r and r.w > 0 and r.h > 0 then
+                        if newPAT == "width_prop" then
+                            panel.sizeH = (r.h / r.w) * (panel.sizeW or 1)
+                        elseif newPAT == "height_prop" then
+                            panel.sizeW = (r.w / r.h) * (panel.sizeH or 1)
+                        end
+                    end
                 end
                 panel.panelAnchorType = newPAT
                 curPAT = newPAT
@@ -1025,15 +1060,35 @@ showPanelProperties = function()
                 r1, v = tImGui.InputFloat("##panel_cy", panel.cy or 0.5, step, step_fast, format)
                 if r1 then panel.cy = math.max(0, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
 
-                if curPAT == "center" or curPAT == "width" then
+                if curPAT == "width_prop" then
+                    -- sizeW and sizeH are both fractions of parent WIDTH
+                    tImGui.TextDisabled(tLang.L("panel_size_of_pw"))
                     tImGui.Text(tLang.L("panel_size_w"))
                     r1, v = tImGui.InputFloat("##panel_sw", panel.sizeW or 1, step, step_fast, format)
-                    if r1 then panel.sizeW = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
-                end
-                if curPAT == "center" or curPAT == "height" then
+                    if r1 then panel.sizeW = math.max(0.001, v); rebuildPanelVisuals(); reflowPanelObjects() end
                     tImGui.Text(tLang.L("panel_size_h"))
                     r1, v = tImGui.InputFloat("##panel_sh", panel.sizeH or 1, step, step_fast, format)
-                    if r1 then panel.sizeH = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+                    if r1 then panel.sizeH = math.max(0.001, v); rebuildPanelVisuals(); reflowPanelObjects() end
+                elseif curPAT == "height_prop" then
+                    -- sizeW and sizeH are both fractions of parent HEIGHT
+                    tImGui.TextDisabled(tLang.L("panel_size_of_ph"))
+                    tImGui.Text(tLang.L("panel_size_w"))
+                    r1, v = tImGui.InputFloat("##panel_sw", panel.sizeW or 1, step, step_fast, format)
+                    if r1 then panel.sizeW = math.max(0.001, v); rebuildPanelVisuals(); reflowPanelObjects() end
+                    tImGui.Text(tLang.L("panel_size_h"))
+                    r1, v = tImGui.InputFloat("##panel_sh", panel.sizeH or 1, step, step_fast, format)
+                    if r1 then panel.sizeH = math.max(0.001, v); rebuildPanelVisuals(); reflowPanelObjects() end
+                else
+                    if curPAT == "center" or curPAT == "width" then
+                        tImGui.Text(tLang.L("panel_size_w"))
+                        r1, v = tImGui.InputFloat("##panel_sw", panel.sizeW or 1, step, step_fast, format)
+                        if r1 then panel.sizeW = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+                    end
+                    if curPAT == "center" or curPAT == "height" then
+                        tImGui.Text(tLang.L("panel_size_h"))
+                        r1, v = tImGui.InputFloat("##panel_sh", panel.sizeH or 1, step, step_fast, format)
+                        if r1 then panel.sizeH = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+                    end
                 end
             end
         else
@@ -2279,10 +2334,11 @@ local function serializePanelTree(fp, panels, indent)
         if panel.panelAnchorType and panel.panelAnchorType ~= "stretch" then
             fp:write(string.format(',panelAnchorType=%q', panel.panelAnchorType))
             fp:write(string.format(',cx=%g,cy=%g', panel.cx or 0.5, panel.cy or 0.5))
-            if panel.panelAnchorType == "center" or panel.panelAnchorType == "width" then
+            local pat_ = panel.panelAnchorType
+            if pat_ == "center" or pat_ == "width" or pat_ == "width_prop" or pat_ == "height_prop" then
                 fp:write(string.format(',sizeW=%g', panel.sizeW or 1))
             end
-            if panel.panelAnchorType == "center" or panel.panelAnchorType == "height" then
+            if pat_ == "center" or pat_ == "height" or pat_ == "width_prop" or pat_ == "height_prop" then
                 fp:write(string.format(',sizeH=%g', panel.sizeH or 1))
             end
         end
@@ -2338,6 +2394,56 @@ end
 
 local function getSceneLoaderCode(xCam, yCam, sScaleAxis)
     local sScene = [[
+local function _computePanelRect(panel, parentRect)
+    local pw, ph = parentRect.w, parentRect.h
+    local pat = panel.panelAnchorType or "stretch"
+    if pat == "center" then
+        local w  = (panel.sizeW or 1) * pw
+        local h  = (panel.sizeH or 1) * ph
+        local cx = parentRect.x + (panel.cx or 0.5) * pw
+        local cy = parentRect.y + (panel.cy or 0.5) * ph
+        return {x=cx-w*0.5, y=cy-h*0.5, w=w, h=h}
+    elseif pat == "width" then
+        local s  = (panel.sizeW or 1) * pw
+        local cx = parentRect.x + (panel.cx or 0.5) * pw
+        local cy = parentRect.y + (panel.cy or 0.5) * ph
+        return {x=cx-s*0.5, y=cy-s*0.5, w=s, h=s}
+    elseif pat == "height" then
+        local s  = (panel.sizeH or 1) * ph
+        local cx = parentRect.x + (panel.cx or 0.5) * pw
+        local cy = parentRect.y + (panel.cy or 0.5) * ph
+        return {x=cx-s*0.5, y=cy-s*0.5, w=s, h=s}
+    elseif pat == "width_prop" then
+        local w  = (panel.sizeW or 1) * pw
+        local h  = (panel.sizeH or 1) * pw
+        local cx = parentRect.x + (panel.cx or 0.5) * pw
+        local cy = parentRect.y + (panel.cy or 0.5) * ph
+        return {x=cx-w*0.5, y=cy-h*0.5, w=w, h=h}
+    elseif pat == "height_prop" then
+        local w  = (panel.sizeW or 1) * ph
+        local h  = (panel.sizeH or 1) * ph
+        local cx = parentRect.x + (panel.cx or 0.5) * pw
+        local cy = parentRect.y + (panel.cy or 0.5) * ph
+        return {x=cx-w*0.5, y=cy-h*0.5, w=w, h=h}
+    else
+        local a = panel.anchor
+        return {x=parentRect.x+a.left*pw, y=parentRect.y+a.top*ph,
+                w=(a.right-a.left)*pw, h=(a.bottom-a.top)*ph}
+    end
+end
+
+local function _traversePanels(panels, refParent, curParent, refRects, curRects)
+    for _, panel in ipairs(panels) do
+        local rr = _computePanelRect(panel, refParent)
+        local cr = _computePanelRect(panel, curParent)
+        refRects[panel.id] = rr
+        curRects[panel.id] = cr
+        if panel.children and #panel.children > 0 then
+            _traversePanels(panel.children, rr, cr, refRects, curRects)
+        end
+    end
+end
+
 tScene.updateCamera = (
     function (self)
         local camera2d = mbm.getCamera('2d')
@@ -2373,6 +2479,9 @@ tScene.load = (
                     coroutine.yield(#self.tMeshesLoaded,#self.tAllMeshInfo)
                 end
             end
+        end
+        if self.tPanelTree then
+            self:reflow(self.iSizeScreenWidth, self.iSizeScreenHeight)
         end
         if self.tPhysics then
             self.tPhysics:start()
@@ -2567,6 +2676,54 @@ tScene.get = (
         return nil
     end
     )
+tScene.reflow = (
+    function(self, iW, iH)
+        if not self.tPanelTree or #self.tPanelTree == 0 then return end
+        local iEW = self.iExpectedWidth
+        local iEH = self.iExpectedHeight
+        local refRoot = {x=-iEW*0.5, y=-iEH*0.5, w=iEW, h=iEH}
+        local curRoot = {x=-iW*0.5,  y=-iH*0.5,  w=iW,  h=iH}
+        local refRects, curRects = {}, {}
+        _traversePanels(self.tPanelTree, refRoot, curRoot, refRects, curRects)
+        for i, tMesh in ipairs(self.tMeshesLoaded) do
+            local tInfo = self.tAllMeshInfo[i]
+            if tInfo and tInfo.panelId then
+                local rr = refRects[tInfo.panelId]
+                local cr = curRects[tInfo.panelId]
+                if rr and cr then
+                    local atype = tInfo.anchorType or "center"
+                    if atype == "width" and tInfo.sizeAnchorW and rr.w > 0 then
+                        local sc = cr.w / rr.w
+                        tMesh:setScale(tInfo.sx*sc, tInfo.sy*sc, tInfo.sz)
+                    elseif atype == "height" and tInfo.sizeAnchorH and rr.h > 0 then
+                        local sc = cr.h / rr.h
+                        tMesh:setScale(tInfo.sx*sc, tInfo.sy*sc, tInfo.sz)
+                    elseif atype == "stretch" then
+                        local nsx = tInfo.sizeAnchorW and rr.w > 0 and tInfo.sx*(cr.w/rr.w) or tInfo.sx
+                        local nsy = tInfo.sizeAnchorH and rr.h > 0 and tInfo.sy*(cr.h/rr.h) or tInfo.sy
+                        tMesh:setScale(nsx, nsy, tInfo.sz)
+                    end
+                    local ex = cr.x + (tInfo.anchorX or 0.5)*cr.w
+                    local ey = cr.y + (tInfo.anchorY or 0.5)*cr.h
+                    if tInfo.is2ds then
+                        tMesh:setPos(ex + iW*0.5, iH*0.5 - ey, tInfo.z)
+                    else
+                        tMesh:setPos(ex, ey, tInfo.z)
+                    end
+                end
+            end
+        end
+    end
+    )
+
+tScene.onResizeWindow = (
+    function(self)
+        self:updateCamera()
+        local iW, iH = mbm.getSizeScreen()
+        self:reflow(iW, iH)
+    end
+    )
+
     EXTRA_SCRIPT
 return tScene
 ]]
@@ -2870,11 +3027,11 @@ local function onExportGameScene()
     -- Reflow objects to their up-to-date panel positions before writing
     reflowPanelObjects()
 
-    -- Clean mesh info (no editor-only fields like panelId, anchorX/Y, isBlocked)
+    -- Mesh info: includes panel anchor data so runtime reflow can work
     fp:write('\ntScene.tAllMeshInfo = {')
     for i, tObj in ipairs(tAllMesh) do
         fp:write(string.format(
-            '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s},',
+            '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s},',
             i, tUtil.getShortName(tObj.fileName, true),
             tObj.x, tObj.y, tObj.z,
             tObj.sx, tObj.sy, tObj.sz,
@@ -2884,9 +3041,17 @@ local function onExportGameScene()
             getIs2ds4Save(tObj),
             getPhysicInfo4Save(tObj.tPhysicInfo),
             getText4Font4Save(tObj.sText),
-            getIndependentCalCam4Save(tObj)))
+            getIndependentCalCam4Save(tObj),
+            getPanelInfo4Save(tObj)))
     end
     fp:write('}\n\n')
+
+    -- Panel tree: needed by tScene:reflow() at runtime
+    if #tPanels > 0 then
+        fp:write('tScene.tPanelTree = {\n')
+        serializePanelTree(fp, tPanels, '    ')
+        fp:write('}\n\n')
+    end
 
     fp:write('tScene.tMeshesLoaded = {}\n')
     fp:write('tScene.tMeshesLoadedDictionary = {}\n\n')
