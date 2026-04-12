@@ -198,15 +198,36 @@ end
 --- For 2dw panels: world position + size (centered at origin like the resolution rect)
 local function computePanelRect(panel, parentRect)
     if panel.world == "2ds" then
-        local a = panel.anchor
-        local pw = parentRect.w
-        local ph = parentRect.h
-        return {
-            x = parentRect.x + a.left * pw,
-            y = parentRect.y + a.top  * ph,
-            w = (a.right - a.left) * pw,
-            h = (a.bottom - a.top) * ph,
-        }
+        local pw  = parentRect.w
+        local ph  = parentRect.h
+        local pat = panel.panelAnchorType or "stretch"
+        if pat == "center" then
+            local w  = (panel.sizeW or 1) * pw
+            local h  = (panel.sizeH or 1) * ph
+            local cx = parentRect.x + (panel.cx or 0.5) * pw
+            local cy = parentRect.y + (panel.cy or 0.5) * ph
+            return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
+        elseif pat == "width" then
+            local w  = (panel.sizeW or 1) * pw
+            local h  = (panel.sizeW or 1) * ph
+            local cx = parentRect.x + (panel.cx or 0.5) * pw
+            local cy = parentRect.y + (panel.cy or 0.5) * ph
+            return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
+        elseif pat == "height" then
+            local w  = (panel.sizeH or 1) * pw
+            local h  = (panel.sizeH or 1) * ph
+            local cx = parentRect.x + (panel.cx or 0.5) * pw
+            local cy = parentRect.y + (panel.cy or 0.5) * ph
+            return { x = cx - w * 0.5, y = cy - h * 0.5, w = w, h = h }
+        else -- "stretch" or missing
+            local a = panel.anchor
+            return {
+                x = parentRect.x + a.left * pw,
+                y = parentRect.y + a.top  * ph,
+                w = (a.right - a.left) * pw,
+                h = (a.bottom - a.top) * ph,
+            }
+        end
     else -- 2dw
         local wp = panel.worldPos
         local ws = panel.worldSize
@@ -228,17 +249,22 @@ end
 --- Create a new panel table
 local function createPanel(name, world, anchor, worldPos, worldSize, depth)
     return {
-        id        = generatePanelId(),
-        name      = name or "panel",
-        world     = world or "2dw",
-        anchor    = anchor or {left=0, top=0, right=1, bottom=1},
-        worldPos  = worldPos  or {x=0, y=0},
-        worldSize = worldSize or {w=400, h=300},
-        depth     = depth or 0,
-        lineRef   = nil,
-        shapeRef  = nil,
-        objects   = {},
-        children  = {},
+        id              = generatePanelId(),
+        name            = name or "panel",
+        world           = world or "2dw",
+        anchor          = anchor or {left=0, top=0, right=1, bottom=1},
+        panelAnchorType = "stretch",
+        cx              = 0.5,
+        cy              = 0.5,
+        sizeW           = 1.0,
+        sizeH           = 1.0,
+        worldPos        = worldPos  or {x=0, y=0},
+        worldSize       = worldSize or {w=400, h=300},
+        depth           = depth or 0,
+        lineRef         = nil,
+        shapeRef        = nil,
+        objects         = {},
+        children        = {},
     }
 end
 
@@ -918,37 +944,97 @@ showPanelProperties = function()
         tImGui.Separator()
 
         if panel.world == "2ds" then
-            -- Anchor editors
-            tImGui.Text(tLang.L("panel_anchor_left"))
-            local r1, v = tImGui.InputFloat("##anchor_l", panel.anchor.left, step, step_fast, format)
-            if r1 and v >= 0 and v < panel.anchor.right then
-                panel.anchor.left = v
+            -- Panel anchor type combo
+            tImGui.Text(tLang.L("panel_anchor_type"))
+            local tPanelAnchorOpts = {
+                tLang.L("panel_type_stretch"),
+                tLang.L("panel_type_center"),
+                tLang.L("panel_type_width"),
+                tLang.L("panel_type_height"),
+            }
+            local tPanelAnchorKeys = {"stretch", "center", "width", "height"}
+            local curPAT = panel.panelAnchorType or "stretch"
+            local curPATIdx = 1
+            for i, k in ipairs(tPanelAnchorKeys) do if k == curPAT then curPATIdx = i; break end end
+            local patChanged, newPATIdx = tImGui.Combo("##panel_anchor_type", curPATIdx, tPanelAnchorOpts)
+            if patChanged then
+                local newPAT = tPanelAnchorKeys[newPATIdx]
+                -- Convert between stretch and center/width/height without visual jump
+                if curPAT == "stretch" and newPAT ~= "stretch" then
+                    local a = panel.anchor
+                    panel.cx    = (a.left + a.right)  * 0.5
+                    panel.cy    = (a.top  + a.bottom) * 0.5
+                    panel.sizeW = a.right - a.left
+                    panel.sizeH = a.bottom - a.top
+                elseif curPAT ~= "stretch" and newPAT == "stretch" then
+                    local hw = (panel.sizeW or 1) * 0.5
+                    local hh = (panel.sizeH or 1) * 0.5
+                    panel.anchor.left   = math.max(0, (panel.cx or 0.5) - hw)
+                    panel.anchor.right  = math.min(1, (panel.cx or 0.5) + hw)
+                    panel.anchor.top    = math.max(0, (panel.cy or 0.5) - hh)
+                    panel.anchor.bottom = math.min(1, (panel.cy or 0.5) + hh)
+                end
+                panel.panelAnchorType = newPAT
+                curPAT = newPAT
                 rebuildPanelVisuals()
                 reflowPanelObjects()
             end
 
-            tImGui.Text(tLang.L("panel_anchor_top"))
-            r1, v = tImGui.InputFloat("##anchor_t", panel.anchor.top, step, step_fast, format)
-            if r1 and v >= 0 and v < panel.anchor.bottom then
-                panel.anchor.top = v
-                rebuildPanelVisuals()
-                reflowPanelObjects()
-            end
+            tImGui.Separator()
 
-            tImGui.Text(tLang.L("panel_anchor_right"))
-            r1, v = tImGui.InputFloat("##anchor_r", panel.anchor.right, step, step_fast, format)
-            if r1 and v > panel.anchor.left and v <= 1 then
-                panel.anchor.right = v
-                rebuildPanelVisuals()
-                reflowPanelObjects()
-            end
+            if curPAT == "stretch" then
+                -- Anchor editors (left/top/right/bottom)
+                tImGui.Text(tLang.L("panel_anchor_left"))
+                local r1, v = tImGui.InputFloat("##anchor_l", panel.anchor.left, step, step_fast, format)
+                if r1 and v >= 0 and v < panel.anchor.right then
+                    panel.anchor.left = v
+                    rebuildPanelVisuals()
+                    reflowPanelObjects()
+                end
 
-            tImGui.Text(tLang.L("panel_anchor_bottom"))
-            r1, v = tImGui.InputFloat("##anchor_b", panel.anchor.bottom, step, step_fast, format)
-            if r1 and v > panel.anchor.top and v <= 1 then
-                panel.anchor.bottom = v
-                rebuildPanelVisuals()
-                reflowPanelObjects()
+                tImGui.Text(tLang.L("panel_anchor_top"))
+                r1, v = tImGui.InputFloat("##anchor_t", panel.anchor.top, step, step_fast, format)
+                if r1 and v >= 0 and v < panel.anchor.bottom then
+                    panel.anchor.top = v
+                    rebuildPanelVisuals()
+                    reflowPanelObjects()
+                end
+
+                tImGui.Text(tLang.L("panel_anchor_right"))
+                r1, v = tImGui.InputFloat("##anchor_r", panel.anchor.right, step, step_fast, format)
+                if r1 and v > panel.anchor.left and v <= 1 then
+                    panel.anchor.right = v
+                    rebuildPanelVisuals()
+                    reflowPanelObjects()
+                end
+
+                tImGui.Text(tLang.L("panel_anchor_bottom"))
+                r1, v = tImGui.InputFloat("##anchor_b", panel.anchor.bottom, step, step_fast, format)
+                if r1 and v > panel.anchor.top and v <= 1 then
+                    panel.anchor.bottom = v
+                    rebuildPanelVisuals()
+                    reflowPanelObjects()
+                end
+            else
+                -- Center-point + fractional size inputs
+                tImGui.Text(tLang.L("panel_center_x"))
+                local r1, v = tImGui.InputFloat("##panel_cx", panel.cx or 0.5, step, step_fast, format)
+                if r1 then panel.cx = math.max(0, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+
+                tImGui.Text(tLang.L("panel_center_y"))
+                r1, v = tImGui.InputFloat("##panel_cy", panel.cy or 0.5, step, step_fast, format)
+                if r1 then panel.cy = math.max(0, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+
+                if curPAT == "center" or curPAT == "width" then
+                    tImGui.Text(tLang.L("panel_size_w"))
+                    r1, v = tImGui.InputFloat("##panel_sw", panel.sizeW or 1, step, step_fast, format)
+                    if r1 then panel.sizeW = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+                end
+                if curPAT == "center" or curPAT == "height" then
+                    tImGui.Text(tLang.L("panel_size_h"))
+                    r1, v = tImGui.InputFloat("##panel_sh", panel.sizeH or 1, step, step_fast, format)
+                    if r1 then panel.sizeH = math.max(0.01, math.min(1, v)); rebuildPanelVisuals(); reflowPanelObjects() end
+                end
             end
         else
             -- World position/size
@@ -2190,6 +2276,16 @@ local function serializePanelTree(fp, panels, indent)
             fp:write(string.format(',anchor={left=%s,top=%s,right=%s,bottom=%s}',
                 a.left, a.top, a.right, a.bottom))
         end
+        if panel.panelAnchorType and panel.panelAnchorType ~= "stretch" then
+            fp:write(string.format(',panelAnchorType=%q', panel.panelAnchorType))
+            fp:write(string.format(',cx=%g,cy=%g', panel.cx or 0.5, panel.cy or 0.5))
+            if panel.panelAnchorType == "center" or panel.panelAnchorType == "width" then
+                fp:write(string.format(',sizeW=%g', panel.sizeW or 1))
+            end
+            if panel.panelAnchorType == "center" or panel.panelAnchorType == "height" then
+                fp:write(string.format(',sizeH=%g', panel.sizeH or 1))
+            end
+        end
         if panel.splitDir then
             fp:write(string.format(',splitDir=%q', panel.splitDir))
         end
@@ -2618,6 +2714,11 @@ local function rebuildPanelsFromData(tSavedPanels, parent)
         panel.id       = pd.id
         panel.splitDir = pd.splitDir
         panel.pctList  = pd.pctList
+        if pd.panelAnchorType then panel.panelAnchorType = pd.panelAnchorType end
+        if pd.cx    ~= nil then panel.cx    = pd.cx    end
+        if pd.cy    ~= nil then panel.cy    = pd.cy    end
+        if pd.sizeW ~= nil then panel.sizeW = pd.sizeW end
+        if pd.sizeH ~= nil then panel.sizeH = pd.sizeH end
         if pd.id >= iNextPanelId then
             iNextPanelId = pd.id + 1
         end
@@ -2765,6 +2866,9 @@ local function onExportGameScene()
     end
     fp:write(string.format('\ntScene.iExpectedWidth   = %d', xRes))
     fp:write(string.format('\ntScene.iExpectedHeight  = %d\n', yRes))
+
+    -- Reflow objects to their up-to-date panel positions before writing
+    reflowPanelObjects()
 
     -- Clean mesh info (no editor-only fields like panelId, anchorX/Y, isBlocked)
     fp:write('\ntScene.tAllMeshInfo = {')
