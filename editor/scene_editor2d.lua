@@ -375,6 +375,7 @@ local function rebuildPanelVisuals()
         ln:add({x1,y1, x1,y2, x2,y2, x2,y1, x1,y1})
         local bc = getDepthBorderColor(depth)
         ln:setColor(bc.r, bc.g, bc.b)
+        ln.z = -90 - depth  -- always in front of scene objects; deeper panels on top
         panel.lineRef = ln
 
         -- Create fill shape
@@ -386,7 +387,7 @@ local function rebuildPanelVisuals()
             math.floor(fc.a*255), math.floor(fc.r*255),
             math.floor(fc.g*255), math.floor(fc.b*255))
         sh:setTexture(colorHex)
-        sh.z = 50 - depth  -- deeper panels render on top
+        sh.z = -91 - depth  -- fill behind its own border but in front of scene objects
         panel.shapeRef = sh
     end)
 end
@@ -1388,7 +1389,7 @@ local function initialSetUpForAddedMesh(tObj)
         -- Position at panel center
         if tSelectedPanel._rect then
             local r = tSelectedPanel._rect
-            tObj:setPos(r.x + r.w * 0.5, r.y + r.h * 0.5, tObj.z)
+            tObj:setPos(r.x + r.w * 0.5, r.y + r.h * 0.5)
             tObj.anchorX = 0.5
             tObj.anchorY = 0.5
         end
