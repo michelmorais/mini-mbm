@@ -1532,9 +1532,14 @@ local function treeNodePosition(tObj)
         local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, inputFlags)
         tObj.isBlockedX = drawBlockButton(tObj.isBlockedX, 'X')
         if result and not tObj.isBlockedX then
+            -- Clamp X to panel bounds
+            if tObj.panelRef and tObj.panelRef._rect then
+                local r  = tObj.panelRef._rect
+                local hw = (tObj:getSize()) * 0.5
+                fValue = math.max(r.x + hw, math.min(r.x + r.w - hw, fValue))
+            end
             tObj.x = fValue
             tObj.tShape.x = fValue
-            -- Update anchor if panel-assigned
             if tObj.panelRef and tObj.panelRef._rect then
                 local r = tObj.panelRef._rect
                 if r.w > 0 then tObj.anchorX = (fValue - r.x) / r.w end
@@ -1544,6 +1549,13 @@ local function treeNodePosition(tObj)
         result, fValue = tImGui.InputFloat(tLang.L("axis_y") .. '##Mesh(s)', tObj.y, step, step_fast, format, inputFlags)
         tObj.isBlockedY = drawBlockButton(tObj.isBlockedY, 'Y')
         if result and not tObj.isBlockedY then
+            -- Clamp Y to panel bounds
+            if tObj.panelRef and tObj.panelRef._rect then
+                local r  = tObj.panelRef._rect
+                local _, hh = tObj:getSize()
+                hh = hh * 0.5
+                fValue = math.max(r.y + hh, math.min(r.y + r.h - hh, fValue))
+            end
             tObj.y = fValue
             tObj.tShape.y = fValue
             if tObj.panelRef and tObj.panelRef._rect then
@@ -1576,18 +1588,59 @@ local function treeNodeScale(tObj)
         local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
+                -- Cap SX so object width does not exceed panel width
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r = tObj.panelRef._rect
+                    local naturalW = tObj:getSize() / tObj.sx   -- base width at scale=1
+                    if naturalW > 0 then
+                        local maxSx = r.w / naturalW
+                        fValue = math.min(fValue, maxSx)
+                    end
+                end
                 tObj.sx = fValue
                 local w, h, d = tObj:getSize()
                 tObj.tShape.sx = w
+                -- Shift X if edges now go out of panel bounds
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r  = tObj.panelRef._rect
+                    local hw = w * 0.5
+                    local cx = math.max(r.x + hw, math.min(r.x + r.w - hw, tObj.x))
+                    if cx ~= tObj.x then
+                        tObj.x = cx
+                        tObj.tShape.x = cx
+                    end
+                    if r.w > 0 then tObj.anchorX = (tObj.x - r.x) / r.w end
+                end
             end
         end
 
         result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
+                -- Cap SY so object height does not exceed panel height
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r = tObj.panelRef._rect
+                    local _, naturalH = tObj:getSize()
+                    naturalH = naturalH / tObj.sy
+                    if naturalH > 0 then
+                        local maxSy = r.h / naturalH
+                        fValue = math.min(fValue, maxSy)
+                    end
+                end
                 tObj.sy = fValue
                 local w, h, d = tObj:getSize()
                 tObj.tShape.sy = h
+                -- Shift Y if edges now go out of panel bounds
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r  = tObj.panelRef._rect
+                    local hh = h * 0.5
+                    local cy = math.max(r.y + hh, math.min(r.y + r.h - hh, tObj.y))
+                    if cy ~= tObj.y then
+                        tObj.y = cy
+                        tObj.tShape.y = cy
+                    end
+                    if r.h > 0 then tObj.anchorY = (tObj.y - r.y) / r.h end
+                end
             end
         end
 
@@ -1833,6 +1886,15 @@ showPropertiesForMesh = function(tObj)
     end
 
     if not bBlocked then
+        -- Panel / anchor info
+        if tObj.panelRef then
+            tImGui.Separator()
+            tImGui.TextDisabled(string.format("Panel: %s", tObj.panelRef.name))
+            if tObj.anchorX ~= nil and tObj.anchorY ~= nil then
+                tImGui.TextDisabled(string.format("Anchor  X=%.3f  Y=%.3f", tObj.anchorX, tObj.anchorY))
+            end
+            tImGui.Separator()
+        end
         treeNodePosition(tObj)
         treeNodeScale(tObj)
         treeNodeAngle(tObj)
@@ -3131,6 +3193,15 @@ function onTouchMove(key, x, y)
                 v1:add(mx, my)
                 if tObj.isBlockedX then v1.x = tObj.x end
                 if tObj.isBlockedY then v1.y = tObj.y end
+                -- Clamp to panel bounds so the object stays inside its assigned panel
+                if tObj.panelRef and tObj.panelRef._rect then
+                    local r = tObj.panelRef._rect
+                    local ow, oh = tObj:getSize()
+                    local hw = ow * 0.5
+                    local hh = oh * 0.5
+                    v1.x = math.max(r.x + hw, math.min(r.x + r.w - hw, v1.x))
+                    v1.y = math.max(r.y + hh, math.min(r.y + r.h - hh, v1.y))
+                end
                 tObj:setPos(v1.x, v1.y)
             end
         elseif not tWindowsArea:IsAnyWindowHovered(x, y) then
@@ -3167,6 +3238,9 @@ function onTouchUp(key, x, y)
                     local r = tObj.panelRef._rect
                     tObj.anchorX = (tObj.x - r.x) / r.w
                     tObj.anchorY = (tObj.y - r.y) / r.h
+                    tUtil.showMessage(string.format(
+                        "[%s] anchor X=%.3f Y=%.3f",
+                        tObj.panelRef.name, tObj.anchorX, tObj.anchorY))
                 end
             end
         end
