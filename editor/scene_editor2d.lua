@@ -354,9 +354,41 @@ local function reflowPanelObjects()
     traversePanels(tPanels, rootRect, 0, function(panel, rect, depth)
         for _, obj in ipairs(panel.objects) do
             local restricted = obj.isRestrictedToPanel ~= false
+            local atype      = obj.anchorType or "center"
 
-            -- 1. Cap scale so object fits inside the panel (only when restricted)
+            -- 0. Apply size-anchor: recompute scale from panel fractions
             local ow, oh = obj:getSize()
+            if atype == "width" and obj.sizeAnchorW and ow > 0 and rect.w > 0 then
+                -- drive both axes proportionally from width
+                local scale = (rect.w * obj.sizeAnchorW) / ow
+                obj.sx = obj.sx * scale
+                obj.sy = obj.sy * scale
+                ow, oh = obj:getSize()
+                if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
+            elseif atype == "height" and obj.sizeAnchorH and oh > 0 and rect.h > 0 then
+                -- drive both axes proportionally from height
+                local scale = (rect.h * obj.sizeAnchorH) / oh
+                obj.sx = obj.sx * scale
+                obj.sy = obj.sy * scale
+                ow, oh = obj:getSize()
+                if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
+            elseif atype == "stretch" then
+                -- independent per axis (can distort)
+                if obj.sizeAnchorW and ow > 0 and rect.w > 0 then
+                    local naturalW = ow / obj.sx
+                    if naturalW > 0 then obj.sx = (rect.w * obj.sizeAnchorW) / naturalW end
+                end
+                if obj.sizeAnchorH and oh > 0 and rect.h > 0 then
+                    local naturalH = oh / obj.sy
+                    if naturalH > 0 then obj.sy = (rect.h * obj.sizeAnchorH) / naturalH end
+                end
+                ow, oh = obj:getSize()
+                if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
+            end
+
+            -- 1. Cap absolute scale so object fits inside the panel (only when restricted,
+            --    and only for axes not governed by a size anchor)
+            ow, oh = obj:getSize()
             if restricted and ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
                 if ow > rect.w or oh > rect.h then
                     local scale = math.min(rect.w / ow, rect.h / oh)
@@ -1396,6 +1428,46 @@ showMeshList = function()
                         -- Anchor display for panel-assigned objects
                         if tObj.panelRef and tObj.anchorX then
                             tImGui.PushItemWidth(150)
+
+                            -- Anchor type selector
+                            tImGui.Text(tLang.L("anchor_type"))
+                            local tAnchorTypes = {
+                                tLang.L("anchor_type_center"),
+                                tLang.L("anchor_type_width"),
+                                tLang.L("anchor_type_height"),
+                                tLang.L("anchor_type_stretch"),
+                            }
+                            local tAnchorKeys = {"center", "width", "height", "stretch"}
+                            local atype = tObj.anchorType or "center"
+                            local atypeIdx = 1
+                            for ki, k in ipairs(tAnchorKeys) do
+                                if k == atype then atypeIdx = ki; break end
+                            end
+                            local rect = tObj.panelRef._rect
+                            local retC, newIdx = tImGui.Combo("##anchorType_ml_" .. i, atypeIdx, tAnchorTypes)
+                            if retC then
+                                local newType = tAnchorKeys[newIdx]
+                                tObj.anchorType = newType
+                                atype = newType
+                                if rect then
+                                    local ow, oh = tObj:getSize()
+                                    if (newType == "width" or newType == "stretch") and not tObj.sizeAnchorW then
+                                        tObj.sizeAnchorW = math.min(1, ow / rect.w)
+                                    end
+                                    if (newType == "height" or newType == "stretch") and not tObj.sizeAnchorH then
+                                        tObj.sizeAnchorH = math.min(1, oh / rect.h)
+                                    end
+                                end
+                                if newType == "center" then
+                                    tObj.sizeAnchorW = nil; tObj.sizeAnchorH = nil
+                                elseif newType == "width" then
+                                    tObj.sizeAnchorH = nil
+                                elseif newType == "height" then
+                                    tObj.sizeAnchorW = nil
+                                end
+                            end
+                            tImGui.Separator()
+
                             tImGui.Text(tLang.L("anchor_x"))
                             local rAx, vAx = tImGui.InputFloat("##anchorX_" .. i, tObj.anchorX, 0.01, 0.05, "%.3f")
                             if rAx then
@@ -1614,66 +1686,130 @@ local function treeNodeScale(tObj)
         local inputFlags = 0
         tImGui.PushItemWidth(150)
 
-        local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, inputFlags)
-        if result then
-            if fValue > 0 then
-                -- Cap SX so object width does not exceed panel width
-                if tObj.panelRef and tObj.panelRef._rect then
-                    local r = tObj.panelRef._rect
-                    local naturalW = tObj:getSize() / tObj.sx   -- base width at scale=1
+        local atype      = tObj.anchorType or "center"
+        local hasPanelR  = tObj.panelRef and tObj.panelRef._rect
+        local rect       = hasPanelR and tObj.panelRef._rect or nil
+
+        -- SX input — hidden when width or stretch drives this axis
+        local showSX = (atype == "center" or atype == "height")
+        if showSX then
+            local result, fValue = tImGui.InputFloat(tLang.L("scale_sx") .. '##Mesh(s)', tObj.sx, step, step_fast, format, inputFlags)
+            if result then
+                if fValue > 0 then
+                    -- Cap SX so object width does not exceed panel width
+                    if rect then
+                        local naturalW = tObj:getSize() / tObj.sx
+                        if naturalW > 0 then fValue = math.min(fValue, rect.w / naturalW) end
+                    end
+                    tObj.sx = fValue
+                    local w, h, d = tObj:getSize()
+                    tObj.tShape.sx = w
+                    -- Shift X if edges now go out of panel bounds
+                    if tObj.isRestrictedToPanel ~= false and rect then
+                        local hw = w * 0.5
+                        local cx = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, tObj.x))
+                        if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
+                        if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
+                    end
+                end
+            end
+        else
+            -- Show the width-fraction input instead
+            local label = (atype == "stretch") and (tLang.L("panel_size_w") .. " (W)##swW_" .. tObj.iIndex)
+                                                or (tLang.L("panel_size_w") .. "##swW_" .. tObj.iIndex)
+            local cur = tObj.sizeAnchorW or 1.0
+            local rW, vW = tImGui.InputFloat(label, cur, 0.01, 0.05, "%.3f", 0)
+            if rW then
+                local clamped = math.max(0.01, math.min(1.0, vW))
+                tObj.sizeAnchorW = clamped
+                if rect then
+                    local ow, oh = tObj:getSize()
+                    local naturalW = ow / tObj.sx
                     if naturalW > 0 then
-                        local maxSx = r.w / naturalW
-                        fValue = math.min(fValue, maxSx)
+                        local newSx = (rect.w * clamped) / naturalW
+                        if atype == "width" then
+                            -- proportional: drive both axes
+                            local ratio = newSx / tObj.sx
+                            tObj.sx = newSx
+                            tObj.sy = tObj.sy * ratio
+                        else
+                            tObj.sx = newSx
+                        end
+                        local w, h = tObj:getSize()
+                        tObj.tShape:setScale(w, h, 1)
+                        if tObj.isRestrictedToPanel ~= false then
+                            local hw = w * 0.5
+                            local cx = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, tObj.x))
+                            if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
+                            if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
+                        end
                     end
-                end
-                tObj.sx = fValue
-                local w, h, d = tObj:getSize()
-                tObj.tShape.sx = w
-                -- Shift X if edges now go out of panel bounds
-                if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
-                    local r  = tObj.panelRef._rect
-                    local hw = w * 0.5
-                    local cx = math.max(r.x + hw, math.min(r.x + r.w - hw, tObj.x))
-                    if cx ~= tObj.x then
-                        tObj.x = cx
-                        tObj.tShape.x = cx
-                    end
-                    if r.w > 0 then tObj.anchorX = (tObj.x - r.x) / r.w end
                 end
             end
         end
 
-        result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, inputFlags)
-        if result then
-            if fValue > 0 then
-                -- Cap SY so object height does not exceed panel height
-                if tObj.panelRef and tObj.panelRef._rect then
-                    local r = tObj.panelRef._rect
-                    local _, naturalH = tObj:getSize()
-                    naturalH = naturalH / tObj.sy
-                    if naturalH > 0 then
-                        local maxSy = r.h / naturalH
-                        fValue = math.min(fValue, maxSy)
+        -- SY input — hidden when height or stretch drives this axis
+        local showSY = (atype == "center" or atype == "width")
+        if showSY then
+            local result, fValue = tImGui.InputFloat(tLang.L("scale_sy") .. '##Mesh(s)', tObj.sy, step, step_fast, format, inputFlags)
+            if result then
+                if fValue > 0 then
+                    -- Cap SY so object height does not exceed panel height
+                    if rect then
+                        local _, naturalH = tObj:getSize()
+                        naturalH = naturalH / tObj.sy
+                        if naturalH > 0 then fValue = math.min(fValue, rect.h / naturalH) end
+                    end
+                    tObj.sy = fValue
+                    local w, h, d = tObj:getSize()
+                    tObj.tShape.sy = h
+                    -- Shift Y if edges now go out of panel bounds
+                    if tObj.isRestrictedToPanel ~= false and rect then
+                        local hh = h * 0.5
+                        local cy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, tObj.y))
+                        if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
+                        if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                     end
                 end
-                tObj.sy = fValue
-                local w, h, d = tObj:getSize()
-                tObj.tShape.sy = h
-                -- Shift Y if edges now go out of panel bounds
-                if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
-                    local r  = tObj.panelRef._rect
-                    local hh = h * 0.5
-                    local cy = math.max(r.y + hh, math.min(r.y + r.h - hh, tObj.y))
-                    if cy ~= tObj.y then
-                        tObj.y = cy
-                        tObj.tShape.y = cy
+            end
+        else
+            -- Show the height-fraction input instead (skip for "width" — SY is computed there)
+            if atype == "stretch" or atype == "height" then
+                local label = (atype == "stretch") and (tLang.L("panel_size_h") .. " (H)##swH_" .. tObj.iIndex)
+                                                    or (tLang.L("panel_size_h") .. "##swH_" .. tObj.iIndex)
+                local cur = tObj.sizeAnchorH or 1.0
+                local rH, vH = tImGui.InputFloat(label, cur, 0.01, 0.05, "%.3f", 0)
+                if rH then
+                    local clamped = math.max(0.01, math.min(1.0, vH))
+                    tObj.sizeAnchorH = clamped
+                    if rect then
+                        local ow, oh = tObj:getSize()
+                        local naturalH = oh / tObj.sy
+                        if naturalH > 0 then
+                            local newSy = (rect.h * clamped) / naturalH
+                            if atype == "height" then
+                                -- proportional: drive both axes
+                                local ratio = newSy / tObj.sy
+                                tObj.sy = newSy
+                                tObj.sx = tObj.sx * ratio
+                            else
+                                tObj.sy = newSy
+                            end
+                            local w, h = tObj:getSize()
+                            tObj.tShape:setScale(w, h, 1)
+                            if tObj.isRestrictedToPanel ~= false then
+                                local hh = h * 0.5
+                                local cy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, tObj.y))
+                                if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
+                                if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
+                            end
+                        end
                     end
-                    if r.h > 0 then tObj.anchorY = (tObj.y - r.y) / r.h end
                 end
             end
         end
 
-        result, fValue = tImGui.InputFloat(tLang.L("scale_sz") .. '##Mesh(s)', tObj.sz, step, step_fast, format, inputFlags)
+        local result, fValue = tImGui.InputFloat(tLang.L("scale_sz") .. '##Mesh(s)', tObj.sz, step, step_fast, format, inputFlags)
         if result then
             if fValue > 0 then
                 tObj.sz = fValue
@@ -1869,6 +2005,7 @@ end
 showPropertiesForMesh = function(tObj)
     local isBlocked = tObj.isBlocked or false
     if not isBlocked then
+        tImGui.TextDisabled(tLang.L("world_type"))
         local tWorld = {'2D World', '2D Screen'}
         local iIndexWorldMesh = tObj.is2ds and 2 or 1
         local ret, current_item = tImGui.Combo('##WorldObj' .. tObj.iIndex, iIndexWorldMesh, tWorld)
@@ -2032,6 +2169,12 @@ local function getPanelInfo4Save(tObj)
         if tObj.isRestrictedToPanel == false then
             s = s .. ',isRestrictedToPanel=false'
         end
+        -- anchor type (omit when "center" — that is the default)
+        if tObj.anchorType and tObj.anchorType ~= "center" then
+            s = s .. string.format(',anchorType=%q', tObj.anchorType)
+        end
+        if tObj.sizeAnchorW then s = s .. string.format(',sizeAnchorW=%g', tObj.sizeAnchorW) end
+        if tObj.sizeAnchorH then s = s .. string.format(',sizeAnchorH=%g', tObj.sizeAnchorH) end
         return s
     end
     return ''
@@ -2547,6 +2690,10 @@ local function onLoadScene()
                                 if tInfo.anchorY then tMeshTmp.anchorY = tInfo.anchorY end
                                 -- false is the only non-default value saved
                                 tMeshTmp.isRestrictedToPanel = (tInfo.isRestrictedToPanel ~= false)
+                                -- anchor type (nil / missing → "center" by default)
+                                tMeshTmp.anchorType  = tInfo.anchorType or "center"
+                                tMeshTmp.sizeAnchorW = tInfo.sizeAnchorW
+                                tMeshTmp.sizeAnchorH = tInfo.sizeAnchorH
                             end
                         end
                     end
