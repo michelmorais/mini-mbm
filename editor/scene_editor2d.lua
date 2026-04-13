@@ -710,10 +710,16 @@ end
 -- Camera following (preserved from original)
 -- ─────────────────────────────────────────────────────────────────────────────
 local function cameraFollowing()
-    if not tFollowCam then return end
     local iSpeedCam = 1000
-    local bAnyFollow = false
     local iW, iH = mbm.getSizeScreen()
+    if tManuallyMoveCam then
+        camera2d:move(tManuallyMoveCam.x * iSpeedCam, tManuallyMoveCam.y * iSpeedCam)
+        return
+    end
+    if not tFollowCam then 
+        return 
+    end
+    local bAnyFollow = false
     local w, h = tFollowCam:getSize()
     if (w > iW or h > iH) and tFollowCam:isOnScreen() then
         tFollowCam = nil
@@ -3766,6 +3772,14 @@ function onKeyDown(key)
         onUnSelectAll()
         tSelectedPanel = nil
         updatePanelVisuals()
+    elseif key == mbm.getKeyCode('up') or key == mbm.getKeyCode('W') then
+        tManuallyMoveCam = {x = 0, y = 1}
+    elseif key == mbm.getKeyCode('down') or key == mbm.getKeyCode('S') then
+        tManuallyMoveCam = {x = 0, y = -1}
+    elseif key == mbm.getKeyCode('left') or key == mbm.getKeyCode('A') then
+        tManuallyMoveCam = {x = -1, y = 0}
+    elseif key == mbm.getKeyCode('right') or key == mbm.getKeyCode('D') then
+        tManuallyMoveCam = {x = 1, y = 0}
     end
 end
 
@@ -3775,6 +3789,11 @@ function onKeyUp(key)
         keyControlPressed = false
     elseif key == mbm.getKeyCode('shift') then
         keyShiftPressed = false
+    elseif key == mbm.getKeyCode('up') or key == mbm.getKeyCode('W') or
+           key == mbm.getKeyCode('down') or key == mbm.getKeyCode('S') or
+           key == mbm.getKeyCode('left') or key == mbm.getKeyCode('A') or
+           key == mbm.getKeyCode('right') or key == mbm.getKeyCode('D') then
+        tManuallyMoveCam = nil
     end
 end
 
