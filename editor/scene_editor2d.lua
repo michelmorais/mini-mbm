@@ -920,6 +920,11 @@ showPanelBrowser = function()
         if tImGui.Button(tLang.L("add_grid_nxm"), {x=-1, y=0}) then
             bShowGridDialog = true
         end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L("grid_tooltip_short"))
+            tImGui.EndTooltip()
+        end
 
         tImGui.Separator()
 
@@ -1240,6 +1245,10 @@ showGridDialog = function()
             local modP, newPct = tImGui.InputText("##row_pct", tGridDialog.sRowPct, 0)
             if modP then tGridDialog.sRowPct = newPct end
         end
+
+        tImGui.Separator()
+
+        tImGui.TextWrapped(tLang.L("grid_help_full"))
 
         tImGui.Separator()
 
