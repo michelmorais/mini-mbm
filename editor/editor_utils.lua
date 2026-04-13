@@ -15,12 +15,13 @@ tUtil.tColorBackground = {r=37/255,g=37/255,b=37/255}
 mbm.setColor(tUtil.tColorBackground.r,tUtil.tColorBackground.g,tUtil.tColorBackground.b)
 
 
-tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from rigth to left (so x must be <= 0)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from right to left (so x must be <= 0)
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
@@ -31,11 +32,12 @@ tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from
 end
 
 tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width)-- from left to left (so x must be >= 0)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = x,y = iMenuBarHeight + y }
@@ -46,11 +48,12 @@ tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width)-- from 
 end
 
 tUtil.setInitialWindowPositionDown = function(title,xStart,YPercentage,xRight)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x=xStart,y=iH - (YPercentage * iH)}
