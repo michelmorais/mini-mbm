@@ -100,6 +100,9 @@ local bShowAddingMesh     = false
 local bShowDetailOfMesh   = true
 local bShowGridDialog     = false
 local bEnableMoveWorld    = true
+local tDragObj            = nil   -- object being dragged in panel browser
+local tDropTarget         = nil   -- panel (or sentinel) hovered during drag
+local FREE_ZONE_SENTINEL  = {}    -- unique sentinel meaning "drop to Free"
 local bEnableMoveWindow   = false
 local bClickedOverAnyMesh = false
 local bMovingAnyMesh      = false
@@ -821,6 +824,9 @@ local function percentagesValid(parts)
     return math.abs(sum - 100) < 0.5
 end
 
+-- Forward declarations needed by renderPanelTree and showPanelBrowser
+local assignObjectToPanel, buildPanelComboList
+
 --- Recursive tree rendering for panel browser
 local function renderPanelTree(panels, parentRect)
     for i, panel in ipairs(panels) do
@@ -832,13 +838,29 @@ local function renderPanelTree(panels, parentRect)
         local label = string.format("%s [%s] (%d obj)##%s",
             panel.name, panel.world, #panel.objects, panel.id)
 
-        -- Color the text by depth
+        -- Color the text by depth; highlight panel when it is the active drop target
         local bc = getDepthBorderColor(panel.depth or 0)
         tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=bc.r, g=bc.g, b=bc.b, a=1})
+        if tDragObj ~= nil and tDropTarget == panel then
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Header'),      {r=0.15, g=0.65, b=0.25, a=0.55})
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_HeaderHovered'),{r=0.20, g=0.75, b=0.30, a=0.65})
+        end
 
         local nodeOpen = tImGui.TreeNodeEx(label, flags)
 
+        if tDragObj ~= nil and tDropTarget == panel then
+            tImGui.PopStyleColor(2)
+        end
         tImGui.PopStyleColor(1)
+
+        -- Update drop target while dragging; IsMouseHoveringRect ignores active-item blocking
+        if tDragObj ~= nil then
+            local rmin = tImGui.GetItemRectMin()
+            local rmax = tImGui.GetItemRectMax()
+            if tImGui.IsMouseHoveringRect(rmin, rmax, false) then
+                tDropTarget = panel
+            end
+        end
 
         -- Click to select this panel
         if tImGui.IsItemClicked() then
@@ -891,6 +913,34 @@ local function renderPanelTree(panels, parentRect)
                     setSelectedObj(obj, true)
                     tFollowCam = obj
                 end
+                -- Drag start: hold left mouse and move
+                if tDragObj == nil and tImGui.IsItemActive() and tImGui.IsMouseDragging(0, 6.0) then
+                    tDragObj   = obj
+                    tDropTarget = nil
+                end
+                -- Right-click: reassign popup
+                if tImGui.BeginPopupContextItem("##ctx_panelobj_" .. panel.id .. "_" .. j) then
+                    tImGui.Text(tLang.L("reassign_object") .. ": " .. (obj.type or "?"))
+                    tImGui.Separator()
+                    tImGui.Text(tLang.L("assign_to_panel"))
+                    local tPanelList   = buildPanelComboList(tPanels)
+                    local comboLabels  = {tLang.L("free_object")}
+                    local currentIdx   = 1
+                    for k, entry in ipairs(tPanelList) do
+                        table.insert(comboLabels, entry.label)
+                        if obj.panelRef == entry.panel then currentIdx = k + 1 end
+                    end
+                    local retA, newIdx = tImGui.Combo("##reassign_panelobj_" .. panel.id .. "_" .. j, currentIdx, comboLabels)
+                    if retA then
+                        if newIdx == 1 then
+                            assignObjectToPanel(obj, nil)
+                        else
+                            assignObjectToPanel(obj, tPanelList[newIdx - 1].panel)
+                        end
+                        tImGui.CloseCurrentPopup()
+                    end
+                    tImGui.EndPopup()
+                end
             end
             tImGui.TreePop()
         end
@@ -939,7 +989,24 @@ showPanelBrowser = function()
         -- Free objects section
         if #tFreeMeshes > 0 then
             tImGui.Separator()
-            if tImGui.TreeNode(string.format("%s (%d)##free_objs", tLang.L("free_object"), #tFreeMeshes)) then
+            -- Highlight Free header when it is the active drop target
+            if tDragObj ~= nil and tDropTarget == FREE_ZONE_SENTINEL then
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Header'),      {r=0.65, g=0.45, b=0.10, a=0.55})
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_HeaderHovered'),{r=0.75, g=0.55, b=0.15, a=0.65})
+            end
+            local freeNodeOpen = tImGui.TreeNode(string.format("%s (%d)##free_objs", tLang.L("free_object"), #tFreeMeshes))
+            if tDragObj ~= nil and tDropTarget == FREE_ZONE_SENTINEL then
+                tImGui.PopStyleColor(2)
+            end
+            -- Mark Free zone as drop target while dragging
+            if tDragObj ~= nil then
+                local rmin = tImGui.GetItemRectMin()
+                local rmax = tImGui.GetItemRectMax()
+                if tImGui.IsMouseHoveringRect(rmin, rmax, false) then
+                    tDropTarget = FREE_ZONE_SENTINEL
+                end
+            end
+            if freeNodeOpen then
                 for j, obj in ipairs(tFreeMeshes) do
                     local objLabel = string.format("%s (%d)##free_%d", obj.type or "?", j, j)
                     if tImGui.Selectable(objLabel, obj.isSelected) then
@@ -947,14 +1014,76 @@ showPanelBrowser = function()
                         setSelectedObj(obj, true)
                         tFollowCam = obj
                     end
+                    -- Drag start
+                    if tDragObj == nil and tImGui.IsItemActive() and tImGui.IsMouseDragging(0, 6.0) then
+                        tDragObj    = obj
+                        tDropTarget = nil
+                    end
+                    -- Right-click: reassign popup
+                    if tImGui.BeginPopupContextItem("##ctx_freeobj_" .. j) then
+                        tImGui.Text(tLang.L("reassign_object") .. ": " .. (obj.type or "?"))
+                        tImGui.Separator()
+                        tImGui.Text(tLang.L("assign_to_panel"))
+                        local tPanelList   = buildPanelComboList(tPanels)
+                        local comboLabels  = {tLang.L("free_object")}
+                        for k, entry in ipairs(tPanelList) do
+                            table.insert(comboLabels, entry.label)
+                        end
+                        local retA, newIdx = tImGui.Combo("##reassign_freeobj_" .. j, 1, comboLabels)
+                        if retA then
+                            if newIdx == 1 then
+                                assignObjectToPanel(obj, nil)
+                            else
+                                assignObjectToPanel(obj, tPanelList[newIdx - 1].panel)
+                            end
+                            tImGui.CloseCurrentPopup()
+                        end
+                        tImGui.EndPopup()
+                    end
                 end
                 tImGui.TreePop()
             end
         end
+
+        -- Drag-drop completion: release mouse
+        if tDragObj ~= nil and tImGui.IsMouseReleased(0) then
+            if tDropTarget == FREE_ZONE_SENTINEL then
+                assignObjectToPanel(tDragObj, nil)
+            elseif tDropTarget ~= nil then
+                assignObjectToPanel(tDragObj, tDropTarget)
+            end
+            tDragObj    = nil
+            tDropTarget = nil
+        end
+        -- Clear drop target each frame if not dragging
+        if tDragObj == nil then tDropTarget = nil end
     end
     tWindowsArea:addThisWindow()
     tImGui.End()
     if closed_clicked then bShowPanelBrowser = false end
+
+    -- Drag ghost overlay: floating tooltip window following the cursor
+    if tDragObj ~= nil then
+        local mp = tImGui.GetMousePos()
+        tImGui.SetNextWindowPos({x = mp.x + 14, y = mp.y + 8}, tImGui.Flags('ImGuiCond_Always'), {x=0, y=0})
+        tImGui.SetNextWindowBgAlpha(0.82)
+        local ghostFlags = tImGui.Flags(
+            'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize',
+            'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing',
+            'ImGuiWindowFlags_NoNav', 'ImGuiWindowFlags_NoMove',
+            'ImGuiWindowFlags_NoMouseInputs', 'ImGuiWindowFlags_NoInputs')
+        if tImGui.Begin("##drag_ghost", false, ghostFlags) then
+            tImGui.Text("  " .. (tDragObj.type or "?") .. "  ")
+            if tDropTarget == FREE_ZONE_SENTINEL then
+                tImGui.TextDisabled(tLang.L("drag_hint_free"))
+            elseif tDropTarget ~= nil then
+                tImGui.TextDisabled("\xe2\x86\x92 " .. tDropTarget.name)
+            else
+                tImGui.TextDisabled(tLang.L("drag_hint_no_target"))
+            end
+        end
+        tImGui.End()
+    end
 end
 
 --- Panel Properties window
@@ -1352,7 +1481,7 @@ local showPropertiesForMesh = function(tObj) end
 -- ─────────────────────────────────────────────────────────────────────────────
 
 --- Assign an object to a panel (or free). Updates anchorX/Y from current position.
-local function assignObjectToPanel(tObj, panel)
+assignObjectToPanel = function(tObj, panel)
     -- Remove from previous panel / free list
     if tObj.panelRef then
         for j = #tObj.panelRef.objects, 1, -1 do
@@ -1538,7 +1667,7 @@ onDuplicated = function()
 end
 
 --- Build a flat list of all panels for a combo dropdown
-local function buildPanelComboList(panels, out, prefix)
+buildPanelComboList = function(panels, out, prefix)
     out = out or {}
     prefix = prefix or ""
     for _, panel in ipairs(panels) do
