@@ -348,6 +348,22 @@ local function findParentList(panel, parentList)
     return nil
 end
 
+--- Propagate a world type to all descendants of a panel
+local function propagateWorldToChildren(panel, world)
+    for _, child in ipairs(panel.children) do
+        child.world = world
+        propagateWorldToChildren(child, world)
+    end
+end
+
+--- Returns true if the panel is at the root level (has no parent panel)
+local function isRootPanel(panel)
+    for _, p in ipairs(tPanels) do
+        if p == panel then return true end
+    end
+    return false
+end
+
 --- Traverse all panels calling fn(panel, parentRect, depth)
 local function traversePanels(panels, parentRect, depth, fn)
     for _, panel in ipairs(panels) do
@@ -958,12 +974,17 @@ showPanelProperties = function()
 
         -- World type
         tImGui.Text(tLang.L("panel_world"))
-        local tWorldOpts = {"2D World", "2D Screen"}
-        local worldIdx = panel.world == "2ds" and 2 or 1
-        local ret, newIdx = tImGui.Combo("##panel_world_combo", worldIdx, tWorldOpts)
-        if ret then
-            panel.world = newIdx == 2 and "2ds" or "2dw"
-            rebuildPanelVisuals()
+        if isRootPanel(panel) then
+            local tWorldOpts = {"2D World", "2D Screen"}
+            local worldIdx = panel.world == "2ds" and 2 or 1
+            local ret, newIdx = tImGui.Combo("##panel_world_combo", worldIdx, tWorldOpts)
+            if ret then
+                panel.world = newIdx == 2 and "2ds" or "2dw"
+                propagateWorldToChildren(panel, panel.world)
+                rebuildPanelVisuals()
+            end
+        else
+            tImGui.TextDisabled(panel.world == "2ds" and "2D Screen (inherited)" or "2D World (inherited)")
         end
 
         tImGui.Separator()
@@ -1189,8 +1210,12 @@ showGridDialog = function()
 
         -- World type
         tImGui.Text(tLang.L("panel_world"))
-        local retW, idxW = tImGui.Combo("##grid_world", tGridDialog.iWorldIndex, tGridDialog.tWorldOptions)
-        if retW then tGridDialog.iWorldIndex = idxW end
+        if tSelectedPanel then
+            tImGui.TextDisabled(tSelectedPanel.world == "2ds" and "2D Screen (inherited)" or "2D World (inherited)")
+        else
+            local retW, idxW = tImGui.Combo("##grid_world", tGridDialog.iWorldIndex, tGridDialog.tWorldOptions)
+            if retW then tGridDialog.iWorldIndex = idxW end
+        end
 
         tImGui.Separator()
 
@@ -1244,7 +1269,8 @@ showGridDialog = function()
             end
 
             if colParts and rowParts then
-                local world = tGridDialog.iWorldIndex == 2 and "2ds" or "2dw"
+                local world = tSelectedPanel and tSelectedPanel.world
+                    or (tGridDialog.iWorldIndex == 2 and "2ds" or "2dw")
                 local targetList = tSelectedPanel and tSelectedPanel.children or tPanels
                 local parentDepth = tSelectedPanel and (tSelectedPanel.depth or 0) or -1
 
@@ -1447,20 +1473,28 @@ end
 onDuplicated = function()
     if #tSelectedObjs > 0 then
         for i = 1, #tSelectedObjs do
+            local tObj = tSelectedObjs[i]
             tLastMeshAdded = tSelectedObjs[i]
-            local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName, true, "2dw", tLastMeshAdded.sText)
+            local tMeshTmp = tUtil.onAddMeshToEditor(tObj.fileName, true, "2dw", tObj.sText)
             if tMeshTmp then
-                tMeshTmp:setAnim(select(2, tLastMeshAdded:getAnim()))
-                if tLastMeshAdded.tPhysicInfo then
-                    tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tLastMeshAdded.tPhysicInfo)
+                tMeshTmp:setAnim(select(2, tObj:getAnim()))
+                if tObj.tPhysicInfo then
+                    tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tObj.tPhysicInfo)
                 end
-                tMeshTmp.is2ds = tLastMeshAdded.is2ds
+                tMeshTmp.is2ds = tObj.is2ds
                 initialSetUpForAddedMesh(tMeshTmp)
                 -- Assign to same panel as original
-                if tLastMeshAdded.panelRef then
-                    assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
+                if tObj.panelRef then
+                    assignObjectToPanel(tMeshTmp, tObj.panelRef)
                 end
-                sLastMeshAdd = tLastMeshAdded.fileName
+                if tMeshTmp.tFont then
+                    tMeshTmp:setScale(tObj.tFont.sx, tObj.tFont.sy)
+                    tMeshTmp:setAngle(tObj.tFont.ax, tObj.tFont.ay, tObj.tFont.az)
+                else
+                    tMeshTmp:setScale(tObj.sx, tObj.sy)
+                    tMeshTmp:setAngle(tObj.ax, tObj.ay, tObj.az)
+                end
+                sLastMeshAdd = tObj.fileName
             end
         end
         if #tSelectedObjs > 1 then
@@ -1479,6 +1513,13 @@ onDuplicated = function()
             initialSetUpForAddedMesh(tMeshTmp)
             if tLastMeshAdded.panelRef then
                 assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
+            end
+            if tMeshTmp.tFont then
+                tMeshTmp:setScale(tLastMeshAdded.tFont.sx, tLastMeshAdded.tFont.sy)
+                tMeshTmp:setAngle(tLastMeshAdded.tFont.ax, tLastMeshAdded.tFont.ay, tLastMeshAdded.tFont.az)
+            else
+                tMeshTmp:setScale(tLastMeshAdded.sx, tLastMeshAdded.sy)
+                tMeshTmp:setAngle(tLastMeshAdded.ax, tLastMeshAdded.ay, tLastMeshAdded.az)
             end
             tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
