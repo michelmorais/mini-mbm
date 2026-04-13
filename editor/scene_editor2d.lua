@@ -1062,27 +1062,18 @@ showPanelBrowser = function()
     tImGui.End()
     if closed_clicked then bShowPanelBrowser = false end
 
-    -- Drag ghost overlay: floating tooltip window following the cursor
+    -- Drag ghost: use BeginTooltip so it is always rendered on top of all windows
     if tDragObj ~= nil then
-        local mp = tImGui.GetMousePos()
-        tImGui.SetNextWindowPos({x = mp.x + 14, y = mp.y + 8}, tImGui.Flags('ImGuiCond_Always'), {x=0, y=0})
-        tImGui.SetNextWindowBgAlpha(0.82)
-        local ghostFlags = tImGui.Flags(
-            'ImGuiWindowFlags_NoDecoration', 'ImGuiWindowFlags_AlwaysAutoResize',
-            'ImGuiWindowFlags_NoSavedSettings', 'ImGuiWindowFlags_NoFocusOnAppearing',
-            'ImGuiWindowFlags_NoNav', 'ImGuiWindowFlags_NoMove',
-            'ImGuiWindowFlags_NoMouseInputs', 'ImGuiWindowFlags_NoInputs')
-        if tImGui.Begin("##drag_ghost", false, ghostFlags) then
-            tImGui.Text("  " .. (tDragObj.type or "?") .. "  ")
-            if tDropTarget == FREE_ZONE_SENTINEL then
-                tImGui.TextDisabled(tLang.L("drag_hint_free"))
-            elseif tDropTarget ~= nil then
-                tImGui.TextDisabled("\xe2\x86\x92 " .. tDropTarget.name)
-            else
-                tImGui.TextDisabled(tLang.L("drag_hint_no_target"))
-            end
+        tImGui.BeginTooltip()
+        tImGui.Text("  " .. (tDragObj.type or "?") .. "  ")
+        if tDropTarget == FREE_ZONE_SENTINEL then
+            tImGui.TextDisabled(tLang.L("drag_hint_free"))
+        elseif tDropTarget ~= nil then
+            tImGui.TextDisabled("→ " .. tDropTarget.name)
+        else
+            tImGui.TextDisabled(tLang.L("drag_hint_no_target"))
         end
-        tImGui.End()
+        tImGui.EndTooltip()
     end
 end
 
