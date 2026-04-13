@@ -1523,6 +1523,8 @@ assignObjectToPanel = function(tObj, panel)
             end
         end
         tUtil.showMessage(string.format(tLang.L("object_assign_panel_fmt"), panel.name))
+        -- Reflow so the object is clamped inside its new panel if isRestrictedToPanel
+        reflowPanelObjects()
     else
         tObj.panelRef = nil
         tObj.anchorX  = nil
