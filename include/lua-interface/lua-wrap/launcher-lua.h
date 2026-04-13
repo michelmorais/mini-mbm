@@ -35,15 +35,15 @@ function __onLoadScene(fileName)
     local __fullFileName    = mbm.getFullPath(fileName)
     local __scene, __err    = dofile(__fullFileName)
     if mbm.is('debug') then
-        print('__onLoadScene inside [include/lua-interface/lua-wrap/launcher-lua.h], script to execute:',__fullFileName)
+        print('info','LAUNCHER2D_LUA_H::__onLoadScene [include/lua-interface/lua-wrap/launcher-lua.h], script to be executed:',__fullFileName)
     end
     if __scene then
         __t_my_class = __scene
         if type(__scene.load) == 'function' then --from editor? we load the meshes.
             if mbm.is('debug') then
-                print('scene:load found, calling it from [include/lua-interface/lua-wrap/launcher-lua.h] scene for file:',__fullFileName)
+                print('info','LAUNCHER2D_LUA_H::scene:load found, calling it from [include/lua-interface/lua-wrap/launcher-lua.h] scene for file:',__fullFileName)
             end
-            __scene:load(onProgress or function(percent) print('loading:',percent) end)
+            __scene:load(onProgress or function(percent) print(' info','loading:',percent) end)
         end
         if __scene and type(__scene.onInitScene) == 'function' then
             __scene:onInitScene()
@@ -63,7 +63,7 @@ end
 function onInitScene()
     mbm.onErrorStop(true)
     if mbm.is('debug') then
-        print('onInitScene inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
+        print('info','LAUNCHER2D_LUA_H::onInitScene inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
     end
     bEnableMoveCam2d = true
     camera2d    = mbm.getCamera('2d')
@@ -80,7 +80,7 @@ function onInitScene()
         if fileNameScene then
             cCoroutineLoadScene = coroutine.create(__onLoadScene)
             if mbm.is('debug') then
-                print('Coroutine Load scene created from [include/lua-interface/lua-wrap/launcher-lua.h] scene for file:',fileNameScene)
+                print('info','LAUNCHER2D_LUA_H:: Coroutine -> created from [include/lua-interface/lua-wrap/launcher-lua.h] scene for file:',fileNameScene)
             end
         end
     end
@@ -198,7 +198,7 @@ end
 
 function onEndScene()
     if mbm.is('debug') then
-        print('onEndScene inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
+        print('info','LAUNCHER2D_LUA_H::onEndScene inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
     end
     if __t_my_class and type(__t_my_class.onEndScene) == 'function' then
         __t_my_class:onEndScene()
@@ -207,7 +207,7 @@ end
 
 function onRestore()
     if mbm.is('debug') then
-        print('onRestore inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
+        print('info','LAUNCHER2D_LUA_H::onRestore inside [include/lua-interface/lua-wrap/launcher-lua.h] scene')
     end
     if __t_my_class and type(__t_my_class.onRestore) == 'function' then
         __t_my_class:onRestore()
