@@ -32,9 +32,12 @@ R"LUA_SCENE(
 
 function __onLoadScene(fileName)
     local __old_onInitScene = onInitScene
-    local __old_loop        = loop
+    local __old_onLoop     = onLoop
     local __fullFileName    = mbm.getFullPath(fileName)
     local __scene, __err    = dofile(__fullFileName)
+    if mbm.is('debug') then
+        print('line','__onLoadScene inside launcher-lua.h scene from file:',__fullFileName)
+    end
     if __scene then
         __t_my_class = __scene
         if type(__scene.load) == 'function' then --from editor? we load the meshes.
@@ -46,7 +49,7 @@ function __onLoadScene(fileName)
     else
         if type(onInitScene) == 'function' and onInitScene ~= __old_onInitScene then
             onInitScene()
-            if type(loop) == 'function' and loop ~= __old_loop then
+            if type(onLoop) == 'function' and onLoop ~= __old_onLoop then
                 cCoroutineLoadScene = nil
             end
         elseif __err then
@@ -57,6 +60,9 @@ end
 
 function onInitScene()
     mbm.onErrorStop(true)
+    if mbm.is('debug') then
+        print('line','onInitScene inside launcher-lua.h scene')
+    end
     bEnableMoveCam2d = true
     camera2d    = mbm.getCamera('2d')
     camera2d.mx = 0
@@ -76,6 +82,9 @@ function onInitScene()
 end
 
 function onLoop(delta)
+    if mbm.is('debug') then
+        print('line','onLoop inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then
         
         local __status = coroutine.status (cCoroutineLoadScene)
@@ -114,12 +123,15 @@ function onLoop(delta)
                 onProgress(100)
             end
         end
-    elseif __t_my_class and type(__t_my_class.loop) == 'function' then
+    elseif __t_my_class and type(__t_my_class.onLoop) == 'function' then
         __t_my_class:onLoop(delta)
     end
 end
 
 function onTouchMove(key,x,y)
+    if mbm.is('debug') then
+        print('line','onTouchMove inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if bEnableMoveCam2d and isClickedMouseleft then
         local px = (camera2d.mx - x) * camera2d.sx
@@ -134,6 +146,9 @@ function onTouchMove(key,x,y)
 end
 
 function onTouchDown(key,x,y)
+    if mbm.is('debug') then
+        print('line','onTouchDown inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     isClickedMouseleft = true
     camera2d.mx = x
@@ -144,6 +159,9 @@ function onTouchDown(key,x,y)
 end
 
 function onTouchUp(key,x,y)
+    if mbm.is('debug') then
+        print('line','onTouchUp inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     isClickedMouseleft = false
     camera2d.mx = x
@@ -154,6 +172,9 @@ function onTouchUp(key,x,y)
 end
 
 function onTouchZoom(zoom)
+    if mbm.is('debug') then
+        print('line','onTouchZoom inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if __t_my_class and type(__t_my_class.onTouchZoom) == 'function' then
         __t_my_class:onTouchZoom(zoom)
@@ -161,6 +182,9 @@ function onTouchZoom(zoom)
 end
 
 function onKeyDown(key)
+    if mbm.is('debug') then
+        print('line','onKeyDown inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if key == mbm.getKeyCode('ESC') then
         mbm.quit()
@@ -171,6 +195,9 @@ function onKeyDown(key)
 end
 
 function onKeyUp(key)
+    if mbm.is('debug') then
+        print('line','onKeyUp inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if key == mbm.getKeyCode('F5') then--force refresh (test)
         mbm.refresh()
@@ -181,18 +208,27 @@ function onKeyUp(key)
 end
 
 function onEndScene()
+    if mbm.is('debug') then
+        print('line','onEndScene inside launcher-lua.h scene')
+    end
     if __t_my_class and type(__t_my_class.onEndScene) == 'function' then
         __t_my_class:onEndScene()
     end
 end
 
 function onRestore()
+    if mbm.is('debug') then
+        print('line','onRestore inside launcher-lua.h scene')
+    end
     if __t_my_class and type(__t_my_class.onRestore) == 'function' then
         __t_my_class:onRestore()
     end
 end
 
 function onInfoJoystick(player,maxButtons,deviceName,extra)
+    if mbm.is('debug') then
+        print('line','onInfoJoystick inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if __t_my_class and type(__t_my_class.onInfoJoystick) == 'function' then
         __t_my_class:onInfoJoystick(player,maxButtons,deviceName,extra)
@@ -200,6 +236,9 @@ function onInfoJoystick(player,maxButtons,deviceName,extra)
 end
 
 function onKeyDownJoystick(player,key)
+    if mbm.is('debug') then
+        print('line','onKeyDownJoystick inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if __t_my_class and type(__t_my_class.onKeyDownJoystick) == 'function' then
         __t_my_class:onKeyDownJoystick(player,key)
@@ -207,6 +246,9 @@ function onKeyDownJoystick(player,key)
 end
 
 function onKeyUpJoystick(player,key)
+    if mbm.is('debug') then
+        print('line','onKeyUpJoystick inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if __t_my_class and type(__t_my_class.onKeyUpJoystick) == 'function' then
         __t_my_class:onKeyUpJoystick(player,key)
@@ -214,6 +256,9 @@ function onKeyUpJoystick(player,key)
 end
 
 function onMoveJoystick(player,lx,ly,rx,ry)
+    if mbm.is('debug') then
+        print('line','onMoveJoystick inside launcher-lua.h scene')
+    end
     if cCoroutineLoadScene then return end
     if __t_my_class and type(__t_my_class.onMoveJoystick) == 'function' then
         __t_my_class:onMoveJoystick(player,lx,ly,rx,ry)
