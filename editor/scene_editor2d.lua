@@ -534,15 +534,44 @@ end
 -- is only a planning guide. Runtime reflow is handled by the exported tScene.reflow().
 local _lastResX, _lastResY = nil, nil
 
+--- Reflow free (non-panel) objects that are 2ds + isRelative2ds when the
+--- expected resolution changes. Position and scale are remapped proportionally
+--- so the object keeps the same fractional placement within the resolution rect.
+local function reflowFreeRelativeObjects(oldW, oldH, newW, newH)
+    if oldW == 0 or oldH == 0 then return end
+    local ratioX = newW / oldW
+    local ratioY = newH / oldH
+    for _, obj in ipairs(tFreeMeshes) do
+        if obj.is2ds and obj.isRelative2ds then
+            -- Scale: uniform scale using the smaller ratio to preserve shape (no deformation)
+            local ratio = math.min(ratioX, ratioY)
+            obj.sx = obj.sx * ratio
+            obj.sy = obj.sy * ratio
+            local ow, oh = obj:getSize()
+            if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
+            -- Position: remap proportionally within the resolution rect
+            local nx = obj.x * ratioX
+            local ny = obj.y * ratioY
+            obj:setPos(nx, ny, obj.z)
+            if obj.tShape then obj.tShape.x = nx; obj.tShape.y = ny end
+        end
+    end
+end
+
 local function updateRectangleLine()
     local xRes, yRes = getExpectedResolution()
     local r = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2}
     tLineScreen2d:set(r, 1)
     -- reflow panel objects only when resolution actually changes (not every menu frame)
     if xRes ~= _lastResX or yRes ~= _lastResY then
+        local prevX = _lastResX
+        local prevY = _lastResY
         _lastResX, _lastResY = xRes, yRes
         updatePanelVisuals()
         reflowPanelObjects()
+        if prevX and prevY then
+            reflowFreeRelativeObjects(prevX, prevY, xRes, yRes)
+        end
     end
 end
 
@@ -1976,14 +2005,6 @@ local function treeNodePosition(tObj)
         local inputFlags = 0
         tImGui.PushItemWidth(150)
 
-        if tObj.is2ds and not tObj.panelRef then
-            tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
-        elseif tObj.is2ds and tObj.panelRef then
-            tImGui.TextDisabled(tLang.L("relative_2d_screen") .. ": N/A (panel reflow)")
-        end
-
         local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, inputFlags)
         tObj.isBlockedX = drawBlockButton(tObj.isBlockedX, 'X')
         if result and not tObj.isBlockedX then
@@ -2378,6 +2399,14 @@ showPropertiesForMesh = function(tObj)
                 tObj.visible = false
                 tObj.tShape.visible = false
             end
+        end
+
+        if tObj.is2ds and not tObj.panelRef then
+            tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
+            tImGui.SameLine()
+            tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
+        elseif tObj.is2ds and tObj.panelRef then
+            tImGui.TextDisabled(tLang.L("relative_2d_screen") .. ": N/A (panel reflow)")
         end
 
         local bSelected = tImGui.Checkbox(tLang.L("selected") .. '##' .. tObj.iIndex, tObj.isSelected)
