@@ -412,6 +412,16 @@ local function rebuildPanelVisuals()
     end)
 end
 
+--- Returns position extents for bounds clamping: le (left), re (right), be (bottom), te (top).
+--- Font objects have top-left origin; all others use center origin.
+local function getObjExtents(obj, ow, oh)
+    if obj.type == "font" then
+        return 0, ow, oh, 0
+    end
+    local hw, hh = ow * 0.5, oh * 0.5
+    return hw, hw, hh, hh
+end
+
 --- Reflow: reposition all objects within panels according to their anchors,
 --- then clamp scale and position so no object exceeds its panel bounds.
 local function reflowPanelObjects()
@@ -468,12 +478,12 @@ local function reflowPanelObjects()
             local ox = rect.x + obj.anchorX * rect.w
             local oy = rect.y + obj.anchorY * rect.h
 
-            -- 3. Clamp center so edges stay inside the panel (only when restricted)
+            -- 3. Clamp edges so the object stays inside the panel (only when restricted)
+            -- Font objects have top-left origin; all others use center origin.
             if restricted then
-                local hw = ow * 0.5
-                local hh = oh * 0.5
-                ox = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, ox))
-                oy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, oy))
+                local le, re, be, te = getObjExtents(obj, ow, oh)
+                ox = math.max(rect.x + le, math.min(rect.x + rect.w - re, ox))
+                oy = math.max(rect.y + be, math.min(rect.y + rect.h - te, oy))
             end
 
             obj:setPos(ox, oy, obj.z)
@@ -1802,8 +1812,8 @@ showMeshList = function()
                                     local nx = r.x + tObj.anchorX * r.w
                                     if tObj.isRestrictedToPanel ~= false then
                                         local ow = tObj:getSize()
-                                        local hw = ow * 0.5
-                                        nx = math.max(r.x + hw, math.min(r.x + r.w - hw, nx))
+                                        local le, re = getObjExtents(tObj, ow, 0)
+                                        nx = math.max(r.x + le, math.min(r.x + r.w - re, nx))
                                     end
                                     tObj:setPos(nx, tObj.y, tObj.z)
                                     tObj.tShape.x = nx
@@ -1819,8 +1829,8 @@ showMeshList = function()
                                     local ny = r.y + tObj.anchorY * r.h
                                     if tObj.isRestrictedToPanel ~= false then
                                         local _, oh = tObj:getSize()
-                                        local hh = oh * 0.5
-                                        ny = math.max(r.y + hh, math.min(r.y + r.h - hh, ny))
+                                        local _, _, be, te = getObjExtents(tObj, 0, oh)
+                                        ny = math.max(r.y + be, math.min(r.y + r.h - te, ny))
                                     end
                                     tObj:setPos(tObj.x, ny, tObj.z)
                                     tObj.tShape.y = ny
@@ -1961,8 +1971,9 @@ local function treeNodePosition(tObj)
             -- Clamp X to panel bounds
             if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                 local r  = tObj.panelRef._rect
-                local hw = (tObj:getSize()) * 0.5
-                fValue = math.max(r.x + hw, math.min(r.x + r.w - hw, fValue))
+                local ow = tObj:getSize()
+                local le, re = getObjExtents(tObj, ow, 0)
+                fValue = math.max(r.x + le, math.min(r.x + r.w - re, fValue))
             end
             tObj.x = fValue
             tObj.tShape.x = fValue
@@ -1978,9 +1989,9 @@ local function treeNodePosition(tObj)
             -- Clamp Y to panel bounds
             if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                 local r  = tObj.panelRef._rect
-                local _, hh = tObj:getSize()
-                hh = hh * 0.5
-                fValue = math.max(r.y + hh, math.min(r.y + r.h - hh, fValue))
+                local _, oh = tObj:getSize()
+                local _, _, be, te = getObjExtents(tObj, 0, oh)
+                fValue = math.max(r.y + be, math.min(r.y + r.h - te, fValue))
             end
             tObj.y = fValue
             tObj.tShape.y = fValue
@@ -2031,8 +2042,8 @@ local function treeNodeScale(tObj)
                     tObj.tShape.sx = w
                     -- Shift X if edges now go out of panel bounds
                     if tObj.isRestrictedToPanel ~= false and rect then
-                        local hw = w * 0.5
-                        local cx = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, tObj.x))
+                        local le, re = getObjExtents(tObj, w, 0)
+                        local cx = math.max(rect.x + le, math.min(rect.x + rect.w - re, tObj.x))
                         if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
                         if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                     end
@@ -2063,8 +2074,8 @@ local function treeNodeScale(tObj)
                         local w, h = tObj:getSize()
                         tObj.tShape:setScale(w, h, 1)
                         if tObj.isRestrictedToPanel ~= false then
-                            local hw = w * 0.5
-                            local cx = math.max(rect.x + hw, math.min(rect.x + rect.w - hw, tObj.x))
+                            local le, re = getObjExtents(tObj, w, 0)
+                            local cx = math.max(rect.x + le, math.min(rect.x + rect.w - re, tObj.x))
                             if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
                             if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                         end
@@ -2090,8 +2101,8 @@ local function treeNodeScale(tObj)
                     tObj.tShape.sy = h
                     -- Shift Y if edges now go out of panel bounds
                     if tObj.isRestrictedToPanel ~= false and rect then
-                        local hh = h * 0.5
-                        local cy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, tObj.y))
+                        local _, _, be, te = getObjExtents(tObj, 0, h)
+                        local cy = math.max(rect.y + be, math.min(rect.y + rect.h - te, tObj.y))
                         if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
                         if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                     end
@@ -2123,8 +2134,8 @@ local function treeNodeScale(tObj)
                             local w, h = tObj:getSize()
                             tObj.tShape:setScale(w, h, 1)
                             if tObj.isRestrictedToPanel ~= false then
-                                local hh = h * 0.5
-                                local cy = math.max(rect.y + hh, math.min(rect.y + rect.h - hh, tObj.y))
+                                local _, _, be, te = getObjExtents(tObj, 0, h)
+                                local cy = math.max(rect.y + be, math.min(rect.y + rect.h - te, tObj.y))
                                 if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
                                 if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                             end
@@ -2891,6 +2902,16 @@ tScene.reflow = (
                     end
                     local ex = cr.x + (tInfo.anchorX or 0.5)*cr.w
                     local ey = cr.y + (tInfo.anchorY or 0.5)*cr.h
+                    if tInfo.isRestrictedToPanel ~= false then
+                        local ow, oh = tMesh:getSize()
+                        local isFont = tInfo.type == "font"
+                        local le = isFont and 0  or ow*0.5
+                        local re = isFont and ow or ow*0.5
+                        local be = isFont and oh or oh*0.5
+                        local te = isFont and 0  or oh*0.5
+                        ex = math.max(cr.x + le, math.min(cr.x + cr.w - re, ex))
+                        ey = math.max(cr.y + be, math.min(cr.y + cr.h - te, ey))
+                    end
                     if tInfo.is2ds then
                         tMesh:setPos(ex + iW*0.5, iH*0.5 - ey, tInfo.z)
                     else
@@ -3847,13 +3868,13 @@ function onTouchMove(key, x, y)
                 if tObj.isBlockedX then v1.x = tObj.x end
                 if tObj.isBlockedY then v1.y = tObj.y end
                 -- Clamp to panel bounds so the object stays inside its assigned panel
+                -- Font objects have top-left origin; all others use center origin.
                 if tObj.isRestrictedToPanel ~= false and tObj.panelRef and tObj.panelRef._rect then
                     local r = tObj.panelRef._rect
                     local ow, oh = tObj:getSize()
-                    local hw = ow * 0.5
-                    local hh = oh * 0.5
-                    v1.x = math.max(r.x + hw, math.min(r.x + r.w - hw, v1.x))
-                    v1.y = math.max(r.y + hh, math.min(r.y + r.h - hh, v1.y))
+                    local le, re, be, te = getObjExtents(tObj, ow, oh)
+                    v1.x = math.max(r.x + le, math.min(r.x + r.w - re, v1.x))
+                    v1.y = math.max(r.y + be, math.min(r.y + r.h - te, v1.y))
                 end
                 tObj:setPos(v1.x, v1.y)
             end
