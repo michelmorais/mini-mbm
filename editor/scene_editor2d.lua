@@ -20,6 +20,13 @@
 
    Scene Editor 2D — Grid / Panel Based Layout
 
+   This editor lives entirely in 2dw world-space; 
+   the resolution rectangle is a layout guide only, not a simulated viewport.
+        - Panels are defined by world-space rects, either anchored to parent (2ds) or absolute (2dw).
+        - Objects are parented to panels and anchored within them, with optional clamping to stay inside.
+        - Panels can be nested to create complex layouts, with visual cues for depth.
+        - Objects can be freely moved or resized; anchors and clamping keep them organized within panels.
+        - The editor supports resolution-independent design: change the resolution and panels/objects reflow according to their anchors.
    This is a script based on mbm engine.
 
    Scene Editor 2D with grid/panel system for resolution-independent 2D scene layout.
@@ -522,13 +529,21 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Resolution rectangle (preserved from original)
 -- ─────────────────────────────────────────────────────────────────────────────
+-- The editor works in 2dw world-space throughout. scaleToScreen is intentionally
+-- NOT called here: the camera zoom is the user's own, and the resolution rectangle
+-- is only a planning guide. Runtime reflow is handled by the exported tScene.reflow().
+local _lastResX, _lastResY = nil, nil
+
 local function updateRectangleLine()
     local xRes, yRes = getExpectedResolution()
     local r = {-xRes/2,-yRes/2, -xRes/2,yRes/2, xRes/2,yRes/2, xRes/2,-yRes/2, -xRes/2,-yRes/2}
     tLineScreen2d:set(r, 1)
-    -- also update panel visuals when resolution changes
-    updatePanelVisuals()
-    reflowPanelObjects()
+    -- reflow panel objects only when resolution actually changes (not every menu frame)
+    if xRes ~= _lastResX or yRes ~= _lastResY then
+        _lastResX, _lastResY = xRes, yRes
+        updatePanelVisuals()
+        reflowPanelObjects()
+    end
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -734,6 +749,8 @@ local function onNewSceneEditor()
     bShowPanelBrowser   = true
     bShowPanelProps     = false
     bShowDetailOfMesh   = true
+    -- invalidate resolution cache so next updateRectangleLine() detects a change
+    _lastResX, _lastResY = nil, nil
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -3189,8 +3206,9 @@ local function onLoadScene()
                 tOptionsEditor.bCenterOfScreen = bOldOption
                 sLastEditorFileName = fileName
                 updateVisibilityByFilter()
-                -- Rebuild visuals for restored panels
+                -- Rebuild visuals for restored panels then reflow objects to their anchor positions
                 rebuildPanelVisuals()
+                reflowPanelObjects()
             end)
         else
             tUtil.showMessageWarn(tLang.L("not_found_scene_table"))
