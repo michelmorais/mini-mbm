@@ -103,7 +103,7 @@ local iNextPanelId    = 1       -- auto-increment panel id counter
 -- UI state
 local bShowPanelBrowser   = true
 local bShowPanelProps     = false
-local bShowMeshList       = false
+local bShowMeshList       = true
 local bShowAddingMesh     = false
 local bShowDetailOfMesh   = true
 local bShowGridDialog     = false
@@ -773,7 +773,7 @@ local function onNewSceneEditor()
     sLastEditorFileName = ''
     keyControlPressed   = false
     keyShiftPressed     = false
-    bShowMeshList       = false
+    bShowMeshList       = true
     bShowAddingMesh     = false
     bShowPanelBrowser   = true
     bShowPanelProps     = false
@@ -1007,8 +1007,9 @@ end
 --- Panel Browser window (left side)
 showPanelBrowser = function()
     if not bShowPanelBrowser then return end
-    local width = 280
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, 0, width, width + 50)
+    local width = 300
+    local iW, iH = mbm.getSizeScreen()
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, iH*0.45, width, width + 50, iH * 0.5)
     local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
     local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_browser"), true, flags)
     if is_opened then
@@ -1138,7 +1139,8 @@ end
 showPanelProperties = function()
     if not bShowPanelProps or not tSelectedPanel then return end
     local width = 300
-    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_panel_props, 0, 0, width, width + 50)
+    local iW, iH = mbm.getSizeScreen()
+    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_panel_props, 0, 0, width, width + 50, iH * 0.45)
     local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
     local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_properties"), true, flags)
     if is_opened then
@@ -1731,7 +1733,8 @@ end
 showMeshList = function()
     if not bShowMeshList then return end
     local width = 300
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes, 0, 0, width, width + 50)
+    local iW, iH = mbm.getSizeScreen()
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_meshes, 0, 0, width, width + 50, iH * 0.45)
     local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_meshes), true, flags)
     if is_opened then
@@ -3354,7 +3357,7 @@ local function onNewScene()
     onDeleteSelected()
     camera2d.x          = 0
     camera2d.y          = 0
-    bShowMeshList       = false
+    bShowMeshList       = true
     tLastMeshAdded      = nil
     tFollowCam          = nil
     sLastEditorFileName = ''
@@ -3848,7 +3851,7 @@ function onInitScene()
 
     v1 = vec2:new()
 
-    ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
+    ImGuiWindowFlags_NoMove        = tImGui.Flags('ImGuiWindowFlags_NoMove')
     ImGuiTreeNodeFlags_Selected    = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
     ImGuiTreeNodeFlags_DefaultOpen = tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')
 

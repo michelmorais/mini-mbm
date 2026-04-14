@@ -15,7 +15,7 @@ tUtil.tColorBackground = {r=37/255,g=37/255,b=37/255}
 mbm.setColor(tUtil.tColorBackground.r,tUtil.tColorBackground.g,tUtil.tColorBackground.b)
 
 
-tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from right to left (so x must be <= 0)
+tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width, max_height)-- from right to left (so x must be <= 0)
     local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
@@ -25,13 +25,14 @@ tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = iH - iMenuBarHeight})
-        tImGui.SetNextWindowSize({x = width, y = iH - iMenuBarHeight},tImGui.Flags('ImGuiCond_Always'))
+        local win_height                = max_height or (iH - iMenuBarHeight - y)
+        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
         tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
     end
 end
 
-tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width)-- from left to left (so x must be >= 0)
+tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width, max_height)-- from left to left (so x must be >= 0)
     local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
     if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
         tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
@@ -41,9 +42,10 @@ tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width)-- from 
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = x,y = iMenuBarHeight + y }
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = iH - iMenuBarHeight})
+        local win_height                = max_height or (iH - iMenuBarHeight - y)
+        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
         tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
-        tImGui.SetNextWindowSize({x = width, y = iH - iMenuBarHeight},tImGui.Flags('ImGuiCond_Always'))
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
     end
 end
 
