@@ -2474,6 +2474,17 @@ local function getText4Font4Save(sText)
     return ''
 end
 
+local function getFontParams4Save(tObj)
+    if tObj.type == "font" then
+        local s = ''
+        if tObj.heightFont      then s = s .. string.format(',heightFont=%g',      tObj.heightFont)      end
+        if tObj.spaceFont       then s = s .. string.format(',spaceFont=%g',       tObj.spaceFont)       end
+        if tObj.spaceHeightFont then s = s .. string.format(',spaceHeightFont=%g', tObj.spaceHeightFont) end
+        return s
+    end
+    return ''
+end
+
 local function getIndependentCalCam4Save(tObj)
     if tObj.is2ds and tObj.isRelative2ds then return ',isRelative2ds=true' end
     return ''
@@ -3018,7 +3029,7 @@ local function onSaveScene(sFileName)
         fp:write('\ntScene.tAllMeshInfo = {')
         for i, tObj in ipairs(tAllMesh) do
             fp:write(string.format(
-                '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s%s},',
+                '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s%s%s},',
                 i, tUtil.getShortName(tObj.fileName, true),
                 tObj.x, tObj.y, tObj.z,
                 tObj.sx, tObj.sy, tObj.sz,
@@ -3029,6 +3040,7 @@ local function onSaveScene(sFileName)
                 getPhysicInfo4Save(tObj.tPhysicInfo),
                 getBlockFlag4Save(tObj),
                 getText4Font4Save(tObj.sText),
+                getFontParams4Save(tObj),
                 getIndependentCalCam4Save(tObj),
                 getPanelInfo4Save(tObj)))
         end
@@ -3244,7 +3256,7 @@ local function onExportGameScene()
     fp:write('\ntScene.tAllMeshInfo = {')
     for i, tObj in ipairs(tAllMesh) do
         fp:write(string.format(
-            '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s},',
+            '\n[%d]={fileName=%s,x=%g,y=%g,z=%g,sx=%g,sy=%g,sz=%g,ax=%g,ay=%g,az=%g,type=%q,iAnim=%d%s%s%s%s%s%s},',
             i, tUtil.getShortName(tObj.fileName, true),
             tObj.x, tObj.y, tObj.z,
             tObj.sx, tObj.sy, tObj.sz,
@@ -3254,6 +3266,7 @@ local function onExportGameScene()
             getIs2ds4Save(tObj),
             getPhysicInfo4Save(tObj.tPhysicInfo),
             getText4Font4Save(tObj.sText),
+            getFontParams4Save(tObj),
             getIndependentCalCam4Save(tObj),
             getPanelInfo4Save(tObj)))
     end

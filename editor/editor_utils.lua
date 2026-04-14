@@ -639,6 +639,9 @@ tUtil.onAddMeshToEditor = function(fileName,insertIntoCenter,_2d_3d,sText)
 			tMesh = tFont:add(sText or "My text",_2d_3d)
 			tMesh.tFont = tFont
 			tMesh.sText = sText or 'My text'
+			tMesh.heightFont      = heightFont
+			tMesh.spaceFont       = spaceFont
+			tMesh.spaceHeightFont = spaceHeightFont
 		elseif tInfo.type == "texture" then
 			if tInfo.ext == 'GIF' then
 				tMesh = gif:new(_2d_3d)
