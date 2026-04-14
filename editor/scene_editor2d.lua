@@ -1959,10 +1959,12 @@ local function treeNodePosition(tObj)
         local inputFlags = 0
         tImGui.PushItemWidth(150)
 
-        if tObj.is2ds then
+        if tObj.is2ds and not tObj.panelRef then
             tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
             tImGui.SameLine()
             tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
+        elseif tObj.is2ds and tObj.panelRef then
+            tImGui.TextDisabled(tLang.L("relative_2d_screen") .. ": N/A (panel reflow)")
         end
 
         local result, fValue = tImGui.InputFloat(tLang.L("axis_x") .. '##Mesh(s)', tObj.x, step, step_fast, format, inputFlags)
