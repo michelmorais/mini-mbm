@@ -83,6 +83,7 @@ local tex_alpha_pattern
 local tWindowsArea
 local ImGuiWindowFlags_NoMove
 local ImGuiTreeNodeFlags_Selected
+local ImGuiTreeNodeFlags_DefaultOpen
 
 -- Editor state
 local tPanels         = {}      -- tree of panels
@@ -831,9 +832,9 @@ local assignObjectToPanel, buildPanelComboList
 local function renderPanelTree(panels, parentRect)
     for i, panel in ipairs(panels) do
         local rect = computePanelRect(panel, parentRect)
-        local flags = 0
+        local flags = ImGuiTreeNodeFlags_DefaultOpen
         if panel == tSelectedPanel then
-            flags = ImGuiTreeNodeFlags_Selected
+            flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Selected
         end
         local label = string.format("%s [%s] (%d obj)##%s",
             panel.name, panel.world, #panel.objects, panel.id)
@@ -994,7 +995,7 @@ showPanelBrowser = function()
                 tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Header'),      {r=0.65, g=0.45, b=0.10, a=0.55})
                 tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_HeaderHovered'),{r=0.75, g=0.55, b=0.15, a=0.65})
             end
-            local freeNodeOpen = tImGui.TreeNode(string.format("%s (%d)##free_objs", tLang.L("free_object"), #tFreeMeshes))
+            local freeNodeOpen = tImGui.TreeNodeEx(string.format("%s (%d)##free_objs", tLang.L("free_object"), #tFreeMeshes), ImGuiTreeNodeFlags_DefaultOpen)
             if tDragObj ~= nil and tDropTarget == FREE_ZONE_SENTINEL then
                 tImGui.PopStyleColor(2)
             end
@@ -3765,7 +3766,8 @@ function onInitScene()
     v1 = vec2:new()
 
     ImGuiWindowFlags_NoMove     = tImGui.Flags('ImGuiWindowFlags_NoMove')
-    ImGuiTreeNodeFlags_Selected = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
+    ImGuiTreeNodeFlags_Selected    = tImGui.Flags('ImGuiTreeNodeFlags_Selected')
+    ImGuiTreeNodeFlags_DefaultOpen = tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')
 
     tWindowsArea = tUtil.onNewAnyWindowsHovered()
 
