@@ -1491,7 +1491,7 @@ showTransformQuick = function()
 
         -- ── Position ──────────────────────────────────────────────────────────
         tImGui.Text(tLang.L("position"))
-        local posSpeed  = 1.0
+        local posSpeed  = 2.0
         local posFormat = "%.3f"
 
         local rPX, vPX = tImGui.DragFloat(tLang.L("axis_x") .. "##tq_px", tObj.x, posSpeed, 0.0, 0.0, posFormat)
@@ -1528,7 +1528,7 @@ showTransformQuick = function()
 
         -- ── Scale ─────────────────────────────────────────────────────────────
         tImGui.Text(tLang.L("scale"))
-        local scaleSpeed  = 0.01
+        local scaleSpeed  = 0.02
         local scaleMin    = 0.01
         local scaleMax    = 0.0   -- 0 = unbounded
         local scaleFormat = "%.3f"
