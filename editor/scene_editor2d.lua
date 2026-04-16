@@ -169,7 +169,7 @@ local tGridDialog = {
     bCustomCols = false,
     bCustomRows = false,
     sName = "panel",
-    iWorldIndex = 1,  -- 1=2dw, 2=2ds
+    iWorldIndex = 2,  -- 1=2dw, 2=2ds
     tWorldOptions = {"2D World", "2D Screen"},
 }
 
@@ -281,7 +281,7 @@ local function createPanel(name, world, anchor, worldPos, worldSize, depth)
     return {
         id              = generatePanelId(),
         name            = name or "panel",
-        world           = world or "2dw",
+        world           = world or "2ds",
         anchor          = anchor or {left=0, top=0, right=1, bottom=1},
         panelAnchorType = "stretch",
         cx              = 0.5,
@@ -1016,7 +1016,7 @@ showPanelBrowser = function()
     if is_opened then
         -- Root-level buttons
         if tImGui.Button(tLang.L("add_root_panel"), {x=-1, y=0}) then
-            local p = createPanel("root_panel", "2dw",
+            local p = createPanel("root_panel", "2ds",
                 {left=0, top=0, right=1, bottom=1},
                 {x=0, y=0}, {w=400, h=300}, 0)
             table.insert(tPanels, p)
@@ -1636,6 +1636,7 @@ showTransformQuick = function()
             end
         end
 
+        -- ── Block the object  ─────────────────────────────────────────────────────────
         tObj.isBlocked = tImGui.Checkbox(tLang.L("blocked") .. '##' .. tObj.iIndex, tObj.isBlocked)
 
         tImGui.PopItemWidth()
