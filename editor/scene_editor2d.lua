@@ -149,14 +149,15 @@ local tPhysicEditor = {
 
 -- Window titles (ImGui unique IDs)
 local tWindowsTitle = {
-    title_panel_browser  = "title_panel_browser",
-    title_panel_props    = "title_panel_props",
-    title_meshes         = "title_meshes",
-    title_mesh_info      = "title_mesh_info",
-    title_loading        = "title_loading",
-    title_adding_mesh    = "title_adding_mesh",
-    title_grid_dialog    = "title_grid_dialog",
-    title_obj_assignment = "title_obj_assignment",
+    title_panel_browser    = "title_panel_browser",
+    title_panel_props      = "title_panel_props",
+    title_meshes           = "title_meshes",
+    title_mesh_info        = "title_mesh_info",
+    title_loading          = "title_loading",
+    title_adding_mesh      = "title_adding_mesh",
+    title_grid_dialog      = "title_grid_dialog",
+    title_obj_assignment   = "title_obj_assignment",
+    title_transform_quick  = "title_transform_quick",
 }
 
 -- Grid dialog state
@@ -1365,6 +1366,243 @@ showPanelProperties = function()
     tWindowsArea:addThisWindow()
     tImGui.End()
     if closed_clicked then bShowPanelProps = false end
+end
+
+--- Quick Transform window — shown when exactly one object is selected.
+-- Layout: World Type | Anchor (panel only) | Scale | Rotation | Animation
+showTransformQuick = function()
+    if #tSelectedObjs ~= 1 then return end
+    local tObj = tSelectedObjs[1]
+
+    local iW, iH = mbm.getRealSizeScreen()
+    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_transform_quick, 0, iH * 0.48, 300, 350, iH * 0.5)
+    local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
+
+    -- Detect 3D: getAABB(true) returns depth only for 3D objects (same logic as setShapeToMesh)
+    local _, _, d_aabb = tObj:getAABB(true)
+    local is3d = (d_aabb ~= nil and d_aabb ~= 0)
+
+    -- Panel context (mirrors treeNodeScale locals)
+    local atype      = tObj.anchorType or "center"
+    local rect       = (tObj.panelRef and tObj.panelRef._rect) and tObj.panelRef._rect or nil
+    local restricted = tObj.isRestrictedToPanel ~= false
+
+    local is_opened = tImGui.Begin(tLang.L("quick_transform"), false, flags)
+    if is_opened then
+        tImGui.PushItemWidth(240)
+
+        -- ── World Type ────────────────────────────────────────────────────────
+        tImGui.TextDisabled(tLang.L("world_type"))
+        local tWorld = {'2D World', '2D Screen'}
+        local iIndexWorldMesh = tObj.is2ds and 2 or 1
+        local retW, newWorldIdx = tImGui.Combo('##tq_world' .. tObj.iIndex, iIndexWorldMesh, tWorld)
+        if retW then
+            if newWorldIdx == 1 then
+                tObj.is2ds = false
+                tObj.isRelative2ds = nil
+            else
+                tObj.is2ds = true
+                tObj.isRelative2ds = true
+            end
+            if filter(tObj) then
+                tObj.visible = true
+            else
+                tObj.visible = false
+                tObj.tShape.visible = false
+            end
+        end
+
+        -- ── Anchor (panel-assigned objects only) ──────────────────────────────
+        if tObj.panelRef and tObj.anchorX ~= nil then
+            tImGui.Separator()
+            tImGui.TextDisabled(string.format("Panel: %s", tObj.panelRef.name))
+
+            -- Anchor type
+            tImGui.Text(tLang.L("anchor_type"))
+            local tAnchorTypes = {
+                tLang.L("anchor_type_center"),
+                tLang.L("anchor_type_width"),
+                tLang.L("anchor_type_height"),
+                tLang.L("anchor_type_stretch"),
+            }
+            local tAnchorKeys = {"center", "width", "height", "stretch"}
+            local atypeIdx = 1
+            for ki, k in ipairs(tAnchorKeys) do
+                if k == atype then atypeIdx = ki; break end
+            end
+            local retC, newAtypeIdx = tImGui.Combo("##tq_anchorType" .. tObj.iIndex, atypeIdx, tAnchorTypes)
+            if retC then
+                local newType = tAnchorKeys[newAtypeIdx]
+                tObj.anchorType = newType
+                atype = newType
+                if rect then
+                    local ow, oh = tObj:getSize()
+                    if (newType == "width"  or newType == "stretch") and not tObj.sizeAnchorW then
+                        tObj.sizeAnchorW = math.min(1, ow / rect.w)
+                    end
+                    if (newType == "height" or newType == "stretch") and not tObj.sizeAnchorH then
+                        tObj.sizeAnchorH = math.min(1, oh / rect.h)
+                    end
+                end
+                if     newType == "center"  then tObj.sizeAnchorW = nil; tObj.sizeAnchorH = nil
+                elseif newType == "width"   then tObj.sizeAnchorH = nil
+                elseif newType == "height"  then tObj.sizeAnchorW = nil
+                end
+            end
+
+            -- Anchor X
+            tImGui.Text(tLang.L("anchor_x"))
+            local rAx, vAx = tImGui.InputFloat("##tq_anchorX" .. tObj.iIndex, tObj.anchorX, 0.01, 0.05, "%.3f")
+            if rAx then
+                tObj.anchorX = math.max(0, math.min(1, vAx))
+                if rect then
+                    local nx = rect.x + tObj.anchorX * rect.w
+                    if restricted then
+                        local ow = tObj:getSize()
+                        local le, re = getObjExtents(tObj, ow, 0)
+                        nx = math.max(rect.x + le, math.min(rect.x + rect.w - re, nx))
+                    end
+                    tObj:setPos(nx, tObj.y, tObj.z)
+                    tObj.tShape.x = nx
+                    if rect.w > 0 then tObj.anchorX = (nx - rect.x) / rect.w end
+                end
+            end
+
+            -- Anchor Y
+            tImGui.Text(tLang.L("anchor_y"))
+            local rAy, vAy = tImGui.InputFloat("##tq_anchorY" .. tObj.iIndex, tObj.anchorY, 0.01, 0.05, "%.3f")
+            if rAy then
+                tObj.anchorY = math.max(0, math.min(1, vAy))
+                if rect then
+                    local ny = rect.y + tObj.anchorY * rect.h
+                    if restricted then
+                        local _, oh = tObj:getSize()
+                        local _, _, be, te = getObjExtents(tObj, 0, oh)
+                        ny = math.max(rect.y + be, math.min(rect.y + rect.h - te, ny))
+                    end
+                    tObj:setPos(tObj.x, ny, tObj.z)
+                    tObj.tShape.y = ny
+                    if rect.h > 0 then tObj.anchorY = (ny - rect.y) / rect.h end
+                end
+            end
+        end
+
+        tImGui.Separator()
+
+        -- ── Scale ─────────────────────────────────────────────────────────────
+        tImGui.Text(tLang.L("scale"))
+        local scaleSpeed  = 0.01
+        local scaleMin    = 0.01
+        local scaleMax    = 0.0   -- 0 = unbounded
+        local scaleFormat = "%.3f"
+
+        -- SX — only when the anchor type doesn't drive this axis (same guard as treeNodeScale)
+        if atype == "center" or atype == "height" then
+            local rSX, vSX = tImGui.DragFloat(tLang.L("scale_sx") .. "##tq_sx", tObj.sx, scaleSpeed, scaleMin, scaleMax, scaleFormat)
+            if rSX and vSX >= scaleMin then
+                -- Cap so object width does not exceed panel width
+                if rect then
+                    local naturalW = tObj:getSize() / tObj.sx
+                    if naturalW > 0 then vSX = math.min(vSX, rect.w / naturalW) end
+                end
+                tObj.sx = vSX
+                local w, h, d = tObj:getSize()
+                tObj.tShape.sx = w
+                -- Shift X if edges overflow after scale
+                if restricted and rect then
+                    local le, re = getObjExtents(tObj, w, 0)
+                    local cx = math.max(rect.x + le, math.min(rect.x + rect.w - re, tObj.x))
+                    if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
+                    if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
+                end
+            end
+        end
+
+        -- SY — only when the anchor type doesn't drive this axis
+        if atype == "center" or atype == "width" then
+            local rSY, vSY = tImGui.DragFloat(tLang.L("scale_sy") .. "##tq_sy", tObj.sy, scaleSpeed, scaleMin, scaleMax, scaleFormat)
+            if rSY and vSY >= scaleMin then
+                -- Cap so object height does not exceed panel height
+                if rect then
+                    local _, naturalH = tObj:getSize()
+                    naturalH = naturalH / tObj.sy
+                    if naturalH > 0 then vSY = math.min(vSY, rect.h / naturalH) end
+                end
+                tObj.sy = vSY
+                local w, h, d = tObj:getSize()
+                tObj.tShape.sy = h
+                -- Shift Y if edges overflow after scale
+                if restricted and rect then
+                    local _, _, be, te = getObjExtents(tObj, 0, h)
+                    local cy = math.max(rect.y + be, math.min(rect.y + rect.h - te, tObj.y))
+                    if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
+                    if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
+                end
+            end
+        end
+
+        -- SZ — 3D only, no panel clamping on depth
+        if is3d then
+            local rSZ, vSZ = tImGui.DragFloat(tLang.L("scale_sz") .. "##tq_sz", tObj.sz, scaleSpeed, scaleMin, scaleMax, scaleFormat)
+            if rSZ and vSZ >= scaleMin then
+                tObj.sz = vSZ
+                local w, h, d = tObj:getSize()
+                if d then tObj.tShape.sz = d end
+            end
+        end
+
+        tImGui.Separator()
+
+        -- ── Rotation ──────────────────────────────────────────────────────────
+        tImGui.Text(tLang.L("angle"))
+        local rotSpeed  = 1.0
+        local rotMin    = -360.0
+        local rotMax    =  360.0
+        local rotFormat = "%.2f"
+
+        if is3d then
+            local rAX, vAX = tImGui.DragFloat(tLang.L("angle_ax") .. "##tq_ax", math.deg(tObj.ax), rotSpeed, rotMin, rotMax, rotFormat)
+            if rAX then
+                local rad = math.rad(vAX)
+                tObj.ax        = rad
+                tObj.tShape.ax = rad
+            end
+
+            local rAY, vAY = tImGui.DragFloat(tLang.L("angle_ay") .. "##tq_ay", math.deg(tObj.ay), rotSpeed, rotMin, rotMax, rotFormat)
+            if rAY then
+                local rad = math.rad(vAY)
+                tObj.ay        = rad
+                tObj.tShape.ay = rad
+            end
+        end
+
+        local rAZ, vAZ = tImGui.DragFloat(tLang.L("angle_az") .. "##tq_az", math.deg(tObj.az), rotSpeed, rotMin, rotMax, rotFormat)
+        if rAZ then
+            local rad = math.rad(vAZ)
+            tObj.az        = rad
+            tObj.tShape.az = rad
+        end
+
+        -- ── Animation ─────────────────────────────────────────────────────────
+        local totalAnim = tObj:getTotalAnim()
+        if totalAnim > 0 then
+            tImGui.Separator()
+            tImGui.Text(tLang.L("animation"))
+            local tAnimations = {}
+            for i = 1, totalAnim do
+                table.insert(tAnimations, string.format('%d:  %s', i, select(1, tObj:getAnim(i))))
+            end
+            local current_item = select(2, tObj:getAnim())
+            local retAnim, new_item = tImGui.Combo("##tq_anim" .. tObj.iIndex, current_item, tAnimations, -1)
+            if retAnim then
+                tObj:setAnim(new_item)
+            end
+        end
+
+        tImGui.PopItemWidth()
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
 end
 
 --- Grid Creation Dialog (popup-style window)
@@ -4105,6 +4343,7 @@ function onLoop(delta)
         -- ImGui panels
         showPanelBrowser()
         showPanelProperties()
+        showTransformQuick()
         showGridDialog()
         showMeshList()
         showAddingMeshOptions()
