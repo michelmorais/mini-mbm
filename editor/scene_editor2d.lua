@@ -1636,6 +1636,8 @@ showTransformQuick = function()
             end
         end
 
+        tObj.isBlocked = tImGui.Checkbox(tLang.L("blocked") .. '##' .. tObj.iIndex, tObj.isBlocked)
+
         tImGui.PopItemWidth()
     end
     tWindowsArea:addThisWindow()
