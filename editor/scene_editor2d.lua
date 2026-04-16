@@ -1489,6 +1489,43 @@ showTransformQuick = function()
 
         tImGui.Separator()
 
+        -- ── Position ──────────────────────────────────────────────────────────
+        tImGui.Text(tLang.L("position"))
+        local posSpeed  = 1.0
+        local posFormat = "%.3f"
+
+        local rPX, vPX = tImGui.DragFloat(tLang.L("axis_x") .. "##tq_px", tObj.x, posSpeed, 0.0, 0.0, posFormat)
+        if rPX and not tObj.isBlockedX then
+            if restricted and rect then
+                local ow = tObj:getSize()
+                local le, re = getObjExtents(tObj, ow, 0)
+                vPX = math.max(rect.x + le, math.min(rect.x + rect.w - re, vPX))
+            end
+            tObj.x = vPX
+            tObj.tShape.x = vPX
+            if rect and rect.w > 0 then tObj.anchorX = (vPX - rect.x) / rect.w end
+        end
+
+        local rPY, vPY = tImGui.DragFloat(tLang.L("axis_y") .. "##tq_py", tObj.y, posSpeed, 0.0, 0.0, posFormat)
+        if rPY and not tObj.isBlockedY then
+            if restricted and rect then
+                local _, oh = tObj:getSize()
+                local _, _, be, te = getObjExtents(tObj, 0, oh)
+                vPY = math.max(rect.y + be, math.min(rect.y + rect.h - te, vPY))
+            end
+            tObj.y = vPY
+            tObj.tShape.y = vPY
+            if rect and rect.h > 0 then tObj.anchorY = (vPY - rect.y) / rect.h end
+        end
+
+        local rPZ, vPZ = tImGui.DragFloat(tLang.L("axis_z") .. "##tq_pz", tObj.z, posSpeed, 0.0, 0.0, posFormat)
+        if rPZ and not tObj.isBlockedZ then
+            tObj.z = vPZ
+            tObj.tShape.z = vPZ - 1
+        end
+
+        tImGui.Separator()
+
         -- ── Scale ─────────────────────────────────────────────────────────────
         tImGui.Text(tLang.L("scale"))
         local scaleSpeed  = 0.01
