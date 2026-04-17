@@ -439,44 +439,89 @@ local function reflowPanelObjects()
             local restricted = obj.isRestrictedToPanel ~= false
             local atype      = obj.anchorType or "center"
 
-            -- 0. Apply size-anchor: recompute scale from panel fractions
+            -- 0. Apply size-anchor: recompute scale from panel fractions.
+            -- Uses stored reference scale + reference panel size so the formula
+            -- matches the exported tScene.reflow exactly and does NOT compound on
+            -- repeated calls (e.g. every time the user toggles "invert resolution").
+            -- After updating sx/sy, ow/oh are computed ANALYTICALLY from the size-anchor
+            -- fractions (sizeAnchorX * panelDim) rather than from getSize(), so the result
+            -- is correct even if getSize() hasn't yet reflected the new engine scale.
             local ow, oh = obj:getSize()
-            if atype == "width" and obj.sizeAnchorW and ow > 0 and rect.w > 0 then
-                -- drive both axes proportionally from width
-                local scale = (rect.w * obj.sizeAnchorW) / ow
-                obj.sx = obj.sx * scale
-                obj.sy = obj.sy * scale
-                ow, oh = obj:getSize()
+            if atype == "width" and obj.sizeAnchorW then
+                -- drive both axes proportionally from width (mirrors exported formula)
+                if obj.refPanelW and obj.refPanelW > 0 then
+                    local sc = rect.w / obj.refPanelW
+                    obj.sx = obj.refSx * sc
+                    obj.sy = obj.refSy * sc
+                    obj:setScale(obj.sx, obj.sy, obj.sz or 1)
+                    -- ow grows with sc; oh grows with the same sc (proportional)
+                    ow = obj.sizeAnchorW * rect.w
+                    local _, oh_check = obj:getSize()
+                    oh = oh_check  -- height: use getSize (no sizeAnchorH stored for width mode)
+                else
+                    -- fallback for objects without ref data (legacy / safety)
+                    local scale = (rect.w * obj.sizeAnchorW) / math.max(ow, 0.001)
+                    obj.sx = obj.sx * scale
+                    obj.sy = obj.sy * scale
+                    obj:setScale(obj.sx, obj.sy, obj.sz or 1)
+                    ow, oh = obj:getSize()
+                end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
-            elseif atype == "height" and obj.sizeAnchorH and oh > 0 and rect.h > 0 then
+            elseif atype == "height" and obj.sizeAnchorH then
                 -- drive both axes proportionally from height
-                local scale = (rect.h * obj.sizeAnchorH) / oh
-                obj.sx = obj.sx * scale
-                obj.sy = obj.sy * scale
-                ow, oh = obj:getSize()
+                if obj.refPanelH and obj.refPanelH > 0 then
+                    local sc = rect.h / obj.refPanelH
+                    obj.sx = obj.refSx * sc
+                    obj.sy = obj.refSy * sc
+                    obj:setScale(obj.sx, obj.sy, obj.sz or 1)
+                    oh = obj.sizeAnchorH * rect.h
+                    local ow_check = obj:getSize()
+                    ow = ow_check
+                else
+                    local scale = (rect.h * obj.sizeAnchorH) / math.max(oh, 0.001)
+                    obj.sx = obj.sx * scale
+                    obj.sy = obj.sy * scale
+                    obj:setScale(obj.sx, obj.sy, obj.sz or 1)
+                    ow, oh = obj:getSize()
+                end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
             elseif atype == "stretch" then
-                -- independent per axis (can distort)
-                if obj.sizeAnchorW and ow > 0 and rect.w > 0 then
+                -- independent per axis (mirrors exported formula)
+                if obj.sizeAnchorW and obj.refPanelW and obj.refPanelW > 0 then
+                    obj.sx = obj.refSx * (rect.w / obj.refPanelW)
+                elseif obj.sizeAnchorW and ow > 0 then
                     local naturalW = ow / obj.sx
                     if naturalW > 0 then obj.sx = (rect.w * obj.sizeAnchorW) / naturalW end
                 end
-                if obj.sizeAnchorH and oh > 0 and rect.h > 0 then
+                if obj.sizeAnchorH and obj.refPanelH and obj.refPanelH > 0 then
+                    obj.sy = obj.refSy * (rect.h / obj.refPanelH)
+                elseif obj.sizeAnchorH and oh > 0 then
                     local naturalH = oh / obj.sy
                     if naturalH > 0 then obj.sy = (rect.h * obj.sizeAnchorH) / naturalH end
                 end
-                ow, oh = obj:getSize()
+                obj:setScale(obj.sx, obj.sy, obj.sz or 1)
+                -- Compute analytically: sizeAnchorW/H define the exact fraction of panel
+                -- that the object occupies, so ow/oh follow directly from rect dimensions.
+                if obj.sizeAnchorW then ow = obj.sizeAnchorW * rect.w else ow = obj:getSize() end
+                if obj.sizeAnchorH then oh = obj.sizeAnchorH * rect.h else
+                    local _, oh_tmp = obj:getSize(); oh = oh_tmp
+                end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
             end
 
             -- 1. Cap absolute scale so object fits inside the panel (only when restricted,
             --    and only for axes not governed by a size anchor)
-            ow, oh = obj:getSize()
+            -- Re-read ow/oh for objects that had no size-anchor (atype=="center"), or
+            -- refresh after any analytical assignment above.
+            if atype == "center" then
+                ow, oh = obj:getSize()
+            end
             if restricted and ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
                 if ow > rect.w or oh > rect.h then
                     local scale = math.min(rect.w / ow, rect.h / oh)
                     obj.sx = obj.sx * scale
                     obj.sy = obj.sy * scale
+                    obj:setScale(obj.sx, obj.sy, obj.sz or 1)
                     ow, oh = obj:getSize()
                     if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
                 end
@@ -1448,6 +1493,11 @@ showTransformQuick = function()
                 elseif newType == "width"   then tObj.sizeAnchorH = nil
                 elseif newType == "height"  then tObj.sizeAnchorW = nil
                 end
+                -- Capture reference so the new anchor type starts from a stable baseline
+                tObj.refSx     = tObj.sx
+                tObj.refSy     = tObj.sy
+                tObj.refPanelW = rect and rect.w or tObj.refPanelW
+                tObj.refPanelH = rect and rect.h or tObj.refPanelH
             end
 
             -- Anchor X
@@ -1556,6 +1606,9 @@ showTransformQuick = function()
                     if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
                     if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                 end
+                -- Update reference so next reflow treats this as the new baseline
+                tObj.refSx     = tObj.sx
+                tObj.refPanelW = rect and rect.w or tObj.refPanelW
             end
         end
 
@@ -1579,6 +1632,9 @@ showTransformQuick = function()
                     if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
                     if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                 end
+                -- Update reference so next reflow treats this as the new baseline
+                tObj.refSy     = tObj.sy
+                tObj.refPanelH = rect and rect.h or tObj.refPanelH
             end
         end
 
@@ -1864,6 +1920,12 @@ assignObjectToPanel = function(tObj, panel)
             end
         end
         tUtil.showMessage(string.format(tLang.L("object_assign_panel_fmt"), panel.name))
+        -- Capture reference scale + panel size so reflowPanelObjects can use the
+        -- same stable-baseline formula as the exported tScene.reflow.
+        tObj.refSx     = tObj.sx
+        tObj.refSy     = tObj.sy
+        tObj.refPanelW = panel._rect and panel._rect.w or 0
+        tObj.refPanelH = panel._rect and panel._rect.h or 0
         -- Reflow so the object is clamped inside its new panel if isRestrictedToPanel
         reflowPanelObjects()
     else
@@ -2131,6 +2193,11 @@ showMeshList = function()
                                 elseif newType == "height" then
                                     tObj.sizeAnchorW = nil
                                 end
+                                -- Capture reference so the new anchor type starts from a stable baseline
+                                tObj.refSx     = tObj.sx
+                                tObj.refSy     = tObj.sy
+                                tObj.refPanelW = rect and rect.w or tObj.refPanelW
+                                tObj.refPanelH = rect and rect.h or tObj.refPanelH
                             end
                             tImGui.Separator()
 
@@ -2372,6 +2439,9 @@ local function treeNodeScale(tObj)
                         if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
                         if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                     end
+                    -- Update reference so next reflow treats this as the new baseline
+                    tObj.refSx     = tObj.sx
+                    tObj.refPanelW = rect and rect.w or tObj.refPanelW
                 end
             end
         else
@@ -2404,6 +2474,10 @@ local function treeNodeScale(tObj)
                             if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
                             if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                         end
+                        -- Update reference: new sx/sy and current panel width are the new baseline
+                        tObj.refSx     = tObj.sx
+                        tObj.refSy     = tObj.sy
+                        tObj.refPanelW = rect.w
                     end
                 end
             end
@@ -2431,6 +2505,9 @@ local function treeNodeScale(tObj)
                         if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
                         if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                     end
+                    -- Update reference so next reflow treats this as the new baseline
+                    tObj.refSy     = tObj.sy
+                    tObj.refPanelH = rect and rect.h or tObj.refPanelH
                 end
             end
         else
@@ -2464,6 +2541,10 @@ local function treeNodeScale(tObj)
                                 if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
                                 if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                             end
+                            -- Update reference: new sx/sy and current panel height are the new baseline
+                            tObj.refSx     = tObj.sx
+                            tObj.refSy     = tObj.sy
+                            tObj.refPanelH = rect.h
                         end
                     end
                 end
@@ -3508,6 +3589,13 @@ local function onLoadScene()
                                 tMeshTmp.anchorType  = tInfo.anchorType or "center"
                                 tMeshTmp.sizeAnchorW = tInfo.sizeAnchorW
                                 tMeshTmp.sizeAnchorH = tInfo.sizeAnchorH
+                                -- Override reference scale/panel with the saved values so the
+                                -- first reflow at the loaded resolution is a no-op (identity)
+                                -- and subsequent toggles use the stable exported baseline.
+                                tMeshTmp.refSx     = tInfo.sx
+                                tMeshTmp.refSy     = tInfo.sy
+                                tMeshTmp.refPanelW = targetPanel._rect and targetPanel._rect.w or 0
+                                tMeshTmp.refPanelH = targetPanel._rect and targetPanel._rect.h or 0
                             end
                         end
                     end
@@ -3989,6 +4077,11 @@ local function main_menu_scene_editor_2d()
                     end
                 end
                 tImGui.EndMenu()
+            end
+
+            tImGui.Separator()
+            if tImGui.Button(tLang.L("reflow_panels_and_objects"), {x = -1, y = 0}) then
+                reflowPanelObjects()
             end
             tWindowsArea:addThisWindow()
             tImGui.EndMenu()
