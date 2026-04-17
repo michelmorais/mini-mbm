@@ -1532,7 +1532,7 @@ showTransformQuick = function()
 
         -- ── Scale ─────────────────────────────────────────────────────────────
         tImGui.Text(tLang.L("scale"))
-        local scaleSpeed  = 0.02
+        local scaleSpeed  = 0.05
         local scaleMin    = 0.01
         local scaleMax    = 0.0   -- 0 = unbounded
         local scaleFormat = "%.3f"
