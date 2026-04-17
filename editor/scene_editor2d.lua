@@ -1010,7 +1010,7 @@ showPanelBrowser = function()
     if not bShowPanelBrowser then return end
     local width = 300
     local iW, iH = mbm.getSizeScreen()
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, iH*0.45, width, width + 50, iH * 0.5)
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_panel_browser, 0, iH*0.45, width, width + 50, iH * 0.45)
     local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
     local is_opened, closed_clicked = tImGui.Begin(tLang.L("panel_browser"), true, flags)
     if is_opened then
@@ -1375,7 +1375,7 @@ showTransformQuick = function()
     local tObj = tSelectedObjs[1]
 
     local iW, iH = mbm.getRealSizeScreen()
-    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_transform_quick, 0, iH * 0.48, 300, 350, iH * 0.5)
+    tUtil.setInitialWindowPositionRight(tWindowsTitle.title_transform_quick, 0, iH * 0.48, 300, 350, iH * 0.45)
     local flags = bEnableMoveWindow and 0 or ImGuiWindowFlags_NoMove
 
     -- Detect 3D: getAABB(true) returns depth only for 3D objects (same logic as setShapeToMesh)
@@ -1516,6 +1516,10 @@ showTransformQuick = function()
             tObj.y = vPY
             tObj.tShape.y = vPY
             if rect and rect.h > 0 then tObj.anchorY = (vPY - rect.y) / rect.h end
+        end
+
+        if is3d == false then
+            posSpeed  = 0.001
         end
 
         local rPZ, vPZ = tImGui.DragFloat(tLang.L("axis_z") .. "##tq_pz", tObj.z, posSpeed, 0.0, 0.0, posFormat)
