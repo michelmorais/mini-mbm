@@ -952,7 +952,8 @@ function showMeshTreeWindow()
     if not bShowMeshTree then return end
 
     local width = 350
-    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100)
+    local iW, iH = mbm.getSizeScreen()
+    tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_mesh_tree, 0, 0, width, width + 100, iH * 0.8)
     local is_opened, closed_clicked = tImGui.Begin(tLang.L(tWindowsTitle.title_mesh_tree), true, tImGui.Flags('ImGuiWindowFlags_NoMove'))
 
     if is_opened then
@@ -1048,5 +1049,17 @@ function onTouchZoom(zoom)
     end
 end
 
-function onKeyDown() end
+function onKeyDown(key)
+    if mbm.getKeyName(key) == 'DOWN' then
+        iSelectedMeshIndex = iSelectedMeshIndex + 1
+        if iSelectedMeshIndex > #tLoadedMeshes then 
+            iSelectedMeshIndex = #tLoadedMeshes
+        end
+    elseif mbm.getKeyName(key) == 'UP' then
+        iSelectedMeshIndex = iSelectedMeshIndex - 1
+        if iSelectedMeshIndex < 1 then
+            iSelectedMeshIndex = 1
+        end
+    end
+end
 function onKeyUp() end
