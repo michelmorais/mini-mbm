@@ -443,10 +443,12 @@ local function reflowPanelObjects()
             -- Uses stored reference scale + reference panel size so the formula
             -- matches the exported tScene.reflow exactly and does NOT compound on
             -- repeated calls (e.g. every time the user toggles "invert resolution").
-            -- After updating sx/sy, ow/oh are computed ANALYTICALLY from the size-anchor
-            -- fractions (sizeAnchorX * panelDim) rather than from getSize(), so the result
-            -- is correct even if getSize() hasn't yet reflected the new engine scale.
-            local ow, oh = obj:getSize()
+            -- getSize(true) is used throughout: for TEXT_DRAW objects this triggers
+            -- forceCalcSize() → renderText(false) with the current draw->scale, so
+            -- beginText/endText are updated and getWidthHeight() returns fresh dimensions.
+            -- For all other renderizable types, getSize(true) just sets consider_scale=true
+            -- (same as the default), so it is safe and has no extra cost.
+            local ow, oh = obj:getSize(true)
             if atype == "width" and obj.sizeAnchorW then
                 -- drive both axes proportionally from width (mirrors exported formula)
                 if obj.refPanelW and obj.refPanelW > 0 then
@@ -456,15 +458,15 @@ local function reflowPanelObjects()
                     obj:setScale(obj.sx, obj.sy, obj.sz or 1)
                     -- ow grows with sc; oh grows with the same sc (proportional)
                     ow = obj.sizeAnchorW * rect.w
-                    local _, oh_check = obj:getSize()
-                    oh = oh_check  -- height: use getSize (no sizeAnchorH stored for width mode)
+                    local _, oh_check = obj:getSize(true)
+                    oh = oh_check
                 else
                     -- fallback for objects without ref data (legacy / safety)
                     local scale = (rect.w * obj.sizeAnchorW) / math.max(ow, 0.001)
                     obj.sx = obj.sx * scale
                     obj.sy = obj.sy * scale
                     obj:setScale(obj.sx, obj.sy, obj.sz or 1)
-                    ow, oh = obj:getSize()
+                    ow, oh = obj:getSize(true)
                 end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
             elseif atype == "height" and obj.sizeAnchorH then
@@ -475,14 +477,14 @@ local function reflowPanelObjects()
                     obj.sy = obj.refSy * sc
                     obj:setScale(obj.sx, obj.sy, obj.sz or 1)
                     oh = obj.sizeAnchorH * rect.h
-                    local ow_check = obj:getSize()
+                    local ow_check = obj:getSize(true)
                     ow = ow_check
                 else
                     local scale = (rect.h * obj.sizeAnchorH) / math.max(oh, 0.001)
                     obj.sx = obj.sx * scale
                     obj.sy = obj.sy * scale
                     obj:setScale(obj.sx, obj.sy, obj.sz or 1)
-                    ow, oh = obj:getSize()
+                    ow, oh = obj:getSize(true)
                 end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
             elseif atype == "stretch" then
@@ -502,19 +504,19 @@ local function reflowPanelObjects()
                 obj:setScale(obj.sx, obj.sy, obj.sz or 1)
                 -- Compute analytically: sizeAnchorW/H define the exact fraction of panel
                 -- that the object occupies, so ow/oh follow directly from rect dimensions.
-                if obj.sizeAnchorW then ow = obj.sizeAnchorW * rect.w else ow = obj:getSize() end
+                if obj.sizeAnchorW then ow = obj.sizeAnchorW * rect.w else ow = obj:getSize(true) end
                 if obj.sizeAnchorH then oh = obj.sizeAnchorH * rect.h else
-                    local _, oh_tmp = obj:getSize(); oh = oh_tmp
+                    local _, oh_tmp = obj:getSize(true); oh = oh_tmp
                 end
                 if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
             end
 
             -- 1. Cap absolute scale so object fits inside the panel (only when restricted,
-            --    and only for axes not governed by a size anchor)
-            -- Re-read ow/oh for objects that had no size-anchor (atype=="center"), or
-            -- refresh after any analytical assignment above.
+            --    and only for axes not governed by a size anchor).
+            -- For center-type objects (no size anchor), read fresh dimensions now.
+            -- getSize(true) ensures text objects reflect the current scale.
             if atype == "center" then
-                ow, oh = obj:getSize()
+                ow, oh = obj:getSize(true)
             end
             if restricted and ow > 0 and oh > 0 and rect.w > 0 and rect.h > 0 then
                 if ow > rect.w or oh > rect.h then
@@ -522,7 +524,7 @@ local function reflowPanelObjects()
                     obj.sx = obj.sx * scale
                     obj.sy = obj.sy * scale
                     obj:setScale(obj.sx, obj.sy, obj.sz or 1)
-                    ow, oh = obj:getSize()
+                    ow, oh = obj:getSize(true)
                     if obj.tShape then obj.tShape:setScale(ow, oh, 1) end
                 end
             end
