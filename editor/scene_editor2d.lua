@@ -4085,6 +4085,11 @@ local function main_menu_scene_editor_2d()
             if tImGui.Button(tLang.L("reflow_panels_and_objects"), {x = -1, y = 0}) then
                 reflowPanelObjects()
             end
+            if tImGui.IsItemHovered(0) then
+                tImGui.BeginTooltip()
+                tImGui.Text(tLang.L("help_reflow"))
+                tImGui.EndTooltip()
+            end
             tWindowsArea:addThisWindow()
             tImGui.EndMenu()
         end
