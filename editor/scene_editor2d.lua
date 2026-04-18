@@ -1600,14 +1600,13 @@ showTransformQuick = function()
                     local naturalW = tObj:getSize() / tObj.sx
                     if naturalW > 0 then vSX = math.min(vSX, rect.w / naturalW) end
                 end
-                tObj.sx = vSX
-                local w, h, d = tObj:getSize()
-                tObj.tShape.sx = w
+                tObj:setScale(vSX, tObj.sy, tObj.sz or 1)
+                local w, h = tObj:getSize(true)
                 -- Shift X if edges overflow after scale
                 if restricted and rect then
                     local le, re = getObjExtents(tObj, w, 0)
                     local cx = math.max(rect.x + le, math.min(rect.x + rect.w - re, tObj.x))
-                    if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
+                    if cx ~= tObj.x then tObj:setPos(cx, tObj.y) end
                     if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                 end
                 -- Update reference so next reflow treats this as the new baseline
@@ -1626,14 +1625,13 @@ showTransformQuick = function()
                     naturalH = naturalH / tObj.sy
                     if naturalH > 0 then vSY = math.min(vSY, rect.h / naturalH) end
                 end
-                tObj.sy = vSY
-                local w, h, d = tObj:getSize()
-                tObj.tShape.sy = h
+                tObj:setScale(tObj.sx, vSY, tObj.sz or 1)
+                local w, h = tObj:getSize(true)
                 -- Shift Y if edges overflow after scale
                 if restricted and rect then
                     local _, _, be, te = getObjExtents(tObj, 0, h)
                     local cy = math.max(rect.y + be, math.min(rect.y + rect.h - te, tObj.y))
-                    if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
+                    if cy ~= tObj.y then tObj:setPos(tObj.x, cy) end
                     if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                 end
                 -- Update reference so next reflow treats this as the new baseline
@@ -2015,6 +2013,10 @@ onDuplicated = function()
             tLastMeshAdded = tSelectedObjs[i]
             local tMeshTmp = tUtil.onAddMeshToEditor(tObj.fileName, true, "2dw", tObj.sText)
             if tMeshTmp then
+                -- Apply scale, angle and animation before panel assignment so
+                -- assignObjectToPanel captures the correct refSx/refSy.
+                tMeshTmp:setScale(tObj.sx, tObj.sy, tObj.sz or 1)
+                tMeshTmp:setAngle(tObj.ax, tObj.ay, tObj.az)
                 tMeshTmp:setAnim(select(2, tObj:getAnim()))
                 if tObj.tPhysicInfo then
                     tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tObj.tPhysicInfo)
@@ -2024,13 +2026,6 @@ onDuplicated = function()
                 -- Assign to same panel as original
                 if tObj.panelRef then
                     assignObjectToPanel(tMeshTmp, tObj.panelRef)
-                end
-                if tMeshTmp.tFont then
-                    tMeshTmp:setScale(tObj.tFont.sx, tObj.tFont.sy)
-                    tMeshTmp:setAngle(tObj.tFont.ax, tObj.tFont.ay, tObj.tFont.az)
-                else
-                    tMeshTmp:setScale(tObj.sx, tObj.sy)
-                    tMeshTmp:setAngle(tObj.ax, tObj.ay, tObj.az)
                 end
                 sLastMeshAdd = tObj.fileName
             end
@@ -2043,6 +2038,10 @@ onDuplicated = function()
     elseif tLastMeshAdded then
         local tMeshTmp = tUtil.onAddMeshToEditor(tLastMeshAdded.fileName, true, "2dw", tLastMeshAdded.sText)
         if tMeshTmp then
+            -- Apply scale, angle and animation before panel assignment so
+            -- assignObjectToPanel captures the correct refSx/refSy.
+            tMeshTmp:setScale(tLastMeshAdded.sx, tLastMeshAdded.sy, tLastMeshAdded.sz or 1)
+            tMeshTmp:setAngle(tLastMeshAdded.ax, tLastMeshAdded.ay, tLastMeshAdded.az)
             tMeshTmp:setAnim(select(2, tLastMeshAdded:getAnim()))
             if tLastMeshAdded.tPhysicInfo then
                 tMeshTmp.tPhysicInfo = tUtil.deepCopyTable(tLastMeshAdded.tPhysicInfo)
@@ -2051,13 +2050,6 @@ onDuplicated = function()
             initialSetUpForAddedMesh(tMeshTmp)
             if tLastMeshAdded.panelRef then
                 assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
-            end
-            if tMeshTmp.tFont then
-                tMeshTmp:setScale(tLastMeshAdded.tFont.sx, tLastMeshAdded.tFont.sy)
-                tMeshTmp:setAngle(tLastMeshAdded.tFont.ax, tLastMeshAdded.tFont.ay, tLastMeshAdded.tFont.az)
-            else
-                tMeshTmp:setScale(tLastMeshAdded.sx, tLastMeshAdded.sy)
-                tMeshTmp:setAngle(tLastMeshAdded.ax, tLastMeshAdded.ay, tLastMeshAdded.az)
             end
             tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
@@ -2433,14 +2425,13 @@ local function treeNodeScale(tObj)
                         local naturalW = tObj:getSize() / tObj.sx
                         if naturalW > 0 then fValue = math.min(fValue, rect.w / naturalW) end
                     end
-                    tObj.sx = fValue
-                    local w, h, d = tObj:getSize()
-                    tObj.tShape.sx = w
+                    tObj:setScale(fValue, tObj.sy, tObj.sz or 1)
+                    local w, h = tObj:getSize(true)
                     -- Shift X if edges now go out of panel bounds
                     if tObj.isRestrictedToPanel ~= false and rect then
                         local le, re = getObjExtents(tObj, w, 0)
                         local cx = math.max(rect.x + le, math.min(rect.x + rect.w - re, tObj.x))
-                        if cx ~= tObj.x then tObj.x = cx; tObj.tShape.x = cx end
+                        if cx ~= tObj.x then tObj:setPos(cx, tObj.y) end
                         if rect.w > 0 then tObj.anchorX = (tObj.x - rect.x) / rect.w end
                     end
                     -- Update reference so next reflow treats this as the new baseline
@@ -2499,14 +2490,13 @@ local function treeNodeScale(tObj)
                         naturalH = naturalH / tObj.sy
                         if naturalH > 0 then fValue = math.min(fValue, rect.h / naturalH) end
                     end
-                    tObj.sy = fValue
-                    local w, h, d = tObj:getSize()
-                    tObj.tShape.sy = h
+                    tObj:setScale(tObj.sx, fValue, tObj.sz or 1)
+                    local w, h = tObj:getSize(true)
                     -- Shift Y if edges now go out of panel bounds
                     if tObj.isRestrictedToPanel ~= false and rect then
                         local _, _, be, te = getObjExtents(tObj, 0, h)
                         local cy = math.max(rect.y + be, math.min(rect.y + rect.h - te, tObj.y))
-                        if cy ~= tObj.y then tObj.y = cy; tObj.tShape.y = cy end
+                        if cy ~= tObj.y then tObj:setPos(tObj.x, cy) end
                         if rect.h > 0 then tObj.anchorY = (tObj.y - rect.y) / rect.h end
                     end
                     -- Update reference so next reflow treats this as the new baseline

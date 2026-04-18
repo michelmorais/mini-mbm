@@ -709,8 +709,13 @@ tUtil.setShapeToMesh = function(tObj)
         tObj.setScale_engine = tObj.setScale
         tObj.setScale = function (self,sx,sy,sz)
             self:setScale_engine(sx or self.sx, sy or self.sy, sz or self.sz)
-            local w,h,d = self:getSize()
+            local w,h,d = self:getSize(true)
             self.tShape:setScale(w,h,d or 1)
+            -- For font objects, the shape center must be repositioned after scale changes
+            -- because font origin is top-left: shape center = (x + w/2, y - h/2).
+            if self.type == 'font' then
+                self.tShape:setPos(self.x + w * 0.5, self.y - h * 0.5, self.z - 1)
+            end
         end
 
         tObj.setAngle_engine = tObj.setAngle
