@@ -816,8 +816,14 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
     end
     local command
     if mbm.is('Windows') then
-        -- Windows: use exe name as-is with console window
-        command = string.format('%q -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene %q --name %q',
+        -- Use "start" so the command passed to cmd.exe /c does NOT begin with a
+        -- double-quote.  When the first token IS a quoted string, cmd.exe strips
+        -- the leading and trailing quote from the whole command line, mangling
+        -- paths.  "start" is a cmd-builtin that accepts an empty window-title
+        -- ("") followed by a quoted executable path, bypassing that quirk.
+        -- %q must NOT be used here: it adds Lua backslash escaping (C:\foo ->
+        -- "C:\\foo") which makes Windows reject the path with ERROR_INVALID_NAME.
+        command = string.format('"%s" -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene "%s" --name "%s"',
             exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
     else
         -- The X11 socket is now marked FD_CLOEXEC in C++ (initializeWindowx11), so the

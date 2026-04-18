@@ -849,6 +849,32 @@ namespace mbm
         std::string  name                = fNextThreadName();
         // Copy command into the thread by value to avoid race with the next call
         std::thread* exec_thread         = new std::thread(fExecute, std::string(command), x11_fd);
+#elif defined(_WIN32)
+        // Use CreateProcessA instead of system() to bypass cmd.exe entirely.
+        // system() routes through "cmd.exe /c <command>", and cmd.exe strips the
+        // first and last double-quote from the command when both are present,
+        // mangling quoted executable paths. CreateProcessA parses the command
+        // line directly: the first (possibly quoted) token is the executable and
+        // the rest are its arguments.
+        auto fExecute = [] (std::string cmd) -> void
+        {
+            STARTUPINFOA si{};
+            PROCESS_INFORMATION pi{};
+            si.cb = sizeof(si);
+            if (CreateProcessA(nullptr, &cmd[0], nullptr, nullptr, FALSE,
+                               CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi))
+            {
+                CloseHandle(pi.hProcess);
+                CloseHandle(pi.hThread);
+            }
+            else
+            {
+                ERROR_LOG("CreateProcessA failed (error %lu) for: %s", GetLastError(), cmd.c_str());
+            }
+        };
+        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        std::string  name                = fNextThreadName();
+        std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
 #else
         auto fExecute = [] (std::string cmd) -> void
         {
