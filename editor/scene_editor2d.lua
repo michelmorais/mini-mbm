@@ -124,6 +124,16 @@ local tLastMeshAdded      = nil
 local cCoroutineLoadScene = nil
 local v1                  = nil
 
+-- Inline text-edit window (double-click on font object)
+local tInlineTextEdit    = nil   -- {obj, sx, sy} or nil  (sx/sy = ImGui screen coords)
+
+-- Right-click context menu: set in onTouchDown, consumed by BeginPopupContextVoid each frame
+local tCtxMenuObj        = nil
+
+-- Engine-space coordinates captured in onTouchDown (used for isOver() hit-tests)
+local fLastLClickX       = 0
+local fLastLClickY       = 0
+
 -- sTextureShape* for object selection outlines
 local sTextureShapeOver    = '#30FF8686'
 local sTextureShapeSelected= '#3086FF48'
@@ -1863,6 +1873,8 @@ end
 
 -- Forward declarations for Pass 3 functions (assigned below)
 local onAddMesh, onDuplicated, showMeshList, showAddingMeshOptions, showDetailOfMesh
+-- Forward declarations for inline text edit and context menu popups
+local showInlineTextEdit, showSceneContextMenu
 -- Forward declaration for Pass 4 stub (used inside showMeshList)
 local showPropertiesForMesh = function(tObj) end
 
@@ -4252,6 +4264,22 @@ function onTouchDown(key, x, y)
     bMovingAnyMesh      = false
     tFollowCam          = nil
 
+    -- Capture engine-space coords for hit-tests in onLoop
+    if key == 0 and not anyWindowHovered then
+        fLastLClickX = x
+        fLastLClickY = y
+    elseif key == 1 and not anyWindowHovered then
+        -- Right-click: hit-test now (engine coords) so tCtxMenuObj is ready before onLoop
+        tCtxMenuObj = nil
+        for _, tObj in ipairs(tAllMesh) do
+            if tObj.isSelected and not tObj.isBlocked and tObj.visible
+                    and tObj:isOver(x, y) then
+                tCtxMenuObj = tObj
+                break
+            end
+        end
+    end
+
     if isClickedMouseLeft then
         local clickedX, clickedY = mbm.to2dw(x, y)
 
@@ -4434,6 +4462,119 @@ function onKeyUp(key)
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Inline text editor — regular window shown on double-click of a font object
+-- ─────────────────────────────────────────────────────────────────────────────
+showInlineTextEdit = function()
+    if not tInlineTextEdit then return end
+    local tObj = tInlineTextEdit.obj
+    if not tObj or not tObj.tShape then tInlineTextEdit = nil; return end
+
+    local iW, iH = mbm.getRealSizeScreen()
+    local winW, winH = 320, 120
+    local px = math.min(math.max(tInlineTextEdit.sx - winW * 0.5, 0), iW - winW)
+    local py = math.min(math.max(tInlineTextEdit.sy - winH - 8, tImGui.GetMainMenuBarHeight()), iH - winH)
+    tImGui.SetNextWindowPos({x = px, y = py}, tImGui.Flags('ImGuiCond_Always'))
+    tImGui.SetNextWindowSize({x = winW, y = winH}, tImGui.Flags('ImGuiCond_Always'))
+    local wflags = tImGui.Flags('ImGuiWindowFlags_NoMove', 'ImGuiWindowFlags_NoResize',
+                                'ImGuiWindowFlags_NoCollapse', 'ImGuiWindowFlags_NoSavedSettings',
+                                'ImGuiWindowFlags_NoBringToFrontOnFocus')
+    local title = (tObj.fileName and tUtil.getShortName(tObj.fileName) or "text") .. "##inlineedit"
+    local is_opened, closed_clicked = tImGui.Begin(title, true, wflags)
+    if closed_clicked then
+        tInlineTextEdit = nil
+        tImGui.End()
+        return
+    end
+    if is_opened then
+        local label = "##inline_edit_input"
+        local size  = {x = -1, y = 70}
+        if tInlineTextEdit.focus then
+            tImGui.SetKeyboardFocusHere()
+            tInlineTextEdit.focus = false
+        end
+        local modified, sNewText = tImGui.InputTextMultiline(label, tObj.sText or "", size, 0)
+        if modified and sNewText ~= tObj.sText then
+            tObj.sText = sNewText
+            tObj.text  = sNewText
+            tObj:setScale(tObj.sx, tObj.sy, tObj.sz or 1)
+        end
+        -- Close on Escape
+        if tImGui.IsKeyPressed(tImGui.Flags('ImGuiKey_Escape'), false) then
+            tInlineTextEdit = nil
+        end
+    end
+    tWindowsArea:addThisWindow()
+    tImGui.End()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Scene right-click context menu — uses BeginPopupContextVoid for correct timing
+-- ─────────────────────────────────────────────────────────────────────────────
+showSceneContextMenu = function()
+    -- BeginPopupContextVoid opens on right-click in void (no ImGui window under cursor)
+    -- and handles the click-timing correctly so the popup doesn't immediately close.
+    local is_opened = tImGui.BeginPopupContextVoid("##scene_ctx_menu")
+    if is_opened then
+        if tCtxMenuObj then
+            local tObj = tCtxMenuObj
+            local label = string.format("[%s]  %s", tObj.type or "?",
+                tObj.sText or tUtil.getShortName(tObj.fileName or "") or "")
+            tImGui.TextDisabled(label)
+            tImGui.Separator()
+
+            -- Assign to panel
+            if tImGui.BeginMenu(tLang.L("assign_to_panel")) then
+                local tPanelList = buildPanelComboList(tPanels)
+                if tImGui.MenuItem(tLang.L("free_object")) then
+                    if not keyControlPressed then onUnSelectAll() end
+                    setSelectedObj(tObj, true)
+                    assignObjectToPanel(tObj, nil)
+                    tImGui.CloseCurrentPopup()
+                    tCtxMenuObj = nil
+                end
+                for i, entry in ipairs(tPanelList) do
+                    if tImGui.MenuItem(entry.label .. "##ctxpanel" .. i) then
+                        if not keyControlPressed then onUnSelectAll() end
+                        setSelectedObj(tObj, true)
+                        assignObjectToPanel(tObj, entry.panel)
+                        tImGui.CloseCurrentPopup()
+                        tCtxMenuObj = nil
+                    end
+                end
+                tImGui.EndMenu()
+            end
+
+            tImGui.Separator()
+
+            -- Duplicate
+            if tImGui.MenuItem(tLang.L("duplicate_last_mesh")) then
+                onUnSelectAll()
+                setSelectedObj(tObj, true)
+                onDuplicated()
+                tImGui.CloseCurrentPopup()
+                tCtxMenuObj = nil
+            end
+
+            -- Delete
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1, g=0.3, b=0.3, a=1})
+            if tImGui.MenuItem(tLang.L("delete_selected_mesh")) then
+                onUnSelectAll()
+                setSelectedObj(tObj, true)
+                onDeleteSelected()
+                tImGui.CloseCurrentPopup()
+                tCtxMenuObj = nil
+            end
+            tImGui.PopStyleColor(1)
+        else
+            -- No selected object was right-clicked; close immediately
+            tImGui.CloseCurrentPopup()
+        end
+        tWindowsArea:addThisWindow()
+        tImGui.EndPopup()
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- onLoop — main frame dispatcher
 -- ─────────────────────────────────────────────────────────────────────────────
 function onLoop(delta)
@@ -4486,6 +4627,22 @@ function onLoop(delta)
         showMeshList()
         showAddingMeshOptions()
         showDetailOfMesh()
+
+        -- Detect double-click on font objects for inline text editor
+        if not tInlineTextEdit and tImGui.IsMouseDoubleClicked(0)
+                and not tWindowsArea:IsAnyWindowHovered() then
+            local tMousePos = tImGui.GetMousePos()   -- ImGui coords for window positioning
+            for _, tObj in ipairs(tAllMesh) do
+                if tObj.type == 'font' and not tObj.isBlocked and tObj.visible
+                        and tObj:isOver(fLastLClickX, fLastLClickY) then
+                    tInlineTextEdit = {obj = tObj, sx = tMousePos.x, sy = tMousePos.y, focus = true}
+                    break
+                end
+            end
+        end
+
+        showInlineTextEdit()
+        showSceneContextMenu()
 
         -- Overlay messages
         tUtil.showOverlayMessage()
