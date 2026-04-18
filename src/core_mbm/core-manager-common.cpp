@@ -42,7 +42,10 @@
 #  include <spawn.h>
    extern char **environ;
    // Forward declaration for the X11-specific helper defined in core-manager-opengl_es-x11.cpp.
+   // Not available when using the dummy backend (no X11 display is opened).
+#  if !defined(USE_DUMMY_BACK_END_ENGINE)
    namespace mbm { int getX11DisplayFd() noexcept; }
+#  endif
 #endif
 
 namespace mbm
@@ -816,7 +819,7 @@ namespace mbm
             name += std::to_string(++iNumThread);
             return name;
         };
-#if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL)))
+#if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(USE_DUMMY_BACK_END_ENGINE)
         // Use posix_spawn instead of system() to avoid fork() races in multi-threaded X11 programs.
         // system() calls fork() which duplicates the X11 socket fd into the child, creating a brief
         // window where both parent and child share the same connection. On Linux, posix_spawn uses
