@@ -823,7 +823,7 @@ local function onNewSceneEditor()
     sLastEditorFileName = ''
     keyControlPressed   = false
     keyShiftPressed     = false
-    bShowMeshList       = true
+    bShowMeshList       = false
     bShowAddingMesh     = false
     bShowPanelBrowser   = true
     bShowPanelProps     = false
@@ -3605,6 +3605,8 @@ local function onLoadScene()
                 -- Rebuild visuals for restored panels then reflow objects to their anchor positions
                 rebuildPanelVisuals()
                 reflowPanelObjects()
+                --if mesh > 0 bShowMeshList = true
+                bShowMeshList = #tAllMesh > 0
             end)
         else
             tUtil.showMessageWarn(tLang.L("not_found_scene_table"))
