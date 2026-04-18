@@ -1940,6 +1940,17 @@ assignObjectToPanel = function(tObj, panel)
         tObj.refSy     = tObj.sy
         tObj.refPanelW = panel._rect and panel._rect.w or 0
         tObj.refPanelH = panel._rect and panel._rect.h or 0
+        -- Recalculate sizeAnchorW/H relative to the NEW panel so reflowPanelObjects
+        -- uses the correct fractions and the shape doesn't get stretched.
+        if tObj.sizeAnchorW or tObj.sizeAnchorH then
+            local ow, oh = tObj:getSize(true)
+            if tObj.sizeAnchorW and tObj.refPanelW > 0 then
+                tObj.sizeAnchorW = math.min(1, ow / tObj.refPanelW)
+            end
+            if tObj.sizeAnchorH and tObj.refPanelH > 0 then
+                tObj.sizeAnchorH = math.min(1, oh / tObj.refPanelH)
+            end
+        end
         -- Reflow so the object is clamped inside its new panel if isRestrictedToPanel
         reflowPanelObjects()
     else
