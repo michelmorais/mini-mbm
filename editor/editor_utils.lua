@@ -791,9 +791,20 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
             end
         end
     else
-        -- macOS: normalise underscores→hyphens as best-effort
-        local dir, base = exe:match('^(.*/)([^/]+)$')
-        exe = dir and (dir .. base:gsub('_', '-')) or exe:gsub('_', '-')
+        -- macOS: lsof -p $PPID resolves the full path of the running binary;
+        -- the 'txt' type entry is the executable text segment.
+        local f = io.popen('lsof -p $PPID 2>/dev/null | awk \'/ txt /{print $NF; exit}\'')
+        if f then
+            local resolved = f:read('*l')
+            f:close()
+            if resolved and resolved:len() > 0 then
+                exe = resolved
+            else
+                -- fallback: normalise underscores→hyphens
+                local dir, base = exe:match('^(.*/)([^/]+)$')
+                exe = dir and (dir .. base:gsub('_', '-')) or exe:gsub('_', '-')
+            end
+        end
     end
     sFileNameScene  = sFileNameScene:gsub("\\","/")
     local irw,irh   = mbm.getDisplayMetrics()
@@ -825,11 +836,15 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
         -- "C:\\foo") which makes Windows reject the path with ERROR_INVALID_NAME.
         command = string.format('"%s" -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene "%s" --name "%s"',
             exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
-    else
+    elseif mbm.is('Linux') then
         -- The X11 socket is now marked FD_CLOEXEC in C++ (initializeWindowx11), so the
         -- child process never inherits it. Use setsid to put mini-mbm in a new session
         -- (detached from the terminal) and & to return immediately from system().
         command = string.format('setsid %q -w %d -h %d -ew %d -eh %d --nosplash --scene %q --name %q &',
+            exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    else
+        -- macOS: setsid is not available; just background the process with &
+        command = string.format('%q -w %d -h %d -ew %d -eh %d --nosplash --scene %q --name %q &',
             exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
     end
     print('Launching:', command)
