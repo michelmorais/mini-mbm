@@ -4414,6 +4414,8 @@ end
 
 function onKeyDown(key)
     if cCoroutineLoadScene then return end
+    if tCtxMenuObj then return end
+    if tInlineTextEdit then return end
     if key == mbm.getKeyCode('control') then
         keyControlPressed = true
     elseif key == mbm.getKeyCode('shift') then
