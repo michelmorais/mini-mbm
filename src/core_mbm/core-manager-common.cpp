@@ -17,6 +17,13 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+// Must be defined before any system headers to enable GNU extensions (e.g. POSIX_SPAWN_SETSID)
+#if defined(__linux__)
+#  ifndef _GNU_SOURCE
+#    define _GNU_SOURCE
+#  endif
+#endif
+
 #include <core-manager.h>
 #include <device.h>
 #include <scene.h>
@@ -31,6 +38,12 @@
 #include <shader-resource.h>
 #include <util-interface.h>
 #include <thread>
+#if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
+#  include <spawn.h>
+   extern char **environ;
+   // Forward declaration for the X11-specific helper defined in core-manager-opengl_es-x11.cpp.
+   namespace mbm { int getX11DisplayFd() noexcept; }
+#endif
 
 namespace mbm
 {
@@ -56,7 +69,7 @@ namespace mbm
             return -1;
         if (!this->loopVariablesInitialized)
         {
-            INFO_LOG("CORE_MANAGER::onLoop() first-time init");
+            INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
@@ -803,15 +816,45 @@ namespace mbm
             name += std::to_string(++iNumThread);
             return name;
         };
-        auto fExecute = [] (std::string command) -> void
+#if (defined(__linux__) || (defined(__APPLE__) && !defined(USE_METAL)))
+        // Use posix_spawn instead of system() to avoid fork() races in multi-threaded X11 programs.
+        // system() calls fork() which duplicates the X11 socket fd into the child, creating a brief
+        // window where both parent and child share the same connection. On Linux, posix_spawn uses
+        // clone(CLONE_VM|CLONE_VFORK) which suspends the parent until the child exec's, eliminating
+        // the race. We also explicitly close the X11 fd in the child via file actions.
+        const int x11_fd = getX11DisplayFd();
+        auto fExecute = [](std::string cmd, int fd) -> void
         {
-            system(command.c_str());
+            posix_spawn_file_actions_t file_actions;
+            posix_spawnattr_t          attr;
+            posix_spawn_file_actions_init(&file_actions);
+            posix_spawnattr_init(&attr);
+            if (fd >= 0)
+                posix_spawn_file_actions_addclose(&file_actions, fd);
+#ifdef POSIX_SPAWN_SETSID
+            posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+#endif
+            const char* argv[] = { "sh", "-c", cmd.c_str(), nullptr };
+            pid_t pid = 0;
+            posix_spawnp(&pid, "sh", &file_actions, &attr,
+                         const_cast<char**>(argv), environ);
+            posix_spawn_file_actions_destroy(&file_actions);
+            posix_spawnattr_destroy(&attr);
+            // Do NOT waitpid — the shell command uses & to detach the game process
         };
-        static std::string sCommand;
-        sCommand                         = command;
         mbm::DEVICE* device              = mbm::DEVICE::getInstance();
-        std::string name                 = fNextThreadName();
-        std::thread* exec_thread         = new std::thread(fExecute, std::ref(sCommand));
+        std::string  name                = fNextThreadName();
+        // Copy command into the thread by value to avoid race with the next call
+        std::thread* exec_thread         = new std::thread(fExecute, std::string(command), x11_fd);
+#else
+        auto fExecute = [] (std::string cmd) -> void
+        {
+            system(cmd.c_str());
+        };
+        mbm::DEVICE* device              = mbm::DEVICE::getInstance();
+        std::string  name                = fNextThreadName();
+        std::thread* exec_thread         = new std::thread(fExecute, std::string(command));
+#endif
         DYNAMIC_VAR* dyVar               = new DYNAMIC_VAR(DYNAMIC_REF,static_cast<const void*>(exec_thread));
         device->lsDynamicVarGlobal[name] = dyVar;
     }
