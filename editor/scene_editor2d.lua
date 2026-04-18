@@ -42,7 +42,7 @@ tUtil         = require "editor_utils"
 -- Constants
 -- ─────────────────────────────────────────────────────────────────────────────
 local PANEL_DEPTH_COLORS = {
-    {r=0.50, g=0.50, b=0.50, a=0.15},  -- depth 0: gray
+    {r=1.00, g=0.00, b=1.00, a=0.15},  -- depth 0: magenta
     {r=0.30, g=0.50, b=0.80, a=0.15},  -- depth 1: blue
     {r=0.30, g=0.70, b=0.40, a=0.15},  -- depth 2: green
     {r=0.80, g=0.75, b=0.20, a=0.15},  -- depth 3: yellow
@@ -52,7 +52,7 @@ local PANEL_DEPTH_COLORS = {
 }
 
 local PANEL_BORDER_COLORS = {
-    {r=0.60, g=0.60, b=0.60},  -- depth 0
+    {r=1.00, g=0.00, b=1.00},  -- depth 0: magenta
     {r=0.40, g=0.60, b=1.00},  -- depth 1
     {r=0.30, g=0.85, b=0.45},  -- depth 2
     {r=1.00, g=0.90, b=0.20},  -- depth 3
@@ -125,8 +125,8 @@ local cCoroutineLoadScene = nil
 local v1                  = nil
 
 -- sTextureShape* for object selection outlines
-local sTextureShapeOver    = '#86FF8686'
-local sTextureShapeSelected= '#8686FF48'
+local sTextureShapeOver    = '#30FF8686'
+local sTextureShapeSelected= '#3086FF48'
 
 -- Options (editor + launch)
 local tOptionsEditor = {}
@@ -559,10 +559,12 @@ local function updatePanelVisuals()
             local x2, y2 = rect.x + rect.w, rect.y + rect.h
             panel.lineRef:set({x1,y1, x1,y2, x2,y2, x2,y1, x1,y1}, 1)
             if panel == tSelectedPanel then
-                panel.lineRef:setColor(SELECTED_BORDER_COLOR.r, SELECTED_BORDER_COLOR.g, SELECTED_BORDER_COLOR.b)
-            else
                 local bc = getDepthBorderColor(depth)
                 panel.lineRef:setColor(bc.r, bc.g, bc.b)
+                panel.lineRef.z = -99
+            else
+                panel.lineRef:setColor(0.4, 0.4, 0.4)
+                panel.lineRef.z = -90 - depth
             end
         end
         if panel.shapeRef then
