@@ -2303,8 +2303,54 @@ showAddingMeshOptions = function()
 end
 
 --- Detail overlay for single selected mesh (preserved from original)
+local tInfoHoveredObj = nil   -- tracks which list-row was hovered last frame (for text tinting)
 showDetailOfMesh = function()
-    if not bShowDetailOfMesh or #tSelectedObjs ~= 1 then return end
+    if not bShowDetailOfMesh or #tSelectedObjs == 0 then return end
+
+    -- ── Multi-selection summary ───────────────────────────────────────────
+    if #tSelectedObjs > 1 then
+        local flags = {'ImGuiWindowFlags_AlwaysAutoResize','ImGuiWindowFlags_NoSavedSettings','ImGuiWindowFlags_NoFocusOnAppearing'}
+        tImGui.SetNextWindowBgAlpha(0.75)
+        tImGui.SetNextWindowPos({x=300, y=25}, tImGui.Flags('ImGuiCond_Once'), {x=0,y=0})
+        local is_opened, closed_clicked = tImGui.Begin(
+            tLang.L(tWindowsTitle.title_mesh_info), true, tImGui.Flags(flags))
+        if is_opened then
+            tImGui.Text(string.format('%d %s', #tSelectedObjs, tLang.L("selected_mesh_count")))
+            tImGui.Separator()
+            local tNewHovered = nil
+            for _, o in ipairs(tSelectedObjs) do
+                local label = string.format('(%d) %s', o.iIndex or 0, tUtil.getShortName(o.fileName, false))
+                -- Use last-frame hover state to tint text before drawing
+                if tInfoHoveredObj == o then
+                    tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1, g=0.85, b=0.2, a=1})
+                end
+                tImGui.Text(label)
+                if tInfoHoveredObj == o then
+                    tImGui.PopStyleColor(1)
+                end
+                -- Detect hover this frame
+                if tImGui.IsItemHovered() then
+                    tNewHovered = o
+                    if o.tShape then
+                        o.tShape:setTexture(sTextureShapeOver)
+                        o.tShape.visible = true
+                    end
+                else
+                    -- Restore selected texture (shape stays visible since object is selected)
+                    if o.tShape then
+                        o.tShape:setTexture(sTextureShapeSelected)
+                    end
+                end
+            end
+            tInfoHoveredObj = tNewHovered
+        end
+        if closed_clicked then bShowDetailOfMesh = false end
+        tWindowsArea:addThisWindow()
+        tImGui.End()
+        return
+    end
+
+    -- ── Single-selection detail ───────────────────────────────────────────
     local tObj = tSelectedObjs[1]
     local flags = {'ImGuiWindowFlags_AlwaysAutoResize','ImGuiWindowFlags_NoSavedSettings','ImGuiWindowFlags_NoFocusOnAppearing'}
     tImGui.SetNextWindowBgAlpha(0.75)
@@ -3936,6 +3982,42 @@ local function main_menu_scene_editor_2d()
             if pressed then onDeleteSelected() end
 
             tImGui.Separator()
+
+            -- Select / unblock all from panel (only when a panel is selected)
+            if tSelectedPanel then
+                pressed = tImGui.MenuItem(string.format(tLang.L("select_all_from_panel"), tSelectedPanel.name))
+                if pressed then
+                    onUnSelectAll()
+                    for _, o in ipairs(tSelectedPanel.objects) do
+                        if not o.isBlocked and o.visible then
+                            setSelectedObj(o, true)
+                        end
+                    end
+                end
+                pressed = tImGui.MenuItem(string.format(tLang.L("unblock_all_from_panel"), tSelectedPanel.name))
+                if pressed then
+                    for _, o in ipairs(tSelectedPanel.objects) do
+                        o.isBlocked = false
+                    end
+                end
+            end
+
+            -- Block / unblock selected objects
+            pressed = tImGui.MenuItem(tLang.L("block_selected"))
+            if pressed then
+                for _, o in ipairs(tSelectedObjs) do
+                    o.isBlocked = true
+                    o.tShape.visible = false
+                end
+            end
+            pressed = tImGui.MenuItem(tLang.L("unblock_selected"))
+            if pressed then
+                for _, o in ipairs(tSelectedObjs) do
+                    o.isBlocked = false
+                end
+            end
+
+            tImGui.Separator()
             pressed = tImGui.MenuItem(tLang.L("view_mesh_list"), 'Ctrl+L', false)
             if pressed then bShowMeshList = true end
 
@@ -4560,6 +4642,40 @@ showSceneContextMenu = function()
                 tImGui.EndMenu()
             end
 
+            tImGui.Separator()
+
+            -- Select / unblock all from the same panel
+            local sPanelName = tObj.panelRef and tObj.panelRef.name or nil
+            if sPanelName then
+                if tImGui.MenuItem(string.format(tLang.L("select_all_from_panel"), sPanelName)) then
+                    onUnSelectAll()
+                    for _, o in ipairs(tObj.panelRef.objects) do
+                        if not o.isBlocked and o.visible then
+                            setSelectedObj(o, true)
+                        end
+                    end
+                    tImGui.CloseCurrentPopup()
+                    tCtxMenuObj = nil
+                end
+                if tImGui.MenuItem(string.format(tLang.L("unblock_all_from_panel"), sPanelName)) then
+                    for _, o in ipairs(tObj.panelRef.objects) do
+                        o.isBlocked = false
+                    end
+                    tImGui.CloseCurrentPopup()
+                    tCtxMenuObj = nil
+                end
+            end
+
+            -- Block / unblock selected objects
+            if tImGui.MenuItem(tLang.L("block_selected")) then
+                for _, o in ipairs(tSelectedObjs) do
+                    o.isBlocked = true
+                    o.tShape.visible = false
+                end
+                tImGui.CloseCurrentPopup()
+                tCtxMenuObj = nil
+            end
+            
             tImGui.Separator()
 
             -- Duplicate
