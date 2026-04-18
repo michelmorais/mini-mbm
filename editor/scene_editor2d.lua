@@ -4414,6 +4414,13 @@ end
 
 function onKeyDown(key)
     if cCoroutineLoadScene then return end
+    if key == mbm.getKeyCode('esc') or mbm.getKeyName(key) == 'ESCAPE' then
+        onUnSelectAll()
+        tSelectedPanel = nil
+        updatePanelVisuals()
+        tCtxMenuObj=nil
+        tInlineTextEdit = nil
+    end
     if tCtxMenuObj then return end
     if tInlineTextEdit then return end
     if key == mbm.getKeyCode('control') then
@@ -4445,10 +4452,6 @@ function onKeyDown(key)
         end
     elseif key == mbm.getKeyCode('F5') then
         onPlay()
-    elseif key == mbm.getKeyCode('esc') or mbm.getKeyName(key) == 'ESCAPE' then
-        onUnSelectAll()
-        tSelectedPanel = nil
-        updatePanelVisuals()
     elseif key == mbm.getKeyCode('up') or key == mbm.getKeyCode('W') then
         tManuallyMoveCam = {x = 0, y = 1}
     elseif key == mbm.getKeyCode('down') or key == mbm.getKeyCode('S') then
@@ -4560,7 +4563,7 @@ showSceneContextMenu = function()
             tImGui.Separator()
 
             -- Duplicate
-            if tImGui.MenuItem(tLang.L("duplicate_last_mesh")) then
+            if tImGui.MenuItem(tLang.L("duplicate_mesh")) then
                 onUnSelectAll()
                 setSelectedObj(tObj, true)
                 onDuplicated()
