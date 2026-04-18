@@ -776,7 +776,25 @@ end
 
 
 tUtil.newInstance = function(width, height, expected_width, expected_height, sFileNameScene)
-    local exe       = mbm.get('Exe Name')
+    local exe = mbm.get('Exe Name')
+    if mbm.is('Windows') then
+        -- Windows: use exe name as-is
+    elseif mbm.is('Linux') then
+        -- In the shell spawned by io.popen, $PPID is the PID of the mini-mbm process.
+        -- readlink /proc/$PPID/exe resolves to the absolute path of the mini-mbm binary.
+        local f = io.popen('readlink /proc/$PPID/exe')
+        if f then
+            local resolved = f:read('*l')
+            f:close()
+            if resolved and resolved:len() > 0 then
+                exe = resolved
+            end
+        end
+    else
+        -- macOS: normalise underscores→hyphens as best-effort
+        local dir, base = exe:match('^(.*/)([^/]+)$')
+        exe = dir and (dir .. base:gsub('_', '-')) or exe:gsub('_', '-')
+    end
     sFileNameScene  = sFileNameScene:gsub("\\","/")
     local irw,irh   = mbm.getDisplayMetrics()
     if irw > 0 and irh > 0 and (width > irw or height > irh) then
@@ -796,7 +814,27 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
             print('resize to ',width,height)
         end
     end
-    local command        = string.format('%s -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene %q --name %q',exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    local command
+    if mbm.is('Windows') then
+        -- Windows: use exe name as-is with console window
+        command = string.format('%q -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene %q --name %q',
+            exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    else
+        -- Close all inherited file descriptors > 2 before exec'ing mini-mbm.
+        -- The editor holds an X11 display socket (e.g. fd 7). If the child inherits it
+        -- and closes it on exit, the X11 server sees EOF on the editor's connection and
+        -- destroys all of its windows → BadWindow error → editor loses its window.
+        -- Iterating /proc/self/fd (Linux) or /dev/fd (macOS) closes every inherited fd
+        -- above stderr before exec, so mini-mbm starts with a clean fd table.
+        local fd_dir  = mbm.is('Linux') and '/proc/self/fd' or '/dev/fd'
+        local exe_q   = string.format('%q', exe)
+        local scene_q = string.format('%q', sFileNameScene)
+        local name_q  = string.format('%q', tUtil.getShortName(sFileNameScene))
+        command = string.format(
+            [[sh -c 'for fd in $(ls %s 2>/dev/null); do [ "$fd" -gt 2 ] 2>/dev/null && eval "exec ${fd}>&-" 2>/dev/null; done; exec "$@" </dev/null >/dev/null 2>&1' -- %s -w %d -h %d -ew %d -eh %d --nosplash --scene %s --name %s &]],
+            fd_dir, exe_q, width, height, expected_width, expected_height, scene_q, name_q)
+    end
+    print('Launching:', command)
     mbm.executeInThread(command)
     tUtil.showMessage(tLang.L("command_executed"))
 end
