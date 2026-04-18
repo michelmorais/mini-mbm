@@ -15,42 +15,47 @@ tUtil.tColorBackground = {r=37/255,g=37/255,b=37/255}
 mbm.setColor(tUtil.tColorBackground.r,tUtil.tColorBackground.g,tUtil.tColorBackground.b)
 
 
-tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width)-- from rigth to left (so x must be <= 0)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+tUtil.setInitialWindowPositionRight = function(title,x,y,width,max_width, max_height)-- from right to left (so x must be <= 0)
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = iW - width + x,y = iMenuBarHeight + y }
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = iH - iMenuBarHeight})
-        tImGui.SetNextWindowSize({x = width, y = iH - iMenuBarHeight},tImGui.Flags('ImGuiCond_Always'))
+        local win_height                = max_height or (iH - iMenuBarHeight - y)
+        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
         tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
     end
 end
 
-tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width)-- from left to left (so x must be >= 0)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+tUtil.setInitialWindowPositionLeft = function(title,x,y,width,max_width, max_height)-- from left to left (so x must be >= 0)
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x = x,y = iMenuBarHeight + y }
-        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = iH - iMenuBarHeight})
+        local win_height                = max_height or (iH - iMenuBarHeight - y)
+        tImGui.SetNextWindowSizeConstraints({x = width,y = math.min(iH - iMenuBarHeight,width)}, {x = max_width or iW,y = win_height})
         tImGui.SetNextWindowPos(tPosWin , tImGui.Flags( 'ImGuiCond_Always'))
-        tImGui.SetNextWindowSize({x = width, y = iH - iMenuBarHeight},tImGui.Flags('ImGuiCond_Always'))
+        tImGui.SetNextWindowSize({x = width, y = win_height},tImGui.Flags('ImGuiCond_Always'))
     end
 end
 
 tUtil.setInitialWindowPositionDown = function(title,xStart,YPercentage,xRight)
-    if tUtil.iCountsetInitialWindowPosition[title] == nil then
-        tUtil.iCountsetInitialWindowPosition[title] = 0
+    local strTitleLanguage = string.format("%s-%s", title, tLang.getLanguage())
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] == nil then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = 0
     end
-    if tUtil.iCountsetInitialWindowPosition[title] <= 3 then
-        tUtil.iCountsetInitialWindowPosition[title] = tUtil.iCountsetInitialWindowPosition[title] + 1
+    if tUtil.iCountsetInitialWindowPosition[strTitleLanguage] <= 3 then
+        tUtil.iCountsetInitialWindowPosition[strTitleLanguage] = tUtil.iCountsetInitialWindowPosition[strTitleLanguage] + 1
         local iMenuBarHeight            = tImGui.GetMainMenuBarHeight()
         local iW, iH                    = mbm.getRealSizeScreen()
         local tPosWin                   = {x=xStart,y=iH - (YPercentage * iH)}
@@ -636,6 +641,9 @@ tUtil.onAddMeshToEditor = function(fileName,insertIntoCenter,_2d_3d,sText)
 			tMesh = tFont:add(sText or "My text",_2d_3d)
 			tMesh.tFont = tFont
 			tMesh.sText = sText or 'My text'
+			tMesh.heightFont      = heightFont
+			tMesh.spaceFont       = spaceFont
+			tMesh.spaceHeightFont = spaceHeightFont
 		elseif tInfo.type == "texture" then
 			if tInfo.ext == 'GIF' then
 				tMesh = gif:new(_2d_3d)
@@ -701,8 +709,13 @@ tUtil.setShapeToMesh = function(tObj)
         tObj.setScale_engine = tObj.setScale
         tObj.setScale = function (self,sx,sy,sz)
             self:setScale_engine(sx or self.sx, sy or self.sy, sz or self.sz)
-            local w,h,d = self:getSize()
+            local w,h,d = self:getSize(true)
             self.tShape:setScale(w,h,d or 1)
+            -- For font objects, the shape center must be repositioned after scale changes
+            -- because font origin is top-left: shape center = (x + w/2, y - h/2).
+            if self.type == 'font' then
+                self.tShape:setPos(self.x + w * 0.5, self.y - h * 0.5, self.z - 1)
+            end
         end
 
         tObj.setAngle_engine = tObj.setAngle
@@ -763,7 +776,36 @@ end
 
 
 tUtil.newInstance = function(width, height, expected_width, expected_height, sFileNameScene)
-    local exe       = mbm.get('Exe Name')
+    local exe = mbm.get('Exe Name')
+    if mbm.is('Windows') then
+        -- Windows: use exe name as-is
+    elseif mbm.is('Linux') then
+        -- In the shell spawned by io.popen, $PPID is the PID of the mini-mbm process.
+        -- readlink /proc/$PPID/exe resolves to the absolute path of the mini-mbm binary.
+        local f = io.popen('readlink /proc/$PPID/exe')
+        if f then
+            local resolved = f:read('*l')
+            f:close()
+            if resolved and resolved:len() > 0 then
+                exe = resolved
+            end
+        end
+    else
+        -- macOS: lsof -p $PPID resolves the full path of the running binary;
+        -- the 'txt' type entry is the executable text segment.
+        local f = io.popen('lsof -p $PPID 2>/dev/null | awk \'/ txt /{print $NF; exit}\'')
+        if f then
+            local resolved = f:read('*l')
+            f:close()
+            if resolved and resolved:len() > 0 then
+                exe = resolved
+            else
+                -- fallback: normalise underscores→hyphens
+                local dir, base = exe:match('^(.*/)([^/]+)$')
+                exe = dir and (dir .. base:gsub('_', '-')) or exe:gsub('_', '-')
+            end
+        end
+    end
     sFileNameScene  = sFileNameScene:gsub("\\","/")
     local irw,irh   = mbm.getDisplayMetrics()
     if irw > 0 and irh > 0 and (width > irw or height > irh) then
@@ -783,7 +825,29 @@ tUtil.newInstance = function(width, height, expected_width, expected_height, sFi
             print('resize to ',width,height)
         end
     end
-    local command        = string.format('%s -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene %q --name %q',exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    local command
+    if mbm.is('Windows') then
+        -- Use "start" so the command passed to cmd.exe /c does NOT begin with a
+        -- double-quote.  When the first token IS a quoted string, cmd.exe strips
+        -- the leading and trailing quote from the whole command line, mangling
+        -- paths.  "start" is a cmd-builtin that accepts an empty window-title
+        -- ("") followed by a quoted executable path, bypassing that quirk.
+        -- %q must NOT be used here: it adds Lua backslash escaping (C:\foo ->
+        -- "C:\\foo") which makes Windows reject the path with ERROR_INVALID_NAME.
+        command = string.format('"%s" -w %d -h %d -ew %d -eh %d --showConsole --nosplash --scene "%s" --name "%s"',
+            exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    elseif mbm.is('Linux') then
+        -- The X11 socket is now marked FD_CLOEXEC in C++ (initializeWindowx11), so the
+        -- child process never inherits it. Use setsid to put mini-mbm in a new session
+        -- (detached from the terminal) and & to return immediately from system().
+        command = string.format('setsid %q -w %d -h %d -ew %d -eh %d --nosplash --scene %q --name %q &',
+            exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    else
+        -- macOS: setsid is not available; just background the process with &
+        command = string.format('%q -w %d -h %d -ew %d -eh %d --nosplash --scene %q --name %q &',
+            exe, width, height, expected_width, expected_height, sFileNameScene, tUtil.getShortName(sFileNameScene))
+    end
+    print('Launching:', command)
     mbm.executeInThread(command)
     tUtil.showMessage(tLang.L("command_executed"))
 end

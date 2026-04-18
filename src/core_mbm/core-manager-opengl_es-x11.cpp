@@ -33,6 +33,7 @@
 #include <cassert>
 #include <thread>
 #include <unistd.h>
+#include <fcntl.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
@@ -184,10 +185,52 @@ namespace mbm
         return true;
     }
 
+    // Internal helper: returns the X11 display socket fd, or -1.
+    // Defined here (not in the header) because it is X11-specific.
+    int getX11DisplayFd() noexcept
+    {
+        DEVICE* dev = DEVICE::getInstance();
+        if (dev && dev->specificContextDevice && dev->specificContextDevice->display_x11)
+            return ConnectionNumber(dev->specificContextDevice->display_x11);
+        return -1;
+    }
+
+    // Xlib error handler: BadWindow / BadDrawable are transient and expected when windows
+    // are destroyed concurrently (e.g. after the child game process closes). Log them but
+    // do NOT call exit() so the editor can survive.
+    static int x11ErrorHandler(Display *dpy, XErrorEvent *e)
+    {
+        char msg[256] = {};
+        XGetErrorText(dpy, e->error_code, msg, sizeof(msg));
+        // BadWindow (3) and BadDrawable (9) are harmless transient errors
+        if (e->error_code == BadWindow || e->error_code == BadDrawable)
+        {
+            INFO_LOG("X11 non-fatal: %s (code %d) on resource 0x%lx serial %lu",
+                     msg, static_cast<int>(e->error_code),
+                     static_cast<unsigned long>(e->resourceid),
+                     static_cast<unsigned long>(e->serial));
+            return 0;
+        }
+        ERROR_LOG("X11 error: %s (code %d) on resource 0x%lx serial %lu",
+                  msg, static_cast<int>(e->error_code),
+                  static_cast<unsigned long>(e->resourceid),
+                  static_cast<unsigned long>(e->serial));
+        return 0; // still don't abort; let the engine handle it
+    }
+
     bool CORE_MANAGER::initializeWindowx11()
     {
         if(this->device->specificContextDevice->display_x11 == nullptr)
         {
+            // Enable Xlib multi-threading before opening the display.
+            // Required because execute_system_cmd_thread uses a background thread
+            // that calls posix_spawnp while the main thread makes X11 calls.
+            XInitThreads();
+
+            // Install a custom error handler that logs BadWindow/BadDrawable without
+            // aborting. These are transient and normal for long-running X11 apps.
+            XSetErrorHandler(x11ErrorHandler);
+
             char * dpyName = nullptr;
             this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
             if(this->device->specificContextDevice->display_x11 == nullptr)
@@ -195,6 +238,9 @@ namespace mbm
                 ERROR_LOG("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
                 return false;
             }
+            // Mark the X11 socket close-on-exec so child processes created via posix_spawn
+            // never inherit it even during the brief fork\u2192exec window.
+            fcntl(ConnectionNumber(this->device->specificContextDevice->display_x11), F_SETFD, FD_CLOEXEC);
             XFlush(this->device->specificContextDevice->display_x11);
         }
         else

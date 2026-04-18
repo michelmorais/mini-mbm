@@ -131,11 +131,7 @@ void printGLStringNewLine(const char *name, GLenum s, const char delimit)
         
         // Update the viewport to the new dimensions
         GLViewport(0, 0, newWidth, newHeight);
-#if defined _DEBUG || defined DEBUG
-        return false;
-#else
         return true;
-#endif
     }
 
     bool CORE_MANAGER::beginRender()
