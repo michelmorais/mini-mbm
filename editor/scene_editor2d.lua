@@ -3693,23 +3693,15 @@ end
 
 -- ── Export clean game scene (*.gui.lua) ────────────────────────────────────
 
-local function onExportGameScene()
-    -- derive the export default: stage-select.gui-edit.lua → stage-select.gui.lua
-    local exportDefault = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
-    if exportDefault == sLastEditorFileName then
-        -- fallback for files not following the convention
-        exportDefault = sLastEditorFileName:gsub('%.lua$', '.gui.lua')
-    end
-    local fileName = mbm.saveFile(exportDefault, '*.gui.lua')
-    if not fileName then return end
-
+-- Writes the current scene to `fileName` without any file dialog.
+-- Returns true on success, or false + error-message string on failure.
+local function writeGuiScene(fileName)
     local oldLocaleNumeric = os.setlocale(nil, 'numeric')
     os.setlocale('C', 'numeric')
     local fp = io.open(fileName, "w")
     if not fp then
         os.setlocale(oldLocaleNumeric, 'numeric')
-        tUtil.showMessageWarn(string.format(tLang.L("could_not_open_for_write_fmt"), fileName))
-        return
+        return false, string.format(tLang.L("could_not_open_for_write_fmt"), fileName)
     end
 
     fp:write(getHeader(fileName))
@@ -3783,6 +3775,42 @@ local function onExportGameScene()
     fp:write(getSceneLoaderCode(tOptionsEditor.fSceneCamPos.x, tOptionsEditor.fSceneCamPos.y, tOptionsEditor.sScaleAxis))
     fp:close()
     os.setlocale(oldLocaleNumeric, 'numeric')
+    return true
+end
+
+-- Returns a stable OS temp-dir path for the play-preview export (cross-platform).
+local function getTempGuiFile()
+    local sep = package.config:sub(1, 1)  -- '\\' on Windows, '/' elsewhere
+    local tmpDir
+    if sep == '\\' then
+        tmpDir = os.getenv('TEMP') or os.getenv('TMP') or 'C:\\Temp'
+    else
+        tmpDir = os.getenv('TMPDIR') or '/tmp'
+    end
+    local baseName = 'mbm_preview.gui.lua'
+    if sLastEditorFileName and sLastEditorFileName:len() > 0 then
+        local short = tUtil.getShortName(sLastEditorFileName, false)
+        short = short:gsub('%.gui%-edit%.lua$', ''):gsub('%.lua$', '')
+        baseName = short .. '_preview.gui.lua'
+    end
+    return tmpDir .. sep .. baseName
+end
+
+local function onExportGameScene()
+    -- derive the export default: stage-select.gui-edit.lua → stage-select.gui.lua
+    local exportDefault = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
+    if exportDefault == sLastEditorFileName then
+        -- fallback for files not following the convention
+        exportDefault = sLastEditorFileName:gsub('%.lua$', '.gui.lua')
+    end
+    local fileName = mbm.saveFile(exportDefault, '*.gui.lua')
+    if not fileName then return end
+
+    local ok, err = writeGuiScene(fileName)
+    if not ok then
+        tUtil.showMessageWarn(err)
+        return
+    end
     tUtil.showMessage(string.format(tLang.L("scene_exported_ok_fmt"), fileName))
 end
 
@@ -3832,11 +3860,20 @@ local function onPlay()
     end
 
     if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
+        print('Executing script for play:', tOptionsEditor.sCurrentScriptExecution)
         tUtil.newInstance(width, height, expected_width, expected_height, tOptionsEditor.sCurrentScriptExecution)
     else
-        -- Derive the exported scene name from the editor file (*.gui-edit.lua → *.gui.lua)
-        local sRunFile = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
-        tUtil.newInstance(width, height, expected_width, expected_height, sRunFile)
+        -- No custom script: export the current scene to a temp file and play that.
+        -- This always works even if the user has never done an explicit Export.
+        local sTmpFile = getTempGuiFile()
+        print('No script set for play, exporting to temp file:', sTmpFile)
+        local ok, err = writeGuiScene(sTmpFile)
+        if not ok then
+            tUtil.showMessageWarn(err or 'Failed to write temporary play file')
+            return
+        end
+        print('Launching:', sTmpFile)
+        tUtil.newInstance(width, height, expected_width, expected_height, sTmpFile)
     end
 end
 
