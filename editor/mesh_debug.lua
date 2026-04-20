@@ -553,6 +553,20 @@ function showMeshOptions(tEntry, index)
     local nAnim = info.animation or 0
     if tImGui.TreeNodeEx(tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
+            -- Build animation name list for the combo box
+            if nAnim > 0 then
+                local tAnimNames = {}
+                for i = 1, nAnim do
+                    local ok, aName = pcall(function() return meshD:getAnim(i) end)
+                    tAnimNames[i] = (ok and aName and aName ~= '') and aName or ('Anim ' .. i)
+                end
+                tEntry.iSelectedAnim = tEntry.iSelectedAnim or 1
+                local changed, newIdx = tImGui.Combo(tLang.L("animation") .. '##animSel-' .. index, tEntry.iSelectedAnim, tAnimNames, -1)
+                if changed and newIdx and newIdx >= 1 and newIdx <= nAnim then
+                    tEntry.iSelectedAnim = newIdx
+                    pcall(function() tPreviewMesh:setAnim(newIdx) end)
+                end
+            end
             if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
                 pcall(function() tPreviewMesh:restartAnim() end)
             end
