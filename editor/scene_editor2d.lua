@@ -4585,14 +4585,16 @@ function onKeyDown(key)
         end
     elseif key == mbm.getKeyCode('F5') then
         onPlay()
-    elseif key == mbm.getKeyCode('up') or key == mbm.getKeyCode('W') then
-        tManuallyMoveCam = {x = 0, y = 1}
-    elseif key == mbm.getKeyCode('down') or key == mbm.getKeyCode('S') then
-        tManuallyMoveCam = {x = 0, y = -1}
-    elseif key == mbm.getKeyCode('left') or key == mbm.getKeyCode('A') then
-        tManuallyMoveCam = {x = -1, y = 0}
-    elseif key == mbm.getKeyCode('right') or key == mbm.getKeyCode('D') then
-        tManuallyMoveCam = {x = 1, y = 0}
+    elseif not tImGui.IsAnyWindowHovered() then
+        if key == mbm.getKeyCode('up') or key == mbm.getKeyCode('W') then
+            tManuallyMoveCam = {x = 0, y = 1}
+        elseif key == mbm.getKeyCode('down') or key == mbm.getKeyCode('S') then
+            tManuallyMoveCam = {x = 0, y = -1}
+        elseif key == mbm.getKeyCode('left') or key == mbm.getKeyCode('A') then
+            tManuallyMoveCam = {x = -1, y = 0}
+        elseif key == mbm.getKeyCode('right') or key == mbm.getKeyCode('D') then
+            tManuallyMoveCam = {x = 1, y = 0}
+        end
     end
 end
 
