@@ -2930,7 +2930,8 @@ local function getHeader(fileName)
 
 ]] .. "]]\n\n"
     sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false))
-    sHeader = sHeader:gsub('%.lua', '')
+    sHeader = sHeader:gsub('%.gui%-edit%.lua', '')
+    sHeader = sHeader:gsub('%.gui%.lua', '')
     return sHeader
 end
 
@@ -3546,11 +3547,11 @@ end
 
 local function onSaveSceneEditor()
     if sLastEditorFileName:len() == 0 then
-        local fileName = mbm.saveFile(sLastEditorFileName, '*.gui.lua')
+        local fileName = mbm.saveFile(sLastEditorFileName, '*.gui-edit.lua')
         if fileName then
-            -- ensure the file always carries the .gui.lua extension
-            if not fileName:match('%.gui%.lua$') then
-                fileName = fileName:gsub('%.lua$', '') .. '.gui.lua'
+            -- ensure the file always carries the .gui-edit.lua extension
+            if not fileName:match('%.gui%-edit%.lua$') then
+                fileName = fileName:gsub('%.lua$', '') .. '.gui-edit.lua'
             end
             if onSaveScene(fileName) then
                 sLastEditorFileName = fileName
@@ -3595,7 +3596,7 @@ local function rebuildPanelsFromData(tSavedPanels, parent)
 end
 
 local function onLoadScene()
-    local fileName = mbm.openFile(sLastEditorFileName, "*.gui.lua")
+    local fileName = mbm.openFile(sLastEditorFileName, "*.gui-edit.lua")
     if fileName then
         onNewSceneEditor()
         local tScene = dofile(fileName)
@@ -3690,12 +3691,16 @@ local function onLoadScene()
     end
 end
 
--- ── Export clean game scene (.scene.lua) ─────────────────────────────────────
+-- ── Export clean game scene (*.gui.lua) ────────────────────────────────────
 
 local function onExportGameScene()
-    -- strip .gui from the editor filename so the export dialog defaults to e.g. "test.lua"
-    local exportDefault = sLastEditorFileName:gsub('%.gui%.lua$', '.lua')
-    local fileName = mbm.saveFile(exportDefault, '*.lua')  -- exported game scene stays *.lua
+    -- derive the export default: stage-select.gui-edit.lua → stage-select.gui.lua
+    local exportDefault = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
+    if exportDefault == sLastEditorFileName then
+        -- fallback for files not following the convention
+        exportDefault = sLastEditorFileName:gsub('%.lua$', '.gui.lua')
+    end
+    local fileName = mbm.saveFile(exportDefault, '*.gui.lua')
     if not fileName then return end
 
     local oldLocaleNumeric = os.setlocale(nil, 'numeric')
@@ -3829,7 +3834,9 @@ local function onPlay()
     if tOptionsEditor.sCurrentScriptExecution and tOptionsEditor.sCurrentScriptExecution:len() > 0 then
         tUtil.newInstance(width, height, expected_width, expected_height, tOptionsEditor.sCurrentScriptExecution)
     else
-        tUtil.newInstance(width, height, expected_width, expected_height, sLastEditorFileName)
+        -- Derive the exported scene name from the editor file (*.gui-edit.lua → *.gui.lua)
+        local sRunFile = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
+        tUtil.newInstance(width, height, expected_width, expected_height, sRunFile)
     end
 end
 
