@@ -3392,6 +3392,13 @@ tScene.reflow = (
                     local ey = cr.y + (tInfo.anchorY or 0.5)*cr.h
                     if tInfo.isRestrictedToPanel ~= false then
                         local ow, oh = tMesh:getSize()
+                        -- Use analytical extents when size anchors are defined.
+                        -- This mirrors reflowPanelObjects() in the editor: for font objects
+                        -- especially, getSize() may return stale values after setScale because
+                        -- fonts need forceCalcSize() (triggered by getSize(true)) to refresh.
+                        -- The sizeAnchor fractions give the exact intended rendered dimensions.
+                        if tInfo.sizeAnchorW then ow = tInfo.sizeAnchorW * cr.w end
+                        if tInfo.sizeAnchorH then oh = tInfo.sizeAnchorH * cr.h end
                         local isFont = tInfo.type == "font"
                         local le = isFont and 0  or ow*0.5
                         local re = isFont and ow or ow*0.5
