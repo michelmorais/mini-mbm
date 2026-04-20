@@ -2931,7 +2931,7 @@ local function getHeader(fileName)
 ]] .. "]]\n\n"
     sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false))
     sHeader = sHeader:gsub('%.gui%-edit%.lua', '')
-    sHeader = sHeader:gsub('%.gui%.lua', '')
+    sHeader = sHeader:gsub('%-gui%.lua', '')
     return sHeader
 end
 
@@ -3691,7 +3691,7 @@ local function onLoadScene()
     end
 end
 
--- ── Export clean game scene (*.gui.lua) ────────────────────────────────────
+-- ── Export clean game scene (*-gui.lua) ────────────────────────────────────
 
 -- Writes the current scene to `fileName` without any file dialog.
 -- Returns true on success, or false + error-message string on failure.
@@ -3797,13 +3797,13 @@ local function getTempGuiFile()
 end
 
 local function onExportGameScene()
-    -- derive the export default: stage-select.gui-edit.lua → stage-select.gui.lua
-    local exportDefault = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '.gui.lua')
+    -- derive the export default: stage-select.gui-edit.lua → stage-select-gui.lua
+    local exportDefault = sLastEditorFileName:gsub('%.gui%-edit%.lua$', '-gui.lua')
     if exportDefault == sLastEditorFileName then
         -- fallback for files not following the convention
-        exportDefault = sLastEditorFileName:gsub('%.lua$', '.gui.lua')
+        exportDefault = sLastEditorFileName:gsub('%.lua$', '') .. '-gui.lua'
     end
-    local fileName = mbm.saveFile(exportDefault, '*.gui.lua')
+    local fileName = mbm.saveFile(exportDefault, '*-gui.lua')
     if not fileName then return end
 
     local ok, err = writeGuiScene(fileName)
