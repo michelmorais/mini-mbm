@@ -1984,6 +1984,20 @@ assignObjectToPanel = function(tObj, panel)
     end
 end
 
+--- Compute the Z for the next brand-new object: one step in front of all existing
+--- scene objects. Returns 0 when the scene is empty; decrements by 0.01 otherwise.
+local function getNextFrontZ()
+    local minZ = 0
+    local found = false
+    for _, obj in ipairs(tAllMesh) do
+        if not found or obj.z < minZ then
+            minZ  = obj.z
+            found = true
+        end
+    end
+    return found and (minZ - 0.01) or 0
+end
+
 --- Add a loaded mesh object into the editor tracking lists
 local function initialSetUpForAddedMesh(tObj)
     table.insert(tAllMesh, tObj)
@@ -2034,7 +2048,9 @@ onAddMesh = function()
         if type(fileName) == 'string' then
             local tMeshTmp = tUtil.onAddMeshToEditor(fileName, true, "2dw")
             if tMeshTmp then
+                local newZ = getNextFrontZ()
                 initialSetUpForAddedMesh(tMeshTmp)
+                tMeshTmp:setPos(tMeshTmp.x, tMeshTmp.y, newZ)
                 bShowMeshList = true
                 sLastMeshAdd  = fileName
             else
@@ -2045,10 +2061,12 @@ onAddMesh = function()
             for i = 1, #fileName do
                 local tMeshTmp = tUtil.onAddMeshToEditor(fileName[i], true, "2dw")
                 if tMeshTmp then
+                    local newZ = getNextFrontZ()
                     tMeshTmp.x = tMeshTmp.x + width
                     local w, h = tMeshTmp:getSize()
                     width = width + w
                     initialSetUpForAddedMesh(tMeshTmp)
+                    tMeshTmp:setPos(tMeshTmp.x, tMeshTmp.y, newZ)
                     sLastMeshAdd  = fileName[i]
                     bShowMeshList = true
                 else
@@ -2081,6 +2099,23 @@ onDuplicated = function()
                 if tObj.panelRef then
                     assignObjectToPanel(tMeshTmp, tObj.panelRef)
                 end
+                -- Position to the right of source; one Z step in front
+                local ow = tObj:getSize()
+                local dw = tMeshTmp:getSize()
+                local newX
+                if tObj.type == "font" then
+                    newX = tObj.x + ow
+                else
+                    newX = tObj.x + ow * 0.5 + dw * 0.5
+                end
+                tMeshTmp:setPos(newX, tObj.y, tObj.z - 0.01)
+                if tMeshTmp.panelRef and tMeshTmp.panelRef._rect then
+                    local r = tMeshTmp.panelRef._rect
+                    if r.w > 0 and r.h > 0 then
+                        tMeshTmp.anchorX = (newX - r.x) / r.w
+                        tMeshTmp.anchorY = (tObj.y - r.y) / r.h
+                    end
+                end
                 sLastMeshAdd = tObj.fileName
             end
         end
@@ -2104,6 +2139,23 @@ onDuplicated = function()
             initialSetUpForAddedMesh(tMeshTmp)
             if tLastMeshAdded.panelRef then
                 assignObjectToPanel(tMeshTmp, tLastMeshAdded.panelRef)
+            end
+            -- Position to the right of source; one Z step in front
+            local ow = tLastMeshAdded:getSize()
+            local dw = tMeshTmp:getSize()
+            local newX
+            if tLastMeshAdded.type == "font" then
+                newX = tLastMeshAdded.x + ow
+            else
+                newX = tLastMeshAdded.x + ow * 0.5 + dw * 0.5
+            end
+            tMeshTmp:setPos(newX, tLastMeshAdded.y, tLastMeshAdded.z - 0.01)
+            if tMeshTmp.panelRef and tMeshTmp.panelRef._rect then
+                local r = tMeshTmp.panelRef._rect
+                if r.w > 0 and r.h > 0 then
+                    tMeshTmp.anchorX = (newX - r.x) / r.w
+                    tMeshTmp.anchorY = (tLastMeshAdded.y - r.y) / r.h
+                end
             end
             tUtil.showMessage(tLang.L("mesh_duplicated"))
         end
