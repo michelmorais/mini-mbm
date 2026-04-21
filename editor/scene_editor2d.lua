@@ -18,18 +18,32 @@
 |                                                                                                                        |
 |------------------------------------------------------------------------------------------------------------------------|
 
-   Scene Editor 2D — Grid / Panel Based Layout
+   Scene Editor 2D — Resolution-Independent Grid / Panel Layout
 
-   This editor lives entirely in 2dw world-space; 
-   the resolution rectangle is a layout guide only, not a simulated viewport.
-        - Panels are defined by world-space rects, either anchored to parent (2ds) or absolute (2dw).
-        - Objects are parented to panels and anchored within them, with optional clamping to stay inside.
-        - Panels can be nested to create complex layouts, with visual cues for depth.
-        - Objects can be freely moved or resized; anchors and clamping keep them organized within panels.
-        - The editor supports resolution-independent design: change the resolution and panels/objects reflow according to their anchors.
+   During editing, ALL engine objects (panels, assets, visual handles) are created
+   in 2dw world-space.  The "2ds" / "2dw" distinction is metadata only:
+
+     • 2dw objects  — absolute world-space position/scale; unaffected by resolution changes.
+     • 2ds objects  — exported as obj:new("2ds") at runtime; position is anchored relative
+                      to a panel or to the resolution rect so the layout adapts to different
+                      screen sizes.
+
+   The resolution rectangle visible in the editor is a layout guide, NOT a simulated viewport.
+   No scaleToScreen() is called in the editor; that happens only at runtime inside the exported
+   tScene.updateCamera() / tScene.reflow().
+
+   Panels:
+     • "2ds" panels  — position computed from normalized anchors of their parent rect;
+                       reflow when the target resolution changes.
+     • "2dw" panels  — fixed world position + size; do not reflow.
+     • Objects inside a panel store normalized anchor coordinates and are repositioned
+       (and optionally clamped) whenever the panel rect changes.
+
+   Free 2ds objects (no panel, isRelative2ds=true):
+     — Position and scale are stored as fractions of the resolution rect and remapped
+       proportionally when the expected resolution changes.
+
    This is a script based on mbm engine.
-
-   Scene Editor 2D with grid/panel system for resolution-independent 2D scene layout.
 
    More info at: https://mbm-documentation.readthedocs.io/en/latest/editors.html#scene-editor-2d
 
