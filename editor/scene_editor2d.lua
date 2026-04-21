@@ -1729,6 +1729,30 @@ showTransformQuick = function()
             end
         end
 
+        -- ── Font WildCard & Align ─────────────────────────────────────────────
+        if tObj.type == "font" then
+            tImGui.Separator()
+            tImGui.Text(tLang.L("text_wildcard"))
+            local wlabel   = "##tq_wildcard" .. tObj.iIndex
+            local wmodified, sNewWC = tImGui.InputText(wlabel, tObj.wildCard or "", 0)
+            if wmodified then
+                local sChar = sNewWC:sub(1, 1)
+                tObj.wildCard = sChar
+                if #sChar > 0 then tObj:setWildCard(sChar) end
+            end
+            tImGui.Text(tLang.L("text_align"))
+            local tAligns     = {"left", "center", "right"}
+            local iAlignIndex = 1
+            for ai, av in ipairs(tAligns) do
+                if av == (tObj.align or "left") then iAlignIndex = ai; break end
+            end
+            local alabel = "##tq_align" .. tObj.iIndex
+            local aret, newAlignIdx = tImGui.Combo(alabel, iAlignIndex, tAligns)
+            if aret then
+                tObj.align = tAligns[newAlignIdx]
+            end
+        end
+
         -- ── Block the object  ─────────────────────────────────────────────────────────
         tObj.isBlocked = tImGui.Checkbox(tLang.L("blocked") .. '##' .. tObj.iIndex, tObj.isBlocked)
 
@@ -2770,6 +2794,28 @@ local function treeNodeText(tObj)
                 local w, h, d = tObj:getSize(sNewText)
                 tObj.tShape:setScale(w, h, d or 1)
             end
+            -- ── WildCard & Align (font objects only) ──────────────────────────
+            if tObj.type == "font" then
+                tImGui.Text(tLang.L("text_wildcard"))
+                local wlabel = string.format("##Font-WildCard-%d", tObj.iIndex)
+                local wmodified, sNewWC = tImGui.InputText(wlabel, tObj.wildCard or "", 0)
+                if wmodified then
+                    local sChar = sNewWC:sub(1, 1)
+                    tObj.wildCard = sChar
+                    if #sChar > 0 then tObj:setWildCard(sChar) end
+                end
+                tImGui.Text(tLang.L("text_align"))
+                local tAligns     = {"left", "center", "right"}
+                local iAlignIndex = 1
+                for ai, av in ipairs(tAligns) do
+                    if av == (tObj.align or "left") then iAlignIndex = ai; break end
+                end
+                local alabel = string.format("##Font-Align-%d", tObj.iIndex)
+                local aret, newAlignIdx = tImGui.Combo(alabel, iAlignIndex, tAligns)
+                if aret then
+                    tObj.align = tAligns[newAlignIdx]
+                end
+            end
             tImGui.TreePop()
         end
     end
@@ -3046,6 +3092,8 @@ local function getFontParams4Save(tObj)
         if tObj.heightFont      then s = s .. string.format(',heightFont=%g',      tObj.heightFont)      end
         if tObj.spaceFont       then s = s .. string.format(',spaceFont=%g',       tObj.spaceFont)       end
         if tObj.spaceHeightFont then s = s .. string.format(',spaceHeightFont=%g', tObj.spaceHeightFont) end
+        if tObj.wildCard and #tObj.wildCard > 0 then s = s .. string.format(',wildCard=%q', tObj.wildCard) end
+        if tObj.align then s = s .. string.format(',align=%q', tObj.align) end
         return s
     end
     return ''
@@ -3329,6 +3377,8 @@ tScene._addMesh = (
                 end
                 self.tMyFonts[fileName] = tFont
             end
+            if tInfo.wildCard and #tInfo.wildCard > 0 then tMeshTmp:setWildCard(tInfo.wildCard) end
+            if tInfo.align then tMeshTmp.align = tInfo.align end
         else
             print("Only mesh 2d:["..fileName.."] \nMesh type:"..(tInfo.type or "nil"))
             return nil
@@ -3730,6 +3780,13 @@ local function onLoadScene()
                         tMeshTmp.is2ds         = tInfo.is2ds
                         tMeshTmp.isRelative2ds = tInfo.isRelative2ds
                         tMeshTmp.isBlocked     = tInfo.isBlocked
+                        if tInfo.wildCard and #tInfo.wildCard > 0 and tMeshTmp.type == 'font' then
+                            tMeshTmp.wildCard = tInfo.wildCard
+                            tMeshTmp:setWildCard(tInfo.wildCard)
+                        end
+                        if tInfo.align and tMeshTmp.type == 'font' then
+                            tMeshTmp.align = tInfo.align
+                        end
 
                         -- Restore panel assignment by id
                         if tInfo.panelId then
