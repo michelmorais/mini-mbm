@@ -489,7 +489,7 @@ namespace mbm
         for (auto & i : filters)
         {
             const std::string filter(i);
-            if (filter.size() >= 2 && strncmp(filter.c_str(), "*.", 2) != 0 && strncmp(filter.c_str(), ".", 1) != 0)
+            if (filter.size() >= 2 && strncmp(filter.c_str(), "*", 1) != 0 && strncmp(filter.c_str(), ".", 1) != 0)
                 i.insert(0, "*.");
             else if (filter.size() >= 1 && strncmp(filter.c_str(), ".", 1) == 0)
                 i.insert(0, "*");
