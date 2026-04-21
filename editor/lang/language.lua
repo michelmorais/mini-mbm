@@ -849,6 +849,12 @@ M.en = {
     panel_deleted_fmt      = "Panel '%s' deleted.",
     panel_renamed_fmt      = "Panel renamed to '%s'.",
     auto_scaled_to_fit     = "Object scaled down to fit panel.",
+    menu_edit_mode         = "Edit Mode",
+    edit_mode_gui_only     = "Only GUI mesh (2D Screen)",
+    edit_mode_2dw_only     = "Only 2D World mesh",
+    edit_mode_both         = "Both GUI and 2D World mesh",
+    edit_mode_locked_gui   = "2D Screen (locked by Edit Mode)",
+    edit_mode_locked_2dw   = "2D World (locked by Edit Mode)",
 }
 
 M.pt_br = {
@@ -1692,6 +1698,12 @@ M.pt_br = {
     panel_deleted_fmt      = "Painel '%s' excluído.",
     panel_renamed_fmt      = "Painel renomeado para '%s'.",
     auto_scaled_to_fit     = "Objeto redimensionado para caber no painel.",
+    menu_edit_mode         = "Modo de Edição",
+    edit_mode_gui_only     = "Somente mesh GUI (2D Tela)",
+    edit_mode_2dw_only     = "Somente mesh 2D Mundo",
+    edit_mode_both         = "GUI e 2D Mundo",
+    edit_mode_locked_gui   = "2D Tela (bloqueado pelo Modo de Edição)",
+    edit_mode_locked_2dw   = "2D Mundo (bloqueado pelo Modo de Edição)",
 }
 
 -- Default from OS via mbm.getIdiom()

@@ -828,6 +828,7 @@ local function onNewSceneEditor()
         bDrawResolution          = true,
         fSceneCamPos             = {x=0, y=0},
         tColorBackground         = {r=tUtil.tColorBackground.r, g=tUtil.tColorBackground.g, b=tUtil.tColorBackground.b},
+        iEditMode                = 1,
         iIndexWorldMesh          = 1,
         iIndexTypeMeshFilter     = 1,
         iIndexTypePhysicsFilter  = 1,
@@ -1466,23 +1467,29 @@ showTransformQuick = function()
 
         -- ── World Type ────────────────────────────────────────────────────────
         tImGui.TextDisabled(tLang.L("world_type"))
-        local tWorld = {'2D World', '2D Screen'}
-        local iIndexWorldMesh = tObj.is2ds and 2 or 1
-        local retW, newWorldIdx = tImGui.Combo('##tq_world' .. tObj.iIndex, iIndexWorldMesh, tWorld)
-        if retW then
-            if newWorldIdx == 1 then
-                tObj.is2ds = false
-                tObj.isRelative2ds = nil
-            else
-                tObj.is2ds = true
-                tObj.isRelative2ds = true
+        local _eModeQ = tOptionsEditor.iEditMode or 3
+        if _eModeQ == 3 then
+            local tWorld = {'2D World', '2D Screen'}
+            local iIndexWorldMesh = tObj.is2ds and 2 or 1
+            local retW, newWorldIdx = tImGui.Combo('##tq_world' .. tObj.iIndex, iIndexWorldMesh, tWorld)
+            if retW then
+                if newWorldIdx == 1 then
+                    tObj.is2ds = false
+                    tObj.isRelative2ds = nil
+                else
+                    tObj.is2ds = true
+                    tObj.isRelative2ds = true
+                end
+                if filter(tObj) then
+                    tObj.visible = true
+                else
+                    tObj.visible = false
+                    tObj.tShape.visible = false
+                end
             end
-            if filter(tObj) then
-                tObj.visible = true
-            else
-                tObj.visible = false
-                tObj.tShape.visible = false
-            end
+        else
+            local sLocked = tObj.is2ds and tLang.L("edit_mode_locked_gui") or tLang.L("edit_mode_locked_2dw")
+            tImGui.TextDisabled(sLocked)
         end
 
         -- ── Anchor (panel-assigned objects only) ──────────────────────────────
@@ -2003,6 +2010,16 @@ local function initialSetUpForAddedMesh(tObj)
         tObj.anchorX  = nil
         tObj.anchorY  = nil
         table.insert(tFreeMeshes, tObj)
+    end
+
+    -- Apply edit mode: override is2ds based on the current scene edit mode
+    local _eMode = tOptionsEditor.iEditMode or 3
+    if _eMode == 1 then
+        tObj.is2ds = true
+        if not tObj.panelRef then tObj.isRelative2ds = true end
+    elseif _eMode == 2 then
+        tObj.is2ds = false
+        tObj.isRelative2ds = nil
     end
 
     tLastMeshAdded = tObj
@@ -2825,31 +2842,36 @@ showPropertiesForMesh = function(tObj)
     local isBlocked = tObj.isBlocked or false
     if not isBlocked then
         tImGui.TextDisabled(tLang.L("world_type"))
-        local tWorld = {'2D World', '2D Screen'}
-        local iIndexWorldMesh = tObj.is2ds and 2 or 1
-        local ret, current_item = tImGui.Combo('##WorldObj' .. tObj.iIndex, iIndexWorldMesh, tWorld)
-        if ret then
-            if current_item == 1 then
-                tObj.is2ds = false
-                tObj.isRelative2ds = nil
-            else
-                tObj.is2ds = true
-                tObj.isRelative2ds = true
+        local _eModeP = tOptionsEditor.iEditMode or 3
+        if _eModeP == 3 then
+            local tWorld = {'2D World', '2D Screen'}
+            local iIndexWorldMesh = tObj.is2ds and 2 or 1
+            local ret, current_item = tImGui.Combo('##WorldObj' .. tObj.iIndex, iIndexWorldMesh, tWorld)
+            if ret then
+                if current_item == 1 then
+                    tObj.is2ds = false
+                    tObj.isRelative2ds = nil
+                else
+                    tObj.is2ds = true
+                    tObj.isRelative2ds = true
+                end
+                if filter(tObj) then
+                    tObj.visible = true
+                else
+                    tObj.visible = false
+                    tObj.tShape.visible = false
+                end
             end
-            if filter(tObj) then
-                tObj.visible = true
-            else
-                tObj.visible = false
-                tObj.tShape.visible = false
+            if tObj.is2ds and not tObj.panelRef then
+                tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
+                tImGui.SameLine()
+                tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
+            elseif tObj.is2ds and tObj.panelRef then
+                tImGui.TextDisabled(tLang.L("relative_2d_screen") .. ": N/A (panel reflow)")
             end
-        end
-
-        if tObj.is2ds and not tObj.panelRef then
-            tObj.isRelative2ds = tImGui.Checkbox(tLang.L("relative_2d_screen"), tObj.isRelative2ds)
-            tImGui.SameLine()
-            tImGui.HelpMarker(tLang.L("help_flag_2d_screen"))
-        elseif tObj.is2ds and tObj.panelRef then
-            tImGui.TextDisabled(tLang.L("relative_2d_screen") .. ": N/A (panel reflow)")
+        else
+            local sLocked = tObj.is2ds and tLang.L("edit_mode_locked_gui") or tLang.L("edit_mode_locked_2dw")
+            tImGui.TextDisabled(sLocked)
         end
 
         local bSelected = tImGui.Checkbox(tLang.L("selected") .. '##' .. tObj.iIndex, tObj.isSelected)
@@ -4015,6 +4037,17 @@ local function main_menu_scene_editor_2d()
             pressed = tImGui.MenuItem(tLang.L("menu_quit"), "Alt+F4", false)
             if pressed then mbm.quit() end
 
+            tWindowsArea:addThisWindow()
+            tImGui.EndMenu()
+        end
+
+        -- ── Edit Mode ────────────────────────────────────────────────────
+        if tImGui.BeginMenu(tLang.L("menu_edit_mode")) then
+            local eMode = tOptionsEditor.iEditMode or 3
+            eMode = tImGui.RadioButton(tLang.L("edit_mode_gui_only"), eMode, 1)
+            eMode = tImGui.RadioButton(tLang.L("edit_mode_2dw_only"), eMode, 2)
+            eMode = tImGui.RadioButton(tLang.L("edit_mode_both"),     eMode, 3)
+            tOptionsEditor.iEditMode = eMode
             tWindowsArea:addThisWindow()
             tImGui.EndMenu()
         end
