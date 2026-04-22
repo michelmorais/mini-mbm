@@ -745,6 +745,15 @@ local function onSelectAll()
     end
 end
 
+local function onSelectAllNoFilter()
+    tSelectedObjs = {}
+    for _, tObj in ipairs(tAllMesh) do
+        tObj.isSelected     = true
+        tObj.tShape.visible = true
+        table.insert(tSelectedObjs, tObj)
+    end
+end
+
 local function onDeleteSelected()
     for _, tObj in ipairs(tSelectedObjs) do
         for j = #tAllMesh, 1, -1 do
@@ -4178,6 +4187,9 @@ local function main_menu_scene_editor_2d()
 
             pressed = tImGui.MenuItem(tLang.L("select_all_mesh"), 'Ctrl+A', false)
             if pressed then onSelectAll() end
+
+            pressed = tImGui.MenuItem(tLang.L("select_all_mesh_no_filter"), 'Ctrl+Shift+A', false)
+            if pressed then onSelectAllNoFilter() end
 
             pressed = tImGui.MenuItem(tLang.L("invert_selected_mesh"), 'Ctrl+I', false)
             if pressed then onInvertSelection() end
