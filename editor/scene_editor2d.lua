@@ -965,6 +965,13 @@ local function percentagesValid(parts)
     return math.abs(sum - 100) < 0.5
 end
 
+local getIndexOfObjectInAllMesh = function(obj)
+    for i, that in ipairs(tAllMesh) do
+        if that == obj then return i end
+    end
+    return -1
+end
+
 -- Forward declarations needed by renderPanelTree and showPanelBrowser
 local assignObjectToPanel, buildPanelComboList
 
@@ -1048,7 +1055,8 @@ local function renderPanelTree(panels, parentRect)
             end
             -- Show objects inside panel (collapsed list)
             for j, obj in ipairs(panel.objects) do
-                local objLabel = string.format("%s (%d)##obj_%s_%d", obj.type or "?", j, panel.id, j)
+                local indexObjInAllMesh = getIndexOfObjectInAllMesh(obj)
+                local objLabel = string.format("%s (%d)##obj_%s_%d", obj.type or "?", indexObjInAllMesh, panel.id, j)
                 if tImGui.Selectable(objLabel, obj.isSelected) then
                     if not keyControlPressed then onUnSelectAll() end
                     setSelectedObj(obj, true)
