@@ -34,16 +34,16 @@ cd mini-mbm
 ### Minimal build (C++ only, no Lua)
 
 ```sh
-mkdir -p build/macos_debug && cd build/macos_debug
-cmake ../.. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug
+mkdir -p build && cd build
+cmake .. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug
 make -j$(sysctl -n hw.logicalcpu)
 ```
 
 ### Full-featured build (Lua 5.4 + all plugins + editors)
 
 ```sh
-mkdir -p build/macos_debug && cd build/macos_debug
-cmake ../.. \
+mkdir -p build && cd build
+cmake .. \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
@@ -54,19 +54,19 @@ make -j$(sysctl -n hw.logicalcpu)
 Equivalently via `cmake --build`:
 
 ```sh
-cmake -B build/macos_debug \
+cmake -B build \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/macos_debug -j$(sysctl -n hw.logicalcpu)
+cmake --build build -j$(sysctl -n hw.logicalcpu)
 ```
 
 ### Release build
 
 ```sh
 mkdir -p build/macos_release && cd build/macos_release
-cmake ../.. \
+cmake .. \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
