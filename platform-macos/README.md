@@ -65,7 +65,7 @@ cmake --build build -j$(sysctl -n hw.logicalcpu)
 ### Release build
 
 ```sh
-mkdir -p build/macos_release && cd build/macos_release
+mkdir -p build && cd build
 cmake .. \
     -DPLAT=MacOs \
     -DUSE_ALL=1 \
