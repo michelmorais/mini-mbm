@@ -66,7 +66,7 @@ cmake ~/mini-mbm \
     -DGAME_BUNDLE_ID=com.mini.mbm.tower-defense \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
-    -DGAME_ICON_PNG=/Users/michel/tower-defense/icon-1024.png \
+    -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png \
     -G Xcode
 # The configure message prints the exact open command:
 #   open "/Users/michel/tower-defense-ios_xcode/Tower Defense Monster.xcodeproj"
@@ -122,12 +122,25 @@ cmake ~/mini-mbm ... -DGAME_ICON_DIR=/Users/michel/tower-defense/Assets.xcassets
 
 **How it works:**
 
-- **Xcode generator** — the `.xcassets` is added as a source file; Xcode's `actool`
-  compiles it into `Assets.car` and installs the icon in the bundle automatically.
-  `XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME` is set to `AppIcon`.
-- **make generator** — a `POST_BUILD` step runs `xcrun actool` to compile the catalog
-  into the bundle (requires Xcode CLI tools).  This is mainly useful for CI compile
-  checks; real device deployment still requires the Xcode generator for signing.
+Both generators (Xcode and make) use a **POST_BUILD `xcrun actool` shell script phase**
+to compile the asset catalog.  CMake's native Xcode file-phase integration was not used
+because it cannot reliably place a `.xcassets` directory (especially one generated into
+the binary dir) into the correct `PBXResourcesBuildPhase`:
+
+| CMake approach tried | Result |
+|---|---|
+| `target_sources` alone | file ends up in no build phase → actool never called |
+| `MACOSX_PACKAGE_LOCATION ""` | goes into `PBXCopyFilesBuildPhase` — Xcode does **not** invoke actool from this phase |
+| `RESOURCE` target property | directory silently omitted from the project altogether |
+
+The POST_BUILD shell phase appears as **"CMake PostBuild Rules"** in the Xcode build log
+and runs `xcrun actool --compile <bundle_path> … AppIcon.xcassets` after the app binary
+is linked.  It produces `Assets.car` at the bundle root; the system reads the app icon
+directly from `Assets.car`.
+
+For the **Xcode generator**, `XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME` is also
+set to `AppIcon` in the project build settings (belt-and-suspenders for Xcode's own asset
+catalog pass, if triggered separately).
 
 > **Use absolute paths** — CMake does not expand `~` inside `-D` values.
 

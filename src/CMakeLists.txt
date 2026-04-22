@@ -365,24 +365,28 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
             message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' is not a directory — icon will not be bundled.")
         else()
             message(STATUS "iOS icon dir  : ${GAME_ICON_DIR}")
+            # CMake's Xcode generator cannot reliably place a .xcassets directory
+            # (especially one generated into the binary dir) into PBXResourcesBuildPhase:
+            #  • target_sources alone  → file ends up in no build phase at all
+            #  • MACOSX_PACKAGE_LOCATION → goes into PBXCopyFilesBuildPhase (wrong;
+            #    Xcode does NOT invoke actool on CopyFiles entries)
+            #  • RESOURCE target prop  → directory silently omitted from the project
+            # The reliable fix for both generators is a POST_BUILD actool command.
+            # $<TARGET_BUNDLE_CONTENT_DIR:mini-mbm> expands per-config (CMake evaluates
+            # it for each Xcode configuration) to the correct .app bundle directory.
+            add_custom_command(TARGET mini-mbm POST_BUILD
+                COMMAND xcrun actool
+                    --compile "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>"
+                    --platform iphoneos
+                    --minimum-deployment-target 14.0
+                    --app-icon AppIcon
+                    --output-partial-info-plist /dev/null
+                    "${GAME_ICON_DIR}"
+                COMMENT "Compiling app icon asset catalog (actool)"
+                VERBATIM)
             if(CMAKE_GENERATOR STREQUAL "Xcode")
-                # Xcode compiles .xcassets automatically when added as a source file.
-                # No MACOSX_PACKAGE_LOCATION is needed — actool places the compiled
-                # Assets.car and the icon files directly in the bundle root.
-                target_sources(mini-mbm PRIVATE "${GAME_ICON_DIR}")
                 set_target_properties(mini-mbm PROPERTIES
                     XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
-            else()
-                # make generator: compile the asset catalog with xcrun actool post-build.
-                add_custom_command(TARGET mini-mbm POST_BUILD
-                    COMMAND xcrun actool
-                        --compile "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>"
-                        --platform iphoneos
-                        --minimum-deployment-target 14.0
-                        --app-icon AppIcon
-                        --output-partial-info-plist /dev/null
-                        "${GAME_ICON_DIR}"
-                    COMMENT "Compiling app icon asset catalog (actool)")
             endif()
         endif()
     endif()
