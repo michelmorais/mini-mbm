@@ -374,13 +374,17 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
                 # CMake never expands $VAR (only ${VAR}), so writing these into a
                 # file(WRITE ...) keeps them as literal shell variables.
                 set(_ACTOOL_SCRIPT "${CMAKE_BINARY_DIR}/actool_icon.sh")
+                # $PLATFORM_NAME is set by Xcode to "iphoneos" for device builds
+                # and "iphonesimulator" for simulator builds — passing it to
+                # actool ensures the icon is compiled for the right platform.
+                # $IPHONEOS_DEPLOYMENT_TARGET carries the project's min-OS setting.
                 file(WRITE "${_ACTOOL_SCRIPT}"
 "#!/bin/sh
 set -e
 exec xcrun actool \\
     --compile \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME\" \\
-    --platform iphoneos \\
-    --minimum-deployment-target 14.0 \\
+    --platform \"$PLATFORM_NAME\" \\
+    --minimum-deployment-target \"$IPHONEOS_DEPLOYMENT_TARGET\" \\
     --app-icon AppIcon \\
     --output-partial-info-plist /dev/null \\
     \"${GAME_ICON_DIR}\"

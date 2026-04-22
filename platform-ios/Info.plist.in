@@ -68,5 +68,11 @@
     <!-- Disable iPadOS multitasking (Split View / Slide Over) to always fill the screen -->
     <key>UIRequiresFullScreen</key>
     <true/>
+
+    <!-- App icon — points to the AppIcon set inside Assets.car (compiled from
+         AppIcon.xcassets by the actool POST_BUILD step).  Without this key iOS
+         ignores Assets.car and shows a blank icon on the home screen. -->
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
 </dict>
 </plist>
