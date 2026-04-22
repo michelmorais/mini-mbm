@@ -351,9 +351,75 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
             set(_ICON_XCASSETS_DIR "${CMAKE_BINARY_DIR}/AppIcon.xcassets")
             set(_ICON_APPICONSET_DIR "${_ICON_XCASSETS_DIR}/AppIcon.appiconset")
             get_filename_component(_ICON_FILENAME "${GAME_ICON_PNG}" NAME)
+            # iOS requires fully opaque app icons — alpha transparency causes the icon
+            # to render as black or invisible on the home screen.  Use Swift (always
+            # available on macOS when Xcode is installed) to composite the source PNG
+            # onto a white background before passing it to actool.  The result is
+            # written into the binary dir with a "_flat" suffix; the original is never
+            # modified.
+            get_filename_component(_ICON_BASENAME "${GAME_ICON_PNG}" NAME_WE)
+            set(_ICON_FLAT_PNG "${CMAKE_BINARY_DIR}/${_ICON_BASENAME}_flat.png")
+            # Write a Swift script (CoreGraphics/ImageIO only — no AppKit) that
+            # composites the source PNG over a solid white background, producing an
+            # opaque RGB PNG.  Using CoreGraphics avoids Swift 6 concurrency warnings
+            # that arise from the AppKit NSGraphicsContext API.
+            set(_FLATTEN_SWIFT "${CMAKE_BINARY_DIR}/flatten_icon.swift")
+            file(WRITE "${_FLATTEN_SWIFT}"
+"import CoreGraphics
+import ImageIO
+import Foundation
+
+let srcURL = URL(fileURLWithPath: \"${GAME_ICON_PNG}\") as CFURL
+let dstURL = URL(fileURLWithPath: \"${_ICON_FLAT_PNG}\") as CFURL
+
+guard let src = CGImageSourceCreateWithURL(srcURL, nil),
+      let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+    print(\"flatten_icon: cannot open source PNG\"); exit(1)
+}
+
+let w = img.width, h = img.height
+let cs = CGColorSpaceCreateDeviceRGB()
+// noneSkipLast -> RGBX: three colour bytes + one ignored byte, fully opaque
+guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                          bytesPerRow: 0, space: cs,
+                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+    print(\"flatten_icon: cannot create CGContext\"); exit(1)
+}
+
+// White background
+ctx.setFillColor(CGColor(colorSpace: cs, components: [1.0, 1.0, 1.0, 1.0])!)
+ctx.fill(CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
+
+// Composite source image over white
+ctx.draw(img, in: CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
+
+guard let outImg = ctx.makeImage() else {
+    print(\"flatten_icon: cannot create output image\"); exit(1)
+}
+
+guard let dest = CGImageDestinationCreateWithURL(dstURL, \"public.png\" as CFString, 1, nil) else {
+    print(\"flatten_icon: cannot create image destination\"); exit(1)
+}
+CGImageDestinationAddImage(dest, outImg, nil)
+guard CGImageDestinationFinalize(dest) else {
+    print(\"flatten_icon: finalize failed\"); exit(1)
+}
+")
+            execute_process(
+                COMMAND swift "${_FLATTEN_SWIFT}"
+                RESULT_VARIABLE _SWIFT_RESULT
+                OUTPUT_QUIET ERROR_VARIABLE _SWIFT_ERR)
+            if(NOT _SWIFT_RESULT EQUAL 0)
+                # Swift failed — fall back to the original and warn
+                set(_ICON_FLAT_PNG "${GAME_ICON_PNG}")
+                message(WARNING "Icon alpha-strip failed: ${_SWIFT_ERR}\nUsing original icon (transparent areas will appear black on the home screen).")
+            else()
+                message(STATUS "iOS icon (alpha composited onto white): ${_ICON_FLAT_PNG}")
+            endif()
+            get_filename_component(_ICON_FILENAME "${_ICON_FLAT_PNG}" NAME)
             set(_ICON_JSON "{\n  \"images\" : [\n    {\n      \"filename\" : \"${_ICON_FILENAME}\",\n      \"idiom\" : \"universal\",\n      \"platform\" : \"ios\",\n      \"size\" : \"1024x1024\"\n    }\n  ],\n  \"info\" : {\n    \"author\" : \"mini-mbm\",\n    \"version\" : 1\n  }\n}\n")
             file(WRITE "${_ICON_APPICONSET_DIR}/Contents.json" "${_ICON_JSON}")
-            configure_file("${GAME_ICON_PNG}" "${_ICON_APPICONSET_DIR}/${_ICON_FILENAME}" COPYONLY)
+            configure_file("${_ICON_FLAT_PNG}" "${_ICON_APPICONSET_DIR}/${_ICON_FILENAME}" COPYONLY)
             set(GAME_ICON_DIR "${_ICON_XCASSETS_DIR}")
             message(STATUS "iOS icon PNG  : ${GAME_ICON_PNG}")
             message(STATUS "iOS icon xcassets generated: ${_ICON_XCASSETS_DIR}")
