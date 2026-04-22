@@ -3080,7 +3080,7 @@ local function getHeader(fileName)
         local tNewLife   = tScene:addMesh(3)
 
 ]] .. "]]\n\n"
-    sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false))
+    sHeader = sHeader:gsub('SCENE_NAME', tUtil.getShortName(fileName, false) .. '-gui')
     sHeader = sHeader:gsub('%.gui%-edit%.lua', '')
     sHeader = sHeader:gsub('%-gui%.lua', '')
     return sHeader
