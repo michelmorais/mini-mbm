@@ -729,3 +729,142 @@ function onLoop(delta)
     world:step(delta)
 end
 ```
+
+---
+
+## Pixel Shader Translation — GLSL ES / HLSL / MSL
+
+### Pattern: multi-backend shader selection
+
+Use `mbm.get('backend_engine')` to pick the right code at runtime.
+Possible values: `'Directx9'`, `'Metal'`, or anything else (OpenGL ES).
+
+```lua
+local function getShaderCode()
+    if mbm.get('backend_engine') == 'Directx9' then
+        return [[ ... HLSL ... ]]
+    elseif mbm.get('backend_engine') == 'Metal' then
+        return [=[ ... MSL ... ]=]   -- MUST use [=[ ]=], NOT [[ ]]
+    else
+        return [[ ... GLSL ES ... ]]
+    end
+end
+
+local tShader = { name = 'effect.ps', code = getShaderCode(), var = {}, min = {}, max = {} }
+mbm.addShader(tShader)
+```
+
+---
+
+### GLSL ES → HLSL (DirectX9)
+
+| GLSL ES | HLSL |
+|---|---|
+| `uniform sampler2D sample0;` | `sampler2D sample0 : register(s0);` |
+| `uniform float x;` | `float x;` (global) |
+| `uniform vec2 v;` | `float2 v;` (global) |
+| `varying vec2 vTexCoord` | `float2 vTexCoord : TEXCOORD0;` in `PS_INPUT` struct |
+| `texture2D(sample0, uv)` | `tex2D(sample0, uv)` |
+| `gl_FragColor = color;` | `return color;` with `: COLOR0` return semantic |
+| `vec2`, `vec4` | `float2`, `float4` |
+| `void main()` | `float4 main(PS_INPUT input) : COLOR0` |
+
+Full HLSL skeleton:
+
+```hlsl
+sampler2D sample0 : register(s0);
+float     myUniform;
+float2    myVec;
+
+struct PS_INPUT { float2 vTexCoord : TEXCOORD0; };
+
+float4 main(PS_INPUT input) : COLOR0
+{
+    float4 color = tex2D(sample0, input.vTexCoord);
+    // ... logic ...
+    return color;
+}
+```
+
+---
+
+### GLSL ES → MSL (Metal)
+
+#### Critical Lua gotcha
+Metal attribute syntax `[[position]]`, `[[stage_in]]`, etc. contains `]]`
+which terminates a Lua `[[ ]]` long string early.
+**Always use `[=[ ]=]` for Metal shader strings.**
+
+#### Engine entry point names
+- Fragment: **`frag_main`** (required by the engine)
+- Vertex:   **`vert_main`** (required by the engine)
+
+#### Vertex output struct
+The engine's built-in `vert_main` outputs `float2 uv` (no attribute qualifier).
+The fragment `VertexOut` struct **must** use `float2 uv` to match.
+
+```metal
+struct VertexOut {
+    float4 position [[position]];
+    float2 uv;          // must match engine vert_main output — do NOT rename
+};
+```
+
+#### Uniforms
+Group all uniforms into a single `constant` struct bound to `[[buffer(0)]]`:
+
+```metal
+struct MyUniforms {
+    float  myUniform;
+    float2 myVec;
+};
+// declared in frag_main signature as:
+// constant MyUniforms& u [[buffer(0)]]
+// accessed as: u.myUniform, u.myVec
+```
+
+#### Texture sampling
+
+```metal
+texture2d<float> sample0 [[texture(0)]],
+sampler          sampler0 [[sampler(0)]]
+// usage:
+float4 color = sample0.sample(sampler0, vTexCoord);
+```
+
+#### Full MSL skeleton
+
+```metal
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+struct MyUniforms { float myUniform; float2 myVec; };
+
+fragment float4 frag_main(VertexOut in [[stage_in]],
+                          texture2d<float> sample0 [[texture(0)]],
+                          sampler sampler0 [[sampler(0)]],
+                          constant MyUniforms& u [[buffer(0)]])
+{
+    float2 vTexCoord = in.uv;   // alias preserves original GLSL name
+    float4 color = sample0.sample(sampler0, vTexCoord);
+    // ... logic using vTexCoord, u.myUniform, u.myVec ...
+    return color;
+}
+```
+
+---
+
+### Checklist when adding a new shader
+
+- [ ] Wrap in `if not mbm.existShader('name.ps') then ... end`
+- [ ] Use `[=[ ]=]` for the Metal shader string (never `[[ ]]`)
+- [ ] Metal fragment entry point = `frag_main`
+- [ ] Metal `VertexOut` uses `float2 uv` (matches engine `vert_main` output)
+- [ ] Metal uniforms grouped in a `constant` struct at `[[buffer(0)]]`
+- [ ] HLSL uniforms declared as globals; input coord via `PS_INPUT` with `TEXCOORD0`
+- [ ] GLSL ES uses `varying`, `uniform`, `texture2D()`, `gl_FragColor`
