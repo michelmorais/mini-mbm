@@ -799,60 +799,63 @@ which terminates a Lua `[[ ]]` long string early.
 - Fragment: **`frag_main`** (required by the engine)
 - Vertex:   **`vert_main`** (required by the engine)
 
-#### Vertex output struct
-The engine's built-in `vert_main` outputs `float2 uv` (no attribute qualifier).
-The fragment `VertexOut` struct **must** use `float2 uv` to match.
+#### How the engine compiles custom pixel shaders
+The engine stores only the **fragment function** in the shader source string.
+At compile time it **prepends** an auto-generated vertex preamble that includes
+`#include <metal_stdlib>`, `using namespace metal;`, and the `VOut` struct.
+**Do NOT include these yourself** — it causes duplicate-symbol errors.
 
+#### Vertex input struct — use `VOut`, never define your own
+The engine-generated preamble defines:
 ```metal
-struct VertexOut {
-    float4 position [[position]];
-    float2 uv;          // must match engine vert_main output — do NOT rename
+struct VOut {
+    float4 pos [[position]];
+    float2 uv;
 };
 ```
+The fragment function **must** use `VOut` (not `VertexOut` or any other name).
+Access the texture coordinate as `in.uv`.
 
-#### Uniforms
-Group all uniforms into a single `constant` struct bound to `[[buffer(0)]]`:
+#### Uniforms — flat float array at `[[buffer(2)]]`
+The engine packs all shader uniforms into a **single flat `float` array** and
+binds it to `[[buffer(2)]]` (fragment) / `[[buffer(3)]]` (vertex).
+**Do NOT declare a custom struct** — use `constant float* f [[buffer(2)]]`.
 
-```metal
-struct MyUniforms {
-    float  myUniform;
-    float2 myVec;
-};
-// declared in frag_main signature as:
-// constant MyUniforms& u [[buffer(0)]]
-// accessed as: u.myUniform, u.myVec
-```
+Uniforms are packed in **alphabetical order** of their Lua `var` table keys
+(the engine uses `std::map`, which sorts keys lexicographically).
+
+Example — `var = {ray={0.1}, center={0,0}, size_screen={w,h}}` is sorted as:
+| Index | Name | Components |
+|---|---|---|
+| `f[0]`, `f[1]` | `center` | x, y |
+| `f[2]` | `ray` | — |
+| `f[3]`, `f[4]` | `size_screen` | x, y |
 
 #### Texture sampling
 
 ```metal
 texture2d<float> sample0 [[texture(0)]],
-sampler          sampler0 [[sampler(0)]]
+sampler          samp    [[sampler(0)]]
 // usage:
-float4 color = sample0.sample(sampler0, vTexCoord);
+float4 color = sample0.sample(samp, in.uv);
 ```
 
-#### Full MSL skeleton
+#### Full MSL skeleton (fragment function only)
 
 ```metal
-#include <metal_stdlib>
-using namespace metal;
-
-struct VertexOut {
-    float4 position [[position]];
-    float2 uv;
-};
-
-struct MyUniforms { float myUniform; float2 myVec; };
-
-fragment float4 frag_main(VertexOut in [[stage_in]],
-                          texture2d<float> sample0 [[texture(0)]],
-                          sampler sampler0 [[sampler(0)]],
-                          constant MyUniforms& u [[buffer(0)]])
+fragment float4 frag_main(VOut in [[stage_in]],
+    texture2d<float> sample0 [[texture(0)]],
+    sampler          samp    [[sampler(0)]],
+    constant float*  f       [[buffer(2)]])
 {
-    float2 vTexCoord = in.uv;   // alias preserves original GLSL name
-    float4 color = sample0.sample(sampler0, vTexCoord);
-    // ... logic using vTexCoord, u.myUniform, u.myVec ...
+    float2 vTexCoord = in.uv;
+    // Read uniforms by alphabetical index:
+    // float2 center      = float2(f[0], f[1]);
+    // float  ray         = f[2];
+    // float2 size_screen = float2(f[3], f[4]);
+
+    float4 color = sample0.sample(samp, vTexCoord);
+    // ... logic ...
     return color;
 }
 ```
@@ -863,8 +866,9 @@ fragment float4 frag_main(VertexOut in [[stage_in]],
 
 - [ ] Wrap in `if not mbm.existShader('name.ps') then ... end`
 - [ ] Use `[=[ ]=]` for the Metal shader string (never `[[ ]]`)
+- [ ] Metal: provide **fragment function only** — no `#include`, no `using namespace`, no struct definitions
 - [ ] Metal fragment entry point = `frag_main`
-- [ ] Metal `VertexOut` uses `float2 uv` (matches engine `vert_main` output)
-- [ ] Metal uniforms grouped in a `constant` struct at `[[buffer(0)]]`
+- [ ] Metal vertex input = `VOut in [[stage_in]]` (engine-defined struct, `in.uv` for tex coord)
+- [ ] Metal uniforms = `constant float* f [[buffer(2)]]`; access by index in **alphabetical** key order
 - [ ] HLSL uniforms declared as globals; input coord via `PS_INPUT` with `TEXCOORD0`
 - [ ] GLSL ES uses `varying`, `uniform`, `texture2D()`, `gl_FragColor`
