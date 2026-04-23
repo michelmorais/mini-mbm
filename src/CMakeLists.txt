@@ -336,33 +336,39 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     endif()
 
     # ── App icon ──────────────────────────────────────────────────────────────
-    # Provide a 1024×1024 PNG and let CMake wrap it, or bring a full xcassets:
-    #   -DGAME_ICON_PNG=/path/to/icon-1024.png
-    #   -DGAME_ICON_DIR=/path/to/Assets.xcassets
-    # For the Xcode generator the catalog is compiled by actool automatically.
-    # For the make generator a POST_BUILD actool step is added (requires Xcode CLI).
+    # CMake's Xcode generator creates a PBXFileReference for .xcassets
+    # directories but only places them in a build phase when they are in the
+    # SOURCE tree.  Paths under CMAKE_BINARY_DIR are silently omitted from all
+    # build phases, so Xcode's "Compile Asset Catalogs" step never fires and the
+    # icon is never compiled into the app bundle.
+    #
+    # Solution: always keep Assets.xcassets in platform-ios/ (source tree).
+    # At cmake configure time we populate AppIcon.appiconset/ inside it from the
+    # game-supplied icon, so it is automatically compiled by Xcode before code
+    # signing — exactly as in a hand-crafted Xcode project.
+    #
+    # Flags:
+    #   -DGAME_ICON_PNG=/path/to/icon-1024.png   — preferred: CMake flattens alpha
+    #   -DGAME_ICON_DIR=/path/to/Assets.xcassets  — bring your own xcassets
+
+    set(_IOS_ASSETS_DIR  "${CMAKE_SOURCE_DIR}/platform-ios/Assets.xcassets")
+    set(_IOS_APPICONSET_DIR "${_IOS_ASSETS_DIR}/AppIcon.appiconset")
+
+    # Ensure the catalog container exists (no icon entries by default).
+    file(WRITE "${_IOS_ASSETS_DIR}/Contents.json"
+        "{\n  \"info\" : { \"author\" : \"mini-mbm\", \"version\" : 1 }\n}\n")
+
     if(DEFINED GAME_ICON_PNG)
         if(NOT EXISTS "${GAME_ICON_PNG}")
             message(WARNING "GAME_ICON_PNG '${GAME_ICON_PNG}' does not exist — icon will not be bundled.")
         else()
-            # Generate a minimal Assets.xcassets/AppIcon.appiconset in the binary dir.
-            # The single-image format (universal/ios/1024x1024) requires iOS 14+ target
-            # and Xcode 14+, which matches the MinimumOSVersion in Info.plist.in.
-            set(_ICON_XCASSETS_DIR "${CMAKE_BINARY_DIR}/AppIcon.xcassets")
-            set(_ICON_APPICONSET_DIR "${_ICON_XCASSETS_DIR}/AppIcon.appiconset")
-            get_filename_component(_ICON_FILENAME "${GAME_ICON_PNG}" NAME)
-            # iOS requires fully opaque app icons — alpha transparency causes the icon
-            # to render as black or invisible on the home screen.  Use Swift (always
-            # available on macOS when Xcode is installed) to composite the source PNG
-            # onto a white background before passing it to actool.  The result is
-            # written into the binary dir with a "_flat" suffix; the original is never
-            # modified.
+            # iOS requires fully opaque app icons — alpha transparency causes the
+            # icon to render as black or invisible on the home screen.  Use Swift
+            # (CoreGraphics/ImageIO, always available with Xcode) to composite the
+            # source PNG onto a white background.  The result is written to the
+            # binary dir with a "_flat" suffix; the original file is never modified.
             get_filename_component(_ICON_BASENAME "${GAME_ICON_PNG}" NAME_WE)
             set(_ICON_FLAT_PNG "${CMAKE_BINARY_DIR}/${_ICON_BASENAME}_flat.png")
-            # Write a Swift script (CoreGraphics/ImageIO only — no AppKit) that
-            # composites the source PNG over a solid white background, producing an
-            # opaque RGB PNG.  Using CoreGraphics avoids Swift 6 concurrency warnings
-            # that arise from the AppKit NSGraphicsContext API.
             set(_FLATTEN_SWIFT "${CMAKE_BINARY_DIR}/flatten_icon.swift")
             file(WRITE "${_FLATTEN_SWIFT}"
 "import CoreGraphics
@@ -379,24 +385,18 @@ guard let src = CGImageSourceCreateWithURL(srcURL, nil),
 
 let w = img.width, h = img.height
 let cs = CGColorSpaceCreateDeviceRGB()
-// noneSkipLast -> RGBX: three colour bytes + one ignored byte, fully opaque
 guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
                           bytesPerRow: 0, space: cs,
                           bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
     print(\"flatten_icon: cannot create CGContext\"); exit(1)
 }
-
-// White background
 ctx.setFillColor(CGColor(colorSpace: cs, components: [1.0, 1.0, 1.0, 1.0])!)
 ctx.fill(CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
-
-// Composite source image over white
 ctx.draw(img, in: CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
 
 guard let outImg = ctx.makeImage() else {
     print(\"flatten_icon: cannot create output image\"); exit(1)
 }
-
 guard let dest = CGImageDestinationCreateWithURL(dstURL, \"public.png\" as CFString, 1, nil) else {
     print(\"flatten_icon: cannot create image destination\"); exit(1)
 }
@@ -410,19 +410,21 @@ guard CGImageDestinationFinalize(dest) else {
                 RESULT_VARIABLE _SWIFT_RESULT
                 OUTPUT_QUIET ERROR_VARIABLE _SWIFT_ERR)
             if(NOT _SWIFT_RESULT EQUAL 0)
-                # Swift failed — fall back to the original and warn
                 set(_ICON_FLAT_PNG "${GAME_ICON_PNG}")
                 message(WARNING "Icon alpha-strip failed: ${_SWIFT_ERR}\nUsing original icon (transparent areas will appear black on the home screen).")
             else()
                 message(STATUS "iOS icon (alpha composited onto white): ${_ICON_FLAT_PNG}")
             endif()
+
+            # Populate AppIcon.appiconset inside the source-tree Assets.xcassets.
             get_filename_component(_ICON_FILENAME "${_ICON_FLAT_PNG}" NAME)
-            set(_ICON_JSON "{\n  \"images\" : [\n    {\n      \"filename\" : \"${_ICON_FILENAME}\",\n      \"idiom\" : \"universal\",\n      \"platform\" : \"ios\",\n      \"size\" : \"1024x1024\"\n    }\n  ],\n  \"info\" : {\n    \"author\" : \"mini-mbm\",\n    \"version\" : 1\n  }\n}\n")
-            file(WRITE "${_ICON_APPICONSET_DIR}/Contents.json" "${_ICON_JSON}")
-            configure_file("${_ICON_FLAT_PNG}" "${_ICON_APPICONSET_DIR}/${_ICON_FILENAME}" COPYONLY)
-            set(GAME_ICON_DIR "${_ICON_XCASSETS_DIR}")
-            message(STATUS "iOS icon PNG  : ${GAME_ICON_PNG}")
-            message(STATUS "iOS icon xcassets generated: ${_ICON_XCASSETS_DIR}")
+            set(_ICON_JSON
+"{\n  \"images\" : [\n    {\n      \"filename\" : \"${_ICON_FILENAME}\",\n      \"idiom\" : \"universal\",\n      \"platform\" : \"ios\",\n      \"size\" : \"1024x1024\"\n    }\n  ],\n  \"info\" : {\n    \"author\" : \"mini-mbm\",\n    \"version\" : 1\n  }\n}\n")
+            file(WRITE "${_IOS_APPICONSET_DIR}/Contents.json" "${_ICON_JSON}")
+            configure_file("${_ICON_FLAT_PNG}" "${_IOS_APPICONSET_DIR}/${_ICON_FILENAME}" COPYONLY)
+            message(STATUS "iOS icon PNG     : ${GAME_ICON_PNG}")
+            message(STATUS "iOS icon xcassets: ${_IOS_ASSETS_DIR}")
+            set(_HAS_ICON TRUE)
         endif()
     endif()
 
@@ -430,52 +432,69 @@ guard CGImageDestinationFinalize(dest) else {
         if(NOT IS_DIRECTORY "${GAME_ICON_DIR}")
             message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' is not a directory — icon will not be bundled.")
         else()
-            message(STATUS "iOS icon dir  : ${GAME_ICON_DIR}")
-            if(CMAKE_GENERATOR STREQUAL "Xcode")
-                # $<TARGET_BUNDLE_CONTENT_DIR:...> is hardcoded to the CMake output dir
-                # at configure time and does NOT point to Xcode's DerivedData build dir.
-                # To write Assets.car into the correct place we need Xcode's own env vars:
-                #   $BUILT_PRODUCTS_DIR  — directory that holds the .app in DerivedData
-                #   $WRAPPER_NAME        — "mini-mbm.app"
-                # CMake never expands $VAR (only ${VAR}), so writing these into a
-                # file(WRITE ...) keeps them as literal shell variables.
-                set(_ACTOOL_SCRIPT "${CMAKE_BINARY_DIR}/actool_icon.sh")
-                # $PLATFORM_NAME is set by Xcode to "iphoneos" for device builds
-                # and "iphonesimulator" for simulator builds — passing it to
-                # actool ensures the icon is compiled for the right platform.
-                # $IPHONEOS_DEPLOYMENT_TARGET carries the project's min-OS setting.
-                file(WRITE "${_ACTOOL_SCRIPT}"
+            # Copy the AppIcon.appiconset from the caller's xcassets into the
+            # source-tree Assets.xcassets so Xcode can compile it normally.
+            set(_SRC_APPICONSET "${GAME_ICON_DIR}/AppIcon.appiconset")
+            if(IS_DIRECTORY "${_SRC_APPICONSET}")
+                file(COPY "${_SRC_APPICONSET}" DESTINATION "${_IOS_ASSETS_DIR}")
+                message(STATUS "iOS icon dir     : ${GAME_ICON_DIR}")
+                set(_HAS_ICON TRUE)
+            else()
+                message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' has no AppIcon.appiconset — icon will not be bundled.")
+            endif()
+        endif()
+    endif()
+
+    # Register the source-tree xcassets with the target.
+    # CMake's Xcode generator cannot place .xcassets directories into
+    # PBXResourcesBuildPhase (it skips directory paths for all build phases).
+    # The workaround is a POST_BUILD shell script that runs actool manually.
+    # POST_BUILD fires BEFORE Xcode's code-signing step, so the bundle is
+    # correctly signed after actool writes Assets.car + the partial Info.plist.
+    if(_HAS_ICON)
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            set(_ACTOOL_SCRIPT "${CMAKE_BINARY_DIR}/actool_icon.sh")
+            # Embed the source-tree xcassets path so the script is self-contained.
+            # Xcode env vars used:
+            #   $BUILT_PRODUCTS_DIR — directory holding the .app in DerivedData
+            #   $WRAPPER_NAME       — "mini-mbm.app"
+            #   $PLATFORM_NAME      — "iphoneos" or "iphonesimulator"
+            #   $IPHONEOS_DEPLOYMENT_TARGET — project's min-OS setting
+            file(WRITE "${_ACTOOL_SCRIPT}"
 "#!/bin/sh
 set -e
-exec xcrun actool \\
+PARTIAL=\"$(mktemp /tmp/actool_partial_XXXXXX.plist)\"
+xcrun actool \\
     --compile \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME\" \\
     --platform \"$PLATFORM_NAME\" \\
     --minimum-deployment-target \"$IPHONEOS_DEPLOYMENT_TARGET\" \\
     --app-icon AppIcon \\
-    --output-partial-info-plist /dev/null \\
-    \"${GAME_ICON_DIR}\"
+    --output-partial-info-plist \"$PARTIAL\" \\
+    \"${_IOS_ASSETS_DIR}\"
+# Merge CFBundleIcons into the bundle Info.plist so Springboard finds the icon.
+/usr/libexec/PlistBuddy -c \"Merge $PARTIAL\" \\
+    \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Info.plist\" 2>/dev/null || true
+rm -f \"$PARTIAL\"
 ")
-                execute_process(COMMAND chmod +x "${_ACTOOL_SCRIPT}")
-                add_custom_command(TARGET mini-mbm POST_BUILD
-                    COMMAND "${_ACTOOL_SCRIPT}"
-                    COMMENT "Compiling app icon asset catalog (actool)"
-                    VERBATIM)
-                set_target_properties(mini-mbm PROPERTIES
-                    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
-            else()
-                # make generator: $<TARGET_BUNDLE_CONTENT_DIR:...> resolves correctly
-                # because CMake owns the output directory.
-                add_custom_command(TARGET mini-mbm POST_BUILD
-                    COMMAND xcrun actool
-                        --compile "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>"
-                        --platform iphoneos
-                        --minimum-deployment-target 14.0
-                        --app-icon AppIcon
-                        --output-partial-info-plist /dev/null
-                        "${GAME_ICON_DIR}"
-                    COMMENT "Compiling app icon asset catalog (actool)"
-                    VERBATIM)
-            endif()
+            execute_process(COMMAND chmod +x "${_ACTOOL_SCRIPT}")
+            add_custom_command(TARGET mini-mbm POST_BUILD
+                COMMAND "${_ACTOOL_SCRIPT}"
+                COMMENT "Compiling app icon asset catalog (actool)"
+                VERBATIM)
+            set_target_properties(mini-mbm PROPERTIES
+                XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
+        else()
+            # make generator
+            add_custom_command(TARGET mini-mbm POST_BUILD
+                COMMAND xcrun actool
+                    --compile "$<TARGET_BUNDLE_CONTENT_DIR:mini-mbm>"
+                    --platform iphoneos
+                    --minimum-deployment-target 14.0
+                    --app-icon AppIcon
+                    --output-partial-info-plist /dev/null
+                    "${_IOS_ASSETS_DIR}"
+                COMMENT "Compiling app icon asset catalog (actool)"
+                VERBATIM)
         endif()
     endif()
 
