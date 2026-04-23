@@ -85,6 +85,7 @@ cmake ~/mini-mbm \
 | `libcore_mbm.a` etc. | `~/mini-mbm/libs/release/…` | Engine artifacts — expected there |
 | `platform-ios/Info.plist` | `~/mini-mbm/platform-ios/` | Generated file — already gitignored |
 | `Assets.xcassets/AppIcon.appiconset/` | `platform-ios/Assets.xcassets/` | Populated by CMake at configure time from `GAME_ICON_PNG` |
+| `flatten_icon.swift` | `platform-ios/` | Static helper script — composites alpha PNG onto white; called by CMake |
 
 Add `tower-defense-ios_xcode/` (or whatever sibling name you choose) to your
 `.gitignore` at the parent level — it is a generated build directory and should
@@ -95,6 +96,24 @@ it is simply not tracked by git at all.
 
 ## App icon
 
+**Will the icon appear correctly on the App Store?**  
+Yes. The same `actool_icon.sh` POST_BUILD script runs for both simulator and device
+builds. It uses `$PLATFORM_NAME` (set by Xcode to `iphonesimulator` or `iphoneos`)
+so actool always compiles for the right platform. When you archive and upload to
+App Store Connect, the `Assets.car` and `CFBundleIcons` entries are already in the
+bundle — Apple's servers use them directly. The 1024×1024 marketing icon you upload
+in App Store Connect is a separate field and does not need to be in the bundle.
+
+**Where to see the icon in Xcode:**  
+In Xcode’s Project Navigator (**↘1** or **View → Navigators → Project**), look for
+`Assets.xcassets` inside the `platform-ios` group. Click it to open Xcode’s
+Asset Catalog editor — you will see the **AppIcon** set with your 1024×1024 image.  
+After building, `Assets.car` (the compiled catalog) is visible in the `.app` bundle
+under **Products** in the Project Navigator.
+
+> If `Assets.xcassets` does not appear in the navigator, re-run cmake (it is added
+> via `target_sources` at configure time) and then close/reopen the `.xcodeproj`.
+
 Pass one of the two CMake flags at configure time:
 
 | Flag | Description |
@@ -104,9 +123,9 @@ Pass one of the two CMake flags at configure time:
 
 **`GAME_ICON_PNG` (recommended for most games):**  
 Provide a 1024×1024 PNG. CMake:
-1. Composites it onto a white background via Swift/CoreGraphics (removes alpha that would make the icon invisible on the home screen).
+1. Runs `platform-ios/flatten_icon.swift` (CoreGraphics/ImageIO) to composite the image onto a white background — removes any alpha that would make the icon invisible on the home screen.
 2. Writes the opaque PNG + `Contents.json` into `platform-ios/Assets.xcassets/AppIcon.appiconset/` (source tree).
-3. Adds a POST_BUILD script (`actool_icon.sh`) that compiles the catalog and merges `CFBundleIcons` into the bundle's `Info.plist`.
+3. Adds a POST_BUILD script (`actool_icon.sh`) that compiles the catalog and merges `CFBundleIcons` into the bundle’s `Info.plist`.
 
 ```sh
 cmake ~/mini-mbm ... -DGAME_ICON_PNG=/Users/michel/tower-defense/icon-1024.png -G Xcode

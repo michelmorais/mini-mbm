@@ -363,50 +363,14 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
             message(WARNING "GAME_ICON_PNG '${GAME_ICON_PNG}' does not exist — icon will not be bundled.")
         else()
             # iOS requires fully opaque app icons — alpha transparency causes the
-            # icon to render as black or invisible on the home screen.  Use Swift
-            # (CoreGraphics/ImageIO, always available with Xcode) to composite the
-            # source PNG onto a white background.  The result is written to the
-            # binary dir with a "_flat" suffix; the original file is never modified.
+            # icon to render as black or invisible on the home screen.  The static
+            # script platform-ios/flatten_icon.swift (CoreGraphics/ImageIO) composites
+            # the source PNG onto white and writes an RGB PNG to the binary dir.
             get_filename_component(_ICON_BASENAME "${GAME_ICON_PNG}" NAME_WE)
             set(_ICON_FLAT_PNG "${CMAKE_BINARY_DIR}/${_ICON_BASENAME}_flat.png")
-            set(_FLATTEN_SWIFT "${CMAKE_BINARY_DIR}/flatten_icon.swift")
-            file(WRITE "${_FLATTEN_SWIFT}"
-"import CoreGraphics
-import ImageIO
-import Foundation
-
-let srcURL = URL(fileURLWithPath: \"${GAME_ICON_PNG}\") as CFURL
-let dstURL = URL(fileURLWithPath: \"${_ICON_FLAT_PNG}\") as CFURL
-
-guard let src = CGImageSourceCreateWithURL(srcURL, nil),
-      let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
-    print(\"flatten_icon: cannot open source PNG\"); exit(1)
-}
-
-let w = img.width, h = img.height
-let cs = CGColorSpaceCreateDeviceRGB()
-guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
-                          bytesPerRow: 0, space: cs,
-                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
-    print(\"flatten_icon: cannot create CGContext\"); exit(1)
-}
-ctx.setFillColor(CGColor(colorSpace: cs, components: [1.0, 1.0, 1.0, 1.0])!)
-ctx.fill(CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
-ctx.draw(img, in: CGRect(x: 0, y: 0, width: Double(w), height: Double(h)))
-
-guard let outImg = ctx.makeImage() else {
-    print(\"flatten_icon: cannot create output image\"); exit(1)
-}
-guard let dest = CGImageDestinationCreateWithURL(dstURL, \"public.png\" as CFString, 1, nil) else {
-    print(\"flatten_icon: cannot create image destination\"); exit(1)
-}
-CGImageDestinationAddImage(dest, outImg, nil)
-guard CGImageDestinationFinalize(dest) else {
-    print(\"flatten_icon: finalize failed\"); exit(1)
-}
-")
+            set(_FLATTEN_SWIFT "${CMAKE_SOURCE_DIR}/platform-ios/flatten_icon.swift")
             execute_process(
-                COMMAND swift "${_FLATTEN_SWIFT}"
+                COMMAND swift "${_FLATTEN_SWIFT}" "${GAME_ICON_PNG}" "${_ICON_FLAT_PNG}"
                 RESULT_VARIABLE _SWIFT_RESULT
                 OUTPUT_QUIET ERROR_VARIABLE _SWIFT_ERR)
             if(NOT _SWIFT_RESULT EQUAL 0)
@@ -445,10 +409,16 @@ guard CGImageDestinationFinalize(dest) else {
         endif()
     endif()
 
-    # Register the source-tree xcassets with the target.
-    # CMake's Xcode generator cannot place .xcassets directories into
-    # PBXResourcesBuildPhase (it skips directory paths for all build phases).
-    # The workaround is a POST_BUILD shell script that runs actool manually.
+    # Make Assets.xcassets visible in Xcode's Project Navigator.
+    # target_sources with a folder.assetcatalog path creates a PBXFileReference
+    # (sourceTree = SOURCE_ROOT) so the catalog appears under platform-ios/ in
+    # the navigator and can be browsed with Xcode's Asset Catalog editor.
+    # It does NOT assign a build phase — compilation is handled by POST_BUILD.
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+        target_sources(mini-mbm PRIVATE "${_IOS_ASSETS_DIR}")
+    endif()
+
+    # Compile the asset catalog and merge the icon info into Info.plist.
     # POST_BUILD fires BEFORE Xcode's code-signing step, so the bundle is
     # correctly signed after actool writes Assets.car + the partial Info.plist.
     if(_HAS_ICON)
