@@ -30,6 +30,8 @@ platform-msvs/tiny-obj-loader/Debug/
 platform-msvs/mini-mbm/imgui.ini
 # Generated Info.plist (produced by configure_file from platform-ios/Info.plist.in)
 platform-ios/Info.plist
+# Generated asset catalog (populated by CMake from -DGAME_ICON_PNG / -DGAME_ICON_DIR)
+platform-ios/Assets.xcassets/
 platform-msvs/core_mbm/core_mbm.vcxproj.user
 platform-msvs/imGui/ImGui.vcxproj.user
 platform-msvs/libTest/libTest.vcxproj.user
