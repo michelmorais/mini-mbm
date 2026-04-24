@@ -324,7 +324,7 @@ ERROR_AT(lineNum, fileName, "message");
 - Engine loads `main.lua` (or argument-specified script) via `SCENE_SCRIPT`
 - Scene lifecycle in Lua: `onInitScene()`, `onLoop(delta)`, touch/key callbacks
   > Note: `startLoading()` and `endLoading()` are C++ pure virtuals only — they have no Lua callback equivalent.
-- Lua API namespace: `mbm.*` (e.g., `mbm.newSprite2dS()`, `mbm.getFps()`, `mbm.quit()`)
+- Lua API namespace: `mbm.*` (e.g., `mbm.loadScene(string)`, `mbm.getFps()`, `mbm.quit()`)
 - Plugins loaded via `require "box2d"` / `require "ImGui"` etc.
 - Modules loaded via `require "tiny_obj_loader"` (from `modules/`)
 - `mbm.doCommands(cmd, param)` → bridges to `OnDoNativeCommand` C++ callback
