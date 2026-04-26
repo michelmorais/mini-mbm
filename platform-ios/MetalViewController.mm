@@ -18,6 +18,11 @@
 // Declared in core-manager-metal-ios.mm — sets the CAMetalLayer for initGraphics().
 extern "C" void mbm_ios_setMetalLayer(CAMetalLayer* _Nullable layer);
 
+// ObjC native-command bridge — only wired up in Xcode generator builds.
+#ifdef MBM_IOS_SWIFT_BRIDGE
+#import "MbmCommandBridge.h"
+#endif
+
 // ---------------------------------------------------------------------------
 // Multi-touch tracking: map UITouch* → stable integer finger index.
 // ---------------------------------------------------------------------------
@@ -49,6 +54,38 @@ static mbm::LUA_MANAGER* s_game = nullptr;
 #else
 static GAME* s_game = nullptr;
 #endif
+
+// ---------------------------------------------------------------------------
+// Swift native-command bridge (Xcode builds only).
+// ---------------------------------------------------------------------------
+#ifdef MBM_IOS_SWIFT_BRIDGE
+static MbmCommandBridge* s_commandBridge = nil;
+
+/// Called from Swift after an async UIKit operation completes.
+/// Routes the result back into the Lua scene via onCallBackCommands.
+extern "C" void mbm_ios_onCallBackCommands(const char * _Nonnull cmdName,
+                                           const char * _Nonnull result)
+{
+    if (s_game && s_game->device && s_game->device->scene)
+        s_game->device->scene->onCallBackCommands(cmdName, result);
+}
+
+/// Registered as LUA_MANAGER::onDoNativeCommand.
+/// Bridges C++ function-pointer calls into the Swift MbmCommandBridge.
+static void ios_command_handler(const char *cmd, const char *param,
+                                char *result, const int maxSize)
+{
+    if (s_commandBridge)
+    {
+        NSString *nsCmd   = @(cmd   ?: "");
+        NSString *nsParam = @(param ?: "");
+        [s_commandBridge handleCommand:nsCmd
+                                 param:nsParam
+                                result:result
+                               maxSize:static_cast<int32_t>(maxSize)];
+    }
+}
+#endif /* MBM_IOS_SWIFT_BRIDGE */
 
 // ---------------------------------------------------------------------------
 @implementation MetalViewController
@@ -141,6 +178,21 @@ static GAME* s_game = nullptr;
 
     // 8. Prepare Lua scene (returns immediately on iOS — no blocking loop).
     s_game->run();
+
+#ifdef MBM_IOS_SWIFT_BRIDGE
+    // 8b. Wire up the Swift native-command bridge so that mbm.doCommands()
+    //     calls are dispatched to MbmCommandBridge (built-in commands) and
+    //     then to MyCommands (game-specific commands).
+    s_commandBridge = [[MbmCommandBridge alloc] init];
+    s_commandBridge.presenter = self;
+    // MyCommands lives in the game's source folder (my-commands.m).
+    // Use the ObjC runtime so MetalViewController.mm has no compile-time
+    // dependency on the game-specific header.
+    s_commandBridge.customDelegate =
+        (id<MbmCommandsProtocol>)[[NSClassFromString(@"MyCommands") alloc] init];
+    s_game->onDoNativeCommand = ios_command_handler;
+#endif /* MBM_IOS_SWIFT_BRIDGE */
+
 #else
     // 3–4. Pure C++ path — no Lua arguments needed.
 
@@ -308,6 +360,10 @@ static GAME* s_game = nullptr;
 - (void)dealloc
 {
     [_displayLink invalidate];
+#ifdef MBM_IOS_SWIFT_BRIDGE
+    if (s_game) s_game->onDoNativeCommand = nullptr;
+    s_commandBridge = nil;
+#endif
     delete s_game;
     s_game = nullptr;
     // ARC inserts [super dealloc] automatically
