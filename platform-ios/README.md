@@ -70,6 +70,7 @@ cmake ~/mini-mbm \
     -G Xcode
 # The configure message prints the exact open command:
 #   open "/Users/michel/tower-defense-ios_xcode/Tower Defense Monster.xcodeproj"
+# Nothing is written to the game repo — only assets and the icon are copied.
 ```
 
 > **Use an absolute path for `GAME_ASSETS_DIR`.**  CMake does not expand `~` in `-D`
@@ -86,6 +87,7 @@ cmake ~/mini-mbm \
 | `platform-ios/Info.plist` | `~/mini-mbm/platform-ios/` | Generated file — already gitignored |
 | `Assets.xcassets/AppIcon.appiconset/` | `platform-ios/Assets.xcassets/` | Populated by CMake at configure time from `GAME_ICON_PNG` |
 | `flatten_icon.swift` | `platform-ios/` | Static helper script — composites alpha PNG onto white; called by CMake |
+| `my-commands.m` | `platform-ios/` (engine repo only) | Built-in stub — no copy to the game repo |
 
 Add `tower-defense-ios_xcode/` (or whatever sibling name you choose) to your
 `.gitignore` at the parent level — it is a generated build directory and should

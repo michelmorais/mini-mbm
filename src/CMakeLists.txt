@@ -56,43 +56,18 @@ if (USE_LUA)
         # The make generator is used for CI / unsigned compile checks and does
         # not include the bridge.  The Xcode generator wires it up so that
         # mbm.doCommands() dispatches to MbmCommandBridge (built-in commands)
-        # and then to MyCommands (game-specific, lives in GAME_SRC_DIR).
+        # and then to MyCommands (game-specific stub in platform-ios/my-commands.m).
         if(CMAKE_GENERATOR STREQUAL "Xcode")
             add_definitions(-DMBM_IOS_SWIFT_BRIDGE=1)
-            # Determine where to place the per-game my-commands template files.
-            # Priority:
-            #   1. Explicit -DGAME_SRC_DIR (advanced, rarely needed)
-            #   2. Parent of GAME_ASSETS_DIR  (e.g. ~/tower-defense/assets → ~/tower-defense)
-            #   3. Engine source root (in-engine / quick builds)
-            if(NOT DEFINED GAME_SRC_DIR)
-                if(DEFINED GAME_ASSETS_DIR)
-                    get_filename_component(GAME_SRC_DIR "${GAME_ASSETS_DIR}" DIRECTORY)
-                else()
-                    set(GAME_SRC_DIR ${CMAKE_SOURCE_DIR})
-                endif()
-            endif()
-            # Copy my-commands.h and my-commands.m templates once.
-            # Preserve any edits the game developer may have made.
-            foreach(_tmpl "my-commands.h" "my-commands.m")
-                if(NOT EXISTS "${GAME_SRC_DIR}/${_tmpl}")
-                    file(COPY "${CMAKE_SOURCE_DIR}/platform-ios/${_tmpl}"
-                         DESTINATION "${GAME_SRC_DIR}")
-                    message(STATUS "iOS command bridge: copied ${_tmpl} to ${GAME_SRC_DIR}")
-                endif()
-            endforeach()
-            set(MY_COMMANDS_M_DEST "${GAME_SRC_DIR}/my-commands.m")
             list(APPEND IOS_PLATFORM_SOURCES
                 ${CMAKE_SOURCE_DIR}/platform-ios/MbmCommandBridge.mm
-                ${MY_COMMANDS_M_DEST})
+                ${CMAKE_SOURCE_DIR}/platform-ios/my-commands.m)
             # Both files are ObjC and must be compiled with ARC.
             set_source_files_properties(
                 ${CMAKE_SOURCE_DIR}/platform-ios/MbmCommandBridge.mm
-                ${MY_COMMANDS_M_DEST}
+                ${CMAKE_SOURCE_DIR}/platform-ios/my-commands.m
                 PROPERTIES COMPILE_FLAGS "-fobjc-arc")
-            # Add platform-ios to the include path so that my-commands.m
-            # (compiled from GAME_SRC_DIR) can resolve #import "MbmCommandBridge.h".
             include_directories("${CMAKE_SOURCE_DIR}/platform-ios")
-            include_directories("${GAME_SRC_DIR}")
         endif()
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
