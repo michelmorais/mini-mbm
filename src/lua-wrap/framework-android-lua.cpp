@@ -32,6 +32,7 @@
 #else
     #error "This file is only for OpenGL ES"
 #endif
+#include <android/configuration.h>
 
 extern "C" 
 {

@@ -49,7 +49,7 @@ export NDK_ROOT=~/android-ndk-r29
 ```sh
 mkdir -p ~/tower-defense-android && cd ~/tower-defense-android
 
-# Using the dyanmic libc++_shared.so (copied to the folder of application)
+# Using the dynamic libc++_shared.so (copied to the folder of application)
 cmake ~/mini-mbm \
     -DPLAT=Android \
     -DANDROID_ABI=arm64-v8a \
