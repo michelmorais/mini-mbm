@@ -830,18 +830,13 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/xml")
         file(MAKE_DIRECTORY "${GAME_APP_DIR}/gradle/wrapper")
 
-        # Create a symlink app/src/main/assets → GAME_ASSETS_DIR so Gradle uses the
-        # standard assets location and Android Studio does not add the external game
-        # repo as a content root (which would expose unrelated files like README.md).
+        # Copy assets into the project so it is self-contained (no external symlinks).
+        # Android Studio will not index the game repo root and the project can be
+        # opened on any machine that has a copy of the android-studio/ folder.
         if(GAME_ASSETS_DIR)
             set(_AND_ASSETS_LINK "${_AND_APP_MAIN}/assets")
-            if(NOT EXISTS "${_AND_ASSETS_LINK}")
-                execute_process(
-                    COMMAND ${CMAKE_COMMAND} -E create_symlink
-                            "${GAME_ASSETS_DIR}" "${_AND_ASSETS_LINK}"
-                )
-            endif()
-            set(GRADLE_ASSETS_SRCDIRS "")  # Gradle finds assets via the symlink
+            file(COPY "${GAME_ASSETS_DIR}/" DESTINATION "${_AND_ASSETS_LINK}")
+            set(GRADLE_ASSETS_SRCDIRS "")  # Gradle finds assets at the standard location
         endif()
 
         set(_AND_TMPL  "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/templates")

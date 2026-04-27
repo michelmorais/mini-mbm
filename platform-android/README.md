@@ -453,6 +453,12 @@ If you run `find . -name main.lua` in the generated project and see it under `bu
 
 **Always edit files in your source directory** (`/home/michel/tower-defense/assets/`).  The staging copy is recreated from scratch on every build.
 
+> **Note:** assets are copied into the project at **cmake configure time**, not at build time.
+> If you add, remove, or rename a Lua script, texture, or any other asset file you must
+> **re-run cmake** so the copy is refreshed.  Just editing an existing file does not require
+> re-running cmake — `./gradlew assembleDebug` will pick up the change on the next build
+> because Gradle detects the modified timestamp.  This is the same behaviour as the iOS port.
+
 ### Viewing assets in Android Studio
 
 Android Studio's default **"Android"** project view does not show external asset directories.  To browse them:

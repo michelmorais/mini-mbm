@@ -68,5 +68,6 @@ android {
 
 dependencies {
     // androidx.core is needed for FileProvider (used by the share command).
+    // If you do not use it, you can remove the next line ("androidx.core:core:1.13.1")
     implementation "androidx.core:core:1.13.1"
 }
