@@ -816,6 +816,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             # and libc++_shared.so never gets copied/packaged into the APK.
             string(APPEND _GRADLE_CMAKE_ARGS ", \"-DANDROID_STL=c++_shared\"")
         endif()
+        if(MBM_ENABLE_MESH_LEGACY_V7)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DMBM_ENABLE_MESH_LEGACY_V7=1\"")
+        endif()
         set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
 
         # ── Create the output directory tree ─────────────────────────────────────────
