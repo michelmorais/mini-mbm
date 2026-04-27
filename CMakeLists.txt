@@ -889,6 +889,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                        "${GAME_APP_DIR}/settings.gradle" @ONLY)
         configure_file("${_AND_TMPL}/local.properties.in"
                        "${GAME_APP_DIR}/local.properties" @ONLY)
+        configure_file("${_AND_TMPL}/gradle.properties.in"
+                       "${GAME_APP_DIR}/gradle.properties" @ONLY)
         configure_file("${_AND_TMPL}/strings.xml.in"
                        "${_AND_APP_MAIN}/res/values/strings.xml" @ONLY)
         file(COPY "${_AND_TMPL}/proguard-rules.pro"
