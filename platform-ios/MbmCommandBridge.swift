@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                            |
 |                                                                                                                        |
 | See LICENSE.md in the engine root for full license text.                                                               |
 |                                                                                                                        |
