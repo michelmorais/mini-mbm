@@ -738,20 +738,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         if(GAME_ASSETS_DIR AND NOT IS_ABSOLUTE "${GAME_ASSETS_DIR}")
             get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
         endif()
-        # Use a symlink inside the project for assets so Android Studio does not add
-        # the external source directory as a content root (which would expose unrelated
-        # files such as README.md from the game repo in the IDE).
-        # The symlink is created at configure time; Gradle uses the default location.
+        # Build the Groovy snippet used in sourceSets { main { assets.srcDirs = [...] } }
+        # This is the fallback; it gets overridden to "" below once _AND_APP_MAIN is known
+        # and a symlink is created so Android Studio does not index the game repo root.
         if(GAME_ASSETS_DIR)
-            set(_AND_ASSETS_LINK "${_AND_APP_MAIN}/assets")
-            if(NOT EXISTS "${_AND_ASSETS_LINK}")
-                file(MAKE_DIRECTORY "${_AND_APP_MAIN}")
-                execute_process(
-                    COMMAND ${CMAKE_COMMAND} -E create_symlink
-                            "${GAME_ASSETS_DIR}" "${_AND_ASSETS_LINK}"
-                )
-            endif()
-            set(GRADLE_ASSETS_SRCDIRS "")
+            set(GRADLE_ASSETS_SRCDIRS "assets.srcDirs = ['${GAME_ASSETS_DIR}']")
             message(STATUS "Android game assets: ${GAME_ASSETS_DIR}")
         else()
             set(GRADLE_ASSETS_SRCDIRS "")
@@ -838,6 +829,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/values")
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/xml")
         file(MAKE_DIRECTORY "${GAME_APP_DIR}/gradle/wrapper")
+
+        # Create a symlink app/src/main/assets → GAME_ASSETS_DIR so Gradle uses the
+        # standard assets location and Android Studio does not add the external game
+        # repo as a content root (which would expose unrelated files like README.md).
+        if(GAME_ASSETS_DIR)
+            set(_AND_ASSETS_LINK "${_AND_APP_MAIN}/assets")
+            if(NOT EXISTS "${_AND_ASSETS_LINK}")
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink
+                            "${GAME_ASSETS_DIR}" "${_AND_ASSETS_LINK}"
+                )
+            endif()
+            set(GRADLE_ASSETS_SRCDIRS "")  # Gradle finds assets via the symlink
+        endif()
 
         set(_AND_TMPL  "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/templates")
         set(_AND_GRDLE "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/gradle")
