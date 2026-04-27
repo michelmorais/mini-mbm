@@ -69,6 +69,7 @@ namespace mbm
 #endif
         device->specificContextDevice->jenv = env;
         this->hasValueTextureLogo = false;
+        this->onDoNativeCommand   = nullptr;
         INFO_LOG("%s", this->nameApplication.c_str());
     }
     #endif

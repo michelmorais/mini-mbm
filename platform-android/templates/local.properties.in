@@ -3,3 +3,4 @@
 # This file is machine-specific and should NOT be committed to version control.
 
 sdk.dir=@ANDROID_SDK_ROOT@
+@_AND_JAVA_HOME_LINE@

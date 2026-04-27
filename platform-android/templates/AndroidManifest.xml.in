@@ -9,12 +9,16 @@
     <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
 
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- READ_EXTERNAL_STORAGE needed for file picker on Android ≤ 12 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                     android:maxSdkVersion="32"/>
 
     <application
         android:label="@GAME_NAME@"
         android:hasCode="true"
         android:allowBackup="false"
-        android:icon="@android:mipmap/sym_def_app_icon">
+        android:icon="@ANDROID_APP_ICON@">
 
         <!--
             android:name points to the thin MbmActivity (or NativeActivity directly when
@@ -36,5 +40,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- FileProvider for the share command — gives content:// URIs to other apps -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="@GAME_PACKAGE@.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
     </application>
 </manifest>

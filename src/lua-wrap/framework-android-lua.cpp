@@ -19,11 +19,11 @@
 #ifndef USE_DUMMY_BACK_END_ENGINE
 #if defined ANDROID
 #include <lua-wrap/framework-lua.h>
+#include <lua-wrap/manager-lua.h>
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/scene.h>
-#include <android/configuration.h>
 #include <plugin-helper/plugin-helper.h>
 #include <plugin-helper/user-data-lua.h>
 
@@ -32,6 +32,7 @@
 #else
     #error "This file is only for OpenGL ES"
 #endif
+#include <android/configuration.h>
 
 extern "C" 
 {
@@ -43,84 +44,15 @@ namespace mbm
 {
     int onDoCommands(lua_State *lua)
     {
-        const char *what = luaL_checkstring(lua, 1);
-        if (strcasecmp(what, "API-level") == 0)
-        {
-            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-            JNIEnv *         jenv = cJni->jenv;
-            jmethodID        mid  = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, "getAPILevel", "()I");
-            if (mid == NULL)
-            {
-                lua_print_line(lua,TYPE_LOG_ERROR,"method getAPILevel not found");
-                return 0;
-            }
-            jint ret = jenv->CallStaticIntMethod(cJni->jclassDoCommandsJniEngine, mid);
-            lua_pushboolean(lua, 1);
-            lua_pushinteger(lua, ret);
-            return 2;
-        }
-        else if (strcasecmp(what, "vibrate") == 0)
-        {
-            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-            const int        milliseconds = (int)luaL_checkinteger(lua, 2);
-            JNIEnv *         jenv         = cJni->jenv;
-            jmethodID        mid          = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, "vibrate", "(I)V");
-            if (mid == NULL)
-            {
-                lua_print_line(lua,TYPE_LOG_ERROR,"method vibrate not found");
-                lua_pushboolean(lua, 0);
-                return 1;
-            }
-            jenv->CallStaticVoidMethod(cJni->jclassDoCommandsJniEngine, mid, milliseconds);
-            lua_pushboolean(lua, 1);
-            return 1;
-        }
-        else
-        {
-            SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-            JNIEnv *         jenv  = cJni->jenv;
-            const int        top   = lua_gettop(lua);
-            const char *     parm1 = what;
-            const char *     parm2 = top > 1 ? luaL_checkstring(lua, 2) : "NULL";
-            jmethodID        mid   = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, "OnDoCommands",
-                                                    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-            if (mid == NULL)
-            {
-                lua_print_line(lua,TYPE_LOG_ERROR,"method OnDoCommands not found");
-                lua_pushboolean(lua, 0);
-                return 1;
-            }
-            jstring jParm1 = jenv->NewStringUTF(cJni->get_safe_string_utf(parm1));//fixed issue using local std::string
-            if (jParm1 == NULL)
-            {
-                lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF!");
-                lua_pushboolean(lua, 0);
-                return 1;
-            }
-            jstring jParm2 = jenv->NewStringUTF(cJni->get_safe_string_utf(parm2));//fixed issue using local std::string
-            if (jParm2 == NULL)
-            {
-                jenv->DeleteLocalRef(jParm1);
-                lua_print_line(lua,TYPE_LOG_ERROR,"error on call NewStringUTF!");
-                lua_pushboolean(lua, 0);
-                return 1;
-            }
-            jstring ret = (jstring)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid, jParm1, jParm2);
-            jenv->DeleteLocalRef(jParm1);
-            jenv->DeleteLocalRef(jParm2);
-            if (ret)
-            {
-                const char *newRet = jenv->GetStringUTFChars(ret, 0);
-                const char *r      = cJni->getStrToDelete(newRet);
-                jenv->ReleaseStringUTFChars(ret, newRet);
-                lua_pushstring(lua, r);
-                jenv->DeleteLocalRef(ret);
-                return 1;
-            }
-            jenv->DeleteLocalRef(ret);
-            lua_pushboolean(lua, 0);
-            return 1;
-        }
+        const int   top       = lua_gettop(lua);
+        const char *what      = luaL_checkstring(lua, 1);
+        const char *parameter = top > 1 ? luaL_checkstring(lua, 2) : "";
+        auto *luaManager      = static_cast<LUA_MANAGER *>(LUA_MANAGER::pLuaManager);
+        char result[1024]     = "";
+        if (luaManager->onDoNativeCommand)
+            luaManager->onDoNativeCommand(what, parameter, result, sizeof(result));
+        lua_pushstring(lua, result);
+        return 1;
     }
 
     void showConsoleWindowLua()
@@ -135,30 +67,11 @@ namespace mbm
 
     int onGetDisplayMetrics(lua_State *lua)
     {
-        const char *     methodName = "displayMetrics";
-        const char *     signature  = "()[B"; //() byte array
-        SPECIFIC_AUX_CONTEXT_DEVICE * cJni = mbm::DEVICE::getInstance()->specificContextDevice;
-        JNIEnv *         jenv       = cJni->jenv;
-        jmethodID        mid        = jenv->GetStaticMethodID(cJni->jclassDoCommandsJniEngine, methodName, signature);
-        if (mid == NULL)
-        {
-            return lua_error_debug(lua, "method not found:%s", methodName);
-        }
-        jbyteArray ret = (jbyteArray)jenv->CallStaticObjectMethod(cJni->jclassDoCommandsJniEngine, mid);
-        if (ret)
-        {
-            jbyte *buffer = new jbyte[2];
-            buffer[0]     = 0;
-            buffer[1]     = 0;
-            jenv->GetByteArrayRegion(ret, 0, 2, buffer);
-            lua_pushnumber(lua, buffer[0]);
-            lua_pushnumber(lua, buffer[1]);
-            delete[] buffer;
-            jenv->DeleteLocalRef(ret);
-            return 2;
-        }
-        lua_pushnumber(lua, 0);
-        lua_pushnumber(lua, 0);
+        DEVICE *device = DEVICE::getInstance();
+        const int width  = static_cast<int>(device->backBufferWidth);
+        const int height = static_cast<int>(device->backBufferHeight);
+        lua_pushnumber(lua, width);
+        lua_pushnumber(lua, height);
         return 2;
     }
 

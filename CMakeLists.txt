@@ -739,6 +739,8 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
         endif()
         # Build the Groovy snippet used in sourceSets { main { assets.srcDirs = [...] } }
+        # This is the fallback; it gets overridden to "" below once _AND_APP_MAIN is known
+        # and a symlink is created so Android Studio does not index the game repo root.
         if(GAME_ASSETS_DIR)
             set(GRADLE_ASSETS_SRCDIRS "assets.srcDirs = ['${GAME_ASSETS_DIR}']")
             message(STATUS "Android game assets: ${GAME_ASSETS_DIR}")
@@ -816,16 +818,79 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             # and libc++_shared.so never gets copied/packaged into the APK.
             string(APPEND _GRADLE_CMAKE_ARGS ", \"-DANDROID_STL=c++_shared\"")
         endif()
+        if(MBM_ENABLE_MESH_LEGACY_V7)
+            string(APPEND _GRADLE_CMAKE_ARGS ", \"-DMBM_ENABLE_MESH_LEGACY_V7=1\"")
+        endif()
         set(GRADLE_CMAKE_ARGS "${_GRADLE_CMAKE_ARGS}")
 
         # ── Create the output directory tree ─────────────────────────────────────────
         set(_AND_APP_MAIN "${GAME_APP_DIR}/app/src/main")
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/java/com/mini/mbm")
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/values")
+        file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/xml")
         file(MAKE_DIRECTORY "${GAME_APP_DIR}/gradle/wrapper")
+
+        # Copy assets into the project so it is self-contained (no external symlinks).
+        # Android Studio will not index the game repo root and the project can be
+        # opened on any machine that has a copy of the android-studio/ folder.
+        if(GAME_ASSETS_DIR)
+            set(_AND_ASSETS_LINK "${_AND_APP_MAIN}/assets")
+            file(COPY "${GAME_ASSETS_DIR}/" DESTINATION "${_AND_ASSETS_LINK}")
+            set(GRADLE_ASSETS_SRCDIRS "")  # Gradle finds assets at the standard location
+        endif()
 
         set(_AND_TMPL  "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/templates")
         set(_AND_GRDLE "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/gradle")
+
+        # ── Copy FileProvider path config ─────────────────────────────────────────────
+        file(COPY "${_AND_TMPL}/file_paths.xml" DESTINATION "${_AND_APP_MAIN}/res/xml")
+
+        # ── Android App Icon ──────────────────────────────────────────────────────────
+        # Default: use the built-in Android system icon.
+        # Override by passing -DGAME_ICON_PNG=/path/to/icon.png (auto-resized via Python)
+        # or -DGAME_ICON_DIR=/path/to/res (must contain mipmap-*/ subdirectories).
+        set(ANDROID_APP_ICON "@android:mipmap/sym_def_app_icon")
+        set(_AND_RES_DIR "${_AND_APP_MAIN}/res")
+        set(_RESIZE_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/resize_icon.py")
+
+        if(DEFINED GAME_ICON_PNG)
+            if(NOT EXISTS "${GAME_ICON_PNG}")
+                message(WARNING "GAME_ICON_PNG '${GAME_ICON_PNG}' not found — using system icon.")
+            else()
+                find_program(_PY3 python3)
+                if(_PY3)
+                    execute_process(
+                        COMMAND "${_PY3}" "${_RESIZE_SCRIPT}" "${GAME_ICON_PNG}" "${_AND_RES_DIR}"
+                        RESULT_VARIABLE _PY_RESULT
+                        ERROR_VARIABLE  _PY_ERR)
+                    if(_PY_RESULT EQUAL 0)
+                        set(ANDROID_APP_ICON "@mipmap/ic_launcher")
+                        message(STATUS "Android icon generated from: ${GAME_ICON_PNG}")
+                    else()
+                        message(WARNING "Android icon generation failed: ${_PY_ERR}")
+                    endif()
+                else()
+                    message(WARNING "'python3' not found — Android icon not generated (install Python 3 + Pillow).")
+                endif()
+            endif()
+        endif()
+
+        if(DEFINED GAME_ICON_DIR)
+            if(NOT IS_DIRECTORY "${GAME_ICON_DIR}")
+                message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' is not a directory.")
+            else()
+                file(GLOB _MIPMAP_DIRS LIST_DIRECTORIES true "${GAME_ICON_DIR}/mipmap-*")
+                if(_MIPMAP_DIRS)
+                    foreach(_mdir IN LISTS _MIPMAP_DIRS)
+                        file(COPY "${_mdir}" DESTINATION "${_AND_RES_DIR}")
+                    endforeach()
+                    set(ANDROID_APP_ICON "@mipmap/ic_launcher")
+                    message(STATUS "Android icon copied from: ${GAME_ICON_DIR}")
+                else()
+                    message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' has no mipmap-* subdirectories.")
+                endif()
+            endif()
+        endif()
 
         # ── Configure template files (@ONLY prevents CMake variable expansion) ───────
         configure_file("${_AND_TMPL}/AndroidManifest.xml.in"
@@ -836,8 +901,24 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                        "${GAME_APP_DIR}/build.gradle" @ONLY)
         configure_file("${_AND_TMPL}/settings.gradle.in"
                        "${GAME_APP_DIR}/settings.gradle" @ONLY)
+        # Detect Java home for local.properties (suppresses the Android Studio
+        # "Invalid Gradle JDK configuration" warning about #GRADLE_LOCAL_JAVA_HOME).
+        if(DEFINED ENV{JAVA_HOME})
+            set(_AND_JAVA_HOME_LINE "java.home=$ENV{JAVA_HOME}")
+        else()
+            find_package(Java QUIET)
+            if(Java_JAVA_EXECUTABLE)
+                get_filename_component(_jdir "${Java_JAVA_EXECUTABLE}" DIRECTORY)
+                get_filename_component(_jdir "${_jdir}" DIRECTORY)
+                set(_AND_JAVA_HOME_LINE "java.home=${_jdir}")
+            else()
+                set(_AND_JAVA_HOME_LINE "")
+            endif()
+        endif()
         configure_file("${_AND_TMPL}/local.properties.in"
                        "${GAME_APP_DIR}/local.properties" @ONLY)
+        configure_file("${_AND_TMPL}/gradle.properties.in"
+                       "${GAME_APP_DIR}/gradle.properties" @ONLY)
         configure_file("${_AND_TMPL}/strings.xml.in"
                        "${_AND_APP_MAIN}/res/values/strings.xml" @ONLY)
         file(COPY "${_AND_TMPL}/proguard-rules.pro"

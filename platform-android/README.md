@@ -49,7 +49,7 @@ export NDK_ROOT=~/android-ndk-r29
 ```sh
 mkdir -p ~/tower-defense-android && cd ~/tower-defense-android
 
-# Using the dyanmic libc++_shared.so (copied to the folder of application)
+# Using the dynamic libc++_shared.so (copied to the folder of application)
 cmake ~/mini-mbm \
     -DPLAT=Android \
     -DANDROID_ABI=arm64-v8a \
@@ -60,6 +60,7 @@ cmake ~/mini-mbm \
     -DAUDIO=opensl \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
+    -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
 
@@ -75,6 +76,7 @@ cmake ~/mini-mbm \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
+    -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
 ```
@@ -451,6 +453,12 @@ If you run `find . -name main.lua` in the generated project and see it under `bu
 
 **Always edit files in your source directory** (`/home/michel/tower-defense/assets/`).  The staging copy is recreated from scratch on every build.
 
+> **Note:** assets are copied into the project at **cmake configure time**, not at build time.
+> If you add, remove, or rename a Lua script, texture, or any other asset file you must
+> **re-run cmake** so the copy is refreshed.  Just editing an existing file does not require
+> re-running cmake — `./gradlew assembleDebug` will pick up the change on the next build
+> because Gradle detects the modified timestamp.  This is the same behaviour as the iOS port.
+
 ### Viewing assets in Android Studio
 
 Android Studio's default **"Android"** project view does not show external asset directories.  To browse them:
@@ -529,6 +537,8 @@ cd build/android_arm64/android-studio && ./gradlew assembleDebug
 | `ANDROID_SDK_ROOT` | `$ANDROID_HOME` or `$ANDROID_SDK_ROOT` | Path for `local.properties` |
 | `GAME_APP_DIR` | `<build_dir>/android-studio` | Where generated project is written |
 | `GAME_ASSETS_DIR` | _(empty)_ | Path to your game's assets folder — served directly into the APK |
+| `GAME_ICON_PNG` | _(empty)_ | Path to a PNG icon — auto-resized to all mipmap densities at configure time |
+| `GAME_ICON_DIR` | _(empty)_ | Path to a directory containing pre-built `mipmap-*/` subdirectories |
 
 Override any of these with `-D` flags on the `cmake` command:
 ```sh
@@ -537,6 +547,55 @@ cmake ../.. -DPLAT=Android ... \
     -DGAME_NAME="Tower Defense" \
     -DGAME_APP_DIR=~/tower-defense-android
 ```
+
+---
+
+## App icon
+
+By default the generated APK uses the Android system placeholder icon.  Provide your
+own icon in one of two ways:
+
+### Option A — single PNG (auto-resized)
+
+Pass the path to a square PNG (ideally 512×512 or larger) with `-DGAME_ICON_PNG`:
+
+```sh
+cmake ~/mini-mbm -DPLAT=Android ... \
+    -DGAME_ICON_PNG=/path/to/icon.png \
+    -DGAME_APP_DIR=~/tower-defense-android/android-studio
+```
+
+CMake calls `platform-android/resize_icon.py` at configure time, which generates
+`mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png` into the project's `res/`
+directory.
+
+**Prerequisite — install one of:**
+```sh
+pip install pillow           # recommended (Pillow)
+sudo apt-get install imagemagick   # fallback (ImageMagick)
+```
+
+You can also run the script standalone to verify output:
+```sh
+python3 platform-android/resize_icon.py /path/to/icon.png /tmp/test-res
+ls /tmp/test-res/mipmap-*/ic_launcher.png
+```
+
+### Option B — pre-built mipmap directories
+
+If you already have an Android `res/` directory with `mipmap-*` subfolders:
+
+```sh
+cmake ~/mini-mbm -DPLAT=Android ... \
+    -DGAME_ICON_DIR=/path/to/res \
+    -DGAME_APP_DIR=~/tower-defense-android/android-studio
+```
+
+`GAME_ICON_DIR` must contain at least one `mipmap-*/` subdirectory with an
+`ic_launcher.png` file inside.
+
+> `GAME_ICON_PNG` and `GAME_ICON_DIR` use the same variable names as the iOS port,
+> so they can be passed to both platform builds from a shared build script.
 
 ---
 
@@ -607,11 +666,14 @@ The `android_main()` NativeActivity entry point is the same file for both paths;
 
 | File | Purpose |
 |---|---|
-| `platform-android/main-native-activity.cpp` | `android_main()` entry; touch/key/lifecycle input |
+| `platform-android/main-native-activity.cpp` | `android_main()` entry; touch/key/lifecycle input; `android_command_handler` fn-ptr |
 | `platform-android/my-scene.h` / `my-scene.cpp` | C++ scene — edit these for a custom game |
-| `platform-android/MbmActivity.java` | Thin `NativeActivity` subclass; vibrate / locale helpers |
+| `platform-android/MbmActivity.java` | Thin `NativeActivity` subclass; `OnDoCommands` bridge; vibrate / clipboard / URL / share |
+| `platform-android/resize_icon.py` | Python script: resize a PNG to all Android mipmap densities |
 | `platform-android/templates/` | Gradle project templates (`*.in` files) |
+| `platform-android/templates/file_paths.xml` | FileProvider path config (copied to `res/xml/` at configure time) |
 | `platform-android/gradle/` | Gradle wrapper scripts (configured at CMake time) |
+| `src/lua-wrap/framework-android-lua.cpp` | Lua bindings for Android (`mbm.doCommands` → fn-ptr) |
 | `src/core_mbm/specific-android.cpp` | NDK system integration (`AAssetManager`, `ALooper`) |
 | `src/core_mbm/audio-opensl-android.cpp` | OpenSL ES audio backend (`AUDIO=opensl`, recommended) |
 

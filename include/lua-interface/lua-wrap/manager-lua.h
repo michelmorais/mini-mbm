@@ -111,6 +111,7 @@ namespace mbm
         bool existScene(const int idScene)override;
     #ifdef ANDROID
         LUA_MANAGER(JNIEnv *env, jobject obj);
+        OnDoNativeCommand onDoNativeCommand;
         
     #elif defined _WIN32 || defined __linux__  || defined(__APPLE__)
         LUA_MANAGER();
