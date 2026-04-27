@@ -890,6 +890,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
                        "${GAME_APP_DIR}/build.gradle" @ONLY)
         configure_file("${_AND_TMPL}/settings.gradle.in"
                        "${GAME_APP_DIR}/settings.gradle" @ONLY)
+        # Detect Java home for local.properties (suppresses the Android Studio
+        # "Invalid Gradle JDK configuration" warning about #GRADLE_LOCAL_JAVA_HOME).
+        if(DEFINED ENV{JAVA_HOME})
+            set(_AND_JAVA_HOME_LINE "java.home=$ENV{JAVA_HOME}")
+        else()
+            find_package(Java QUIET)
+            if(Java_JAVA_EXECUTABLE)
+                get_filename_component(_jdir "${Java_JAVA_EXECUTABLE}" DIRECTORY)
+                get_filename_component(_jdir "${_jdir}" DIRECTORY)
+                set(_AND_JAVA_HOME_LINE "java.home=${_jdir}")
+            else()
+                set(_AND_JAVA_HOME_LINE "")
+            endif()
+        endif()
         configure_file("${_AND_TMPL}/local.properties.in"
                        "${GAME_APP_DIR}/local.properties" @ONLY)
         configure_file("${_AND_TMPL}/gradle.properties.in"
