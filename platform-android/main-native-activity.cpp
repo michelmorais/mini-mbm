@@ -57,6 +57,8 @@ static mbm::LUA_MANAGER* s_game = nullptr;
 static MY_GAME*           s_game = nullptr;
 #endif
 
+static jobject s_activityInstance = nullptr; // GlobalRef to the MbmActivity instance
+
 static bool s_running        = false;
 static bool s_windowReady    = false;
 static bool s_isRestoring    = false; // true while onLostDevice steps are in progress
@@ -193,6 +195,45 @@ static int32_t onInputEvent(struct android_app* app, AInputEvent* event)
 // ---------------------------------------------------------------------------
 // App command handler (called by android_native_app_glue).
 // ---------------------------------------------------------------------------
+
+#ifdef USE_LUA
+// Command handler called from Lua via mbm.doCommands(cmd, param).
+// Bridges to MbmActivity.OnDoCommands(String, String) on the Java side.
+static void android_command_handler(const char *cmd, const char *param,
+                                    char *result, int maxSize)
+{
+    if (!s_activityInstance || !result || maxSize <= 0)
+        return;
+    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = mbm::DEVICE::getInstance()->specificContextDevice;
+    JNIEnv *jenv = ctx->jenv;
+    if (!jenv)
+        return;
+    jclass   cls = jenv->GetObjectClass(s_activityInstance);
+    jmethodID mid = jenv->GetMethodID(cls, "OnDoCommands",
+                        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    jenv->DeleteLocalRef(cls);
+    if (!mid)
+        return;
+    jstring jcmd   = jenv->NewStringUTF(cmd   ? cmd   : "");
+    jstring jparam = jenv->NewStringUTF(param ? param : "");
+    jstring jret   = static_cast<jstring>(
+        jenv->CallObjectMethod(s_activityInstance, mid, jcmd, jparam));
+    jenv->DeleteLocalRef(jcmd);
+    jenv->DeleteLocalRef(jparam);
+    if (jret)
+    {
+        const char *chars = jenv->GetStringUTFChars(jret, nullptr);
+        if (chars)
+        {
+            strncpy(result, chars, static_cast<size_t>(maxSize) - 1);
+            result[maxSize - 1] = '\0';
+            jenv->ReleaseStringUTFChars(jret, chars);
+        }
+        jenv->DeleteLocalRef(jret);
+    }
+}
+#endif // USE_LUA
+
 static void onAppCmd(struct android_app* app, int32_t cmd)
 {
     switch (cmd)
@@ -273,9 +314,14 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
                     // ClassLoader so that getClass/tryGetClass can use it instead.
                     ctx->initClassLoader(app->activity->clazz);
                     ctx->cacheJavaClasses(PACKAGE_NAME_CLASS);
+                    // Keep a global ref to the Activity instance for instance method calls.
+                    s_activityInstance = jenv->NewGlobalRef(app->activity->clazz);
                 }
 
 #ifdef USE_LUA
+                // Wire the doCommands fn-ptr so Lua's mbm.doCommands() reaches Java.
+                s_game->onDoNativeCommand = android_command_handler;
+
                 constexpr bool border = false;
                 if (!s_game->initializeSceneLua(w, h, w, h, border))
                 {
@@ -350,10 +396,11 @@ void android_main(struct android_app* app)
     // Reset all file-scope statics so a second launch into the same process
     // (Android keeps the process alive after ANativeActivity_finish) starts
     // from a clean state.
-    s_game        = nullptr;
-    s_running     = false;
-    s_windowReady = false;
-    s_isRestoring = false;
+    s_game             = nullptr;
+    s_activityInstance = nullptr;
+    s_running          = false;
+    s_windowReady      = false;
+    s_isRestoring      = false;
     s_touchMap.clear();
     s_nextTouchID = 0;
 
@@ -381,6 +428,16 @@ void android_main(struct android_app* app)
             if (app->destroyRequested)
             {
                 INFO_LOG("mini-mbm: destroyRequested — cleaning up");
+                if (s_activityInstance)
+                {
+                    mbm::SPECIFIC_AUX_CONTEXT_DEVICE *ctx = s_game
+                        ? s_game->device->specificContextDevice
+                        : nullptr;
+                    JNIEnv *jenv = ctx ? ctx->jenv : nullptr;
+                    if (jenv)
+                        jenv->DeleteGlobalRef(s_activityInstance);
+                    s_activityInstance = nullptr;
+                }
                 if (s_game)
                 {
                     delete s_game;
@@ -420,6 +477,24 @@ void android_main(struct android_app* app)
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// JNI export — called by Java MbmActivity.nativeOnCallBackCommands().
+// Routes async command results (e.g. pickFile completion) back into the
+// engine's Lua onCallBackCommands(p1, p2) scene callback.
+// ---------------------------------------------------------------------------
+extern "C" JNIEXPORT void JNICALL
+Java_com_mini_mbm_MbmActivity_nativeOnCallBackCommands(
+    JNIEnv *env, jobject /*obj*/, jstring param1, jstring param2)
+{
+    if (!s_game || !s_game->device || !s_game->device->scene)
+        return;
+    const char *p1 = param1 ? env->GetStringUTFChars(param1, nullptr) : nullptr;
+    const char *p2 = param2 ? env->GetStringUTFChars(param2, nullptr) : nullptr;
+    s_game->device->scene->onCallBackCommands(p1 ? p1 : "", p2 ? p2 : "");
+    if (p1) env->ReleaseStringUTFChars(param1, p1);
+    if (p2) env->ReleaseStringUTFChars(param2, p2);
 }
 
 #else

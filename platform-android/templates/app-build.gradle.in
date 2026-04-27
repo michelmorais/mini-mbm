@@ -67,5 +67,6 @@ android {
 }
 
 dependencies {
-    // No AppCompat or Jetpack dependencies — NativeActivity does not need them.
+    // androidx.core is needed for FileProvider (used by the share command).
+    implementation "androidx.core:core:1.13.1"
 }

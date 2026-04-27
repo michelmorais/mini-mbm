@@ -822,10 +822,61 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         set(_AND_APP_MAIN "${GAME_APP_DIR}/app/src/main")
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/java/com/mini/mbm")
         file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/values")
+        file(MAKE_DIRECTORY "${_AND_APP_MAIN}/res/xml")
         file(MAKE_DIRECTORY "${GAME_APP_DIR}/gradle/wrapper")
 
         set(_AND_TMPL  "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/templates")
         set(_AND_GRDLE "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/gradle")
+
+        # ── Copy FileProvider path config ─────────────────────────────────────────────
+        file(COPY "${_AND_TMPL}/file_paths.xml" DESTINATION "${_AND_APP_MAIN}/res/xml")
+
+        # ── Android App Icon ──────────────────────────────────────────────────────────
+        # Default: use the built-in Android system icon.
+        # Override by passing -DGAME_ICON_PNG=/path/to/icon.png (auto-resized via Python)
+        # or -DGAME_ICON_DIR=/path/to/res (must contain mipmap-*/ subdirectories).
+        set(ANDROID_APP_ICON "@android:mipmap/sym_def_app_icon")
+        set(_AND_RES_DIR "${_AND_APP_MAIN}/res")
+        set(_RESIZE_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/platform-android/resize_icon.py")
+
+        if(DEFINED GAME_ICON_PNG)
+            if(NOT EXISTS "${GAME_ICON_PNG}")
+                message(WARNING "GAME_ICON_PNG '${GAME_ICON_PNG}' not found — using system icon.")
+            else()
+                find_program(_PY3 python3)
+                if(_PY3)
+                    execute_process(
+                        COMMAND "${_PY3}" "${_RESIZE_SCRIPT}" "${GAME_ICON_PNG}" "${_AND_RES_DIR}"
+                        RESULT_VARIABLE _PY_RESULT
+                        ERROR_VARIABLE  _PY_ERR)
+                    if(_PY_RESULT EQUAL 0)
+                        set(ANDROID_APP_ICON "@mipmap/ic_launcher")
+                        message(STATUS "Android icon generated from: ${GAME_ICON_PNG}")
+                    else()
+                        message(WARNING "Android icon generation failed: ${_PY_ERR}")
+                    endif()
+                else()
+                    message(WARNING "'python3' not found — Android icon not generated (install Python 3 + Pillow).")
+                endif()
+            endif()
+        endif()
+
+        if(DEFINED GAME_ICON_DIR)
+            if(NOT IS_DIRECTORY "${GAME_ICON_DIR}")
+                message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' is not a directory.")
+            else()
+                file(GLOB _MIPMAP_DIRS LIST_DIRECTORIES true "${GAME_ICON_DIR}/mipmap-*")
+                if(_MIPMAP_DIRS)
+                    foreach(_mdir IN LISTS _MIPMAP_DIRS)
+                        file(COPY "${_mdir}" DESTINATION "${_AND_RES_DIR}")
+                    endforeach()
+                    set(ANDROID_APP_ICON "@mipmap/ic_launcher")
+                    message(STATUS "Android icon copied from: ${GAME_ICON_DIR}")
+                else()
+                    message(WARNING "GAME_ICON_DIR '${GAME_ICON_DIR}' has no mipmap-* subdirectories.")
+                endif()
+            endif()
+        endif()
 
         # ── Configure template files (@ONLY prevents CMake variable expansion) ───────
         configure_file("${_AND_TMPL}/AndroidManifest.xml.in"
