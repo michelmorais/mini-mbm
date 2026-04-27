@@ -46,8 +46,29 @@ if (USE_LUA)
             ${CMAKE_SOURCE_DIR}/platform-ios/AppDelegate.mm
             ${CMAKE_SOURCE_DIR}/platform-ios/MBMMetalView.mm
             ${CMAKE_SOURCE_DIR}/platform-ios/MetalViewController.mm)
+        # Apply ARC flag to ObjC++ files only — Swift files must not receive this flag.
         set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC} ${IOS_PLATFORM_SOURCES}
             PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+        # ── Swift native-command bridge (Xcode generator only) ────────────────
+        # The make generator is used for CI / unsigned compile checks and does
+        # not support Swift.  Skip everything below for that path.
+        # ── ObjC native-command bridge (Xcode generator only) ────────────────
+        # The make generator is used for CI / unsigned compile checks and does
+        # not include the bridge.  The Xcode generator wires it up so that
+        # mbm.doCommands() dispatches to MbmCommandBridge (built-in commands)
+        # and then to MyCommands (game-specific stub in platform-ios/my-commands.m).
+        if(CMAKE_GENERATOR STREQUAL "Xcode")
+            add_definitions(-DMBM_IOS_SWIFT_BRIDGE=1)
+            list(APPEND IOS_PLATFORM_SOURCES
+                ${CMAKE_SOURCE_DIR}/platform-ios/MbmCommandBridge.mm
+                ${CMAKE_SOURCE_DIR}/platform-ios/my-commands.m)
+            # Both files are ObjC and must be compiled with ARC.
+            set_source_files_properties(
+                ${CMAKE_SOURCE_DIR}/platform-ios/MbmCommandBridge.mm
+                ${CMAKE_SOURCE_DIR}/platform-ios/my-commands.m
+                PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+            include_directories("${CMAKE_SOURCE_DIR}/platform-ios")
+        endif()
     else()
         message(SEND_ERROR "Unknown ENGINE_TARGET_PLATFORM ${ENGINE_TARGET_PLATFORM}")
     endif()
@@ -290,6 +311,11 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     target_link_libraries(mini-mbm "-framework AVFoundation")
     target_link_libraries(mini-mbm "-framework AudioToolbox")
     target_link_libraries(mini-mbm "-framework Foundation")
+    # UniformTypeIdentifiers is used by MbmCommandBridge.mm (UTType / file picker).
+    # iOS 14+ only — needs to be explicit so CMake/Xcode includes it in the link phase.
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+        target_link_libraries(mini-mbm "-framework UniformTypeIdentifiers")
+    endif()
 
     # ── Game assets ───────────────────────────────────────────────────────────
     # With -G Xcode: files are added as target sources with MACOSX_PACKAGE_LOCATION
