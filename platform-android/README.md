@@ -60,6 +60,7 @@ cmake ~/mini-mbm \
     -DAUDIO=opensl \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
+    -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
 
@@ -75,6 +76,7 @@ cmake ~/mini-mbm \
     -DUSE_STL_STATIC=1 \
     -DGAME_PACKAGE=com.mini.mbm.tower_defense \
     -DGAME_NAME="Tower Defense" \
+    -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DGAME_APP_DIR=~/tower-defense-android/android-studio \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets
 ```
