@@ -313,10 +313,22 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
         XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
         # App Store Connect requires a separate .dSYM bundle in the archive.
-        # CMake defaults to "dwarf" (debug info embedded in the binary); override
-        # to "dwarf-with-dsym" so Xcode generates mini-mbm.app.dSYM alongside the
-        # .app and includes it in the .xcarchive/dSYMs/ folder.
-        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
+        # CMake defaults DEBUG_INFORMATION_FORMAT to "dwarf" (embedded) and sets
+        # GCC_GENERATE_DEBUGGING_SYMBOLS=NO for Release builds. Both must be
+        # overridden: the compiler must emit DWARF (-g), then dsymutil extracts
+        # it into a separate .dSYM. Without GCC_GENERATE_DEBUGGING_SYMBOLS=YES
+        # the compiler produces no debug info and dsymutil has nothing to work
+        # with, leaving the archive's dSYMs/ folder empty.
+        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
+        XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+        # CMake sets CMAKE_RUNTIME_OUTPUT_DIRECTORY globally to mini-mbm/bin/…
+        # which Xcode translates into CONFIGURATION_BUILD_DIR for every target.
+        # During archive, Xcode copies the .dSYM into the archive only when it
+        # sits beside the .app in the archive intermediates SYMROOT — not in the
+        # custom bin/ path. Resetting CONFIGURATION_BUILD_DIR to the Xcode default
+        # ($(SYMROOT)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)) ensures the
+        # dSYM lands where Xcode expects it and gets included in the .xcarchive.
+        XCODE_ATTRIBUTE_CONFIGURATION_BUILD_DIR "$(SYMROOT)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
     target_link_libraries(mini-mbm "-framework Metal")
