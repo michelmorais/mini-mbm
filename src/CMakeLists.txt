@@ -311,7 +311,12 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         # "Distribute Content". Setting it to $(LOCAL_APPS_DIR) tells Xcode
         # this is a real .app archive, unlocking the App Store upload path.
         XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
-        XCODE_ATTRIBUTE_SKIP_INSTALL "NO")
+        XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
+        # App Store Connect requires a separate .dSYM bundle in the archive.
+        # CMake defaults to "dwarf" (debug info embedded in the binary); override
+        # to "dwarf-with-dsym" so Xcode generates mini-mbm.app.dSYM alongside the
+        # .app and includes it in the .xcarchive/dSYMs/ folder.
+        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
     target_link_libraries(mini-mbm "-framework Metal")
