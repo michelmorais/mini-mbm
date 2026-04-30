@@ -304,7 +304,14 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/platform-ios/Info.plist
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${GAME_BUNDLE_ID}"
-        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        # Required for "Distribute App → App Store Connect" to appear in the
+        # Xcode Organizer. CMake defaults INSTALL_PATH to "" for all targets;
+        # Xcode interprets that as "not an installable app" and only shows
+        # "Distribute Content". Setting it to $(LOCAL_APPS_DIR) tells Xcode
+        # this is a real .app archive, unlocking the App Store upload path.
+        XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
+        XCODE_ATTRIBUTE_SKIP_INSTALL "NO")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework UIKit")
     target_link_libraries(mini-mbm "-framework Metal")
