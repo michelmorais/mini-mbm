@@ -167,21 +167,29 @@ CMake needs `gcc`, `g++`, and `mingw32-make` on `PATH` before you run
 `cmake -G "MinGW Makefiles"`. The easiest way to get them on Windows is via
 **MSYS2** ([https://www.msys2.org](https://www.msys2.org)).
 
-After installing MSYS2 to `C:\msys64`, open the **MSYS2** shell and install the
-toolchain into whichever environment you prefer:
+> **32-bit vs 64-bit:** `mingw64` and `ucrt64` produce **64-bit (x86_64)** binaries.
+> `mingw32` produces **32-bit (i686)** binaries, matching Visual Studio's `Win32`
+> platform target. The engine and all bundled third-party libraries are validated
+> against the 32-bit build; use `mingw32` unless you have a specific reason to
+> build 64-bit.
 
-| Environment | Packages | Runtime | Recommended for |
+After installing MSYS2 to `C:\msys64`, open the **MSYS2** shell and install the
+toolchain into whichever environment you need:
+
+| Environment | Architecture | Runtime | Recommended for |
 |---|---|---|---|
-| `mingw64` | `mingw-w64-x86_64-gcc mingw-w64-x86_64-make` | `msvcrt` | Broadest Windows compatibility |
-| `ucrt64` | `mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make` | UCRT (Win 10+) | Modern builds |
+| `mingw32` | **32-bit (i686)** | `msvcrt` | **Recommended** — matches VS Win32, audiere works |
+| `mingw64` | 64-bit (x86_64) | `msvcrt` | 64-bit builds with dsound audio |
+| `ucrt64` | 64-bit (x86_64) | UCRT (Win 10+) | 64-bit modern builds with dsound audio |
 
 ```bash
-# mingw64 environment (msvcrt — broader compatibility)
+# mingw32 environment (32-bit — recommended)
+pacman -S mingw-w64-i686-gcc mingw-w64-i686-make mingw-w64-i686-cmake
+
+# — OR — mingw64 environment (64-bit, msvcrt)
 pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-make mingw-w64-x86_64-cmake
 
-# — OR —
-
-# ucrt64 environment (Universal CRT — recommended for Windows 10+)
+# — OR — ucrt64 environment (64-bit, UCRT)
 pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake
 ```
 
@@ -190,16 +198,20 @@ permanently) via *System Properties → Environment Variables → Path*:
 
 | Environment chosen | Directory to add to PATH |
 |---|---|
+| `mingw32` | `C:\msys64\mingw32\bin` |
 | `mingw64` | `C:\msys64\mingw64\bin` |
 | `ucrt64` | `C:\msys64\ucrt64\bin` |
 
 Or add it for the current terminal session only:
 
 ```cmd
-rem mingw64
+rem mingw32 (32-bit — recommended)
+set PATH=C:\msys64\mingw32\bin;%PATH%
+
+rem mingw64 (64-bit)
 set PATH=C:\msys64\mingw64\bin;%PATH%
 
-rem ucrt64
+rem ucrt64 (64-bit)
 set PATH=C:\msys64\ucrt64\bin;%PATH%
 ```
 
@@ -229,15 +241,16 @@ will succeed.
 mkdir build
 cd build
 
+rem 32-bit build (recommended — use mingw32 environment, set PATH=C:\msys64\mingw32\bin;%PATH%)
 cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
-rem For x86 (32-bit) builds, Audiere is available instead:
-rem   -DAUDIO=audiere   (bundles audiere.dll from third-party/audiere-1.9.4/bin/)
+rem 64-bit build (use mingw64 or ucrt64 environment — audiere not available for x64)
+rem   -DAUDIO=dsound
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
