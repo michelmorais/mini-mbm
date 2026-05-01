@@ -1004,7 +1004,12 @@ namespace mbm
             id<MTLRenderCommandEncoder> enc = ctx->currentEncoder;
             MBMPSOPair* pairP = (__bridge MBMPSOPair*)ptrShaderSpecific;
 
-            [enc setRenderPipelineState:pairP.additivePSO];  // BLEND_ONE: src*alpha + dst*1
+            // Match OpenGL: renderParticle() does not force additive blend — respect the
+            // blend state last set by RENDER_STATE::set() so that particles such as the
+            // black-hole timer (which need standard src-alpha blending to darken the
+            // background) behave consistently with the OpenGL backend.
+            [enc setRenderPipelineState:(ctx->currentBlendState == 2)
+                ? pairP.additivePSO : pairP.standardPSO];
             [enc setFrontFacingWinding:metalWinding(pBufferId->mode_front_face_direction)];
             [enc setCullMode:MTLCullModeNone]; // match OpenGL: disable face culling for particles
             [enc setDepthStencilState:getOrCreateNoDepthState(ctx)]; // match OpenGL: no depth test
