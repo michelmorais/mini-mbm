@@ -534,14 +534,20 @@ cd /d \"%~dp0\"\r\n\
         set(_WIN_DLL_LIST "")
         if(NOT AUDIO STREQUAL "none")
             if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-                list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/audiere-1.9.4/bin/x64/audiere.dll")
+                # NOTE: the bundled bin/x64/audiere.dll is mislabeled (it is 32-bit).
+                # Prefer a user-supplied 64-bit audiere.dll via -DAUDIERE_DLL_64=<path>.
+                if(DEFINED AUDIERE_DLL_64 AND EXISTS "${AUDIERE_DLL_64}")
+                    list(APPEND _WIN_DLL_LIST "${AUDIERE_DLL_64}")
+                else()
+                    message(WARNING "No 64-bit audiere.dll found. Provide -DAUDIERE_DLL_64=/path/to/audiere.dll or rebuild with -DAUDIO=none.")
+                endif()
             else()
                 list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/audiere-1.9.4/bin/audiere.dll")
             endif()
         endif()
         if(USE_DIRECTX9)
-            list(APPEND _WIN_DLL_LIST
-                "${THIRD_PARTY}/gles/bin/d3dcompiler_47.dll")
+            # Always use the system D3DCompiler_47.dll — it matches the process bitness.
+            list(APPEND _WIN_DLL_LIST "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
         else()
             list(APPEND _WIN_DLL_LIST
                 "${THIRD_PARTY}/gles/bin/libEGL.dll"
