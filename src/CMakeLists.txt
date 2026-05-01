@@ -458,14 +458,23 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                 get_filename_component(GAME_ICON_PNG "${GAME_ICON_PNG}" ABSOLUTE)
             endif()
             if(EXISTS "${GAME_ICON_PNG}")
+                # Prefer 'magick' (ImageMagick 7+) which is unique to ImageMagick —
+                # 'convert' collides with the Windows built-in System32\convert.exe
+                # (the disk-partition utility) and must be avoided with NO_DEFAULT_PATH.
                 find_program(IMAGEMAGICK_CONVERT
-                    NAMES convert magick
-                    HINTS
-                        "C:/Program Files/ImageMagick-7.1.0-Q16-HDRI"
-                        "C:/Program Files/ImageMagick-7.0.11-Q16-HDRI"
-                        "C:/Program Files (x86)/ImageMagick-7.1.0-Q16-HDRI"
-                        "C:/Program Files/ImageMagick-7.1.1-Q16-HDRI"
+                    NAMES magick
                 )
+                if(NOT IMAGEMAGICK_CONVERT)
+                    find_program(IMAGEMAGICK_CONVERT
+                        NAMES convert
+                        HINTS
+                            "C:/Program Files/ImageMagick-7.1.0-Q16-HDRI"
+                            "C:/Program Files/ImageMagick-7.0.11-Q16-HDRI"
+                            "C:/Program Files (x86)/ImageMagick-7.1.0-Q16-HDRI"
+                            "C:/Program Files/ImageMagick-7.1.1-Q16-HDRI"
+                        NO_DEFAULT_PATH
+                    )
+                endif()
                 if(IMAGEMAGICK_CONVERT)
                     set(_WIN_ICON_ICO "${CMAKE_BINARY_DIR}/${GAME_NAME_SAFE}.ico")
                     execute_process(

@@ -117,7 +117,11 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
-    message( SEND_ERROR "Not configurated for Windows src/CMakeList.txt")
+    # DirectX9 needs no find_* step — its headers ship with MinGW/Windows SDK.
+    # GLES import libs are referenced directly in target_link_libraries below.
+    # Threads: needed by Lua and the engine on MinGW.
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
 
@@ -265,8 +269,35 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
-    message(" ... ")
-    
+    # ── Audio ────────────────────────────────────────────────────────────────
+    if(AUDIO STREQUAL "audiere")
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            target_link_libraries(core_mbm
+                "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/bin/x64/audiere.lib")
+        else()
+            target_link_libraries(core_mbm
+                "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
+        endif()
+    elseif(AUDIO STREQUAL "none")
+        message(STATUS "Disabling audio for Windows")
+    else()
+        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=audiere or -DAUDIO=none")
+    endif()
+
+    # ── Graphics backend ─────────────────────────────────────────────────────
+    if(USE_DIRECTX9)
+        target_link_libraries(core_mbm d3d9 d3dcompiler)
+    else()
+        # OpenGL ES emulation (Imagination PowerVR pre-built import libs)
+        target_link_libraries(core_mbm
+            "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libEGL.dll.lib"
+            "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libGLESv2.dll.lib")
+    endif()
+
+    # ── Windows system libraries ──────────────────────────────────────────────
+    target_link_libraries(core_mbm winmm gdi32 ws2_32 ole32)
+    target_link_libraries(core_mbm Threads::Threads)
+
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if(USE_METAL)
         target_link_libraries(core_mbm "-framework Metal")

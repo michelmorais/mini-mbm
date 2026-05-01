@@ -158,6 +158,59 @@ The writable save-file directory is set by `launch.bat` as
 Mirrors the Linux AppDir and iOS Xcode packaging workflows. Pass the same three
 flags and the build assembles `GameDir\` automatically after `make`.
 
+#### Prerequisites — MinGW toolchain
+
+CMake needs `gcc`, `g++`, and `mingw32-make` on `PATH` before you run
+`cmake -G "MinGW Makefiles"`. The easiest way to get them on Windows is via
+**MSYS2** ([https://www.msys2.org](https://www.msys2.org)).
+
+After installing MSYS2 to `C:\msys64`, open the **MSYS2** shell and install the
+toolchain into whichever environment you prefer:
+
+| Environment | Packages | Runtime | Recommended for |
+|---|---|---|---|
+| `mingw64` | `mingw-w64-x86_64-gcc mingw-w64-x86_64-make` | `msvcrt` | Broadest Windows compatibility |
+| `ucrt64` | `mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make` | UCRT (Win 10+) | Modern builds |
+
+```bash
+# mingw64 environment (msvcrt — broader compatibility)
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-make mingw-w64-x86_64-cmake
+
+# — OR —
+
+# ucrt64 environment (Universal CRT — recommended for Windows 10+)
+pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake
+```
+
+Then add the corresponding `bin\` directory to your **system** `PATH` (once,
+permanently) via *System Properties → Environment Variables → Path*:
+
+| Environment chosen | Directory to add to PATH |
+|---|---|
+| `mingw64` | `C:\msys64\mingw64\bin` |
+| `ucrt64` | `C:\msys64\ucrt64\bin` |
+
+Or add it for the current terminal session only:
+
+```cmd
+rem mingw64
+set PATH=C:\msys64\mingw64\bin;%PATH%
+
+rem ucrt64
+set PATH=C:\msys64\ucrt64\bin;%PATH%
+```
+
+Verify the setup:
+
+```cmd
+gcc --version
+mingw32-make --version
+cmake --version
+```
+
+All three must print a version number before the `cmake -G "MinGW Makefiles"` step
+will succeed.
+
 #### CMake delivery flags
 
 | Flag | Required? | Description |
