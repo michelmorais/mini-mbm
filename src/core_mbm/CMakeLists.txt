@@ -112,10 +112,6 @@ elseif( NOT ${AUDIO} STREQUAL "none")
     message(SEND_ERROR " Unknow AUDIO choice: ${AUDIO}")
 endif()
 
-if (${AUDIO} STREQUAL "dsound" AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
-    target_link_libraries(core_mbm dsound)
-endif()
-
 # Included stuff
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/src/cmake-modules/")
 
@@ -307,10 +303,12 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
             target_link_libraries(core_mbm
                 "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
         endif()
+    elseif(AUDIO STREQUAL "dsound")
+        target_link_libraries(core_mbm dsound)
     elseif(AUDIO STREQUAL "none")
         message(STATUS "Disabling audio for Windows")
     else()
-        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=audiere or -DAUDIO=none")
+        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=audiere, -DAUDIO=dsound or -DAUDIO=none")
     endif()
 
     # ── Graphics backend ─────────────────────────────────────────────────────
