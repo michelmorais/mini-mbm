@@ -21,8 +21,20 @@
 
 #define LIB_MINIMBM_LUA_HEADER_H
 
-#if defined (__GNUC__) 
-  #define LIB_IMP_API  __attribute__ ((__visibility__("default")))
+#if defined (__GNUC__)
+  #if defined (_WIN32) || defined (WIN32)
+    // MinGW on Windows: use dllexport/dllimport and pull in Windows types
+    #include <windows.h>
+    #include <string>
+    #include <vector>
+    #ifdef LIB_MBM_EXPORTS
+      #define LIB_IMP_API  __declspec(dllexport)
+    #else
+      #define LIB_IMP_API  __declspec(dllimport)
+    #endif
+  #else
+    #define LIB_IMP_API  __attribute__ ((__visibility__("default")))
+  #endif
 #elif defined (WIN32)
 #include <Windows.h>
   #ifdef LIB_MBM_EXPORTS

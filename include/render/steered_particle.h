@@ -57,11 +57,11 @@ namespace mbm
         API_IMPL inline const bool getSegmented() const {return this->segmented;};
         API_IMPL void getSizeTexture(uint32_t &width,uint32_t &height) const;
         API_IMPL inline const float getRadiusScale() const {return this->radiusScale;};
-        API_IMPL void setRadiusScale(const float _radiusScale) { radiusScale = _radiusScale;};
-        API_IMPL const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
+        API_IMPL inline void setRadiusScale(const float _radiusScale) { radiusScale = _radiusScale;};
+        API_IMPL inline const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
         API_IMPL const COLOR getColor(const uint32_t index_group) const noexcept;
         API_IMPL void setColor(const COLOR &color, const uint32_t index_group) noexcept;
-        API_IMPL const TEXTURE* getTexture() const { return this->texture; };
+        API_IMPL inline const TEXTURE* getTexture() const { return this->texture; };
         
       private:
         bool isOnFrustum() override;

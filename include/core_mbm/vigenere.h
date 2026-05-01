@@ -34,7 +34,7 @@ namespace mbm
     {
     public:
         API_IMPL VIGENERE(const std::string & mykey);
-        API_IMPL virtual ~VIGENERE() = default;
+        API_IMPL inline virtual ~VIGENERE() = default;
         API_IMPL void encrypt(const std::string & msg, std::string & encrypted_out)const;
         API_IMPL void decrypt(const std::string & msg, std::string & decrypted_out)const;
     private:

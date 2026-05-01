@@ -88,7 +88,7 @@ namespace mbm
         FX					fx;//the effect shader to this animations
     
         API_IMPL ANIMATION();
-        API_IMPL virtual ~ ANIMATION() = default;
+        API_IMPL inline virtual ~ ANIMATION() = default;
         API_IMPL void restartAnimation();
         API_IMPL void updateAnimation(const float delta, RENDERIZABLE *me,
                                         OnEndAnimation onEndAnimation,

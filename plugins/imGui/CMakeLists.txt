@@ -118,6 +118,7 @@ if (USE_OPENGL_ES)
 endif()
 if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   target_link_libraries(${IMGUI_LIBRARY} PRIVATE d3d9)
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE dwmapi)
 endif()
 
 if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)

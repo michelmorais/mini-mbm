@@ -25,11 +25,15 @@ if (USE_LUA)
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Linux.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
-        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Windows.cpp)
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-            set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
+            set(GLES_INCLUDE            ${THIRD_PARTY}/gles)
+        else()
+            # MinGW / GCC: use a resource-free entry point
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw.cpp)
+            set(LIB_MINIMBM_LUA_HEADER  ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         endif()
+        set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Windows.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
@@ -80,9 +84,13 @@ else()
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main.cpp)
         set(SCENE_CPP                   ${CMAKE_SOURCE_DIR}/platform-linux/my-scene.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-            set(GLES_INCLUDE     ${THIRD_PARTY}/gles)
+            set(MAIN                ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main.cpp)
+            set(GLES_INCLUDE        ${THIRD_PARTY}/gles)
+        else()
+            # MinGW / GCC: use a resource-free entry point
+            set(MAIN                ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw.cpp)
+            set(LIB_MINIMBM_LUA_HEADER ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
@@ -119,6 +127,10 @@ include_directories(${OPENGLES2_INCLUDE_DIR}
                     ${LUA_INCLUDE}
                     ${PLUGINS}
                     ${LIB_MINIMBM_LUA_HEADER})
+
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    include_directories(${INCLUDE}/plusWindows)
+endif()
 
  
 if (USE_LUA)
@@ -380,12 +392,12 @@ fi
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
+    # tinyfiledialogs is already compiled into core_mbm.dll — don't add it again.
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP}
                             ${LIB_MINIMBM_LUA_SRC}
                             ${LIB_MINIMBM_LUA_PLATFORM_SRC})
@@ -394,9 +406,12 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
                             ${SOURCES}
                             ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
                             ${BULLET3D_WRAP_SOURCES}
-                            ${TINYFILEDIALOGS_SOURCES}
                             ${SCENE_CPP})
     endif()
+
+    # mini-mbm-lib sources are compiled directly into this exe (not a DLL),
+    # so define LIB_MBM_EXPORTS to get dllexport (not dllimport) on GCC/MinGW.
+    target_compile_definitions(mini-mbm PRIVATE LIB_MBM_EXPORTS)
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 

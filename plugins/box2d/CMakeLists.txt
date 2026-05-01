@@ -56,3 +56,10 @@ if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${PLUGIN_HELPER_LIBRARY})
 endif()
 
+# On Windows with MinGW/GCC, B2_API defaults to dllimport unless BOX_2D_BUILD_DLL
+# is defined.  Since box2d sources are compiled directly into this shared library
+# (not as a separate DLL), force dllexport so static-data-member definitions compile.
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    target_compile_definitions(${BOX2D_LUA_LIBRARY} PRIVATE BOX_2D_BUILD_DLL)
+endif()
+

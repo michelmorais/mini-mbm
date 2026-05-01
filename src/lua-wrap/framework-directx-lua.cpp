@@ -1110,6 +1110,7 @@ namespace mbm
     }
 
 
+#if defined ANDROID
     bool onShowMessageBoxAndroid(const char *const title, const char *const message, const char *dialogType)
     {
         const char *methodName = "messageBox";
@@ -1146,6 +1147,7 @@ namespace mbm
         jenv->DeleteLocalRef(jstrDialogType);
         return ret;
     }
+#endif // ANDROID
 
     int onShowMessageBox(lua_State *lua)
     {

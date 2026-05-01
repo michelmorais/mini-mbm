@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                            |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,49 +17,56 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#ifndef CORE_EXPORTS_H
-#define CORE_EXPORTS_H
+// MinGW / GCC Windows entry point — mirrors platform-msvs/mini-mbm/main.cpp
+// but avoids MSVS-specific resource.h / icon IDs / #pragma comment.
 
-#if defined _WIN32 || defined __CYGWIN__
-  #ifdef CORE_EXPORTS
-    #ifdef __GNUC__
-      #define API_IMPL __attribute__ ((dllexport))
-    #else
-      #define API_IMPL __declspec(dllexport)
-    #endif
-  #else
-    #ifdef __GNUC__
-      #define API_IMPL __attribute__ ((dllimport))
-    #else
-      #define API_IMPL __declspec(dllimport)
-    #endif
-  #endif
-#else
-  #if __GNUC__ >= 4
-    #define API_IMPL __attribute__ ((visibility ("default")))
-  #else
-    #define API_IMPL
-  #endif
+#ifndef _WIN32
+    #error "Target expected Windows"
 #endif
 
-/* API_IMPL_OVERRIDE: use for virtual methods that override a secondary base
- * class in a multiply-inherited hierarchy (e.g. JOYSTICK_BASE methods inside
- * CORE_MANAGER : public EVENTS, public JOYSTICK_BASE).
- * GCC/MinGW consumers must not mark these dllimport because the compiler
- * cannot generate non-virtual thunks for dllimport'd functions, which causes
- * "undefined reference to non-virtual thunk" link errors when a user-side
- * class (GAME) inherits from CORE_MANAGER.  All calls go through the vtable
- * anyway, so dllimport is not needed on the consumer side. */
-#if defined _WIN32 || defined __CYGWIN__
-  #ifdef CORE_EXPORTS
-    #define API_IMPL_OVERRIDE API_IMPL   /* dllexport when building DLL */
-  #elif defined __GNUC__
-    #define API_IMPL_OVERRIDE            /* no dllimport for GCC consumers */
-  #else
-    #define API_IMPL_OVERRIDE __declspec(dllimport)  /* MSVC is fine */
-  #endif
-#else
-  #define API_IMPL_OVERRIDE API_IMPL
-#endif
+#include <windows.h>
+#include <mini-mbm-lib.h>
+#include <ctime>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 
+void onDoNativeCommand(const char* command, const char* param, char* result, const int max_size_result)
+{
+    if (strcmp(command, "get_current_time") == 0)
+    {
+        time_t now = time(nullptr);
+        tm* localTime = localtime(&now);
+        if (param)
+        {
+            strftime(result, max_size_result, param, localTime);
+        }
+        else
+        {
+            strftime(result, max_size_result, "%A, %B %d, %Y %H:%M:%S", localTime);
+        }
+    }
+    else if (strcmp(command, "get_random_number") == 0)
+    {
+        const int random_number = rand() % 100;
+        snprintf(result, max_size_result, "%d", random_number);
+    }
+#if defined _DEBUG
+    else if (strcmp(command, "restoreDeviceTest") == 0)
+    {
+        mbm::restoreDeviceTest();
+    }
 #endif
+    else
+    {
+        snprintf(result, max_size_result, "Unknown command: %s", command);
+    }
+}
+
+int main(const int argc, const char **argv)
+{
+    mbm::set_expected_window_size(1024, 768);
+    mbm::set_window_size(1024, 768);
+    mbm::set_callback_do_commands(onDoNativeCommand);
+    return mbm::forward_args_and_do_loop(argc, argv, 0);
+}

@@ -100,7 +100,10 @@ SQLITE_EXTENSION_INIT1
 #  endif
 #  define mkdir(path,mode) _mkdir(path)
 #  define lstat(path,buf) stat(path,buf)
+#  ifndef _MODE_T_
+#    define _MODE_T_
 typedef int mode_t;
+#  endif
 #endif
 #include <time.h>
 #include <errno.h>
