@@ -164,6 +164,163 @@ cd platform-linux
 
 ---
 
+## Game Delivery — AppDir and AppImage
+
+The Linux build supports the same per-game packaging workflow as iOS and Android.
+Pass three CMake flags from **outside** the engine repo and the build produces a
+portable **AppDir** folder automatically after `make`. An optional `make appimage`
+step wraps it into a single self-contained `.AppImage` file.
+
+### CMake delivery flags
+
+| Flag | Required? | Description |
+|---|---|---|
+| `-DGAME_ASSETS_DIR=/path/to/assets` | **Yes** (activates delivery) | Absolute path to your game's assets folder. Must contain `main.lua`. |
+| `-DGAME_NAME="My Game"` | No (default: `mini-mbm`) | Display name — sets the window title and names the output files. |
+| `-DGAME_ICON_PNG=/path/to/icon.png` | No | Any-size PNG. Copied as-is and renamed to match the desktop entry. |
+
+> **Use absolute paths.** CMake does not expand `~` inside double-quoted `-D` values.
+> Use `$HOME` or the full path (`/home/michel/…`) instead.
+
+### Building outside the engine repo
+
+The build directory can live anywhere — it does not have to be inside `mini-mbm/`.
+This mirrors the iOS workflow: keep the engine in one place and generate a per-game
+output directory beside the game repo.
+
+```
+~/mini-mbm/                  ← engine repo (shared, never edited per game)
+~/tower-defense/             ← game repo
+    assets/                  ← game assets (must contain main.lua)
+    icon.png
+~/tower-defense-linux/       ← generated build dir (add to .gitignore)
+    Tower_Defense_Monster.AppDir/
+    Tower_Defense_Monster-x86_64.AppImage   ← after make appimage
+```
+
+```sh
+mkdir -p ~/tower-defense-linux && cd ~/tower-defense-linux
+cmake ~/mini-mbm \
+    -DPLAT=Linux \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DAUDIO=audiere \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGAME_NAME="Tower Defense Monster" \
+    -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
+    -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png
+make -j$(nproc)      # assembles AppDir automatically after linking
+make appimage        # wraps AppDir into .AppImage (appimagetool required)
+```
+
+### What gets generated
+
+**At `cmake` configure time** (before any compilation):
+
+| Artifact | Location | Notes |
+|---|---|---|
+| `AppRun` | `AppDir/` | Executable launcher script — sets `LD_LIBRARY_PATH`, launches `mini-mbm` with `--name` and `--scene assets/main.lua` |
+| `Tower_Defense_Monster.desktop` | `AppDir/` | XDG desktop entry required by the AppImage spec |
+| `Tower_Defense_Monster.png` | `AppDir/` | Copy of `GAME_ICON_PNG` renamed to match the `Icon=` entry (if provided) |
+
+**After `make`** (POST_BUILD):
+
+| Artifact | Location | Notes |
+|---|---|---|
+| `mini-mbm` binary | `AppDir/usr/bin/` | The compiled engine executable |
+| `*.so` plugins | `AppDir/usr/lib/` | All shared-library plugins (box2d, ImGui, bullet, etc.) |
+| Game assets | `AppDir/assets/` | Full copy of `GAME_ASSETS_DIR` |
+
+### Running without AppImage
+
+The AppDir is a standalone, runnable directory without any additional tooling:
+
+```sh
+./Tower_Defense_Monster.AppDir/AppRun
+# or pass extra engine flags:
+./Tower_Defense_Monster.AppDir/AppRun --width 1280 --height 720
+```
+
+### Writable save directory
+
+The AppImage filesystem is **read-only** — any file the game tries to create inside
+`/tmp/.mount_*/` will fail. `AppRun` handles this automatically: it creates a
+persistent writable directory under `$HOME/.local/share/<GameName>/` and exports it
+as the `GAME_SAVE_DIR` environment variable before launching the engine.
+
+```
+~/.local/share/Tower_Defense_Monster/   ← writable, survives AppImage updates
+    tower-defense.data
+    ...
+```
+
+In your Lua save/load code, read the path from the environment variable instead of
+using a hardcoded or relative path:
+
+```lua
+-- Use the writable save dir injected by AppRun.
+-- Falls back to "" (current dir) when running outside an AppImage during development.
+local save_dir = os.getenv("GAME_SAVE_DIR")
+save_dir = save_dir and (save_dir .. "/") or ""
+
+local save_file = save_dir .. "tower-defense.data"
+```
+
+Use `save_file` wherever you read or write persistent game data. This works
+transparently in all three contexts:
+
+| Context | `GAME_SAVE_DIR` value | Save file location |
+|---|---|---|
+| AppImage (distributed) | `~/.local/share/Tower_Defense_Monster` | `~/.local/share/Tower_Defense_Monster/tower-defense.data` |
+| AppDir (direct run) | `~/.local/share/Tower_Defense_Monster` | same |
+| Development (engine repo) | _(not set)_ | `tower-defense.data` next to the script |
+
+After changing `AppRun` (by re-running cmake) you must rebuild and repackage:
+
+```sh
+cd ~/tower-defense-linux
+cmake ~/mini-mbm [same flags as before]
+make -j$(nproc)
+make appimage
+```
+
+### Building the AppImage
+
+`appimagetool` is searched in two places:
+
+1. `$PATH` (system-wide install)
+2. `<build_dir>/appimagetool-x86_64.AppImage` (local download — no install needed)
+
+If neither is found, `make appimage` prints the download URL and exits cleanly —
+the AppDir is still fully usable.
+
+```sh
+# Option A — system install
+sudo apt-get install appimagetool    # if available in your distro
+make appimage
+
+# Option B — local download (no root required)
+cd ~/tower-defense-linux
+wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
+make appimage
+# Output: Tower_Defense_Monster-x86_64.AppImage
+```
+
+### CMake status messages
+
+When delivery is configured, cmake prints:
+
+```
+-- Linux game name   : Tower Defense Monster
+-- Linux assets dir  : /home/michel/tower-defense/assets
+-- Linux AppDir      : /home/michel/tower-defense-linux/Tower_Defense_Monster.AppDir
+-- After 'make': run  /home/michel/tower-defense-linux/Tower_Defense_Monster.AppDir/AppRun
+-- AppImage (opt.)   : cd /home/michel/tower-defense-linux && make appimage
+```
+
+---
+
 ## Platform Source Files
 
 | File | Purpose |
