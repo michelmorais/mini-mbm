@@ -25,6 +25,7 @@
 #include <map>
 #include <list>
 #include <mutex>
+#include <cstdint>
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
 

@@ -87,9 +87,15 @@
 #define WM_SYSTRAY (WM_APP + 6)
 #define WM_SYSTRAY2 (WM_APP + 7)
 
+#ifndef UNREFERENCED_PARAMETER
 #define UNREFERENCED_PARAMETER(P) (P)
+#endif
+#ifndef DBG_UNREFERENCED_PARAMETER
 #define DBG_UNREFERENCED_PARAMETER(P) (P)
+#endif
+#ifndef DBG_UNREFERENCED_LOCAL_VARIABLE
 #define DBG_UNREFERENCED_LOCAL_VARIABLE(V) (V)
+#endif
 
 #pragma once
 #include <stdint.h>
@@ -105,6 +111,7 @@
 #include <iostream>
 #include <Commctrl.h>
 #include <math.h>
+#include <float.h>  /* FLT_EPSILON on MinGW */
 #include <map>
 #include <assert.h>
 #include <set>
@@ -125,12 +132,10 @@
 
 #ifdef __MINGW32__
 #define TOOLINFO TTTOOLINFO
+#ifndef BS_PUSHBOX
 #define BS_PUSHBOX 0x0000000AL
-typedef struct tagNMTTCUSTOMDRAW
-{
-    NMCUSTOMDRAW nmcd;
-    UINT         uDrawFlags;
-} NMTTCUSTOMDRAW, *LPNMTTCUSTOMDRAW;
+#endif
+// tagNMTTCUSTOMDRAW is provided by MinGW's <Commctrl.h> (included above)
 #else
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Msimg32.lib") // AlphaBlend
@@ -640,6 +645,8 @@ struct EDIT_TEXT_DATA
     API_IMPL EDIT_TEXT_DATA(mbm::SPIN_PARAMSi *_spin, mbm::SPIN_PARAMSf *_spinf, const int _id);
     API_IMPL ~EDIT_TEXT_DATA();
 };
+
+class DRAW; // forward declaration — defined later in this file
 
 class COM_BETWEEN_WINP
 {

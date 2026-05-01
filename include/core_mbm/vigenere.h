@@ -25,6 +25,7 @@
 #define VIGENERE_CLASS_H
 
 #include <string>
+#include <cstdint>
 #include "core-exports.h"
 
 namespace mbm

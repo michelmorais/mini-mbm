@@ -55,6 +55,25 @@ file(GLOB_RECURSE MINI_Z_SOURCES            "${MINIZ_DIR}/*.c")
 file(GLOB_RECURSE STB_SOURCES               "${STB_DIR}/*.c")
 file(GLOB_RECURSE LODE_PNG_SOURCES          "${LODE_PNG_DIR}/*.cpp")
 
+# Windows-only: plusWindows UI library and HID joystick implementation.
+# These live under include/ (not src/) so the main SOURCES glob misses them.
+set(PLUS_WINDOWS_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    set(PLUS_WINDOWS_SOURCES
+        "${SRC_INCLUDES}/plusWindows/plusWindows.cpp"
+        "${SRC_INCLUDES}/plusWindows/defaultThemePlusWindows.cpp"
+        "${SRC_INCLUDES}/joystick-win32/joystick-win32.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/win32-platform.cpp")
+    include_directories("${SRC_INCLUDES}/plusWindows"
+                        "${SRC_INCLUDES}/joystick-win32")
+    # plusWindows.cpp uses SetWindowLong/GetWindowLong with pointer-sized values,
+    # written for 32-bit MSVC where long == pointer size.  On 64-bit MinGW the
+    # casts lose precision; -fpermissive downgrades those errors to warnings.
+    set_source_files_properties(
+        "${SRC_INCLUDES}/plusWindows/plusWindows.cpp"
+        PROPERTIES COMPILE_FLAGS "-fpermissive")
+endif()
+
 # Suppress warnings in third-party sources that we don't own and don't want to patch.
 if(APPLE)
     set_source_files_properties(${LODE_PNG_SOURCES} PROPERTIES
@@ -204,7 +223,8 @@ add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
     ${METAL_MM_SOURCES}
     ${METAL_RENDER_MM_SOURCES}
     ${APPLE_DIALOG_MM_SOURCES}
-    ${APPLE_AVF_AUDIO_MM_SOURCES})
+    ${APPLE_AVF_AUDIO_MM_SOURCES}
+    ${PLUS_WINDOWS_SOURCES})
 
 # Static libraries on iOS do not need Info.plist.  Set these attributes
 # directly on the target (the global CMAKE_XCODE_ATTRIBUTE_* doesn't reach
@@ -219,6 +239,9 @@ endif()
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
 endif()
+
+# Define CORE_EXPORTS so API_IMPL resolves to dllexport (not dllimport) on Windows
+target_compile_definitions(core_mbm PRIVATE CORE_EXPORTS)
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
@@ -295,7 +318,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     endif()
 
     # ── Windows system libraries ──────────────────────────────────────────────
-    target_link_libraries(core_mbm winmm gdi32 ws2_32 ole32)
+    # msimg32: TransparentBlt (plusWindows)
+    # comctl32: InitCommonControlsEx, CreateUpDownControl (plusWindows)
+    # hid:     HidP_* functions (joystick-win32)
+    target_link_libraries(core_mbm winmm gdi32 ws2_32 ole32 msimg32 comctl32 hid)
     target_link_libraries(core_mbm Threads::Threads)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")

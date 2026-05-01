@@ -230,8 +230,8 @@ cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DGAME_NAME="Tower Defense Monster" ^
-    -DGAME_ASSETS_DIR=C:\Users\miche\Documents\tower-defense\assets ^
-    -DGAME_ICON_PNG=C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png
+    -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe

@@ -25,6 +25,8 @@
 //#include <dsetup.h>
 //#include <comdef.h>
 
+// #pragma comment is MSVC-only; MinGW links via CMake targets (d3d9, d3dcompiler).
+// d3dx9.h is part of the legacy DirectX SDK and is not shipped with MinGW.
 #ifndef __MINGW32__
 #pragma comment (lib, "d3d9.lib")
 #if defined(LINK_DIRECTX9_DEBUG_INFO) && defined(_DEBUG)
@@ -45,18 +47,24 @@
 #else
     #pragma comment (lib, "d3dx9.lib")
 #endif
+#endif // !__MINGW32__
 
+// These headers are available in both MSVC and MinGW builds
 #include <platform/win32-platform.h>
 #include <core-manager.h>
-
 #include <d3d9.h>
-#include <d3dx9.h>
+
+// d3dx9.h is part of the legacy DirectX SDK — not available in MinGW.
+// Use the MinGW compatibility shim instead.
+#ifndef __MINGW32__
+#  include <d3dx9.h>
+#else
+#  include <core_mbm/d3dx9-mingw.h>
+#endif
 
 // 
 //#pragma comment (lib,"comsuppwd.lib")
 //#pragma comment (lib, "dsetup.lib") //Directx version setup
-
-#endif
 
 #include <primitives.h>
 #include <shader.h>

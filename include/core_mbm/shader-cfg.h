@@ -21,6 +21,7 @@
 #define SHADER_CFG_H
 
 #include "core-exports.h"
+#include <cstdint>
 #include <vector>
 #include <map>
 #include <string>
