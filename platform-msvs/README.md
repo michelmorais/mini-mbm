@@ -116,7 +116,10 @@ msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /m
 ## Post-Build: Copying DLLs
 
 After the first successful build, run `copy-dlls.bat` to copy the required runtime
-DLLs (audio engine, OpenGL ES emulation, Lua, etc.) next to the output executable:
+DLLs (OpenGL ES emulation, Lua, etc.) next to the output executable:
+
+> **Note:** DirectSound (`-DAUDIO=dsound`) uses a Windows system DLL — no audio
+> file needs to be copied.
 
 ```cmd
 cd platform-msvs
@@ -227,11 +230,14 @@ mkdir build
 cd build
 
 cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
+
+rem For x86 (32-bit) builds, Audiere is available instead:
+rem   -DAUDIO=audiere   (bundles audiere.dll from third-party/audiere-1.9.4/bin/)
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
@@ -245,7 +251,6 @@ After `make`, the staging folder is:
 build\
     Tower_Defense_Monster.GameDir\
         Tower_Defense_Monster.exe
-        audiere.dll
         d3dcompiler_47.dll   (or libEGL.dll + libGLESv2.dll for OpenGL ES)
         box2d.dll  ImGui.dll  ...   (plugin DLLs)
         Tower_Defense_Monster.ico

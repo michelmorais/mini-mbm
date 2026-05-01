@@ -532,19 +532,15 @@ cd /d \"%~dp0\"\r\n\
 
         # ── DLL source paths ─────────────────────────────────────────────────
         set(_WIN_DLL_LIST "")
-        if(NOT AUDIO STREQUAL "none")
-            if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-                # NOTE: the bundled bin/x64/audiere.dll is mislabeled (it is 32-bit).
-                # Prefer a user-supplied 64-bit audiere.dll via -DAUDIERE_DLL_64=<path>.
-                if(DEFINED AUDIERE_DLL_64 AND EXISTS "${AUDIERE_DLL_64}")
-                    list(APPEND _WIN_DLL_LIST "${AUDIERE_DLL_64}")
-                else()
-                    message(WARNING "No 64-bit audiere.dll found. Provide -DAUDIERE_DLL_64=/path/to/audiere.dll or rebuild with -DAUDIO=none.")
-                endif()
-            else()
+        if(AUDIO STREQUAL "audiere")
+            # audiere ships only a 32-bit DLL in the repo — only add it for x86 builds.
+            if(CMAKE_SIZEOF_VOID_P EQUAL 4)
                 list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/audiere-1.9.4/bin/audiere.dll")
+            else()
+                message(WARNING "audiere has no bundled 64-bit DLL. Use -DAUDIO=dsound for 64-bit Windows builds.")
             endif()
         endif()
+        # dsound is a system DLL — no file to copy.
         if(USE_DIRECTX9)
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.
             list(APPEND _WIN_DLL_LIST "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")

@@ -86,6 +86,8 @@ endif()
 
 if (${AUDIO} STREQUAL "audiere")
     add_definitions(-DAUDIO_ENGINE_AUDIERE)
+elseif (${AUDIO} STREQUAL "dsound")
+    add_definitions(-DAUDIO_ENGINE_DIRECT_SOUND_8)
 elseif (${AUDIO} STREQUAL "portaudio")
     #define REVERSE_ENDIANISM if the endianism of the host platform is not Intel
     # add_definitions(-DREVERSE_ENDIANISM)
@@ -108,6 +110,10 @@ elseif (${AUDIO} STREQUAL "opensl")
     add_definitions(-DAUDIO_ENGINE_ANDROID_OPENSL)
 elseif( NOT ${AUDIO} STREQUAL "none")
     message(SEND_ERROR " Unknow AUDIO choice: ${AUDIO}")
+endif()
+
+if (${AUDIO} STREQUAL "dsound" AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    target_link_libraries(core_mbm dsound)
 endif()
 
 # Included stuff
