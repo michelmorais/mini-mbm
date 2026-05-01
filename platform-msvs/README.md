@@ -223,15 +223,15 @@ will succeed.
 #### Example build
 
 ```cmd
-mkdir build\my_game_win
-cd build\my_game_win
+mkdir build
+cd build
 
-cmake ..\.. -G "MinGW Makefiles" ^
+cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DGAME_NAME="Tower Defense Monster" ^
-    -DGAME_ASSETS_DIR=C:\Users\michel\tower-defense\assets ^
-    -DGAME_ICON_PNG=C:\Users\michel\tower-defense\icon.png
+    -DGAME_ASSETS_DIR=C:\Users\miche\Documents\tower-defense\assets ^
+    -DGAME_ICON_PNG=C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
@@ -242,7 +242,7 @@ mingw32-make zip                         :: produces Tower_Defense_Monster-windo
 After `make`, the staging folder is:
 
 ```
-build\my_game_win\
+build\
     Tower_Defense_Monster.GameDir\
         Tower_Defense_Monster.exe
         audiere.dll
