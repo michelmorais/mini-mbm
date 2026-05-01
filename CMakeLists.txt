@@ -361,7 +361,6 @@ else()
             set(AUDIO audiere)
         endif()
 
-        set(CMAKE_GENERATOR_PLATFORM    "Visual Studio 15 2017 ARM")
         set(DWIN32 1)
         set(D_WINDOWS 1)
         set(WIN32 1)
@@ -371,10 +370,10 @@ else()
         add_definitions(-D_WINDOWS)
         set(CMAKE_SYSTEM_NAME           "Windows")
         set(ENGINE_TARGET_PLATFORM      "Windows")
-        set(FOLDER_ARCHITECTURE         "win32")
+        set(FOLDER_ARCHITECTURE         "windows_x86")
 
         set(CMAKE_SUCCESS_SET_PLAT           1)
-        message(SEND_ERROR " Platform NOT working yet: ${PLAT}")
+        message(STATUS " Windows platform: CMake/MinGW build supported. For Visual Studio use platform-msvs/mini-mbm.sln directly.")
 
     elseif(PLAT_LOWER STREQUAL "linux")
 

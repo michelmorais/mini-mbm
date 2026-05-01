@@ -137,3 +137,115 @@ a new plugin or switch the audio/graphics backend.
 | Release executable | `bin\release\windows_x86\mini-mbm.exe` |
 | Debug static libraries | `libs\debug\windows_x86\` |
 | Release static libraries | `libs\release\windows_x86\` |
+
+---
+
+## Game Delivery — Distribution Packages
+
+Two packaging paths are available. Both produce the same staging folder
+(`<GameName>.GameDir\`) containing the renamed executable, runtime DLLs, game
+assets, and a `launch.bat`. From that folder you can optionally produce a
+one-file NSIS installer (`.exe`), a Windows Installer package (`.msi` via WiX),
+or a portable ZIP archive.
+
+The writable save-file directory is set by `launch.bat` as
+`%APPDATA%\<GameName>\` and exposed to Lua via `os.getenv("GAME_SAVE_DIR")`.
+
+---
+
+### Path A — CMake / MinGW (recommended for CI and scripted builds)
+
+Mirrors the Linux AppDir and iOS Xcode packaging workflows. Pass the same three
+flags and the build assembles `GameDir\` automatically after `make`.
+
+#### CMake delivery flags
+
+| Flag | Required? | Description |
+|---|---|---|
+| `-DGAME_ASSETS_DIR=C:\path\to\assets` | **Yes** (activates delivery) | Absolute path to your game assets folder. Must contain `main.lua`. |
+| `-DGAME_NAME="My Game"` | No (default: `mini-mbm`) | Display name — used for the window title, EXE name, and installer. |
+| `-DGAME_ICON_PNG=C:\path\to\icon.png` | No | Any-size PNG. ImageMagick (`convert`) converts it to `.ico` automatically if found in `PATH` or the standard install location. |
+| `-DGAME_ICON_ICO=C:\path\to\icon.ico` | No | Supply a ready-made `.ico` directly (takes priority over `-DGAME_ICON_PNG`). |
+
+#### Example build
+
+```cmd
+mkdir build\my_game_win
+cd build\my_game_win
+
+cmake ..\.. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DGAME_NAME="Tower Defense Monster" ^
+    -DGAME_ASSETS_DIR=C:\Users\michel\tower-defense\assets ^
+    -DGAME_ICON_PNG=C:\Users\michel\tower-defense\icon.png
+
+mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
+mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
+mingw32-make msi                         :: produces Tower_Defense_Monster-windows.msi
+mingw32-make zip                         :: produces Tower_Defense_Monster-windows.zip
+```
+
+After `make`, the staging folder is:
+
+```
+build\my_game_win\
+    Tower_Defense_Monster.GameDir\
+        Tower_Defense_Monster.exe
+        audiere.dll
+        d3dcompiler_47.dll   (or libEGL.dll + libGLESv2.dll for OpenGL ES)
+        box2d.dll  ImGui.dll  ...   (plugin DLLs)
+        Tower_Defense_Monster.ico
+        launch.bat
+        assets\
+            main.lua
+            ...
+```
+
+#### Packaging tools (all optional — `make` alone is sufficient for a portable folder)
+
+| Tool | Target | Output | Download |
+|---|---|---|---|
+| [NSIS](https://nsis.sourceforge.io) | `make nsis` | `GameName-windows-setup.exe` | https://nsis.sourceforge.io |
+| [WiX v4](https://wixtoolset.org) | `make msi` | `GameName-windows.msi` | `dotnet tool install --global wix` |
+| [WiX v3](https://github.com/wixtoolset/wix3/releases) | `make msi` | `GameName-windows.msi` | GitHub releases |
+| (built-in) | `make zip` | `GameName-windows.zip` | — no extra tools needed |
+
+If a packaging tool is not found, the target prints the download URL and exits
+cleanly; the `GameDir\` folder is always ready regardless.
+
+---
+
+### Path B — Visual Studio solution (`package-game.bat`)
+
+For interactive development builds, run `package-game.bat` from `platform-msvs\`
+after building the solution.
+
+```cmd
+cd platform-msvs
+
+rem Basic usage
+package-game.bat "Tower Defense Monster" C:\Users\michel\tower-defense\assets Release
+
+rem With an icon
+package-game.bat "Tower Defense Monster" C:\Users\michel\tower-defense\assets Release C:\Users\michel\tower-defense\icon.ico
+```
+
+| Argument | Description |
+|---|---|
+| `%1` Game name | Display name (use quotes for names with spaces) |
+| `%2` Assets dir | Absolute path to game assets folder |
+| `%3` Config | `Debug` or `Release` (default: `Release`) |
+| `%4` Icon `.ico` | Optional path to a Windows icon file |
+
+The script:
+1. Reads the built `mini-mbm.exe` from `bin\debug|release\windows_x86\`
+2. Renames it to `<GameName>.exe` inside `<GameName>.GameDir\`
+3. Copies runtime DLLs from `third-party\` and plugin DLLs from the bin output
+4. Copies game assets to `GameDir\assets\`
+5. Writes `launch.bat`
+6. Generates and runs NSIS if `makensis` is in `PATH` or its default install location
+7. Reports WiX availability (MSI generation from the VS path requires the CMake path for `.wxs` generation)
+
+> **Tip:** Use absolute paths. The script does not expand environment variables
+> inside the asset path argument on all Windows configurations.
