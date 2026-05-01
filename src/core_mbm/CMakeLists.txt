@@ -88,6 +88,7 @@ if (${AUDIO} STREQUAL "audiere")
     add_definitions(-DAUDIO_ENGINE_AUDIERE)
 elseif (${AUDIO} STREQUAL "dsound")
     add_definitions(-DAUDIO_ENGINE_DIRECT_SOUND_8)
+    file(GLOB_RECURSE WAVE_SOURCES "${WAVE_SRC}/*.cpp")
 elseif (${AUDIO} STREQUAL "portaudio")
     #define REVERSE_ENDIANISM if the endianism of the host platform is not Intel
     # add_definitions(-DREVERSE_ENDIANISM)
@@ -297,8 +298,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     # ── Audio ────────────────────────────────────────────────────────────────
     if(AUDIO STREQUAL "audiere")
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-            target_link_libraries(core_mbm
-                "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/bin/x64/audiere.lib")
+            message(SEND_ERROR
+                "AUDIO=audiere is not available for 64-bit Windows builds: "
+                "third-party/audiere-1.9.4/bin/x64/ has been removed. "
+                "Use -DAUDIO=dsound instead.")
         else()
             target_link_libraries(core_mbm
                 "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")

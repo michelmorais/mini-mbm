@@ -693,10 +693,20 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             set(LIB_EGL_HELD "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libEGL.dll.lib")
             set(LIB_GLESv2_HELD "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libGLESv2.dll.lib")
         endif()
-        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-            set(LIB_audiere_HELD "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/bin/x64/audiere.lib")
+        if(AUDIO STREQUAL "audiere")
+            if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+                message(SEND_ERROR
+                    "AUDIO=audiere is not available for 64-bit Windows builds: "
+                    "third-party/audiere-1.9.4/bin/x64/ has been removed. "
+                    "Use -DAUDIO=dsound instead.")
+            else()
+                set(LIB_audiere_HELD "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
+            endif()
+        elseif(AUDIO STREQUAL "dsound")
+            # DirectSound 8 — Windows system API, no import library needed here.
+            set(LIB_audiere_HELD "")
         else()
-            set(LIB_audiere_HELD "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
+            set(LIB_audiere_HELD "")
         endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         message(STATUS " Configuration for Android is set...")
