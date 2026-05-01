@@ -211,6 +211,7 @@ cmake ~/mini-mbm \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
     -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png
 make -j$(nproc)      # assembles AppDir automatically after linking
+wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
 make appimage        # wraps AppDir into .AppImage (appimagetool required)
 ```
 
