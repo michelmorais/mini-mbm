@@ -662,7 +662,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
             file(WRITE "${_ACTOOL_SCRIPT}"
 "#!/bin/sh
 set -e
-PARTIAL=\"$(mktemp /tmp/actool_partial_XXXXXX.plist)\"
+PARTIAL=\"$(mktemp -t actool_partial).plist\"
 xcrun actool \\
     --compile \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME\" \\
     --platform \"$PLATFORM_NAME\" \\
