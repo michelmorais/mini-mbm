@@ -521,10 +521,12 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         # into the exe so that Explorer shows the correct icon on the .exe file.
         if(_WIN_ICON_ICO AND EXISTS "${_WIN_ICON_ICO}")
             set(_RC_FILE "${CMAKE_BINARY_DIR}/${GAME_NAME_SAFE}_icon.rc")
-            # Forward slashes work in both windres and rc.exe; backslashes
-            # inside a .rc string literal need doubling — slashes are simpler.
+            # Use numeric ID 101 so that LoadIcon/MAKEINTRESOURCE(101) works at
+            # runtime when main-mingw.cpp calls mbm::set_icon(IDI_ICON1) with
+            # IDI_ICON1 defined as 101.  String identifiers (IDI_ICON1 without
+            # a numeric definition) are not found by MAKEINTRESOURCE.
             string(REPLACE "\\" "/" _RC_ICON_PATH_FWD "${_WIN_ICON_ICO}")
-            file(WRITE "${_RC_FILE}" "IDI_ICON1 ICON \"${_RC_ICON_PATH_FWD}\"\n")
+            file(WRITE "${_RC_FILE}" "101 ICON \"${_RC_ICON_PATH_FWD}\"\n")
             target_sources(mini-mbm PRIVATE "${_RC_FILE}")
             message(STATUS "Windows icon (embed): ${_WIN_ICON_ICO}")
         endif()

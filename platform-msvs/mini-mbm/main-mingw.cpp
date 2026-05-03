@@ -17,8 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-// MinGW / GCC Windows entry point — mirrors platform-msvs/mini-mbm/main.cpp
-// but avoids MSVS-specific resource.h / icon IDs / #pragma comment.
+// MinGW / GCC Windows entry point — mirrors platform-msvs/mini-mbm-launcher/mini-mbm-launcher.cpp
+// but avoids MSVS-specific resource.h / #pragma comment.
 
 #ifndef _WIN32
     #error "Target expected Windows"
@@ -26,47 +26,132 @@
 
 #include <windows.h>
 #include <mini-mbm-lib.h>
+#include <core_mbm/parse-launcher-args.hpp>
 #include <ctime>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <string>
 
+// Numeric resource ID for the icon compiled into the exe via windres .rc file.
+// The CMake-generated .rc contains: 101 ICON "path/to/icon.ico"
+#define IDI_ICON1 101
+
+std::string title_app = "Launcher";
+std::string temporary_folder_path;
+
+// From LUA Use: doCommands(string command, string parameter)
+// e.g.: local tmp_folder = mbm.doCommands('get_tmp_folder')
 void onDoNativeCommand(const char* command, const char* param, char* result, const int max_size_result)
 {
-    if (strcmp(command, "get_current_time") == 0)
+    if (command)
     {
-        time_t now = time(nullptr);
-        tm* localTime = localtime(&now);
-        if (param)
+        if (strcmp(command, "get_tmp_folder") == 0)
         {
-            strftime(result, max_size_result, param, localTime);
+            if (temporary_folder_path.empty())
+            {
+                char temp_folder[1024] = "";
+                if (title_app.size() > 0 && mbm::create_temp_folder(title_app.c_str(), temp_folder, sizeof(temp_folder)))
+                    temporary_folder_path = temp_folder;
+                else if (mbm::create_temp_folder(nullptr, temp_folder, sizeof(temp_folder)))
+                    temporary_folder_path = temp_folder;
+            }
+            if (!temporary_folder_path.empty())
+                strncpy(result, temporary_folder_path.c_str(), max_size_result - 1);
         }
+        else if (strcmp(command, "get_current_time") == 0)
+        {
+            time_t now = time(nullptr);
+            tm* localTime = localtime(&now);
+            if (param)
+                strftime(result, max_size_result, param, localTime);
+            else
+                strftime(result, max_size_result, "%A, %B %d, %Y %H:%M:%S", localTime);
+        }
+        else if (strcmp(command, "get_random_number") == 0)
+        {
+            const int random_number = rand() % 100;
+            snprintf(result, max_size_result, "%d", random_number);
+        }
+#if defined _DEBUG
+        else if (strcmp(command, "restoreDeviceTest") == 0)
+        {
+            mbm::restoreDeviceTest();
+        }
+#endif
         else
         {
-            strftime(result, max_size_result, "%A, %B %d, %Y %H:%M:%S", localTime);
+            snprintf(result, max_size_result, "Unknown command: %s", command);
         }
-    }
-    else if (strcmp(command, "get_random_number") == 0)
-    {
-        const int random_number = rand() % 100;
-        snprintf(result, max_size_result, "%d", random_number);
-    }
-#if defined _DEBUG
-    else if (strcmp(command, "restoreDeviceTest") == 0)
-    {
-        mbm::restoreDeviceTest();
-    }
-#endif
-    else
-    {
-        snprintf(result, max_size_result, "Unknown command: %s", command);
     }
 }
 
-int main(const int argc, const char **argv)
+int main(const int /*argc*/, const char** /*argv*/)
 {
-    mbm::set_expected_window_size(1024, 768);
-    mbm::set_window_size(1024, 768);
+    bool allowFullScreen       = false;
+    bool full_screen_checked   = true;
+    bool disable_select_monitor = false;
+
     mbm::set_callback_do_commands(onDoNativeCommand);
-    return mbm::forward_args_and_do_loop(argc, argv, 0);
+
+    {
+        PARSE_laucher_ARGS parser;
+
+        unsigned int width = 0, height = 0;
+        if (parser.getWidthHeight(width, height))
+            mbm::set_window_size(static_cast<int>(width), static_cast<int>(height));
+        else
+            mbm::set_window_size(1920, 1080);
+
+        unsigned int expected_width = 0, expected_height = 0;
+        if (parser.getExpectedWidthHeight(expected_width, expected_height))
+            mbm::set_expected_window_size(static_cast<int>(expected_width), static_cast<int>(expected_height));
+        else
+            mbm::set_expected_window_size(1920, 1080);
+
+        mbm::set_verbose(false);
+
+        if (parser.noSplash)
+            mbm::disable_splash();
+
+        const char* nameApp = parser.getNameApplication();
+        if (nameApp && strlen(nameApp) > 0)
+        {
+            title_app = nameApp;
+            mbm::set_app_name(title_app.c_str());
+        }
+        else
+        {
+            mbm::set_app_name("Mini MBM");
+        }
+
+        mbm::set_icon(IDI_ICON1);
+        mbm::set_window_resizable(parser.enableResizeWindow);
+        mbm::set_window_theme(parser.window_theme, parser.enableBorder);
+
+        const char* fileNameInitialLua = parser.getFileNameInitialLua();
+        if (fileNameInitialLua && strlen(fileNameInitialLua) > 0)
+            mbm::set_scene(fileNameInitialLua);
+
+        mbm::set_window_position(parser.positionXWindow, parser.positionYWindow);
+
+        allowFullScreen        = parser.allowFullScreen;
+        full_screen_checked    = parser.full_screen_checked;
+        disable_select_monitor = parser.disable_select_monitor;
+    }
+
+    int ret = 0;
+    if (disable_select_monitor)
+    {
+        ret = mbm::onLoop();
+    }
+    else if (mbm::select_resolution(nullptr, 0, allowFullScreen, full_screen_checked))
+    {
+        ret = mbm::onLoop();
+    }
+
+    if (!temporary_folder_path.empty())
+        mbm::remove_folder(temporary_folder_path.c_str());
+
+    return ret;
 }
