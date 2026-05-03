@@ -21,6 +21,7 @@
 	#error "Target expected Windows"
 #endif
 
+#pragma comment(lib, "core_mbm.lib")
 #pragma comment(lib, "mini-mbm.lib")
 #pragma comment(lib, "lua5.4.lib")
 
