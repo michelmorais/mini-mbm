@@ -292,31 +292,94 @@ cleanly; the `GameDir\` folder is always ready regardless.
 For interactive development builds, run `package-game.bat` from `platform-msvs\`
 after building the solution.
 
+#### Prerequisites
+
+| Tool | Required for | Download |
+|---|---|---|
+| Visual Studio 2022 (built solution) | Everything | — |
+| `cmake` in `PATH` | MSI generation | https://cmake.org/download/ |
+| [NSIS](https://nsis.sourceforge.io) | `*-windows-setup.exe` | https://nsis.sourceforge.io |
+| [WiX v4](https://wixtoolset.org) or [WiX v3](https://github.com/wixtoolset/wix3/releases) | `*-windows.msi` | `dotnet tool install --global wix` |
+| PowerShell (built into Windows) | `*-windows.zip` | — |
+
+#### Usage
+
 ```cmd
 cd platform-msvs
 
 rem Basic usage
-package-game.bat "Tower Defense Monster" C:\Users\michel\tower-defense\assets Release
+package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Release
 
 rem With an icon
-package-game.bat "Tower Defense Monster" C:\Users\michel\tower-defense\assets Release C:\Users\michel\tower-defense\icon.ico
+package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Release C:\Users\miche\tower-defense\icon.ico
 ```
 
-| Argument | Description |
-|---|---|
-| `%1` Game name | Display name (use quotes for names with spaces) |
-| `%2` Assets dir | Absolute path to game assets folder |
-| `%3` Config | `Debug` or `Release` (default: `Release`) |
-| `%4` Icon `.ico` | Optional path to a Windows icon file |
+| Argument | Required? | Description |
+|---|---|---|
+| `%1` Game name | **Yes** | Display name — use quotes for names with spaces |
+| `%2` Assets dir | **Yes** | Absolute path to game assets folder (must contain `main.lua`) |
+| `%3` Config | No | `Debug` or `Release` (default: `Release`) |
+| `%4` Icon `.ico` | No | Path to a Windows `.ico` file |
 
-The script:
+#### What the script produces
+
+The script always assembles the staging folder first, then runs each packaging
+step if the required tool is available:
+
+```
+<repo-root>\
+    Tower_Defense_Monster.GameDir\      ← always produced
+        Tower_Defense_Monster.exe
+        audiere.dll  d3dcompiler_47.dll  ...  (runtime + plugin DLLs)
+        Tower_Defense_Monster.ico
+        launch.bat
+        assets\
+            main.lua
+            ...
+    Tower_Defense_Monster-windows-setup.exe  ← NSIS (if makensis found)
+    Tower_Defense_Monster-windows.msi        ← WiX  (if cmake + WiX found)
+    Tower_Defense_Monster-windows.zip        ← ZIP  (PowerShell, always)
+```
+
+All three installers perform a **per-user install** (no UAC prompt):
+- **NSIS** installs to `%LOCALAPPDATA%\Programs\<GameName>\`
+- **MSI** installs to `%LOCALAPPDATA%\Programs\<GameName>\`, with Start Menu + Desktop shortcuts and an *Uninstall* entry in Settings → Apps
+- **ZIP** is a portable folder — extract anywhere and run `launch.bat`
+
+#### Steps performed
+
 1. Reads the built `mini-mbm.exe` from `bin\debug|release\windows_x86\`
 2. Renames it to `<GameName>.exe` inside `<GameName>.GameDir\`
-3. Copies runtime DLLs from `third-party\` and plugin DLLs from the bin output
-4. Copies game assets to `GameDir\assets\`
-5. Writes `launch.bat`
-6. Generates and runs NSIS if `makensis` is in `PATH` or its default install location
-7. Reports WiX availability (MSI generation from the VS path requires the CMake path for `.wxs` generation)
+3. Copies runtime DLLs from `third-party\` (audiere, d3dcompiler, libEGL/libGLESv2)
+4. Copies plugin DLLs from the bin output directory
+5. Copies game assets to `GameDir\assets\`
+6. Writes `launch.bat` (sets `GAME_SAVE_DIR=%APPDATA%\<GameName>\`)
+7. Generates and runs NSIS (if `makensis` is in `PATH` or its default install location)
+8. Generates the MSI via `cmake -P make-msi.cmake` (if `cmake` is in `PATH` and WiX is installed)
+9. Creates a ZIP archive via PowerShell `Compress-Archive`
+
+#### MSI generation details (`make-msi.cmake`)
+
+The MSI is produced by the standalone script `platform-msvs/make-msi.cmake`,
+which can also be called directly without going through `package-game.bat`:
+
+```cmd
+cmake -DGAME_NAME="Tower Defense Monster" ^
+      -DGAME_DIR="C:\path\to\Tower_Defense_Monster.GameDir" ^
+      -DOUTPUT_DIR="C:\path\to\output" ^
+      -DICON_ICO="C:\path\to\icon.ico" ^
+      -P platform-msvs\make-msi.cmake
+```
+
+| Parameter | Required? | Description |
+|---|---|---|
+| `-DGAME_NAME` | **Yes** | Display name |
+| `-DGAME_DIR` | **Yes** | Path to the populated `GameDir\` folder |
+| `-DOUTPUT_DIR` | No | Where to write the `.msi` (default: same directory as the script) |
+| `-DICON_ICO` | No | Path to a `.ico` file for the installer dialog |
+
+The script detects WiX v3.x (any version) or v4 automatically. If neither is
+found it prints download instructions and exits cleanly.
 
 > **Tip:** Use absolute paths. The script does not expand environment variables
-> inside the asset path argument on all Windows configurations.
+> inside path arguments on all Windows configurations.
