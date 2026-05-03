@@ -662,9 +662,11 @@ endforeach()
 Name \"${GAME_NAME}\"\r\n\
 OutFile \"${_NSIS_OUTPUT_WIN}\"\r\n\
 Unicode True\r\n\
-InstallDir \"\$PROGRAMFILES\\${GAME_NAME_SAFE}\"\r\n\
+; Per-user install — no UAC prompt, no admin rights required.\r\n\
+; Installs to %LOCALAPPDATA%\\Programs\\<GameName>.\r\n\
+InstallDir \"\$LOCALAPPDATA\\Programs\\${GAME_NAME_SAFE}\"\r\n\
 InstallDirRegKey HKCU \"Software\\${GAME_NAME_SAFE}\" \"\"\r\n\
-RequestExecutionLevel admin\r\n\
+RequestExecutionLevel user\r\n\
 \r\n\
 ${_NSIS_ICON_LINE}\r\n\
 !define MUI_ABORTWARNING\r\n\
@@ -680,21 +682,25 @@ Section \"Install\"\r\n\
 \r\n\
     WriteUninstaller \"\$INSTDIR\\uninstall.exe\"\r\n\
 \r\n\
+    ; Start-menu and desktop shortcuts (per-user shell folders — no admin needed)\r\n\
+    SetShellVarContext current\r\n\
     CreateDirectory \"\$SMPROGRAMS\\${GAME_NAME}\"\r\n\
     CreateShortcut \"\$SMPROGRAMS\\${GAME_NAME}\\${GAME_NAME}.lnk\" \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \"--name $\\\"${GAME_NAME}$\\\" --scene assets\\main.lua\" \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
     CreateShortcut \"\$DESKTOP\\${GAME_NAME}.lnk\" \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \"--name $\\\"${GAME_NAME}$\\\" --scene assets\\main.lua\" \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
 \r\n\
-    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"DisplayName\" \"${GAME_NAME}\"\r\n\
-    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"UninstallString\" \"\$INSTDIR\\uninstall.exe\"\r\n\
+    ; Uninstall entry in HKCU (no admin rights needed)\r\n\
+    WriteRegStr HKCU \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"DisplayName\" \"${GAME_NAME}\"\r\n\
+    WriteRegStr HKCU \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"UninstallString\" \"\$INSTDIR\\uninstall.exe\"\r\n\
 SectionEnd\r\n\
 \r\n\
 Section \"Uninstall\"\r\n\
+    SetShellVarContext current\r\n\
     Delete \"\$INSTDIR\\uninstall.exe\"\r\n\
     RMDir /r \"\$INSTDIR\"\r\n\
     Delete \"\$SMPROGRAMS\\${GAME_NAME}\\${GAME_NAME}.lnk\"\r\n\
     RMDir \"\$SMPROGRAMS\\${GAME_NAME}\"\r\n\
     Delete \"\$DESKTOP\\${GAME_NAME}.lnk\"\r\n\
-    DeleteRegKey HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\"\r\n\
+    DeleteRegKey HKCU \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\"\r\n\
     DeleteRegKey HKCU \"Software\\${GAME_NAME_SAFE}\"\r\n\
 SectionEnd\r\n\
 ")
