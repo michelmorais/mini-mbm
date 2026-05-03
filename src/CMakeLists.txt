@@ -953,6 +953,34 @@ if(NOT "${WIX_ICON_ICO_PATH}" STREQUAL "")
         "        <Icon Id=\"AppIcon.ico\" SourceFile=\"${WIX_ICON_ICO_PATH}\" />\n        <Property Id=\"ARPPRODUCTICON\" Value=\"AppIcon.ico\" />")
 endif()
 
+# ── Generate license RTF shown in the WiX setup dialog ───────────────────────
+# WixUI_Minimal always shows a license page; without this the installer shows
+# Lorem ipsum placeholder text that ships with the WiX UI extension.
+# We provide the MIT license as a minimal RTF so the installer looks proper.
+string(REPLACE ".wxs" "_license.rtf" _WIX_LICENSE_RTF "${WIX_OUTPUT_WXS}")
+file(WRITE "${_WIX_LICENSE_RTF}"
+"{\\rtf1\\ansi\\ansicpg1252\\deff0{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}}"
+"{\\colortbl ;\\red0\\green0\\blue0;}"
+"\\viewkind4\\uc1\\pard\\cf1\\f0\\fs22\\b ${GAME_NAME}\\b0\\par\\par"
+"Built with the mini-mbm game engine.\\par\\par"
+"\\b License (MIT)\\b0\\par\\par"
+"Copyright (c) mini-mbm contributors\\par\\par"
+"Permission is hereby granted, free of charge, to any person obtaining a copy "
+"of this software and associated documentation files (the \\ldblquote Software\\rdblquote ), "
+"to deal in the Software without restriction, including without limitation the rights "
+"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies "
+"of the Software, and to permit persons to whom the Software is furnished to do so, "
+"subject to the following conditions:\\par\\par"
+"The above copyright notice and this permission notice shall be included in all "
+"copies or substantial portions of the Software.\\par\\par"
+"THE SOFTWARE IS PROVIDED \\ldblquote AS IS\\rdblquote , WITHOUT WARRANTY OF ANY KIND, "
+"EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
+"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS "
+"OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN "
+"AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH "
+"THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\\par}"
+)
+
 # ── Write .wxs ────────────────────────────────────────────────────────────────
 file(WRITE "${WIX_OUTPUT_WXS}"
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -964,14 +992,16 @@ file(WRITE "${WIX_OUTPUT_WXS}"
              Version=\"1.0.0\"
              Manufacturer=\"mini-mbm\"
              Language=\"1033\">
-        <Package InstallerVersion=\"200\" Compressed=\"yes\" InstallScope=\"perMachine\" />
+        <Package InstallerVersion=\"200\" Compressed=\"yes\" InstallScope=\"perUser\" />
         <MajorUpgrade DowngradeErrorMessage=\"A newer version of [ProductName] is already installed.\" />
         <MediaTemplate EmbedCab=\"yes\" />
 ${_WIX_ICON_XML}
         <Directory Id=\"TARGETDIR\" Name=\"SourceDir\">
-            <Directory Id=\"ProgramFilesFolder\">
-                <Directory Id=\"INSTALLDIR\" Name=\"${GAME_NAME_SAFE}\">
-${WXS_BODY}                </Directory>
+            <Directory Id=\"LocalAppDataFolder\">
+                <Directory Id=\"ProgramsFolder\" Name=\"Programs\">
+                    <Directory Id=\"INSTALLDIR\" Name=\"${GAME_NAME_SAFE}\">
+${WXS_BODY}                    </Directory>
+                </Directory>
             </Directory>
             <Directory Id=\"ProgramMenuFolder\">
                 <Directory Id=\"ProgramMenuDir\" Name=\"${GAME_NAME}\" />
@@ -984,6 +1014,7 @@ ${_SHORTCUT_COMP}
 ${_COMP_REFS}
         </Feature>
 
+        <WixVariable Id=\"WixUILicenseRtf\" Value=\"${_WIX_LICENSE_RTF}\" />
         <UIRef Id=\"WixUI_Minimal\" />
 
     </Product>
@@ -1014,6 +1045,7 @@ else()
                 -o "${WIX_OUTPUT_MSI}"
                 -ext WixUIExtension
                 -sice:ICE57
+                -sw1076
             WORKING_DIRECTORY "${WIN_GAMEDIR}"
             RESULT_VARIABLE _RES)
     else()
