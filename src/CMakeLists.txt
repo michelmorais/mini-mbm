@@ -1044,7 +1044,9 @@ else()
             COMMAND "${WIX_LIGHT}" "${_WIXOBJ}"
                 -o "${WIX_OUTPUT_MSI}"
                 -ext WixUIExtension
+                -sice:ICE38
                 -sice:ICE57
+                -sice:ICE64
                 -sw1076
             WORKING_DIRECTORY "${WIN_GAMEDIR}"
             RESULT_VARIABLE _RES)
