@@ -27,6 +27,7 @@
 #include <windows.h>
 #include <mini-mbm-lib.h>
 #include <core_mbm/parse-launcher-args.hpp>
+#include <core_mbm/util-interface.h>
 #include <ctime>
 #include <cstdlib>
 #include <cstring>
@@ -88,7 +89,7 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
 
 int main(const int /*argc*/, const char** /*argv*/)
 {
-    bool allowFullScreen       = false;
+    bool allowFullScreen       = true;
     bool full_screen_checked   = true;
     bool disable_select_monitor = false;
 
@@ -97,6 +98,7 @@ int main(const int /*argc*/, const char** /*argv*/)
     {
         PARSE_laucher_ARGS parser;
 
+        util::addPath("assets/");
         unsigned int width = 0, height = 0;
         if (parser.getWidthHeight(width, height))
             mbm::set_window_size(static_cast<int>(width), static_cast<int>(height));
