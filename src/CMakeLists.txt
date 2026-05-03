@@ -681,19 +681,11 @@ Section \"Install\"\r\n\
     WriteUninstaller \"\$INSTDIR\\uninstall.exe\"\r\n\
 \r\n\
     CreateDirectory \"\$SMPROGRAMS\\${GAME_NAME}\"\r\n\
-    CreateShortcut \"\$SMPROGRAMS\\${GAME_NAME}\\${GAME_NAME}.lnk\" \\\r\n\
-        \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \\\r\n\
-        \"--name \\\"${GAME_NAME}\\\" --scene assets\\\\main.lua\" \\\r\n\
-        \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
-    CreateShortcut \"\$DESKTOP\\${GAME_NAME}.lnk\" \\\r\n\
-        \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \\\r\n\
-        \"--name \\\"${GAME_NAME}\\\" --scene assets\\\\main.lua\" \\\r\n\
-        \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
+    CreateShortcut \"\$SMPROGRAMS\\${GAME_NAME}\\${GAME_NAME}.lnk\" \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \"--name $\\\"${GAME_NAME}$\\\" --scene assets\\main.lua\" \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
+    CreateShortcut \"\$DESKTOP\\${GAME_NAME}.lnk\" \"\$INSTDIR\\${GAME_NAME_SAFE}.exe\" \"--name $\\\"${GAME_NAME}$\\\" --scene assets\\main.lua\" \"\$INSTDIR\\${GAME_NAME_SAFE}.ico\"\r\n\
 \r\n\
-    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \\\r\n\
-        \"DisplayName\" \"${GAME_NAME}\"\r\n\
-    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \\\r\n\
-        \"UninstallString\" \"\$INSTDIR\\uninstall.exe\"\r\n\
+    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"DisplayName\" \"${GAME_NAME}\"\r\n\
+    WriteRegStr HKLM \"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${GAME_NAME_SAFE}\" \"UninstallString\" \"\$INSTDIR\\uninstall.exe\"\r\n\
 SectionEnd\r\n\
 \r\n\
 Section \"Uninstall\"\r\n\
