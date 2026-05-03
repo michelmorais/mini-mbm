@@ -711,7 +711,7 @@ SectionEnd\r\n\
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/make_nsis.cmake"
             CONTENT
-"cmake_minimum_required(VERSION 3.8)
+"cmake_minimum_required(VERSION 3.25.1)
 set(_NSI_FILE \"@CMAKE_BINARY_DIR@/@GAME_NAME_SAFE@.nsi\")
 set(_OUT_FILE \"@CMAKE_BINARY_DIR@/@GAME_NAME_SAFE@-windows-setup.exe\")
 
@@ -754,17 +754,19 @@ endif()
             NAME      "mini-mbm-upgrade-${GAME_NAME_SAFE}"
             TYPE SHA1 UPPER)
 
-        set(_WIX_ICON_LINE "")
+        # Pass just the ICO path into the generated script; the script builds
+        # the XML itself so that no unescaped quotes end up inside a CMake
+        # set() call (which was causing "Syntax Warning" at make msi time).
+        set(_WIX_ICON_ICO_PATH "")
         if(_WIN_ICON_ICO AND EXISTS "${_WIN_ICON_ICO}")
-            set(_WIX_ICON_LINE
-"        <Icon Id=\"AppIcon.ico\" SourceFile=\"${_WIN_GAMEDIR}/${GAME_NAME_SAFE}.ico\" />\n        <Property Id=\"ARPPRODUCTICON\" Value=\"AppIcon.ico\" />")
+            set(_WIX_ICON_ICO_PATH "${_WIN_GAMEDIR}/${GAME_NAME_SAFE}.ico")
         endif()
 
         # Write the cmake -P script; @VAR@ → substituted now, ${VAR} → runtime
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/make_wix.cmake"
             CONTENT
-[==[cmake_minimum_required(VERSION 3.8)
+[==[cmake_minimum_required(VERSION 3.25.1)
 # ── Values injected at configure time ────────────────────────────────────────
 set(GAME_NAME          "@GAME_NAME@")
 set(GAME_NAME_SAFE     "@GAME_NAME_SAFE@")
@@ -773,7 +775,7 @@ set(WIX_OUTPUT_MSI     "@CMAKE_BINARY_DIR@/@GAME_NAME_SAFE@-windows.msi")
 set(WIX_OUTPUT_WXS     "@CMAKE_BINARY_DIR@/@GAME_NAME_SAFE@.wxs")
 set(WIX_UPGRADE_CODE   "@_WIX_UPGRADE_CODE@")
 set(MBM_WIX_NS         "@_MBM_WIX_NS@")
-set(WIX_ICON_LINE      "@_WIX_ICON_LINE@")
+set(WIX_ICON_ICO_PATH  "@_WIX_ICON_ICO_PATH@")
 
 # ── Detect WiX ───────────────────────────────────────────────────────────────
 set(WIX_V4 "")
@@ -903,6 +905,13 @@ foreach(_CID ${WXS_COMP_IDS})
 endforeach()
 string(APPEND _COMP_REFS "            <ComponentRef Id=\"Comp_Shortcuts\" />\n")
 
+# ── Build icon XML (no quotes inside a CMake set() — safe to interpolate) ───
+set(_WIX_ICON_XML "")
+if(NOT "${WIX_ICON_ICO_PATH}" STREQUAL "")
+    set(_WIX_ICON_XML
+        "        <Icon Id=\"AppIcon.ico\" SourceFile=\"${WIX_ICON_ICO_PATH}\" />\n        <Property Id=\"ARPPRODUCTICON\" Value=\"AppIcon.ico\" />")
+endif()
+
 # ── Write .wxs ────────────────────────────────────────────────────────────────
 file(WRITE "${WIX_OUTPUT_WXS}"
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -917,7 +926,7 @@ file(WRITE "${WIX_OUTPUT_WXS}"
         <Package InstallerVersion=\"200\" Compressed=\"yes\" InstallScope=\"perMachine\" />
         <MajorUpgrade DowngradeErrorMessage=\"A newer version of [ProductName] is already installed.\" />
         <MediaTemplate EmbedCab=\"yes\" />
-${WIX_ICON_LINE}
+${_WIX_ICON_XML}
         <Directory Id=\"TARGETDIR\" Name=\"SourceDir\">
             <Directory Id=\"ProgramFilesFolder\">
                 <Directory Id=\"INSTALLDIR\" Name=\"${GAME_NAME_SAFE}\">
@@ -986,11 +995,15 @@ endif()
             COMMENT "Building WiX MSI: ${GAME_NAME_SAFE}-windows.msi")
 
         # ── ZIP portable archive ──────────────────────────────────────────────
+        # cmake -E tar with --format=zip produces a standard ZIP archive.
+        # Pass a relative path so the zip root is GameName.GameDir/ (not the
+        # full C:/build/... absolute path) — Windows Explorer requires this.
         add_custom_target(zip
             DEPENDS mini-mbm
-            COMMAND ${CMAKE_COMMAND} -E tar czf
+            COMMAND ${CMAKE_COMMAND} -E tar cf
                 "${CMAKE_BINARY_DIR}/${GAME_NAME_SAFE}-windows.zip"
-                "${_WIN_GAMEDIR}"
+                --format=zip
+                "${GAME_NAME_SAFE}.GameDir"
             WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
             COMMENT "Building ZIP: ${GAME_NAME_SAFE}-windows.zip")
 
