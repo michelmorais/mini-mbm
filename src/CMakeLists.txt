@@ -932,6 +932,11 @@ set(_SHORTCUT_COMP
                           Arguments=\"--name &quot;${GAME_NAME}&quot; --scene assets\\main.lua\"
                           WorkingDirectory=\"INSTALLDIR\"
                           Directory=\"DesktopFolder\" />
+                <Shortcut Id=\"UninstallShortcut\"
+                          Name=\"Uninstall ${GAME_NAME}\"
+                          Description=\"Uninstall ${GAME_NAME}\"
+                          Target=\"[SystemFolder]msiexec.exe\"
+                          Arguments=\"/x [ProductCode]\" />
                 <RemoveFolder Id=\"RemoveProgramMenuDir\" Directory=\"ProgramMenuDir\" On=\"uninstall\" />
                 <RegistryValue Root=\"HKCU\" Key=\"Software\\${GAME_NAME_SAFE}\"
                                Name=\"installed\" Type=\"integer\" Value=\"1\" KeyPath=\"yes\" />
