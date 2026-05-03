@@ -260,29 +260,37 @@ private:
     /* Parse the raw CTAB binary block (ctab[0..3] = FourCC "CTAB"). */
     void parseCtabBlock(const BYTE *ctab, SIZE_T ctabLen) noexcept
     {
-        /* Minimum: FourCC(4) + header fields through ConstantInfo(20) = 24 bytes,
-         * but the documented header size (Size field) is 28, plus FourCC = 32. */
+        /* Minimum: FourCC(4) + D3DXSHADER_CONSTANTTABLE header (28) = 32 bytes. */
         if (ctabLen < 32u) return;
 
-        /* Offsets relative to ctab (which starts at the FourCC DWORD):
-         *   +4  Size
-         *   +8  Creator
-         *   +12 Version
-         *   +16 Constants
-         *   +20 ConstantInfo
-         *   +24 Flags
-         *   +28 Target                                                            */
-        DWORD numConstants    = *reinterpret_cast<const DWORD *>(ctab + 16u);
-        DWORD constantInfoOff = *reinterpret_cast<const DWORD *>(ctab + 20u);
+        /* ctab[0..3] = FourCC "CTAB" (4 bytes, NOT part of the struct).
+         * D3DXSHADER_CONSTANTTABLE starts at ctab+4; ALL offsets stored inside
+         * the CTAB fields (ConstantInfo, Creator, Name, …) are relative to this
+         * base address — NOT to ctab itself.
+         *
+         * D3DXSHADER_CONSTANTTABLE layout (starting at hdr = ctab+4):
+         *   hdr+0   Size         (4)
+         *   hdr+4   Creator      (4) ← offset from hdr
+         *   hdr+8   Version      (4)
+         *   hdr+12  Constants    (4) ← number of constants
+         *   hdr+16  ConstantInfo (4) ← offset from hdr to first entry
+         *   hdr+20  Flags        (4)
+         *   hdr+24  Target       (4)
+         */
+        const BYTE *hdr = ctab + 4u;
+        const SIZE_T hdrLen = ctabLen - 4u; /* usable space starting at hdr */
+
+        DWORD numConstants    = *reinterpret_cast<const DWORD *>(hdr + 12u);
+        DWORD constantInfoOff = *reinterpret_cast<const DWORD *>(hdr + 16u);
 
         if (numConstants == 0) return;
 
         /* Bounds check: constant array must fit inside the CTAB block. */
-        if (static_cast<SIZE_T>(constantInfoOff) + numConstants * 20u > ctabLen) return;
+        if (static_cast<SIZE_T>(constantInfoOff) + numConstants * 20u > hdrLen) return;
 
         for (DWORD c = 0; c < numConstants; ++c)
         {
-            const BYTE *ci = ctab + constantInfoOff + c * 20u;
+            const BYTE *ci = hdr + constantInfoOff + c * 20u;
 
             /* Per-constant fields (see struct layout in file header comment). */
             DWORD nameOff  = *reinterpret_cast<const DWORD *>(ci + 0u);
@@ -290,8 +298,9 @@ private:
             WORD  regIdx   = *reinterpret_cast<const WORD  *>(ci + 6u);
             WORD  regCount = *reinterpret_cast<const WORD  *>(ci + 8u);
 
-            if (static_cast<SIZE_T>(nameOff) >= ctabLen) continue;
-            const char *name = reinterpret_cast<const char *>(ctab + nameOff);
+            /* nameOff is also relative to hdr. */
+            if (static_cast<SIZE_T>(nameOff) >= hdrLen) continue;
+            const char *name = reinterpret_cast<const char *>(hdr + nameOff);
             if (!name || name[0] == '\0') continue;
 
             MBM_D3DX_CONSTANT_ENTRY entry;
