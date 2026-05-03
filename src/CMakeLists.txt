@@ -392,6 +392,10 @@ fi
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
+    # Enable Windows resource compiler (windres on MinGW, rc.exe on MSVC) so
+    # that .rc files added later (for icon embedding) are compiled correctly.
+    enable_language(RC)
+
     # tinyfiledialogs is already compiled into core_mbm.dll — don't add it again.
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
@@ -512,6 +516,19 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
             endif()
         endif()
 
+        # ── Embed icon into the executable ───────────────────────────────────
+        # A Windows .rc resource file is generated at configure time and linked
+        # into the exe so that Explorer shows the correct icon on the .exe file.
+        if(_WIN_ICON_ICO AND EXISTS "${_WIN_ICON_ICO}")
+            set(_RC_FILE "${CMAKE_BINARY_DIR}/${GAME_NAME_SAFE}_icon.rc")
+            # Forward slashes work in both windres and rc.exe; backslashes
+            # inside a .rc string literal need doubling — slashes are simpler.
+            string(REPLACE "\\" "/" _RC_ICON_PATH_FWD "${_WIN_ICON_ICO}")
+            file(WRITE "${_RC_FILE}" "IDI_ICON1 ICON \"${_RC_ICON_PATH_FWD}\"\n")
+            target_sources(mini-mbm PRIVATE "${_RC_FILE}")
+            message(STATUS "Windows icon (embed): ${_WIN_ICON_ICO}")
+        endif()
+
         # ── Staging directory skeleton ────────────────────────────────────────
         file(MAKE_DIRECTORY "${_WIN_GAMEDIR}/assets")
 
@@ -548,6 +565,20 @@ cd /d \"%~dp0\"\r\n\
             list(APPEND _WIN_DLL_LIST
                 "${THIRD_PARTY}/gles/bin/libEGL.dll"
                 "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
+        endif()
+
+        # MinGW runtime DLLs — needed when the exe was compiled with GCC/MinGW.
+        # Without these, the game crashes with "DLL not found" when launched from
+        # Explorer on a machine that does not have MSYS2/MinGW on its PATH.
+        if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            get_filename_component(_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+            foreach(_RT_DLL libgcc_s_dw2-1.dll libstdc++-6.dll libwinpthread-1.dll)
+                if(EXISTS "${_MINGW_BIN}/${_RT_DLL}")
+                    list(APPEND _WIN_DLL_LIST "${_MINGW_BIN}/${_RT_DLL}")
+                else()
+                    message(WARNING "MinGW runtime DLL not found (skipped): ${_MINGW_BIN}/${_RT_DLL}")
+                endif()
+            endforeach()
         endif()
 
         # ── POST_BUILD: populate GameDir after each successful build ──────────
