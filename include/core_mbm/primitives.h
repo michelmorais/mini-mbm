@@ -1,4 +1,4 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+﻿/*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
@@ -485,7 +485,7 @@ struct API_IMPL COLOR
     float r, g, b, a;
 };
 
-API_IMPL inline void vec3Normalize(VEC3 *vectorOut, const VEC3 *vectorIn) noexcept
+inline void vec3Normalize(VEC3 *vectorOut, const VEC3 *vectorIn) noexcept
 {
     const float len = static_cast<const float>(
         sqrtf((vectorIn->x * vectorIn->x) + (vectorIn->y * vectorIn->y) + (vectorIn->z * vectorIn->z)));
@@ -505,7 +505,7 @@ API_IMPL inline void vec3Normalize(VEC3 *vectorOut, const VEC3 *vectorIn) noexce
         vectorOut->z = 0.0f;
 }
 
-API_IMPL inline void vec2Normalize(VEC2 *vectorOut, const VEC2 *vectorIn) noexcept
+inline void vec2Normalize(VEC2 *vectorOut, const VEC2 *vectorIn) noexcept
 {
     const float len = static_cast<const float>(sqrtf((vectorIn->x * vectorIn->x) + (vectorIn->y * vectorIn->y)));
     if (vectorIn->x != 0.0f) //-V550
@@ -519,12 +519,12 @@ API_IMPL inline void vec2Normalize(VEC2 *vectorOut, const VEC2 *vectorIn) noexce
         vectorOut->y = 0.0f;
 }
 
-API_IMPL inline float vec2Dot(const VEC2 *vector1, const VEC2 *vector2) noexcept
+inline float vec2Dot(const VEC2 *vector1, const VEC2 *vector2) noexcept
 {
     return vector1->x * vector2->x + vector1->y * vector2->y;
 }
 
-API_IMPL inline VEC3 *vec3Scale(VEC3 *pout, const VEC3 *pv, float s) noexcept
+inline VEC3 *vec3Scale(VEC3 *pout, const VEC3 *pv, float s) noexcept
 {
     if (!pout || !pv)
         return nullptr;
@@ -534,7 +534,7 @@ API_IMPL inline VEC3 *vec3Scale(VEC3 *pout, const VEC3 *pv, float s) noexcept
     return pout;
 }
 
-API_IMPL inline VEC3 *vec3Subtract(VEC3 *pout, const VEC3 *pva, const VEC3 *pvb) noexcept
+inline VEC3 *vec3Subtract(VEC3 *pout, const VEC3 *pva, const VEC3 *pvb) noexcept
 {
     if (!pout || !pva || !pvb)
         return nullptr;
@@ -544,7 +544,7 @@ API_IMPL inline VEC3 *vec3Subtract(VEC3 *pout, const VEC3 *pva, const VEC3 *pvb)
     return pout;
 }
 
-API_IMPL inline VEC3 *vec3Lerp(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2, float s) noexcept
+inline VEC3 *vec3Lerp(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2, float s) noexcept
 {
     if (!pout || !pv1 || !pv2)
         return nullptr;
@@ -554,7 +554,7 @@ API_IMPL inline VEC3 *vec3Lerp(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2, flo
     return pout;
 }
 
-API_IMPL inline VEC3 *vec3Add(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) noexcept
+inline VEC3 *vec3Add(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) noexcept
 {
     if (!pout || !pv1 || !pv2)
         return nullptr;
@@ -564,7 +564,7 @@ API_IMPL inline VEC3 *vec3Add(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) noex
     return pout;
 }
 
-API_IMPL inline VEC3 *vec3Cross(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) noexcept
+inline VEC3 *vec3Cross(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) noexcept
 {
     if (!pout || !pv1 || !pv2)
         return nullptr;
@@ -577,21 +577,21 @@ API_IMPL inline VEC3 *vec3Cross(VEC3 *pout, const VEC3 *pv1, const VEC3 *pv2) no
     return pout;
 }
 
-API_IMPL inline float vec3Dot(const VEC3 *pv1, const VEC3 *pv2) noexcept
+inline float vec3Dot(const VEC3 *pv1, const VEC3 *pv2) noexcept
 {
     if (!pv1 || !pv2)
         return 0.0f;
     return (pv1->x) * (pv2->x) + (pv1->y) * (pv2->y) + (pv1->z) * (pv2->z);
 }
 
-API_IMPL inline float vec3Length(const VEC3 *pv) noexcept
+inline float vec3Length(const VEC3 *pv) noexcept
 {
     if (!pv)
         return 0.0f;
     return static_cast<float>(sqrtf(pv->x * pv->x + pv->y * pv->y + pv->z * pv->z));
 }
 
-API_IMPL inline VEC3 *Vec3Normalize(VEC3 *pout, const VEC3 *pv) noexcept
+inline VEC3 *Vec3Normalize(VEC3 *pout, const VEC3 *pv) noexcept
 {
     float norm;
     norm = vec3Length(pv);
@@ -709,17 +709,17 @@ API_IMPL PLANE *PlaneTransform(PLANE *pout, const PLANE *pplane, const MATRIX *p
 API_IMPL PLANE *PlaneTransformArray(PLANE *pout, uint32_t outstride, const PLANE *pplane, uint32_t pstride,
                            const MATRIX *pm, uint32_t n);
 
-API_IMPL inline float PlaneDotCoord(const PLANE *pP, const VEC3 *pV) noexcept
+inline float PlaneDotCoord(const PLANE *pP, const VEC3 *pV) noexcept
 {
     return pP->a * pV->x + pP->b * pV->y + pP->c * pV->z + pP->d;
 }
 
-API_IMPL inline float PlaneDotNormal(const PLANE *pP, const VEC3 *pV) noexcept
+inline float PlaneDotNormal(const PLANE *pP, const VEC3 *pV) noexcept
 {
     return pP->a * pV->x + pP->b * pV->y + pP->c * pV->z;
 }
 
-API_IMPL inline PLANE *PlaneScale(PLANE *pOut, const PLANE *pP, float s) noexcept
+inline PLANE *PlaneScale(PLANE *pOut, const PLANE *pP, float s) noexcept
 {
     pOut->a = pP->a * s;
     pOut->b = pP->b * s;

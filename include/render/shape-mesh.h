@@ -1,4 +1,4 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+﻿/*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2015      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
@@ -100,8 +100,8 @@ namespace mbm
         API_IMPL const char *getFileName() const;
 		API_IMPL FX*  getFx() const override;
 		API_IMPL ANIMATION_MANAGER*  getAnimationManager()  noexcept override;
-		API_IMPL inline void setOnRenderDynamicBuffer(OnRenderDynamicBuffer _onRenderDynamicBuffer) noexcept { onRenderDynamicBuffer = _onRenderDynamicBuffer;}
-		API_IMPL inline const bool isDynamicBufferMode() const  noexcept { return dynamicVertex.size() > 0 && mesh != nullptr; }
+		inline void setOnRenderDynamicBuffer(OnRenderDynamicBuffer _onRenderDynamicBuffer) noexcept { onRenderDynamicBuffer = _onRenderDynamicBuffer;}
+		inline const bool isDynamicBufferMode() const  noexcept { return dynamicVertex.size() > 0 && mesh != nullptr; }
 		FVF_PROVIDE_BY_ENGINE getFvfFromBuffer() const noexcept override;
 
       private:

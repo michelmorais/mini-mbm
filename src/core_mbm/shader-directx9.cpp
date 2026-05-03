@@ -734,7 +734,7 @@ namespace mbm
         if (hasUV) defaultCodeVs += " output.texCoord = input.texCoord;";
         defaultCodeVs += " return output; }";
 
-        constexpr char* mainFunction = "main";
+        constexpr const char* mainFunction = "main";
         const char* versionPS        = getPSVersion();
         const char* versionVS       = getVSVersion();
         ID3DXBuffer* bufferPS       = nullptr;

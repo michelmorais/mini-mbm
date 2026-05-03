@@ -1,4 +1,4 @@
-/*-----------------------------------------------------------------------------------------------------------------------|
+﻿/*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
 | Copyright (C) 2022      by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
@@ -54,14 +54,14 @@ namespace mbm
         API_IMPL bool setTexture(const MESH_MBM *mesh,const char *fileNametexture, const uint32_t stage, const bool hasAlpha) override;
         API_IMPL bool clonePhysics(const mbm::INFO_PHYSICS * const new_info_physics);
         API_IMPL const mbm::INFO_PHYSICS *getInfoPhysics() const override;
-        API_IMPL inline const bool getSegmented() const {return this->segmented;};
+        inline const bool getSegmented() const {return this->segmented;};
         API_IMPL void getSizeTexture(uint32_t &width,uint32_t &height) const;
-        API_IMPL inline const float getRadiusScale() const {return this->radiusScale;};
-        API_IMPL inline void setRadiusScale(const float _radiusScale) { radiusScale = _radiusScale;};
-        API_IMPL inline const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
+        inline const float getRadiusScale() const {return this->radiusScale;};
+        inline void setRadiusScale(const float _radiusScale) { radiusScale = _radiusScale;};
+        inline const float getScalePhysicsEngine() const { return *this->scale_physics_engine; };
         API_IMPL const COLOR getColor(const uint32_t index_group) const noexcept;
         API_IMPL void setColor(const COLOR &color, const uint32_t index_group) noexcept;
-        API_IMPL inline const TEXTURE* getTexture() const { return this->texture; };
+        inline const TEXTURE* getTexture() const { return this->texture; };
         
       private:
         bool isOnFrustum() override;
