@@ -67,5 +67,10 @@
          ignores Assets.car and shows a blank icon on the home screen. -->
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
+
+    <!-- Declare that this app does not use non-exempt encryption.
+         This skips the annual encryption export compliance review in App Store Connect. -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>
