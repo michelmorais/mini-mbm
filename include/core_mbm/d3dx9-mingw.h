@@ -181,17 +181,32 @@ public:
         return dispatch(pDevice, reg, padded, numRegs);
     }
 
-    /* Upload a 4×4 matrix (4 consecutive float4 registers). */
+    /* Upload a 4×4 matrix (4 consecutive float4 registers).
+     *
+     * D3DX9 convention: the real ID3DXConstantTable::SetMatrix TRANSPOSES the
+     * D3DXMATRIX (which is row-major) before calling SetVertexShaderConstantF.
+     * This is required because HLSL's default matrix packing is column-major:
+     * each constant register holds one COLUMN of the HLSL matrix.  Uploading
+     * the rows of D3DXMATRIX directly (without transposing) would store the
+     * rows in registers that HLSL interprets as columns, effectively giving the
+     * shader the transposed matrix — causing wrong vertex transforms (geometry
+     * appearing at wrong positions / all centralized on screen).
+     *
+     * Transpose: transposed[j][i] = original[i][j]
+     *   → SetVertexShaderConstantF(reg, transposed, 4) uploads column j of the
+     *     original D3DXMATRIX into register c[reg+j], exactly as HLSL expects. */
     HRESULT SetMatrix(IDirect3DDevice9 *pDevice,
                       D3DXHANDLE        hConstant,
                       const D3DXMATRIX *pMatrix)
     {
         if (!hConstant || !pMatrix) return E_FAIL;
         UINT reg = decodeHandle(hConstant);
-        /* Cast to float* — D3DMATRIX is 16 contiguous floats in row-major order,
-         * which is exactly what SetVertexShaderConstantF expects. */
-        return dispatch(pDevice, reg,
-                        reinterpret_cast<const FLOAT *>(pMatrix), 4u);
+        const FLOAT *src = reinterpret_cast<const FLOAT *>(pMatrix);
+        FLOAT transposed[16];
+        for (int r = 0; r < 4; ++r)
+            for (int c = 0; c < 4; ++c)
+                transposed[r * 4 + c] = src[c * 4 + r]; /* M^T[r][c] = M[c][r] */
+        return dispatch(pDevice, reg, transposed, 4u);
     }
 
 private:
