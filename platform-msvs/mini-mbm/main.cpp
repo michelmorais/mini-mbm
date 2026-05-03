@@ -30,7 +30,10 @@
 #include <ctime>
 #include <string>
 
-std::string title_app = "Launcher";
+// Baked-in game name written to mbm_game_name.cpp at configure time by CMake.
+extern const char mbm_baked_game_name[];
+
+std::string title_app(mbm_baked_game_name);
 std::string temporary_folder_path;
 
 void onDoNativeCommand(const char* command, const char* param, char* result, const int max_size_result)
@@ -113,7 +116,7 @@ int main(const int /*argc*/, const char** /*argv*/)
 		}
 		else
 		{
-			mbm::set_app_name("Mini MBM");
+			mbm::set_app_name(title_app.c_str());
 		}
 
 		mbm::set_icon(IDI_ICON1);

@@ -417,6 +417,19 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     # so define LIB_MBM_EXPORTS to get dllexport (not dllimport) on GCC/MinGW.
     target_compile_definitions(mini-mbm PRIVATE LIB_MBM_EXPORTS)
 
+    # Generate a small .cpp that exposes the baked-in game name as a C symbol.
+    # Using file(WRITE ...) avoids all shell/CMake quoting pitfalls that come
+    # with -D defines for strings containing spaces.
+    # Falls back to "Mini MBM" when GAME_NAME is not set (raw engine build).
+    if(DEFINED GAME_NAME AND NOT "${GAME_NAME}" STREQUAL "")
+        set(_MBM_BAKED_NAME "${GAME_NAME}")
+    else()
+        set(_MBM_BAKED_NAME "Mini MBM")
+    endif()
+    file(WRITE "${CMAKE_BINARY_DIR}/mbm_game_name.cpp"
+        "extern const char mbm_baked_game_name[] = \"${_MBM_BAKED_NAME}\";\n")
+    target_sources(mini-mbm PRIVATE "${CMAKE_BINARY_DIR}/mbm_game_name.cpp")
+
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 
     # ── Windows game delivery (GameDir + NSIS installer + WiX MSI + ZIP) ──────
