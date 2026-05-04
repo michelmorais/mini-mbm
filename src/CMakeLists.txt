@@ -585,9 +585,27 @@ cd /d \"%~dp0\"\r\n\
         # MinGW runtime DLLs — needed when the exe was compiled with GCC/MinGW.
         # Without these, the game crashes with "DLL not found" when launched from
         # Explorer on a machine that does not have MSYS2/MinGW on its PATH.
+        #
+        # libgcc_s variant depends on the exception model / architecture:
+        #   libgcc_s_dw2-1.dll  — 32-bit (dw2 / sjlj), mingw32
+        #   libgcc_s_seh-1.dll  — 64-bit (SEH), mingw64 / ucrt64
+        #   libgcc_s_deh-1.dll  — 64-bit (SJLJ, uncommon)
         if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             get_filename_component(_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
-            foreach(_RT_DLL libgcc_s_dw2-1.dll libstdc++-6.dll libwinpthread-1.dll)
+            # Resolve the correct libgcc_s variant — use whichever one exists.
+            set(_LIBGCC_DLL "")
+            foreach(_CANDIDATE libgcc_s_dw2-1.dll libgcc_s_seh-1.dll libgcc_s_deh-1.dll)
+                if(EXISTS "${_MINGW_BIN}/${_CANDIDATE}")
+                    set(_LIBGCC_DLL "${_CANDIDATE}")
+                    break()
+                endif()
+            endforeach()
+            if(_LIBGCC_DLL)
+                list(APPEND _WIN_DLL_LIST "${_MINGW_BIN}/${_LIBGCC_DLL}")
+            else()
+                message(WARNING "MinGW runtime DLL not found (skipped): no libgcc_s variant in ${_MINGW_BIN}")
+            endif()
+            foreach(_RT_DLL libstdc++-6.dll libwinpthread-1.dll)
                 if(EXISTS "${_MINGW_BIN}/${_RT_DLL}")
                     list(APPEND _WIN_DLL_LIST "${_MINGW_BIN}/${_RT_DLL}")
                 else()

@@ -226,6 +226,11 @@ cmake --version
 All three must print a version number before the `cmake -G "MinGW Makefiles"` step
 will succeed.
 
+> **Note on the `mingw32-make` name:** The "32" is historical — this executable is
+> present in **all** MSYS2 environments including `mingw64` and `ucrt64`. It is not
+> related to the target architecture; the compiler determines whether the output
+> binary is 32-bit or 64-bit.
+
 #### CMake delivery flags
 
 | Flag | Required? | Description |
@@ -252,13 +257,20 @@ cmake .. -G "MinGW Makefiles" ^
 rem 64-bit build (use mingw64 or ucrt64 environment — audiere not available for x64)
 rem   -DAUDIO=dsound
 
+cmake .. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DGAME_NAME="Tower Defense Monster" ^
+    -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
+
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
 mingw32-make msi                         :: produces Tower_Defense_Monster-windows.msi
 mingw32-make zip                         :: produces Tower_Defense_Monster-windows.zip
 ```
 
-After `make`, the staging folder is:
+After `mingw32-make`, the staging folder is:
 
 ```
 build\
@@ -273,14 +285,14 @@ build\
             ...
 ```
 
-#### Packaging tools (all optional — `make` alone is sufficient for a portable folder)
+#### Packaging tools (all optional — `mingw32-make` alone is sufficient for a portable folder)
 
 | Tool | Target | Output | Download |
 |---|---|---|---|
-| [NSIS](https://nsis.sourceforge.io) | `make nsis` | `GameName-windows-setup.exe` | https://nsis.sourceforge.io |
-| [WiX v4](https://wixtoolset.org) | `make msi` | `GameName-windows.msi` | `dotnet tool install --global wix` |
-| [WiX v3](https://github.com/wixtoolset/wix3/releases) | `make msi` | `GameName-windows.msi` | GitHub releases |
-| (built-in) | `make zip` | `GameName-windows.zip` | — no extra tools needed |
+| [NSIS](https://nsis.sourceforge.io) | `mingw32-make nsis` | `GameName-windows-setup.exe` | https://nsis.sourceforge.io |
+| [WiX v4](https://wixtoolset.org) | `mingw32-make msi` | `GameName-windows.msi` | `dotnet tool install --global wix` |
+| [WiX v3](https://github.com/wixtoolset/wix3/releases) | `mingw32-make msi` | `GameName-windows.msi` | GitHub releases |
+| (built-in) | `mingw32-make zip` | `GameName-windows.zip` | — no extra tools needed |
 
 If a packaging tool is not found, the target prints the download URL and exits
 cleanly; the `GameDir\` folder is always ready regardless.
