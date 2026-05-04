@@ -286,6 +286,35 @@ make -j$(nproc)
 make appimage
 ```
 
+### Bundled audio libraries (Audiere + ALSA)
+
+Audiere discovers its audio backend at runtime via `dlopen()`. On modern Linux,
+`/dev/dsp` (OSS) is gone — Audiere falls back to ALSA (`libasound.so.2`). If
+libasound is not present the fallback fails and Audiere crashes with a segfault.
+
+The cmake delivery block handles this automatically: at configure time it locates
+`libasound.so.2` on the build machine and adds it to `AppDir/usr/lib/` alongside the
+engine plugins. The `make` step then bundles it into the AppImage.
+
+**What gets bundled in `AppDir/usr/lib/`:**
+
+| Library | Purpose |
+|---|---|
+| `libaudiere-1.10.1.so` | Audiere audio engine |
+| `libasound.so.2` + real `.so` | ALSA backend used by Audiere on modern Linux |
+| `libcore_mbm.so` | Engine core |
+| `liblua-5.4.1.so` | Lua scripting |
+| `plugin_helper.so`, `box2d.so`, `ImGui.so`, … | Gameplay plugins |
+
+If cmake cannot find libasound on the build machine it prints a warning:
+
+```
+CMake Warning: libasound not found — Audiere may crash on systems without OSS.
+               Install libasound2-dev.
+```
+
+Fix: `sudo apt-get install libasound2-dev` then re-run cmake.
+
 ### Building the AppImage
 
 `appimagetool` is searched in two places:

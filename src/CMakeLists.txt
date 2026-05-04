@@ -339,6 +339,20 @@ Categories=Game;
         #    Inline bash -c with \; and ; suffers from CMake→Makefile escaping issues.
         #    Instead, generate a small cmake -P script at configure time and invoke it;
         #    cmake -P runs in the cmake process so escaping is trivial.
+        # Audiere discovers audio backends at runtime via dlopen().
+        # On modern Linux, OSS (/dev/dsp) is gone; Audiere falls back to ALSA (libasound.so.2).
+        # If libasound is not bundled in the AppImage the fallback fails and Audiere crashes.
+        # Resolve the path at configure time and record it for the cmake -P copy script below.
+        find_library(_LIBASOUND_PATH NAMES asound)
+        if(_LIBASOUND_PATH)
+            # Resolve any symlink to get the real versioned .so
+            get_filename_component(_LIBASOUND_REAL "${_LIBASOUND_PATH}" REALPATH)
+            message(STATUS "Linux delivery: bundling ALSA (${_LIBASOUND_REAL}) for Audiere")
+        else()
+            set(_LIBASOUND_REAL "")
+            message(WARNING "libasound not found — Audiere may crash on systems without OSS. Install libasound2-dev.")
+        endif()
+
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/copy_linux_plugins.cmake"
             CONTENT
@@ -346,6 +360,17 @@ Categories=Game;
 foreach(_F \${_SO_FILES})
     file(COPY \"\${_F}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
 endforeach()
+# Bundle ALSA so Audiere can fall back to it when OSS is unavailable
+set(_LIBASOUND \"@_LIBASOUND_REAL@\")
+if(_LIBASOUND AND EXISTS \"\${_LIBASOUND}\")
+    file(COPY \"\${_LIBASOUND}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
+    # AppImage lookup uses the unversioned soname; create a symlink if needed
+    get_filename_component(_LIBASOUND_NAME \"\${_LIBASOUND}\" NAME)
+    if(NOT _LIBASOUND_NAME STREQUAL \"libasound.so.2\")
+        file(CREATE_LINK \"\${_LIBASOUND_NAME}\"
+            \"@_LINUX_APPDIR@/usr/lib/libasound.so.2\" SYMBOLIC)
+    endif()
+endif()
 "
             @ONLY)
         add_custom_command(TARGET mini-mbm POST_BUILD
