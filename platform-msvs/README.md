@@ -250,6 +250,7 @@ rem 32-bit build (recommended — use mingw32 environment, set PATH=C:\msys64\mi
 cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
     -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_DIRECTX9=1 ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
@@ -260,6 +261,7 @@ rem   -DAUDIO=dsound
 cmake .. -G "MinGW Makefiles" ^
     -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
     -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_DIRECTX9=1 ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
