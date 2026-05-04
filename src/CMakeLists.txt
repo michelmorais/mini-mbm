@@ -432,6 +432,12 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
 
+    # Build as a WINDOWS-subsystem PE so the OS never allocates a console.
+    # -Wl,--subsystem,windows sets the subsystem without changing the entry
+    # point (mainCRTStartup still calls main()), unlike -mwindows which
+    # would require WinMain.
+    target_link_options(mini-mbm PRIVATE -Wl,--subsystem,windows)
+
     # ── Windows game delivery (GameDir + NSIS installer + WiX MSI + ZIP) ──────
     # Activated only when -DGAME_ASSETS_DIR=/path/to/game/assets is passed at
     # configure time.  Mirrors the Linux/iOS -DGAME_NAME / -DGAME_ASSETS_DIR /
