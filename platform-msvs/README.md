@@ -264,6 +264,18 @@ cmake .. -G "MinGW Makefiles" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
+rem using backend OpenGlEs
+rem The required DLLs (libEGL.dll, libGLESv2.dll, d3dcompiler_47.dll) are
+rem bundled in the repo at third-party\gles\bin — no external download needed.
+
+cmake .. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_OPENGL_ES=1  ^
+    -DGAME_NAME="Tower Defense Monster" ^
+    -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
+
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
 mingw32-make msi                         :: produces Tower_Defense_Monster-windows.msi

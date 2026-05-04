@@ -31,10 +31,18 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-misleading-indentation")
 endif()
 
+# FindOpenGLES2 must run before include_directories() so that
+# OPENGLES2_INCLUDE_DIR is populated when include_directories() is called.
+# On Windows+GLES the headers live in third-party/gles which is not a system
+# path, so this early invocation is essential.
+if(WIN32 AND NOT USE_DIRECTX9)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../src/cmake-modules/")
+    include(FindOpenGLES2)
+endif()
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${CORE_OPENGLES_INCLUDE} 
-                    #${GLES_INCLUDE}
+include_directories(${CORE_OPENGLES_INCLUDE}
+                    ${OPENGLES2_INCLUDE_DIR}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 
@@ -134,7 +142,10 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     # DirectX9 needs no find_* step — its headers ship with MinGW/Windows SDK.
-    # GLES import libs are referenced directly in target_link_libraries below.
+    # For OpenGL ES builds, locate the bundled ANGLE headers and import libs.
+    if(NOT USE_DIRECTX9)
+        include(FindOpenGLES2)
+    endif()
     # Threads: needed by Lua and the engine on MinGW.
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)

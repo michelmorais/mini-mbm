@@ -27,8 +27,39 @@ if(WIN32)
 		if(BORLAND)
 			set(OPENGLES2_LIBRARY import32 CACHE STRING "OpenGL ES 2.x library for Win32")
 		else()
-			# TODO
-			# set(OPENGLES_LIBRARY ${SOURCE_DIR}/Dependencies/lib/release/libGLESv2.lib CACHE STRING "OpenGL ES 2.x library for win32"
+			# Bundled ANGLE-based OpenGL ES emulation libraries live in
+			# third-party/gles/ inside the mini-mbm repo.
+			# THIRD_PARTY is set by the root CMakeLists.txt; fall back to a
+			# relative path from this module file in case it is used standalone.
+			if(NOT DEFINED THIRD_PARTY)
+				get_filename_component(_MOD_DIR "${CMAKE_CURRENT_LIST_FILE}" DIRECTORY)
+				set(_GLES_HINT "${_MOD_DIR}/../../third-party/gles")
+			else()
+				set(_GLES_HINT "${THIRD_PARTY}/gles")
+			endif()
+
+			find_path(OPENGLES2_INCLUDE_DIR GLES2/gl2.h
+				HINTS "${_GLES_HINT}"
+				NO_DEFAULT_PATH
+			)
+			find_path(EGL_INCLUDE_DIR EGL/egl.h
+				HINTS "${_GLES_HINT}"
+				NO_DEFAULT_PATH
+			)
+			find_library(OPENGLES2_LIBRARY
+				NAMES libGLESv2.dll GLESv2
+				HINTS "${_GLES_HINT}/libs"
+				NO_DEFAULT_PATH
+			)
+			find_library(EGL_LIBRARY
+				NAMES libEGL.dll EGL
+				HINTS "${_GLES_HINT}/libs"
+				NO_DEFAULT_PATH
+			)
+			if(OPENGLES2_LIBRARY AND EGL_LIBRARY)
+				set(EGL_LIBRARIES    ${EGL_LIBRARY})
+				set(OPENGLES2_FOUND  TRUE)
+			endif()
 		endif()
 	endif()
 elseif(APPLE)
