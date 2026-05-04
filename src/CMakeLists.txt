@@ -616,6 +616,8 @@ cd /d \"%~dp0\"\r\n\
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.
             list(APPEND _WIN_DLL_LIST "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
         else()
+            # OpenGlEs is wrapper over D3DCompiler_47.dll — so, we also copy it.
+            list(APPEND _WIN_DLL_LIST "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
             list(APPEND _WIN_DLL_LIST
                 "${THIRD_PARTY}/gles/bin/libEGL.dll"
                 "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
