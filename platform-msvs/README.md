@@ -278,6 +278,22 @@ cmake .. -G "MinGW Makefiles" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
+
+rem Enabling steam plugin
+rem IMPORTANT: Use forward slashes in -DSTEAMWORKS_SDK_PATH on MinGW.
+rem Backslashes are misinterpreted by ld.exe as escape sequences and will
+rem cause a "cannot find steam_api.lib: No such file or directory" link error.
+
+cmake .. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DUSE_OPENGL_ES=1  ^
+    -DUSE_STEAM=1 ^
+    -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
+    -DGAME_NAME="Tower Defense Monster" ^
+    -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
+
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
 mingw32-make nsis                        :: produces Tower_Defense_Monster-windows-setup.exe
 mingw32-make msi                         :: produces Tower_Defense_Monster-windows.msi
