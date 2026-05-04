@@ -66,12 +66,6 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         "${CMAKE_SOURCE_DIR}/src/platform/win32-platform.cpp")
     include_directories("${SRC_INCLUDES}/plusWindows"
                         "${SRC_INCLUDES}/joystick-win32")
-    # plusWindows.cpp uses SetWindowLong/GetWindowLong with pointer-sized values,
-    # written for 32-bit MSVC where long == pointer size.  On 64-bit MinGW the
-    # casts lose precision; -fpermissive downgrades those errors to warnings.
-    set_source_files_properties(
-        "${SRC_INCLUDES}/plusWindows/plusWindows.cpp"
-        PROPERTIES COMPILE_FLAGS "-fpermissive")
 endif()
 
 # Suppress warnings in third-party sources that we don't own and don't want to patch.
