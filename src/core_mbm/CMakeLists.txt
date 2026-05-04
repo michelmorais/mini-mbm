@@ -42,7 +42,6 @@ endif()
 
 #Bring the headers, such as xxx.h into the project
 include_directories(${CORE_OPENGLES_INCLUDE}
-                    ${OPENGLES2_INCLUDE_DIR}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 
@@ -54,6 +53,9 @@ include_directories(${CORE_OPENGLES_INCLUDE}
                     ${BULLET_3D_INC}
                     ${PORT_AUDIO_INCLUDE}
                     ${WAVE_SRC})
+if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLUDE_DIR-NOTFOUND")
+    include_directories(${OPENGLES2_INCLUDE_DIR})
+endif()
 
  
 #However, the file(GLOB...) allows for wildcard additions:

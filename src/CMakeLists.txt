@@ -123,8 +123,7 @@ endif()
 file(GLOB_RECURSE TINYFILEDIALOGS_SOURCES   "${TINYFILEDIALOGS_DIR}/*.c")
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${OPENGLES2_INCLUDE_DIR} 
-                    ${INCLUDE}
+include_directories(${INCLUDE}
                     #${GLES_INCLUDE}
                     ${RENDER_INCLUDES} 
                     ${CORE_OPENGLES_INCLUDES} 
@@ -133,6 +132,9 @@ include_directories(${OPENGLES2_INCLUDE_DIR}
                     ${LUA_INCLUDE}
                     ${PLUGINS}
                     ${LIB_MINIMBM_LUA_HEADER})
+if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLUDE_DIR-NOTFOUND")
+    include_directories(${OPENGLES2_INCLUDE_DIR})
+endif()
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     include_directories(${INCLUDE}/plusWindows)
