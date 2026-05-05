@@ -25,6 +25,7 @@
 #include <map>
 #include <list>
 #include <mutex>
+#include <cstdint>
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
 
@@ -176,7 +177,11 @@ namespace mbm
 
     };
 
-    class API_IMPL EVENTS
+    // EVENTS inherits JOYSTICK_BASE so that CORE_MANAGER : public EVENTS has
+    // a single linear vtable chain.  Without this, JOYSTICK_BASE would be a
+    // secondary base of CORE_MANAGER, forcing GCC to emit non-virtual thunks
+    // that it cannot generate in consumer TUs when API_IMPL == dllimport.
+    class API_IMPL EVENTS : public JOYSTICK_BASE
     {
       public:
         virtual void onTouchDown(int key, float x, float y) = 0;
@@ -186,15 +191,12 @@ namespace mbm
         virtual void onKeyDown(int key) = 0;
         virtual void onKeyUp(int key) = 0;
         virtual void onDoubleClick(float x, float y, int key) = 0;
-        virtual void onKeyDownJoystick(int, int) = 0; // parameter: int player, int key
-        virtual void onKeyUpJoystick(int, int) = 0; // parameter: int player, int key
-        virtual void onMoveJoystick(int, float, float, float,float) = 0; // parameter: int player, float lx, float ly, float rx, float ry
-        virtual void onInfoDeviceJoystick(int, int, const char *,const char *) = 0; // parameter: int player, int maxNumberButton, const char* strDeviceName, const char* extraInfo
+        // joystick methods inherited from JOYSTICK_BASE (no re-declaration needed)
         virtual void onResizeWindow(int width, int height) = 0;
         virtual void onMoveWindow(int x, int y) = 0;
     };
 
-    class CORE_MANAGER : public EVENTS, public JOYSTICK_BASE
+    class CORE_MANAGER : public EVENTS
     {
       public:
         DEVICE *device;

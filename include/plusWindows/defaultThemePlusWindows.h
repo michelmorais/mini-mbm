@@ -144,7 +144,7 @@ class THEME_WINPLUS_DRAW_TRACK : public THEME_WINPLUS_DRAW_BASIC_OPERATIONS, pub
     API_IMPL virtual ~THEME_WINPLUS_DRAW_TRACK();
 
     API_IMPL virtual bool render(mbm::COMPONENT_INFO &component);
-    API_IMPL inline RECT getMainBarRect(mbm::COMPONENT_INFO &component);
+    inline RECT getMainBarRect(mbm::COMPONENT_INFO &component);
     API_IMPL virtual void drawBrush(const RECT & rect, HBRUSH hbrush);
     API_IMPL virtual void DrawMyText(mbm::COMPONENT_INFO &component, const char *text, const bool isVertical);
 };

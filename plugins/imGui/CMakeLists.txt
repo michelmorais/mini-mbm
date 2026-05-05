@@ -104,6 +104,11 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
   #Opengl
   include(FindOpenGLES2)
   find_package(ndk-stl REQUIRED)#depend on cmake-modules/Findndk-stl.cmake 
+elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+  if(NOT USE_DIRECTX9)
+    include(FindOpenGLES2)
+    include_directories(${OPENGLES2_INCLUDE_DIR})
+  endif()
 endif()
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
@@ -118,6 +123,9 @@ if (USE_OPENGL_ES)
 endif()
 if (USE_DIRECTX9 AND ${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
   target_link_libraries(${IMGUI_LIBRARY} PRIVATE d3d9)
+endif()
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+  target_link_libraries(${IMGUI_LIBRARY} PRIVATE dwmapi)
 endif()
 
 if ((${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS") AND USE_METAL)

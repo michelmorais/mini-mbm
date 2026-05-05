@@ -20,6 +20,7 @@
 #if defined (USE_OPENGL_ES)
 #include <shader-var-cfg.h>
 #include <cstring>
+#include <cstdint>
 
 namespace mbm
 {

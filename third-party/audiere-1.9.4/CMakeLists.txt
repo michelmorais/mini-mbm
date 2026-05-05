@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(AUDIERE_LIBRARY)
 
+# On Windows, audiere ships as a pre-built DLL/import-lib in bin/ and lib/.
+# The Linux "build-from-source" logic below does not apply — skip it entirely.
+if(ENGINE_TARGET_PLATFORM STREQUAL "Windows")
+    message(STATUS "Audiere: using pre-built Windows DLL from third-party/audiere-1.9.4/")
+    return()
+endif()
+
 # Audiere for Linux (trick)
 # Since it has it own MakeFile (not converted to cmake yet), we copy the generated library and added as IMPORTED library
 

@@ -17,8 +17,7 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-//#if defined USE_DIRECTX9
+#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32)) && !defined(USE_DIRECTX9)
 #include <lua-wrap/framework-lua.h>
 #include <lua-wrap/camera-lua.h>
 #include <lua-wrap/vec2-lua.h>

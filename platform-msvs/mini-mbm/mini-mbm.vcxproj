@@ -189,6 +189,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mbm_game_name.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\audio-lua.h" />

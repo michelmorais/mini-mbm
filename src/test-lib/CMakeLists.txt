@@ -22,8 +22,10 @@ set(CORE_MBM_INCLUDES           ${INCLUDE}/core_mbm)
 add_definitions(-DMBM_ENABLE_MESH_LEGACY_V7)
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${OPENGLES2_INCLUDE_DIR}
-                    ${INCLUDE}
+if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLUDE_DIR-NOTFOUND")
+    include_directories(${OPENGLES2_INCLUDE_DIR})
+endif()
+include_directories(${INCLUDE}
                     ${GLES_INCLUDE}
                     ${RENDER_INCLUDES}
                     ${CORE_OPENGLES_INCLUDES}

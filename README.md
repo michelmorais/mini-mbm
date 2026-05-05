@@ -249,7 +249,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere/DirectSound8 (Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
@@ -387,7 +387,8 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
-| Windows | Audiere | `-DAUDIO=audiere` |
+| Windows (x86 32-bit) | Audiere | `-DAUDIO=audiere` |
+| Windows (x64 64-bit) | DirectSound 8 | `-DAUDIO=dsound` |
 | Android | OpenSL ES | `-DAUDIO=opensl` |
 | All | None (silent) | `-DAUDIO=none` |
 
@@ -397,19 +398,19 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|---|---|---|
 | **WAV** | ✅ Recommended | ✅ Recommended | ✅ Recommended | ✅ | Uncompressed PCM. Zero decode latency. Best for sound effects. |
 | **AIFF / CAF / AU** | ✅ | ❌ | ❌ | ❌ | Decoded natively by AVFoundation. |
-| **MP3** | ✅ | ✅ (via Audiere) | ✅ (via Audiere) | ✅ | Hardware-decoded on macOS. |
+| **MP3** | ✅ | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ | Hardware-decoded on macOS. |
 | **AAC / M4A** | ✅ | ❌ | ❌ | ✅ | Recommended for long background music on macOS/Android. |
-| **FLAC** | ✅ (macOS 10.13+) | ✅ (via Audiere) | ✅ (via Audiere) | ❌ | |
-| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via Audiere) | ✅ (via Audiere) | ✅ Recommended | `.ogg` container with Vorbis codec. |
-| **OGG Opus** | ⚠️ Falls back to `.wav` | ✅ (via Audiere) | ✅ (via Audiere) | ✅ | macOS auto-retries with same name + `.wav` extension. |
-| **MOD / S3M / XM / IT** | ❌ | ✅ (via Audiere) | ✅ (via Audiere) | ❌ | Tracker music formats. |
+| **FLAC** | ✅ (macOS 10.13+) | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ❌ | |
+| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ Recommended | `.ogg` container with Vorbis codec. |
+| **OGG Opus** | ⚠️ Falls back to `.wav` | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ | macOS auto-retries with same name + `.wav` extension. |
+| **MOD / S3M / XM / IT** | ❌ | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ❌ | Tracker music formats. |
 
 ### Recommended Format per Platform
 
 | Use case | macOS | Linux | Windows | Android |
 |---|---|---|---|---|
 | **Sound effects** (short, frequent) | `.wav` | `.wav` | `.wav` | `.ogg` (Vorbis) |
-| **Background music** (long) | `.aac` / `.m4a` | `.ogg` (Vorbis) | `.ogg` (Vorbis) | `.ogg` (Vorbis) |
+| **Background music** (long) | `.aac` / `.m4a` | `.ogg` (Vorbis) | `.ogg` x86 / `.wav` x64 | `.ogg` (Vorbis) |
 | **Cross-platform single file** | `.wav` | `.wav` | `.wav` | `.wav` |
 
 > **macOS + OGG Opus:** Android tooling often exports `.ogg` files encoded with the Opus codec. AVFoundation and stb_vorbis do not support Opus. The engine automatically detects OGG Opus files (by reading the `OpusHead` stream header) and falls back to a `.wav` file with the same base name in the same directory. Keep both `.ogg` and `.wav` versions of your sounds to stay compatible with both Android and macOS.

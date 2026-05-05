@@ -42,4 +42,24 @@
   #endif
 #endif
 
+/* API_IMPL_OVERRIDE: use for virtual methods that override a secondary base
+ * class in a multiply-inherited hierarchy (e.g. JOYSTICK_BASE methods inside
+ * CORE_MANAGER : public EVENTS, public JOYSTICK_BASE).
+ * GCC/MinGW consumers must not mark these dllimport because the compiler
+ * cannot generate non-virtual thunks for dllimport'd functions, which causes
+ * "undefined reference to non-virtual thunk" link errors when a user-side
+ * class (GAME) inherits from CORE_MANAGER.  All calls go through the vtable
+ * anyway, so dllimport is not needed on the consumer side. */
+#if defined _WIN32 || defined __CYGWIN__
+  #ifdef CORE_EXPORTS
+    #define API_IMPL_OVERRIDE API_IMPL   /* dllexport when building DLL */
+  #elif defined __GNUC__
+    #define API_IMPL_OVERRIDE            /* no dllimport for GCC consumers */
+  #else
+    #define API_IMPL_OVERRIDE __declspec(dllimport)  /* MSVC is fine */
+  #endif
+#else
+  #define API_IMPL_OVERRIDE API_IMPL
+#endif
+
 #endif

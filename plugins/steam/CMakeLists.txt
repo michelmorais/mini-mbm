@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION_MAJOR} FATAL_ERROR)
 cmake_policy(SET CMP0054 NEW)
 project(${STEAM_LIBRARY})
 
+# Normalize path separators so MinGW ld.exe receives forward slashes
+file(TO_CMAKE_PATH "${STEAMWORKS_SDK_PATH}" STEAMWORKS_SDK_PATH)
+
 set(SRC_INCLUDES        ${CMAKE_SOURCE_DIR}/include)
 set(LUA_WRAP            ${CMAKE_SOURCE_DIR}/include/lua-interface)
 set(PLUGIN_HELPER_INC   ${CMAKE_SOURCE_DIR}/plugins)
@@ -40,10 +43,22 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         # 64-bit
         target_link_libraries(${STEAM_LIBRARY} PRIVATE
             "${STEAMWORKS_SDK_PATH}/redistributable_bin/win64/steam_api64.lib")
+        add_custom_command(TARGET ${STEAM_LIBRARY} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${STEAMWORKS_SDK_PATH}/redistributable_bin/win64/steam_api64.dll"
+                "$<TARGET_FILE_DIR:${STEAM_LIBRARY}>/steam_api64.dll"
+            COMMENT "Copying steam_api64.dll to output directory"
+        )
     else()
         # 32-bit
         target_link_libraries(${STEAM_LIBRARY} PRIVATE
             "${STEAMWORKS_SDK_PATH}/redistributable_bin/steam_api.lib")
+        add_custom_command(TARGET ${STEAM_LIBRARY} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${STEAMWORKS_SDK_PATH}/redistributable_bin/steam_api.dll"
+                "$<TARGET_FILE_DIR:${STEAM_LIBRARY}>/steam_api.dll"
+            COMMENT "Copying steam_api.dll to output directory"
+        )
     endif()
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     target_link_libraries(${STEAM_LIBRARY} PRIVATE

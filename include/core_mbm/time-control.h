@@ -48,7 +48,7 @@
     typedef _timeb sys_time_t;
     inline void system_time(sys_time_t *t) noexcept
     {
-        _ftime64_s(t);
+        _ftime_s(t);
     }
     inline long long time_to_msec(const sys_time_t &t) noexcept
     {

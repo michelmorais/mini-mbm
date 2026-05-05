@@ -31,10 +31,17 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-misleading-indentation")
 endif()
 
+# FindOpenGLES2 must run before include_directories() so that
+# OPENGLES2_INCLUDE_DIR is populated when include_directories() is called.
+# On Windows+GLES the headers live in third-party/gles which is not a system
+# path, so this early invocation is essential.
+if(WIN32 AND NOT USE_DIRECTX9)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../src/cmake-modules/")
+    include(FindOpenGLES2)
+endif()
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${CORE_OPENGLES_INCLUDE} 
-                    #${GLES_INCLUDE}
+include_directories(${CORE_OPENGLES_INCLUDE}
                     ${RENDER_INCLUDE} 
                     ${CORE_OPENGLES_MINIZ} 
                     ${CORE_OPENGLES_PLATFORM} 
@@ -46,6 +53,9 @@ include_directories(${CORE_OPENGLES_INCLUDE}
                     ${BULLET_3D_INC}
                     ${PORT_AUDIO_INCLUDE}
                     ${WAVE_SRC})
+if(OPENGLES2_INCLUDE_DIR AND NOT OPENGLES2_INCLUDE_DIR STREQUAL "OPENGLES2_INCLUDE_DIR-NOTFOUND")
+    include_directories(${OPENGLES2_INCLUDE_DIR})
+endif()
 
  
 #However, the file(GLOB...) allows for wildcard additions:
@@ -54,6 +64,19 @@ file(GLOB_RECURSE RENDER_SOURCES            "${RENDER_SRC}/*.cpp")
 file(GLOB_RECURSE MINI_Z_SOURCES            "${MINIZ_DIR}/*.c")
 file(GLOB_RECURSE STB_SOURCES               "${STB_DIR}/*.c")
 file(GLOB_RECURSE LODE_PNG_SOURCES          "${LODE_PNG_DIR}/*.cpp")
+
+# Windows-only: plusWindows UI library and HID joystick implementation.
+# These live under include/ (not src/) so the main SOURCES glob misses them.
+set(PLUS_WINDOWS_SOURCES "")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+    set(PLUS_WINDOWS_SOURCES
+        "${SRC_INCLUDES}/plusWindows/plusWindows.cpp"
+        "${SRC_INCLUDES}/plusWindows/defaultThemePlusWindows.cpp"
+        "${SRC_INCLUDES}/joystick-win32/joystick-win32.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/win32-platform.cpp")
+    include_directories("${SRC_INCLUDES}/plusWindows"
+                        "${SRC_INCLUDES}/joystick-win32")
+endif()
 
 # Suppress warnings in third-party sources that we don't own and don't want to patch.
 if(APPLE)
@@ -67,6 +90,9 @@ endif()
 
 if (${AUDIO} STREQUAL "audiere")
     add_definitions(-DAUDIO_ENGINE_AUDIERE)
+elseif (${AUDIO} STREQUAL "dsound")
+    add_definitions(-DAUDIO_ENGINE_DIRECT_SOUND_8)
+    file(GLOB_RECURSE WAVE_SOURCES "${WAVE_SRC}/*.cpp")
 elseif (${AUDIO} STREQUAL "portaudio")
     #define REVERSE_ENDIANISM if the endianism of the host platform is not Intel
     # add_definitions(-DREVERSE_ENDIANISM)
@@ -117,7 +143,14 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
-    message( SEND_ERROR "Not configurated for Windows src/CMakeList.txt")
+    # DirectX9 needs no find_* step — its headers ship with MinGW/Windows SDK.
+    # For OpenGL ES builds, locate the bundled ANGLE headers and import libs.
+    if(NOT USE_DIRECTX9)
+        include(FindOpenGLES2)
+    endif()
+    # Threads: needed by Lua and the engine on MinGW.
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
 
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
 
@@ -200,7 +233,8 @@ add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
     ${METAL_MM_SOURCES}
     ${METAL_RENDER_MM_SOURCES}
     ${APPLE_DIALOG_MM_SOURCES}
-    ${APPLE_AVF_AUDIO_MM_SOURCES})
+    ${APPLE_AVF_AUDIO_MM_SOURCES}
+    ${PLUS_WINDOWS_SOURCES})
 
 # Static libraries on iOS do not need Info.plist.  Set these attributes
 # directly on the target (the global CMAKE_XCODE_ATTRIBUTE_* doesn't reach
@@ -215,6 +249,9 @@ endif()
 if(MBM_ENABLE_MESH_LEGACY_V7)
     target_compile_definitions(core_mbm PRIVATE MBM_ENABLE_MESH_LEGACY_V7)
 endif()
+
+# Define CORE_EXPORTS so API_IMPL resolves to dllexport (not dllimport) on Windows
+target_compile_definitions(core_mbm PRIVATE CORE_EXPORTS)
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
 
@@ -265,8 +302,42 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
-    message(" ... ")
-    
+    # ── Audio ────────────────────────────────────────────────────────────────
+    if(AUDIO STREQUAL "audiere")
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            message(SEND_ERROR
+                "AUDIO=audiere is not available for 64-bit Windows builds: "
+                "third-party/audiere-1.9.4/bin/x64/ has been removed. "
+                "Use -DAUDIO=dsound instead.")
+        else()
+            target_link_libraries(core_mbm
+                "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
+        endif()
+    elseif(AUDIO STREQUAL "dsound")
+        target_link_libraries(core_mbm dsound)
+    elseif(AUDIO STREQUAL "none")
+        message(STATUS "Disabling audio for Windows")
+    else()
+        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=audiere, -DAUDIO=dsound or -DAUDIO=none")
+    endif()
+
+    # ── Graphics backend ─────────────────────────────────────────────────────
+    if(USE_DIRECTX9)
+        target_link_libraries(core_mbm d3d9 d3dcompiler)
+    else()
+        # OpenGL ES emulation (Imagination PowerVR pre-built import libs)
+        target_link_libraries(core_mbm
+            "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libEGL.dll.lib"
+            "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libGLESv2.dll.lib")
+    endif()
+
+    # ── Windows system libraries ──────────────────────────────────────────────
+    # msimg32: TransparentBlt (plusWindows)
+    # comctl32: InitCommonControlsEx, CreateUpDownControl (plusWindows)
+    # hid:     HidP_* functions (joystick-win32)
+    target_link_libraries(core_mbm winmm gdi32 ws2_32 ole32 msimg32 comctl32 hid)
+    target_link_libraries(core_mbm Threads::Threads)
+
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if(USE_METAL)
         target_link_libraries(core_mbm "-framework Metal")

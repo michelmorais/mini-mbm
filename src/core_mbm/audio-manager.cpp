@@ -417,9 +417,10 @@ namespace mbm
     {
         if (AUDIO_MANAGER::instance)
         {
-            AUDIO_MANAGER::instance->release();
-            delete AUDIO_MANAGER::instance;
-            AUDIO_MANAGER::instance = nullptr;
+            AUDIO_MANAGER* tmp = AUDIO_MANAGER::instance;
+            AUDIO_MANAGER::instance = nullptr; // null FIRST so any in-flight streamStopped callbacks bail out immediately
+            tmp->release();
+            delete tmp;
         }
     }
 

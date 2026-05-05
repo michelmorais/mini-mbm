@@ -36,7 +36,8 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
 endif()
 
 #Bring the headers, such as xxx.h into the project
-include_directories(${SQLITE_INCLUDE} ${SRC_INCLUDES} ${LUA_INCLUDE})
+# third-party/ is needed so <dirent-1-13/dirent.h> resolves on Windows/MinGW
+include_directories(${SQLITE_INCLUDE} ${SRC_INCLUDES} ${LUA_INCLUDE} "${CMAKE_SOURCE_DIR}/third-party")
 
 if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     #pthreads

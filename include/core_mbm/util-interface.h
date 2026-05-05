@@ -21,6 +21,7 @@
 #define INTERFACE_UTIL_H_
 
 #include "core-exports.h"
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <platform/mismatch-platform.h>

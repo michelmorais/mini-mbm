@@ -52,7 +52,7 @@ namespace mbm
         BUFFER_GL *pBufferGL;
         util::SUBSET *  subset;
         uint32_t    totalSubset;
-        API_IMPL constexpr BUFFER_MESH() noexcept;
+        constexpr BUFFER_MESH() noexcept;
         API_IMPL virtual ~BUFFER_MESH();
         API_IMPL void release();
     };
@@ -204,7 +204,7 @@ namespace mbm
         int16_t                     hasNormTex[2];       // Indica se tem normal e textura vinda do arquivo
         uint8_t                     depthUberImage;      // Quando uber image esta no arquivo é setado esta variavel
         int                         sizeCoordTexFrame_0; // Tamanho do array das coordenadas de textura do frame 0
-        VEC2 *                      coordTexFrame_0;     // Coordenadas de Textura do frame 0 (faz cópiad para os outros frames)
+        VEC2 *                      coordTexFrame_0;     // Coordenadas de Textura do frame 0 (faz cópia para os outros frames)
         uint32_t                    totalFramesMesh;
         void *                      extraInfo;
     };

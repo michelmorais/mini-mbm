@@ -27,12 +27,41 @@ const char*  WINPLUS_DIRSEPARATOR = "\\";
     #define GWx_WNDPROC    GWLP_WNDPROC
     #define GWx_HWNDPARENT GWLP_HWNDPARENT
     #define DWx_MSGRESULT  DWLP_MSGRESULT
+    /* On 64-bit all pointer-slot Get/SetWindowLong calls must use the Ptr variants.
+     * Style-slot calls (GWL_STYLE / GWL_EXSTYLE) also work safely via the Ptr
+     * variants because they zero-extend the 32-bit DWORD on load and truncate on
+     * store — both are well-defined. */
+    #undef  GetWindowLong
+    #undef  GetWindowLongA
+    #define GetWindowLong   GetWindowLongPtr
+    #define GetWindowLongA  GetWindowLongPtrA
 #else
     #define GWx_HINSTANCE  GWL_HINSTANCE
     #define GWx_WNDPROC    GWL_WNDPROC
     #define GWx_HWNDPARENT GWL_HWNDPARENT
     #define DWx_MSGRESULT  DWL_MSGRESULT
 #endif
+
+/* replace_wnd_proc / restore_wnd_proc
+ * Portable helpers to subclass a window procedure.  On 64-bit Windows the
+ * WNDPROC value is 8 bytes; casting it to/from long (4 bytes) silently
+ * truncates the high 32 bits and corrupts the pointer.  These helpers use
+ * SetWindowLongPtr with an explicit LONG_PTR cast so the full pointer is
+ * stored on both 32-bit and 64-bit builds. */
+static inline WNDPROC replace_wnd_proc(HWND hwnd, WNDPROC newProc)
+{
+    return reinterpret_cast<WNDPROC>(
+        SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(newProc)));
+}
+static inline void restore_wnd_proc(HWND hwnd, WNDPROC oldProc)
+{
+    SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(oldProc));
+}
+
+/* HMENU_ID: portable int→HMENU cast for child-window identifiers.
+ * Win32 uses only the low bits, but on 64-bit the intermediate UINT_PTR is
+ * required to silence the "different size" cast error without changing value. */
+#define HMENU_ID(id) ((HMENU)(UINT_PTR)(id))
 
 DWORD GetVersionDll(const char *lpszDllName)
 {
@@ -1649,7 +1678,7 @@ namespace mbm
     COM_BETWEEN_WINP::~COM_BETWEEN_WINP()
     {
         if (this->_oldProc)
-            SetWindowLong(this->hwnd, GWx_WNDPROC, long(this->_oldProc));
+            restore_wnd_proc(this->hwnd, this->_oldProc);
         switch (this->typeWindowWinPlus)
         {
             case WINPLUS_TYPE_WINDOWNC:
@@ -3182,7 +3211,7 @@ namespace mbm
         COM_BETWEEN_WINP *          nc =
             getNewComBetween(this->hwnd, onEventWinPlus, this, WINPLUS_TYPE_WINDOWNC, ncButtons, -1, nullptr);
         nc->hwnd                 = comBetweenWinp->hwnd;
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(WinNCProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, WinNCProc);
         nc->_oldProc             = comBetweenWinp->_oldProc;
         nc->graphWin             = this->drawerDefault;
         dwStyle                  = GetWindowLong(this->hwnd, GWL_STYLE);
@@ -3439,8 +3468,7 @@ namespace mbm
                     comBetweenWinp->hwnd = hWnd;
                     comBetweenWinp->ptrWindow->hideDestinyNotVisible(dialogBox->id, comBetweenWinp->hwnd);
                     comBetweenWinp->graphWin = dialogBox->ptrWindow->drawerDefault;
-                    comBetweenWinp->_oldProc =
-                        (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(MessageBoxProc));
+                    comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, MessageBoxProc);
                     dialogBox->myChilds.insert(comBetweenWinp);
                     InvalidateRect(hWnd, 0, 1);
                 }
@@ -3544,7 +3572,7 @@ namespace mbm
                 comBetweenWinp->ptrWindow->hideDestinyNotVisible(dialogBox->id, comBetweenWinp->hwnd);
             comBetweenWinp->graphWin =
                 dialogBox->ptrWindow ? dialogBox->ptrWindow->drawerDefault : _winplusDefaultThemeDraw;
-            comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(MessageBoxProc));
+            comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, MessageBoxProc);
             dialogBox->myChilds.insert(comBetweenWinp);
             InvalidateRect(hWnd, 0, 1);
         }
@@ -3577,7 +3605,7 @@ namespace mbm
                             getNewComBetween(dialogBox->owerHwnd, dialogBox->onEventWinPlus, dialogBox->ptrWindow,
                                              WINPLUS_TYPE_WINDOWNC, ncButtons, -1, nullptr);
                         nc->hwnd            = dialogBox->hwnd;
-                        dialogBox->_oldProc = (WNDPROC)SetWindowLong(dialogBox->hwnd, GWx_WNDPROC, long(WinNCProc));
+                        dialogBox->_oldProc = replace_wnd_proc(dialogBox->hwnd, WinNCProc);
                         nc->_oldProc        = dialogBox->_oldProc;
                         nc->graphWin =
                             dialogBox->ptrWindow ? dialogBox->ptrWindow->drawerDefault : _winplusDefaultThemeDraw;
@@ -3792,7 +3820,7 @@ namespace mbm
         if (className[0] == 0)
             return -1;
         comBetweenWinp->hwnd = CreateWindowExW(dwExStyle, className, tmp_nameAplication, dwStyle, x, y, width, height,
-                                               addToHwnd(idDest, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                                               addToHwnd(idDest, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                                                GetModuleHandleW(nullptr), nullptr);
 #else
         char tmp_nameAplication[] = "Child";
@@ -3801,7 +3829,7 @@ namespace mbm
         if (className[0] == 0)
             return -1;
         comBetweenWinp->hwnd = CreateWindowExA(dwExStyle, className, tmp_nameAplication, dwStyle, x, y, width, height,
-                                               addToHwnd(idDest, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                                               addToHwnd(idDest, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                                                GetModuleHandleA(nullptr), nullptr);
 #endif
         comBetweenWinp->graphWin = this->drawerDefault;
@@ -3811,7 +3839,7 @@ namespace mbm
         COM_BETWEEN_WINP *          nc =
             getNewComBetween(this->hwnd, onEventWinPlus, this, WINPLUS_TYPE_WINDOWNC, ncButtons, idDest, nullptr);
         nc->hwnd                 = comBetweenWinp->hwnd;
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(WinNCProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, WinNCProc);
         nc->_oldProc             = comBetweenWinp->_oldProc;
         nc->graphWin             = this->drawerDefault;
         InvalidateRect(comBetweenWinp->hwnd, 0, 1);
@@ -3829,7 +3857,7 @@ namespace mbm
             getNewComBetween(this->hwnd, onGotClickeOrFocus, this, WINPLUS_TYPE_LABEL, nullptr, idDest, userDrawer);
         comBetweenWinp->hwnd =
             CreateWindowA("static", title, WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
@@ -4084,13 +4112,13 @@ namespace mbm
 
         comBetweenWinp->hwnd =
             CreateWindowA("static", "", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, rect.left, Wheight - sizeBar,
-                          mywidth, sizeBar, addToHwnd(idDest, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          mywidth, sizeBar, addToHwnd(idDest, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(hwnd, GWx_HINSTANCE), nullptr);
 
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(StatusProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, StatusProc);
         SendMessageA(comBetweenWinp->hwnd, SB_SETPARTS, numberPartsIntoStatusBar ? numberPartsIntoStatusBar : 1, 0);
         SendMessageA(comBetweenWinp->hwnd, SB_SETTEXTA, 0, (LPARAM)textStatusBar0);
         return comBetweenWinp->getId();
@@ -4128,7 +4156,7 @@ namespace mbm
             delete spinValues;
             return -1;
         }
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(UDProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, UDProc);
         char num[100];
         sprintf(num, "%d", currentPosition);
         int readOnly = 0;
@@ -4138,13 +4166,13 @@ namespace mbm
         COM_BETWEEN_WINP *     comBetweenWinp2 =
             getNewComBetween(this->hwnd, nullptr, this, WINPLUS_TYPE_TEXT_BOX, nullptr, idDest, UserDrawer);
         comBetweenWinp2->hwnd = CreateWindowA("EDIT", num, WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL,
-                                              x, y, width + diff, height, hwndTo, (HMENU)comBetweenWinp2->getId(),
+                                              x, y, width + diff, height, hwndTo, HMENU_ID(comBetweenWinp2->getId()),
                                               (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp2->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
         hideDestinyNotVisible(idDest, comBetweenWinp2->hwnd);
-        comBetweenWinp2->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp2->hwnd, GWx_WNDPROC, long(EditProc));
+        comBetweenWinp2->_oldProc = replace_wnd_proc(comBetweenWinp2->hwnd, EditProc);
         SetParent(comBetweenWinp2->hwnd, this->hwnd);
         EDIT_TEXT_DATA *data         = new EDIT_TEXT_DATA(comBetweenWinp2->getId());
         comBetweenWinp2->extraParams = data;
@@ -4191,7 +4219,7 @@ namespace mbm
             delete spinValues;
             return -1;
         }
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(UDProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, UDProc);
         int readOnly             = 0;
         if (!enableWrite)
             readOnly                   = ES_READONLY;
@@ -4199,13 +4227,13 @@ namespace mbm
         COM_BETWEEN_WINP *     comBetweenWinp2 =
             getNewComBetween(this->hwnd, nullptr, this, WINPLUS_TYPE_TEXT_BOX, nullptr, idDest, UserDrawer);
         comBetweenWinp2->hwnd = CreateWindowA("EDIT", num, WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL,
-                                              x, y, width + diff, height, hwndTo, (HMENU)comBetweenWinp2->getId(),
+                                              x, y, width + diff, height, hwndTo, HMENU_ID(comBetweenWinp2->getId()),
                                               (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp2->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
         hideDestinyNotVisible(idDest, comBetweenWinp2->hwnd);
-        comBetweenWinp2->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp2->hwnd, GWx_WNDPROC, long(EditProc));
+        comBetweenWinp2->_oldProc = replace_wnd_proc(comBetweenWinp2->hwnd, EditProc);
         SetParent(comBetweenWinp2->hwnd, this->hwnd);
         EDIT_TEXT_DATA *data         = new EDIT_TEXT_DATA(comBetweenWinp2->getId());
         comBetweenWinp2->extraParams = data;
@@ -4247,15 +4275,14 @@ namespace mbm
         else
             st               = SBS_VERT | SBS_LEFTALIGN | WS_VSCROLL;
         comBetweenWinp->hwnd = CreateWindowExW(0, L"SCROLLBAR", nullptr, WS_CHILD | WS_VISIBLE | st, x, y, width, height,
-                                               addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                                               addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                                                (HINSTANCE)GetWindowLongA(this->hwnd, GWx_HINSTANCE), nullptr);
 
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
 
-        comBetweenWinp->_oldProc =
-            (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(ScrollProc)); // doesnt work
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, ScrollProc); // doesnt work
         sc->fMask = SIF_ALL;
         if (isHorizontal)
             SetScrollInfo(comBetweenWinp->hwnd, SB_HORZ, sc, true);
@@ -4641,7 +4668,7 @@ namespace mbm
         int maxWidth = 1024;
         SendMessageA(comBetweenWinp->hwnd, TTM_SETMAXTIPWIDTH, 0, (LPARAM)&maxWidth);
 
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(ToolTipProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, ToolTipProc);
         comBetweenWinp->graphWin = this->drawerDefault;
         return comBetweenWinp->getId();
     }
@@ -4654,7 +4681,7 @@ namespace mbm
             getNewComBetween(this->hwnd, onPressedByType, this, WINPLUS_TYPE_BUTTON, nullptr, idDest, UserDrawer);
         comBetweenWinp->hwnd =
             CreateWindowA("STATIC", title, WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLongA(this->hwnd, GWx_HWNDPARENT), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
@@ -4673,7 +4700,7 @@ namespace mbm
             return -1;
         comBetweenWinp->hwnd =
             CreateWindowA("button", title, WS_CHILD | WS_VISIBLE | BS_NOTIFY | BS_OWNERDRAW, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
@@ -4690,7 +4717,7 @@ namespace mbm
             getNewComBetween(this->hwnd, onGotClickeOrFocus, this, WINPLUS_TYPE_GROUP_BOX, nullptr, idDest, UserDrawer);
         comBetweenWinp->hwnd =
             CreateWindowA("button", title, WS_CHILD | WS_VISIBLE | BS_NOTIFY | BS_OWNERDRAW, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
@@ -4759,13 +4786,13 @@ namespace mbm
 
         comBetweenWinp->hwnd =
             CreateWindowA("static", "", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
         comBetweenWinp->graphWin = this->drawerDefault;
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(ProgressBarWindowProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, ProgressBarWindowProc);
         SendMessageA(comBetweenWinp->hwnd, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
         SendMessageA(comBetweenWinp->hwnd, PBM_SETSTEP, 1, 0);
         return comBetweenWinp->getId();
@@ -4846,13 +4873,13 @@ namespace mbm
         height += 50;
         comBetweenWinp->hwnd =
             CreateWindowA("combobox", "", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED, x, y, width,
-                          height, addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          height, addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
 
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(ComboProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, ComboProc);
         SetParent(comBetweenWinp->hwnd, this->hwnd);
         return comBetweenWinp->getId();
     }
@@ -4865,7 +4892,7 @@ namespace mbm
             getNewComBetween(this->hwnd, onPressedByType, this, WINPLUS_TYPE_CHECK_BOX, nullptr, idDest, UserDrawer);
         comBetweenWinp->hwnd =
             CreateWindowA("button", title, WS_CHILD | WS_VISIBLE | BS_NOTIFY | BS_OWNERDRAW, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
@@ -4889,13 +4916,13 @@ namespace mbm
             nScrool          = nScrool | WS_HSCROLL;
         comBetweenWinp->hwnd = CreateWindowA(
             "EDIT", "", WS_CHILD | WS_VISIBLE | nScrool | ES_LEFT | ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL, x, y,
-            width, height, addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+            width, height, addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
             (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
         this->setTabStopPixelSize(1, comBetweenWinp->getId());
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(RichTextProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, RichTextProc);
         if (textIntoRichText)
             SendMessageA(comBetweenWinp->hwnd, WM_SETTEXT, MAKEWPARAM(0, -1), (LPARAM)textIntoRichText);
         SetParent(comBetweenWinp->hwnd, this->hwnd);
@@ -4917,12 +4944,12 @@ namespace mbm
         comBetweenWinp->hwnd =
             CreateWindowA("EDIT", textIntoTextBox,
                           WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_LEFT | ES_AUTOHSCROLL | password | WS_TABSTOP, x, y,
-                          width, height, addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          width, height, addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(EditProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, EditProc);
         SetParent(comBetweenWinp->hwnd, this->hwnd);
         EDIT_TEXT_DATA *data        = new EDIT_TEXT_DATA(comBetweenWinp->getId());
         comBetweenWinp->extraParams = data;
@@ -4941,7 +4968,7 @@ namespace mbm
         comBetweenWinp->hwnd =
             CreateWindowA("listbox", "title", WS_CHILD | WS_VISIBLE | LBS_OWNERDRAWFIXED | LBS_STANDARD, x, y, width,
                           height < 50 ? 50 : height, addToHwnd(idDest, &x, &y, comBetweenWinp),
-                          (HMENU)comBetweenWinp->getId(), (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
+                          HMENU_ID(comBetweenWinp->getId()), (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
@@ -4969,12 +4996,12 @@ namespace mbm
             getNewComBetween(this->hwnd, onChangeValue, this, WINPLUS_TYPE_TRACK_BAR, infoTrack, idDest, UserDrawer);
         comBetweenWinp->hwnd =
             CreateWindowA("STATIC", "", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, x, y, width, height,
-                          addToHwnd(idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                          addToHwnd(idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                           (HINSTANCE)GetWindowLong(hwnd, GWx_HINSTANCE), nullptr);
         if (comBetweenWinp->hwnd == nullptr)
             return -1;
         hideDestinyNotVisible(idDest, comBetweenWinp->hwnd);
-        comBetweenWinp->_oldProc = (WNDPROC)SetWindowLong(comBetweenWinp->hwnd, GWx_WNDPROC, long(TrackProc));
+        comBetweenWinp->_oldProc = replace_wnd_proc(comBetweenWinp->hwnd, TrackProc);
         SetParent(comBetweenWinp->hwnd, this->hwnd);
         return comBetweenWinp->getId();
     }
@@ -6085,7 +6112,7 @@ namespace mbm
                 CreateWindowA("STATIC", title, WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY,
                               (tabFather->displacementX * widthButton) + x, (tabFather->displacementY * heightButton) + y,
                               widthButton, heightButton, addToHwnd(tabFather->idDest, &x, &y, comBetweenWinp),
-                              (HMENU)comBetweenWinp->getId(), (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
+                              HMENU_ID(comBetweenWinp->getId()), (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
             SetParent(comBetweenWinp->hwnd, this->hwnd);
             tabFather->displacementX++;
             hideDestinyNotVisible(tabFather->idDest, comBetweenWinp->hwnd);
@@ -6100,7 +6127,7 @@ namespace mbm
             comBetweenWinp->hwnd =
                 CreateWindowA("STATIC", title, WS_CHILD | WS_VISIBLE | SS_OWNERDRAW | SS_NOTIFY, x,
                               y + heightButton + (tabFather->displacementY * heightButton), width, height,
-                              addToHwnd(tabFather->idDest, &x, &y, comBetweenWinp), (HMENU)comBetweenWinp->getId(),
+                              addToHwnd(tabFather->idDest, &x, &y, comBetweenWinp), HMENU_ID(comBetweenWinp->getId()),
                               (HINSTANCE)GetWindowLong(this->hwnd, GWx_HINSTANCE), nullptr);
 
             if (comBetweenWinp->hwnd == nullptr)
@@ -6243,14 +6270,14 @@ namespace mbm
                 std::vector<std::string *> *lsCombo = static_cast<std::vector<std::string *> *>(ptr->extraParams);
                 lsCombo->push_back(new std::string(text));
                 const char *newAdressString = lsCombo->at(lsCombo->size() - 1)->c_str();
-                return SUCCEEDED(SendMessageA(ptr->hwnd, CB_ADDSTRING, 0, (long)newAdressString));
+                return SUCCEEDED(SendMessageA(ptr->hwnd, CB_ADDSTRING, 0, (LPARAM)newAdressString));
             }
             else if (ptr->typeWindowWinPlus == mbm::WINPLUS_TYPE_LIST_BOX)
             {
                 std::vector<std::string *> *lsListBox = static_cast<std::vector<std::string *> *>(ptr->extraParams);
                 lsListBox->push_back(new std::string(text));
                 const char *newPtrAdressStr = lsListBox->at(lsListBox->size() - 1)->c_str();
-                return SUCCEEDED(SendMessageA(ptr->hwnd, LB_ADDSTRING, 0, (long)newPtrAdressStr));
+                return SUCCEEDED(SendMessageA(ptr->hwnd, LB_ADDSTRING, 0, (LPARAM)newPtrAdressStr));
             }
         }
         return false;
@@ -6533,7 +6560,7 @@ namespace mbm
                 case WINPLUS_TYPE_TRY_ICON_SUB_MENU:
                     tnid.uFlags = NIF_TIP;
                     strcpy(tnid.szTip, stringSource);
-                    SetWindowTextA(HWND(IdComponent), stringSource);
+                    SetWindowTextA((HWND)(UINT_PTR)(IdComponent), stringSource);
                     return Shell_NotifyIconA(NIM_MODIFY, &tnid) != 0;
                     break;
                 case WINPLUS_TYPE_MENU:
@@ -6591,8 +6618,8 @@ namespace mbm
                         index = SendMessageA(ptr->hwnd, CB_GETCURSEL, 0, 0);
                     if (index > -1)
                     {
-                        int *ret = (int *)SendMessageA(ptr->hwnd, CB_GETITEMDATA, index, (LPARAM)stringOut);
-                        if ((int)ret == -1)
+                        LRESULT ret = SendMessageA(ptr->hwnd, CB_GETITEMDATA, index, (LPARAM)stringOut);
+                        if (ret == CB_ERR)
                             return false;
                         const char *text = (const char *)(ret);
                         if (ret && text && strlen(text) < sizeStringOut)

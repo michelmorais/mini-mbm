@@ -361,7 +361,6 @@ else()
             set(AUDIO audiere)
         endif()
 
-        set(CMAKE_GENERATOR_PLATFORM    "Visual Studio 15 2017 ARM")
         set(DWIN32 1)
         set(D_WINDOWS 1)
         set(WIN32 1)
@@ -371,10 +370,10 @@ else()
         add_definitions(-D_WINDOWS)
         set(CMAKE_SYSTEM_NAME           "Windows")
         set(ENGINE_TARGET_PLATFORM      "Windows")
-        set(FOLDER_ARCHITECTURE         "win32")
+        set(FOLDER_ARCHITECTURE         "windows_x86")
 
         set(CMAKE_SUCCESS_SET_PLAT           1)
-        message(SEND_ERROR " Platform NOT working yet: ${PLAT}")
+        message(STATUS " Windows platform: CMake/MinGW build supported. For Visual Studio use platform-msvs/mini-mbm.sln directly.")
 
     elseif(PLAT_LOWER STREQUAL "linux")
 
@@ -687,9 +686,28 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
         message(STATUS " WHAT Configuration for Windows is set...")
-        set(LIB_EGL_HELD "third-party/gles/libs/libEGL")
-        set(LIB_GLESv2_HELD "third-party/gles/libs/libGLESv2")
-        set(LIB_audiere_HELD "third-party/audiere-1.9.4/lib/audiere")
+        if(USE_DIRECTX9)
+            set(LIB_EGL_HELD "")
+            set(LIB_GLESv2_HELD "")
+        else()
+            set(LIB_EGL_HELD "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libEGL.dll.lib")
+            set(LIB_GLESv2_HELD "${CMAKE_SOURCE_DIR}/third-party/gles/libs/libGLESv2.dll.lib")
+        endif()
+        if(AUDIO STREQUAL "audiere")
+            if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+                message(SEND_ERROR
+                    "AUDIO=audiere is not available for 64-bit Windows builds: "
+                    "third-party/audiere-1.9.4/bin/x64/ has been removed. "
+                    "Use -DAUDIO=dsound instead.")
+            else()
+                set(LIB_audiere_HELD "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
+            endif()
+        elseif(AUDIO STREQUAL "dsound")
+            # DirectSound 8 — Windows system API, no import library needed here.
+            set(LIB_audiere_HELD "")
+        else()
+            set(LIB_audiere_HELD "")
+        endif()
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         message(STATUS " Configuration for Android is set...")
 
