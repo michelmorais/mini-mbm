@@ -369,8 +369,21 @@ Categories=Game;
             CONTENT
 "file(GLOB _SO_FILES \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.so\")
 foreach(_F \${_SO_FILES})
+    # Skip audiere when portaudio is the selected audio backend.
+    # A leftover libaudiere*.so in the build dir must not end up in the AppImage.
+    if(_F MATCHES \"libaudiere\" AND \"@AUDIO@\" STREQUAL \"portaudio\")
+        continue()
+    endif()
     file(COPY \"\${_F}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
 endforeach()
+# Remove any stale audiere library from the AppDir when using portaudio.
+# (Guards against incremental builds where audiere was bundled by a prior run.)
+if(\"@AUDIO@\" STREQUAL \"portaudio\")
+    file(GLOB _STALE_AUDIERE \"@_LINUX_APPDIR@/usr/lib/libaudiere*.so*\")
+    foreach(_F \${_STALE_AUDIERE})
+        file(REMOVE \"\${_F}\")
+    endforeach()
+endif()
 # Bundle PortAudio if this build uses -DAUDIO=portaudio
 set(_LIBPORTAUDIO \"@_LIBPORTAUDIO_REAL@\")
 if(_LIBPORTAUDIO AND EXISTS \"\${_LIBPORTAUDIO}\")
