@@ -286,34 +286,28 @@ make -j$(nproc)
 make appimage
 ```
 
-### Bundled audio libraries (Audiere + ALSA)
+### Bundled audio libraries (Audiere)
 
 Audiere discovers its audio backend at runtime via `dlopen()`. On modern Linux,
-`/dev/dsp` (OSS) is gone — Audiere falls back to ALSA (`libasound.so.2`). If
-libasound is not present the fallback fails and Audiere crashes with a segfault.
+`/dev/dsp` (OSS) is gone — Audiere falls back to ALSA (`libasound.so.2`).
 
-The cmake delivery block handles this automatically: at configure time it locates
-`libasound.so.2` on the build machine and adds it to `AppDir/usr/lib/` alongside the
-engine plugins. The `make` step then bundles it into the AppImage.
+`libasound` is **not bundled** in the AppImage. Bundling it would break audio on
+Ubuntu and other PipeWire-based distros: ALSA on those systems routes through
+`libasound_module_pcm_pipewire.so` and config files in `/usr/share/alsa/` that live
+on the host, not inside the AppImage. The system `libasound2` (a standard package
+present on all Debian/Ubuntu machines) handles this correctly on its own.
+
+If audio fails completely (e.g. no ALSA device at all), the engine logs
+`audio disabled, game will run silently` and continues running without crashing.
 
 **What gets bundled in `AppDir/usr/lib/`:**
 
 | Library | Purpose |
 |---|---|
 | `libaudiere-1.10.1.so` | Audiere audio engine |
-| `libasound.so.2` + real `.so` | ALSA backend used by Audiere on modern Linux |
 | `libcore_mbm.so` | Engine core |
 | `liblua-5.4.1.so` | Lua scripting |
 | `plugin_helper.so`, `box2d.so`, `ImGui.so`, … | Gameplay plugins |
-
-If cmake cannot find libasound on the build machine it prints a warning:
-
-```
-CMake Warning: libasound not found — Audiere may crash on systems without OSS.
-               Install libasound2-dev.
-```
-
-Fix: `sudo apt-get install libasound2-dev` then re-run cmake.
 
 ### Building the AppImage
 
@@ -335,6 +329,51 @@ cd ~/tower-defense-linux
 wget -q https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage
 make appimage
 # Output: Tower_Defense_Monster-x86_64.AppImage
+```
+
+### Inspecting AppImage contents
+
+Extract the SquashFS without running the app, then browse the result:
+
+```sh
+cd /tmp && rm -rf ai_check && mkdir ai_check && cd ai_check
+/path/to/Tower_Defense_Monster-x86_64.AppImage --appimage-extract 2>/dev/null
+
+# Overall structure (excluding the large assets/ subtree)
+find squashfs-root -not -path "*/assets/*" | sort
+
+# Bundled shared libraries
+ls -lh squashfs-root/usr/lib/
+
+# Game assets
+ls squashfs-root/assets/
+
+# Launcher script
+cat squashfs-root/AppRun
+```
+
+Expected layout:
+
+```
+squashfs-root/
+├── AppRun                          ← launcher script (chmod +x)
+├── Tower_Defense_Monster.desktop   ← XDG desktop entry
+├── Tower_Defense_Monster.png       ← app icon
+├── .DirIcon -> Tower_Defense_Monster.png
+├── assets/                         ← full copy of GAME_ASSETS_DIR
+│   ├── main.lua
+│   └── ...
+└── usr/
+    ├── bin/
+    │   └── mini-mbm                ← engine binary
+    └── lib/
+        ├── libaudiere-1.10.1.so
+        ├── libcore_mbm.so
+        ├── liblua-5.4.1.so
+        ├── plugin_helper.so
+        ├── box2d.so
+        ├── ImGui.so
+        └── ...
 ```
 
 ### CMake status messages
