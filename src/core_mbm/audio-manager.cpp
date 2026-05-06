@@ -59,8 +59,17 @@ namespace mbm
         if (!AUDIO_MANAGER::audioDevice)
             AUDIO_MANAGER::audioDevice = OpenDevice();
         if (!AUDIO_MANAGER::audioDevice)
-            ERROR_LOG("Failed opening Audiere audio device");
-        AUDIO_MANAGER::audioDevice->registerCallback(new AUDIO_MANAGER::STOP_AUDIERE());//leak*** :( for some reason if we destroy callback from audiere before detach it (DLL), it crashes. so, we make this leak.
+        {
+            ERROR_LOG("Failed opening Audiere audio device — audio disabled, game will run silently");
+        }
+        else
+        {
+            // STOP_AUDIERE extends RefImplementation<StopCallback>, which starts
+            // at refcount 0.  registerCallback() calls ref() → count = 1 (Audiere
+            // owns it).  clearCallbacks() in release() calls unref() → count = 0
+            // → RefImplementation::unref() calls delete this.  No leak.
+            AUDIO_MANAGER::audioDevice->registerCallback(new AUDIO_MANAGER::STOP_AUDIERE());
+        }
         #elif defined(AUDIO_ENGINE_AVFOUNDATION)
         avfoundation_audio_init();
         #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
@@ -311,7 +320,8 @@ namespace mbm
     void AUDIO_MANAGER::release()
     {
         #if defined(AUDIO_ENGINE_AUDIERE)
-        AUDIO_MANAGER::audioDevice->update();
+        if (AUDIO_MANAGER::audioDevice)
+            AUDIO_MANAGER::audioDevice->update();
         #endif
 
         for (auto my_audio : audios)
@@ -337,16 +347,20 @@ namespace mbm
         audiosToDelete.clear();
         
         #if defined(AUDIO_ENGINE_AUDIERE)
-        AUDIO_MANAGER::audioDevice->clearCallbacks();
-        AUDIO_MANAGER::audioDevice->update();
-        AUDIO_MANAGER::audioDevice = nullptr;
+        if (AUDIO_MANAGER::audioDevice)
+        {
+            AUDIO_MANAGER::audioDevice->clearCallbacks();
+            AUDIO_MANAGER::audioDevice->update();
+            AUDIO_MANAGER::audioDevice = nullptr;
+        }
         #endif
     }
 
     void AUDIO_MANAGER::stopAll()
     {
         #if defined(AUDIO_ENGINE_AUDIERE)
-        AUDIO_MANAGER::audioDevice->update();
+        if (AUDIO_MANAGER::audioDevice)
+            AUDIO_MANAGER::audioDevice->update();
         #endif
 
         for (auto my_audio : audios)
@@ -360,7 +374,8 @@ namespace mbm
         }
         
         #if defined(AUDIO_ENGINE_AUDIERE)
-        AUDIO_MANAGER::audioDevice->update();
+        if (AUDIO_MANAGER::audioDevice)
+            AUDIO_MANAGER::audioDevice->update();
         #endif
     }
 
