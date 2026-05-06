@@ -205,7 +205,7 @@ cmake ~/mini-mbm \
     -DUSE_LUA=1 \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=audiere \
+    -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
@@ -286,25 +286,35 @@ make -j$(nproc)
 make appimage
 ```
 
-### Bundled audio libraries (Audiere)
+### Bundled audio libraries
 
-Audiere discovers its audio backend at runtime via `dlopen()`. On modern Linux,
-`/dev/dsp` (OSS) is gone — Audiere falls back to ALSA (`libasound.so.2`).
+**Recommended backend for AppImage delivery: `-DAUDIO=portaudio`**
 
-`libasound` is **not bundled** in the AppImage. Bundling it would break audio on
-Ubuntu and other PipeWire-based distros: ALSA on those systems routes through
+PortAudio works on all modern Linux audio stacks (ALSA, PulseAudio, PipeWire) and
+can be safely bundled inside the AppImage because it has no runtime config-file
+dependencies. The CMake delivery block automatically finds `libportaudio.so.2` on
+the build machine and copies it (plus a `.so.2` symlink) into `AppDir/usr/lib/`.
+
+`libasound` is **not bundled**. Bundling it would break audio on Ubuntu and other
+PipeWire-based distros: ALSA on those systems routes through
 `libasound_module_pcm_pipewire.so` and config files in `/usr/share/alsa/` that live
-on the host, not inside the AppImage. The system `libasound2` (a standard package
-present on all Debian/Ubuntu machines) handles this correctly on its own.
+on the host. PortAudio itself links against the system `libasound2` at runtime
+and picks up the correct host routing automatically.
 
-If audio fails completely (e.g. no ALSA device at all), the engine logs
-`audio disabled, game will run silently` and continues running without crashing.
+If audio fails completely the engine logs `audio disabled, game will run silently`
+and continues running without crashing.
+
+**Build requirement**: `portaudio19-dev` must be installed on the build machine.
+
+```sh
+sudo apt-get install portaudio19-dev
+```
 
 **What gets bundled in `AppDir/usr/lib/`:**
 
 | Library | Purpose |
 |---|---|
-| `libaudiere-1.10.1.so` | Audiere audio engine |
+| `libportaudio.so.2` / `libportaudio.so.2.0.0` | PortAudio audio engine |
 | `libcore_mbm.so` | Engine core |
 | `liblua-5.4.1.so` | Lua scripting |
 | `plugin_helper.so`, `box2d.so`, `ImGui.so`, … | Gameplay plugins |

@@ -335,21 +335,35 @@ Categories=Game;
                 "${_LINUX_APPDIR}/usr/bin/mini-mbm"
             COMMENT "Linux delivery: copying mini-mbm → AppDir/usr/bin/")
 
-        # 2. Copy all shared-library plugins (.so) produced by this build.
-        #    Inline bash -c with \; and ; suffers from CMake→Makefile escaping issues.
-        #    Instead, generate a small cmake -P script at configure time and invoke it;
-        #    cmake -P runs in the cmake process so escaping is trivial.
-        # 2. Copy all shared-library plugins (.so) produced by this build.
+        # 2. Copy all shared-library plugins (.so) produced by this build,
+        #    plus the audio runtime library if it needs to be bundled.
         #    Inline bash -c with \; and ; suffers from CMake→Makefile escaping issues.
         #    Instead, generate a small cmake -P script at configure time and invoke it.
         #
-        #    NOTE: libasound (ALSA) is intentionally NOT bundled even though Audiere
-        #    uses it at runtime via dlopen(). Bundling a Debian-built libasound.so.2
-        #    breaks audio on Ubuntu/PipeWire because the bundled lib cannot find the
-        #    host's PipeWire-ALSA plugins or system ALSA config files. The system
-        #    libasound2 (present on all Debian/Ubuntu machines) must be used instead.
-        #    The engine guards all audioDevice calls against null, so if audio fails
-        #    entirely the game continues silently rather than crashing.
+        #    Audiere (-DAUDIO=audiere):
+        #      libaudiere-1.10.1.so is copied via the glob below.
+        #      libasound is NOT bundled — Audiere finds it via dlopen() at runtime,
+        #      and the system libasound2 (on all Debian/Ubuntu machines) must handle
+        #      it so that PipeWire-ALSA routing works correctly.
+        #
+        #    PortAudio (-DAUDIO=portaudio):
+        #      libportaudio.so.2 is a system library that may not be present on the
+        #      target machine. It CAN be safely bundled (no runtime config/plugin
+        #      path problem — unlike libasound). The system libasound.so.2 that
+        #      portaudio depends on will be resolved from the host at runtime.
+        if(AUDIO STREQUAL "portaudio")
+            find_library(_LIBPORTAUDIO_PATH NAMES portaudio)
+            if(_LIBPORTAUDIO_PATH)
+                get_filename_component(_LIBPORTAUDIO_REAL "${_LIBPORTAUDIO_PATH}" REALPATH)
+                message(STATUS "Linux delivery: bundling PortAudio (${_LIBPORTAUDIO_REAL})")
+            else()
+                set(_LIBPORTAUDIO_REAL "")
+                message(WARNING "libportaudio not found — audio may not work in the AppImage. Install portaudio19-dev.")
+            endif()
+        else()
+            set(_LIBPORTAUDIO_REAL "")
+        endif()
+
         file(CONFIGURE
             OUTPUT "${CMAKE_BINARY_DIR}/copy_linux_plugins.cmake"
             CONTENT
@@ -357,6 +371,16 @@ Categories=Game;
 foreach(_F \${_SO_FILES})
     file(COPY \"\${_F}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
 endforeach()
+# Bundle PortAudio if this build uses -DAUDIO=portaudio
+set(_LIBPORTAUDIO \"@_LIBPORTAUDIO_REAL@\")
+if(_LIBPORTAUDIO AND EXISTS \"\${_LIBPORTAUDIO}\")
+    file(COPY \"\${_LIBPORTAUDIO}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
+    get_filename_component(_PA_NAME \"\${_LIBPORTAUDIO}\" NAME)
+    if(NOT _PA_NAME STREQUAL \"libportaudio.so.2\")
+        file(CREATE_LINK \"\${_PA_NAME}\"
+            \"@_LINUX_APPDIR@/usr/lib/libportaudio.so.2\" SYMBOLIC)
+    endif()
+endif()
 "
             @ONLY)
         add_custom_command(TARGET mini-mbm POST_BUILD
