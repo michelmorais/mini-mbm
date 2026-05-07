@@ -196,13 +196,26 @@ Lua: tSound:destroy()
   `std::unique_ptr<AVFAudioData>`. `~AUDIO()` destroys it via the unique_ptr.
 - No EOF rewind issue — `AVAudioPlayerNode` handles seek internally.
 
-### 6.3 PortAudio (Linux — `audio-portaudio.cpp`)
+### 6.3 PortAudio (Linux / Windows — `audio-portaudio.cpp`)
 
-- Each `AUDIO` instance holds a `std::unique_ptr<PA_WAVE>`.
-- WAV only (via `third-party/portaudio/` wave reader).
-- `~AUDIO()` destroys the `PA_WAVE` unique_ptr.
+- Each `AUDIO` instance holds a `std::unique_ptr<PA_INTERFACE>`.
+- Format dispatch in `load()` by file extension:
+  - `.ogg` / `.oga` → `PA_OGG` (decodes via `stb_vorbis_decode_filename`, always in-memory)
+  - everything else → `PA_WAVE` (WAV, supports `inMemory` flag for streaming vs RAM)
+- Sample-format mapping in `TranslateFormatType(sampleFormat, bitsPerChannel)`:
+  - PCM 8-bit → `paUInt8`, 16-bit → `paInt16`, 24-bit → `paInt24`, 32-bit → `paInt32`
+  - IEEE float → `paFloat32`
+- Bug fixes applied:
+  1. Correct byte-count in stream callbacks (`m_bytesPerSample * frameCount`, not `* channels * frameCount`)
+  2. Type-safe volume scaling per `PaSampleFormat`
+  3. Linear stereo pan model via `applyPan()`
+  4. `m_finished` atomic set before `paComplete`; polled in `AUDIO_MANAGER::update()` (main thread) to fire `onEndStreamCallBack`
+  5. `stop()` always rewinds via `setPosition(0.0)` before returning
+  6. `PA_DATA_FILE::setPosition` / `getPosition` fully implemented (seek by byte offset from `m_dataStart`)
+  7. `PA_DATA_MEMORY::setPosition` corrected: `m_index = pos * size` (was inverted)
+- `~AUDIO()` destroys the `PA_INTERFACE` unique_ptr.
 
-### 6.4 Audiere (Windows / Linux fallback — `audio-audiere.cpp`)
+### 6.4 Audiere (Windows — `audio-audiere.cpp`)
 
 - Each `AUDIO` holds an `audiere::OutputStreamPtr` (reference-counted smart
   pointer from the Audiere API).
@@ -435,9 +448,10 @@ Run through the four scenarios in Section 4 mentally against your implementation
 |---|---|---|---|
 | Android (current) | `-DAUDIO=opensl` | OpenSL ES | WAV, OGG, MP3 (via Android codec) |
 | Android (legacy) | ~~`-DAUDIO=jni`~~ | ~~JNI/MediaPlayer~~ | *(removed)* |
-| Linux | `-DAUDIO=portaudio` | PortAudio | WAV only (stb_vorbis possible) |
-| Linux (alt) | `-DAUDIO=audiere` | Audiere 1.9.4 | WAV, OGG, MP3, FLAC, MOD |
+| Linux | `-DAUDIO=portaudio` | PortAudio | WAV + OGG |
+| Linux (removed) | ~~`-DAUDIO=audiere`~~ | ~~Audiere~~ | *(Linux support removed; audiere now Windows-only)* |
 | Windows (MinGW/MSVC) | `-DAUDIO=audiere` | Audiere 1.9.4 | WAV, OGG, MP3, FLAC, MOD |
+| Windows (alt) | `-DAUDIO=portaudio` | PortAudio | WAV + OGG |
 | macOS | `-DAUDIO=avfoundation` | AVFoundation | WAV, AIFF, CAF, MP3, AAC, FLAC, OGG\* |
 | iOS | `-DAUDIO=avfoundation` | AVFoundation | same as macOS |
 | Any | `-DAUDIO=none` | Stub | (silence) |

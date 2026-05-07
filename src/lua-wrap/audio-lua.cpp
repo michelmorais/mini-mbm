@@ -267,6 +267,14 @@ namespace mbm
         }
         userData->refTableLua(lua, 1, &userData->ref_MeAsTable);
         userData->refFunctionLua(lua, 2, &userData->ref_CallBackStream);
+        // Wire the C++ end-of-stream callback so the Lua onEnd fires when the
+        // audio finishes.  The bridge queues the call onto the scene thread via
+        // onEndStreamCallBack() so Lua is never touched from a background thread.
+        audio->setOnEndstream([](AUDIO* a) {
+            auto* ud = static_cast<USER_DATA_AUDIO_LUA*>(a->userData);
+            if (ud)
+                onEndStreamCallBack(a->getFileName(), ud);
+        });
         return 0;
     }
 

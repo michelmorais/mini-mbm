@@ -31,7 +31,7 @@
 			#pragma comment(lib, "audiere.lib")
 		#endif
 #elif defined(AUDIO_ENGINE_PORT_AUDIO)
-		#include <pa-wave.h>
+		#include <pa-audio-interface.h>
 		#include <memory>
 #elif defined(AUDIO_ENGINE_AVFOUNDATION)
 		#include <memory>
@@ -80,7 +80,7 @@ namespace mbm
 	#if defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
 		audiere::OutputStreamPtr sound;
 	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
-		std::unique_ptr<PA_WAVE> pa_wave;
+		std::unique_ptr<PA_INTERFACE> pa_audio;
 	#elif defined(AUDIO_ENGINE_ANDROID_OPENSL) //  AUDIO_ENGINE_ANDROID_OPENSL -----------------------------------------------
 		void* oslPlayer = nullptr; // OSLPlayer*, defined in audio-opensl-android.cpp
 	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------

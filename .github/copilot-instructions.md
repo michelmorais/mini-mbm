@@ -36,7 +36,7 @@ mingw32-make -j...        # Windows MinGW
 | `-DUSE_ALL=1` | Enable all features (Lua + all plugins + editors) |
 | `-DUSE_LUA=1` | Embed Lua 5.4 scripting |
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
-| `-DAUDIO=audiere\|portaudio\|avfoundation\|opensl\|none` | Audio backend |
+| `-DAUDIO=audiere\|portaudio\|avfoundation\|opensl\|none` | Audio backend. **Audiere is Windows-only**; Linux uses `portaudio` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | Compatibility for mesh files ≤ v7 |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 2.3.1 fluid physics plugin |

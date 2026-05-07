@@ -243,6 +243,18 @@ namespace mbm
             my_audio->update();
         }
         #endif
+        #if defined(AUDIO_ENGINE_PORT_AUDIO)
+        for (AUDIO* my_audio : AUDIO_MANAGER::instance->audios)
+        {
+            if (my_audio->pa_audio && my_audio->pa_audio->isFinished())
+            {
+                my_audio->pa_audio->clearFinished();
+                my_audio->state = mbm::STATE_AUDIO::AUDIO_STOPPED;
+                if (my_audio->onEndStreamCallBack)
+                    my_audio->onEndStreamCallBack(my_audio);
+            }
+        }
+        #endif
     }
 
     void AUDIO_MANAGER::setPersist(AUDIO* audio, bool bValue)

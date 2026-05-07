@@ -1182,7 +1182,11 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     if(AUDIO STREQUAL "audiere")
-        add_subdirectory(${AUDIERE}                     ${AUDIERE})
+        if(PLAT_LOWER STREQUAL "linux")
+            message(SEND_ERROR "Audiere is not supported on Linux. Use -DAUDIO=portaudio instead.")
+        else()
+            add_subdirectory(${AUDIERE}                     ${AUDIERE})
+        endif()
     endif()
 
 
