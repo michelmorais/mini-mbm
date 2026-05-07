@@ -88,6 +88,9 @@
     <Filter Include="Source Files\audio-codec">
       <UniqueIdentifier>{cc5c93d4-d082-47b2-aaf0-15cceed2627e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\audio\port-audio">
+      <UniqueIdentifier>{e7aabc39-01ad-459b-85e4-3038b8f8e7f6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h">
@@ -416,9 +419,6 @@
     <ClCompile Include="..\..\src\core_mbm\animation.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\blend.cpp">
       <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
@@ -527,9 +527,6 @@
     <ClCompile Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.c">
       <Filter>Source Files\tinyfiledialogs</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\render\steered_particle.cpp">
       <Filter>Source Files\render</Filter>
     </ClCompile>
@@ -544,12 +541,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
       <Filter>Source Files\audio</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-none.cpp">
-      <Filter>Source Files\core_mbm</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp">
-      <Filter>Source Files\core_mbm</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\render\render-2-texture-directx9.cpp">
       <Filter>Source Files\render</Filter>
@@ -664,6 +655,27 @@
     </ClCompile>
     <ClCompile Include="core-mbm-Windows-dll-entry.cpp">
       <Filter>Source Files\core_mbm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-portaudio.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-none.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-interface.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\core_mbm\audio-manager.cpp">
+      <Filter>Source Files\audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\portaudio\src\pa-audio-interface.cpp">
+      <Filter>Source Files\audio\port-audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\portaudio\src\pa-ogg.cpp">
+      <Filter>Source Files\audio\port-audio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\third-party\portaudio\src\pa-wave.cpp">
+      <Filter>Source Files\audio\port-audio</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

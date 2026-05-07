@@ -26,7 +26,7 @@
 using namespace audiere;
 namespace mbm
 {
-	AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
+    AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
     onEndStreamCallBack(nullptr)
     {}
 
@@ -35,117 +35,117 @@ namespace mbm
 
     bool AUDIO::setVolume(const float volume)
     {
-		if(sound)
-		{
-			sound->setVolume(volume);
-			return true;
-		}
-		return false;
+        if(sound)
+        {
+            sound->setVolume(volume);
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::setPan(const float pan)
     {
-		if (sound)
-		{
-			sound->setPan(pan);
-			return true;
-		}
-		return false;
+        if (sound)
+        {
+            sound->setPan(pan);
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::pause()
     {
-		if (sound)
-		{
+        if (sound)
+        {
             if(sound->isPlaying())
-				state = AUDIO_PLAYING;
-			else
-				state = AUDIO_STOPPED;
+                state = AUDIO_PLAYING;
+            else
+                state = AUDIO_STOPPED;
             sound->stop();
-			return true;
-		}
-		return false;
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::resume()
     {
         if (sound && state == AUDIO_PLAYING)
-		{
-			sound->play();
-			return true;
-		}
-		return false;
+        {
+            sound->play();
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::stop()
     {
         state = AUDIO_STOPPED;
-		if (sound)
-		{
-			sound->stop();
+        if (sound)
+        {
+            sound->stop();
             sound->setPosition(0);
-			return true;
-		}
-		return false;
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::setPitch(const float pitch) // range from 0.5 to 2.0.  default is 1.0.
     {
-		if (sound)
-		{
-			sound->setPitchShift(pitch);
-			return true;
-		}
-		return false;
+        if (sound)
+        {
+            sound->setPitchShift(pitch);
+            return true;
+        }
+        return false;
     }
     
     bool AUDIO::load(const char *filenameSound, const bool loop, const bool inMemory)
     {
-		if (this->isLoaded())
-			return true;
+        if (this->isLoaded())
+            return true;
         if (filenameSound == nullptr)
-		{
-			ERROR_LOG("file name is [null] ");
+        {
+            ERROR_LOG("file name is [null] ");
             return false;
-		}
+        }
         
         if (AUDIO_MANAGER::audioDevice)
         {
             const char *    cfileName = util::getFullPath(filenameSound,nullptr);
             sound    = OpenSound(AUDIO_MANAGER::audioDevice, cfileName, !inMemory);
             if (!sound)
-			{
-				ERROR_LOG("file [%s] not found", filenameSound);
+            {
+                ERROR_LOG("file [%s] not found", filenameSound);
                 return false;
-			}
+            }
             sound->setRepeat(loop);
-			this->fileName = util::getBaseName(cfileName);
+            this->fileName = util::getBaseName(cfileName);
             return true;
         }
-		PRINT_IF_DEBUG( "audioDevice is null");
+        PRINT_IF_DEBUG( "audioDevice is null");
         return false;
     }
     
     bool AUDIO::play(const bool loop)
     {
-		if(sound)
-		{
-			sound->play();
-			sound->setRepeat(loop);
-			state = AUDIO_PLAYING;
-			return true;
-		}
-		else
-		{
-			state = AUDIO_STOPPED;
-			PRINT_IF_DEBUG("sound not loaded");
-			return false;
-		}
+        if(sound)
+        {
+            sound->play();
+            sound->setRepeat(loop);
+            state = AUDIO_PLAYING;
+            return true;
+        }
+        else
+        {
+            state = AUDIO_STOPPED;
+            PRINT_IF_DEBUG("sound not loaded");
+            return false;
+        }
     }
     
     bool AUDIO::isPlaying()
     {
-		if(sound && sound->isPlaying())
+        if(sound && sound->isPlaying())
             state = AUDIO_PLAYING;
         else
             state = AUDIO_STOPPED;
@@ -154,56 +154,56 @@ namespace mbm
     
     bool AUDIO::isPaused()
     {
-		return sound && (sound->isPlaying() == false);
+        return sound && (sound->isPlaying() == false);
     }
     
     float AUDIO::getVolume()
     {
-		if(sound)
-			return sound->getVolume();
+        if(sound)
+            return sound->getVolume();
         return 0.0f;
     }
     
     float AUDIO::getPan()
     {
-		if (sound)
-			return sound->getPan();
-		return 0.0f;
+        if (sound)
+            return sound->getPan();
+        return 0.0f;
     }
     
     float AUDIO::getPitch()
     {
-		if (sound)
-			return sound->getPitchShift();
+        if (sound)
+            return sound->getPitchShift();
         return 0.5f;
     }
     
     int AUDIO::getLength()
     {
-		if (sound)
-			return sound->getLength();
-		return 0;
+        if (sound)
+            return sound->getLength();
+        return 0;
     }
 
     bool AUDIO::reset() 
     {
-		if (sound)
-		{
-			sound->reset();
-			state = AUDIO_PLAYING;
-			return true;
-		}
-		return false;
+        if (sound)
+        {
+            sound->reset();
+            state = AUDIO_PLAYING;
+            return true;
+        }
+        return false;
     }
 
     bool AUDIO::setPosition(const int pos)
     {
-		if (sound)
-		{
-			sound->setPosition(pos);
-			return true;
-		}
-		return false;
+        if (sound)
+        {
+            sound->setPosition(pos);
+            return true;
+        }
+        return false;
     }
     
     void AUDIO::setOnEndstream(OnEndStreamCallBack ptrOnEndStreamCallBack)
@@ -211,23 +211,23 @@ namespace mbm
         this->onEndStreamCallBack = ptrOnEndStreamCallBack;
     }
     
-	AUDIO::OnEndStreamCallBack AUDIO::getOnEndstream() const
+    AUDIO::OnEndStreamCallBack AUDIO::getOnEndstream() const
     {
         return this->onEndStreamCallBack;
     }
 
     bool AUDIO::isLoaded()
-	{
-		return AUDIO_MANAGER::audioDevice && this->sound;
-	}
+    {
+        return AUDIO_MANAGER::audioDevice && this->sound;
+    }
 
-	const char* AUDIO_ENGINE_version()
-	{
-		static std::string version;
-		version = "Audiere ";
-		version += audiere::GetVersion();
-		return version.c_str();
-	}
+    const char* AUDIO_ENGINE_version()
+    {
+        static std::string version;
+        version = "Audiere ";
+        version += audiere::GetVersion();
+        return version.c_str();
+    }
 
     const char* AUDIO::getFileName() const noexcept
     {

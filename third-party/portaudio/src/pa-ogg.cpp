@@ -17,6 +17,8 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
+
 #include <pa-ogg.h>
 #include <string.h>
 #include <stdlib.h>
@@ -71,3 +73,4 @@ bool PA_OGG::play(const bool bLoop)
     setLoop(bLoop);
     return start();
 }
+#endif

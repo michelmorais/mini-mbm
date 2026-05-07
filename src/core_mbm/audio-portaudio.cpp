@@ -18,6 +18,13 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(AUDIO_ENGINE_PORT_AUDIO)
+
+#if defined(_WIN32)
+    #pragma comment(lib, "portaudio_x86.lib")
+#endif
+
+
+
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>

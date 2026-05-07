@@ -1,4 +1,6 @@
 
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
+
 #include <pa-wave.h>
 #include <portaudio.h>
 
@@ -54,3 +56,5 @@ const char* PA_version()
 {
     return Pa_GetVersionText();
 }
+
+#endif

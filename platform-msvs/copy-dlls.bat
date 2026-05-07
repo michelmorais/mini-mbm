@@ -58,6 +58,8 @@ COPY "!libEGLv2_dll!" "!destinationFolder!"
     set audiere_source=%mypath%\third-party\audiere-1.9.4\bin\audiere.dll
     set audiere_lib=%mypath%\third-party\audiere-1.9.4\lib\audiere.lib
 
+    set portaudio_source=%mypath%\third-party\portaudio\win32\bin\portaudio_x86.dll
+
     set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
     set libEGL_source=%mypath%\third-party\gles\libs\libEGL.dll.lib
 
@@ -72,6 +74,9 @@ COPY "!libEGLv2_dll!" "!destinationFolder!"
 
     echo "COPY !audiere_source! !destinationFolder!"
     COPY "!audiere_source!" "!destinationFolder!"
+
+    echo "COPY !portaudio_source! !destinationFolder!"
+    COPY "!portaudio_source!" "!destinationFolder!"
 
     echo "COPY !audiere_lib! !destinationFolder!"
     COPY "!audiere_lib!" "!destinationFolder!"

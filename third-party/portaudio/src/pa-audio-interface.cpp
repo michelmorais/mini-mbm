@@ -17,6 +17,7 @@
 | OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.       |
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
 
 #include <string.h>
 #include <math.h>
@@ -308,14 +309,14 @@ bool PA_INTERFACE::openStream(const uint16_t numChannels, const uint16_t sampleF
     data->m_outputParameters->sampleFormat          = data->m_sampleFormat;
     data->m_outputParameters->hostApiSpecificStreamInfo = nullptr;
     data->m_outputParameters->suggestedLatency =
-        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultHighOutputLatency;
+        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultLowOutputLatency;
 
     PaError ret = Pa_OpenStream(
         static_cast<PaStream**>(&data->m_stream),
         nullptr,
         data->m_outputParameters,
         static_cast<double>(data->m_sampleRate),
-        paFramesPerBufferUnspecified,
+        256,
         0,
         &paStreamCallback,
         data);
@@ -350,14 +351,14 @@ bool PA_INTERFACE::openStream(WaveFile* wave)
     data->m_outputParameters->sampleFormat          = data->m_sampleFormat;
     data->m_outputParameters->hostApiSpecificStreamInfo = nullptr;
     data->m_outputParameters->suggestedLatency =
-        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultHighOutputLatency;
+        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultLowOutputLatency;
 
     PaError ret = Pa_OpenStream(
         static_cast<PaStream**>(&data->m_stream),
         nullptr,
         data->m_outputParameters,
         static_cast<double>(data->m_sampleRate),
-        paFramesPerBufferUnspecified,
+        256,
         0,
         &paStreamCallbackFromFile,
         data);
@@ -588,3 +589,4 @@ int PA_INTERFACE::getLength() const
     return m_data ? static_cast<int>(m_data->m_durationMs) : 0;
 }
 
+#endif
