@@ -206,14 +206,18 @@ namespace mbm
 
     void AUDIO_MANAGER::update(CORE_MANAGER* coreManager,const int idScene)
     {
-        if(audiosToDelete.size())
+        // Process ALL pending deletions in one pass (not just the first element).
+        // With PortAudio's shared-slot mixer, leaving many finished-scene audios
+        // in audiosToDelete keeps their mixer slots occupied, which can exhaust
+        // the pool (MIXER_MAX_SOURCES) when a new scene loads many sounds.
+        for (int i = static_cast<int>(audiosToDelete.size()) - 1; i >= 0; --i)
         {
-            AUDIO* my_audio = audiosToDelete[0];
+            AUDIO* my_audio = audiosToDelete[i];
             if(my_audio->idScene != idScene && coreManager->existScene(my_audio->idScene) == false )//destroy only if scene do not exist anymore
             {
                 if(my_audio->bPersistent)
                 {
-                    audiosToDelete.erase(audiosToDelete.begin());
+                    audiosToDelete.erase(audiosToDelete.begin() + i);
                     audios.push_back(my_audio);
                 }
                 else
@@ -227,7 +231,7 @@ namespace mbm
                     }
                     else
                     {
-                        audiosToDelete.erase(audiosToDelete.begin());
+                        audiosToDelete.erase(audiosToDelete.begin() + i);
                         delete my_audio;
                     }
                 }

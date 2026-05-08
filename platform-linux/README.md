@@ -101,7 +101,7 @@ assets at their default relative paths:
 
 | Backend | CMake flag | Notes |
 |---|---|---|
-| **PortAudio** | `-DAUDIO=portaudio` | System library (`portaudio19-dev`). Supports **WAV and OGG** (Vorbis decoded via stb_vorbis). Default and only supported audio backend on Linux. |
+| **PortAudio** | `-DAUDIO=portaudio` | System library (`portaudio19-dev`). Supports **WAV and OGG** (Vorbis decoded via stb_vorbis). Default and only supported audio backend on Linux. Uses a single shared output stream with a **software mixer** — all loaded sounds share one ALSA PCM stream, so playing many simultaneous effects (explosions, arrows, etc.) has near-zero overhead. Supports sources at any sample rate (22050, 44100, 48000 Hz, etc.) with automatic nearest-neighbour resampling to the mixer's output rate. Up to 128 sounds can be loaded simultaneously. |
 | **None** | `-DAUDIO=none` | Silent build — no audio dependency required. |
 
 ---

@@ -41,7 +41,7 @@
  * -------------------------------------------------------------------------*/
 namespace {
 
-static const int MIXER_MAX_SOURCES    = 64;   // max simultaneously loaded sounds
+static const int MIXER_MAX_SOURCES    = 128;  // max simultaneously loaded sounds
 static const int MIXER_FRAMES_PER_BUF = 256;  // frames per callback invocation
 // Maximum source-to-mixer sample-rate ratio supported for resampling.
 // 4× covers: 48000→11025, 96000→24000, etc.  Common game ratios are ≤2.2×.
