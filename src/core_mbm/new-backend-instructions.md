@@ -56,7 +56,7 @@ pipeline for the initial port and skip everything listed below until it is stabl
 | Subsystem | Where it lives | Skip initially? |
 |---|---|---|
 | Lua scripting | `src/lua-wrap/` — C++ ↔ Lua bindings for every engine class | **Yes** |
-| Audio | `third-party/audiere-*`, `third-party/portaudio/` | **Yes** — pass `-DAUDIO=none` |
+| Audio | `third-party/portaudio/` | **Yes** — pass `-DAUDIO=none` |
 | ImGui plugin | `plugins/imGui/` — in-engine editors | **Yes** |
 | Box2D / Bullet / tiled / other plugins | `plugins/` subdirectories | **Yes** |
 

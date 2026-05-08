@@ -42,9 +42,6 @@ extern "C" void avfoundation_audio_release(void);
 
 namespace mbm
 {
-#if defined(AUDIO_ENGINE_AUDIERE)
-    using namespace audiere;
-#endif
     AUDIO_MANAGER* AUDIO_MANAGER::getInstance()
     {
         if(AUDIO_MANAGER::instance == nullptr)
@@ -55,22 +52,7 @@ namespace mbm
     AUDIO_MANAGER::AUDIO_MANAGER():pauseAudioOnPauseGame(true)
     {
         mbm::DEVICE *device = mbm::DEVICE::getInstance();
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if (!AUDIO_MANAGER::audioDevice)
-            AUDIO_MANAGER::audioDevice = OpenDevice();
-        if (!AUDIO_MANAGER::audioDevice)
-        {
-            ERROR_LOG("Failed opening Audiere audio device — audio disabled, game will run silently");
-        }
-        else
-        {
-            // STOP_AUDIERE extends RefImplementation<StopCallback>, which starts
-            // at refcount 0.  registerCallback() calls ref() → count = 1 (Audiere
-            // owns it).  clearCallbacks() in release() calls unref() → count = 0
-            // → RefImplementation::unref() calls delete this.  No leak.
-            AUDIO_MANAGER::audioDevice->registerCallback(new AUDIO_MANAGER::STOP_AUDIERE());
-        }
-        #elif defined(AUDIO_ENGINE_AVFOUNDATION)
+        #if defined(AUDIO_ENGINE_AVFOUNDATION)
         avfoundation_audio_init();
         #elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
         m_directSound = nullptr;
@@ -237,16 +219,6 @@ namespace mbm
                 }
             }
         }
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if(AUDIO_MANAGER::audioDevice)
-            AUDIO_MANAGER::audioDevice->update();
-        #endif
-        #if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
-        for (AUDIO* my_audio : AUDIO_MANAGER::instance->audios)
-        {
-            my_audio->update();
-        }
-        #endif
         #if defined(AUDIO_ENGINE_PORT_AUDIO)
         for (AUDIO* my_audio : AUDIO_MANAGER::instance->audios)
         {
@@ -335,11 +307,6 @@ namespace mbm
     
     void AUDIO_MANAGER::release()
     {
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if (AUDIO_MANAGER::audioDevice)
-            AUDIO_MANAGER::audioDevice->update();
-        #endif
-
         for (auto my_audio : audios)
         {
             my_audio->stop();
@@ -361,24 +328,10 @@ namespace mbm
             }
         }
         audiosToDelete.clear();
-        
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if (AUDIO_MANAGER::audioDevice)
-        {
-            AUDIO_MANAGER::audioDevice->clearCallbacks();
-            AUDIO_MANAGER::audioDevice->update();
-            AUDIO_MANAGER::audioDevice = nullptr;
-        }
-        #endif
     }
 
     void AUDIO_MANAGER::stopAll()
     {
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if (AUDIO_MANAGER::audioDevice)
-            AUDIO_MANAGER::audioDevice->update();
-        #endif
-
         for (auto my_audio : audios)
         {
             my_audio->stop();
@@ -388,61 +341,7 @@ namespace mbm
         {
             my_audio->stop();
         }
-        
-        #if defined(AUDIO_ENGINE_AUDIERE)
-        if (AUDIO_MANAGER::audioDevice)
-            AUDIO_MANAGER::audioDevice->update();
-        #endif
     }
-
-    #if defined(AUDIO_ENGINE_AUDIERE)
-    void AUDIO_MANAGER::STOP_AUDIERE::streamStopped(StopEvent *eventStoped)
-    {
-        auto reason = eventStoped->getReason();
-        if (StopEvent::STREAM_ENDED == reason && AUDIO_MANAGER::instance)
-        {
-            auto sound = eventStoped->getOutputStream();
-            bool bAudioFound = false;
-            for (size_t i = 0; i < AUDIO_MANAGER::instance->audios.size(); ++i)
-            {
-                AUDIO* my_audio = AUDIO_MANAGER::instance->audios[i];
-                if (my_audio->sound == sound)
-                {
-                    if (reason == audiere::StopEvent::STREAM_ENDED)
-                    {
-                        my_audio->state = mbm::STATE_AUDIO::AUDIO_STOPPED;
-                    }
-                    if (my_audio->onEndStreamCallBack)
-                    {
-                        my_audio->onEndStreamCallBack(my_audio);
-                    }
-                    bAudioFound = true;
-                    break;
-                }
-            }
-            if(bAudioFound == false)
-            {
-                for (size_t i = 0; i < AUDIO_MANAGER::instance->audiosToDelete.size(); ++i)
-                {
-                    AUDIO* my_audio = AUDIO_MANAGER::instance->audiosToDelete[i];
-                    if (my_audio->sound == sound)
-                    {
-                        if (reason == audiere::StopEvent::STREAM_ENDED)
-                        {
-                            my_audio->state = mbm::STATE_AUDIO::AUDIO_STOPPED;
-                        }
-                        if (my_audio->onEndStreamCallBack)
-                        {
-                            my_audio->onEndStreamCallBack(my_audio);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    #endif
-
 
     void AUDIO_MANAGER::releaseStaticInstance()
     {

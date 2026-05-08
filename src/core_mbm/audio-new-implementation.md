@@ -15,7 +15,6 @@ exact checklist to follow when adding a new backend (e.g. Xbox/PlayStation).
 | `include/core_mbm/audio.h` | `AUDIO` concrete class declaration + `AUDIO_MANAGER` class declaration. All per-engine private members are declared here under `#if defined(AUDIO_ENGINE_*)` guards. |
 | `src/core_mbm/audio-manager.cpp` | Platform-agnostic lifecycle: `load()`, `destroy()`, `destroyNow()`, `update()`, `release()`. **Never holds any engine-specific code.** |
 | `src/core_mbm/audio-interface.cpp` | `AUDIO_INTERFACE` constructor/destructor (tiny). |
-| `src/core_mbm/audio-audiere.cpp` | Backend: Audiere (Linux / Windows fallback). Guard: `AUDIO_ENGINE_AUDIERE` |
 | `src/core_mbm/audio-direct-sound.cpp` | Backend: DirectSound 8 (Windows). Guard: `AUDIO_ENGINE_DIRECT_SOUND_8` |
 | `src/core_mbm/audio-portaudio.cpp` | Backend: PortAudio (Linux default / cross-platform). Guard: `AUDIO_ENGINE_PORT_AUDIO` |
 | `src/core_mbm/audio-opensl-android.cpp` | Backend: OpenSL ES (Android, current). Guard: `AUDIO_ENGINE_ANDROID_OPENSL` |
@@ -50,8 +49,7 @@ Pass `-DAUDIO=<value>` at configure time:
 |---|---|---|
 | `opensl` | `AUDIO_ENGINE_ANDROID_OPENSL` | Android |
 | `avfoundation` | `AUDIO_ENGINE_AVFOUNDATION` | macOS, iOS |
-| `portaudio` | `AUDIO_ENGINE_PORT_AUDIO` | Linux |
-| `audiere` | `AUDIO_ENGINE_AUDIERE` | Windows (MinGW/MSVC) |
+| `portaudio` | `AUDIO_ENGINE_PORT_AUDIO` | Linux, Windows |
 | `none` | `AUDIO_ENGINE_NONE` | explicit opt-out |
 | ~~`jni`~~ | ~~`AUDIO_ENGINE_JNI`~~ | *(removed)* |
 
@@ -152,7 +150,7 @@ Lua: tSound:destroy()
   [AUDIO::play(loop)] / [AUDIO::stop()] / [AUDIO::pause()] / [AUDIO::setVolume()]
        │  (delegated to backend)
        ▼
-  [BACKEND] (OpenSL ES / AVFoundation / PortAudio / Audiere / DirectSound)
+  [BACKEND] (OpenSL ES / AVFoundation / PortAudio / DirectSound)
 
 
   Deletion (normal scene change):
@@ -215,21 +213,13 @@ Lua: tSound:destroy()
   7. `PA_DATA_MEMORY::setPosition` corrected: `m_index = pos * size` (was inverted)
 - `~AUDIO()` destroys the `PA_INTERFACE` unique_ptr.
 
-### 6.4 Audiere (Windows — `audio-audiere.cpp`)
-
-- Each `AUDIO` holds an `audiere::OutputStreamPtr` (reference-counted smart
-  pointer from the Audiere API).
-- Supports WAV, OGG, MP3, FLAC, and more.
-- `~AUDIO()` releases the `OutputStreamPtr`.
-- `AUDIO_MANAGER` holds a static `audiere::AudioDevicePtr`.
-
-### 6.5 DirectSound 8 (Windows legacy — `audio-direct-sound.cpp`)
+### 6.4 DirectSound 8 (Windows legacy — `audio-direct-sound.cpp`)
 
 - Each `AUDIO` holds a `std::unique_ptr<WaveFile>` and a double-buffer stream.
 - WAV only.
 - `~AUDIO()` destroys the wave reader.
 
-### 6.6 JNI / MediaPlayer (removed)
+### 6.5 JNI / MediaPlayer (removed)
 
 The legacy JNI / MediaPlayer backend (`audio-jni-android.cpp`) has been
 removed. It was superseded by OpenSL ES. See Section 9 for details.
@@ -449,9 +439,8 @@ Run through the four scenarios in Section 4 mentally against your implementation
 | Android (current) | `-DAUDIO=opensl` | OpenSL ES | WAV, OGG, MP3 (via Android codec) |
 | Android (legacy) | ~~`-DAUDIO=jni`~~ | ~~JNI/MediaPlayer~~ | *(removed)* |
 | Linux | `-DAUDIO=portaudio` | PortAudio | WAV + OGG |
-| Linux (removed) | ~~`-DAUDIO=audiere`~~ | ~~Audiere~~ | *(Linux support removed; audiere now Windows-only)* |
-| Windows (MinGW/MSVC) | `-DAUDIO=audiere` | Audiere 1.9.4 | WAV, OGG, MP3, FLAC, MOD |
-| Windows (alt) | `-DAUDIO=portaudio` | PortAudio | WAV + OGG |
+| Windows | `-DAUDIO=portaudio` | PortAudio | WAV + OGG |
+| Windows (alt) | `-DAUDIO=dsound` | DirectSound 8 | WAV only |
 | macOS | `-DAUDIO=avfoundation` | AVFoundation | WAV, AIFF, CAF, MP3, AAC, FLAC, OGG\* |
 | iOS | `-DAUDIO=avfoundation` | AVFoundation | same as macOS |
 | Any | `-DAUDIO=none` | Stub | (silence) |

@@ -682,7 +682,7 @@ extern "C" {
 # Linux Debug — full feature build
 mkdir -p build/linux_debug && cd build/linux_debug
 cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-            -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug
+            -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug
 make -j$(nproc)
 ```
 

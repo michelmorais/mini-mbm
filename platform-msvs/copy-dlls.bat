@@ -20,20 +20,11 @@ if %is64bits%=="x64" (
 echo "64 bits build"
 echo "Copying needed 64 bits DLLs (for Windows) to  %destinationFolder%"
     
-set audiere_source=%mypath%\third-party\audiere-1.9.4\bin\x64\audiere.dll
-set audiere_lib=%mypath%\third-party\audiere-1.9.4\bin\x64\audiere.lib
-
 set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
 set libEGL_source=%mypath%\third-party\gles\libs\libEGL.dll.lib
 
 set libEGLv2_dll=%mypath%\third-party\gles\bin\libGLESv2.dll
 set libEGLv2_source=%mypath%\third-party\gles\libs\libGLESv2.dll.lib
-
-echo "COPY !audiere_source! !destinationFolder!"
-COPY "!audiere_source!" "!destinationFolder!"
-
-echo "COPY !audiere_lib! !destinationFolder!"
-COPY "!audiere_lib!" "!destinationFolder!"
 
 echo "COPY !libEGL_source! !destinationFolder!"
 COPY "!libEGL_source!" "!destinationFolder!"
@@ -55,9 +46,6 @@ COPY "!libEGLv2_dll!" "!destinationFolder!"
     echo "32 bits build"
     echo "Copying needed 32 bits DLLs (for Windows) to  %destinationFolder%"
 
-    set audiere_source=%mypath%\third-party\audiere-1.9.4\bin\audiere.dll
-    set audiere_lib=%mypath%\third-party\audiere-1.9.4\lib\audiere.lib
-
     set portaudio_source=%mypath%\third-party\portaudio\Windows\bin\portaudio_x86.dll
 
     set libEGL_dll=%mypath%\third-party\gles\bin\libEGL.dll
@@ -72,14 +60,8 @@ COPY "!libEGLv2_dll!" "!destinationFolder!"
 
     set editor_source=%mypath%\editor
 
-    echo "COPY !audiere_source! !destinationFolder!"
-    COPY "!audiere_source!" "!destinationFolder!"
-
     echo "COPY !portaudio_source! !destinationFolder!"
     COPY "!portaudio_source!" "!destinationFolder!"
-
-    echo "COPY !audiere_lib! !destinationFolder!"
-    COPY "!audiere_lib!" "!destinationFolder!"
 
     echo "COPY !libEGL_source! !destinationFolder!"
     COPY "!libEGL_source!" "!destinationFolder!"

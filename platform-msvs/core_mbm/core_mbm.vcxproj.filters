@@ -13,10 +13,7 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\audiere-1.9.4">
-      <UniqueIdentifier>{35da44d9-74ca-4d48-a410-6b4b1c5fd479}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\core_mbm">
+        <Filter Include="Header Files\core_mbm">
       <UniqueIdentifier>{f1e764bd-13c7-4a78-b123-aa6e08211b1f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\joystick-win32">
@@ -285,9 +282,6 @@
     <ClInclude Include="..\..\third-party\tinyfiledialogs\tinyfiledialogs.h">
       <Filter>Header Files\tinyfiledialogs</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h">
-      <Filter>Header Files\audiere-1.9.4</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\include\render\steered_particle.h">
       <Filter>Header Files\render</Filter>
     </ClInclude>
@@ -535,9 +529,6 @@
     </ClCompile>
     <ClCompile Include="..\..\third-party\wave\WAVE.cpp">
       <Filter>Source Files\wave</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\core_mbm\audio-audiere.cpp">
-      <Filter>Source Files\audio</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\core_mbm\audio-direct-sound.cpp">
       <Filter>Source Files\audio</Filter>

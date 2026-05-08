@@ -249,7 +249,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows x64), Audiere (Windows x86), OpenSL ES (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
@@ -387,8 +387,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
-| Windows (x86 32-bit) | Audiere | `-DAUDIO=audiere` |
-| Windows (x64 64-bit) | PortAudio *(recommended)* or DirectSound 8 | `-DAUDIO=portaudio` or `-DAUDIO=dsound` |
+| Windows | PortAudio | `-DAUDIO=portaudio` |
 | Android | OpenSL ES | `-DAUDIO=opensl` |
 | All | None (silent) | `-DAUDIO=none` |
 
@@ -398,12 +397,12 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|---|---|---|
 | **WAV** | ✅ Recommended | ✅ Recommended | ✅ Recommended | ✅ | Uncompressed PCM. Zero decode latency. Best for sound effects. |
 | **AIFF / CAF / AU** | ✅ | ❌ | ❌ | ❌ | Decoded natively by AVFoundation. |
-| **MP3** | ✅ | ❌ | ✅ x86 (via Audiere) / ❌ x64 (not supported) | ✅ | Hardware-decoded on macOS. |
+| **MP3** | ✅ | ❌ | ❌ | ✅ | Hardware-decoded on macOS. |
 | **AAC / M4A** | ✅ | ❌ | ❌ | ✅ | Recommended for long background music on macOS/Android. |
-| **FLAC** | ✅ (macOS 10.13+) | ❌ | ✅ x86 (via Audiere) / ❌ x64 (not supported) | ❌ | |
-| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via stb_vorbis) | ✅ x86 (via Audiere) / ✅ x64 (via stb_vorbis + PortAudio) | ✅ Recommended | `.ogg` container with Vorbis codec. |
-| **OGG Opus** | ⚠️ Falls back to `.wav` | ❌ | ✅ x86 (via Audiere) / ❌ x64 (not supported) | ✅ | macOS auto-retries with same name + `.wav` extension. |
-| **MOD / S3M / XM / IT** | ❌ | ❌ | ✅ x86 (via Audiere) / ❌ x64 (not supported) | ❌ | Tracker music formats. |
+| **FLAC** | ✅ (macOS 10.13+) | ❌ | ❌ | ❌ | |
+| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via stb_vorbis) | ✅ (via stb_vorbis + PortAudio) | ✅ Recommended | `.ogg` container with Vorbis codec. |
+| **OGG Opus** | ⚠️ Falls back to `.wav` | ❌ | ❌ | ✅ | macOS auto-retries with same name + `.wav` extension. |
+| **MOD / S3M / XM / IT** | ❌ | ❌ | ❌ | ❌ | Tracker music formats — not supported. |
 
 ### Recommended Format per Platform
 
@@ -944,7 +943,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
 | `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
-| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default, also recommended for Windows x64), `audiere` or `dsound` (Windows x86), `opensl` (Android), or `none` |
+| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux/Windows default), `opensl` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 
 > On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
@@ -1009,8 +1008,7 @@ mini-mbm/
 | [LiquidFun](https://google.github.io/liquidfun/) | 2.3.1 | 2D fluid simulation (Box2D extension) |
 | [Bullet](https://pybullet.org/) | 2.84 | 3D physics engine |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | Immediate-mode GUI |
-| [Audiere](https://audiere.sourceforge.net/) | 1.9.4 | Audio engine (Windows — WAV, OGG, MP3, FLAC, MOD) |
-| [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux and Windows x86/x64). Uses a single shared output stream with a software mixer — all sounds share one OS audio stream for low overhead even with many simultaneous effects. |
+| [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux and Windows). Uses a single shared output stream with a software mixer — all sounds share one OS audio stream for low overhead even with many simultaneous effects. |
 | [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) | — | OGG/Vorbis decoder (macOS AVFoundation path and Linux PortAudio path) |
 | [lSQLite3](http://lua.sqlite.org/) | — | SQLite3 Lua bindings (asset packaging) |
 | [lodepng](https://lodev.org/lodepng/) | — | PNG encoding/decoding |
@@ -1200,7 +1198,7 @@ int main() {
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
-| **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows x64), Audiere (Windows x86), OpenSL ES (Android) |
+| **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Plataformas** | Windows, Linux, macOS, Android |
@@ -1466,8 +1464,7 @@ Consulte a [seção em inglês](#project-structure) acima para a estrutura compl
 | [LiquidFun](https://google.github.io/liquidfun/) | 2.3.1 | Simulação de fluidos 2D |
 | [Bullet](https://pybullet.org/) | 2.84 | Motor de física 3D |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | GUI de modo imediato |
-| [Audiere](https://audiere.sourceforge.net/) | 1.9.4 | Motor de áudio (Windows) |
-| [PortAudio](http://www.portaudio.com/) | — | I/O de áudio multiplataforma (Linux e Windows x86/x64). Utiliza uma única stream de saída com um mixer por software — todos os sons compartilham uma stream de áudio do sistema operacional, ideal para jogos com muitos efeitos simultâneos. |
+| [PortAudio](http://www.portaudio.com/) | — | I/O de áudio multiplataforma (Linux e Windows). Utiliza uma única stream de saída com um mixer por software — todos os sons compartilham uma stream de áudio do sistema operacional, ideal para jogos com muitos efeitos simultâneos. |
 | [lSQLite3](http://lua.sqlite.org/) | — | Bindings Lua para SQLite3 |
 | [lodepng](https://lodev.org/lodepng/) | — | Codificação/decodificação PNG |
 | [stb](https://github.com/nothings/stb) | — | Carregamento de imagens e rasterização de fontes TTF |

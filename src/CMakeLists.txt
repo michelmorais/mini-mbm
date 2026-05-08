@@ -226,7 +226,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     #
     #   mkdir -p ~/tower-defense-linux && cd ~/tower-defense-linux
     #   cmake ~/mini-mbm \
-    #       -DPLAT=Linux -DUSE_LUA=1 -DUSE_ALL=1 -DAUDIO=audiere \
+    #       -DPLAT=Linux -DUSE_LUA=1 -DUSE_ALL=1 -DAUDIO=portaudio \
     #       -DCMAKE_BUILD_TYPE=Release \
     #       -DGAME_NAME="Tower Defense Monster" \
     #       -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
@@ -340,12 +340,6 @@ Categories=Game;
         #    Inline bash -c with \; and ; suffers from CMake→Makefile escaping issues.
         #    Instead, generate a small cmake -P script at configure time and invoke it.
         #
-        #    Audiere (-DAUDIO=audiere):
-        #      libaudiere-1.10.1.so is copied via the glob below.
-        #      libasound is NOT bundled — Audiere finds it via dlopen() at runtime,
-        #      and the system libasound2 (on all Debian/Ubuntu machines) must handle
-        #      it so that PipeWire-ALSA routing works correctly.
-        #
         #    PortAudio (-DAUDIO=portaudio):
         #      libportaudio.so.2 is a system library that may not be present on the
         #      target machine. It CAN be safely bundled (no runtime config/plugin
@@ -369,21 +363,8 @@ Categories=Game;
             CONTENT
 "file(GLOB _SO_FILES \"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@/*.so\")
 foreach(_F \${_SO_FILES})
-    # Skip audiere when portaudio is the selected audio backend.
-    # A leftover libaudiere*.so in the build dir must not end up in the AppImage.
-    if(_F MATCHES \"libaudiere\" AND \"@AUDIO@\" STREQUAL \"portaudio\")
-        continue()
-    endif()
     file(COPY \"\${_F}\" DESTINATION \"@_LINUX_APPDIR@/usr/lib/\")
 endforeach()
-# Remove any stale audiere library from the AppDir when using portaudio.
-# (Guards against incremental builds where audiere was bundled by a prior run.)
-if(\"@AUDIO@\" STREQUAL \"portaudio\")
-    file(GLOB _STALE_AUDIERE \"@_LINUX_APPDIR@/usr/lib/libaudiere*.so*\")
-    foreach(_F \${_STALE_AUDIERE})
-        file(REMOVE \"\${_F}\")
-    endforeach()
-endif()
 # Bundle PortAudio if this build uses -DAUDIO=portaudio
 set(_LIBPORTAUDIO \"@_LIBPORTAUDIO_REAL@\")
 if(_LIBPORTAUDIO AND EXISTS \"\${_LIBPORTAUDIO}\")
@@ -502,7 +483,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     #
     #   mkdir build\my_game_win && cd build\my_game_win
     #   cmake ..\.. -G "MinGW Makefiles"
-    #       -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere
+    #       -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio
     #       -DCMAKE_BUILD_TYPE=Release
     #       -DGAME_NAME="Tower Defense Monster"
     #       -DGAME_ASSETS_DIR=C:/path/to/tower-defense/assets
@@ -626,14 +607,6 @@ cd /d \"%~dp0\"\r\n\
 
         # ── DLL source paths ─────────────────────────────────────────────────
         set(_WIN_DLL_LIST "")
-        if(AUDIO STREQUAL "audiere")
-            # audiere ships only a 32-bit DLL in the repo — only add it for x86 builds.
-            if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-                list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/audiere-1.9.4/bin/audiere.dll")
-            else()
-                message(WARNING "audiere has no bundled 64-bit DLL. Use -DAUDIO=dsound for 64-bit Windows builds.")
-            endif()
-        endif()
         # dsound is a system DLL — no file to copy.
         if(USE_DIRECTX9)
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.

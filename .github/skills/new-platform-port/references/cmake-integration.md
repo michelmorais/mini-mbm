@@ -13,7 +13,7 @@ elseif(PLAT_LOWER STREQUAL "<plat_lower>")
     set(CMAKE_SUCCESS_SET_PLAT      1)                 # REQUIRED — without this the build aborts
     # Audio default (set only if NOT already set by user):
     if(NOT AUDIO)
-        set(AUDIO <backend>)                           # audiere|portaudio|avfoundation|opensl|none
+        set(AUDIO <backend>)                           # portaudio|avfoundation|opensl|none
     endif()
     # VR toggle:
     if(NOT USE_VR AND NOT DISABLE_VR)

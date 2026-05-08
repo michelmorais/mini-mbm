@@ -88,9 +88,7 @@ if(APPLE)
         COMPILE_FLAGS "-Wno-tautological-pointer-compare")
 endif()
 
-if (${AUDIO} STREQUAL "audiere")
-    add_definitions(-DAUDIO_ENGINE_AUDIERE)
-elseif (${AUDIO} STREQUAL "dsound")
+if (${AUDIO} STREQUAL "dsound")
     add_definitions(-DAUDIO_ENGINE_DIRECT_SOUND_8)
     file(GLOB_RECURSE WAVE_SOURCES "${WAVE_SRC}/*.cpp")
 elseif (${AUDIO} STREQUAL "portaudio")
@@ -259,8 +257,6 @@ target_compile_definitions(core_mbm PRIVATE CORE_EXPORTS)
 
     if (${AUDIO} STREQUAL "portaudio" )
         target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
-    elseif(${AUDIO} STREQUAL "audiere" )
-        target_link_libraries(core_mbm ${AUDIERE_LIBRARY})
     elseif(${AUDIO} STREQUAL "opensl" )
         add_definitions(-DAUDIO_ENGINE_ANDROID_OPENSL)
         target_link_libraries(core_mbm OpenSLES)
@@ -295,17 +291,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 
     # ── Audio ────────────────────────────────────────────────────────────────
-    if(AUDIO STREQUAL "audiere")
-        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-            message(SEND_ERROR
-                "AUDIO=audiere is not available for 64-bit Windows builds: "
-                "third-party/audiere-1.9.4/bin/x64/ has been removed. "
-                "Use -DAUDIO=dsound instead.")
-        else()
-            target_link_libraries(core_mbm
-                "${CMAKE_SOURCE_DIR}/third-party/audiere-1.9.4/lib/audiere.lib")
-        endif()
-    elseif(AUDIO STREQUAL "portaudio")
+    if(AUDIO STREQUAL "portaudio")
         if(PORT_AUDIO_LIBRARY)
             target_link_libraries(core_mbm ${PORT_AUDIO_LIBRARY})
         else()
@@ -316,7 +302,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     elseif(AUDIO STREQUAL "none")
         message(STATUS "Disabling audio for Windows")
     else()
-        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=audiere, -DAUDIO=portaudio, -DAUDIO=dsound or -DAUDIO=none")
+        message(SEND_ERROR "Unsupported AUDIO backend for Windows MinGW: ${AUDIO}. Use -DAUDIO=portaudio, -DAUDIO=dsound or -DAUDIO=none")
     endif()
 
     # ── Graphics backend ─────────────────────────────────────────────────────
@@ -358,14 +344,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     elseif(${AUDIO} STREQUAL "avfoundation")
         target_link_libraries(core_mbm "-framework AVFoundation")
         target_link_libraries(core_mbm "-framework AudioToolbox")
-    elseif(${AUDIO} STREQUAL "audiere" )
-        # Audiere for Linux (trick)
-        # Since it has it own MakeFile (not converted to cmake yet), we copy the generated library and added as IMPORTED library
-        add_library(${AUDIERE_LIBRARY} SHARED IMPORTED)
-        set_target_properties(${AUDIERE_LIBRARY} PROPERTIES IMPORTED_LOCATION "${FOLDER_BIN}/${FOLDER_ARCHITECTURE}/libaudiere-1.10.1.so")
-        add_dependencies(core_mbm audiere_cp)
-        target_link_libraries(core_mbm ${AUDIERE_LIBRARY})
-        # End Audiere for Linux
+
     elseif(${AUDIO} STREQUAL "none")
         message("Disabling sound audio class for MACOS ")
     else()
