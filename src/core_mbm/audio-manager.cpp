@@ -125,7 +125,7 @@ namespace mbm
         fileNameSound = util::getFullPath(fileNameSound,&bFileExist);
         if(bFileExist == false)
         {
-            PRINT_IF_DEBUG("File [%s] not found", fileNameSound);
+            PRINT_INFO_IF_DEBUG("File [%s] not found", fileNameSound);
             return nullptr;
         }
         #endif
@@ -157,7 +157,7 @@ namespace mbm
                 !my_audio->isPlaying())
             {
                 my_audio->idScene = idScene;//make this sound belongs to this scene
-                PRINT_IF_DEBUG("Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
+                PRINT_INFO_IF_DEBUG("Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
                 audiosToDelete.erase(audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
                 audios.push_back(my_audio);
                 return my_audio;
@@ -172,7 +172,7 @@ namespace mbm
         }
         else
         {
-            PRINT_IF_DEBUG("delete audio from c++ %s\n",my_audio->fileName.c_str());
+            PRINT_INFO_IF_DEBUG("delete audio from c++ %s\n",my_audio->fileName.c_str());
             delete my_audio;
         }
         return nullptr;
@@ -219,11 +219,11 @@ namespace mbm
                 else
                 {
                     #if defined DEBUG_AUDIO
-                    PRINT_IF_DEBUG("Deleting audio [%p] C++:%s\n", my_audio, my_audio->fileName.c_str());
+                    PRINT_INFO_IF_DEBUG("Deleting audio [%p] C++:%s\n", my_audio, my_audio->fileName.c_str());
                     #endif
                     if (my_audio->userData)
                     {
-                        PRINT_IF_DEBUG("Possible error on destroy audio. userData has value [%p] [%s] ", my_audio, my_audio->fileName.c_str());
+                        PRINT_INFO_IF_DEBUG("Possible error on destroy audio. userData has value [%p] [%s] ", my_audio, my_audio->fileName.c_str());
                     }
                     else
                     {
@@ -270,7 +270,7 @@ namespace mbm
                 if (my_audio == audio)
                 {
 #if defined DEBUG_AUDIO
-                    PRINT_IF_DEBUG("setPersist, Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
+                    PRINT_INFO_IF_DEBUG("setPersist, Resuscitated audio: %s [%p]\n", my_audio->fileName.c_str(), my_audio);
 #endif
                     audiosToDelete.erase(audiosToDelete.begin() + std::vector<AUDIO*>::difference_type(i));
                     audios.push_back(my_audio);
@@ -348,7 +348,7 @@ namespace mbm
             my_audio->stop();
             if(my_audio->userData)
             {
-                PRINT_IF_DEBUG("Possible error on destroy audio [%p] [%s] ", my_audio, my_audio->fileName.c_str());
+                PRINT_INFO_IF_DEBUG("Possible error on destroy audio [%p] [%s] ", my_audio, my_audio->fileName.c_str());
                 return;
             }
             else
