@@ -39,6 +39,59 @@
  * the per-sound ALSA overhead that causes frame drops in games with many
  * concurrent short effects (arrows, explosions, etc.).
  * -------------------------------------------------------------------------*/
+
+ /*
+ Data flow per callback (~5 ms interval)
+PortAudio calls mixCallback() every MIXER_FRAMES_PER_BUF (256) frames. 
+The callback runs on a real-time audio thread, completely separate from the game thread.
+PaStream (1 shared stereo float32 stream, e.g. 44100 Hz)
+    │
+    └── mixCallback(output[256 frames], ...)
+            │
+            ├── memset output to 0
+            │
+            ├── for each slot[0..127]:
+            │       if !slot.active  → skip
+            │       d = slot.data    (PA_DATA: sample position, format, rate, vol, pan)
+            │
+            │       1. Compute srcFrames
+            │          • same rate  → srcFrames = 256  (no resampling)
+            │          • diff rate  → srcFrames = ceil(256 × srcRate / mixerRate)
+            │            e.g. 22050 Hz src in 44100 Hz mixer → 128 src frames needed
+            │
+            │       2. d->readFrames(rawBuf, srcFrames)
+            │          • PA_DATA_MEMORY: memcpy from WAV byte array, advance pointer
+            │          • PA_DATA_FILE:   wave->ReadRaw() from disk/decoded stream
+            │          • if loop=true → ResetToStart; else mark finished
+            │
+            │       3. convertToFloat32Stereo(rawBuf → floatBuf)
+            │          • paInt16 × 1/32768  |  paUInt8 - 128 × 1/128  |  etc.
+            │          • mono → duplicate L→R
+            │
+            │       4. Apply vol + pan as per-channel gains
+            │          leftGain  = vol × (1 - pan)   if pan > 0, else vol
+            │          rightGain = vol × (1 + pan)   if pan < 0, else vol
+            │
+            │       5. Accumulate into output (nearest-neighbour resample if needed)
+            │          output[f] += floatBuf[srcFrame] × gain
+            │
+            │       6. If ended → slot.active = false, d->m_finished = true
+            │
+            └── clamp output to [-1, 1]  (prevent clipping)
+
+Thread safety
+The game thread and the audio thread share the slot array. Safety is kept minimal and lock-free:
+
+Operation                       | How it's safe
+play() / stop()                 | slot.active is std::atomic<bool> — flip is instantly visible to callback
+unregisterSource() (destructor) | Sets active=false, data=nullptr, then spins ≤20 ms waiting for callbackSeq to advance once — proves no callback frame is still touching the old PA_DATA* before delete
+registerSource()                | Only called from game thread before the slot goes active
+
+Why no resampling artifacts on common rates:
+22050 → 44100 Hz: step = 128/256 = 0.5, so every output frame maps to a distinct source frame — it's just zero-stuffing, 
+no interpolation needed. Nearest-neighbour is fine for game SFX; the phase error is inaudible at typical effect durations.
+
+ */
 namespace {
 
 static const int MIXER_MAX_SOURCES    = 128;  // max simultaneously loaded sounds
