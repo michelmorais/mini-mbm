@@ -23,10 +23,6 @@
 #include <math.h>
 #include <portaudio.h>
 #include <pa-audio-interface.h>
-#if defined(__linux__) || defined(__APPLE__)
-    #include <fcntl.h>
-    #include <unistd.h>
-#endif
 
 /* ---------------------------------------------------------------------------
  * Format translation
@@ -251,25 +247,7 @@ PA_INTERFACE::PA_INTERFACE() : m_data(nullptr)
 {
     if (!PA_INTERFACE::initialized)
     {
-        // Pa_Initialize() causes ALSA and JACK to probe devices and print
-        // diagnostic messages to stderr that are not meaningful to the user.
-        // Suppress stderr during initialisation, then restore it.
-#if defined(__linux__) || defined(__APPLE__)
-        const int savedErr = dup(STDERR_FILENO);
-        const int devNull  = open("/dev/null", O_WRONLY);
-        if (devNull >= 0)
-            dup2(devNull, STDERR_FILENO);
-        if (devNull >= 0)
-            close(devNull);
-#endif
         const bool ok = (Pa_Initialize() == paNoError);
-#if defined(__linux__) || defined(__APPLE__)
-        if (savedErr >= 0)
-        {
-            dup2(savedErr, STDERR_FILENO);
-            close(savedErr);
-        }
-#endif
         if (ok)
             PA_INTERFACE::initialized = true;
     }
@@ -503,10 +481,11 @@ bool PA_INTERFACE::stop()
     if (m_data->m_stream &&
         Pa_IsStreamStopped(static_cast<PaStream*>(m_data->m_stream)) == 0)
     {
-        // Pa_IsStreamStopped() == 0 means the stream is either active, or
-        // inactive-after-paComplete.  Both states require Pa_StopStream()
-        // before Pa_StartStream() can be called again.
-        Pa_StopStream(static_cast<PaStream*>(m_data->m_stream));
+        // Pa_AbortStream() discards the remaining hardware buffer and returns
+        // immediately. Pa_StopStream() would block until the buffer drains
+        // (~5-6ms per call on Windows WASAPI), causing frame drops when many
+        // short sounds (e.g. arrows) are played in the same frame.
+        Pa_AbortStream(static_cast<PaStream*>(m_data->m_stream));
     }
     m_data->setPosition(0.0);   // always rewind so next play() starts from beginning
     return true;
