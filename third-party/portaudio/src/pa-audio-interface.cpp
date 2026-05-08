@@ -23,6 +23,322 @@
 #include <math.h>
 #include <portaudio.h>
 #include <pa-audio-interface.h>
+#include <thread>
+#include <chrono>
+#if defined(__linux__) || defined(__APPLE__)
+    #include <fcntl.h>
+    #include <unistd.h>
+#endif
+
+/* ---------------------------------------------------------------------------
+ * Software mixer — one global PaStream shared by all active sound sources.
+ *
+ * Each PA_INTERFACE registers a slot here.  play()/stop() just flip an
+ * atomic flag — no Pa_OpenStream / Pa_StartStream / Pa_StopStream per sound.
+ * The single ALSA PCM stream is opened once at first sound load, eliminating
+ * the per-sound ALSA overhead that causes frame drops in games with many
+ * concurrent short effects (arrows, explosions, etc.).
+ * -------------------------------------------------------------------------*/
+namespace {
+
+static const int MIXER_MAX_SOURCES    = 64;   // max simultaneously loaded sounds
+static const int MIXER_FRAMES_PER_BUF = 256;  // frames per callback invocation
+// Maximum source-to-mixer sample-rate ratio supported for resampling.
+// 4× covers: 48000→11025, 96000→24000, etc.  Common game ratios are ≤2.2×.
+static const int MIXER_MAX_RATE_RATIO = 4;
+
+/* Convert raw PCM (any PaSampleFormat, 1 or 2 channels) to interleaved
+ * float32 stereo in-place.  Mono sources are duplicated L→R. */
+static void convertToFloat32Stereo(const void* in, uint32_t paFmt, uint16_t inCh,
+                                   uint32_t frames, float* out)
+{
+    const uint32_t outSamples = frames * 2u;
+    if (paFmt == paFloat32)
+    {
+        const float* src = static_cast<const float*>(in);
+        if (inCh == 1)
+            { for (uint32_t f = 0; f < frames; ++f) out[f*2] = out[f*2+1] = src[f]; }
+        else
+            memcpy(out, src, outSamples * sizeof(float));
+    }
+    else if (paFmt == paInt16)
+    {
+        const int16_t* src = static_cast<const int16_t*>(in);
+        const float inv = 1.0f / 32768.0f;
+        if (inCh == 1)
+            { for (uint32_t f = 0; f < frames; ++f) out[f*2] = out[f*2+1] = src[f] * inv; }
+        else
+            { for (uint32_t s = 0; s < outSamples; ++s) out[s] = src[s] * inv; }
+    }
+    else if (paFmt == paInt32)
+    {
+        const int32_t* src = static_cast<const int32_t*>(in);
+        const float inv = 1.0f / 2147483648.0f;
+        if (inCh == 1)
+            { for (uint32_t f = 0; f < frames; ++f) out[f*2] = out[f*2+1] = src[f] * inv; }
+        else
+            { for (uint32_t s = 0; s < outSamples; ++s) out[s] = src[s] * inv; }
+    }
+    else if (paFmt == paUInt8)
+    {
+        const uint8_t* src = static_cast<const uint8_t*>(in);
+        const float inv = 1.0f / 128.0f;
+        if (inCh == 1)
+            { for (uint32_t f = 0; f < frames; ++f) out[f*2] = out[f*2+1] = (src[f] - 128) * inv; }
+        else
+            { for (uint32_t s = 0; s < outSamples; ++s) out[s] = (src[s] - 128) * inv; }
+    }
+    else
+        memset(out, 0, outSamples * sizeof(float));
+}
+
+class PA_MIXER
+{
+public:
+    static PA_MIXER& instance()
+    {
+        static PA_MIXER s;
+        return s;
+    }
+
+    /* Called on first openStream() — initialises PortAudio and opens the one
+     * shared output stream.  Subsequent calls with different sample rates are
+     * silently accepted (the mixer rate is fixed at first-call time). */
+    bool init(uint32_t sampleRate)
+    {
+        if (m_initialized) return true;
+
+#if defined(__linux__) || defined(__APPLE__)
+        // Pa_Initialize() probes ALSA/JACK devices and prints diagnostic
+        // messages to stderr.  Suppress them — they are not useful to users.
+        const int savedErr = dup(STDERR_FILENO);
+        const int devNull  = open("/dev/null", O_WRONLY);
+        if (devNull >= 0) dup2(devNull, STDERR_FILENO);
+        if (devNull >= 0) close(devNull);
+#endif
+        PaError err = Pa_Initialize();
+#if defined(__linux__) || defined(__APPLE__)
+        if (savedErr >= 0) { dup2(savedErr, STDERR_FILENO); close(savedErr); }
+#endif
+        if (err != paNoError) return false;
+
+        PaDeviceIndex devIdx = Pa_GetDefaultOutputDevice();
+        if (devIdx == paNoDevice) { Pa_Terminate(); return false; }
+
+        PaStreamParameters p{};
+        p.device                    = devIdx;
+        p.channelCount              = 2;           // always stereo out; mono sources are upmixed
+        p.sampleFormat              = paFloat32;   // float mixing is simplest and accurate
+        p.suggestedLatency          = Pa_GetDeviceInfo(devIdx)->defaultLowOutputLatency;
+        p.hostApiSpecificStreamInfo = nullptr;
+
+        m_sampleRate = sampleRate;
+        err = Pa_OpenStream(&m_stream, nullptr, &p,
+                            static_cast<double>(sampleRate),
+                            MIXER_FRAMES_PER_BUF, 0,
+                            &PA_MIXER::staticCallback, this);
+        if (err != paNoError) { Pa_Terminate(); return false; }
+
+        err = Pa_StartStream(m_stream);
+        if (err != paNoError)
+        {
+            Pa_CloseStream(m_stream);
+            m_stream = nullptr;
+            Pa_Terminate();
+            return false;
+        }
+
+        m_initialized = true;
+        return true;
+    }
+
+    /* Allocate a mixer slot for 'data'.  Returns slot index, -1 if full. */
+    int registerSource(PA_DATA* data)
+    {
+        for (int i = 0; i < MIXER_MAX_SOURCES; ++i)
+        {
+            if (!m_slots[i].registered)
+            {
+                m_slots[i].data       = data;
+                m_slots[i].active.store(false, std::memory_order_release);
+                m_slots[i].registered = true;
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /* Deactivate slot, wait up to 20 ms for any in-flight callback access to
+     * complete, then free PA_DATA.  Safe to call from destructor. */
+    void unregisterSource(int idx, PA_DATA* data)
+    {
+        if (idx >= 0 && idx < MIXER_MAX_SOURCES)
+        {
+            m_slots[idx].active.store(false, std::memory_order_seq_cst);
+            m_slots[idx].registered = false;
+            m_slots[idx].data       = nullptr;
+
+            // Spin until the callback counter advances once, proving no
+            // callback frame is still holding the old 'data' pointer.
+            if (m_initialized)
+            {
+                const int64_t seqBefore = m_callbackSeq.load(std::memory_order_acquire);
+                for (int i = 0; i < 20; ++i)
+                {
+                    if (m_callbackSeq.load(std::memory_order_acquire) != seqBefore) break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+        }
+        delete data;
+    }
+
+    void activate(int idx)
+    {
+        if (idx >= 0 && idx < MIXER_MAX_SOURCES)
+            m_slots[idx].active.store(true, std::memory_order_release);
+    }
+
+    void deactivate(int idx)
+    {
+        if (idx >= 0 && idx < MIXER_MAX_SOURCES)
+            m_slots[idx].active.store(false, std::memory_order_release);
+    }
+
+    bool isActive(int idx) const
+    {
+        if (idx < 0 || idx >= MIXER_MAX_SOURCES) return false;
+        return m_slots[idx].active.load(std::memory_order_acquire);
+    }
+
+    bool     isInitialized() const { return m_initialized; }
+    uint32_t sampleRate()     const { return m_sampleRate;  }
+
+private:
+    PA_MIXER() = default;
+    ~PA_MIXER()
+    {
+        m_initialized = false;   // stop PA_INTERFACE methods from accessing us
+        if (m_stream)
+        {
+            Pa_AbortStream(m_stream);
+            Pa_CloseStream(m_stream);
+        }
+        Pa_Terminate();
+    }
+    PA_MIXER(const PA_MIXER&)            = delete;
+    PA_MIXER& operator=(const PA_MIXER&) = delete;
+
+    static int staticCallback(const void*, void* out, unsigned long frames,
+                              const PaStreamCallbackTimeInfo*, unsigned long, void* ud)
+    {
+        return static_cast<PA_MIXER*>(ud)->mixCallback(out, frames);
+    }
+
+    int mixCallback(void* out, unsigned long frameCount)
+    {
+        const uint32_t fc   = static_cast<uint32_t>(frameCount);
+        float*         fOut = static_cast<float*>(out);
+        memset(fOut, 0, fc * 2u * sizeof(float));
+
+        // Stack buffers.  rawBuf/floatBuf are sized for up to MIXER_MAX_RATE_RATIO×
+        // the output frame count so that sources at higher sample rates fit without
+        // heap allocation.  E.g. 96 kHz source into a 44.1 kHz mixer reads ≈2.18×
+        // as many source frames as output frames.
+        // rawBuf worst case: ratio×fc frames, stereo, 32-bit = ratio×256×2×4 bytes
+        // floatBuf: same frame count, float32 stereo
+        static const uint32_t MAX_SRC_FRAMES = MIXER_FRAMES_PER_BUF * MIXER_MAX_RATE_RATIO;
+        char  rawBuf  [MAX_SRC_FRAMES * 2 * 4];
+        float floatBuf[MAX_SRC_FRAMES * 2];
+
+        for (int i = 0; i < MIXER_MAX_SOURCES; ++i)
+        {
+            if (!m_slots[i].active.load(std::memory_order_acquire)) continue;
+            PA_DATA* d = m_slots[i].data;
+            if (!d) continue;
+
+            // Calculate how many source frames to read.
+            // If source rate == mixer rate: read exactly fc frames (no resampling).
+            // If they differ: read proportionally more/fewer source frames, then
+            //                 nearest-neighbour resample to fc output frames.
+            uint32_t srcFrames = fc;
+            bool     needResample = false;
+            if (d->m_sampleRate != m_sampleRate && m_sampleRate > 0)
+            {
+                // Ceiling division to avoid dropping end-of-buffer samples
+                srcFrames = (fc * d->m_sampleRate + m_sampleRate - 1) / m_sampleRate;
+                if (srcFrames > MAX_SRC_FRAMES)
+                    srcFrames = MAX_SRC_FRAMES;   // cap; quality degrades but no crash
+                needResample = true;
+            }
+
+            const bool ended = d->readFrames(rawBuf, srcFrames);
+
+            convertToFloat32Stereo(rawBuf, d->m_sampleFormat, d->m_numChannels, srcFrames, floatBuf);
+
+            // Per-source linear volume + pan applied as L/R gains
+            const float vol       = static_cast<float>(d->m_volume);
+            const float leftGain  = (d->m_pan <= 0.0)
+                                        ? vol
+                                        : static_cast<float>(vol * (1.0 - d->m_pan));
+            const float rightGain = (d->m_pan >= 0.0)
+                                        ? vol
+                                        : static_cast<float>(vol * (1.0 + d->m_pan));
+
+            if (needResample)
+            {
+                // Nearest-neighbour resampling: map each output frame f → source frame
+                const float step = static_cast<float>(srcFrames) / static_cast<float>(fc);
+                for (uint32_t f = 0; f < fc; ++f)
+                {
+                    uint32_t sf = static_cast<uint32_t>(static_cast<float>(f) * step);
+                    if (sf >= srcFrames) sf = srcFrames - 1u;
+                    fOut[f * 2]     += floatBuf[sf * 2]     * leftGain;
+                    fOut[f * 2 + 1] += floatBuf[sf * 2 + 1] * rightGain;
+                }
+            }
+            else
+            {
+                for (uint32_t f = 0; f < fc; ++f)
+                {
+                    fOut[f * 2]     += floatBuf[f * 2]     * leftGain;
+                    fOut[f * 2 + 1] += floatBuf[f * 2 + 1] * rightGain;
+                }
+            }
+
+            if (ended)
+            {
+                m_slots[i].active.store(false, std::memory_order_release);
+                d->m_finished.store(true, std::memory_order_release);
+            }
+        }
+
+        // Clamp mixed output to [-1, 1] to prevent clipping artefacts
+        for (uint32_t s = 0; s < fc * 2u; ++s)
+        {
+            if      (fOut[s] >  1.0f) fOut[s] =  1.0f;
+            else if (fOut[s] < -1.0f) fOut[s] = -1.0f;
+        }
+
+        m_callbackSeq.fetch_add(1, std::memory_order_release);
+        return paContinue;
+    }
+
+    struct MixerSlot
+    {
+        PA_DATA*          data{nullptr};
+        std::atomic<bool> active{false};
+        bool              registered{false};
+    };
+
+    PaStream*            m_stream{nullptr};
+    MixerSlot            m_slots[MIXER_MAX_SOURCES]{};
+    std::atomic<int64_t> m_callbackSeq{0};
+    bool                 m_initialized{false};
+    uint32_t             m_sampleRate{44100};
+};
+
+} // anonymous namespace
 
 /* ---------------------------------------------------------------------------
  * Format translation
@@ -60,21 +376,12 @@ PA_DATA::PA_DATA(const uint16_t numChannels, const uint16_t sampleFormat,
           ? (dataLength / bytesPerSecond) * 1000u
             + ((dataLength % bytesPerSecond) * 1000u / bytesPerSecond)
           : 0u)
-    , m_stream(nullptr)
     , m_loop(false)
     , m_paused(false)
     , m_volume(1.0)
     , m_pan(0.0)
     , m_finished(false)
-    , m_outputParameters(new PaStreamParameters())
 {}
-
-PA_DATA::~PA_DATA()
-{
-    if (m_stream)
-        Pa_CloseStream(static_cast<PaStream*>(m_stream));
-    delete m_outputParameters;
-}
 
 void PA_DATA::adjustVolume(void* data, const uint32_t sizeInBytes, const double volume)
 {
@@ -194,6 +501,43 @@ double PA_DATA_MEMORY::getPosition() const
     return static_cast<double>(m_index) / static_cast<double>(m_sample.size());
 }
 
+bool PA_DATA_MEMORY::readFrames(void* buf, uint32_t frameCount)
+{
+    const uint32_t bytesNeeded = m_bytesPerSample * frameCount;
+    const uint32_t totalBytes  = static_cast<uint32_t>(m_sample.size());
+    const uint32_t remaining   = (m_index < totalBytes) ? (totalBytes - m_index) : 0u;
+    char*          out         = static_cast<char*>(buf);
+
+    if (bytesNeeded <= remaining)
+    {
+        memcpy(out, &m_sample[m_index], bytesNeeded);
+        m_index += bytesNeeded;
+        return false;
+    }
+    if (remaining > 0)
+        memcpy(out, &m_sample[m_index], remaining);
+    if (m_loop)
+    {
+        m_index = 0;
+        uint32_t left = bytesNeeded - remaining;
+        if (left > totalBytes) left = totalBytes;
+        if (left > 0)
+            memcpy(out + remaining, &m_sample[0], left);
+        m_index = left;
+        return false;
+    }
+    else
+    {
+        const uint32_t pad = bytesNeeded - remaining;
+        if (m_sampleFormat == paUInt8)
+            memset(out + remaining, 128, pad);  // unsigned 8-bit silence
+        else
+            memset(out + remaining, 0, pad);
+        m_index = totalBytes;
+        return true; // stream ended
+    }
+}
+
 /* ---------------------------------------------------------------------------
  * PA_DATA_FILE
  * -------------------------------------------------------------------------*/
@@ -234,29 +578,52 @@ double PA_DATA_FILE::getPosition() const
     return static_cast<double>(m_bytesRead) / static_cast<double>(dataLength);
 }
 
-/* ---------------------------------------------------------------------------
- * PA_INTERFACE — static member
- * -------------------------------------------------------------------------*/
-bool PA_INTERFACE::initialized = false;
+bool PA_DATA_FILE::readFrames(void* buf, uint32_t frameCount)
+{
+    const uint32_t bytesNeeded = m_bytesPerSample * frameCount;
+    char*          out         = static_cast<char*>(buf);
+    size_t         bytesRead   = 0;
+
+    wave->ReadRaw(out, bytesNeeded, bytesRead);
+    m_bytesRead += static_cast<uint32_t>(bytesRead);
+
+    if (static_cast<uint32_t>(bytesRead) < bytesNeeded)
+    {
+        if (m_loop)
+        {
+            wave->ResetToStart();
+            m_bytesRead = 0;
+            const uint32_t deficit = bytesNeeded - static_cast<uint32_t>(bytesRead);
+            size_t bytesRead2 = 0;
+            wave->ReadRaw(out + bytesRead, deficit, bytesRead2);
+            m_bytesRead += static_cast<uint32_t>(bytesRead2);
+            if (bytesRead2 < deficit)
+                memset(out + bytesRead + bytesRead2, 0, deficit - bytesRead2);
+            return false;
+        }
+        else
+        {
+            memset(out + bytesRead, 0, bytesNeeded - static_cast<uint32_t>(bytesRead));
+            return true; // stream ended
+        }
+    }
+    return false;
+}
 
 /* ---------------------------------------------------------------------------
  * PA_INTERFACE — construction / destruction
  * -------------------------------------------------------------------------*/
 
-PA_INTERFACE::PA_INTERFACE() : m_data(nullptr)
-{
-    if (!PA_INTERFACE::initialized)
-    {
-        const bool ok = (Pa_Initialize() == paNoError);
-        if (ok)
-            PA_INTERFACE::initialized = true;
-    }
-}
+PA_INTERFACE::PA_INTERFACE() : m_data(nullptr), m_slotIndex(-1) {}
 
 PA_INTERFACE::~PA_INTERFACE()
 {
-    delete m_data;
-    m_data = nullptr;
+    if (m_data)
+    {
+        PA_MIXER::instance().unregisterSource(m_slotIndex, m_data);
+        m_slotIndex = -1;
+        m_data      = nullptr;
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -268,42 +635,20 @@ bool PA_INTERFACE::openStream(const uint16_t numChannels, const uint16_t sampleF
                               const uint16_t bytesPerSample, const uint32_t dataLength,
                               const uint32_t bytesPerSecond, std::vector<char>&& sample)
 {
-    if (!initialized) return false;
+    PA_MIXER& mixer = PA_MIXER::instance();
+    if (!mixer.init(sampleRate)) return false;
 
-    PA_DATA_MEMORY* data = new PA_DATA_MEMORY(numChannels, sampleFormat, bitsPerChannel,
-                                              sampleRate, bytesPerSample,
-                                              dataLength, bytesPerSecond,
-                                              std::move(sample));
+    auto* data = new PA_DATA_MEMORY(numChannels, sampleFormat, bitsPerChannel,
+                                    sampleRate, bytesPerSample,
+                                    dataLength, bytesPerSecond,
+                                    std::move(sample));
+    m_slotIndex = mixer.registerSource(data);
+    if (m_slotIndex < 0)
+    {
+        delete data;
+        return false;
+    }
     m_data = data;
-
-    data->m_outputParameters->device = Pa_GetDefaultOutputDevice();
-    if (data->m_outputParameters->device == paNoDevice)
-    {
-        delete data;
-        m_data = nullptr;
-        return false;
-    }
-    data->m_outputParameters->channelCount          = data->m_numChannels;
-    data->m_outputParameters->sampleFormat          = data->m_sampleFormat;
-    data->m_outputParameters->hostApiSpecificStreamInfo = nullptr;
-    data->m_outputParameters->suggestedLatency =
-        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultLowOutputLatency;
-
-    PaError ret = Pa_OpenStream(
-        static_cast<PaStream**>(&data->m_stream),
-        nullptr,
-        data->m_outputParameters,
-        static_cast<double>(data->m_sampleRate),
-        256,
-        0,
-        &paStreamCallback,
-        data);
-    if (ret != paNoError)
-    {
-        delete data;
-        m_data = nullptr;
-        return false;
-    }
     return true;
 }
 
@@ -313,141 +658,18 @@ bool PA_INTERFACE::openStream(const uint16_t numChannels, const uint16_t sampleF
 
 bool PA_INTERFACE::openStream(WaveFile* wave)
 {
-    if (!initialized) return false;
+    PA_MIXER& mixer = PA_MIXER::instance();
+    if (!mixer.init(wave->GetSampleRate())) return false;
 
-    PA_DATA_FILE* data = new PA_DATA_FILE(wave);
+    auto* data = new PA_DATA_FILE(wave);
+    m_slotIndex = mixer.registerSource(data);
+    if (m_slotIndex < 0)
+    {
+        delete data;
+        return false;
+    }
     m_data = data;
-
-    data->m_outputParameters->device = Pa_GetDefaultOutputDevice();
-    if (data->m_outputParameters->device == paNoDevice)
-    {
-        delete data;
-        m_data = nullptr;
-        return false;
-    }
-    data->m_outputParameters->channelCount          = data->m_numChannels;
-    data->m_outputParameters->sampleFormat          = data->m_sampleFormat;
-    data->m_outputParameters->hostApiSpecificStreamInfo = nullptr;
-    data->m_outputParameters->suggestedLatency =
-        Pa_GetDeviceInfo(data->m_outputParameters->device)->defaultLowOutputLatency;
-
-    PaError ret = Pa_OpenStream(
-        static_cast<PaStream**>(&data->m_stream),
-        nullptr,
-        data->m_outputParameters,
-        static_cast<double>(data->m_sampleRate),
-        256,
-        0,
-        &paStreamCallbackFromFile,
-        data);
-    if (ret != paNoError)
-    {
-        delete data;
-        m_data = nullptr;
-        return false;
-    }
     return true;
-}
-
-/* ---------------------------------------------------------------------------
- * PA_INTERFACE — stream callbacks
- * -------------------------------------------------------------------------*/
-
-int PA_INTERFACE::paStreamCallback(
-    const void* /*input*/, void* output, const unsigned long frameCount,
-    const PaStreamCallbackTimeInfo* /*timeInfo*/, unsigned long /*statusFlags*/,
-    void* userData)
-{
-    PA_DATA_MEMORY* data        = static_cast<PA_DATA_MEMORY*>(userData);
-    const uint32_t  bytesNeeded = data->m_bytesPerSample * static_cast<uint32_t>(frameCount);
-    const uint32_t  totalBytes  = static_cast<uint32_t>(data->m_sample.size());
-    const uint32_t  remaining   = (data->m_index < totalBytes) ? (totalBytes - data->m_index) : 0u;
-    char*           out         = static_cast<char*>(output);
-
-    if (bytesNeeded <= remaining)
-    {
-        // Normal case: enough buffered data available
-        memcpy(out, &data->m_sample[data->m_index], bytesNeeded);
-        data->m_index += bytesNeeded;
-    }
-    else if (data->m_loop)
-    {
-        // Copy tail of buffer, wrap to front
-        if (remaining > 0)
-            memcpy(out, &data->m_sample[data->m_index], remaining);
-        data->m_index = 0;
-        uint32_t left = bytesNeeded - remaining;
-        if (left > totalBytes) left = totalBytes;
-        if (left > 0)
-            memcpy(out + remaining, &data->m_sample[0], left);
-        data->m_index = left;
-    }
-    else
-    {
-        // End of non-looping stream: copy what remains, pad with silence
-        if (remaining > 0)
-            memcpy(out, &data->m_sample[data->m_index], remaining);
-        const uint32_t pad = bytesNeeded - remaining;
-        if (pad > 0)
-        {
-            if (data->m_sampleFormat == paUInt8)
-                memset(out + remaining, 128, pad);
-            else
-                memset(out + remaining, 0, pad);
-        }
-        data->m_index = totalBytes;
-        if (data->m_volume < 1.0) data->adjustVolume(output, bytesNeeded, data->m_volume);
-        if (data->m_pan  != 0.0) data->applyPan(output, frameCount);
-        data->m_finished.store(true, std::memory_order_release);
-        return paComplete;
-    }
-
-    if (data->m_volume < 1.0) data->adjustVolume(output, bytesNeeded, data->m_volume);
-    if (data->m_pan  != 0.0) data->applyPan(output, frameCount);
-    return paContinue;
-}
-
-int PA_INTERFACE::paStreamCallbackFromFile(
-    const void* /*input*/, void* output, const unsigned long frameCount,
-    const PaStreamCallbackTimeInfo* /*timeInfo*/, unsigned long /*statusFlags*/,
-    void* userData)
-{
-    PA_DATA_FILE*  data        = static_cast<PA_DATA_FILE*>(userData);
-    const uint32_t bytesNeeded = data->m_bytesPerSample * static_cast<uint32_t>(frameCount);
-    char*          out         = static_cast<char*>(output);
-
-    size_t bytesRead = 0;
-    data->wave->ReadRaw(out, bytesNeeded, bytesRead);
-    data->m_bytesRead += static_cast<uint32_t>(bytesRead);
-
-    if (static_cast<uint32_t>(bytesRead) < bytesNeeded)
-    {
-        if (data->m_loop)
-        {
-            data->wave->ResetToStart();
-            data->m_bytesRead = 0;
-            const uint32_t deficit = bytesNeeded - static_cast<uint32_t>(bytesRead);
-            size_t bytesRead2 = 0;
-            data->wave->ReadRaw(out + bytesRead, deficit, bytesRead2);
-            data->m_bytesRead += static_cast<uint32_t>(bytesRead2);
-            if (bytesRead2 < deficit)
-                memset(out + bytesRead + bytesRead2, 0, deficit - bytesRead2);
-        }
-        else
-        {
-            // End of stream: pad with silence
-            const uint32_t pad = bytesNeeded - static_cast<uint32_t>(bytesRead);
-            memset(out + bytesRead, 0, pad);
-            if (data->m_volume < 1.0) data->adjustVolume(output, bytesNeeded, data->m_volume);
-            if (data->m_pan  != 0.0) data->applyPan(output, static_cast<uint32_t>(frameCount));
-            data->m_finished.store(true, std::memory_order_release);
-            return paComplete;
-        }
-    }
-
-    if (data->m_volume < 1.0) data->adjustVolume(output, bytesNeeded, data->m_volume);
-    if (data->m_pan  != 0.0) data->applyPan(output, static_cast<uint32_t>(frameCount));
-    return paContinue;
 }
 
 /* ---------------------------------------------------------------------------
@@ -467,10 +689,11 @@ bool PA_INTERFACE::play(bool bLoop)
 
 bool PA_INTERFACE::start()
 {
-    if (!m_data || !m_data->m_stream) return false;
+    if (!m_data || m_slotIndex < 0 || !PA_MIXER::instance().isInitialized()) return false;
     m_data->m_paused = false;
     m_data->m_finished.store(false, std::memory_order_release);
-    return Pa_StartStream(static_cast<PaStream*>(m_data->m_stream)) == paNoError;
+    PA_MIXER::instance().activate(m_slotIndex);
+    return true;
 }
 
 bool PA_INTERFACE::stop()
@@ -478,31 +701,19 @@ bool PA_INTERFACE::stop()
     if (!m_data) return true;
     m_data->m_paused = false;
     m_data->m_finished.store(false, std::memory_order_release);
-    if (m_data->m_stream &&
-        Pa_IsStreamStopped(static_cast<PaStream*>(m_data->m_stream)) == 0)
-    {
-        // Pa_AbortStream() discards the remaining hardware buffer and returns
-        // immediately. Pa_StopStream() would block until the buffer drains
-        // (~5-6ms per call on Windows WASAPI), causing frame drops when many
-        // short sounds (e.g. arrows) are played in the same frame.
-        Pa_AbortStream(static_cast<PaStream*>(m_data->m_stream));
-    }
-    m_data->setPosition(0.0);   // always rewind so next play() starts from beginning
+    if (m_slotIndex >= 0)
+        PA_MIXER::instance().deactivate(m_slotIndex);
+    m_data->setPosition(0.0);   // rewind so next play() starts from beginning
     return true;
 }
 
 bool PA_INTERFACE::pause()
 {
-    if (!m_data || m_data->m_paused) return false;
-    if (m_data->m_stream &&
-        Pa_IsStreamActive(static_cast<PaStream*>(m_data->m_stream)) > 0)
-    {
-        if (Pa_StopStream(static_cast<PaStream*>(m_data->m_stream)) != paNoError)
-            return false;
-        m_data->m_paused = true;
-        return true;
-    }
-    return false;
+    if (!m_data || m_data->m_paused || m_slotIndex < 0) return false;
+    if (!PA_MIXER::instance().isActive(m_slotIndex)) return false;
+    PA_MIXER::instance().deactivate(m_slotIndex);
+    m_data->m_paused = true;
+    return true;
 }
 
 void PA_INTERFACE::setPosition(const double pos)
@@ -522,8 +733,8 @@ void PA_INTERFACE::setLoop(const bool bLoop)
 
 bool PA_INTERFACE::isPlaying() const
 {
-    if (!m_data || m_data->m_paused || !m_data->m_stream) return false;
-    return Pa_IsStreamActive(static_cast<PaStream*>(m_data->m_stream)) > 0;
+    if (!m_data || m_data->m_paused || m_slotIndex < 0) return false;
+    return PA_MIXER::instance().isActive(m_slotIndex);
 }
 
 bool PA_INTERFACE::isPaused() const

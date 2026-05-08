@@ -7,9 +7,6 @@
 #include <WAVE.h>
 #include <stdint.h>
 
-struct PaStreamParameters;
-struct PaStreamCallbackTimeInfo;
-
 /*
  * Translate a WAVE format type + bits-per-channel to the matching PortAudio
  * PaSampleFormat constant.
@@ -25,8 +22,8 @@ struct PaStreamCallbackTimeInfo;
 uint32_t TranslateFormatType(uint16_t sampleFormat, uint16_t bitsPerChannel);
 
 /*
- * PA_DATA — base class holding per-stream state shared by both memory and
- *           file-backed playback variants.
+ * PA_DATA — base class holding per-source state for the global software mixer.
+ * No per-source PaStream is opened; all sources share one output stream.
  */
 class PA_DATA
 {
@@ -37,28 +34,28 @@ public:
     uint32_t            m_sampleRate;       // samples per second
     uint16_t            m_bytesPerSample;   // blockAlign = numChannels * bytesPerChannel
     uint32_t            m_durationMs;       // total duration in milliseconds
-    void*               m_stream;           // PaStream* (void* to avoid portaudio.h in header)
     bool                m_loop;
     bool                m_paused;
     double              m_volume;           // 0.0 - 1.0 linear
     double              m_pan;              // -1.0 (left) .. 0.0 (centre) .. +1.0 (right)
-    std::atomic<bool>   m_finished;         // set by callback thread when non-loop stream ends
-    PaStreamParameters* m_outputParameters;
+    std::atomic<bool>   m_finished;         // set by mixer when a non-loop stream ends
 
     PA_DATA(uint16_t numChannels, uint16_t sampleFormat, uint16_t bitsPerChannel,
             uint32_t sampleRate, uint16_t bytesPerSample,
             uint32_t dataLength, uint32_t bytesPerSecond);
-    virtual ~PA_DATA();
+    virtual ~PA_DATA() = default;
 
     virtual void   setPosition(double pos) = 0;
     virtual double getPosition()     const = 0;
 
-    /* Apply linear volume scaling to a rendered buffer.
-     * Operates on the correct sample type based on m_sampleFormat. */
-    void adjustVolume(void* data, uint32_t sizeInBytes, double volume);
+    /* Read exactly frameCount frames of raw PCM (m_bytesPerSample * frameCount
+     * bytes) into buf.  Handles looping and silence-padding at end of stream.
+     * Returns true when the stream ended (non-looping, data exhausted). */
+    virtual bool readFrames(void* buf, uint32_t frameCount) = 0;
 
-    /* Apply stereo panning using a linear left/right gain model.
-     * No-op for mono or when m_pan == 0.0. */
+    /* Legacy helpers retained for source compatibility; no longer called by
+     * the mixer (volume/pan are applied inline during float32 conversion). */
+    void adjustVolume(void* data, uint32_t sizeInBytes, double volume);
     void applyPan(void* data, uint32_t frames);
 };
 
@@ -79,6 +76,7 @@ public:
 
     void   setPosition(double pos) override;
     double getPosition()     const override;
+    bool   readFrames(void* buf, uint32_t frameCount) override;
 };
 
 /*
@@ -96,10 +94,16 @@ public:
 
     void   setPosition(double pos) override;
     double getPosition()     const override;
+    bool   readFrames(void* buf, uint32_t frameCount) override;
 };
 
 /*
- * PA_INTERFACE — PortAudio stream management.
+ * PA_INTERFACE — interface to the global software mixer.
+ *
+ * All PA_INTERFACE objects share a single PaStream (opened at first sound
+ * load).  play()/stop() just activate/deactivate a slot in the mixer with
+ * no OS audio calls — eliminating the per-sound ALSA stream overhead that
+ * causes frame drops when many short sounds play simultaneously.
  */
 class PA_INTERFACE
 {
@@ -125,30 +129,17 @@ public:
     int    getLength()    const;
 
 protected:
-    /* Open a memory-backed stream.  sampleFormat is the raw WAVE format type
-     * (1 = PCM, 3 = float); translation to PaSampleFormat happens inside
-     * PA_DATA's constructor using bitsPerChannel. */
+    /* Register a memory-backed source with the global mixer. */
     bool openStream(uint16_t numChannels, uint16_t sampleFormat, uint16_t bitsPerChannel,
                     uint32_t sampleRate, uint16_t bytesPerSample,
                     uint32_t dataLength, uint32_t bytesPerSecond,
                     std::vector<char>&& sample);
 
-    /* Open a file-streaming stream. */
+    /* Register a file-streaming source with the global mixer. */
     bool openStream(WaveFile* wave);
 
-    static bool  initialized;
-    PA_DATA*     m_data;
-
-private:
-    static int paStreamCallback(
-        const void* input, void* output, unsigned long frameCount,
-        const PaStreamCallbackTimeInfo* timeInfo, unsigned long statusFlags,
-        void* userData);
-
-    static int paStreamCallbackFromFile(
-        const void* input, void* output, unsigned long frameCount,
-        const PaStreamCallbackTimeInfo* timeInfo, unsigned long statusFlags,
-        void* userData);
+    PA_DATA*  m_data;
+    int       m_slotIndex;   // index into PA_MIXER slot array; -1 = not registered
 };
 
 #endif /* _PA_INTERFACE_H_ */
