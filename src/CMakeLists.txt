@@ -1354,6 +1354,9 @@ iconutil -c icns '${_ICONSET_DIR}' -o '${_MAC_CONTENTS}/Resources/${_MAC_NAME_SA
         message(STATUS "macOS assets dir  : ${GAME_ASSETS_DIR}")
         message(STATUS "macOS .app bundle : ${_MAC_APP_DIR}")
 
+        # Ensure packaging inputs exist before mini-mbm POST_BUILD steps run.
+        add_dependencies(mini-mbm distribution_exe distribution)
+
         # POST_BUILD: 1. copy engine binary
         add_custom_command(TARGET mini-mbm POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy
@@ -1375,7 +1378,6 @@ iconutil -c icns '${_ICONSET_DIR}' -o '${_MAC_CONTENTS}/Resources/${_MAC_NAME_SA
                 "${_MAC_CONTENTS}/Resources/assets/${_MAC_NAME_SAFE}.asset"
                 $<$<BOOL:${GAME_ASSETS_PASSWORD}>:--password>
                 $<$<BOOL:${GAME_ASSETS_PASSWORD}>:${GAME_ASSETS_PASSWORD}>
-            DEPENDS distribution_exe distribution
             COMMENT "macOS delivery: packing assets → .app/Contents/Resources/assets/${_MAC_NAME_SAFE}.asset")
 
         # macapp — synonym for building (just depends on mini-mbm)
