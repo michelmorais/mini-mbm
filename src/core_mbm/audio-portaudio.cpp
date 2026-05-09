@@ -18,145 +18,229 @@
 |-----------------------------------------------------------------------------------------------------------------------*/
 
 #if defined(AUDIO_ENGINE_PORT_AUDIO)
+
+#if defined(_WIN64)
+    #pragma comment(lib, "portaudio_x64.lib")
+#elif defined(_WIN32)
+    #pragma comment(lib, "portaudio_x86.lib")
+#endif
+
+
+
 #include <audio.h>
 #include <device.h>
 #include <core-manager.h>
 #include <util-interface.h>
+#include <pa-wave.h>
+#include <pa-ogg.h>
+#include <string>
+#include <cstring>
 
 
 namespace mbm
 {
-    AUDIO::AUDIO(const int newIdScene):AUDIO_INTERFACE(newIdScene),
-    onEndStreamCallBack(nullptr)
+    AUDIO::AUDIO(const int newIdScene) : AUDIO_INTERFACE(newIdScene),
+        onEndStreamCallBack(nullptr)
     {}
 
-    AUDIO::~AUDIO()
-    = default;
+    AUDIO::~AUDIO() = default;
 
-    bool AUDIO::setVolume(const float volume) 
+    bool AUDIO::load(const char* fileName, const bool bLoop, const bool inMemory)
     {
-        if(this->pa_wave)
+        bool found = false;
+        const char* fullPath = util::getFullPath(fileName, &found);
+        if (!found || !fullPath)
         {
-		    this->pa_wave->setVolume(volume);
-            return true;
+            ERROR_LOG("file not found: %s", fileName ? fileName : "null");
+            return false;
         }
-        return false;
-    }
-    bool AUDIO::pause() 
-	{
-        if(this->pa_wave)
-            return this->pa_wave->pause();
-        return false;
-	}
-    bool AUDIO::resume() 
-	{
-        if(this->pa_wave)
-		    return this->pa_wave->start();
-        return false;
-	}
-    bool AUDIO::play(const bool bLoop)
-    {
-        return this->pa_wave && this->pa_wave->play(bLoop);
-    }
-    bool AUDIO::load(const char * fileName,const bool bLoop, const bool inMemory)
-    {
-        bool ret = false;
-        const char *    cfileName = util::getFullPath(fileName,&ret);
-        if(ret)
+
+        const std::string path(fullPath);
+
+        // Determine format by extension (case-insensitive last 4 chars)
+        const size_t dotPos = path.rfind('.');
+        bool isOgg = false;
+        if (dotPos != std::string::npos)
         {
-            this->pa_wave = std::make_unique<PA_WAVE>();
-            const std::string file_Name(cfileName ? cfileName : "");
-            ret = this->pa_wave->load(file_Name,inMemory);
-            if(ret)
-                this->pa_wave->setLoop(bLoop);
-            else
-                this->pa_wave.reset(nullptr);
+            std::string ext = path.substr(dotPos + 1);
+            for (char& c : ext) c = static_cast<char>(c | 0x20); // to lower
+            isOgg = (ext == "ogg" || ext == "oga");
+        }
+
+        bool ret = false;
+        if (isOgg)
+        {
+            auto ogg = std::make_unique<PA_OGG>();
+            ret = ogg->load(path);
+            if (ret)
+            {
+                ogg->setLoop(bLoop);
+                this->pa_audio = std::move(ogg);
+            }
         }
         else
         {
-            ERROR_LOG("file name not found:%s",cfileName ? cfileName : "null");
+            auto wav = std::make_unique<PA_WAVE>();
+            ret = wav->load(path, inMemory);
+            if (ret)
+            {
+                wav->setLoop(bLoop);
+                this->pa_audio = std::move(wav);
+            }
         }
+
+        if (!ret)
+            this->pa_audio.reset();
+        else
+            this->fileName = path;
+
         return ret;
     }
+
+    bool AUDIO::play(const bool bLoop)
+    {
+        if (!this->pa_audio) return false;
+        if (this->pa_audio->play(bLoop))
+        {
+            state = AUDIO_PLAYING;
+            return true;
+        }
+        return false;
+    }
+
     bool AUDIO::stop()
     {
-		return this->pa_wave && this->pa_wave->stop();
-    }
-    bool AUDIO::setPan(const float)
-    {
-		ERROR_AT(__LINE__,__FILE__,"AUDIO::setPan not implemented");
+        if (!this->pa_audio) return false;
+        if (this->pa_audio->stop())
+        {
+            state = AUDIO_STOPPED;
+            return true;
+        }
         return false;
     }
+
+    bool AUDIO::pause()
+    {
+        if (!this->pa_audio) return false;
+        if (this->pa_audio->pause())
+        {
+            state = AUDIO_PAUSED;
+            return true;
+        }
+        return false;
+    }
+
+    bool AUDIO::resume()
+    {
+        if (!this->pa_audio || state != AUDIO_PAUSED) return false;
+        if (this->pa_audio->start())
+        {
+            state = AUDIO_PLAYING;
+            return true;
+        }
+        return false;
+    }
+
+    bool AUDIO::setVolume(const float volume)
+    {
+        if (!this->pa_audio) return false;
+        this->pa_audio->setVolume(static_cast<double>(volume));
+        return true;
+    }
+
+    bool AUDIO::setPan(const float pan)
+    {
+        if (!this->pa_audio) return false;
+        this->pa_audio->setPan(static_cast<double>(pan));
+        return true;
+    }
+
     bool AUDIO::setPitch(const float)
     {
-		ERROR_AT(__LINE__,__FILE__,"AUDIO::setPitch not implemented");
+        INFO_LOG("AUDIO::setPitch not supported by the PortAudio backend (resampling required)");
         return false;
     }
-    bool AUDIO::setPosition(const int position)
+
+    bool AUDIO::setPosition(const int positionMs)
     {
-        if(this->pa_wave)
-        {
-		    this->pa_wave->setPosition(position);
-            return true;
-        }
-        return false;
+        if (!this->pa_audio) return false;
+        const int len = this->pa_audio->getLength();
+        if (len <= 0) return false;
+        const double pos = static_cast<double>(positionMs) / static_cast<double>(len);
+        this->pa_audio->setPosition(pos);
+        return true;
     }
+
     bool AUDIO::isPlaying()
     {
-        return this->pa_wave->isPlaying();
+        if (!this->pa_audio) return false;
+        // m_finished is polled in AUDIO_MANAGER::update(); just query the stream state here
+        if (state != AUDIO_PLAYING) return false;
+        if (!this->pa_audio->isPlaying() && !this->pa_audio->isPaused())
+        {
+            state = AUDIO_STOPPED;
+            return false;
+        }
+        return !this->pa_audio->isPaused();
     }
+
     bool AUDIO::isPaused()
     {
-        return this->pa_wave && this->pa_wave->isPlaying() == false;
+        return this->pa_audio && this->pa_audio->isPaused();
     }
+
     float AUDIO::getVolume()
     {
-        return this->pa_wave->getVolume();
+        return this->pa_audio ? static_cast<float>(this->pa_audio->getVolume()) : 0.0f;
     }
+
     float AUDIO::getPan()
     {
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::getPan not implemented");
-        return false;
+        return this->pa_audio ? static_cast<float>(this->pa_audio->getPan()) : 0.0f;
     }
+
     float AUDIO::getPitch()
     {
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::getPitch not implemented");
-        return false;
+        return 1.0f;  // pitch not supported; return neutral value
     }
-    bool AUDIO::reset()
-    {
-        if(this->pa_wave)
-        {
-            this->pa_wave->setPosition(0);
-            return true;
-        }
-        return false;
-    }
+
     int AUDIO::getLength()
     {
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::getLength not implemented");
-        return false;
+        return this->pa_audio ? this->pa_audio->getLength() : 0;
     }
-    
-	bool AUDIO::isLoaded()
-	{
-		return this->pa_wave != nullptr;
-	}
 
-    void AUDIO::setOnEndstream(OnEndStreamCallBack ptrOnEndStreamCallBack)
+    bool AUDIO::reset()
     {
-        this->onEndStreamCallBack = ptrOnEndStreamCallBack;
-        ERROR_AT(__LINE__,__FILE__,"AUDIO::setOnEndstream not implemented");
+        if (!this->pa_audio) return false;
+        this->pa_audio->setPosition(0.0);
+        return true;
     }
 
-    const char* AUDIO_ENGINE_version()
-	{
-		return PA_version();
-	}
+    bool AUDIO::isLoaded()
+    {
+        return this->pa_audio != nullptr;
+    }
+
+    void AUDIO::setOnEndstream(OnEndStreamCallBack cb)
+    {
+        this->onEndStreamCallBack = cb;
+        // The callback fires from AUDIO_MANAGER::update() on the main thread
+        // when pa_audio->isFinished() becomes true (set by the PortAudio callback thread).
+    }
+
+    AUDIO::OnEndStreamCallBack AUDIO::getOnEndstream() const
+    {
+        return this->onEndStreamCallBack;
+    }
 
     const char* AUDIO::getFileName() const noexcept
     {
         return this->fileName.c_str();
+    }
+
+    const char* AUDIO_ENGINE_version()
+    {
+        return PA_version();
     }
 }
 

@@ -94,18 +94,10 @@ copy /y "%EXE_SRC%" "%EXE_DST%" >nul
 rem ── Copy runtime DLLs ───────────────────────────────────────────────────────
 echo  Copying runtime DLLs...
 
-rem Detect bitness from binary output folder name (x64 vs win32/windows_x86)
-echo %BIN_DIR% | find /i "x64" >nul
-if %errorlevel%==0 (
-    set "AUDIERE_DLL=%ENGINE_ROOT%\third-party\audiere-1.9.4\bin\x64\audiere.dll"
-) else (
-    set "AUDIERE_DLL=%ENGINE_ROOT%\third-party\audiere-1.9.4\bin\audiere.dll"
-)
 set "D3D_DLL=%ENGINE_ROOT%\third-party\gles\bin\d3dcompiler_47.dll"
 set "EGL_DLL=%ENGINE_ROOT%\third-party\gles\bin\libEGL.dll"
 set "GLES_DLL=%ENGINE_ROOT%\third-party\gles\bin\libGLESv2.dll"
 
-if exist "%AUDIERE_DLL%"  copy /y "%AUDIERE_DLL%"  "%GAMEDIR%\" >nul
 rem Copy both DirectX and OpenGL ES DLLs so the package works with either backend
 if exist "%D3D_DLL%"      copy /y "%D3D_DLL%"      "%GAMEDIR%\" >nul
 if exist "%EGL_DLL%"      copy /y "%EGL_DLL%"      "%GAMEDIR%\" >nul
@@ -114,12 +106,10 @@ if exist "%GLES_DLL%"     copy /y "%GLES_DLL%"     "%GAMEDIR%\" >nul
 rem ── Copy plugin DLLs from bin output ────────────────────────────────────────
 echo  Copying plugin DLLs from %BIN_DIR%...
 for %%F in ("%BIN_DIR%\*.dll") do (
-    if /i not "%%~nxF"=="audiere.dll" (
-        if /i not "%%~nxF"=="d3dcompiler_47.dll" (
-            if /i not "%%~nxF"=="libEGL.dll" (
-                if /i not "%%~nxF"=="libGLESv2.dll" (
-                    copy /y "%%F" "%GAMEDIR%\" >nul
-                )
+    if /i not "%%~nxF"=="d3dcompiler_47.dll" (
+        if /i not "%%~nxF"=="libEGL.dll" (
+            if /i not "%%~nxF"=="libGLESv2.dll" (
+                copy /y "%%F" "%GAMEDIR%\" >nul
             )
         )
     )

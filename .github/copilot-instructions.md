@@ -6,7 +6,7 @@ Mini MBM is a **lightweight, cross-platform 2D/3D game engine** written in C++17
 
 Key features:
 - Multiple render backends: **OpenGL ES** (Linux/Android/macOS fallback), **DirectX 9** (Windows), **Metal** (macOS/iOS)
-- Audio backends: **Audiere** (Linux/Windows, bundled), **PortAudio** (Linux), **AVFoundation** (macOS/iOS), **OpenSL** (Android)
+- Audio backends: **PortAudio** (Linux/Windows), **AVFoundation** (macOS/iOS), **OpenSL** (Android)
 - Asset types: sprite (`.spt`), mesh (`.mbm`), texture, GIF, background, font, particle, tile map, shape mesh, line mesh, render-to-texture, HMD/VR
 - Plugin architecture — optional features compiled as shared libraries loaded at runtime
 - Lua 5.4 scripting with the `mbm` namespace; ImGui-based editor tools written in Lua
@@ -36,7 +36,7 @@ mingw32-make -j...        # Windows MinGW
 | `-DUSE_ALL=1` | Enable all features (Lua + all plugins + editors) |
 | `-DUSE_LUA=1` | Embed Lua 5.4 scripting |
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
-| `-DAUDIO=audiere\|portaudio\|avfoundation\|opensl\|none` | Audio backend |
+| `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | Compatibility for mesh files ≤ v7 |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 2.3.1 fluid physics plugin |
@@ -97,7 +97,7 @@ mini-mbm/
 │   └── tiled/                Tiled-map plugin with tile_editor
 ├── editor/                   Lua-based editor tools (scene_editor2d, sprite_maker, shader_editor…)
 ├── modules/                  Dynamically-loadable Lua modules (tiny_obj_loader, …)
-├── third-party/              Bundled third-party libraries (lua-5.4.1, audiere, bullet, box2d, stb…)
+├── third-party/              Bundled third-party libraries (lua-5.4.1, bullet, box2d, stb…)
 ├── bin/                      Built executables (debug/ or release/ subdirs)
 └── libs/                     Built static libraries (debug/ or release/ subdirs)
 ```
@@ -366,8 +366,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 | Library | Version | Use |
 |---|---|---|
 | lua | 5.4.1 | Scripting engine |
-| audiere | 1.9.4 | Audio (Linux/Windows) |
-| portaudio | — | Audio (Linux alternative) |
+| portaudio | — | Audio (Linux/Windows) |
 | box2d | 2.4.1 | 2D physics |
 | box2d-liquid-fun | 2.3.1 | 2D fluid simulation |
 | bullet | 2.84 | 3D physics |
@@ -388,7 +387,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ### Linux
 - Requires: `libx11-dev`, `libgles2-mesa-dev`, `libegl1-mesa-dev`
 - Optional: `portaudio19-dev` (if `-DAUDIO=portaudio`)
-- Default audio: `-DAUDIO=audiere`
+- Default audio: `-DAUDIO=portaudio`
 
 ### macOS
 - Requires: Xcode CLI tools (`xcode-select --install`), CMake via Homebrew
@@ -411,7 +410,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ### Windows (Visual Studio)
 - Solution: `platform-msvs/mini-mbm.sln`, no CMake needed
 - Key projects: `mini_mbm` (exe), `mini-mbm-lib` (launcher lib), `core_mbm` (engine lib), `lua5.4`, `lsqlite3`, `ImGui`, `box2d`, `box2dLiquidFun`, `bullet3d`
-- CMake + MinGW also supported; audio: `-DAUDIO=audiere`
+- CMake + MinGW also supported; audio: `-DAUDIO=portaudio`
 
 ---
 

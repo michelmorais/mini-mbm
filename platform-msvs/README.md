@@ -178,9 +178,9 @@ toolchain into whichever environment you need:
 
 | Environment | Architecture | Runtime | Recommended for |
 |---|---|---|---|
-| `mingw32` | **32-bit (i686)** | `msvcrt` | **Recommended** — matches VS Win32, audiere works |
-| `mingw64` | 64-bit (x86_64) | `msvcrt` | 64-bit builds with dsound audio |
-| `ucrt64` | 64-bit (x86_64) | UCRT (Win 10+) | 64-bit modern builds with dsound audio |
+| `mingw32` | **32-bit (i686)** | `msvcrt` | Fully supported |
+| `mingw64` | 64-bit (x86_64) | `msvcrt` | 64-bit builds |
+| `ucrt64` | 64-bit (x86_64) | UCRT (Win 10+) | 64-bit modern builds |
 
 ```bash
 # mingw32 environment (32-bit — recommended)
@@ -246,20 +246,9 @@ will succeed.
 mkdir build
 cd build
 
-rem 32-bit build (recommended — use mingw32 environment, set PATH=C:\msys64\mingw32\bin;%PATH%)
+rem Build (portaudio is the default audio backend for Windows)
 cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=audiere ^
-    -DCMAKE_BUILD_TYPE=Release ^
-    -DUSE_DIRECTX9=1 ^
-    -DGAME_NAME="Tower Defense Monster" ^
-    -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
-    -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
-
-rem 64-bit build (use mingw64 or ucrt64 environment — audiere not available for x64)
-rem   -DAUDIO=dsound
-
-cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_DIRECTX9=1 ^
     -DGAME_NAME="Tower Defense Monster" ^
@@ -372,7 +361,7 @@ step if the required tool is available:
 <repo-root>\
     Tower_Defense_Monster.GameDir\      ← always produced
         Tower_Defense_Monster.exe
-        audiere.dll  d3dcompiler_47.dll  ...  (runtime + plugin DLLs)
+        d3dcompiler_47.dll  ...  (runtime + plugin DLLs)
         Tower_Defense_Monster.ico
         launch.bat
         assets\
@@ -392,7 +381,7 @@ All three installers perform a **per-user install** (no UAC prompt):
 
 1. Reads the built `mini-mbm.exe` from `bin\debug|release\windows_x86\`
 2. Renames it to `<GameName>.exe` inside `<GameName>.GameDir\`
-3. Copies runtime DLLs from `third-party\` (audiere, d3dcompiler, libEGL/libGLESv2)
+3. Copies runtime DLLs from `third-party\` (d3dcompiler, libEGL/libGLESv2)
 4. Copies plugin DLLs from the bin output directory
 5. Copies game assets to `GameDir\assets\`
 6. Writes `launch.bat` (sets `GAME_SAVE_DIR=%APPDATA%\<GameName>\`)

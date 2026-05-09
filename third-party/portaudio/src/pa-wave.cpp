@@ -1,4 +1,6 @@
 
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
+
 #include <pa-wave.h>
 #include <portaudio.h>
 
@@ -18,20 +20,23 @@ bool PA_WAVE::load(const std::string & fileName,const bool in_memory)
         return false;
     }
     bool ret = false;
-    const unsigned long bufferSize = this->GetDataLength();
+    const unsigned long dataLength = this->GetDataLength();
     size_t iTotalRead = 0;
     if(in_memory)
     {
         std::vector<char> sample;
-        sample.reserve(bufferSize);
-        sample.resize(bufferSize);
-        if(this->ReadRaw(sample.data(),bufferSize,iTotalRead))
+        sample.reserve(dataLength);
+        sample.resize(dataLength);
+        if(this->ReadRaw(sample.data(),dataLength,iTotalRead))
         {
             ret = openStream(this->GetNumChannels(),
-                            TranslateFormatType(this->GetFormatType()),
-                            this->GetSampleRate(),
-                            this->GetBytesPerSample(),
-                            std::move(sample));
+                             this->GetFormatType(),
+                             this->GetBitsPerChannel(),
+                             this->GetSampleRate(),
+                             this->GetBytesPerSample(),
+                             this->GetDataLength(),
+                             this->GetBytesPerSecond(),
+                             std::move(sample));
         }
     }
     else
@@ -42,15 +47,14 @@ bool PA_WAVE::load(const std::string & fileName,const bool in_memory)
 }
 bool PA_WAVE::play(bool bLoop)
 {
-    if (start())
-    {
-    	setLoop(bLoop);
-        return true;
-    }
-    return false;
+    stop();        // rewind + stop any active stream before starting
+    setLoop(bLoop);
+    return start();
 }
 
 const char* PA_version()
 {
     return Pa_GetVersionText();
 }
+
+#endif

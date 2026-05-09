@@ -79,7 +79,7 @@ This section gets you from zero to a running application in minutes. Choose **Lu
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug
 make -j8;
 ```
 
@@ -129,7 +129,7 @@ Or launch the engine without arguments — a **launcher dialog** will appear whe
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -249,7 +249,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
-| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio (Linux), Audiere/DirectSound8 (Windows), OpenSL ES (Android) |
+| **Audio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis with software mixer (Linux and Windows), OpenSL ES (Android) |
 | **GUI** | Dear ImGui plugin with Lua bindings — powers all built-in editors |
 | **Editors** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Platforms** | Windows, Linux, macOS, Android, iOS |
@@ -387,8 +387,7 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|
 | macOS | AVFoundation | `-DAUDIO=avfoundation` |
 | Linux | PortAudio | `-DAUDIO=portaudio` |
-| Windows (x86 32-bit) | Audiere | `-DAUDIO=audiere` |
-| Windows (x64 64-bit) | DirectSound 8 | `-DAUDIO=dsound` |
+| Windows | PortAudio | `-DAUDIO=portaudio` |
 | Android | OpenSL ES | `-DAUDIO=opensl` |
 | All | None (silent) | `-DAUDIO=none` |
 
@@ -398,19 +397,19 @@ The audio backend is selected at **compile time** via the `-DAUDIO=<backend>` CM
 |---|---|---|---|---|---|
 | **WAV** | ✅ Recommended | ✅ Recommended | ✅ Recommended | ✅ | Uncompressed PCM. Zero decode latency. Best for sound effects. |
 | **AIFF / CAF / AU** | ✅ | ❌ | ❌ | ❌ | Decoded natively by AVFoundation. |
-| **MP3** | ✅ | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ | Hardware-decoded on macOS. |
+| **MP3** | ✅ | ❌ | ❌ | ✅ | Hardware-decoded on macOS. |
 | **AAC / M4A** | ✅ | ❌ | ❌ | ✅ | Recommended for long background music on macOS/Android. |
-| **FLAC** | ✅ (macOS 10.13+) | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ❌ | |
-| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ Recommended | `.ogg` container with Vorbis codec. |
-| **OGG Opus** | ⚠️ Falls back to `.wav` | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ✅ | macOS auto-retries with same name + `.wav` extension. |
-| **MOD / S3M / XM / IT** | ❌ | ✅ (via Audiere) | ✅ x86 (via Audiere) / ❌ x64 | ❌ | Tracker music formats. |
+| **FLAC** | ✅ (macOS 10.13+) | ❌ | ❌ | ❌ | |
+| **OGG Vorbis** | ✅ (via stb_vorbis) | ✅ (via stb_vorbis) | ✅ (via stb_vorbis + PortAudio) | ✅ Recommended | `.ogg` container with Vorbis codec. |
+| **OGG Opus** | ⚠️ Falls back to `.wav` | ❌ | ❌ | ✅ | macOS auto-retries with same name + `.wav` extension. |
+| **MOD / S3M / XM / IT** | ❌ | ❌ | ❌ | ❌ | Tracker music formats — not supported. |
 
 ### Recommended Format per Platform
 
 | Use case | macOS | Linux | Windows | Android |
 |---|---|---|---|---|
 | **Sound effects** (short, frequent) | `.wav` | `.wav` | `.wav` | `.ogg` (Vorbis) |
-| **Background music** (long) | `.aac` / `.m4a` | `.ogg` (Vorbis) | `.ogg` x86 / `.wav` x64 | `.ogg` (Vorbis) |
+| **Background music** (long) | `.aac` / `.m4a` | `.ogg` (Vorbis) | `.ogg` (both x86 and x64 via PortAudio) | `.ogg` (Vorbis) |
 | **Cross-platform single file** | `.wav` | `.wav` | `.wav` | `.wav` |
 
 > **macOS + OGG Opus:** Android tooling often exports `.ogg` files encoded with the Opus codec. AVFoundation and stb_vorbis do not support Opus. The engine automatically detects OGG Opus files (by reading the `OpusHead` stream header) and falls back to a `.wav` file with the same base name in the same directory. Keep both `.ogg` and `.wav` versions of your sounds to stay compatible with both Android and macOS.
@@ -722,16 +721,16 @@ cd mini-mbm
 
 # Minimal build (C++ only, no Lua)
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 
 # Full-featured build (Lua + all plugins + editors)
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=audiere -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
 make -j$(nproc)
 
 # Release build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=audiere
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=portaudio
 make -j$(nproc)
 
 # On Mac (Metal + AVFoundation audio is default)
@@ -944,7 +943,7 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
 | `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
 | `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
-| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux default), `audiere`, `opensl` (Android), or `none` |
+| `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux/Windows default), `opensl` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
 
 > On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
@@ -1009,9 +1008,8 @@ mini-mbm/
 | [LiquidFun](https://google.github.io/liquidfun/) | 2.3.1 | 2D fluid simulation (Box2D extension) |
 | [Bullet](https://pybullet.org/) | 2.84 | 3D physics engine |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | Immediate-mode GUI |
-| [Audiere](https://audiere.sourceforge.net/) | 1.9.4 | Audio engine (Windows) |
-| [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux) |
-| [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) | — | OGG/Vorbis decoder (macOS AVFoundation path) |
+| [PortAudio](http://www.portaudio.com/) | — | Cross-platform audio I/O (Linux and Windows). Uses a single shared output stream with a software mixer — all sounds share one OS audio stream for low overhead even with many simultaneous effects. |
+| [stb_vorbis](https://github.com/nothings/stb/blob/master/stb_vorbis.c) | — | OGG/Vorbis decoder (macOS AVFoundation path and Linux PortAudio path) |
 | [lSQLite3](http://lua.sqlite.org/) | — | SQLite3 Lua bindings (asset packaging) |
 | [lodepng](https://lodev.org/lodepng/) | — | PNG encoding/decoding |
 | [stb](https://github.com/nothings/stb) | — | stb\_image (image loading), stb\_truetype (TTF rasterization) |
@@ -1096,7 +1094,7 @@ Esta seção leva você do zero a uma aplicação rodando em minutos. Escolha **
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=audiere
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -1146,7 +1144,7 @@ Ou lance o motor sem argumentos — uma **janela de seleção** aparecerá onde 
 
 ```bash
 mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
+cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -1200,7 +1198,7 @@ int main() {
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
-| **Áudio** | Multi-backend: PortAudio (Linux), Audiere / DirectSound8 (Windows), OpenSL ES (Android) |
+| **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
 | **Plataformas** | Windows, Linux, macOS, Android |
@@ -1466,8 +1464,7 @@ Consulte a [seção em inglês](#project-structure) acima para a estrutura compl
 | [LiquidFun](https://google.github.io/liquidfun/) | 2.3.1 | Simulação de fluidos 2D |
 | [Bullet](https://pybullet.org/) | 2.84 | Motor de física 3D |
 | [Dear ImGui](https://github.com/ocornut/imgui) | — | GUI de modo imediato |
-| [Audiere](https://audiere.sourceforge.net/) | 1.9.4 | Motor de áudio (Windows) |
-| [PortAudio](http://www.portaudio.com/) | — | I/O de áudio multiplataforma (Linux) |
+| [PortAudio](http://www.portaudio.com/) | — | I/O de áudio multiplataforma (Linux e Windows). Utiliza uma única stream de saída com um mixer por software — todos os sons compartilham uma stream de áudio do sistema operacional, ideal para jogos com muitos efeitos simultâneos. |
 | [lSQLite3](http://lua.sqlite.org/) | — | Bindings Lua para SQLite3 |
 | [lodepng](https://lodev.org/lodepng/) | — | Codificação/decodificação PNG |
 | [stb](https://github.com/nothings/stb) | — | Carregamento de imagens e rasterização de fontes TTF |

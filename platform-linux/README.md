@@ -13,14 +13,11 @@ sudo apt-get install \
     libx11-dev \
     libgles2-mesa-dev \
     libegl1-mesa-dev \
-    portaudio19-dev       # required only for -DAUDIO=portaudio
+    portaudio19-dev       # required for audio (-DAUDIO=portaudio is the default)
 ```
 
 CMake ≥ 3.25.1 is required. If your distro ships an older version, install it from
 [cmake.org](https://cmake.org/download/) or via `pip install cmake`.
-
-The **Audiere** audio backend (`-DAUDIO=audiere`) is bundled in
-`third-party/audiere-1.9.4/` and does not require a system package.
 
 ---
 
@@ -37,7 +34,7 @@ cd mini-mbm
 
 ```sh
 mkdir -p build/linux_debug && cd build/linux_debug
-cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=audiere
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -49,7 +46,7 @@ cmake ../.. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=audiere \
+    -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
 make -j$(nproc)
@@ -67,7 +64,7 @@ cmake ../.. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
-    -DAUDIO=audiere \
+    -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
@@ -104,8 +101,7 @@ assets at their default relative paths:
 
 | Backend | CMake flag | Notes |
 |---|---|---|
-| **Audiere** | `-DAUDIO=audiere` | Bundled in `third-party/audiere-1.9.4/`. Supports OGG, MP3, WAV, FLAC, and tracker formats. Recommended default on Linux. |
-| **PortAudio** | `-DAUDIO=portaudio` | Bundled in `third-party/portaudio/`. Requires `portaudio19-dev`. Lower latency for WAV playback. |
+| **PortAudio** | `-DAUDIO=portaudio` | System library (`portaudio19-dev`). Supports **WAV and OGG** (Vorbis decoded via stb_vorbis). Default and only supported audio backend on Linux. Uses a single shared output stream with a **software mixer** — all loaded sounds share one ALSA PCM stream, so playing many simultaneous effects (explosions, arrows, etc.) has near-zero overhead. Supports sources at any sample rate (22050, 44100, 48000 Hz, etc.) with automatic nearest-neighbour resampling to the mixer's output rate. Up to 128 sounds can be loaded simultaneously. |
 | **None** | `-DAUDIO=none` | Silent build — no audio dependency required. |
 
 ---
@@ -132,7 +128,7 @@ sudo update-alternatives --set c++ /usr/bin/clang++
 
 # Rebuild with a fresh build directory
 mkdir -p build/linux_clang && cd build/linux_clang
-cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=audiere -DCMAKE_BUILD_TYPE=Debug
+cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug
 make -j$(nproc)
 ```
 
@@ -142,7 +138,7 @@ Or pass the compiler directly without touching system alternatives:
 cmake ../.. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
-    -DAUDIO=audiere \
+    -DAUDIO=portaudio \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_BUILD_TYPE=Debug
@@ -377,7 +373,7 @@ squashfs-root/
     ├── bin/
     │   └── mini-mbm                ← engine binary
     └── lib/
-        ├── libaudiere-1.10.1.so
+        ├── libportaudio.so.2
         ├── libcore_mbm.so
         ├── liblua-5.4.1.so
         ├── plugin_helper.so

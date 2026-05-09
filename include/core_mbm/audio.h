@@ -25,13 +25,8 @@
 #include <string>
 #include <vector>
 
-#if defined(AUDIO_ENGINE_AUDIERE)
-		#include <audiere-1.9.4/src/audiere.h>
-		#if defined(_WIN32)
-			#pragma comment(lib, "audiere.lib")
-		#endif
-#elif defined(AUDIO_ENGINE_PORT_AUDIO)
-		#include <pa-wave.h>
+#if defined(AUDIO_ENGINE_PORT_AUDIO)
+		#include <pa-audio-interface.h>
 		#include <memory>
 #elif defined(AUDIO_ENGINE_AVFOUNDATION)
 		#include <memory>
@@ -77,10 +72,8 @@ namespace mbm
 		API_IMPL OnEndStreamCallBack getOnEndstream() const;
 		API_IMPL const char* getFileName() const noexcept override;
         OnEndStreamCallBack onEndStreamCallBack;
-	#if defined(AUDIO_ENGINE_AUDIERE) //  AUDIO_ENGINE_AUDIERE ------------------------------------------------------------
-		audiere::OutputStreamPtr sound;
-	#elif defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
-		std::unique_ptr<PA_WAVE> pa_wave;
+	#if defined (AUDIO_ENGINE_PORT_AUDIO) //  AUDIO_ENGINE_PORT_AUDIO -----------------------------------------------------
+		std::unique_ptr<PA_INTERFACE> pa_audio;
 	#elif defined(AUDIO_ENGINE_ANDROID_OPENSL) //  AUDIO_ENGINE_ANDROID_OPENSL -----------------------------------------------
 		void* oslPlayer = nullptr; // OSLPlayer*, defined in audio-opensl-android.cpp
 	#elif defined(AUDIO_ENGINE_AVFOUNDATION) //  AUDIO_ENGINE_AVFOUNDATION ---------------------------------------------------
@@ -130,15 +123,7 @@ namespace mbm
 		std::vector<AUDIO*> audios;
 		std::vector<AUDIO*> audiosToDelete;
 	public:
-#if defined(AUDIO_ENGINE_AUDIERE)
-		class STOP_AUDIERE : public audiere::RefImplementation<audiere::StopCallback>
-		{
-			void ADR_CALL streamStopped(audiere::StopEvent *eventStoped);
-		};
-
-		static audiere::AudioDevicePtr	audioDevice;
-
-#elif defined(AUDIO_ENGINE_DIRECT_SOUND_8)
+#if defined(AUDIO_ENGINE_DIRECT_SOUND_8)
 		LPDIRECTSOUND8		m_directSound; //for DSBCAPS_CTRL3D , DSBCAPS_PRIMARYBUFFER  must be present and must be used with LPDIRECTSOUND instead of LPDIRECTSOUND8
 #endif
 	};

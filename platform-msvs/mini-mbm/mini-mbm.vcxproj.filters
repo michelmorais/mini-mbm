@@ -19,10 +19,7 @@
     <Filter Include="Header Files\tinyfiledialogs">
       <UniqueIdentifier>{d87f23ab-8f43-4c4f-89ac-c15aaf021f6b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\audiere-1.9.4">
-      <UniqueIdentifier>{7bdc2625-3e65-4f1c-a064-34d79eeef707}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\src">
+        <Filter Include="Source Files\src">
       <UniqueIdentifier>{7ef09be2-030f-41d1-bf15-ee8538f41db7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files\lua-wrap">
@@ -265,9 +262,6 @@
     </ClInclude>
     <ClInclude Include="..\..\third-party\lua-5.4.1\ljumptab.h">
       <Filter>Header Files\lua</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\audiere-1.9.4\src\audiere.h">
-      <Filter>Header Files\audiere-1.9.4</Filter>
     </ClInclude>
     <ClInclude Include="..\..\include\version\version.h">
       <Filter>Header Files</Filter>

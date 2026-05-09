@@ -42,11 +42,11 @@ See [platform file lists](./references/platform-files.md) for the exact files ea
 
 | Platform | PLAT= | ENGINE_TARGET_PLATFORM | Output type | Render | Audio | VR |
 |---|---|---|---|---|---|---|
-| Linux | `Linux` | `Linux` | `add_executable` | OpenGL ES | audiere / portaudio | on |
+| Linux | `Linux` | `Linux` | `add_executable` | OpenGL ES | portaudio | on |
 | macOS | `MacOs` | `MacOs` | `add_executable` | Metal | AVFoundation | on |
 | Android | `Android` | `Android` | `add_library SHARED` | OpenGL ES | OpenSL | off |
 | iOS | `iOS` | `iOS` | `add_executable` (bundle) | Metal | AVFoundation | off |
-| Windows | `Windows` | `Windows` | `add_executable` | DirectX 9 | audiere | on |
+| Windows | `Windows` | `Windows` | `add_executable` | DirectX 9 | portaudio | on |
 
 ### Extra link libraries per platform
 
@@ -146,7 +146,7 @@ elseif(PLAT_LOWER STREQUAL "newplat")
 
     # Audio default
     if(NOT AUDIO)
-        set(AUDIO audiere)                          # choose: audiere|portaudio|avfoundation|opensl|none
+        set(AUDIO portaudio)                        # choose: portaudio|avfoundation|opensl|none
     endif()
 
     # Optional platform defines
