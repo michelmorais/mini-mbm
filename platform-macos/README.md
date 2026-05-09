@@ -430,7 +430,7 @@ cmake ~/mini-mbm \
    ID and app name substituted.
 3. Sets `MACOSX_BUNDLE TRUE` and all required `XCODE_ATTRIBUTE_*` properties
    (code-sign entitlements, `INSTALL_PATH`, `SKIP_INSTALL NO`, deployment target
-   10.14, App Icon asset catalog name).
+   12.0, App Icon asset catalog name).
 4. Copies all files from `GAME_ASSETS_DIR` into
    `Contents/Resources/assets/` (preserving directory structure).
 5. Runs `sips` to generate all required macOS icon sizes and writes an

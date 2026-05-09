@@ -1469,8 +1469,19 @@ echo '--- DMG ready: '\"\$DMG\"
             XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
             XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS         "platform-macos/mini-mbm.entitlements"
             XCODE_ATTRIBUTE_CODE_SIGN_STYLE                "Automatic"
-            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "10.14"
+            # macOS 12.0 is required to submit an arm64-only binary to the Mac
+            # App Store. With a lower deployment target Apple rejects the upload
+            # unless a universal (arm64 + x86_64) binary is provided.
+            # macOS 12.0 (Monterey) was released October 2021 and covers all
+            # Apple Silicon and modern Intel Macs — a safe floor for new submissions.
+            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "12.0"
             XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+            # Reset CONFIGURATION_BUILD_DIR to the Xcode default so that the
+            # .dSYM bundle lands beside the .app in the archive SYMROOT rather
+            # than in the custom bin/ output path that CMake sets globally.
+            # Without this the archive's dSYMs/ folder is empty and App Store
+            # Connect rejects the upload with a "missing dSYM UUID" error.
+            XCODE_ATTRIBUTE_CONFIGURATION_BUILD_DIR        "$(SYMROOT)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)"
         )
 
         # Embed game assets into the bundle under Contents/Resources/assets/
