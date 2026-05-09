@@ -357,6 +357,139 @@ When delivery is configured, CMake prints:
 
 ---
 
+## Mac App Store Delivery (`-DMAS_DELIVERY=1`)
+
+This mode produces an Xcode project suitable for archiving and submitting to the
+**Mac App Store**.  Assets are embedded directly in the `.app` bundle; no
+`.asset` archive extraction happens at runtime.  All plugins are linked
+statically so no user-space dylibs are loaded (required by the App Store sandbox).
+
+### Requirements
+
+- Xcode installed (not just the command-line tools)
+- An Apple Developer account enrolled in the **Mac App Store** program
+- An **App Store Distribution** certificate in your keychain (not *Developer ID*)
+- App record created in App Store Connect with the matching Bundle ID
+
+### Configure (Xcode generator only)
+
+```sh
+mkdir -p ~/tower-defense-mas && cd ~/tower-defense-mas
+cmake ~/mini-mbm \
+    -G Xcode \
+    -DPLAT=MacOs \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DMAS_DELIVERY=1 \
+    -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
+    -DMAS_APP_NAME="Tower Defense Monster" \
+    -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
+    -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png \
+    -DCMAKE_BUILD_TYPE=Release
+```
+
+| Flag | Required | Description |
+|---|---|---|
+| `-DMAS_DELIVERY=1` | yes | Activates App Store delivery mode |
+| `-DMAS_BUNDLE_ID=...` | yes | Bundle ID registered in App Store Connect |
+| `-DMAS_APP_NAME=...` | no | Display name (defaults to `GAME_NAME` or `mini-mbm`) |
+| `-DGAME_ASSETS_DIR=...` | recommended | Assets folder to embed in the bundle |
+| `-DGAME_ICON_PNG=...` | recommended | 1024×1024 PNG icon |
+
+### What the build system does
+
+1. Sets `main-lua-mas.mm` as the entry point — uses `NSBundle` to locate
+   `Contents/Resources/assets/` at runtime.
+2. Generates `platform-macos/Info.plist` from `Info.plist.in` with your bundle
+   ID and app name substituted.
+3. Sets `MACOSX_BUNDLE TRUE` and all required `XCODE_ATTRIBUTE_*` properties
+   (code-sign entitlements, `INSTALL_PATH`, `SKIP_INSTALL NO`, deployment target
+   10.14, App Icon asset catalog name).
+4. Copies all files from `GAME_ASSETS_DIR` into
+   `Contents/Resources/assets/` (preserving directory structure).
+5. Runs `sips` to generate all required macOS icon sizes and writes an
+   `Assets.xcassets/AppIcon.appiconset/Contents.json` for Xcode to compile.
+6. Statically links all enabled plugins (ImGui, Box2D, Bullet, lsqlite3, Tiled)
+   into the executable — no dylib loading at runtime.
+7. Wires `platform-macos/mini-mbm.entitlements` for App Sandbox compliance.
+
+### Archive and upload (Xcode UI)
+
+```sh
+open mini-mbm.xcodeproj   # opens Xcode
+```
+
+Then in Xcode:
+
+1. Select the **mini-mbm** scheme and **Any Mac** as destination.
+2. Set the signing team: *Signing & Capabilities → Team*.
+3. **Product → Archive** — builds a Release archive.
+4. **Distribute App → App Store Connect → Upload**.
+
+### Archive and upload (command line)
+
+```sh
+# Archive
+xcodebuild -scheme mini-mbm \
+           -configuration Release \
+           archive \
+           -archivePath "$(pwd)/mini-mbm.xcarchive"
+
+# Export for App Store Connect
+xcodebuild -exportArchive \
+           -archivePath "$(pwd)/mini-mbm.xcarchive" \
+           -exportPath "$(pwd)/export" \
+           -exportOptionsPlist /path/to/ExportOptions.plist
+
+# Upload (requires xcrun altool or Transporter)
+xcrun altool --upload-app \
+             -f "$(pwd)/export/mini-mbm.pkg" \
+             --type macos \
+             --apiKey YOUR_API_KEY \
+             --apiIssuer YOUR_ISSUER_ID
+```
+
+Minimal `ExportOptions.plist` for App Store:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>           <string>app-store</string>
+    <key>teamID</key>           <string>YOURTEAMID</string>
+    <key>uploadBitcode</key>    <false/>
+    <key>uploadSymbols</key>    <true/>
+</dict>
+</plist>
+```
+
+### Entitlements (`platform-macos/mini-mbm.entitlements`)
+
+The provided entitlements file enables the App Sandbox with read-only user
+file access.  Edit it before submission if your game needs additional
+capabilities (e.g. outbound networking):
+
+```xml
+<key>com.apple.security.network.client</key>
+<true/>   <!-- enable if needed -->
+```
+
+### Important differences from standard delivery
+
+| | Standard delivery (`GAME_ASSETS_DIR`) | App Store (`MAS_DELIVERY`) |
+|---|---|---|
+| Distribution cert | Developer ID Application | App Store Distribution |
+| Asset delivery | `.asset` archive extracted to temp dir | Embedded in bundle |
+| Plugin linking | SHARED `.dylib` loaded via `require` | STATIC, linked into binary |
+| Notarization | Required for Gatekeeper | Handled by App Store |
+| Entry point | `main-lua-delivery.cpp` | `main-lua-mas.mm` |
+| Generator | Makefile | **Xcode only** |
+
+---
+
 ## Platform Source Files
 
 | File | Purpose |
@@ -364,4 +497,7 @@ When delivery is configured, CMake prints:
 | `main.cpp` | C++ mode entry point — instantiates `GAME`, calls `initGraphics()` + `onLoop()` |
 | `main-lua.cpp` | Lua mode entry point — instantiates `LUA_MANAGER`, loads a `.lua` scene |
 | `main-lua-delivery.cpp` | Delivery entry point — extracts `.asset`, then calls `mbm::onLoop()` |
+| `main-lua-mas.mm` | Mac App Store entry point — loads assets from bundle via `NSBundle` |
+| `Info.plist.in` | CMake template for MAS bundle plist (`@MAS_BUNDLE_ID@`, `@MAS_APP_NAME@`) |
+| `mini-mbm.entitlements` | App Sandbox entitlements required for Mac App Store submission |
 | `my-scene.cpp` / `my-scene.h` | Example `SCENE` subclass — starting point for your own game |

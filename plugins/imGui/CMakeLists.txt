@@ -112,7 +112,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
 endif()
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
     add_library(${IMGUI_LIBRARY} STATIC ${IM_GUI_SOURCES})
 else()
     add_library(${IMGUI_LIBRARY} SHARED ${IM_GUI_SOURCES})

@@ -48,7 +48,9 @@ if (USE_LUA)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
-        if(DEFINED GAME_ASSETS_DIR)
+        if(MAS_DELIVERY)
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua-mas.mm)
+        elseif(DEFINED GAME_ASSETS_DIR)
             set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua-delivery.cpp)
         else()
             set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
@@ -1418,6 +1420,145 @@ echo '--- DMG ready: '\"\$DMG\"
 
     endif() # GAME_ASSETS_DIR (macOS)
 
+    # ── Mac App Store delivery (Xcode generator + -DMAS_DELIVERY=1) ───────────
+    # Build with:
+    #   mkdir -p <builddir> && cd <builddir>
+    #   cmake ~/mini-mbm -G Xcode -DPLAT=MacOs -DUSE_LUA=1 -DUSE_ALL=1 \
+    #       -DMAS_DELIVERY=1 \
+    #       -DMAS_BUNDLE_ID=com.yourcompany.yourgame \
+    #       [-DMAS_APP_NAME="My Game"] \
+    #       [-DGAME_ASSETS_DIR=/path/to/assets] \
+    #       [-DGAME_ICON_PNG=/path/to/1024x1024.png]
+    #   open mini-mbm.xcodeproj   # → Archive → Distribute → App Store Connect
+    if(MAS_DELIVERY)
+        if(NOT DEFINED MAS_BUNDLE_ID)
+            message(FATAL_ERROR "MAS_DELIVERY requires -DMAS_BUNDLE_ID=<your.bundle.identifier>")
+        endif()
+        if(NOT DEFINED MAS_APP_NAME)
+            if(DEFINED GAME_NAME)
+                set(MAS_APP_NAME "${GAME_NAME}")
+            else()
+                set(MAS_APP_NAME "mini-mbm")
+            endif()
+        endif()
+
+        # Apply ARC to the ObjC++ MAS entry point
+        set_source_files_properties(${CMAKE_SOURCE_DIR}/platform-macos/main-lua-mas.mm
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+
+        # Compile-time title definition
+        target_compile_definitions(mini-mbm PRIVATE
+            "GAME_APP_TITLE=\"${MAS_APP_NAME}\"")
+
+        # Configure Info.plist from template (written to source tree so Xcode finds it)
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist.in"
+            "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist"
+            @ONLY)
+
+        # Xcode target properties for Mac App Store
+        set_target_properties(mini-mbm PROPERTIES
+            MACOSX_BUNDLE                                  TRUE
+            MACOSX_BUNDLE_INFO_PLIST                       "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER      "${MAS_BUNDLE_ID}"
+            XCODE_ATTRIBUTE_INSTALL_PATH                   "$(LOCAL_APPS_DIR)"
+            XCODE_ATTRIBUTE_SKIP_INSTALL                   "NO"
+            XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT       "dwarf-with-dsym"
+            XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+            XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS         "platform-macos/mini-mbm.entitlements"
+            XCODE_ATTRIBUTE_CODE_SIGN_STYLE                "Automatic"
+            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "10.14"
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+        )
+
+        # Embed game assets into the bundle under Contents/Resources/assets/
+        if(DEFINED GAME_ASSETS_DIR)
+            if(NOT IS_ABSOLUTE "${GAME_ASSETS_DIR}")
+                get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
+            endif()
+            file(GLOB_RECURSE _MAS_ASSET_FILES "${GAME_ASSETS_DIR}/*")
+            foreach(_f ${_MAS_ASSET_FILES})
+                file(RELATIVE_PATH _rel "${GAME_ASSETS_DIR}" "${_f}")
+                get_filename_component(_rel_dir "${_rel}" DIRECTORY)
+                if(_rel_dir STREQUAL "")
+                    set(_mas_loc "Resources/assets")
+                else()
+                    set(_mas_loc "Resources/assets/${_rel_dir}")
+                endif()
+                set_source_files_properties("${_f}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "${_mas_loc}")
+                target_sources(mini-mbm PRIVATE "${_f}")
+            endforeach()
+            message(STATUS "macOS MAS assets  : ${GAME_ASSETS_DIR}")
+        else()
+            message(WARNING "MAS_DELIVERY: GAME_ASSETS_DIR not set — no game assets will be bundled.")
+        endif()
+
+        # Build Assets.xcassets with the app icon for Xcode
+        if(DEFINED GAME_ICON_PNG)
+            if(GAME_ICON_PNG MATCHES "^~/")
+                string(REGEX REPLACE "^~/" "$ENV{HOME}/" GAME_ICON_PNG "${GAME_ICON_PNG}")
+            endif()
+            if(NOT IS_ABSOLUTE "${GAME_ICON_PNG}")
+                get_filename_component(GAME_ICON_PNG "${GAME_ICON_PNG}" ABSOLUTE)
+            endif()
+            if(EXISTS "${GAME_ICON_PNG}")
+                set(_MAS_XCASSETS_DIR "${CMAKE_SOURCE_DIR}/platform-macos/Assets.xcassets")
+                set(_MAS_ICON_DIR     "${_MAS_XCASSETS_DIR}/AppIcon.appiconset")
+                file(MAKE_DIRECTORY "${_MAS_ICON_DIR}")
+
+                find_program(_SIPS sips)
+                if(_SIPS)
+                    execute_process(COMMAND "${_SIPS}" -z 16   16   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_16x16.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 32   32   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_16x16@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 32   32   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_32x32.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 64   64   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_32x32@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 128  128  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_128x128.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 256  256  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_128x128@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 256  256  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_256x256.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 512  512  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_256x256@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 512  512  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_512x512.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 1024 1024 "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_512x512@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                endif()
+
+                file(WRITE "${_MAS_ICON_DIR}/Contents.json"
+"{
+  \"images\": [
+    { \"filename\": \"icon_16x16.png\",      \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"16x16\"   },
+    { \"filename\": \"icon_16x16@2x.png\",   \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"16x16\"   },
+    { \"filename\": \"icon_32x32.png\",      \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"32x32\"   },
+    { \"filename\": \"icon_32x32@2x.png\",   \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"32x32\"   },
+    { \"filename\": \"icon_128x128.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"128x128\" },
+    { \"filename\": \"icon_128x128@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"128x128\" },
+    { \"filename\": \"icon_256x256.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"256x256\" },
+    { \"filename\": \"icon_256x256@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"256x256\" },
+    { \"filename\": \"icon_512x512.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"512x512\" },
+    { \"filename\": \"icon_512x512@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"512x512\" }
+  ],
+  \"info\": { \"author\": \"xcode\", \"version\": 1 }
+}")
+                file(WRITE "${_MAS_XCASSETS_DIR}/Contents.json"
+                    "{\"info\":{\"author\":\"xcode\",\"version\":1}}")
+
+                # Expose xcassets to Xcode so it compiles them into the bundle
+                target_sources(mini-mbm PRIVATE "${_MAS_XCASSETS_DIR}")
+                set_source_files_properties("${_MAS_XCASSETS_DIR}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "Resources")
+                source_group("Resources" FILES "${_MAS_XCASSETS_DIR}")
+
+                message(STATUS "macOS MAS icon    : ${GAME_ICON_PNG}")
+            else()
+                message(WARNING "MAS_DELIVERY: GAME_ICON_PNG '${GAME_ICON_PNG}' not found — icon skipped.")
+            endif()
+        endif()
+
+        message(STATUS "macOS MAS bundle ID : ${MAS_BUNDLE_ID}")
+        message(STATUS "macOS MAS app name  : ${MAS_APP_NAME}")
+        message(STATUS "Next step: open the generated .xcodeproj, then:")
+        message(STATUS "  Product → Archive → Distribute App → App Store Connect")
+
+    endif() # MAS_DELIVERY
+
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     # iOS static-link plugin definitions (same workaround as Android — dynamic loading is blocked)
     if(USE_LSQLITE3)
@@ -1758,6 +1899,36 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
 
     if(USE_IMGUI)
         message(STATUS "USE_IMGUI is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
+    endif()
+
+endif()
+
+# plugins for macOS MAS must also be statically linked (App Store sandbox forbids user-space dylibs)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
+
+    if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D)
+        message(STATUS "USE_BOX2D is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+    endif()
+
+    if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
+    endif()
+
+    if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled — linking statically for macOS MAS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 

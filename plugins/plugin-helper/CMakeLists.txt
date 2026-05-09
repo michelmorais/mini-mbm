@@ -32,15 +32,15 @@ file(GLOB_RECURSE SOURCES "${PLUGIN_HELPER_INC}/*.cpp" )
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
     add_library(${PLUGIN_HELPER_LIBRARY} STATIC ${SOURCES})
 else()
     add_library(${PLUGIN_HELPER_LIBRARY} SHARED ${SOURCES})
 endif()
 
-# On iOS all plugins are STATIC; Lua and core_mbm are provided by mini-mbm at
+# On iOS/MAS all plugins are STATIC; Lua and core_mbm are provided by mini-mbm at
 # final link — skip to avoid duplicate-library warnings.
-if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (NOT (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY))
     target_link_libraries(${PLUGIN_HELPER_LIBRARY} PRIVATE ${LUA_LIBRARY})
     # For Linux / Windows we have the executable mini-mbm and the library libcore_mbm.so
     # For Android we have libcore_mbm.so and libmini-mbm.so
