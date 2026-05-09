@@ -1391,12 +1391,20 @@ set -e
 APP='${_MAC_APP_DIR}'
 DMG='${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}-macos.dmg'
 TMP_DMG='${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}-tmp.dmg'
+MOUNT_DIR='${CMAKE_BINARY_DIR}/.${_MAC_NAME_SAFE}_dmg_mount'
 rm -f \"\$DMG\" \"\$TMP_DMG\"
+rm -rf \"\$MOUNT_DIR\"
+mkdir -p \"\$MOUNT_DIR\"
 hdiutil create -size 512m -fs HFS+ -volname '${GAME_NAME}' \"\$TMP_DMG\"
-DEVICE=\$(hdiutil attach \"\$TMP_DMG\" | grep -E '^/dev/disk' | awk '{print \$1}')
-MOUNT=\$(hdiutil info | grep -A 2 \"\$DEVICE\" | grep '/Volumes' | awk '{print \$1}')
-cp -R \"\$APP\" \"\$MOUNT/\"
+ATTACH_OUT=\$(hdiutil attach \"\$TMP_DMG\" -nobrowse -mountpoint \"\$MOUNT_DIR\")
+DEVICE=\$(printf '%s\n' \"\$ATTACH_OUT\" | awk '/^\\/dev\\/disk/{print \$1; exit}')
+if [ -z \"\$DEVICE\" ]; then
+    echo 'Failed to attach temporary DMG and resolve device.'
+    exit 1
+fi
+cp -R \"\$APP\" \"\$MOUNT_DIR/\"
 hdiutil detach \"\$DEVICE\"
+rmdir \"\$MOUNT_DIR\" || true
 hdiutil convert \"\$TMP_DMG\" -format UDZO -o \"\$DMG\"
 rm -f \"\$TMP_DMG\"
 echo '--- DMG ready: '\"\$DMG\"

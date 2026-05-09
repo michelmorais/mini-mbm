@@ -231,6 +231,34 @@ Tower_Defense_Monster.app/
 | `macapp` | `make macapp` | Synonym for the default target — rebuilds and reassembles the `.app` |
 | `macdmg` | `make macdmg` | Wraps the `.app` into a compressed `.dmg` using `hdiutil` (requires macOS) |
 
+### Troubleshooting `macdmg`
+
+If `make macdmg` fails with:
+
+```text
+cp: /dev/disk...: Not a directory
+```
+
+you are likely using an older generated `make_macdmg.sh` that parses
+`hdiutil` output and may resolve a device path instead of a mount directory.
+
+This repository now generates a robust script that uses an explicit mountpoint.
+Re-run CMake to regenerate the script, then run `make macdmg` again:
+
+```sh
+cmake ~/mini-mbm \
+    -DPLAT=MacOs \
+    -DUSE_LUA=1 \
+    -DUSE_ALL=1 \
+    -DMBM_ENABLE_MESH_LEGACY_V7=1 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGAME_NAME="Tower Defense Monster" \
+    -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
+    -DGAME_ASSETS_PASSWORD=mysecret \
+    -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png
+make macdmg
+```
+
 ### CMake status messages
 
 When delivery is configured, CMake prints:
