@@ -424,7 +424,12 @@ namespace mbm
         // ── Run the modal dialog ──────────────────────────────────────────────
         [NSApp activateIgnoringOtherApps:YES];
         [NSApp runModalForWindow:ctrl.window];
-        [ctrl.window orderOut:nil];
+        // Nil the delegate BEFORE close so windowWillClose: is not dispatched
+        // to ctrl after it goes out of scope.  close removes the window from
+        // [NSApp windows]; orderOut only hides it, leaving the stale delegate
+        // reachable during [NSApp terminate:] → crash in objc_release.
+        [ctrl.window setDelegate:nil];
+        [ctrl.window close];
 
         if (!ctrl.confirmed)
             return false;
