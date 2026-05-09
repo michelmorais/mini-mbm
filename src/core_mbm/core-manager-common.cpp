@@ -72,7 +72,7 @@ namespace mbm
             return -1;
         if (!this->loopVariablesInitialized)
         {
-            #if _DEBUG
+            #if defined _DEBUG || defined DEBUG
             INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
             #endif
             // Cfg shader from resource----
