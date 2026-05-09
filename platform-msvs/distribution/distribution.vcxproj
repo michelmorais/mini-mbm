@@ -71,24 +71,25 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\include\dirent-1-13;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\third-party\dirent-1-13;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\include\dirent-1-13;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\third-party\dirent-1-13;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\include\dirent-1-13;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\third-party\dirent-1-13;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\include\dirent-1-13;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\distribution\include;..\..\distribution\src;..\..\third-party\lsqlite3;..\..\third-party;..\..\third-party\dirent-1-13;$(IncludePath)</IncludePath>
     <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PrecompiledHeader></PrecompiledHeader>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>DISTRIBUTION_BUILD_DLL;SQLITE_CORE;SQLITE_THREADSAFE=1;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -101,7 +102,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PrecompiledHeader></PrecompiledHeader>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>DISTRIBUTION_BUILD_DLL;SQLITE_CORE;SQLITE_THREADSAFE=1;_CRT_SECURE_NO_WARNINGS;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
