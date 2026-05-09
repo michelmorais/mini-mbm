@@ -1162,6 +1162,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         add_subdirectory(${TEST_LIB} 				${TEST_LIB})
+        add_subdirectory(distribution               distribution)
     endif()
 
     message("")

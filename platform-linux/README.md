@@ -173,6 +173,7 @@ step wraps it into a single self-contained `.AppImage` file.
 |---|---|---|
 | `-DGAME_ASSETS_DIR=/path/to/assets` | **Yes** (activates delivery) | Absolute path to your game's assets folder. Must contain `main.lua`. |
 | `-DGAME_NAME="My Game"` | No (default: `mini-mbm`) | Display name — sets the window title and names the output files. |
+| `-DGAME_ASSETS_PASSWORD=secret` | No | If set, assets are AES-128-CBC encrypted (PBKDF2-HMAC-SHA256 key derivation, 100 000 iterations). Omit for unencrypted packing. |
 | `-DGAME_ICON_PNG=/path/to/icon.png` | No | Any-size PNG. Copied as-is and renamed to match the desktop entry. |
 
 > **Use absolute paths.** CMake does not expand `~` inside double-quoted `-D` values.
@@ -226,8 +227,9 @@ make appimage        # wraps AppDir into .AppImage (appimagetool required)
 | Artifact | Location | Notes |
 |---|---|---|
 | `mini-mbm` binary | `AppDir/usr/bin/` | The compiled engine executable |
-| `*.so` plugins | `AppDir/usr/lib/` | All shared-library plugins (box2d, ImGui, bullet, etc.) |
-| Game assets | `AppDir/assets/` | Full copy of `GAME_ASSETS_DIR` |
+| `distribution.so` | `AppDir/usr/lib/` | Asset library — loaded at runtime to extract the `.asset` file |
+| `*.so` plugins | `AppDir/usr/lib/` | All other shared-library plugins (box2d, ImGui, bullet, etc.) |
+| `<GameName>.asset` | `AppDir/assets/` | Packed (and optionally encrypted) archive of `GAME_ASSETS_DIR`, produced by `distribution pack` |
 
 ### Running without AppImage
 
@@ -362,17 +364,17 @@ Expected layout:
 
 ```
 squashfs-root/
-├── AppRun                          ← launcher script (chmod +x)
-├── Tower_Defense_Monster.desktop   ← XDG desktop entry
-├── Tower_Defense_Monster.png       ← app icon
+├── AppRun                              ← launcher script (chmod +x)
+├── Tower_Defense_Monster.desktop       ← XDG desktop entry
+├── Tower_Defense_Monster.png           ← app icon
 ├── .DirIcon -> Tower_Defense_Monster.png
-├── assets/                         ← full copy of GAME_ASSETS_DIR
-│   ├── main.lua
-│   └── ...
+├── assets/
+│   └── Tower_Defense_Monster.asset     ← packed (+ optionally encrypted) archive
 └── usr/
     ├── bin/
-    │   └── mini-mbm                ← engine binary
+    │   └── mini-mbm                    ← engine binary
     └── lib/
+        ├── distribution.so             ← asset library (extracts .asset at launch)
         ├── libportaudio.so.2
         ├── libcore_mbm.so
         ├── liblua-5.4.1.so

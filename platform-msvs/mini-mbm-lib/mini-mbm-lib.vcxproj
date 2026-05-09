@@ -74,14 +74,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>
     </LinkIncremental>
     <TargetName>$(ProjectName)</TargetName>
-    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\AESCrypt;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\include;..\..\third-party\rapidxml;..\..\third-party\stb;..\..\include\plusWindows\;..\..\include\miniz-wrap;..\..\include\render;..\..\include\dirent-1-13;..\..\include\core_mbm;..\..\include\version;..\..\include\lua-interface;..\..\third-party;..\..\third-party\gles;..\..\third-party\lodepng;..\..\third-party\tinyfiledialogs;..\..\third-party\lua-5.4.1;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\bullet-2.84;..\..\plugins;..\..\third-party\wave;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)..\third-party\gles\libs;$(Outdir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -297,11 +297,6 @@
     <ClInclude Include="..\..\include\version\version.h" />
     <ClInclude Include="..\..\plugins\plugin-helper\plugin-helper.h" />
     <ClInclude Include="..\..\src\mini-mbm-lib\mini-mbm-lib.h" />
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.crypt.h" />
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.h" />
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aescrypt.h" />
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\sha256.h" />
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\version.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng.h" />
     <ClInclude Include="..\..\third-party\lodepng\lodepng_util.h" />
     <ClInclude Include="..\..\third-party\lua-5.4.1\lapi.h" />

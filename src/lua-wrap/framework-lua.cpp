@@ -77,15 +77,7 @@
     #include <X11/Xutil.h>
 #endif
 
-#ifdef USE_AESCRYPT
-    #error ("Recommend not to use AESCrypt, you can remove this error if you insist on using it")
-#ifdef _WIN32
-    #include <AESCrypt/win32/aes.crypt.h>
-#else
-    #include <AESCrypt/linux/aes.crypt.h>
-#endif
-
-#elif defined USE_PLUSAES
+#ifdef USE_PLUSAES
     #include "plusaes/plusaes.hpp"
 #endif
 
@@ -1614,38 +1606,7 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-#ifdef USE_AESCRYPT
-        if (encrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
-        {
-            fclose(fp1);
-            fclose(fp2);
-            if (strcasecmp(fileNameOut, fileNameIn) == 0)
-            {
-                if (remove(fileNameIn))
-                    lua_print_line(lua,TYPE_LOG_WARN,"failed on rename file [%s].", fileNameIn);
-                if (rename(strOut.c_str(), fileNameIn))
-                {
-                    lua_pushboolean(lua, 0);
-                    lua_print_line(lua,TYPE_LOG_ERROR,"failed on rename file [%s].", fileNameIn);
-                }
-                else
-                {
-                    lua_pushboolean(lua, 1);
-                }
-            }
-            else
-            {
-                lua_pushboolean(lua, 1);
-            }
-        }
-        else
-        {
-            fclose(fp1);
-            fclose(fp2);
-            lua_print_line(lua,TYPE_LOG_ERROR,"failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
-            lua_pushboolean(lua, 0);
-        }
-#elif defined USE_PLUSAES
+#ifdef USE_PLUSAES
         if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
@@ -1676,8 +1637,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#else
-    #error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
 #endif
         return 1;
     }
@@ -1728,38 +1687,7 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-#ifdef USE_AESCRYPT
-        if (decrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
-        {
-            fclose(fp1);
-            fclose(fp2);
-            if (strcasecmp(fileNameOut, fileNameIn) == 0)
-            {
-                if (remove(fileNameIn))
-                    lua_print_line(lua,TYPE_LOG_WARN,"failed on rename file [%s].", fileNameIn);
-                if (rename(strOut.c_str(), fileNameIn))
-                {
-                    lua_pushboolean(lua, 0);
-                    lua_print_line(lua,TYPE_LOG_ERROR,"failed on rename file [%s].", fileNameIn);
-                }
-                else
-                {
-                    lua_pushboolean(lua, 1);
-                }
-            }
-            else
-            {
-                lua_pushboolean(lua, 1);
-            }
-        }
-        else
-        {
-            fclose(fp1);
-            fclose(fp2);
-            lua_print_line(lua,TYPE_LOG_ERROR,"failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
-            lua_pushboolean(lua, 0);
-        }
-#elif defined USE_PLUSAES
+#ifdef USE_PLUSAES
         if (decrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
@@ -1790,8 +1718,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#else
-#error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
 #endif
         return 1;
     }
