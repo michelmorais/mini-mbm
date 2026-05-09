@@ -84,8 +84,13 @@ namespace mbm
         // mode where AppKit walks window lists during presentation-option reset.
         if (window)
         {
+            // Nil the delegate first so no callbacks fire on a released object.
+            // Then close (hidden, removed from window lists) and explicitly
+            // release — setReleasedWhenClosed:NO was set at creation so the
+            // window does NOT self-release inside [close].
             [window setDelegate:nil];
             [window close];
+            [window release];   // non-ARC explicit release (paired with alloc)
             window = nil;
         }
         windowDelegate = nil;

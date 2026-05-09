@@ -128,14 +128,21 @@ int main(int /*argc*/, const char ** /*argv*/)
         /* Uses NSUserDefaults to remember the player's choices between       */
         /* launches. Defaults to fullscreen on first run.                     */
         /* ------------------------------------------------------------------ */
-        if (!mbm::select_app_and_resolution(
+        // Wrap the launcher dialog in its own pool so that AppKit objects
+        // autoreleased during the modal run-loop (NSEvent, NSNotification, etc.)
+        // are drained here — while the launcher window is still alive — instead
+        // of accumulating in the outer pool until main() exits.
+        bool launcherOk = false;
+        @autoreleasepool
+        {
+            launcherOk = mbm::select_app_and_resolution(
                 nullptr, 0, nullptr,    // no app list — single game
                 nullptr, 0,             // use built-in resolution list
                 true,  true,            // allow fullscreen; default to checked
-                1920,  1080))           // suggest 1920 × 1080 for windowed
-        {
-            return 0;   // user dismissed the launcher
+                1920,  1080);           // suggest 1920 × 1080 for windowed
         }
+        if (!launcherOk)
+            return 0;   // user dismissed the launcher
 
         /* ------------------------------------------------------------------ */
         /* Create a writable private temp directory                           */
@@ -208,7 +215,17 @@ int main(int /*argc*/, const char ** /*argv*/)
 
         mbm::set_scene("main.lua");
 
-        const int ret = mbm::onLoop();
+        // Wrap the game loop in its own pool.  Non-ARC Metal/AppKit code inside
+        // onLoop() autoreleases command buffers, encoders, notifications, etc.
+        // into whichever pool is current.  Draining a dedicated inner pool here
+        // (while the MTL device and NSWindow are still valid) prevents those
+        // objects from reaching the outer pool and crashing on drain after the
+        // Metal device has already been released.
+        int ret = 0;
+        @autoreleasepool
+        {
+            ret = mbm::onLoop();
+        }
         // cleanup_temp_folder() is called automatically via std::atexit.
         return ret;
     }

@@ -188,6 +188,12 @@ namespace mbm
             return false;
         }
         [ctx->window setTitle:[NSString stringWithUTF8String:this->nameApplication.c_str()]];
+        // Disable AppKit's automatic release-on-close so non-ARC code controls the
+        // window lifetime explicitly via [window release] in release().
+        // Without this, [window close] calls [self release] while autoreleased
+        // notification objects still reference the window, causing a double-free
+        // when the outer @autoreleasepool in main() drains.
+        [ctx->window setReleasedWhenClosed:NO];
 
         // Borderless (fullscreen) window: raise above the menu bar and
         // auto-hide the menu bar + dock so they don't overlap the content.
