@@ -259,6 +259,92 @@ cmake ~/mini-mbm \
 make macdmg
 ```
 
+### Code Signing and Notarization (for sharing outside your Mac)
+
+If you want to distribute your game to other macOS users, sign and notarize the
+generated `.app` and `.dmg`.
+
+Prerequisites:
+
+- Apple Developer membership
+- A `Developer ID Application` certificate installed in your login keychain
+- An app-specific password for your Apple ID
+
+Set variables (edit values first):
+
+```sh
+export BUILD_DIR="$HOME/tower-defense-macos"
+export APP_NAME="Tower_Defense_Monster"
+export APP_PATH="$BUILD_DIR/$APP_NAME.app"
+export DMG_PATH="$BUILD_DIR/$APP_NAME-macos.dmg"
+export IDENTITY="Developer ID Application: YOUR NAME (TEAMID)"
+export NOTARY_PROFILE="AC_NOTARY"
+```
+
+Create notary credentials profile (one-time setup):
+
+```sh
+xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+    --apple-id "your-apple-id@example.com" \
+    --team-id "YOURTEAMID" \
+    --password "xxxx-xxxx-xxxx-xxxx"
+```
+
+Sign nested runtime libraries and app:
+
+```sh
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+    "$APP_PATH/Contents/Frameworks/distribution.dylib"
+
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+    "$APP_PATH"
+```
+
+Verify app signature locally:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+spctl --assess --type execute --verbose=4 "$APP_PATH"
+```
+
+Sign and submit DMG for notarization:
+
+```sh
+codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
+
+xcrun notarytool submit "$DMG_PATH" \
+    --keychain-profile "$NOTARY_PROFILE" \
+    --wait
+```
+
+Staple tickets:
+
+```sh
+xcrun stapler staple "$APP_PATH"
+xcrun stapler staple "$DMG_PATH"
+```
+
+Final verification:
+
+```sh
+spctl --assess --type execute --verbose=4 "$APP_PATH"
+spctl --assess --type open --verbose=4 "$DMG_PATH"
+```
+
+If notarization fails, inspect logs:
+
+```sh
+xcrun notarytool history --keychain-profile "$NOTARY_PROFILE"
+xcrun notarytool log SUBMISSION_ID --keychain-profile "$NOTARY_PROFILE"
+```
+
+Common first-time issues:
+
+- Wrong certificate name in `IDENTITY`
+- Certificate not installed in login keychain
+- Unsigned nested binary inside the `.app`
+- Missing hardened runtime (`--options runtime`)
+
 ### CMake status messages
 
 When delivery is configured, CMake prints:

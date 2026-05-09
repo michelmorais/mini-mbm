@@ -845,7 +845,7 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 
 > **Note:** The Metal rendering backend is selected automatically when building for Apple (`-DUSE_METAL=1` is the default).
 
-> See [platform-macos/README.md](platform-macos/README.md) for full macOS build and development notes.
+> See [platform-macos/README.md](platform-macos/README.md) for full macOS build and development notes, including `.app`/`.dmg` delivery, `macdmg` troubleshooting, code signing, and notarization.
 
 ### iOS (Metal, Xcode)
 
