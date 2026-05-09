@@ -56,18 +56,18 @@ endif()
 file(GLOB SOURCES "${SQLITE_SRC}/*.c" "${SQLITE_SRC}/*.cpp")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
-# iOS requires static libraries (App Store sandbox)
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+# iOS and macOS MAS require static libraries (App Store sandbox)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
     add_library(${SQLITE3_LUA_LIBRARY} STATIC ${SOURCES})
 else()
     add_library(${SQLITE3_LUA_LIBRARY} SHARED ${SOURCES})
 endif()
 
-# On iOS lsqlite3 is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
+# On iOS/MAS lsqlite3 is a STATIC archive embedded in mini-mbm. CMake propagates PRIVATE
 # static deps to the consumer, duplicating the explicit links in mini-mbm's
 # target_link_libraries calls and triggering ld duplicate-library warnings.
 # Both Lua and core_mbm are provided by mini-mbm at final link.
-if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (NOT (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY))
     target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
     target_link_libraries(${SQLITE3_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
 endif()
