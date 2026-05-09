@@ -398,32 +398,62 @@ function onOpenAsset()
         if db then
             tAssets         = {}
             local tFolders  = {}
-            local sPreviousPath = ''
+            local sPreviousPath = nil  -- nil never matches any path, including ""
+
+            local sSeparator
+            if mbm.is('Windows') then
+                sSeparator = '\\'
+            else
+                sSeparator = '/'
+            end
+
+            -- Detect distribution format: read base_folder from metadata table.
+            -- Distribution assets store relative sub-directory paths in paths.path;
+            -- we reconstruct absolute paths so mbm.addPath() and preview work.
+            local sBaseFolder = ''
+            local meta_stmt = db:prepare([[ SELECT value FROM metadata WHERE key='base_folder' LIMIT 1; ]])
+            if meta_stmt then
+                if meta_stmt:step() == sqlite3.ROW then
+                    sBaseFolder = meta_stmt:get_value(0) or ''
+                end
+                meta_stmt:finalize()
+            end
+
             local select_stmt, err_id = db:prepare([[ SELECT name, path FROM assets INNER JOIN paths on paths.id = assets.id_path order by path; ]])
             if select_stmt then
                 local tFolder = {}
                 for row in select_stmt:nrows() do
-                    if row.path ~= sPreviousPath then
+                    -- Reconstruct the absolute path: base_folder + sep + rel_path (or just base_folder for root).
+                    local sAbsPath
+                    if sBaseFolder:len() > 0 then
+                        if row.path and row.path:len() > 0 then
+                            sAbsPath = sBaseFolder .. sSeparator .. row.path
+                        else
+                            sAbsPath = sBaseFolder
+                        end
+                    else
+                        sAbsPath = row.path or ''
+                    end
+
+                    if sAbsPath ~= sPreviousPath then
                         if #tFolder > 0 then
                             table.insert(tFolders,tFolder)
                         end
-                        tFolder         = {path = row.path}
-                        sPreviousPath   = row.path
+                        tFolder         = {path = sAbsPath}
+                        sPreviousPath   = sAbsPath
                     end
                     table.insert(tFolder,row.name)
                 end
-                if mbm.is('Windows') then
-                    tFolders.separator = '\\'
-                else
-                    tFolders.separator = '/'
-                end
+                tFolders.separator = sSeparator
                 --last folder
                 if #tFolder > 0 then
                     table.insert(tFolders,tFolder)
                 end
                 --add path
                 for i=1, #tFolders do
-                    mbm.addPath(tFolders[i].path)
+                    if tFolders[i].path and tFolders[i].path:len() > 0 then
+                        mbm.addPath(tFolders[i].path)
+                    end
                 end
                 table.insert(tAssets,tFolders)
                 select_stmt:finalize()
