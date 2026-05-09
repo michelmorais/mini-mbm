@@ -1250,7 +1250,9 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     target_link_libraries(mini-mbm "-framework Cocoa")
 
     # ── Distribution library: link + definitions when GAME_ASSETS_DIR is set ──
-    if(DEFINED GAME_ASSETS_DIR)
+    # Skipped for MAS_DELIVERY — assets are embedded in the bundle; distribution.dylib
+    # must not be linked (the App Store sandbox forbids loading it at runtime).
+    if(DEFINED GAME_ASSETS_DIR AND NOT MAS_DELIVERY)
         target_link_libraries(mini-mbm distribution)
         target_include_directories(mini-mbm PRIVATE ${CMAKE_SOURCE_DIR}/distribution/include)
         if(NOT DEFINED GAME_NAME)
@@ -1282,7 +1284,7 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     #   make -j$(sysctl -n hw.logicalcpu)   # .app assembled after build
     #   make macapp                          # synonym for make (just rebuilds)
     #   make macdmg                          # wraps .app into a .dmg
-    if(DEFINED GAME_ASSETS_DIR)
+    if(DEFINED GAME_ASSETS_DIR AND NOT MAS_DELIVERY)
 
         if(NOT DEFINED GAME_NAME)
             set(GAME_NAME "mini-mbm")
