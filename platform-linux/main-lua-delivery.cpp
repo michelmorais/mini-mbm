@@ -42,9 +42,15 @@
 #include <core_mbm/util-interface.h>
 #include <mini-mbm-lib.h>
 
+#include <cctype>
+#include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <string>
+
+#include <sys/stat.h>
+#include <unistd.h>
 
 #ifndef GAME_APP_TITLE
     #define GAME_APP_TITLE "Game"
@@ -58,17 +64,69 @@
 static std::string temporary_folder_path;
 static std::string title_app(GAME_APP_TITLE);
 
+/* ------------------------------------------------------------------ */
+/* Cleanup helpers                                                      */
+/* ------------------------------------------------------------------ */
+
+// The folder to delete on exit — set once after mkdtemp succeeds.
+static std::string s_cleanup_folder;
+
+// Called by std::atexit (and therefore by exit(), end of main, and our
+// signal handler below). Safe to call more than once.
+static void cleanup_temp_folder() noexcept
+{
+    if (!s_cleanup_folder.empty())
+    {
+        mbm::remove_folder(s_cleanup_folder.c_str());
+        s_cleanup_folder.clear();
+    }
+}
+
+// Convert SIGTERM / SIGINT into a normal exit() so atexit handlers fire.
+static void on_signal(int /*sig*/) noexcept
+{
+    exit(1);
+}
+
+// Build a unique temp-dir template under the best available runtime base:
+//   1. $XDG_RUNTIME_DIR  — user-private tmpfs, auto-wiped on logout (recommended)
+//   2. /run/user/<uid>   — same, without the env var
+//   3. /tmp              — last resort (world-readable, but POSIX-guaranteed)
+static std::string make_delivery_temp_template(const char *app_name)
+{
+    // Choose base directory
+    std::string base;
+    const char *xdg = getenv("XDG_RUNTIME_DIR");
+    if (xdg && xdg[0] == '/')
+    {
+        base = xdg;
+    }
+    else
+    {
+        char run_user[64] = "";
+        snprintf(run_user, sizeof(run_user), "/run/user/%d", static_cast<int>(getuid()));
+        struct stat st{};
+        if (stat(run_user, &st) == 0 && S_ISDIR(st.st_mode))
+            base = run_user;
+        else
+            base = "/tmp";
+    }
+
+    // Sanitise app name for use as a directory prefix
+    std::string safe;
+    for (const char *p = app_name; p && *p; ++p)
+        safe += (isalnum(static_cast<unsigned char>(*p)) ? *p : '_');
+    if (safe.empty()) safe = "game";
+
+    return base + "/" + safe + "_XXXXXX";
+}
+
 void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
 {
     if (!command) return;
     if (strcmp(command, "get_tmp_folder") == 0)
     {
-        if (temporary_folder_path.empty())
-        {
-            char buf[1024] = "";
-            if (mbm::create_temp_folder(title_app.c_str(), buf, sizeof(buf)))
-                temporary_folder_path = buf;
-        }
+        // temporary_folder_path is set before main.lua starts; just return it.
         if (!temporary_folder_path.empty())
             strncpy(result, temporary_folder_path.c_str(), static_cast<size_t>(max_size_result) - 1);
     }
@@ -91,12 +149,25 @@ int main(int /*argc*/, const char ** /*argv*/)
 
     std::string asset_path = std::string("assets/") + asset_file;
 
+    // Create a private temp dir under XDG_RUNTIME_DIR (owner-only, tmpfs).
     char temp_folder[1024] = "";
-    if (!mbm::create_temp_folder(title_app.c_str(), temp_folder, sizeof(temp_folder)))
     {
-        fprintf(stderr, "[delivery] Failed to create temporary folder\n");
-        return 1;
+        const std::string tmpl = make_delivery_temp_template(title_app.c_str());
+        strncpy(temp_folder, tmpl.c_str(), sizeof(temp_folder) - 1);
+        if (!mkdtemp(temp_folder))
+        {
+            fprintf(stderr, "[delivery] Failed to create temporary folder\n");
+            return 1;
+        }
+        chmod(temp_folder, 0700);  // restrict to owner only
     }
+
+    // Register cleanup for every exit path: normal return, exit(), and signals.
+    s_cleanup_folder      = temp_folder;
+    temporary_folder_path = temp_folder;  // expose to Lua via get_tmp_folder
+    std::atexit(cleanup_temp_folder);
+    signal(SIGTERM, on_signal);
+    signal(SIGINT,  on_signal);
 
     {
         DISTRIBUTION_CTX *ctx = distribution_create();
@@ -129,7 +200,6 @@ int main(int /*argc*/, const char ** /*argv*/)
     mbm::set_scene("main.lua");
 
     const int ret = mbm::onLoop();
-
-    mbm::remove_folder(temp_folder);
+    // cleanup_temp_folder() will be called automatically via std::atexit.
     return ret;
 }

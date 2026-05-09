@@ -44,9 +44,15 @@
 
 #include <mach-o/dyld.h>  /* _NSGetExecutablePath */
 #include <libgen.h>        /* dirname */
+#include <cctype>
+#include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <string>
+
+#include <sys/stat.h>
+#include <unistd.h>
 
 #ifndef GAME_APP_TITLE
     #define GAME_APP_TITLE "Game"
@@ -59,17 +65,52 @@
 static std::string temporary_folder_path;
 static std::string title_app(GAME_APP_TITLE);
 
+/* ------------------------------------------------------------------ */
+/* Cleanup helpers                                                      */
+/* ------------------------------------------------------------------ */
+
+static std::string s_cleanup_folder;
+
+static void cleanup_temp_folder() noexcept
+{
+    if (!s_cleanup_folder.empty())
+    {
+        mbm::remove_folder(s_cleanup_folder.c_str());
+        s_cleanup_folder.clear();
+    }
+}
+
+static void on_signal(int /*sig*/) noexcept
+{
+    exit(1);
+}
+
+// On macOS the recommended private temp location is $TMPDIR (set by launchd
+// to a per-user, per-session dir like /var/folders/…).  Falls back to /tmp.
+static std::string make_delivery_temp_template(const char *app_name)
+{
+    std::string base;
+    const char *tmpdir = getenv("TMPDIR");
+    if (tmpdir && tmpdir[0] == '/')
+        base = tmpdir;
+    else
+        base = "/tmp";
+    // Strip trailing slash
+    while (base.size() > 1 && base.back() == '/') base.pop_back();
+
+    std::string safe;
+    for (const char *p = app_name; p && *p; ++p)
+        safe += (isalnum(static_cast<unsigned char>(*p)) ? *p : '_');
+    if (safe.empty()) safe = "game";
+
+    return base + "/" + safe + "_XXXXXX";
+}
+
 void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
 {
     if (!command) return;
     if (strcmp(command, "get_tmp_folder") == 0)
     {
-        if (temporary_folder_path.empty())
-        {
-            char buf[1024] = "";
-            if (mbm::create_temp_folder(title_app.c_str(), buf, sizeof(buf)))
-                temporary_folder_path = buf;
-        }
         if (!temporary_folder_path.empty())
             strncpy(result, temporary_folder_path.c_str(), static_cast<size_t>(max_size_result) - 1);
     }
@@ -109,12 +150,24 @@ int main(int /*argc*/, const char ** /*argv*/)
     /* ------------------------------------------------------------------ */
     /* Extract into a private temporary folder                             */
     /* ------------------------------------------------------------------ */
+    // Create a private temp dir under $TMPDIR (per-user, per-session on macOS).
     char temp_folder[1024] = "";
-    if (!mbm::create_temp_folder(title_app.c_str(), temp_folder, sizeof(temp_folder)))
     {
-        fprintf(stderr, "[delivery] Failed to create temporary folder\n");
-        return 1;
+        const std::string tmpl = make_delivery_temp_template(title_app.c_str());
+        strncpy(temp_folder, tmpl.c_str(), sizeof(temp_folder) - 1);
+        if (!mkdtemp(temp_folder))
+        {
+            fprintf(stderr, "[delivery] Failed to create temporary folder\n");
+            return 1;
+        }
+        chmod(temp_folder, 0700);
     }
+
+    s_cleanup_folder      = temp_folder;
+    temporary_folder_path = temp_folder;
+    std::atexit(cleanup_temp_folder);
+    signal(SIGTERM, on_signal);
+    signal(SIGINT,  on_signal);
 
     {
         DISTRIBUTION_CTX *ctx = distribution_create();
@@ -147,7 +200,6 @@ int main(int /*argc*/, const char ** /*argv*/)
     mbm::set_scene("main.lua");
 
     const int ret = mbm::onLoop();
-
-    mbm::remove_folder(temp_folder);
+    // cleanup_temp_folder() called automatically via std::atexit.
     return ret;
 }
