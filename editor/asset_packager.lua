@@ -53,6 +53,7 @@ function onInitScene()
     tAudioFormat['8svx']        = true
     tMeshFormat                 = {msh = true, spt = true, ptl = true, tile = true, ptl = true, fnt = true}
     tCategory                   = {'all','image','lua-script','mesh','audio',index = 1}
+    bIsDistributionFormat       = false  -- true when the opened .asset was created by the distribution tool (BLOBs, no disk preview)
     tUtil.sMessageOverlay       = 'Welcome to Asset Packager!'
     tLineCenterX:add({-9999999,0, 9999999,0})
     tLineCenterX:setColor(1,0,0)
@@ -407,14 +408,18 @@ function onOpenAsset()
                 sSeparator = '/'
             end
 
-            -- Detect distribution format: read base_folder from metadata table.
-            -- Distribution assets store relative sub-directory paths in paths.path;
-            -- we reconstruct absolute paths so mbm.addPath() and preview work.
+            -- Detect distribution format: check for metadata table (created by the distribution tool).
+            -- Distribution assets store files as BLOBs; paths in the DB are relative sub-directories.
+            -- We must NOT call mbm.addPath() for these — the source folder on disk is irrelevant.
+            bIsDistributionFormat = false
             local sBaseFolder = ''
-            local meta_stmt = db:prepare([[ SELECT value FROM metadata WHERE key='base_folder' LIMIT 1; ]])
+            local bDistEncrypted = false
+            local meta_stmt = db:prepare([[ SELECT key, value FROM metadata; ]])
             if meta_stmt then
-                if meta_stmt:step() == sqlite3.ROW then
-                    sBaseFolder = meta_stmt:get_value(0) or ''
+                bIsDistributionFormat = true
+                for mrow in meta_stmt:nrows() do
+                    if mrow.key == 'base_folder' then sBaseFolder = mrow.value or '' end
+                    if mrow.key == 'encrypted'   then bDistEncrypted = (mrow.value == '1') end
                 end
                 meta_stmt:finalize()
             end
@@ -423,24 +428,26 @@ function onOpenAsset()
             if select_stmt then
                 local tFolder = {}
                 for row in select_stmt:nrows() do
-                    -- Reconstruct the absolute path: base_folder + sep + rel_path (or just base_folder for root).
-                    local sAbsPath
-                    if sBaseFolder:len() > 0 then
+                    -- For display: use the path as stored in the DB.
+                    -- Old format: absolute paths on disk.  Distribution format: relative sub-dir ("" or "audio").
+                    local sDisplayPath
+                    if bIsDistributionFormat then
+                        -- Show relative path; prefix with the base folder basename for clarity.
                         if row.path and row.path:len() > 0 then
-                            sAbsPath = sBaseFolder .. sSeparator .. row.path
+                            sDisplayPath = row.path
                         else
-                            sAbsPath = sBaseFolder
+                            sDisplayPath = '[root]'
                         end
                     else
-                        sAbsPath = row.path or ''
+                        sDisplayPath = row.path or ''
                     end
 
-                    if sAbsPath ~= sPreviousPath then
+                    if sDisplayPath ~= sPreviousPath then
                         if #tFolder > 0 then
                             table.insert(tFolders,tFolder)
                         end
-                        tFolder         = {path = sAbsPath}
-                        sPreviousPath   = sAbsPath
+                        tFolder         = {path = sDisplayPath}
+                        sPreviousPath   = sDisplayPath
                     end
                     table.insert(tFolder,row.name)
                 end
@@ -449,10 +456,13 @@ function onOpenAsset()
                 if #tFolder > 0 then
                     table.insert(tFolders,tFolder)
                 end
-                --add path
-                for i=1, #tFolders do
-                    if tFolders[i].path and tFolders[i].path:len() > 0 then
-                        mbm.addPath(tFolders[i].path)
+                -- Only register disk search paths for old-format assets (paths are absolute on disk).
+                -- Distribution-format assets are self-contained BLOBs; no disk paths are needed.
+                if not bIsDistributionFormat then
+                    for i=1, #tFolders do
+                        if tFolders[i].path and tFolders[i].path:len() > 0 then
+                            mbm.addPath(tFolders[i].path)
+                        end
                     end
                 end
                 table.insert(tAssets,tFolders)
@@ -460,7 +470,12 @@ function onOpenAsset()
 
                 updateCategory(db)
                 
-                tUtil.showMessage(string.format('Asset:\n%s\n\nOpened Successfully!',filename))
+                local sOpenMsg = string.format('Asset:\n%s\n\nOpened Successfully!',filename)
+                if bIsDistributionFormat then
+                    local sEncNote = bDistEncrypted and '\n[Encrypted — content preview unavailable]' or '\n[Distribution format — file preview unavailable]'
+                    sOpenMsg = sOpenMsg .. sEncNote
+                end
+                tUtil.showMessage(sOpenMsg)
                 sPackageName = filename
                 bShowAssets = true
             else
@@ -525,6 +540,9 @@ function getCategory(sFile)
 end
 
 function showCurrentSelection()
+    -- Distribution-format assets store files as BLOBs (possibly encrypted).
+    -- File preview requires disk access via mbm.addPath(), which is not available for these assets.
+    if bIsDistributionFormat then return end
     if tMesh == nil and sSelectedFile and sSelectedFile:len() > 0 then
         local tType = sSelectedFile:split('%.')
         if tType and #tType > 0 and tType[#tType]:len() > 0 then
