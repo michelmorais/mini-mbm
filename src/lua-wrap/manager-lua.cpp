@@ -153,8 +153,10 @@ namespace mbm
         void SCENE_SCRIPT::onInitScene() 
         {
             mbm::DEVICE* device = mbm::DEVICE::getInstance();
+            #if _DEBUG
             INFO_LOG("SCENE_SCRIPT::onInitScene() enter - scriptLua=[%s] noSplash=%d logo_was_init=%d",
                      this->scriptLua.c_str(), (int)this->noSplash, (int)SCENE_SCRIPT::logo_was_init);
+            #endif
             if (this->lua == nullptr)
             {
                 if (this->createSceneLua() == false)
@@ -274,28 +276,38 @@ namespace mbm
             {
                 bool success                 = false;
                 SCENE_SCRIPT::logo_was_init = true;
+                #if _DEBUG
                 INFO_LOG("SCENE_SCRIPT::init scriptLua=[%s]", this->scriptLua.c_str());
+                #endif
                 const char *copied = device->copyFileFromAsset(this->scriptLua.c_str(), "rt");
+                #if _DEBUG
                 INFO_LOG("SCENE_SCRIPT::init copyFileFromAsset returned [%s]", copied ? copied : "NULL");
+                #endif
                 const char *newPath = util::getFullPath(copied, nullptr);
+                #if _DEBUG
                 INFO_LOG("SCENE_SCRIPT::init getFullPath returned [%s]", newPath ? newPath : "NULL");
+                #endif
                 if (newPath)
                 {
                     if (this->doLauncher(newPath))
                     {
+                        #if _DEBUG
                         INFO_LOG("SCENE_SCRIPT::init doLauncher succeeded");
+                        #endif
                         this->fileNameScriptLuaFinal = newPath;
                         success = true;
                     }
                     else if (!luaL_dofile(this->lua, newPath))
                     {
+                        #if _DEBUG
                         INFO_LOG("SCENE_SCRIPT::init luaL_dofile succeeded for [%s]", newPath);
+                        #endif
                         this->fileNameScriptLuaFinal = newPath;
                         success                       = true;
                     }
                     else
                     {
-                        INFO_LOG("SCENE_SCRIPT::init luaL_dofile FAILED for [%s]", newPath);
+                        ERROR_LOG("SCENE_SCRIPT::init luaL_dofile FAILED for [%s]", newPath);
         #ifdef ANDROID
                         INFO_LOG("SCENE_SCRIPT::init trying doFileAsString fallback");
                         if (this->doFileAsString(this->scriptLua.c_str()))
@@ -631,7 +643,11 @@ namespace mbm
                     if (ret)
                         lua_print_line(lua,TYPE_LOG_ERROR,"Errro at lua_gc code [%d]", ret);
                     else
+                    {
+                        #if _DEBUG
                         INFO_LOG("LUA_GCCOLLECT:%d", clear);
+                        #endif
+                    }
                     if (this->textureRestore)
                     {
                         this->textureRestore->enableRender = false;
@@ -1158,7 +1174,9 @@ namespace mbm
     #endif
             this->windowBorder   = true;
             this->hasValueTextureLogo = false;
+            #if _DEBUG
             INFO_LOG("%s", this->nameApplication.c_str());
+            #endif
         }
 
         LUA_MANAGER::LUA_MANAGER(const std::vector<std::string> & args)
