@@ -469,6 +469,9 @@ namespace mbm
                     sel_h = rh;
                 }
             }
+            // Windowed mode: fixed size — the user picked an explicit resolution,
+            // so resizing would break aspect ratio / layout assumptions.
+            mbm::set_window_resizable(false);
         }
         else
         {
