@@ -68,7 +68,7 @@ bool PARSE_laucher_ARGS::getExpectedWidthHeight(unsigned int& width, unsigned in
     }
 }
 
-#if defined WIN32
+#if defined _WIN32
 PARSE_laucher_ARGS::PARSE_laucher_ARGS(int argc, wchar_t** argv)
 {
     noSplash = false;

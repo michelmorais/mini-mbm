@@ -670,6 +670,10 @@ cd /d \"%~dp0\"\r\n\
 
         # ── DLL source paths ─────────────────────────────────────────────────
         set(_WIN_DLL_LIST "")
+        # portaudio is a bundled DLL — copy it to GameDir.
+        if(AUDIO STREQUAL "portaudio")
+            list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/portaudio/Windows/bin/portaudio_x86.dll")
+        endif()
         # dsound is a system DLL — no file to copy.
         if(USE_DIRECTX9)
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.
@@ -763,7 +767,6 @@ endforeach()
                 "${_WIN_GAMEDIR}/assets/${GAME_NAME_SAFE}.asset"
                 $<$<BOOL:${GAME_ASSETS_PASSWORD}>:--password>
                 $<$<BOOL:${GAME_ASSETS_PASSWORD}>:${GAME_ASSETS_PASSWORD}>
-            DEPENDS distribution_exe distribution
             COMMENT "Windows delivery: packing assets → GameDir/assets/${GAME_NAME_SAFE}.asset")
 
         # 5. Copy icon

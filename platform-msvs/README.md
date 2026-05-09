@@ -100,18 +100,20 @@ The solution exposes four configurations:
 ## Building from the Command Line (MSBuild)
 
 ```cmd
-rem Debug (whole solution)
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /m /v:minimal
+rem Debug (whole solution, x86)
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /m /v:minimal
 
 rem Release
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /m /v:minimal
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /m /v:minimal
 
 rem Override backend
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:MbmBackend=OpenGLES /m /v:minimal
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
 
 rem Build a single project
-msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /m
+msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /p:Platform=x86 /m
 ```
+
+> **Note:** Always specify `/p:Platform=x86`. The solution platform names are `x86` and `x64` (not `Win32`). Only 32-bit portaudio binaries are bundled; the x64 platform configuration is not fully supported.
 
 ---
 
@@ -271,19 +273,20 @@ cmake .. -G "MinGW Makefiles" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 
-rem Enabling steam plugin
+rem Enabling steam plugin + asset encryption
 rem IMPORTANT: Use forward slashes in -DSTEAMWORKS_SDK_PATH on MinGW.
 rem Backslashes are misinterpreted by ld.exe as escape sequences and will
 rem cause a "cannot find steam_api.lib: No such file or directory" link error.
 
 cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_OPENGL_ES=1  ^
     -DUSE_STEAM=1 ^
     -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ASSETS_PASSWORD="agasdOyu865()55!" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically

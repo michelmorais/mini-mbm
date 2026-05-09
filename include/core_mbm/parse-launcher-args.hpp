@@ -11,7 +11,7 @@ class API_IMPL PARSE_laucher_ARGS
 public:
 	PARSE_laucher_ARGS();
 	PARSE_laucher_ARGS(const char** argv, const int pNumArgs);
-#if defined WIN32
+#if defined _WIN32
 	PARSE_laucher_ARGS(int argc, wchar_t** argv);
 #endif
 	~PARSE_laucher_ARGS();

@@ -19,9 +19,7 @@
 
 #if defined(AUDIO_ENGINE_PORT_AUDIO)
 
-#if defined(_WIN64)
-    #pragma comment(lib, "portaudio_x64.lib")
-#elif defined(_WIN32)
+#if defined(_WIN32) && !defined(_WIN64)
     #pragma comment(lib, "portaudio_x86.lib")
 #endif
 
