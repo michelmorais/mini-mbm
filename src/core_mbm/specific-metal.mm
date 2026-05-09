@@ -85,12 +85,13 @@ namespace mbm
         if (window)
         {
             // Nil the delegate first so no callbacks fire on a released object.
-            // Then close (hidden, removed from window lists) and explicitly
-            // release — setReleasedWhenClosed:NO was set at creation so the
-            // window does NOT self-release inside [close].
+            // Then close (hides and removes the window from the window list).
+            // setReleasedWhenClosed:NO was set at creation so [close] does NOT
+            // call [self release]; the ARC autorelease from the original
+            // alloc-init (stored into __unsafe_unretained) will drain cleanly
+            // in the inner @autoreleasepool that wraps onLoop() in main().
             [window setDelegate:nil];
             [window close];
-            [window release];   // non-ARC explicit release (paired with alloc)
             window = nil;
         }
         windowDelegate = nil;
