@@ -73,12 +73,43 @@ static void cleanup_temp_folder() noexcept
 
 static void on_signal(int /*sig*/) noexcept { exit(1); }
 
-// From Lua: mbm.doCommands('get_tmp_folder')
+// From Lua: mbm.doCommands('get_tmp_folder') or mbm.doCommands('get_save_dir')
 void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
 {
     if (!command) return;
+
     if (strcmp(command, "get_tmp_folder") == 0 && !s_temp_folder.empty())
+    {
         strncpy(result, s_temp_folder.c_str(), static_cast<size_t>(max_size_result) - 1);
+        return;
+    }
+
+    if (strcmp(command, "get_save_dir") == 0)
+    {
+        @autoreleasepool
+        {
+            // Returns ~/Library/Application Support/<AppName>/
+            // Inside the App Sandbox this is remapped to the container automatically.
+            // No extra entitlement is needed — the sandbox always permits writes here.
+            NSArray<NSString *> *paths = NSSearchPathForDirectoriesInDomains(
+                NSApplicationSupportDirectory, NSUserDomainMask, YES);
+            if (paths.count > 0)
+            {
+                NSString *appName   = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
+                if (!appName || appName.length == 0)
+                    appName = [NSString stringWithUTF8String:title_app.c_str()];
+                NSString *saveDir   = [paths[0] stringByAppendingPathComponent:appName];
+
+                NSFileManager *fm   = [NSFileManager defaultManager];
+                NSError       *err  = nil;
+                [fm createDirectoryAtPath:saveDir
+                  withIntermediateDirectories:YES
+                             attributes:nil
+                                  error:&err];
+                strncpy(result, [saveDir UTF8String], static_cast<size_t>(max_size_result) - 1);
+            }
+        }
+    }
 }
 
 int main(int /*argc*/, const char ** /*argv*/)

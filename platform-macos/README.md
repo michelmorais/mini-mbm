@@ -488,6 +488,116 @@ capabilities (e.g. outbound networking):
 | Entry point | `main-lua-delivery.cpp` | `main-lua-mas.mm` |
 | Generator | Makefile | **Xcode only** |
 
+### Persistent, tamper-resistant save files
+
+#### Why save location matters in MAS mode
+
+Inside the App Sandbox, `mbm.getPathEngine()` returns a path that points into
+or near the read-only bundle, and the temporary directory that is used to stage
+assets is **cleaned up on exit**.  Any progress stored there is lost the next
+time the player opens the game.
+
+The correct persistent location is **`Application Support`**:
+
+```
+~/Library/Containers/<BundleID>/Data/Library/Application Support/<AppName>/
+```
+
+The sandbox remaps the familiar `~/Library/Application Support/<AppName>/`
+automatically.  This directory survives app restarts, system reboots, and OS
+updates.  No extra entitlement is required to write there.
+
+#### How to get the save directory from Lua
+
+`main-lua-mas.mm` exposes the path via `mbm.doCommands`:
+
+```lua
+-- Returns the persistent Application Support directory for this app, e.g.
+-- ~/Library/Containers/com.my.game/Data/Library/Application Support/MyGame/
+local save_dir = mbm.doCommands('get_save_dir')
+```
+
+The call creates the directory if it does not exist and returns the absolute
+path (no trailing slash).
+
+#### Recommended save/load pattern with encryption
+
+Storing save data as plain Lua source (e.g. a sequence of `mbm.setGlobal()`
+calls) makes it trivially editable by the player.  `mbm.encrypt` / `mbm.decrypt`
+(available when built with `-DUSE_ALL=1`) apply AES-128-CBC encryption.  The
+recommended pattern:
+
+```lua
+local SAVE_FILE = "mygame.data"
+
+local function get_save_path()
+    if mbm.is('macos') then
+        local dir = mbm.doCommands('get_save_dir')
+        if dir and #dir > 0 then return dir .. "/" .. SAVE_FILE end
+    end
+    return mbm.getPathEngine(SAVE_FILE)  -- fallback for dev / other platforms
+end
+
+-- Save
+local function saveProgress(tData)
+    local path    = get_save_path()
+    local pathTmp = path .. ".tmp"
+    local fp = io.open(pathTmp, "w")
+    if not fp then return end
+    for k, v in pairs(tData) do
+        fp:write(string.format("mbm.setGlobal('%s',%s)\n", k, tostring(v)))
+    end
+    fp:close()
+    -- Encrypt the temp file into the real save file, then remove the plaintext
+    if not mbm.encrypt(pathTmp, path) then
+        os.rename(pathTmp, path)   -- fallback: keep unencrypted if encrypt fails
+    else
+        os.remove(pathTmp)
+    end
+end
+
+-- Load
+local function loadProgress()
+    local path    = get_save_path()
+    local pathTmp = path .. ".tmp"
+    if mbm.decrypt(path, pathTmp) then
+        mbm.include(pathTmp)
+        os.remove(pathTmp)
+    else
+        mbm.include(path)   -- first run or unencrypted legacy file
+    end
+end
+```
+
+#### Data flow summary
+
+```
+saveProgress()
+    → writes plain Lua to <save_path>.tmp
+    → mbm.encrypt(<save_path>.tmp, <save_path>)   ← AES-128-CBC ciphertext on disk
+    → os.remove(<save_path>.tmp)                  ← no plaintext trace
+
+loadProgress()
+    → mbm.decrypt(<save_path>, <save_path>.tmp)   ← decrypts to temp
+    → mbm.include(<save_path>.tmp)                ← executes Lua, sets globals
+    → os.remove(<save_path>.tmp)                  ← no plaintext trace
+```
+
+#### What this achieves
+
+| Threat | Protection |
+|---|---|
+| Player opens save file in a text editor | AES-128-CBC ciphertext — unreadable without the key |
+| Player deletes the temp dir | Irrelevant — file lives in Application Support |
+| App reinstall / update | File survives — container is preserved by macOS |
+| Player uninstalls the app | Container (including saves) is removed by macOS |
+| Player clears container via System Settings | Save is lost — same as any macOS app |
+
+> **Note on `GAME_ASSETS_PASSWORD`:** This flag only affects the `.asset` archive
+> used in *standard delivery* (`GAME_ASSETS_DIR`).  It has no effect in MAS mode
+> — assets are plain files embedded in the bundle.  The App Store protects the
+> entire package with FairPlay DRM at download time.
+
 ---
 
 ## Platform Source Files
