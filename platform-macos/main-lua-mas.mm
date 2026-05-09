@@ -118,10 +118,24 @@ int main(int /*argc*/, const char ** /*argv*/)
     {
         mbm::set_callback_do_commands(onDoNativeCommand);
         mbm::set_app_name(title_app.c_str());
-        mbm::set_window_size(1920, 1080);
         mbm::set_expected_window_size(1920, 1080);
         mbm::set_verbose(false);
         mbm::disable_splash();
+
+        /* ------------------------------------------------------------------ */
+        /* Monitor / resolution / fullscreen picker                           */
+        /* (No app list — MAS delivers a single game.)                        */
+        /* Uses NSUserDefaults to remember the player's choices between       */
+        /* launches. Defaults to fullscreen on first run.                     */
+        /* ------------------------------------------------------------------ */
+        if (!mbm::select_app_and_resolution(
+                nullptr, 0, nullptr,    // no app list — single game
+                nullptr, 0,             // use built-in resolution list
+                true,  true,            // allow fullscreen; default to checked
+                1920,  1080))           // suggest 1920 × 1080 for windowed
+        {
+            return 0;   // user dismissed the launcher
+        }
 
         /* ------------------------------------------------------------------ */
         /* Create a writable private temp directory                           */

@@ -364,6 +364,31 @@ This mode produces an Xcode project suitable for archiving and submitting to the
 `.asset` archive extraction happens at runtime.  All plugins are linked
 statically so no user-space dylibs are loaded (required by the App Store sandbox).
 
+### Monitor / Resolution / Fullscreen Launcher
+
+On every launch the engine presents a small **startup dialog** (before the game
+window opens) where the player can choose:
+
+- **Monitor** — any connected display; particularly useful for multi-monitor
+  setups
+- **Resolution** — resolutions that fit the selected monitor (common presets +
+  native); defaults to 1920 × 1080 on first run
+- **Full Screen** — checked by default; when enabled, the window covers the
+  selected monitor without a title bar
+
+The choice is remembered in `NSUserDefaults` inside the App Sandbox container, so
+the player's preference is restored on the next launch without prompting.
+
+This matches the industry standard for macOS/PC games (Unity, Unreal Engine, and
+SDL-based titles all display an equivalent launcher on startup).  On first run
+the dialog defaults to **full screen on the primary monitor** — the most common
+expectation for a purchased App Store game.
+
+This mode produces an Xcode project suitable for archiving and submitting to the
+**Mac App Store**.  Assets are embedded directly in the `.app` bundle; no
+`.asset` archive extraction happens at runtime.  All plugins are linked
+statically so no user-space dylibs are loaded (required by the App Store sandbox).
+
 ### Requirements
 
 - Xcode installed (not just the command-line tools)
