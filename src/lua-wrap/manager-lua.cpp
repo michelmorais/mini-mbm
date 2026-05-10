@@ -646,6 +646,8 @@ namespace mbm
                     {
                         #if defined _DEBUG || defined DEBUG
                         INFO_LOG("LUA_GCCOLLECT:%d", clear);
+                        #else
+                        (void)clear;
                         #endif
                     }
                     if (this->textureRestore)
