@@ -860,15 +860,15 @@ namespace mbm
             else if (strcasecmp(what, "os") == 0 || strcasecmp(what, "os_name") == 0 || strcasecmp(what, "platform") == 0)
             {
     #if defined _WIN32
-                lua_pushstring(lua, "windows");
+                lua_pushstring(lua, "Windows");
     #elif defined ANDROID
-                lua_pushstring(lua, "android");
+                lua_pushstring(lua, "Android");
     #elif defined __linux__ && !defined(__APPLE__)
-                lua_pushstring(lua, "linux");
+                lua_pushstring(lua, "Linux");
     #elif defined(MBM_PLATFORM_IOS)
-                lua_pushstring(lua, "ios");
+                lua_pushstring(lua, "iOS");
     #elif defined(__APPLE__)
-                lua_pushstring(lua, "macos");
+                lua_pushstring(lua, "MacOS");
     #else
                 lua_pushstring(lua, "unknown");
     #endif
