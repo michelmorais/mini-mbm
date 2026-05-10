@@ -1354,7 +1354,23 @@ namespace mbm
         return true;
     }
 
-    const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (* passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
+    // Opens a file entirely within this module's CRT to avoid FILE* crossing DLL
+    // boundaries on Windows (util::openFile lives in core_mbm.dll).
+    static FILE *openFileLocal(const char *fileName, const char *mode)
+    {
+        bool        exists   = false;
+        const char *resolved = util::getFullPath(fileName, &exists);
+        const char *path     = (resolved && exists) ? resolved : fileName;
+        FILE       *fp       = nullptr;
+#if defined _WIN32
+        fopen_s(&fp, path, mode);
+#else
+        fp = fopen(path, mode);
+#endif
+        return fp;
+    }
+
+    const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (*passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
     {
         // encrypt
         size_t read_bytes = 0;
@@ -1608,14 +1624,14 @@ namespace mbm
         char good_password[17] = {0};
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
-        FILE *fp1 = util::openFile(fileNameIn, "rb");
+        FILE *fp1 = openFileLocal(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", fileNameIn);
             lua_pushboolean(lua, 0);
             return 1;
         }
-        FILE *fp2 = util::openFile(strOut.c_str(), "wb");
+        FILE *fp2 = openFileLocal(strOut.c_str(), "wb");
         if (fp2 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", strOut.c_str());
@@ -1623,7 +1639,7 @@ namespace mbm
             return 1;
         }
 #ifdef USE_PLUSAES
-        if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        if (encrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -1689,24 +1705,24 @@ namespace mbm
         char good_password[17] = { 0 };
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
-        FILE *    fp1     = util::openFile(fileNameIn, "rb");
+        FILE *fp1 = openFileLocal(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", fileNameIn);
             lua_pushboolean(lua, 0);
             return 1;
         }
-        FILE *fp2 = util::openFile(strOut.c_str(), "wb");
+        FILE *fp2 = openFileLocal(strOut.c_str(), "wb");
         if (fp2 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", strOut.c_str());
             lua_pushboolean(lua, 0);
-            return 1;
-        }
-#ifdef USE_PLUSAES
-        if (decrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
-        {
-            fclose(fp1);
+                    return 1;
+                    }
+            #ifdef USE_PLUSAES
+                    if (decrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+                    {
+                        fclose(fp1);
             fclose(fp2);
             if (strcasecmp(fileNameOut, fileNameIn) == 0)
             {
