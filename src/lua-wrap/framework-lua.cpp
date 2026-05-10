@@ -870,7 +870,8 @@ namespace mbm
     #elif defined(__APPLE__)
                 lua_pushstring(lua, "MacOS");
     #else
-                lua_pushstring(lua, "unknown");
+                #error "Unknown platform, you might want to add support for it in onGet() function"
+                lua_pushstring(lua, "Unknown");
     #endif
             }
             else
