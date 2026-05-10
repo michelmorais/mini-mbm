@@ -204,6 +204,7 @@ cmake ~/mini-mbm \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release \
+    -DGAME_ASSETS_PASSWORD="HardP4sS33o0d" \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
     -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png
