@@ -99,11 +99,14 @@ function onOpenMesh()
 	if fileName then
         local meshD = meshDebug:new()
         if meshD:load(fileName) then
+            if tGlobalFont then
+                --Font does not have destroy
+                tGlobalFont = nil
+            end
             if tMesh then
                 tMesh:destroy()
                 tMesh = nil
             end
-            tGlobalFont = nil
             local myType = meshD:getType()
             if myType == 'sprite' then
                 tMesh = sprite:new('2dw')
@@ -131,7 +134,10 @@ function onOpenMesh()
                 bShowShaderMenu = true
                 tUtil.showMessage(tLang.L("file_opened_ok"))
             else
-                tMesh = nil
+                if tMesh then
+                    tMesh:destroy()
+                    tMesh = nil
+                end
                 tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_file_type_fmt"), myType, tUtil.getShortName(fileName)))
             end
         end
