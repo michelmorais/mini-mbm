@@ -20,6 +20,15 @@
 
 std::string title_app = "Mini-MBM-Dev";
 std::string temporary_folder_path;
+static std::string s_save_dir;
+
+static std::string compute_save_dir(const std::string& app_name)
+{
+    const char* appdata = getenv("APPDATA");
+    std::string dir = std::string(appdata ? appdata : ".") + "\\" + app_name;
+    CreateDirectoryA(dir.c_str(), nullptr);  // create if absent (EEXIST is fine)
+    return dir;
+}
 
 // From LUA Use: doCommands(string command, string parameter)
 // e.g.: local tmp_folder = mbm.doCommands('get_tmp_folder')
@@ -41,6 +50,11 @@ void onDoNativeCommand(const char* command, const char* param, char* result, con
             {
                 strncpy_s(result, max_size_result, temporary_folder_path.c_str(), temporary_folder_path.size() - 1);
             }
+        }
+        else if (strcmp(command, "get_save_dir") == 0)
+        {
+            if (!s_save_dir.empty())
+                strncpy(result, s_save_dir.c_str(), static_cast<size_t>(max_size_result) - 1);
         }
 #if defined _DEBUG // testing proposal, you can call it from lua script, e.g. mbm.doCommands('restoreDeviceTest')
         else if (strcmp(command, "restoreDeviceTest") == 0)
@@ -158,6 +172,7 @@ int main(const int argc,const char **argv)
     mbm::set_verbose(true);
     mbm::disable_splash();
     mbm::push_arg("--showconsole","true");
+    s_save_dir = compute_save_dir(title_app);
     size_app = sizeof(default_applications) / sizeof(mbm::APP_RUN); // add the user specified script
     if (mbm::select_app_and_resolution(default_applications, size_app, &index_app_selected, nullptr, 0, allowFullScreen, full_screen_checked, requested_width, requested_height))
     {
