@@ -60,8 +60,9 @@
     #define GAME_ASSET_PASSWORD ""
 #endif
 
-// From LUA: mbm.doCommands('get_tmp_folder')
+// From LUA: mbm.doCommands('get_tmp_folder') / mbm.doCommands('get_save_dir')
 static std::string temporary_folder_path;
+static std::string s_save_dir;
 static std::string title_app(GAME_APP_TITLE);
 
 /* ------------------------------------------------------------------ */
@@ -121,14 +122,44 @@ static std::string make_delivery_temp_template(const char *app_name)
     return base + "/" + safe + "_XXXXXX";
 }
 
-void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
+// Returns (and creates) the persistent save-data directory for this game.
+// Uses GAME_SAVE_DIR env var when available (set by AppRun), otherwise
+// constructs ${XDG_DATA_HOME}/<AppName> or ${HOME}/.local/share/<AppName>.
+static std::string compute_save_dir(const std::string &app_name)
 {
+    // Honour the AppRun-provided path first (already mkdir-p'd by the shell script)
+    const char *env_dir = getenv("GAME_SAVE_DIR");
+    if (env_dir && env_dir[0])
+        return env_dir;
+
+    // XDG user data home
+    const char *xdg_data = getenv("XDG_DATA_HOME");
+    std::string base;
+    if (xdg_data && xdg_data[0] == '/')
+        base = xdg_data;
+    else
+    {
+        const char *home = getenv("HOME");
+        base = std::string(home ? home : "/tmp") + "/.local/share";
+    }
+
+    std::string dir = base + "/" + app_name;
+    mkdir(dir.c_str(), 0755);  // create if not already present (ignore EEXIST)
+    return dir;
+}
+
+
     if (!command) return;
     if (strcmp(command, "get_tmp_folder") == 0)
     {
         // temporary_folder_path is set before main.lua starts; just return it.
         if (!temporary_folder_path.empty())
             strncpy(result, temporary_folder_path.c_str(), static_cast<size_t>(max_size_result) - 1);
+    }
+    else if (strcmp(command, "get_save_dir") == 0)
+    {
+        if (!s_save_dir.empty())
+            strncpy(result, s_save_dir.c_str(), static_cast<size_t>(max_size_result) - 1);
     }
 }
 
@@ -140,6 +171,9 @@ int main(int /*argc*/, const char ** /*argv*/)
     mbm::set_expected_window_size(1920, 1080);
     mbm::set_verbose(false);
     mbm::disable_splash();
+
+    // Compute save dir once; expose to Lua via get_save_dir command.
+    s_save_dir = compute_save_dir(title_app);
 
     /* ------------------------------------------------------------------ */
     /* Extract the .asset archive into a private temporary folder          */
@@ -198,6 +232,17 @@ int main(int /*argc*/, const char ** /*argv*/)
     /* ------------------------------------------------------------------ */
     util::addPath(temp_folder);
     mbm::set_scene("main.lua");
+
+    /* ------------------------------------------------------------------ */
+    /* Show the monitor / resolution / fullscreen picker                   */
+    /* Mirrors the same call in main-lua-mas.mm (macOS MAS build).        */
+    /* ------------------------------------------------------------------ */
+    if (!mbm::select_app_and_resolution(
+            nullptr, 0, nullptr,   // no app list — single game
+            nullptr, 0,            // use built-in resolution list
+            true,  true,           // allow fullscreen; default to checked
+            1920,  1080))          // suggest 1920 × 1080 for windowed
+        return 0;  // user dismissed the launcher
 
     const int ret = mbm::onLoop();
     // cleanup_temp_folder() will be called automatically via std::atexit.

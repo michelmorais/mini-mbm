@@ -63,6 +63,7 @@ extern const char mbm_baked_game_name[];
 #endif
 
 static std::string temporary_folder_path;
+static std::string s_save_dir;
 static std::string title_app(GAME_APP_TITLE);
 
 /* ------------------------------------------------------------------ */
@@ -113,6 +114,15 @@ static std::string make_delivery_temp_dir(const char *app_name)
     return result;
 }
 
+// Returns (and creates) %APPDATA%\<AppName> as the persistent save-data location.
+static std::string compute_save_dir(const std::string &app_name)
+{
+    const char *appdata = getenv("APPDATA");
+    std::string dir = std::string(appdata ? appdata : ".") + "\\" + app_name;
+    CreateDirectoryA(dir.c_str(), nullptr);  // create if absent (EEXIST is fine)
+    return dir;
+}
+
 void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
 {
     if (!command) return;
@@ -120,6 +130,11 @@ void onDoNativeCommand(const char *command, const char * /*param*/, char *result
     {
         if (!temporary_folder_path.empty())
             strncpy(result, temporary_folder_path.c_str(), static_cast<size_t>(max_size_result) - 1);
+    }
+    else if (strcmp(command, "get_save_dir") == 0)
+    {
+        if (!s_save_dir.empty())
+            strncpy(result, s_save_dir.c_str(), static_cast<size_t>(max_size_result) - 1);
     }
 }
 
@@ -142,6 +157,9 @@ int main(int /*argc*/, const char ** /*argv*/)
     mbm::set_verbose(false);
     mbm::disable_splash();
     mbm::set_icon(IDI_ICON1);
+
+    // Compute save dir once; expose to Lua via get_save_dir command.
+    s_save_dir = compute_save_dir(title_app);
 
     /* ------------------------------------------------------------------ */
     /* Resolve .asset path: <GameDir>\assets\<file>                        */
@@ -198,6 +216,16 @@ int main(int /*argc*/, const char ** /*argv*/)
     /* ------------------------------------------------------------------ */
     util::addPath(temp_folder);
     mbm::set_scene("main.lua");
+
+    /* ------------------------------------------------------------------ */
+    /* Show the monitor / resolution / fullscreen picker                   */
+    /* ------------------------------------------------------------------ */
+    if (!mbm::select_app_and_resolution(
+            nullptr, 0, nullptr,   // no app list — single game
+            nullptr, 0,            // use built-in resolution list
+            true,  true,           // allow fullscreen; default to checked
+            1920,  1080))          // suggest 1920 × 1080 for windowed
+        return 0;  // user dismissed the launcher
 
     const int ret = mbm::onLoop();
     // cleanup_temp_folder() called automatically via std::atexit.
