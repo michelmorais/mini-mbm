@@ -148,7 +148,8 @@ static std::string compute_save_dir(const std::string &app_name)
     return dir;
 }
 
-
+void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
+{
     if (!command) return;
     if (strcmp(command, "get_tmp_folder") == 0)
     {
