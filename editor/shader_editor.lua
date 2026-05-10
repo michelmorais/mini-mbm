@@ -123,6 +123,9 @@ function onOpenMesh()
             elseif myType == 'tile' then
                 tMesh = tile:new('2dw')
                 tMesh.is3d = false
+                local gc = mbm.lua_gc()
+                -- sometimes we need to force collect garbage after loading a tile, because it take some time to release the memory, LUA GC is not instant.
+                --print("Lua GC - collect: " .. gc .. " KB")
             else
                 tUtil.showMessageWarn(string.format(tLang.L("failed_to_load_unexpected_type_fmt"), tUtil.getShortName(fileName), myType))
             end
