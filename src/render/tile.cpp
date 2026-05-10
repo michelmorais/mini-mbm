@@ -1004,6 +1004,8 @@ namespace mbm
 
     bool TILE_LAYER::isOnFrustum()
     {
+        if (!ptr_tileMap->enableRender)
+            return false;
         if (!ptr_tileMap->isLoaded())
             return false;
         // All layers share the same spatial extent as the parent TILE.
