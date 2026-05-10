@@ -2463,6 +2463,15 @@ namespace mbm
                                 lua_tostring(L, 1), filename, lua_tostring(L, -1));
     }
 
+    static int onLuaGC(lua_State *lua)
+    {
+        const int count = lua_gc(lua, LUA_GCCOUNT, 0);
+        const int ret   = lua_gc(lua, LUA_GCCOLLECT, 0);
+        const int clear = count - lua_gc(lua, LUA_GCCOUNT, 0);
+        lua_pushinteger(lua, clear);
+        return 1;
+    }
+
     int __luaB_searchLuaModule(lua_State *lua)
     {
         const char *name = luaL_checkstring(lua, 1);
@@ -2569,6 +2578,7 @@ namespace mbm
     #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {"getAlphaBounds", onGetAlphaBoundsLua},
+            {"lua_gc", onLuaGC},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
         device->scene       = scene;
