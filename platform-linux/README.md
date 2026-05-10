@@ -245,9 +245,12 @@ The AppDir is a standalone, runnable directory without any additional tooling:
 ### Writable save directory
 
 The AppImage filesystem is **read-only** — any file the game tries to create inside
-`/tmp/.mount_*/` will fail. `AppRun` handles this automatically: it creates a
-persistent writable directory under `$HOME/.local/share/<GameName>/` and exports it
-as the `GAME_SAVE_DIR` environment variable before launching the engine.
+`/tmp/.mount_*/` will fail.  The delivery binary handles this automatically: it
+computes a persistent writable directory and exposes it to Lua via a native command.
+
+The directory is resolved in this order:
+1. `GAME_SAVE_DIR` environment variable, if set (AppRun exports it).
+2. `$XDG_DATA_HOME/<GameName>` (`~/.local/share/<GameName>` on most systems).
 
 ```
 ~/.local/share/Tower_Defense_Monster/   ← writable, survives AppImage updates
@@ -255,26 +258,31 @@ as the `GAME_SAVE_DIR` environment variable before launching the engine.
     ...
 ```
 
-In your Lua save/load code, read the path from the environment variable instead of
-using a hardcoded or relative path:
+From Lua, call `mbm.doCommands('get_save_dir')` — the same API used on all
+delivery platforms (Linux, macOS, Windows):
 
 ```lua
--- Use the writable save dir injected by AppRun.
--- Falls back to "" (current dir) when running outside an AppImage during development.
-local save_dir = os.getenv("GAME_SAVE_DIR")
-save_dir = save_dir and (save_dir .. "/") or ""
+-- Works on Linux, macOS, and Windows delivery builds.
+-- Returns the persistent writable directory for save files (no trailing slash).
+-- Returns "" when running outside a delivery build (development mode).
+local function getSaveDir()
+    local dir = mbm.doCommands('get_save_dir')
+    if dir and #dir > 0 then return dir .. "/" end
+    return ""  -- fallback: write next to the script during development
+end
 
-local save_file = save_dir .. "tower-defense.data"
+local save_file = getSaveDir() .. "mygame.data"
 ```
 
-Use `save_file` wherever you read or write persistent game data. This works
-transparently in all three contexts:
+This is consistent across all delivery platforms:
 
-| Context | `GAME_SAVE_DIR` value | Save file location |
-|---|---|---|
-| AppImage (distributed) | `~/.local/share/Tower_Defense_Monster` | `~/.local/share/Tower_Defense_Monster/tower-defense.data` |
-| AppDir (direct run) | `~/.local/share/Tower_Defense_Monster` | same |
-| Development (engine repo) | _(not set)_ | `tower-defense.data` next to the script |
+| Platform | `get_save_dir` returns |
+|---|---|
+| Linux AppImage | `$GAME_SAVE_DIR` or `~/.local/share/<GameName>` |
+| macOS delivery | `~/Library/Application Support/<GameName>` |
+| macOS MAS | Container-mapped Application Support directory |
+| Windows delivery | `%APPDATA%\<GameName>` |
+| Development (no delivery) | _(empty string — CWD fallback)_ |
 
 After changing `AppRun` (by re-running cmake) you must rebuild and repackage:
 

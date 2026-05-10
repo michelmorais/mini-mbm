@@ -534,16 +534,27 @@ updates.  No extra entitlement is required to write there.
 
 #### How to get the save directory from Lua
 
-`main-lua-mas.mm` exposes the path via `mbm.doCommands`:
+All delivery entry points (`main-lua-delivery.cpp` on Linux and macOS,
+`main-lua-mas.mm` for MAS, `main-mingw-delivery.cpp` on Windows) expose the
+persistent save directory through the same native command:
 
 ```lua
--- Returns the persistent Application Support directory for this app, e.g.
--- ~/Library/Containers/com.my.game/Data/Library/Application Support/MyGame/
+-- Returns the persistent writable directory for save files (no trailing slash).
+-- Works on Linux, macOS (delivery and MAS), and Windows delivery builds.
+-- Returns "" when running outside a delivery build (development mode).
 local save_dir = mbm.doCommands('get_save_dir')
 ```
 
 The call creates the directory if it does not exist and returns the absolute
-path (no trailing slash).
+path without a trailing slash.
+
+| Platform | Directory returned |
+|---|---|
+| Linux AppImage | `$GAME_SAVE_DIR` or `~/.local/share/<GameName>` |
+| macOS delivery | `~/Library/Application Support/<GameName>` |
+| macOS MAS | Sandbox-mapped Application Support directory |
+| Windows delivery | `%APPDATA%\<GameName>` |
+| Development | _(empty string — CWD fallback)_ |
 
 #### Recommended save/load pattern with encryption
 
@@ -556,11 +567,9 @@ recommended pattern:
 local SAVE_FILE = "mygame.data"
 
 local function get_save_path()
-    if mbm.is('macos') then
-        local dir = mbm.doCommands('get_save_dir')
-        if dir and #dir > 0 then return dir .. "/" .. SAVE_FILE end
-    end
-    return mbm.getPathEngine(SAVE_FILE)  -- fallback for dev / other platforms
+    local dir = mbm.doCommands('get_save_dir')
+    if dir and #dir > 0 then return dir .. "/" .. SAVE_FILE end
+    return mbm.getPathEngine(SAVE_FILE)  -- fallback for development
 end
 
 -- Save

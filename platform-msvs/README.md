@@ -155,8 +155,9 @@ assets, and a `launch.bat`. From that folder you can optionally produce a
 one-file NSIS installer (`.exe`), a Windows Installer package (`.msi` via WiX),
 or a portable ZIP archive.
 
-The writable save-file directory is set by `launch.bat` as
-`%APPDATA%\<GameName>\` and exposed to Lua via `os.getenv("GAME_SAVE_DIR")`.
+The writable save-file directory (`%APPDATA%\<GameName>\`) is computed by the
+delivery binary at startup and exposed to Lua via `mbm.doCommands('get_save_dir')` —
+the same API used on Linux and macOS.
 
 ---
 
@@ -395,7 +396,7 @@ All three installers perform a **per-user install** (no UAC prompt):
 4. Copies `distribution.dll` from the bin output directory
 5. Copies plugin DLLs from the bin output directory
 6. Packs game assets into `GameDir\assets\<GameName>.asset` using `distribution.exe` (encrypted if password supplied)
-7. Writes `launch.bat` (sets `GAME_SAVE_DIR=%APPDATA%\<GameName>\"`)
+7. Writes `launch.bat` (launches `<GameName>.exe` with the correct working directory)
 8. Generates and runs NSIS (if `makensis` is in `PATH` or its default install location)
 9. Generates the MSI via `cmake -P make-msi.cmake` (if `cmake` is in `PATH` and WiX is installed)
 10. Creates a ZIP archive via PowerShell `Compress-Archive`
