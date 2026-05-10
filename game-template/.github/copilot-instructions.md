@@ -215,7 +215,7 @@ mbm.getIdiom()              -- → OS language: "en", "pt_br", etc.
 mbm.getUserName()           -- → OS username
 ```
 
-### Encryption (requires -DUSE_PLUSAES or -DAES_CRYPT at build time)
+### Encryption
 
 ```lua
 mbm.encrypt(fileIn, fileOut?, password?, iv?)   -- → bool

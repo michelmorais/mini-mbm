@@ -128,12 +128,6 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_VR=0                 : Use VR class  (Current is DISABLED)")
     endif()
 
-    if(USE_PLUSAES)
-        message("-DUSE_PLUSAES=1            : Use PlusAES encryption for scripts and assets (Current is ENABLED)")
-    else()
-        message("-DUSE_PLUSAES=0            : Use PlusAES encryption for scripts and assets (Current is DISABLED)")
-    endif()
-
     if(MBM_ENABLE_MESH_LEGACY_V7)
         message("-DMBM_ENABLE_MESH_LEGACY_V7=1 : Compatibility for mesh loader and deprecated features (versions <= 7) (Current is ENABLED)")
     else()
@@ -668,7 +662,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     #default definitions: opengl, deprecated version, VR, lua options default compatibility
-    set(USE_PLUSAES      1)
     if(NOT USE_VR AND DISABLE_VR)
         message(STATUS " Disabling VR class")
         add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI)
@@ -676,10 +669,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         message(STATUS " VR class available")
         set(USE_VR 1)
         add_definitions(-DUSE_VR -DLUA_COMPAT_ALL -DLUA_ANSI)
-    endif()
-
-    if(USE_PLUSAES)
-        add_definitions(-DUSE_PLUSAES)
     endif()
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")

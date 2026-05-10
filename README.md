@@ -937,7 +937,6 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_VULKAN=1` | `OFF` | Vulkan backend (planned) |
 | `-DUSE_METAL=1` | `OFF` | Metal backend (macOS, iOS) |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
-| `-DUSE_PLUSAES=1` | `ON` | AES encryption for scripts/assets |
 | `-DUSE_BOX2D=1` | Auto | Box2D physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | Auto | Box2D LiquidFun fluid simulation |
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |

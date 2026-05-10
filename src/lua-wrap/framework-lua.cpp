@@ -77,9 +77,7 @@
     #include <X11/Xutil.h>
 #endif
 
-#ifdef USE_PLUSAES
-    #include "plusaes/plusaes.hpp"
-#endif
+#include "plusaes/plusaes.hpp"
 
 
 extern "C" 
@@ -1334,7 +1332,6 @@ namespace mbm
         }
         return 0;
     }
-#if defined USE_PLUSAES
     // Local file-size helper to avoid crossing CRT boundaries.
     // util::getSizeFile lives in core_mbm.dll and would call fseek/ftell
     // from a different CRT than the one that owns the FILE* opened here.
@@ -1591,7 +1588,6 @@ namespace mbm
             return false;
         }
     }
-#endif
 
     int onEncryptFile(lua_State *lua)
     {
@@ -1605,7 +1601,6 @@ namespace mbm
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
 
-#if defined USE_PLUSAES
         const unsigned char* iv = __iv_p();
         if (top > 3)
         {
@@ -1617,7 +1612,6 @@ namespace mbm
             }
             iv = reinterpret_cast<const unsigned char*>(strIv);
         }
-#endif
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
@@ -1639,7 +1633,6 @@ namespace mbm
             lua_pushboolean(lua, 0);
             return 1;
         }
-#ifdef USE_PLUSAES
         if (encrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
@@ -1670,7 +1663,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#endif
         return 1;
     }
 
@@ -1685,7 +1677,7 @@ namespace mbm
         const char *fileNameIn  = luaL_checkstring(lua, 1);
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
-#if defined USE_PLUSAES
+
         const unsigned char* iv = __iv_p();
         if (top > 3)
         {
@@ -1697,7 +1689,6 @@ namespace mbm
             }
             iv = reinterpret_cast<const unsigned char*>(strIv);
         }
-#endif
 
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
@@ -1718,12 +1709,11 @@ namespace mbm
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", strOut.c_str());
             lua_pushboolean(lua, 0);
-                    return 1;
-                    }
-            #ifdef USE_PLUSAES
-                    if (decrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
-                    {
-                        fclose(fp1);
+            return 1;
+        }
+        if (decrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        {
+            fclose(fp1);
             fclose(fp2);
             if (strcasecmp(fileNameOut, fileNameIn) == 0)
             {
@@ -1751,7 +1741,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#endif
         return 1;
     }
 
