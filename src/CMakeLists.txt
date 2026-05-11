@@ -1482,6 +1482,10 @@ echo '--- DMG ready: '\"\$DMG\"
             # Without this the archive's dSYMs/ folder is empty and App Store
             # Connect rejects the upload with a "missing dSYM UUID" error.
             XCODE_ATTRIBUTE_CONFIGURATION_BUILD_DIR        "$(SYMROOT)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)"
+            # Override the default product name (which would be the CMake target
+            # name "mini-mbm") so the .app bundle and binary are named after the
+            # game.  This is what Xcode shows in Product → Archive → Distribute.
+            XCODE_ATTRIBUTE_PRODUCT_NAME                   "${MAS_APP_NAME}"
         )
 
         # Embed game assets into the bundle under Contents/Resources/assets/

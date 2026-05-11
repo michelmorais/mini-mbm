@@ -10,7 +10,7 @@
     <key>CFBundleIdentifier</key>
     <string>com.mini.mbm.tower-defense</string>
     <key>CFBundleExecutable</key>
-    <string>mini-mbm</string>
+    <string>Tower Defense Monster</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>

@@ -10,7 +10,7 @@
     <key>CFBundleIdentifier</key>
     <string>@MAS_BUNDLE_ID@</string>
     <key>CFBundleExecutable</key>
-    <string>mini-mbm</string>
+    <string>@MAS_APP_NAME@</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>
