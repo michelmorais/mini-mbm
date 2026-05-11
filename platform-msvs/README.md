@@ -51,6 +51,8 @@ All projects live under `platform-msvs/` and build into the shared `bin/` and
 | **tilemap** | `tilemap/` | Tiled tile-map plugin |
 | **tiny_obj_loader** | `tiny-obj-loader/` | Tiny OBJ mesh loader library |
 | **plugin-helper** | `plugin-helper/` | Shared utilities for plugin development (Lua shader bindings, class identification) |
+| **distribution** | `distribution/` | Asset packaging DLL — AES-128-CBC encrypted SQLite archive library |
+| **distribution_exe** | `distribution-exe/` | `distribution.exe` CLI — packs/extracts `.asset` files; called by `package-game.bat` |
 | **libTest** | `libTest/` | Unit and integration test library |
 
 ---
@@ -98,18 +100,20 @@ The solution exposes four configurations:
 ## Building from the Command Line (MSBuild)
 
 ```cmd
-rem Debug (whole solution)
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /m /v:minimal
+rem Debug (whole solution, x86)
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:Platform=x86 /m /v:minimal
 
 rem Release
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /m /v:minimal
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /m /v:minimal
 
 rem Override backend
-msbuild platform-msvs\mini-mbm.sln /p:Configuration=Debug /p:MbmBackend=OpenGLES /m /v:minimal
+msbuild platform-msvs\mini-mbm.sln /p:Configuration=Release /p:Platform=x86 /p:MbmBackend=DirectX9 /m /v:minimal
 
 rem Build a single project
-msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /m
+msbuild platform-msvs\core_mbm\core_mbm.vcxproj /p:Configuration=Debug /p:Platform=x86 /m
 ```
+
+> **Note:** Always specify `/p:Platform=x86`. The solution platform names are `x86` and `x64` (not `Win32`). Only 32-bit portaudio binaries are bundled; the x64 platform configuration is not fully supported.
 
 ---
 
@@ -151,8 +155,9 @@ assets, and a `launch.bat`. From that folder you can optionally produce a
 one-file NSIS installer (`.exe`), a Windows Installer package (`.msi` via WiX),
 or a portable ZIP archive.
 
-The writable save-file directory is set by `launch.bat` as
-`%APPDATA%\<GameName>\` and exposed to Lua via `os.getenv("GAME_SAVE_DIR")`.
+The writable save-file directory (`%APPDATA%\<GameName>\`) is computed by the
+delivery binary at startup and exposed to Lua via `mbm.doCommands('get_save_dir')` —
+the same API used on Linux and macOS.
 
 ---
 
@@ -237,6 +242,7 @@ will succeed.
 |---|---|---|
 | `-DGAME_ASSETS_DIR=C:\path\to\assets` | **Yes** (activates delivery) | Absolute path to your game assets folder. Must contain `main.lua`. |
 | `-DGAME_NAME="My Game"` | No (default: `mini-mbm`) | Display name — used for the window title, EXE name, and installer. |
+| `-DGAME_ASSETS_PASSWORD=secret` | No | If set, assets are AES-128-CBC encrypted (PBKDF2-HMAC-SHA256, 100 000 iterations). Omit for unencrypted packing. |
 | `-DGAME_ICON_PNG=C:\path\to\icon.png` | No | Any-size PNG. ImageMagick (`convert`) converts it to `.ico` automatically if found in `PATH` or the standard install location. |
 | `-DGAME_ICON_ICO=C:\path\to\icon.ico` | No | Supply a ready-made `.ico` directly (takes priority over `-DGAME_ICON_PNG`). |
 
@@ -268,19 +274,20 @@ cmake .. -G "MinGW Makefiles" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 
-rem Enabling steam plugin
+rem Enabling steam plugin + asset encryption
 rem IMPORTANT: Use forward slashes in -DSTEAMWORKS_SDK_PATH on MinGW.
 rem Backslashes are misinterpreted by ld.exe as escape sequences and will
 rem cause a "cannot find steam_api.lib: No such file or directory" link error.
 
 cmake .. -G "MinGW Makefiles" ^
-    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=dsound ^
+    -DPLAT=Windows -DUSE_ALL=1 -DAUDIO=portaudio ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DUSE_OPENGL_ES=1  ^
     -DUSE_STEAM=1 ^
     -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
+    -DGAME_ASSETS_PASSWORD="agasdOyu865()55!" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
@@ -295,13 +302,13 @@ After `mingw32-make`, the staging folder is:
 build\
     Tower_Defense_Monster.GameDir\
         Tower_Defense_Monster.exe
+        distribution.dll              (asset library — required at runtime)
         d3dcompiler_47.dll   (or libEGL.dll + libGLESv2.dll for OpenGL ES)
         box2d.dll  ImGui.dll  ...   (plugin DLLs)
         Tower_Defense_Monster.ico
         launch.bat
         assets\
-            main.lua
-            ...
+            Tower_Defense_Monster.asset   ← packed (+ optionally encrypted) archive
 ```
 
 #### Packaging tools (all optional — `mingw32-make` alone is sufficient for a portable folder)
@@ -343,6 +350,9 @@ package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Rel
 
 rem With an icon
 package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Release C:\Users\miche\tower-defense\icon.ico
+
+rem With an icon and asset encryption password
+package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Release C:\Users\miche\tower-defense\icon.ico mysecret
 ```
 
 | Argument | Required? | Description |
@@ -351,6 +361,7 @@ package-game.bat "Tower Defense Monster" C:\Users\miche\tower-defense\assets Rel
 | `%2` Assets dir | **Yes** | Absolute path to game assets folder (must contain `main.lua`) |
 | `%3` Config | No | `Debug` or `Release` (default: `Release`) |
 | `%4` Icon `.ico` | No | Path to a Windows `.ico` file |
+| `%5` Password | No | If supplied, assets are AES-128-CBC encrypted via `distribution.exe` |
 
 #### What the script produces
 
@@ -361,12 +372,12 @@ step if the required tool is available:
 <repo-root>\
     Tower_Defense_Monster.GameDir\      ← always produced
         Tower_Defense_Monster.exe
+        distribution.dll              (asset library — required at runtime)
         d3dcompiler_47.dll  ...  (runtime + plugin DLLs)
         Tower_Defense_Monster.ico
         launch.bat
         assets\
-            main.lua
-            ...
+            Tower_Defense_Monster.asset   ← packed (+ optionally encrypted) archive
     Tower_Defense_Monster-windows-setup.exe  ← NSIS (if makensis found)
     Tower_Defense_Monster-windows.msi        ← WiX  (if cmake + WiX found)
     Tower_Defense_Monster-windows.zip        ← ZIP  (PowerShell, always)
@@ -382,12 +393,13 @@ All three installers perform a **per-user install** (no UAC prompt):
 1. Reads the built `mini-mbm.exe` from `bin\debug|release\windows_x86\`
 2. Renames it to `<GameName>.exe` inside `<GameName>.GameDir\`
 3. Copies runtime DLLs from `third-party\` (d3dcompiler, libEGL/libGLESv2)
-4. Copies plugin DLLs from the bin output directory
-5. Copies game assets to `GameDir\assets\`
-6. Writes `launch.bat` (sets `GAME_SAVE_DIR=%APPDATA%\<GameName>\`)
-7. Generates and runs NSIS (if `makensis` is in `PATH` or its default install location)
-8. Generates the MSI via `cmake -P make-msi.cmake` (if `cmake` is in `PATH` and WiX is installed)
-9. Creates a ZIP archive via PowerShell `Compress-Archive`
+4. Copies `distribution.dll` from the bin output directory
+5. Copies plugin DLLs from the bin output directory
+6. Packs game assets into `GameDir\assets\<GameName>.asset` using `distribution.exe` (encrypted if password supplied)
+7. Writes `launch.bat` (launches `<GameName>.exe` with the correct working directory)
+8. Generates and runs NSIS (if `makensis` is in `PATH` or its default install location)
+9. Generates the MSI via `cmake -P make-msi.cmake` (if `cmake` is in `PATH` and WiX is installed)
+10. Creates a ZIP archive via PowerShell `Compress-Archive`
 
 #### MSI generation details (`make-msi.cmake`)
 

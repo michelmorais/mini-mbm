@@ -78,10 +78,19 @@ namespace mbm
 #if TARGET_OS_IOS
         metalView = nil;
 #else
-        // NSWindow and NSApplication are managed by the OS; we close the window
-        // but do not release the application.
+        // Nil the delegate BEFORE close so no AppKit callbacks can reach it
+        // after it is released.  Matches the pattern used for the launcher
+        // dialog.  This also prevents EXC_BAD_ACCESS in fullscreen/borderless
+        // mode where AppKit walks window lists during presentation-option reset.
         if (window)
         {
+            // Nil the delegate first so no callbacks fire on a released object.
+            // Then close (hides and removes the window from the window list).
+            // setReleasedWhenClosed:NO was set at creation so [close] does NOT
+            // call [self release]; the ARC autorelease from the original
+            // alloc-init (stored into __unsafe_unretained) will drain cleanly
+            // in the inner @autoreleasepool that wraps onLoop() in main().
+            [window setDelegate:nil];
             [window close];
             window = nil;
         }

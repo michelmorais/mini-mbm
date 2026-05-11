@@ -96,14 +96,19 @@ elseif (${AUDIO} STREQUAL "portaudio")
     # add_definitions(-DREVERSE_ENDIANISM)
     file(GLOB_RECURSE PORT_AUDIO_SOURCES        "${PORT_AUDIO_SRC}/*.cpp")
     file(GLOB_RECURSE WAVE_SOURCES              "${WAVE_SRC}/*.cpp")
-    find_path(HEADER_PORT_AUDIO portaudio.h)
-    if(NOT HEADER_PORT_AUDIO)
-        message(SEND_ERROR "portaudio.h not found.\n  Linux: apt-get install portaudio19-dev\n  Windows: vcpkg install portaudio")
-    endif()
-
-    find_library(PORT_AUDIO_LIBRARY portaudio)
-    if(NOT PORT_AUDIO_LIBRARY)
-        message(SEND_ERROR "portaudio library not found.\n  Linux: apt-get install portaudio19-dev\n  Windows: vcpkg install portaudio")
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
+        # Use the pre-built portaudio bundled in third-party/portaudio/Windows/
+        set(HEADER_PORT_AUDIO "${THIRD_PARTY}/portaudio/Windows/include")
+        set(PORT_AUDIO_LIBRARY "${CMAKE_SOURCE_DIR}/third-party/portaudio/Windows/bin/portaudio_x86.lib")
+    else()
+        find_path(HEADER_PORT_AUDIO portaudio.h)
+        if(NOT HEADER_PORT_AUDIO)
+            message(SEND_ERROR "portaudio.h not found.\n  Linux: apt-get install portaudio19-dev")
+        endif()
+        find_library(PORT_AUDIO_LIBRARY portaudio)
+        if(NOT PORT_AUDIO_LIBRARY)
+            message(SEND_ERROR "portaudio library not found.\n  Linux: apt-get install portaudio19-dev")
+        endif()
     endif()
     include_directories(${HEADER_PORT_AUDIO})
     add_definitions(-DAUDIO_ENGINE_PORT_AUDIO)
@@ -213,8 +218,8 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND ${AUDIO} STREQUAL "avfoundati
         PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 endif()
 
-#Generate the library from the sources (STATIC on iOS — App Store forbids bare dylibs)
-if(PLAT_LOWER STREQUAL "ios")
+#Generate the library from the sources (STATIC on iOS and macOS MAS — App Store forbids bare dylibs)
+if(PLAT_LOWER STREQUAL "ios" OR MAS_DELIVERY)
     set(_CORE_MBM_LIB_TYPE STATIC)
 else()
     set(_CORE_MBM_LIB_TYPE SHARED)
@@ -234,10 +239,10 @@ add_library(core_mbm ${_CORE_MBM_LIB_TYPE}
     ${APPLE_AVF_AUDIO_MM_SOURCES}
     ${PLUS_WINDOWS_SOURCES})
 
-# Static libraries on iOS do not need Info.plist.  Set these attributes
+# Static libraries on iOS/MAS do not need Info.plist.  Set these attributes
 # directly on the target (the global CMAKE_XCODE_ATTRIBUTE_* doesn't reach
 # sub-project .xcodeproj files, causing a red file reference in the navigator).
-if(PLAT_LOWER STREQUAL "ios" AND CMAKE_GENERATOR STREQUAL "Xcode")
+if((PLAT_LOWER STREQUAL "ios" OR MAS_DELIVERY) AND CMAKE_GENERATOR STREQUAL "Xcode")
     set_target_properties(core_mbm PROPERTIES
         XCODE_ATTRIBUTE_INFOPLIST_FILE ""
         XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE NO

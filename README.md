@@ -845,7 +845,7 @@ AVFoundation supports WAV, AIFF, CAF, AU, MP3, AAC/M4A natively, plus
 
 > **Note:** The Metal rendering backend is selected automatically when building for Apple (`-DUSE_METAL=1` is the default).
 
-> See [platform-macos/README.md](platform-macos/README.md) for full macOS build and development notes.
+> See [platform-macos/README.md](platform-macos/README.md) for full macOS build and development notes, including `.app`/`.dmg` delivery, `macdmg` troubleshooting, code signing, and notarization.
 
 ### iOS (Metal, Xcode)
 
@@ -937,7 +937,6 @@ xcodebuild -project "build/My Game.xcodeproj" \
 | `-DUSE_VULKAN=1` | `OFF` | Vulkan backend (planned) |
 | `-DUSE_METAL=1` | `OFF` | Metal backend (macOS, iOS) |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
-| `-DUSE_PLUSAES=1` | `ON` | AES encryption for scripts/assets |
 | `-DUSE_BOX2D=1` | Auto | Box2D physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | Auto | Box2D LiquidFun fluid simulation |
 | `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |

@@ -41,15 +41,15 @@ file(GLOB_RECURSE SOURCES "${BOX2D_PATH}/*.cpp" "${BOX2D_LUA_SOURCE}/*.cpp")
 
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 #Generate the shared library from the sources
-if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY)
     add_library(${BOX2D_LUA_LIBRARY} STATIC ${SOURCES})
 else()
     add_library(${BOX2D_LUA_LIBRARY} SHARED ${SOURCES})
 endif()
 
-# On iOS this is a STATIC archive absorbed into mini-mbm; Lua/core_mbm/plugin_helper
+# On iOS/MAS this is a STATIC archive absorbed into mini-mbm; Lua/core_mbm/plugin_helper
 # are provided by mini-mbm at final link — skip to avoid duplicate-library warnings.
-if (NOT ${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
+if (NOT (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS" OR MAS_DELIVERY))
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${LUA_LIBRARY})
     target_link_libraries(${BOX2D_LUA_LIBRARY} PRIVATE ${CORE_MBM_LIBRARY})
     #target_link_libraries(${BOX2D_LUA_LIBRARY} mini-mbm)

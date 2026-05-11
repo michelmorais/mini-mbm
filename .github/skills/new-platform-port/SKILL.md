@@ -62,10 +62,10 @@ See [platform file lists](./references/platform-files.md) for the exact files ea
 
 | Platform | Compiler defines added |
 |---|---|
-| Linux | `USE_OPENGL_ES`, `USE_VR`, `LUA_COMPAT_ALL`, `LUA_ANSI`, `USE_PLUSAES` |
-| macOS | `USE_METAL`, `USE_VR`, `LUA_COMPAT_ALL`, `LUA_ANSI`, `USE_PLUSAES` |
-| Android | `ANDROID`, `USE_OPENGL_ES`, `LUA_COMPAT_ALL`, `LUA_ANSI`, `USE_PLUSAES` |
-| iOS | `USE_METAL`, `DISABLE_VR`, `MBM_PLATFORM_IOS`, `LUA_COMPAT_ALL`, `LUA_ANSI`, `USE_PLUSAES` |
+| Linux | `USE_OPENGL_ES`, `USE_VR`, `LUA_COMPAT_ALL`, `LUA_ANSI` |
+| macOS | `USE_METAL`, `USE_VR`, `LUA_COMPAT_ALL`, `LUA_ANSI` |
+| Android | `ANDROID`, `USE_OPENGL_ES`, `LUA_COMPAT_ALL`, `LUA_ANSI` |
+| iOS | `USE_METAL`, `DISABLE_VR`, `MBM_PLATFORM_IOS`, `LUA_COMPAT_ALL`, `LUA_ANSI` |
 | Windows | `WIN32`, `_WINDOWS`, `USE_DIRECTX9`, `USE_VR` |
 
 ### Plugins on restricted platforms (Android & iOS)

@@ -26,27 +26,11 @@
 //#include <comdef.h>
 
 // #pragma comment is MSVC-only; MinGW links via CMake targets (d3d9, d3dcompiler).
-// d3dx9.h is part of the legacy DirectX SDK and is not shipped with MinGW.
+// d3dx9.h is part of the legacy DirectX SDK and is not available in MinGW or
+// the modern Windows SDK (VS 2022+). The engine uses the bundled shim instead.
 #ifndef __MINGW32__
 #pragma comment (lib, "d3d9.lib")
-#if defined(LINK_DIRECTX9_DEBUG_INFO) && defined(_DEBUG)
-    #define D3D_DEBUG_INFO
-    // https://learn.microsoft.com/en-us/windows/win32/direct3d9/enabling-direct3d-debug-information
-    // The debug runtime is part of the DirectX SDK.
-    //Enable the regedit HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Direct3D
-    // set 
-    //HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Direct3D\D3D9Debugging
-    //HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Direct3D\\D3D9Debugging\\EnableCreationStack
-    // to 1 enables call stack tracking for object creation, which helps detect resource leaks.
-    // Enable in
-    // C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Utilities\bin\x86\dxcpl.exe
-    //
-    // Building your application with debug enabled will give you access to this additional variable :
-    // LPCWSTR CreationCallStack;
-    #pragma comment (lib, "d3dx9d.lib") // Debug (slow, define LINK_DIRECTX9_DEBUG_INFO to check if you really need)
-#else
-    #pragma comment (lib, "d3dx9.lib")
-#endif
+#pragma comment (lib, "d3dcompiler.lib")
 #endif // !__MINGW32__
 
 // These headers are available in both MSVC and MinGW builds
@@ -54,13 +38,9 @@
 #include <core-manager.h>
 #include <d3d9.h>
 
-// d3dx9.h is part of the legacy DirectX SDK — not available in MinGW.
-// Use the MinGW compatibility shim instead.
-#ifndef __MINGW32__
-#  include <d3dx9.h>
-#else
-#  include <core_mbm/d3dx9-mingw.h>
-#endif
+// d3dx9.h is part of the legacy DirectX SDK — not available in MinGW or
+// the modern Windows SDK (VS 2022+). Always use the bundled shim.
+#include <core_mbm/d3dx9-mingw.h>
 
 // 
 //#pragma comment (lib,"comsuppwd.lib")

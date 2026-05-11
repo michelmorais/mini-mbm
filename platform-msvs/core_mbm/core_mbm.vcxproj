@@ -92,8 +92,8 @@
     <LibraryPath>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Lib\x86;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(Outdir);$(SolutionDir)..\third-party\gles\libs;$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;$(IncludePath)</IncludePath>
-    <LibraryPath>$(Outdir);$(LibraryPath)</LibraryPath>
+    <IncludePath>..\..\include;..\..\include\render;..\..\include\core_mbm;..\..\include\plusWindows;..\..\third-party;..\..\third-party\gles;..\..\third-party\stb;..\..\third-party\box2d-liquid-fun-2.3.1;..\..\third-party\rapidxml;..\..\third-party\bullet-2.84;..\..\third-party\wave;..\..\third-party\portaudio\include;..\..\third-party\portaudio\Windows\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(Outdir);$(LibraryPath);$(SolutionDir)..\third-party\portaudio\Windows\bin</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -176,7 +176,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;NOMINMAX;_CRT_SECURE_NO_WARNINGS;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(MbmCoreFeatureDefines);CORE_EXPORTS;AUDIO_ENGINE_PORT_AUDIO;NOMINMAX;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>

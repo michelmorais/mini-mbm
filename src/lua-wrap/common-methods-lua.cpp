@@ -587,6 +587,15 @@ namespace mbm
 
     int onDestroyRenderizable(lua_State *lua)
     {
+        /*
+            Only sets RENDERIZABLE->enableRender = false, and unregisters Lua callbacks. 
+            No delete, cleanup until LUA garbage collection or the scene change.
+            The actual delete only happens when Lua GC eventually runs the __gc metamethod
+            potentially many frames later.
+            You can force the GC to run with collectgarbage("collect") after this function if you want to free memory immediately, but be careful with that, 
+            as you might have references to the renderizable still in Lua, and that would cause a crash if accessed after GC.
+            Alternative we have mbm.lua_gc() that can be called from LUA and it is implemented in C++.
+        */
         RENDERIZABLE *        ptr            = getRenderizableFromRawTable(lua, 1, 1);
         DEVICE *              device         = DEVICE::getInstance();
         auto * userScene      = static_cast<USER_DATA_SCENE_LUA *>(device->scene->userData);

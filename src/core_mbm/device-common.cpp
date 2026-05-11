@@ -333,14 +333,11 @@ namespace mbm
     {
         if (object == nullptr)
             return;
-        if(object->typeClass == TYPE_CLASS_TILE_OBJ)
+        for (auto ph : this->lsPhysics)
         {
-            for (auto ph : this->lsPhysics)
-            {
-                ph->removeObject(object);
-            }
+            ph->removeObject(object);
         }
-        else if (object->is3D)
+        if (object->is3D)
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
             {

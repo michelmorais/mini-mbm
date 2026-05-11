@@ -27,6 +27,18 @@
 #include <util-interface.h>
 
 // ---------------------------------------------------------------------------
+// MBMBorderlessWindow — NSWindow subclass used in borderless/fullscreen mode.
+// The default NSWindow returns NO from canBecomeKeyWindow for borderless
+// windows, which prevents keyboard input and confuses AppKit during shutdown.
+// ---------------------------------------------------------------------------
+@interface MBMBorderlessWindow : NSWindow
+@end
+@implementation MBMBorderlessWindow
+- (BOOL)canBecomeKeyWindow  { return YES; }
+- (BOOL)canBecomeMainWindow { return YES; }
+@end
+
+// ---------------------------------------------------------------------------
 // MBMWindowDelegate — forwards macOS window events into the engine.
 // ---------------------------------------------------------------------------
 @interface MBMWindowDelegate : NSObject <NSWindowDelegate>
@@ -156,16 +168,32 @@ namespace mbm
         CGFloat macY = screenFrame.size.height - py - height;
         NSRect contentRect  = NSMakeRect(px, macY, width, height);
 
-        ctx->window = [[NSWindow alloc] initWithContentRect:contentRect
-                                                  styleMask:styleMask
-                                                    backing:NSBackingStoreBuffered
-                                                      defer:NO];
+        // Use MBMBorderlessWindow for borderless/fullscreen so canBecomeKeyWindow
+        // returns YES.  A standard NSWindow with NSWindowStyleMaskBorderless
+        // cannot become key, which blocks keyboard input and causes AppKit to
+        // walk window lists erratically during shutdown → EXC_BAD_ACCESS.
+        if (!border)
+            ctx->window = [[MBMBorderlessWindow alloc] initWithContentRect:contentRect
+                                                                 styleMask:styleMask
+                                                                   backing:NSBackingStoreBuffered
+                                                                     defer:NO];
+        else
+            ctx->window = [[NSWindow alloc] initWithContentRect:contentRect
+                                                      styleMask:styleMask
+                                                        backing:NSBackingStoreBuffered
+                                                          defer:NO];
         if (!ctx->window)
         {
             ERROR_LOG("Metal: failed to create NSWindow.");
             return false;
         }
         [ctx->window setTitle:[NSString stringWithUTF8String:this->nameApplication.c_str()]];
+        // Disable AppKit's automatic release-on-close so non-ARC code controls the
+        // window lifetime explicitly via [window release] in release().
+        // Without this, [window close] calls [self release] while autoreleased
+        // notification objects still reference the window, causing a double-free
+        // when the outer @autoreleasepool in main() drains.
+        [ctx->window setReleasedWhenClosed:NO];
 
         // Borderless (fullscreen) window: raise above the menu bar and
         // auto-hide the menu bar + dock so they don't overlap the content.

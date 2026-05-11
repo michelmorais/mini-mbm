@@ -77,17 +77,7 @@
     #include <X11/Xutil.h>
 #endif
 
-#ifdef USE_AESCRYPT
-    #error ("Recommend not to use AESCrypt, you can remove this error if you insist on using it")
-#ifdef _WIN32
-    #include <AESCrypt/win32/aes.crypt.h>
-#else
-    #include <AESCrypt/linux/aes.crypt.h>
-#endif
-
-#elif defined USE_PLUSAES
-    #include "plusaes/plusaes.hpp"
-#endif
+#include "plusaes/plusaes.hpp"
 
 
 extern "C" 
@@ -865,6 +855,23 @@ namespace mbm
                 lua_pushboolean(lua, 0);
     #endif
             }
+            else if (strcasecmp(what, "os") == 0 || strcasecmp(what, "os_name") == 0 || strcasecmp(what, "platform") == 0)
+            {
+    #if defined _WIN32
+                lua_pushstring(lua, "Windows");
+    #elif defined ANDROID
+                lua_pushstring(lua, "Android");
+    #elif defined __linux__ && !defined(__APPLE__)
+                lua_pushstring(lua, "Linux");
+    #elif defined(MBM_PLATFORM_IOS)
+                lua_pushstring(lua, "iOS");
+    #elif defined(__APPLE__)
+                lua_pushstring(lua, "MacOS");
+    #else
+                #error "Unknown platform, you might want to add support for it in onGet() function"
+                lua_pushstring(lua, "Unknown");
+    #endif
+            }
             else
             {
                 lua_pushnil(lua);
@@ -1325,7 +1332,6 @@ namespace mbm
         }
         return 0;
     }
-#if defined USE_PLUSAES
     // Local file-size helper to avoid crossing CRT boundaries.
     // util::getSizeFile lives in core_mbm.dll and would call fseek/ftell
     // from a different CRT than the one that owns the FILE* opened here.
@@ -1346,7 +1352,23 @@ namespace mbm
         return true;
     }
 
-    const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (* passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
+    // Opens a file entirely within this module's CRT to avoid FILE* crossing DLL
+    // boundaries on Windows (util::openFile lives in core_mbm.dll).
+    static FILE *openFileLocal(const char *fileName, const char *mode)
+    {
+        bool        exists   = false;
+        const char *resolved = util::getFullPath(fileName, &exists);
+        const char *path     = (resolved && exists) ? resolved : fileName;
+        FILE       *fp       = nullptr;
+#if defined _WIN32
+        fopen_s(&fp, path, mode);
+#else
+        fp = fopen(path, mode);
+#endif
+        return fp;
+    }
+
+    const bool encrypt_stream_plusaes(FILE* infp, FILE* outfp, const char (*passwd)[17], const int passlen, const unsigned char (*iv)[16], char* errorOut)
     {
         // encrypt
         size_t read_bytes = 0;
@@ -1566,7 +1588,6 @@ namespace mbm
             return false;
         }
     }
-#endif
 
     int onEncryptFile(lua_State *lua)
     {
@@ -1580,7 +1601,6 @@ namespace mbm
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
 
-#if defined USE_PLUSAES
         const unsigned char* iv = __iv_p();
         if (top > 3)
         {
@@ -1592,7 +1612,6 @@ namespace mbm
             }
             iv = reinterpret_cast<const unsigned char*>(strIv);
         }
-#endif
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
             strOut += ".out.tmp";
@@ -1600,53 +1619,21 @@ namespace mbm
         char good_password[17] = {0};
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
-        FILE *fp1 = util::openFile(fileNameIn, "rb");
+        FILE *fp1 = openFileLocal(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", fileNameIn);
             lua_pushboolean(lua, 0);
             return 1;
         }
-        FILE *fp2 = util::openFile(strOut.c_str(), "wb");
+        FILE *fp2 = openFileLocal(strOut.c_str(), "wb");
         if (fp2 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", strOut.c_str());
             lua_pushboolean(lua, 0);
             return 1;
         }
-#ifdef USE_AESCRYPT
-        if (encrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
-        {
-            fclose(fp1);
-            fclose(fp2);
-            if (strcasecmp(fileNameOut, fileNameIn) == 0)
-            {
-                if (remove(fileNameIn))
-                    lua_print_line(lua,TYPE_LOG_WARN,"failed on rename file [%s].", fileNameIn);
-                if (rename(strOut.c_str(), fileNameIn))
-                {
-                    lua_pushboolean(lua, 0);
-                    lua_print_line(lua,TYPE_LOG_ERROR,"failed on rename file [%s].", fileNameIn);
-                }
-                else
-                {
-                    lua_pushboolean(lua, 1);
-                }
-            }
-            else
-            {
-                lua_pushboolean(lua, 1);
-            }
-        }
-        else
-        {
-            fclose(fp1);
-            fclose(fp2);
-            lua_print_line(lua,TYPE_LOG_ERROR,"failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
-            lua_pushboolean(lua, 0);
-        }
-#elif defined USE_PLUSAES
-        if (encrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        if (encrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -1676,9 +1663,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on cript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#else
-    #error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
-#endif
         return 1;
     }
 
@@ -1693,7 +1677,7 @@ namespace mbm
         const char *fileNameIn  = luaL_checkstring(lua, 1);
         const char *fileNameOut = (top > 1) ? luaL_checkstring(lua, 2) : fileNameIn;
         const char *password    = (top > 2) ? luaL_checkstring(lua, 3) : __std_p();
-#if defined USE_PLUSAES
+
         const unsigned char* iv = __iv_p();
         if (top > 3)
         {
@@ -1705,7 +1689,6 @@ namespace mbm
             }
             iv = reinterpret_cast<const unsigned char*>(strIv);
         }
-#endif
 
         std::string strOut(fileNameOut);
         if (strcasecmp(fileNameOut, fileNameIn) == 0)
@@ -1714,53 +1697,21 @@ namespace mbm
         char good_password[17] = { 0 };
         memcpy(good_password, __std_p(), sizeof(good_password) - 1);
         memcpy(good_password, password, std::min<int>(sizeof(good_password) - 1, passlen));
-        FILE *    fp1     = util::openFile(fileNameIn, "rb");
+        FILE *fp1 = openFileLocal(fileNameIn, "rb");
         if (fp1 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", fileNameIn);
             lua_pushboolean(lua, 0);
             return 1;
         }
-        FILE *fp2 = util::openFile(strOut.c_str(), "wb");
+        FILE *fp2 = openFileLocal(strOut.c_str(), "wb");
         if (fp2 == nullptr)
         {
             lua_print_line(lua,TYPE_LOG_ERROR,"failed to open file [%s]", strOut.c_str());
             lua_pushboolean(lua, 0);
             return 1;
         }
-#ifdef USE_AESCRYPT
-        if (decrypt_stream(fp1, fp2, good_password, sizeof(good_password) - 1, strErr))
-        {
-            fclose(fp1);
-            fclose(fp2);
-            if (strcasecmp(fileNameOut, fileNameIn) == 0)
-            {
-                if (remove(fileNameIn))
-                    lua_print_line(lua,TYPE_LOG_WARN,"failed on rename file [%s].", fileNameIn);
-                if (rename(strOut.c_str(), fileNameIn))
-                {
-                    lua_pushboolean(lua, 0);
-                    lua_print_line(lua,TYPE_LOG_ERROR,"failed on rename file [%s].", fileNameIn);
-                }
-                else
-                {
-                    lua_pushboolean(lua, 1);
-                }
-            }
-            else
-            {
-                lua_pushboolean(lua, 1);
-            }
-        }
-        else
-        {
-            fclose(fp1);
-            fclose(fp2);
-            lua_print_line(lua,TYPE_LOG_ERROR,"failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
-            lua_pushboolean(lua, 0);
-        }
-#elif defined USE_PLUSAES
-        if (decrypt_stream_plusaes(fp1, fp2, reinterpret_cast<const char(*)[17]>(good_password), sizeof(good_password) - 1, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
+        if (decrypt_stream_plusaes(fp1, fp2, &good_password, passlen, reinterpret_cast<const unsigned char (*)[16]>(iv), strErr))
         {
             fclose(fp1);
             fclose(fp2);
@@ -1790,9 +1741,6 @@ namespace mbm
             lua_print_line(lua, TYPE_LOG_ERROR, "failed on uncript file [%s] -> [%s].\n[%s]", fileNameIn, fileNameOut, strErr);
             lua_pushboolean(lua, 0);
         }
-#else
-#error ("You need to define USE_AESCRYPT or USE_PLUSAES on project")
-#endif
         return 1;
     }
 
@@ -2521,6 +2469,15 @@ namespace mbm
                                 lua_tostring(L, 1), filename, lua_tostring(L, -1));
     }
 
+    static int onLuaGC(lua_State *lua)
+    {
+        const int count = lua_gc(lua, LUA_GCCOUNT, 0);
+        const int ret   = lua_gc(lua, LUA_GCCOLLECT, 0);
+        const int clear = count - lua_gc(lua, LUA_GCCOUNT, 0);
+        lua_pushinteger(lua, clear);
+        return 1;
+    }
+
     int __luaB_searchLuaModule(lua_State *lua)
     {
         const char *name = luaL_checkstring(lua, 1);
@@ -2627,6 +2584,7 @@ namespace mbm
     #endif
             {"generateImageResourceHeaderFromPng", onGenerateImageResourceHeaderFromPng},
             {"getAlphaBounds", onGetAlphaBoundsLua},
+            {"lua_gc", onLuaGC},
             {nullptr, nullptr}};
         DEVICE *device = DEVICE::getInstance();
         device->scene       = scene;

@@ -21,12 +21,13 @@
 #define D3DX9_MINGW_H
 
 /*
- * MinGW compatibility shim for D3DX9 shader APIs.
+ * D3DX9 compatibility shim for the mini-mbm DirectX 9 backend.
  *
- * d3dx9.h is part of the legacy DirectX SDK (June 2010) and is not distributed
- * with MinGW-w64.  This header provides the small subset of D3DX9 types and
- * functions used by the mini-mbm DirectX 9 backend, implemented on top of:
- *   - d3dcompiler.h  (D3DCompile — available in MinGW-w64 via directx-headers)
+ * d3dx9.h is part of the legacy DirectX SDK (June 2010) and is no longer
+ * distributed with MinGW-w64 or the modern Windows SDK (VS 2022+).
+ * This header provides the small subset of D3DX9 types and functions used by
+ * the mini-mbm DirectX 9 backend, implemented on top of:
+ *   - d3dcompiler.h  (D3DCompile — available in both MSVC and MinGW-w64)
  *   - d3d9.h         (IDirect3DDevice9, D3DMATRIX, etc.)
  *
  * Replacements provided:
@@ -44,7 +45,7 @@
  *                         table from the resulting bytecode.
  */
 
-#ifdef __MINGW32__
+#ifdef _WIN32
 
 #include <d3d9.h>
 #include <d3dcompiler.h>
@@ -501,5 +502,5 @@ inline HRESULT D3DXCreateTextureFromFileExA(
     return S_OK;
 }
 
-#endif /* __MINGW32__ */
+#endif /* _WIN32 */
 #endif /* D3DX9_MINGW_H */

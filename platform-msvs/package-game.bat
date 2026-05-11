@@ -6,13 +6,14 @@ rem  Mirrors the CMake -DGAME_ASSETS_DIR workflow for games built with the
 rem  Visual Studio solution (platform-msvs/mini-mbm.sln).
 rem
 rem  Usage:
-rem    package-game.bat "Game Name" "C:\path\to\assets" Debug|Release [icon.ico]
-rem
-rem  Outputs (next to this script, inside GameDir):
-rem    <GameName>.GameDir\           — portable distribution folder
-rem      <GameName>.exe             — renamed engine executable
-rem      *.dll                      — runtime DLLs
-rem      assets\                    — game assets
+ rem    package-game.bat "Game Name" "C:\path\to\assets" Debug|Release [icon.ico] [password]
+ rem
+ rem  Outputs (next to this script, inside GameDir):
+ rem    <GameName>.GameDir\           — portable distribution folder
+ rem      <GameName>.exe             — renamed engine executable
+ rem      distribution.dll           — asset library
+ rem      *.dll                      — runtime DLLs
+ rem      assets\<GameName>.asset    — encrypted packed assets
 rem      launch.bat                 — run shortcut (sets GAME_SAVE_DIR)
 rem      <GameName>.ico             — icon (if supplied)
 rem
@@ -28,16 +29,17 @@ set "GAME_NAME=%~1"
 set "GAME_ASSETS_DIR=%~2"
 set "CONFIG=%~3"
 set "GAME_ICON_ICO=%~4"
+set "GAME_ASSETS_PASSWORD=%~5"
 
 if "%GAME_NAME%"=="" (
     echo.
-    echo  Usage: package-game.bat "Game Name" "C:\path\to\assets" Debug^|Release [icon.ico]
+    echo  Usage: package-game.bat "Game Name" "C:\path\to\assets" Debug^|Release [icon.ico] [password]
     echo.
     exit /b 1
 )
 if "%GAME_ASSETS_DIR%"=="" (
     echo.
-    echo  Usage: package-game.bat "Game Name" "C:\path\to\assets" Debug^|Release [icon.ico]
+    echo  Usage: package-game.bat "Game Name" "C:\path\to\assets" Debug^|Release [icon.ico] [password]
     echo.
     exit /b 1
 )
@@ -115,9 +117,28 @@ for %%F in ("%BIN_DIR%\*.dll") do (
     )
 )
 
-rem ── Copy game assets ────────────────────────────────────────────────────────
-echo  Copying assets from %GAME_ASSETS_DIR%...
-xcopy "%GAME_ASSETS_DIR%\*" "%ASSETS_DST%\" /E /I /Y /Q >nul
+rem ── Pack game assets with distribution.exe ────────────────────────────────
+echo  Packing assets from %GAME_ASSETS_DIR%...
+set "DIST_EXE=%BIN_DIR%\distribution.exe"
+if not exist "%DIST_EXE%" (
+    echo  ERROR: distribution.exe not found: %DIST_EXE%
+    echo  Build the 'distribution_exe' project first.
+    exit /b 1
+)
+if not exist "%ASSETS_DST%" mkdir "%ASSETS_DST%"
+if "%GAME_ASSETS_PASSWORD%"=="" (
+    "%DIST_EXE%" pack "%GAME_ASSETS_DIR%" "%ASSETS_DST%\%GAME_NAME_SAFE%.asset"
+) else (
+    "%DIST_EXE%" pack "%GAME_ASSETS_DIR%" "%ASSETS_DST%\%GAME_NAME_SAFE%.asset" --password "%GAME_ASSETS_PASSWORD%"
+)
+if errorlevel 1 (
+    echo  ERROR: distribution.exe pack failed.
+    exit /b 1
+)
+
+rem ── Copy distribution.dll ──────────────────────────────────────────────────
+echo  Copying distribution.dll...
+copy /y "%BIN_DIR%\distribution.dll" "%GAMEDIR%\" >nul
 
 rem ── Copy icon ───────────────────────────────────────────────────────────────
 if not "%GAME_ICON_ICO%"=="" (

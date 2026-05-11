@@ -122,11 +122,11 @@ namespace mbm
         int y_pos = margin;
         
         // Button areas (will be calculated during draw)
-        struct { int x, y, w, h; } monitor_up, monitor_down;
-        struct { int x, y, w, h; } res_up, res_down;
-        struct { int x, y, w, h; } app_up, app_down;
-        struct { int x, y, w, h; } fullscreen_box;
-        struct { int x, y, w, h; } start_btn;
+        struct { int x, y, w, h; } monitor_up{}, monitor_down{};
+        struct { int x, y, w, h; } res_up{}, res_down{};
+        struct { int x, y, w, h; } app_up{}, app_down{};
+        struct { int x, y, w, h; } fullscreen_box{};
+        struct { int x, y, w, h; } start_btn{};
         
         // Event loop - valid_resolutions persists for ButtonPress to update selection
         std::vector<SCREEN_RESOLUTION> valid_resolutions;

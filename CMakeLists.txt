@@ -128,12 +128,6 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
         message("-DUSE_VR=0                 : Use VR class  (Current is DISABLED)")
     endif()
 
-    if(USE_PLUSAES)
-        message("-DUSE_PLUSAES=1            : Use PlusAES encryption for scripts and assets (Current is ENABLED)")
-    else()
-        message("-DUSE_PLUSAES=0            : Use PlusAES encryption for scripts and assets (Current is DISABLED)")
-    endif()
-
     if(MBM_ENABLE_MESH_LEGACY_V7)
         message("-DMBM_ENABLE_MESH_LEGACY_V7=1 : Compatibility for mesh loader and deprecated features (versions <= 7) (Current is ENABLED)")
     else()
@@ -585,14 +579,14 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         # STEAMWORKS_SDK_PATH which must be supplied by each developer.
     endif()
 
-    # On iOS all plugins are compiled as STATIC archives and linked into a single
-    # executable.  box2d and box2d-liquid-fun share large amounts of object code
-    # (b2World, b2Body, …) so having both in the same link produces duplicate-symbol
-    # errors.  When USE_ALL is used (or the user enables both manually), keep only
-    # box2d and drop liquid-fun automatically.
-    if(PLAT_LOWER STREQUAL "ios" AND USE_BOX2D AND USE_BOX2D_LIQUID_FUN)
+    # On iOS and macOS MAS all plugins are compiled as STATIC archives and linked into
+    # a single executable.  box2d and box2d-liquid-fun share large amounts of object
+    # code (b2World, b2Body, …) so having both in the same link produces
+    # duplicate-symbol errors.  When USE_ALL is used (or the user enables both
+    # manually), keep only box2d and drop liquid-fun automatically.
+    if((PLAT_LOWER STREQUAL "ios" OR MAS_DELIVERY) AND USE_BOX2D AND USE_BOX2D_LIQUID_FUN)
         message(WARNING
-            "iOS static build: box2d and box2d-liquid-fun share symbols and cannot "
+            "iOS/MAS static build: box2d and box2d-liquid-fun share symbols and cannot "
             "both be linked into the same binary.  Disabling USE_BOX2D_LIQUID_FUN. "
             "To use liquid-fun instead, pass -DUSE_BOX2D=0 -DUSE_BOX2D_LIQUID_FUN=1 "
             "explicitly (do not use -DUSE_ALL=1).")
@@ -668,7 +662,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     endif()
 
     #default definitions: opengl, deprecated version, VR, lua options default compatibility
-    set(USE_PLUSAES      1)
     if(NOT USE_VR AND DISABLE_VR)
         message(STATUS " Disabling VR class")
         add_definitions(-DLUA_COMPAT_ALL -DLUA_ANSI)
@@ -676,10 +669,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         message(STATUS " VR class available")
         set(USE_VR 1)
         add_definitions(-DUSE_VR -DLUA_COMPAT_ALL -DLUA_ANSI)
-    endif()
-
-    if(USE_PLUSAES)
-        add_definitions(-DUSE_PLUSAES)
     endif()
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
@@ -1162,6 +1151,7 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
 
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
         add_subdirectory(${TEST_LIB} 				${TEST_LIB})
+        add_subdirectory(distribution               distribution)
     endif()
 
     message("")

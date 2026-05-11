@@ -98,7 +98,31 @@ std::string auxRet_1,auxRet_2,auxRet_3;
 #elif defined __linux__ || defined(__APPLE__)
     const char* ___getDecompressModelFileName()
     {
+#ifdef __APPLE__
+        // Inside the App Sandbox $TMPDIR is remapped to the container's private
+        // temp dir (e.g. .../Library/Containers/<id>/Data/tmp/).  Writing to the
+        // hardcoded /tmp path fails there.  Always prefer $TMPDIR on Apple so
+        // both sandboxed and non-sandboxed builds work correctly.
+        static std::string s_apple_tmp_path;
+        if (s_apple_tmp_path.empty())
+        {
+            const char *tmpdir = getenv("TMPDIR");
+            if (tmpdir && tmpdir[0] == '/')
+            {
+                s_apple_tmp_path = tmpdir;
+                if (s_apple_tmp_path.back() != '/')
+                    s_apple_tmp_path += '/';
+                s_apple_tmp_path += "decompressModel.tmp";
+            }
+            else
+            {
+                s_apple_tmp_path = "/tmp/decompressModel.tmp";
+            }
+        }
+        return s_apple_tmp_path.c_str();
+#else
         return "/tmp/decompressModel.tmp";
+#endif
     }
 #else
     #error "Unknown platform"

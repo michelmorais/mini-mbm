@@ -21,7 +21,11 @@ if (USE_LUA)
     set(LIB_MINIMBM_LUA_SRC         ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib.cpp)
     message(STATUS "Using LUA script...")
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
+        if(DEFINED GAME_ASSETS_DIR)
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-linux/main-lua-delivery.cpp)
+        else()
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-linux/main-lua.cpp)
+        endif()
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-Linux.cpp)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
@@ -30,7 +34,11 @@ if (USE_LUA)
             set(GLES_INCLUDE            ${THIRD_PARTY}/gles)
         else()
             # MinGW / GCC: use a resource-free entry point
-            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw.cpp)
+            if(DEFINED GAME_ASSETS_DIR)
+                set(MAIN                ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw-delivery.cpp)
+            else()
+                set(MAIN                ${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm/main-mingw.cpp)
+            endif()
             set(LIB_MINIMBM_LUA_HEADER  ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         endif()
         if(NOT USE_DIRECTX9)
@@ -40,7 +48,13 @@ if (USE_LUA)
     elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Android")
         set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-android/main-native-activity.cpp)
     elseif(${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
-        set(MAIN                        ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
+        if(MAS_DELIVERY)
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua-mas.mm)
+        elseif(DEFINED GAME_ASSETS_DIR)
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua-delivery.cpp)
+        else()
+            set(MAIN                    ${CMAKE_SOURCE_DIR}/platform-macos/main-lua.cpp)
+        endif()
         set(LIB_MINIMBM_LUA_HEADER      ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib)
         set(LIB_MINIMBM_LUA_PLATFORM_SRC ${CMAKE_SOURCE_DIR}/src/mini-mbm-lib/mini-mbm-lib-MacOs.mm)
         set_source_files_properties(${LIB_MINIMBM_LUA_PLATFORM_SRC}
@@ -219,6 +233,28 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm Xrandr)
 
+    # ── Distribution library: link + definitions when GAME_ASSETS_DIR is set ──
+    if(DEFINED GAME_ASSETS_DIR)
+        target_link_libraries(mini-mbm distribution)
+        target_include_directories(mini-mbm PRIVATE ${CMAKE_SOURCE_DIR}/distribution/include)
+        # Derive GAME_NAME_SAFE early so it can be used in definitions below.
+        # (GAME_ASSETS_DIR block below also sets it, but definitions must come first.)
+        if(NOT DEFINED GAME_NAME)
+            set(GAME_NAME "mini-mbm")
+        endif()
+        string(REPLACE " " "_" _DELIVERY_NAME_SAFE "${GAME_NAME}")
+        target_compile_definitions(mini-mbm PRIVATE
+            "GAME_ASSET_FILE=\"${_DELIVERY_NAME_SAFE}.asset\""
+            "GAME_APP_TITLE=\"${GAME_NAME}\""
+        )
+        if(DEFINED GAME_ASSETS_PASSWORD AND NOT "${GAME_ASSETS_PASSWORD}" STREQUAL "")
+            target_compile_definitions(mini-mbm PRIVATE
+                "GAME_ASSET_PASSWORD=\"${GAME_ASSETS_PASSWORD}\"")
+        else()
+            target_compile_definitions(mini-mbm PRIVATE "GAME_ASSET_PASSWORD=\"\"")
+        endif()
+    endif()
+
     # ── Linux game delivery (AppDir + optional AppImage) ──────────────────────
     # Activated only when -DGAME_ASSETS_DIR=/path/to/game/assets is passed at
     # configure time. Mirrors the iOS -DGAME_NAME / -DGAME_ASSETS_DIR / -DGAME_ICON_PNG
@@ -381,12 +417,24 @@ endif()
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_BINARY_DIR}/copy_linux_plugins.cmake"
             COMMENT "Linux delivery: copying plugins (.so) → AppDir/usr/lib/")
 
-        # 3. Copy game assets
+        # Also copy distribution.so to usr/lib/ (it is produced alongside other .so files
+        # but may not yet exist when copy_linux_plugins.cmake runs at configure time).
         add_custom_command(TARGET mini-mbm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${GAME_ASSETS_DIR}"
-                "${_LINUX_APPDIR}/assets"
-            COMMENT "Linux delivery: copying assets from ${GAME_ASSETS_DIR} → AppDir/assets/")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:distribution>"
+                "${_LINUX_APPDIR}/usr/lib/$<TARGET_FILE_NAME:distribution>"
+            COMMENT "Linux delivery: copying distribution.so → AppDir/usr/lib/")
+
+        # 3. Pack game assets into an encrypted .asset archive
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_LINUX_APPDIR}/assets"
+            COMMAND "$<TARGET_FILE:distribution_exe>"
+                pack "${GAME_ASSETS_DIR}"
+                "${_LINUX_APPDIR}/assets/${_DELIVERY_NAME_SAFE}.asset"
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:--password>
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:${GAME_ASSETS_PASSWORD}>
+            DEPENDS distribution_exe distribution
+            COMMENT "Linux delivery: packing assets → AppDir/assets/${_DELIVERY_NAME_SAFE}.asset")
 
         # ── 'appimage' convenience target ─────────────────────────────────────
         # Wraps the AppDir into a self-contained .AppImage using appimagetool.
@@ -468,6 +516,23 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     target_sources(mini-mbm PRIVATE "${CMAKE_BINARY_DIR}/mbm_game_name.cpp")
 
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
+
+    # ── Distribution library: link + definitions when GAME_ASSETS_DIR is set ──
+    if(DEFINED GAME_ASSETS_DIR AND NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+        target_link_libraries(mini-mbm distribution)
+        target_include_directories(mini-mbm PRIVATE ${CMAKE_SOURCE_DIR}/distribution/include)
+        string(REPLACE " " "_" _DELIVERY_NAME_SAFE_WIN "${GAME_NAME}")
+        target_compile_definitions(mini-mbm PRIVATE
+            "GAME_ASSET_FILE=\"${_DELIVERY_NAME_SAFE_WIN}.asset\""
+            "GAME_APP_TITLE=\"${GAME_NAME}\""
+        )
+        if(DEFINED GAME_ASSETS_PASSWORD AND NOT "${GAME_ASSETS_PASSWORD}" STREQUAL "")
+            target_compile_definitions(mini-mbm PRIVATE
+                "GAME_ASSET_PASSWORD=\"${GAME_ASSETS_PASSWORD}\"")
+        else()
+            target_compile_definitions(mini-mbm PRIVATE "GAME_ASSET_PASSWORD=\"\"")
+        endif()
+    endif()
 
     # Build as a WINDOWS-subsystem PE so the OS never allocates a console.
     # -Wl,--subsystem,windows sets the subsystem without changing the entry
@@ -607,6 +672,10 @@ cd /d \"%~dp0\"\r\n\
 
         # ── DLL source paths ─────────────────────────────────────────────────
         set(_WIN_DLL_LIST "")
+        # portaudio is a bundled DLL — copy it to GameDir.
+        if(AUDIO STREQUAL "portaudio")
+            list(APPEND _WIN_DLL_LIST "${THIRD_PARTY}/portaudio/Windows/bin/portaudio_x86.dll")
+        endif()
         # dsound is a system DLL — no file to copy.
         if(USE_DIRECTX9)
             # Always use the system D3DCompiler_47.dll — it matches the process bitness.
@@ -685,12 +754,22 @@ endforeach()
             COMMAND ${CMAKE_COMMAND} -P "${CMAKE_BINARY_DIR}/copy_win_plugins.cmake"
             COMMENT "Windows delivery: copying plugins (.dll) → GameDir/")
 
-        # 4. Copy game assets
+        # Also copy distribution.dll to GameDir/ (produced alongside other DLLs).
         add_custom_command(TARGET mini-mbm POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${GAME_ASSETS_DIR}"
-                "${_WIN_GAMEDIR}/assets"
-            COMMENT "Windows delivery: copying assets from ${GAME_ASSETS_DIR} → GameDir/assets/")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:distribution>"
+                "${_WIN_GAMEDIR}/$<TARGET_FILE_NAME:distribution>"
+            COMMENT "Windows delivery: copying distribution.dll → GameDir/")
+
+        # 4. Pack game assets into an encrypted .asset archive
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_WIN_GAMEDIR}/assets"
+            COMMAND "$<TARGET_FILE:distribution_exe>"
+                pack "${GAME_ASSETS_DIR}"
+                "${_WIN_GAMEDIR}/assets/${GAME_NAME_SAFE}.asset"
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:--password>
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:${GAME_ASSETS_PASSWORD}>
+            COMMENT "Windows delivery: packing assets → GameDir/assets/${GAME_NAME_SAFE}.asset")
 
         # 5. Copy icon
         if(_WIN_ICON_ICO AND EXISTS "${_WIN_ICON_ICO}")
@@ -1170,6 +1249,329 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     target_link_libraries(mini-mbm ${CORE_MBM_LIBRARY})
     target_link_libraries(mini-mbm "-framework Cocoa")
 
+    # ── Distribution library: link + definitions when GAME_ASSETS_DIR is set ──
+    # Skipped for MAS_DELIVERY — assets are embedded in the bundle; distribution.dylib
+    # must not be linked (the App Store sandbox forbids loading it at runtime).
+    if(DEFINED GAME_ASSETS_DIR AND NOT MAS_DELIVERY)
+        target_link_libraries(mini-mbm distribution)
+        target_include_directories(mini-mbm PRIVATE ${CMAKE_SOURCE_DIR}/distribution/include)
+        if(NOT DEFINED GAME_NAME)
+            set(GAME_NAME "mini-mbm")
+        endif()
+        string(REPLACE " " "_" _DELIVERY_NAME_SAFE_MAC "${GAME_NAME}")
+        target_compile_definitions(mini-mbm PRIVATE
+            "GAME_ASSET_FILE=\"${_DELIVERY_NAME_SAFE_MAC}.asset\""
+            "GAME_APP_TITLE=\"${GAME_NAME}\""
+        )
+        if(DEFINED GAME_ASSETS_PASSWORD AND NOT "${GAME_ASSETS_PASSWORD}" STREQUAL "")
+            target_compile_definitions(mini-mbm PRIVATE
+                "GAME_ASSET_PASSWORD=\"${GAME_ASSETS_PASSWORD}\"")
+        else()
+            target_compile_definitions(mini-mbm PRIVATE "GAME_ASSET_PASSWORD=\"\"")
+        endif()
+    endif()
+
+    # ── macOS game delivery (.app bundle + optional .dmg) ─────────────────────
+    # Activated when -DGAME_ASSETS_DIR=/path/to/assets is passed.
+    #
+    #   mkdir -p ~/tower-defense-macos && cd ~/tower-defense-macos
+    #   cmake ~/mini-mbm \
+    #       -DPLAT=MacOs -DUSE_LUA=1 -DUSE_ALL=1 \
+    #       -DCMAKE_BUILD_TYPE=Release \
+    #       -DGAME_NAME="Tower Defense Monster" \
+    #       -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
+    #       -DGAME_ICON_PNG=/Users/michel/tower-defense/icon.png
+    #   make -j$(sysctl -n hw.logicalcpu)   # .app assembled after build
+    #   make macapp                          # synonym for make (just rebuilds)
+    #   make macdmg                          # wraps .app into a .dmg
+    if(DEFINED GAME_ASSETS_DIR AND NOT MAS_DELIVERY)
+
+        if(NOT DEFINED GAME_NAME)
+            set(GAME_NAME "mini-mbm")
+        endif()
+        if(GAME_ASSETS_DIR AND NOT IS_ABSOLUTE "${GAME_ASSETS_DIR}")
+            get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
+        endif()
+        string(REPLACE " " "_" _MAC_NAME_SAFE "${GAME_NAME}")
+
+        set(_MAC_APP_DIR "${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}.app")
+        set(_MAC_CONTENTS "${_MAC_APP_DIR}/Contents")
+
+        # Create bundle skeleton at configure time
+        file(MAKE_DIRECTORY "${_MAC_CONTENTS}/MacOS")
+        file(MAKE_DIRECTORY "${_MAC_CONTENTS}/Frameworks")
+        file(MAKE_DIRECTORY "${_MAC_CONTENTS}/Resources/assets")
+
+        # Minimal Info.plist
+        file(WRITE "${_MAC_CONTENTS}/Info.plist"
+"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+    <key>CFBundleName</key>             <string>${GAME_NAME}</string>
+    <key>CFBundleIdentifier</key>       <string>com.minimbm.${_MAC_NAME_SAFE}</string>
+    <key>CFBundleExecutable</key>       <string>${_MAC_NAME_SAFE}</string>
+    <key>CFBundlePackageType</key>      <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key> <string>6.0</string>
+    <key>NSHighResolutionCapable</key>  <true/>
+</dict>
+</plist>
+")
+
+        # Optional icon
+        if(DEFINED GAME_ICON_PNG)
+            if(GAME_ICON_PNG MATCHES "^~/")
+                string(REGEX REPLACE "^~/" "$ENV{HOME}/" GAME_ICON_PNG "${GAME_ICON_PNG}")
+            endif()
+            if(NOT IS_ABSOLUTE "${GAME_ICON_PNG}")
+                get_filename_component(GAME_ICON_PNG "${GAME_ICON_PNG}" ABSOLUTE)
+            endif()
+            if(EXISTS "${GAME_ICON_PNG}")
+                find_program(_SIPS sips)
+                if(_SIPS)
+                    set(_ICONSET_DIR "${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}.iconset")
+                    file(MAKE_DIRECTORY "${_ICONSET_DIR}")
+                    # sips generates all required icon sizes
+                    file(WRITE "${CMAKE_BINARY_DIR}/make_iconset.sh"
+"#!/bin/bash
+sips -z 16 16     '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_16x16.png'
+sips -z 32 32     '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_16x16@2x.png'
+sips -z 32 32     '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_32x32.png'
+sips -z 64 64     '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_32x32@2x.png'
+sips -z 128 128   '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_128x128.png'
+sips -z 256 256   '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_128x128@2x.png'
+sips -z 256 256   '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_256x256.png'
+sips -z 512 512   '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_256x256@2x.png'
+sips -z 512 512   '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_512x512.png'
+sips -z 1024 1024 '${GAME_ICON_PNG}' --out '${_ICONSET_DIR}/icon_512x512@2x.png'
+iconutil -c icns '${_ICONSET_DIR}' -o '${_MAC_CONTENTS}/Resources/${_MAC_NAME_SAFE}.icns'
+")
+                    execute_process(COMMAND bash "${CMAKE_BINARY_DIR}/make_iconset.sh")
+                endif()
+                message(STATUS "macOS icon        : ${GAME_ICON_PNG}")
+            else()
+                message(WARNING "GAME_ICON_PNG '${GAME_ICON_PNG}' does not exist — icon will not be bundled.")
+            endif()
+        endif()
+
+        message(STATUS "macOS game name   : ${GAME_NAME}")
+        message(STATUS "macOS assets dir  : ${GAME_ASSETS_DIR}")
+        message(STATUS "macOS .app bundle : ${_MAC_APP_DIR}")
+
+        # Ensure packaging inputs exist before mini-mbm POST_BUILD steps run.
+        add_dependencies(mini-mbm distribution_exe distribution)
+
+        # POST_BUILD: 1. copy engine binary
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                "$<TARGET_FILE:mini-mbm>"
+                "${_MAC_CONTENTS}/MacOS/${_MAC_NAME_SAFE}"
+            COMMENT "macOS delivery: mini-mbm → .app/Contents/MacOS/${_MAC_NAME_SAFE}")
+
+        # POST_BUILD: 2. copy distribution.dylib into Frameworks/
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:distribution>"
+                "${_MAC_CONTENTS}/Frameworks/$<TARGET_FILE_NAME:distribution>"
+            COMMENT "macOS delivery: distribution.dylib → .app/Contents/Frameworks/")
+
+        # POST_BUILD: 3. pack assets
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND "$<TARGET_FILE:distribution_exe>"
+                pack "${GAME_ASSETS_DIR}"
+                "${_MAC_CONTENTS}/Resources/assets/${_MAC_NAME_SAFE}.asset"
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:--password>
+                $<$<BOOL:${GAME_ASSETS_PASSWORD}>:${GAME_ASSETS_PASSWORD}>
+            COMMENT "macOS delivery: packing assets → .app/Contents/Resources/assets/${_MAC_NAME_SAFE}.asset")
+
+        # macapp — synonym for building (just depends on mini-mbm)
+        add_custom_target(macapp DEPENDS mini-mbm
+            COMMENT "macOS .app bundle ready at ${_MAC_APP_DIR}")
+
+        # macdmg — wraps .app into a distributable .dmg using hdiutil
+        file(WRITE "${CMAKE_BINARY_DIR}/make_macdmg.sh"
+"#!/bin/bash
+set -e
+APP='${_MAC_APP_DIR}'
+DMG='${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}-macos.dmg'
+TMP_DMG='${CMAKE_BINARY_DIR}/${_MAC_NAME_SAFE}-tmp.dmg'
+MOUNT_DIR='${CMAKE_BINARY_DIR}/.${_MAC_NAME_SAFE}_dmg_mount'
+rm -f \"\$DMG\" \"\$TMP_DMG\"
+rm -rf \"\$MOUNT_DIR\"
+mkdir -p \"\$MOUNT_DIR\"
+hdiutil create -size 512m -fs HFS+ -volname '${GAME_NAME}' \"\$TMP_DMG\"
+ATTACH_OUT=\$(hdiutil attach \"\$TMP_DMG\" -nobrowse -mountpoint \"\$MOUNT_DIR\")
+DEVICE=\$(printf '%s\n' \"\$ATTACH_OUT\" | awk '/^\\/dev\\/disk/{print \$1; exit}')
+if [ -z \"\$DEVICE\" ]; then
+    echo 'Failed to attach temporary DMG and resolve device.'
+    exit 1
+fi
+cp -R \"\$APP\" \"\$MOUNT_DIR/\"
+hdiutil detach \"\$DEVICE\"
+rmdir \"\$MOUNT_DIR\" || true
+hdiutil convert \"\$TMP_DMG\" -format UDZO -o \"\$DMG\"
+rm -f \"\$TMP_DMG\"
+echo '--- DMG ready: '\"\$DMG\"
+")
+        execute_process(COMMAND chmod +x "${CMAKE_BINARY_DIR}/make_macdmg.sh")
+        add_custom_target(macdmg
+            DEPENDS mini-mbm
+            COMMAND bash "${CMAKE_BINARY_DIR}/make_macdmg.sh"
+            WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+            COMMENT "Building macOS DMG: ${_MAC_NAME_SAFE}-macos.dmg")
+
+    endif() # GAME_ASSETS_DIR (macOS)
+
+    # ── Mac App Store delivery (Xcode generator + -DMAS_DELIVERY=1) ───────────
+    # Build with:
+    #   mkdir -p <builddir> && cd <builddir>
+    #   cmake ~/mini-mbm -G Xcode -DPLAT=MacOs -DUSE_LUA=1 -DUSE_ALL=1 \
+    #       -DMAS_DELIVERY=1 \
+    #       -DMAS_BUNDLE_ID=com.yourcompany.yourgame \
+    #       [-DMAS_APP_NAME="My Game"] \
+    #       [-DGAME_ASSETS_DIR=/path/to/assets] \
+    #       [-DGAME_ICON_PNG=/path/to/1024x1024.png]
+    #   open mini-mbm.xcodeproj   # → Archive → Distribute → App Store Connect
+    if(MAS_DELIVERY)
+        if(NOT DEFINED MAS_BUNDLE_ID)
+            message(FATAL_ERROR "MAS_DELIVERY requires -DMAS_BUNDLE_ID=<your.bundle.identifier>")
+        endif()
+        if(NOT DEFINED MAS_APP_NAME)
+            if(DEFINED GAME_NAME)
+                set(MAS_APP_NAME "${GAME_NAME}")
+            else()
+                set(MAS_APP_NAME "mini-mbm")
+            endif()
+        endif()
+
+        # Apply ARC to the ObjC++ MAS entry point
+        set_source_files_properties(${CMAKE_SOURCE_DIR}/platform-macos/main-lua-mas.mm
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+
+        # Compile-time title definition
+        target_compile_definitions(mini-mbm PRIVATE
+            "GAME_APP_TITLE=\"${MAS_APP_NAME}\"")
+
+        # Configure Info.plist from template (written to source tree so Xcode finds it)
+        configure_file(
+            "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist.in"
+            "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist"
+            @ONLY)
+
+        # Xcode target properties for Mac App Store
+        set_target_properties(mini-mbm PROPERTIES
+            MACOSX_BUNDLE                                  TRUE
+            MACOSX_BUNDLE_INFO_PLIST                       "${CMAKE_SOURCE_DIR}/platform-macos/Info.plist"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER      "${MAS_BUNDLE_ID}"
+            XCODE_ATTRIBUTE_INSTALL_PATH                   "$(LOCAL_APPS_DIR)"
+            XCODE_ATTRIBUTE_SKIP_INSTALL                   "NO"
+            XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT       "dwarf-with-dsym"
+            XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+            XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS         "platform-macos/mini-mbm.entitlements"
+            XCODE_ATTRIBUTE_CODE_SIGN_STYLE                "Automatic"
+            # macOS 12.0 is required to submit an arm64-only binary to the Mac
+            # App Store. With a lower deployment target Apple rejects the upload
+            # unless a universal (arm64 + x86_64) binary is provided.
+            # macOS 12.0 (Monterey) was released October 2021 and covers all
+            # Apple Silicon and modern Intel Macs — a safe floor for new submissions.
+            XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET       "12.0"
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon"
+            # Reset CONFIGURATION_BUILD_DIR to the Xcode default so that the
+            # .dSYM bundle lands beside the .app in the archive SYMROOT rather
+            # than in the custom bin/ output path that CMake sets globally.
+            # Without this the archive's dSYMs/ folder is empty and App Store
+            # Connect rejects the upload with a "missing dSYM UUID" error.
+            XCODE_ATTRIBUTE_CONFIGURATION_BUILD_DIR        "$(SYMROOT)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)"
+        )
+
+        # Embed game assets into the bundle under Contents/Resources/assets/
+        if(DEFINED GAME_ASSETS_DIR)
+            if(NOT IS_ABSOLUTE "${GAME_ASSETS_DIR}")
+                get_filename_component(GAME_ASSETS_DIR "${GAME_ASSETS_DIR}" ABSOLUTE)
+            endif()
+            file(GLOB_RECURSE _MAS_ASSET_FILES "${GAME_ASSETS_DIR}/*")
+            foreach(_f ${_MAS_ASSET_FILES})
+                file(RELATIVE_PATH _rel "${GAME_ASSETS_DIR}" "${_f}")
+                get_filename_component(_rel_dir "${_rel}" DIRECTORY)
+                if(_rel_dir STREQUAL "")
+                    set(_mas_loc "Resources/assets")
+                else()
+                    set(_mas_loc "Resources/assets/${_rel_dir}")
+                endif()
+                set_source_files_properties("${_f}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "${_mas_loc}")
+                target_sources(mini-mbm PRIVATE "${_f}")
+            endforeach()
+            message(STATUS "macOS MAS assets  : ${GAME_ASSETS_DIR}")
+        else()
+            message(WARNING "MAS_DELIVERY: GAME_ASSETS_DIR not set — no game assets will be bundled.")
+        endif()
+
+        # Build Assets.xcassets with the app icon for Xcode
+        if(DEFINED GAME_ICON_PNG)
+            if(GAME_ICON_PNG MATCHES "^~/")
+                string(REGEX REPLACE "^~/" "$ENV{HOME}/" GAME_ICON_PNG "${GAME_ICON_PNG}")
+            endif()
+            if(NOT IS_ABSOLUTE "${GAME_ICON_PNG}")
+                get_filename_component(GAME_ICON_PNG "${GAME_ICON_PNG}" ABSOLUTE)
+            endif()
+            if(EXISTS "${GAME_ICON_PNG}")
+                set(_MAS_XCASSETS_DIR "${CMAKE_SOURCE_DIR}/platform-macos/Assets.xcassets")
+                set(_MAS_ICON_DIR     "${_MAS_XCASSETS_DIR}/AppIcon.appiconset")
+                file(MAKE_DIRECTORY "${_MAS_ICON_DIR}")
+
+                find_program(_SIPS sips)
+                if(_SIPS)
+                    execute_process(COMMAND "${_SIPS}" -z 16   16   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_16x16.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 32   32   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_16x16@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 32   32   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_32x32.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 64   64   "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_32x32@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 128  128  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_128x128.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 256  256  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_128x128@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 256  256  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_256x256.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 512  512  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_256x256@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 512  512  "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_512x512.png"    OUTPUT_QUIET ERROR_QUIET)
+                    execute_process(COMMAND "${_SIPS}" -z 1024 1024 "${GAME_ICON_PNG}" --out "${_MAS_ICON_DIR}/icon_512x512@2x.png" OUTPUT_QUIET ERROR_QUIET)
+                endif()
+
+                file(WRITE "${_MAS_ICON_DIR}/Contents.json"
+"{
+  \"images\": [
+    { \"filename\": \"icon_16x16.png\",      \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"16x16\"   },
+    { \"filename\": \"icon_16x16@2x.png\",   \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"16x16\"   },
+    { \"filename\": \"icon_32x32.png\",      \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"32x32\"   },
+    { \"filename\": \"icon_32x32@2x.png\",   \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"32x32\"   },
+    { \"filename\": \"icon_128x128.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"128x128\" },
+    { \"filename\": \"icon_128x128@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"128x128\" },
+    { \"filename\": \"icon_256x256.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"256x256\" },
+    { \"filename\": \"icon_256x256@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"256x256\" },
+    { \"filename\": \"icon_512x512.png\",    \"idiom\": \"mac\", \"scale\": \"1x\", \"size\": \"512x512\" },
+    { \"filename\": \"icon_512x512@2x.png\", \"idiom\": \"mac\", \"scale\": \"2x\", \"size\": \"512x512\" }
+  ],
+  \"info\": { \"author\": \"xcode\", \"version\": 1 }
+}")
+                file(WRITE "${_MAS_XCASSETS_DIR}/Contents.json"
+                    "{\"info\":{\"author\":\"xcode\",\"version\":1}}")
+
+                # Expose xcassets to Xcode so it compiles them into the bundle
+                target_sources(mini-mbm PRIVATE "${_MAS_XCASSETS_DIR}")
+                set_source_files_properties("${_MAS_XCASSETS_DIR}" PROPERTIES
+                    MACOSX_PACKAGE_LOCATION "Resources")
+                source_group("Resources" FILES "${_MAS_XCASSETS_DIR}")
+
+                message(STATUS "macOS MAS icon    : ${GAME_ICON_PNG}")
+            else()
+                message(WARNING "MAS_DELIVERY: GAME_ICON_PNG '${GAME_ICON_PNG}' not found — icon skipped.")
+            endif()
+        endif()
+
+        message(STATUS "macOS MAS bundle ID : ${MAS_BUNDLE_ID}")
+        message(STATUS "macOS MAS app name  : ${MAS_APP_NAME}")
+        message(STATUS "Next step: open the generated .xcodeproj, then:")
+        message(STATUS "  Product → Archive → Distribute App → App Store Connect")
+
+    endif() # MAS_DELIVERY
+
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
     # iOS static-link plugin definitions (same workaround as Android — dynamic loading is blocked)
     if(USE_LSQLITE3)
@@ -1510,6 +1912,36 @@ if (${ENGINE_TARGET_PLATFORM} STREQUAL "iOS")
 
     if(USE_IMGUI)
         message(STATUS "USE_IMGUI is enabled — linking statically for iOS")
+        target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
+    endif()
+
+endif()
+
+# plugins for macOS MAS must also be statically linked (App Store sandbox forbids user-space dylibs)
+if (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs" AND MAS_DELIVERY)
+
+    if(USE_LSQLITE3)
+        message(STATUS "USE_LSQLITE3 is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${SQLITE3_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D)
+        message(STATUS "USE_BOX2D is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BOX2D_LUA_LIBRARY})
+    endif()
+
+    if(USE_BOX2D_LIQUID_FUN)
+        message(STATUS "USE_BOX2D_LIQUID_FUN is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BOX2D_LIQUID_FUN_LUA_LIBRARY})
+    endif()
+
+    if(USE_BULLET3D)
+        message(STATUS "USE_BULLET3D is enabled — linking statically for macOS MAS")
+        target_link_libraries(mini-mbm ${BULLET_3D_LIBRARY})
+    endif()
+
+    if(USE_IMGUI)
+        message(STATUS "USE_IMGUI is enabled — linking statically for macOS MAS")
         target_link_libraries(mini-mbm ${IMGUI_LIBRARY})
     endif()
 

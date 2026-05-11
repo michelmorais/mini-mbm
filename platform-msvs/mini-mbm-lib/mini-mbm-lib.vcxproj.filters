@@ -64,9 +64,6 @@
     <Filter Include="Header Files\plugin-helper">
       <UniqueIdentifier>{f187c49e-ef0e-4750-b65c-882870619e6d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\AESCrypt">
-      <UniqueIdentifier>{9602f9d8-93bd-4087-a882-1c741aa287dc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\plusaes">
       <UniqueIdentifier>{8690b5a2-b620-42dc-a77a-b9fc4b779450}</UniqueIdentifier>
     </Filter>
@@ -550,21 +547,6 @@
     </ClInclude>
     <ClInclude Include="..\..\include\lua-interface\lua-wrap\require_embedded.h">
       <Filter>Header Files\lua-wrap</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.crypt.h">
-      <Filter>Header Files\AESCrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aes.h">
-      <Filter>Header Files\AESCrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\aescrypt.h">
-      <Filter>Header Files\AESCrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\sha256.h">
-      <Filter>Header Files\AESCrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\third-party\AESCrypt\win32\version.h">
-      <Filter>Header Files\AESCrypt</Filter>
     </ClInclude>
     <ClInclude Include="..\..\third-party\plusaes\plusaes.hpp">
       <Filter>Header Files\plusaes</Filter>

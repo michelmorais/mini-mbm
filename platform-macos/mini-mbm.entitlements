@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Mandatory App Sandbox -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- ~/Library/Application Support/ is always writable for the sandbox container;
+         no extra entitlement is required for game save files stored there. -->
+
+    <!-- Allow the user to open files via NSOpenPanel (e.g. import save backups) -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+
+    <!-- Disable outbound network access; enable below if your game uses networking -->
+    <key>com.apple.security.network.client</key>
+    <false/>
+</dict>
+</plist>

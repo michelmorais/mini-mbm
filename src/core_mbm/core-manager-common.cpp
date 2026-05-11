@@ -72,7 +72,9 @@ namespace mbm
             return -1;
         if (!this->loopVariablesInitialized)
         {
+            #if defined _DEBUG || defined DEBUG
             INFO_LOG("CORE_MANAGER::onLoop() first-time init, back buffer [width=%.0f height=%.0f]", device->backBufferWidth, device->backBufferHeight);
+            #endif
             // Cfg shader from resource----
             if (!this->device->cfg.parserCFGFromResource())
             {
@@ -717,10 +719,14 @@ namespace mbm
             }
             else if (changeScene)
             {
+                #if defined _DEBUG || defined DEBUG
                 INFO_LOG("CORE_MANAGER::logic() changeScene=true swapStep=%d", this->device->__swapBackBufferStep);
+                #endif
                 if (this->device->__swapBackBufferStep == 3)
                 {
+                    #if defined _DEBUG || defined DEBUG
                     INFO_LOG("CORE_MANAGER::logic() calling scene->init()");
+                    #endif
                     this->reinitTimers();
                     enableRender(this->device->scene->getIdScene());
                     this->device->scene->wasUnloadedScene = false;

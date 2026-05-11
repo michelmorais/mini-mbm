@@ -173,6 +173,7 @@ step wraps it into a single self-contained `.AppImage` file.
 |---|---|---|
 | `-DGAME_ASSETS_DIR=/path/to/assets` | **Yes** (activates delivery) | Absolute path to your game's assets folder. Must contain `main.lua`. |
 | `-DGAME_NAME="My Game"` | No (default: `mini-mbm`) | Display name — sets the window title and names the output files. |
+| `-DGAME_ASSETS_PASSWORD=secret` | No | If set, assets are AES-128-CBC encrypted (PBKDF2-HMAC-SHA256 key derivation, 100 000 iterations). Omit for unencrypted packing. |
 | `-DGAME_ICON_PNG=/path/to/icon.png` | No | Any-size PNG. Copied as-is and renamed to match the desktop entry. |
 
 > **Use absolute paths.** CMake does not expand `~` inside double-quoted `-D` values.
@@ -203,6 +204,7 @@ cmake ~/mini-mbm \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DAUDIO=portaudio \
     -DCMAKE_BUILD_TYPE=Release \
+    -DGAME_ASSETS_PASSWORD="HardP4sS33o0d" \
     -DGAME_NAME="Tower Defense Monster" \
     -DGAME_ASSETS_DIR=/home/michel/tower-defense/assets \
     -DGAME_ICON_PNG=/home/michel/tower-defense/propaganda/1024x1024-icon.png
@@ -226,8 +228,9 @@ make appimage        # wraps AppDir into .AppImage (appimagetool required)
 | Artifact | Location | Notes |
 |---|---|---|
 | `mini-mbm` binary | `AppDir/usr/bin/` | The compiled engine executable |
-| `*.so` plugins | `AppDir/usr/lib/` | All shared-library plugins (box2d, ImGui, bullet, etc.) |
-| Game assets | `AppDir/assets/` | Full copy of `GAME_ASSETS_DIR` |
+| `distribution.so` | `AppDir/usr/lib/` | Asset library — loaded at runtime to extract the `.asset` file |
+| `*.so` plugins | `AppDir/usr/lib/` | All other shared-library plugins (box2d, ImGui, bullet, etc.) |
+| `<GameName>.asset` | `AppDir/assets/` | Packed (and optionally encrypted) archive of `GAME_ASSETS_DIR`, produced by `distribution pack` |
 
 ### Running without AppImage
 
@@ -242,9 +245,12 @@ The AppDir is a standalone, runnable directory without any additional tooling:
 ### Writable save directory
 
 The AppImage filesystem is **read-only** — any file the game tries to create inside
-`/tmp/.mount_*/` will fail. `AppRun` handles this automatically: it creates a
-persistent writable directory under `$HOME/.local/share/<GameName>/` and exports it
-as the `GAME_SAVE_DIR` environment variable before launching the engine.
+`/tmp/.mount_*/` will fail.  The delivery binary handles this automatically: it
+computes a persistent writable directory and exposes it to Lua via a native command.
+
+The directory is resolved in this order:
+1. `GAME_SAVE_DIR` environment variable, if set (AppRun exports it).
+2. `$XDG_DATA_HOME/<GameName>` (`~/.local/share/<GameName>` on most systems).
 
 ```
 ~/.local/share/Tower_Defense_Monster/   ← writable, survives AppImage updates
@@ -252,26 +258,31 @@ as the `GAME_SAVE_DIR` environment variable before launching the engine.
     ...
 ```
 
-In your Lua save/load code, read the path from the environment variable instead of
-using a hardcoded or relative path:
+From Lua, call `mbm.doCommands('get_save_dir')` — the same API used on all
+delivery platforms (Linux, macOS, Windows):
 
 ```lua
--- Use the writable save dir injected by AppRun.
--- Falls back to "" (current dir) when running outside an AppImage during development.
-local save_dir = os.getenv("GAME_SAVE_DIR")
-save_dir = save_dir and (save_dir .. "/") or ""
+-- Works on Linux, macOS, and Windows delivery builds.
+-- Returns the persistent writable directory for save files (no trailing slash).
+-- Returns "" when running outside a delivery build (development mode).
+local function getSaveDir()
+    local dir = mbm.doCommands('get_save_dir')
+    if dir and #dir > 0 then return dir .. "/" end
+    return ""  -- fallback: write next to the script during development
+end
 
-local save_file = save_dir .. "tower-defense.data"
+local save_file = getSaveDir() .. "mygame.data"
 ```
 
-Use `save_file` wherever you read or write persistent game data. This works
-transparently in all three contexts:
+This is consistent across all delivery platforms:
 
-| Context | `GAME_SAVE_DIR` value | Save file location |
-|---|---|---|
-| AppImage (distributed) | `~/.local/share/Tower_Defense_Monster` | `~/.local/share/Tower_Defense_Monster/tower-defense.data` |
-| AppDir (direct run) | `~/.local/share/Tower_Defense_Monster` | same |
-| Development (engine repo) | _(not set)_ | `tower-defense.data` next to the script |
+| Platform | `get_save_dir` returns |
+|---|---|
+| Linux AppImage | `$GAME_SAVE_DIR` or `~/.local/share/<GameName>` |
+| macOS delivery | `~/Library/Application Support/<GameName>` |
+| macOS MAS | Container-mapped Application Support directory |
+| Windows delivery | `%APPDATA%\<GameName>` |
+| Development (no delivery) | _(empty string — CWD fallback)_ |
 
 After changing `AppRun` (by re-running cmake) you must rebuild and repackage:
 
@@ -362,17 +373,17 @@ Expected layout:
 
 ```
 squashfs-root/
-├── AppRun                          ← launcher script (chmod +x)
-├── Tower_Defense_Monster.desktop   ← XDG desktop entry
-├── Tower_Defense_Monster.png       ← app icon
+├── AppRun                              ← launcher script (chmod +x)
+├── Tower_Defense_Monster.desktop       ← XDG desktop entry
+├── Tower_Defense_Monster.png           ← app icon
 ├── .DirIcon -> Tower_Defense_Monster.png
-├── assets/                         ← full copy of GAME_ASSETS_DIR
-│   ├── main.lua
-│   └── ...
+├── assets/
+│   └── Tower_Defense_Monster.asset     ← packed (+ optionally encrypted) archive
 └── usr/
     ├── bin/
-    │   └── mini-mbm                ← engine binary
+    │   └── mini-mbm                    ← engine binary
     └── lib/
+        ├── distribution.so             ← asset library (extracts .asset at launch)
         ├── libportaudio.so.2
         ├── libcore_mbm.so
         ├── liblua-5.4.1.so
