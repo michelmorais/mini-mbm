@@ -4,13 +4,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Tower Defense Monster</string>
+    <string>Tower Defense Monsters</string>
     <key>CFBundleDisplayName</key>
-    <string>Tower Defense Monster</string>
+    <string>Tower Defense Monsters</string>
     <key>CFBundleIdentifier</key>
     <string>com.mini.mbm.tower-defense</string>
     <key>CFBundleExecutable</key>
-    <string>Tower Defense Monster</string>
+    <string>Tower Defense Monsters</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>

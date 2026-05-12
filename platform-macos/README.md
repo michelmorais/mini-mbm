@@ -408,7 +408,7 @@ cmake ~/mini-mbm \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \
     -DMAS_DELIVERY=1 \
     -DMAS_BUNDLE_ID=com.mini.mbm.tower-defense \
-    -DMAS_APP_NAME="Tower Defense Monster" \
+    -DMAS_APP_NAME="Tower Defense Monsters" \
     -DGAME_ASSETS_DIR=/Users/michel/tower-defense/assets \
     -DGAME_ICON_PNG=/Users/michel/tower-defense/propaganda/1024x1024-icon.png \
     -DCMAKE_BUILD_TYPE=Release
