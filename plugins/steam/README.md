@@ -10,7 +10,7 @@ Platforms: **Windows**, **Linux**, **macOS** (not Android / iOS — Steam is a d
 1. **Steamworks Partner Account**: Enroll at <https://partner.steamgames.com/>. Each developer/studio uses their own App ID — this plugin never hard-codes yours.
 2. **Steamworks SDK**: Download from the partner portal → *Developer Tools → Steamworks SDK*. Extract it locally (e.g. `/home/user/steamworks_sdk` or `C:\steamworks_sdk`).
 3. **Steam client**: Must be running on the development machine during testing.
-4. **`steam_appid.txt`**: Create a plain-text file containing your App ID (just the number, e.g. `480`). Place it in the same directory as the `mini-mbm` executable for development runs. Steam sets the App ID automatically for retail builds launched via the client.
+4. **`steam_appid.txt`**: Create a plain-text file containing your App ID (just the number, e.g. `1888760`). Place it in the same directory as the `mini-mbm` executable for development runs. Steam sets the App ID automatically for retail builds launched via the client — **do not include this file in your shipped game**.
 
 ---
 
@@ -192,7 +192,8 @@ local hasDlc = steam.isDlcInstalled(1234567)  -- -> boolean
 
 | Data | Sensitive? | Notes |
 |---|---|---|
-| App ID | No | Public — visible in Steam URLs |
+| App ID | No | Public — visible in your Steam store URL: `store.steampowered.com/app/<AppID>` and indexed by SteamDB |
+| Depot ID | No | Public — identifies a content package inside your app; visible in SteamDB under your app's depots list |
 | Achievement / stat API names | No | Defined in the Steamworks partner dashboard |
 | Leaderboard names | No | Public |
 | Game logic, scoring rules, level layouts | **Yes** | Protect with encryption (see below) |
@@ -274,8 +275,8 @@ Parameters:
 | # | Parameter | Example |
 |---|---|---|
 | 1 | Game name | `"Tower Defense Monster"` |
-| 2 | Steam App ID | `680230` |
-| 3 | Steam Depot ID | `680231` *(usually App ID + 1)* |
+| 2 | Steam App ID | `1888760` |
+| 3 | Steam Depot ID | `1888761` *(confirm at [partner.steamgames.com](https://partner.steamgames.com) → your app → App Admin → Depots; usually App ID + 1)* |
 | 4 | GameDir path | output folder from `package-game.bat` |
 | 5 | `steamcmd.exe` path | `C:\steamcmd\steamcmd.exe` |
 | 6 | Build description *(optional)* | `"v1.2.0 release"` |
@@ -317,7 +318,7 @@ Linux / macOS: follow <https://developer.valvesoftware.com/wiki/SteamCMD>.
 | Symptom | Likely cause |
 |---|---|
 | `require "steam"` crashes with "module not found" | Engine built without `-DUSE_STEAM=1`; use `pcall(require, "steam")` instead — see [Optional loading](#optional-loading-recommended) |
-| `steam.isReady()` returns `false` | Steam client not running, or `steam_appid.txt` missing/wrong |
+| `steam.isReady()` returns `false` / "No appID found" | `steam_appid.txt` missing from the game directory, or Steam client not running. Create the file with just your App ID number (e.g. `1888760`) next to the executable during development. This file is **development-only** — do not ship it; `upload-to-steam.bat` excludes it from the depot automatically. |
 | Plugin fails to load | `steam_api64.dll` / `libsteam_api.so` not next to the executable |
 | Build fails — SDK headers not found | `STEAMWORKS_SDK_PATH` not set, or path points to wrong directory |
 | Achievements not showing | Call `steam.storeStats()` after setting achievements |

@@ -120,9 +120,10 @@ echo         "LocalPath"     "*"
 echo         "DepotPath"     "."
 echo         "recursive"     "1"
 echo     }
-echo     // Exclude debug symbols and SteamPipe scripts themselves
+echo     // Exclude debug symbols, SteamPipe scripts, and the dev-only appID file
 echo     "FileExclusion"     "*.pdb"
 echo     "FileExclusion"     "steamscripts\*"
+echo     "FileExclusion"     "steam_appid.txt"
 echo }
 ) > "%DEPOT_VDF%"
 
