@@ -1056,6 +1056,44 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
         add_definitions(-DUSE_LUA)
     endif()
 
+    # ── GAME_ASSETS_PASSWORD safety check ────────────────────────────────────
+    # Characters that break shell expansion or Makefile variable syntax are
+    # forbidden in the password.  They cause a mismatch between the password
+    # baked into the executable at compile time and the one used to encrypt the
+    # .asset file at pack time:
+    #   %   — CMD environment variable delimiter (%VAR%) and Makefile escape (%%→%)
+    #   *   — shell glob / Makefile wildcard
+    #   =   — CMake cache entry separator
+    #   "   — shell quoting / compile definition quoting
+    #   !   — CMD delayed expansion (!VAR!) and bash history expansion
+    #   ^   — CMD escape character
+    #   &   — CMD command chaining
+    #   |   — CMD pipe
+    #   <   — CMD redirection
+    #   >   — CMD redirection
+    #   ( ) — CMD grouping
+    # Safe characters: letters, digits, - _ @ # $ . , + ~ ;
+    if(DEFINED GAME_ASSETS_PASSWORD AND NOT "${GAME_ASSETS_PASSWORD}" STREQUAL "")
+        set(_FORBIDDEN_CHARS "%=*\"!^&|<>()")
+        # CMake string(FIND) cannot test a character class, so check each one.
+        foreach(_BAD_CHAR % = * "\"" ! ^ & | < > "(" ")")
+            string(FIND "${GAME_ASSETS_PASSWORD}" "${_BAD_CHAR}" _BAD_POS)
+            if(NOT _BAD_POS EQUAL -1)
+                message(FATAL_ERROR
+                    "\n"
+                    "  GAME_ASSETS_PASSWORD contains the character '${_BAD_CHAR}' which is\n"
+                    "  unsafe in shell/Makefile contexts and will cause a password mismatch\n"
+                    "  between the packed .asset file and the compiled executable.\n"
+                    "\n"
+                    "  Forbidden characters: ${_FORBIDDEN_CHARS}\n"
+                    "  Safe characters     : letters  digits  - _ @ # \$ . , + ~ ;\n"
+                    "\n"
+                    "  Please choose a password that does not contain any of the above.\n")
+            endif()
+        endforeach()
+    endif()
+    # ─────────────────────────────────────────────────────────────────────────
+
     add_subdirectory(${CORE_MBM_LIB} 		        ${CORE_MBM_LIB})
     add_subdirectory(${MINI_MBM}                    ${MINI_MBM})
 

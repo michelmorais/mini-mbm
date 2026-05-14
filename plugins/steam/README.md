@@ -10,7 +10,7 @@ Platforms: **Windows**, **Linux**, **macOS** (not Android / iOS — Steam is a d
 1. **Steamworks Partner Account**: Enroll at <https://partner.steamgames.com/>. Each developer/studio uses their own App ID — this plugin never hard-codes yours.
 2. **Steamworks SDK**: Download from the partner portal → *Developer Tools → Steamworks SDK*. Extract it locally (e.g. `/home/user/steamworks_sdk` or `C:\steamworks_sdk`).
 3. **Steam client**: Must be running on the development machine during testing.
-4. **`steam_appid.txt`**: Create a plain-text file containing your App ID (just the number, e.g. `480`). Place it in the same directory as the `mini-mbm` executable for development runs. Steam sets the App ID automatically for retail builds launched via the client.
+4. **`steam_appid.txt`**: Create a plain-text file containing your App ID (just the number, e.g. `1888760`). Place it in the same directory as the `mini-mbm` executable for development runs. Steam sets the App ID automatically for retail builds launched via the client — **do not include this file in your shipped game**.
 
 ---
 
@@ -93,6 +93,36 @@ For **final distribution**, also include the Steam library in your shipped game 
 
 ## Lua Usage
 
+### Optional loading (recommended)
+
+The game may run without Steam — on Android, iOS, or a PC build compiled without
+`-DUSE_STEAM=1`.  Use `pcall` so a missing plugin never crashes the game:
+
+```lua
+local steamOk, steam = pcall(require, "steam")
+if steamOk and steam.isReady() then
+    print("Steam initialized. Player: " .. steam.getPlayerName())
+else
+    print("Steam not available — running without Steam features")
+end
+```
+
+- `steamOk = false` — plugin DLL not present (non-Steam build, mobile, etc.) → game continues.
+- `steamOk = true, steam.isReady() = false` — plugin loaded but Steam client not running → game continues.
+- `steamOk = true, steam.isReady() = true` — full Steam integration active.
+
+If you need Steam features in other scripts, expose the result as globals:
+
+```lua
+local steamOk, steam = pcall(require, "steam")
+steamHandle = steamOk and steam or nil   -- nil on non-Steam builds
+steamReady  = steamOk and steam.isReady() -- boolean flag other scripts can check
+```
+
+### Full load (Steam-only builds)
+
+If the game is guaranteed to ship exclusively on Steam, a direct `require` is fine:
+
 ```lua
 -- Load the plugin from your onInitScene() callback
 local steam = require "steam"
@@ -162,7 +192,8 @@ local hasDlc = steam.isDlcInstalled(1234567)  -- -> boolean
 
 | Data | Sensitive? | Notes |
 |---|---|---|
-| App ID | No | Public — visible in Steam URLs |
+| App ID | No | Public — visible in your Steam store URL: `store.steampowered.com/app/<AppID>` and indexed by SteamDB |
+| Depot ID | No | Public — identifies a content package inside your app; visible in SteamDB under your app's depots list |
 | Achievement / stat API names | No | Defined in the Steamworks partner dashboard |
 | Leaderboard names | No | Public |
 | Game logic, scoring rules, level layouts | **Yes** | Protect with encryption (see below) |
@@ -194,12 +225,123 @@ Players do **not** enter Steam credentials in your game. Steam handles authentic
 
 ---
 
+## Steam Delivery Flow
+
+This section covers the full end-to-end path from source to a live Steam build.
+
+### Step 1 — Build the engine with Steam support
+
+**Visual Studio 2022:**
+
+1. Set `STEAMWORKS_SDK_PATH` (see [Building → Windows](#windows-visual-studio-2022) above).
+2. Open `platform-msvs/mini-mbm.sln`.
+3. Go to **Build → Configuration Manager** and check **Build** for the **steam** project.
+4. Build → **Release | Win32** (the recommended configuration for this engine).
+
+**CMake (MinGW / Linux / macOS):**
+
+```sh
+cmake ../.. -DPLAT=Windows -DUSE_ALL=1 -DUSE_STEAM=1 \
+    -DSTEAMWORKS_SDK_PATH=C:\steamworks_sdk \
+    -DCMAKE_BUILD_TYPE=Release
+```
+
+### Step 2 — Package the game *(Visual Studio workflow only)*
+
+> **CMake + MinGW users: skip this step.**  
+> When you pass `-DGAME_ASSETS_DIR` to cmake, the `<GameName>.GameDir\` folder is
+> built and packed automatically as part of `mingw32-make`. Proceed to Step 3.
+
+For the **Visual Studio** workflow, run `package-game.bat` from `platform-msvs\`:
+
+```bat
+package-game.bat "Tower Defense Monster" "C:\Users\miche\Documents\tower-defense\assets" Release tower-defense.ico MySecretPassword
+```
+
+This produces `Tower_Defense_Monster.GameDir\` containing the executable, all DLLs
+(including `steam_api.dll` for the Win32 build), and the packed `.asset` file.  
+That folder is the **depot content root** — exactly what Steam will ship to players.
+
+### Step 3 — Upload to Steam via SteamPipe
+
+Use the upload script (in `platform-msvs/`) to generate the SteamPipe VDF scripts and trigger the upload in one step.
+
+The `GameDir` to pass as arg 4 is:
+- **CMake + MinGW / Linux / macOS**: `build/Tower_Defense_Monster.GameDir/` (created automatically during the build)
+- **Visual Studio**: the folder produced by `package-game.bat` in Step 2
+
+**Windows (`upload-to-steam.bat`):**
+
+```bat
+upload-to-steam.bat "Tower Defense Monster" 1888760 1888761 ^
+    "C:\Users\miche\Documents\mini-mbm\build\Tower_Defense_Monster.GameDir" ^
+    "C:\Users\miche\Downloads\steamworks_sdk_164\sdk\tools\ContentBuilder\builder\steamcmd.exe" ^
+    "v1.2.0 release" "beta"
+```
+
+**Linux / macOS (`upload-to-steam.sh`):**
+
+```sh
+# Make executable once
+chmod +x platform-msvs/upload-to-steam.sh
+
+./platform-msvs/upload-to-steam.sh "Tower Defense Monster" 1888760 1888761 \
+    "/home/user/mini-mbm/build/Tower_Defense_Monster.GameDir" \
+    "$HOME/.steam/steamcmd/steamcmd.sh" \
+    "v1.2.0 release" "beta"
+```
+
+Parameters (same for both scripts):
+
+| # | Parameter | Example |
+|---|---|---|
+| 1 | Game name | `"Tower Defense Monster"` |
+| 2 | Steam App ID | `1888760` |
+| 3 | Steam Depot ID | `1888761` *(confirm at [partner.steamgames.com](https://partner.steamgames.com) → your app → App Admin → Depots; usually App ID + 1)* |
+| 4 | GameDir path | output folder from the build or `package-game.bat` |
+| 5 | `steamcmd` path | Windows: full path to `steamcmd.exe`; Linux/macOS: path to `steamcmd.sh` or `steamcmd` binary |
+| 6 | Build description *(optional)* | `"v1.2.0 release"` |
+| 7 | Branch to set live *(optional)* | `"beta"` or `"public"` |
+
+Both scripts:
+1. Generate `depot_build_<DepotID>.vdf` — maps the GameDir tree to the depot.
+2. Generate `app_build_<AppID>.vdf` — describes the build, sets the branch.
+3. Call `steamcmd +login <Steam user> +run_app_build … +quit`.
+4. Print the SteamPipe build log path when done.
+
+> **First run**: `steamcmd` will prompt for your Steam username, password, and
+> Steam Guard code.  Credentials are cached by steamcmd after the first login.
+
+### Step 4 — Promote to live (optional)
+
+After the build is uploaded it lands in the branch you specified (default `beta`).
+To promote to the default public branch:
+
+- **Steamworks dashboard**: *App Admin → Builds* → click **Set Build Live** on the desired build.
+- **Command line** (already handled by the script when `SetLive` is `public`).
+
+### SteamCMD installation
+
+SteamCMD is a standalone CLI tool — separate from the Steamworks SDK.
+
+```bat
+rem Windows: create C:\steamcmd\ and extract steamcmd.zip there
+curl -LO https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip
+powershell Expand-Archive steamcmd.zip C:\steamcmd
+```
+
+Linux / macOS: follow <https://developer.valvesoftware.com/wiki/SteamCMD>.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
-| `steam.isReady()` returns `false` | Steam client not running, or `steam_appid.txt` missing/wrong |
+| `require "steam"` crashes with "module not found" | Engine built without `-DUSE_STEAM=1`; use `pcall(require, "steam")` instead — see [Optional loading](#optional-loading-recommended) |
+| `steam.isReady()` returns `false` / "No appID found" | `steam_appid.txt` missing from the game directory, or Steam client not running. Create the file with just your App ID number (e.g. `1888760`) next to the executable during development. This file is **development-only** — do not ship it; `upload-to-steam.bat` excludes it from the depot automatically. |
 | Plugin fails to load | `steam_api64.dll` / `libsteam_api.so` not next to the executable |
 | Build fails — SDK headers not found | `STEAMWORKS_SDK_PATH` not set, or path points to wrong directory |
 | Achievements not showing | Call `steam.storeStats()` after setting achievements |
 | Leaderboard callback never fires | Check that `SteamAPI_RunCallbacks()` is being called (happens automatically in `onLoop`) |
+| `ERROR! Failed to commit build for AppID XXXXXX : Failure` | Content uploaded successfully but commit was rejected. Check in order: **(1)** Account permissions — go to *partner.steamgames.com → Users & Permissions → Manage Group* and verify the uploading account has both **Edit App Metadata** AND **Publish App Changes To Steam** checked. **(2)** Depot exists and is not disabled — go to *App Admin → Depots* and confirm the Depot ID is listed and active for the correct platform. **(3)** Steam Distribution Agreement — go to *App Admin → View Steamworks Usage Agreement* and accept it (required before the first upload). |
