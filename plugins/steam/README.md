@@ -246,9 +246,13 @@ cmake ../.. -DPLAT=Windows -DUSE_ALL=1 -DUSE_STEAM=1 \
     -DCMAKE_BUILD_TYPE=Release
 ```
 
-### Step 2 — Package the game with `package-game.bat`
+### Step 2 — Package the game *(Visual Studio workflow only)*
 
-Run from `platform-msvs\`:
+> **CMake + MinGW users: skip this step.**  
+> When you pass `-DGAME_ASSETS_DIR` to cmake, the `<GameName>.GameDir\` folder is
+> built and packed automatically as part of `mingw32-make`. Proceed to Step 3.
+
+For the **Visual Studio** workflow, run `package-game.bat` from `platform-msvs\`:
 
 ```bat
 package-game.bat "Tower Defense Monster" "C:\Users\miche\Documents\tower-defense\assets" Release tower-defense.ico MySecretPassword
@@ -260,33 +264,50 @@ That folder is the **depot content root** — exactly what Steam will ship to pl
 
 ### Step 3 — Upload to Steam via SteamPipe
 
-Use `upload-to-steam.bat` (in `platform-msvs\`) to generate the SteamPipe VDF
-scripts and trigger the upload in one step:
+Use the upload script (in `platform-msvs/`) to generate the SteamPipe VDF scripts and trigger the upload in one step.
+
+The `GameDir` to pass as arg 4 is:
+- **CMake + MinGW / Linux / macOS**: `build/Tower_Defense_Monster.GameDir/` (created automatically during the build)
+- **Visual Studio**: the folder produced by `package-game.bat` in Step 2
+
+**Windows (`upload-to-steam.bat`):**
 
 ```bat
-upload-to-steam.bat "Tower Defense Monster" 680230 680231 ^
-    "C:\Users\miche\Documents\mini-mbm\Tower_Defense_Monster.GameDir" ^
-    "C:\steamcmd\steamcmd.exe" ^
+upload-to-steam.bat "Tower Defense Monster" 1888760 1888761 ^
+    "C:\Users\miche\Documents\mini-mbm\build\Tower_Defense_Monster.GameDir" ^
+    "C:\Users\miche\Downloads\steamworks_sdk_164\sdk\tools\ContentBuilder\builder\steamcmd.exe" ^
     "v1.2.0 release" "beta"
 ```
 
-Parameters:
+**Linux / macOS (`upload-to-steam.sh`):**
+
+```sh
+# Make executable once
+chmod +x platform-msvs/upload-to-steam.sh
+
+./platform-msvs/upload-to-steam.sh "Tower Defense Monster" 1888760 1888761 \
+    "/home/user/mini-mbm/build/Tower_Defense_Monster.GameDir" \
+    "$HOME/.steam/steamcmd/steamcmd.sh" \
+    "v1.2.0 release" "beta"
+```
+
+Parameters (same for both scripts):
 
 | # | Parameter | Example |
 |---|---|---|
 | 1 | Game name | `"Tower Defense Monster"` |
 | 2 | Steam App ID | `1888760` |
 | 3 | Steam Depot ID | `1888761` *(confirm at [partner.steamgames.com](https://partner.steamgames.com) → your app → App Admin → Depots; usually App ID + 1)* |
-| 4 | GameDir path | output folder from `package-game.bat` |
-| 5 | `steamcmd.exe` path | `C:\steamcmd\steamcmd.exe` |
+| 4 | GameDir path | output folder from the build or `package-game.bat` |
+| 5 | `steamcmd` path | Windows: full path to `steamcmd.exe`; Linux/macOS: path to `steamcmd.sh` or `steamcmd` binary |
 | 6 | Build description *(optional)* | `"v1.2.0 release"` |
 | 7 | Branch to set live *(optional)* | `"beta"` or `"public"` |
 
-The script:
-1. Generates `depot_build_<DepotID>.vdf` — maps the GameDir tree to the depot.
-2. Generates `app_build_<AppID>.vdf` — describes the build, sets the branch.
-3. Calls `steamcmd +login <Steam user> +run_app_build … +quit`.
-4. Prints the SteamPipe build log path when done.
+Both scripts:
+1. Generate `depot_build_<DepotID>.vdf` — maps the GameDir tree to the depot.
+2. Generate `app_build_<AppID>.vdf` — describes the build, sets the branch.
+3. Call `steamcmd +login <Steam user> +run_app_build … +quit`.
+4. Print the SteamPipe build log path when done.
 
 > **First run**: `steamcmd` will prompt for your Steam username, password, and
 > Steam Guard code.  Credentials are cached by steamcmd after the first login.
@@ -323,3 +344,4 @@ Linux / macOS: follow <https://developer.valvesoftware.com/wiki/SteamCMD>.
 | Build fails — SDK headers not found | `STEAMWORKS_SDK_PATH` not set, or path points to wrong directory |
 | Achievements not showing | Call `steam.storeStats()` after setting achievements |
 | Leaderboard callback never fires | Check that `SteamAPI_RunCallbacks()` is being called (happens automatically in `onLoop`) |
+| `ERROR! Failed to commit build for AppID XXXXXX : Failure` | Content uploaded successfully but commit was rejected. Check in order: **(1)** Account permissions — go to *partner.steamgames.com → Users & Permissions → Manage Group* and verify the uploading account has both **Edit App Metadata** AND **Publish App Changes To Steam** checked. **(2)** Depot exists and is not disabled — go to *App Admin → Depots* and confirm the Depot ID is listed and active for the correct platform. **(3)** Steam Distribution Agreement — go to *App Admin → View Steamworks Usage Agreement* and accept it (required before the first upload). |
