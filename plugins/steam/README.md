@@ -194,6 +194,94 @@ Players do **not** enter Steam credentials in your game. Steam handles authentic
 
 ---
 
+## Steam Delivery Flow
+
+This section covers the full end-to-end path from source to a live Steam build.
+
+### Step 1 — Build the engine with Steam support
+
+**Visual Studio 2022:**
+
+1. Set `STEAMWORKS_SDK_PATH` (see [Building → Windows](#windows-visual-studio-2022) above).
+2. Open `platform-msvs/mini-mbm.sln`.
+3. Go to **Build → Configuration Manager** and check **Build** for the **steam** project.
+4. Build → **Release | Win32** (the recommended configuration for this engine).
+
+**CMake (MinGW / Linux / macOS):**
+
+```sh
+cmake ../.. -DPLAT=Windows -DUSE_ALL=1 -DUSE_STEAM=1 \
+    -DSTEAMWORKS_SDK_PATH=C:\steamworks_sdk \
+    -DCMAKE_BUILD_TYPE=Release
+```
+
+### Step 2 — Package the game with `package-game.bat`
+
+Run from `platform-msvs\`:
+
+```bat
+package-game.bat "Tower Defense Monster" "C:\Users\miche\Documents\tower-defense\assets" Release tower-defense.ico MySecretPassword
+```
+
+This produces `Tower_Defense_Monster.GameDir\` containing the executable, all DLLs
+(including `steam_api.dll` for the Win32 build), and the packed `.asset` file.  
+That folder is the **depot content root** — exactly what Steam will ship to players.
+
+### Step 3 — Upload to Steam via SteamPipe
+
+Use `upload-to-steam.bat` (in `platform-msvs\`) to generate the SteamPipe VDF
+scripts and trigger the upload in one step:
+
+```bat
+upload-to-steam.bat "Tower Defense Monster" 680230 680231 ^
+    "C:\Users\miche\Documents\mini-mbm\Tower_Defense_Monster.GameDir" ^
+    "C:\steamcmd\steamcmd.exe" ^
+    "v1.2.0 release" "beta"
+```
+
+Parameters:
+
+| # | Parameter | Example |
+|---|---|---|
+| 1 | Game name | `"Tower Defense Monster"` |
+| 2 | Steam App ID | `680230` |
+| 3 | Steam Depot ID | `680231` *(usually App ID + 1)* |
+| 4 | GameDir path | output folder from `package-game.bat` |
+| 5 | `steamcmd.exe` path | `C:\steamcmd\steamcmd.exe` |
+| 6 | Build description *(optional)* | `"v1.2.0 release"` |
+| 7 | Branch to set live *(optional)* | `"beta"` or `"public"` |
+
+The script:
+1. Generates `depot_build_<DepotID>.vdf` — maps the GameDir tree to the depot.
+2. Generates `app_build_<AppID>.vdf` — describes the build, sets the branch.
+3. Calls `steamcmd +login <Steam user> +run_app_build … +quit`.
+4. Prints the SteamPipe build log path when done.
+
+> **First run**: `steamcmd` will prompt for your Steam username, password, and
+> Steam Guard code.  Credentials are cached by steamcmd after the first login.
+
+### Step 4 — Promote to live (optional)
+
+After the build is uploaded it lands in the branch you specified (default `beta`).
+To promote to the default public branch:
+
+- **Steamworks dashboard**: *App Admin → Builds* → click **Set Build Live** on the desired build.
+- **Command line** (already handled by the script when `SetLive` is `public`).
+
+### SteamCMD installation
+
+SteamCMD is a standalone CLI tool — separate from the Steamworks SDK.
+
+```bat
+rem Windows: create C:\steamcmd\ and extract steamcmd.zip there
+curl -LO https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip
+powershell Expand-Archive steamcmd.zip C:\steamcmd
+```
+
+Linux / macOS: follow <https://developer.valvesoftware.com/wiki/SteamCMD>.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
