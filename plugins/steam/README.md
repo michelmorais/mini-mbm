@@ -93,6 +93,36 @@ For **final distribution**, also include the Steam library in your shipped game 
 
 ## Lua Usage
 
+### Optional loading (recommended)
+
+The game may run without Steam — on Android, iOS, or a PC build compiled without
+`-DUSE_STEAM=1`.  Use `pcall` so a missing plugin never crashes the game:
+
+```lua
+local steamOk, steam = pcall(require, "steam")
+if steamOk and steam.isReady() then
+    print("Steam initialized. Player: " .. steam.getPlayerName())
+else
+    print("Steam not available — running without Steam features")
+end
+```
+
+- `steamOk = false` — plugin DLL not present (non-Steam build, mobile, etc.) → game continues.
+- `steamOk = true, steam.isReady() = false` — plugin loaded but Steam client not running → game continues.
+- `steamOk = true, steam.isReady() = true` — full Steam integration active.
+
+If you need Steam features in other scripts, expose the result as globals:
+
+```lua
+local steamOk, steam = pcall(require, "steam")
+steamHandle = steamOk and steam or nil   -- nil on non-Steam builds
+steamReady  = steamOk and steam.isReady() -- boolean flag other scripts can check
+```
+
+### Full load (Steam-only builds)
+
+If the game is guaranteed to ship exclusively on Steam, a direct `require` is fine:
+
 ```lua
 -- Load the plugin from your onInitScene() callback
 local steam = require "steam"
@@ -286,6 +316,7 @@ Linux / macOS: follow <https://developer.valvesoftware.com/wiki/SteamCMD>.
 
 | Symptom | Likely cause |
 |---|---|
+| `require "steam"` crashes with "module not found" | Engine built without `-DUSE_STEAM=1`; use `pcall(require, "steam")` instead — see [Optional loading](#optional-loading-recommended) |
 | `steam.isReady()` returns `false` | Steam client not running, or `steam_appid.txt` missing/wrong |
 | Plugin fails to load | `steam_api64.dll` / `libsteam_api.so` not next to the executable |
 | Build fails — SDK headers not found | `STEAMWORKS_SDK_PATH` not set, or path points to wrong directory |
