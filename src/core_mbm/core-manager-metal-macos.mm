@@ -132,7 +132,33 @@ namespace mbm
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-        // Initialise device context.
+        // Build a minimal menu bar so that the app-name menu in the macOS menu
+        // bar responds to clicks (About + Quit at minimum).  Without this the
+        // menu entry highlights but shows no items, which Apple review flags as
+        // a bug (the menu "does not respond when clicked").
+        if (![NSApp mainMenu])
+        {
+            NSString   *appName  = [NSString stringWithUTF8String:this->nameApplication.c_str()];
+            NSMenu     *menuBar  = [[NSMenu alloc] initWithTitle:@"MainMenu"];
+            NSMenuItem *appItem  = [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""];
+            [menuBar addItem:appItem];
+
+            NSMenu     *appMenu  = [[NSMenu alloc] initWithTitle:appName];
+            NSString   *aboutTitle = [@"About " stringByAppendingString:appName];
+            NSMenuItem *aboutItem  = [[NSMenuItem alloc] initWithTitle:aboutTitle
+                                                                action:@selector(orderFrontStandardAboutPanel:)
+                                                         keyEquivalent:@""];
+            [appMenu addItem:aboutItem];
+            [appMenu addItem:[NSMenuItem separatorItem]];
+            NSString   *quitTitle = [@"Quit " stringByAppendingString:appName];
+            NSMenuItem *quitItem  = [[NSMenuItem alloc] initWithTitle:quitTitle
+                                                               action:@selector(terminate:)
+                                                        keyEquivalent:@"q"];
+            [appMenu addItem:quitItem];
+            [appItem setSubmenu:appMenu];
+            [NSApp setMainMenu:menuBar];
+        }
+
         this->device->initializeSpecificContext();
         SPECIFIC_AUX_CONTEXT_DEVICE* ctx = this->device->specificContextDevice;
 

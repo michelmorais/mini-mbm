@@ -14,8 +14,9 @@
     <key>com.apple.security.files.user-selected.read-only</key>
     <true/>
 
-    <!-- Disable outbound network access; enable below if your game uses networking -->
+    <!-- Outbound network access: required for NSSharingServicePicker and any
+         URL-based system services invoked from within the sandbox. -->
     <key>com.apple.security.network.client</key>
-    <false/>
+    <true/>
 </dict>
 </plist>

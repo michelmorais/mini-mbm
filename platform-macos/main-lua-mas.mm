@@ -73,10 +73,25 @@ static void cleanup_temp_folder() noexcept
 
 static void on_signal(int /*sig*/) noexcept { exit(1); }
 
-// From Lua: mbm.doCommands('get_tmp_folder') or mbm.doCommands('get_save_dir')
-void onDoNativeCommand(const char *command, const char * /*param*/, char *result, const int max_size_result)
+// From Lua: mbm.doCommands('get_tmp_folder'), mbm.doCommands('get_save_dir'),
+//           or mbm.doCommands('share', text)
+void onDoNativeCommand(const char *command, const char *param, char *result, const int max_size_result)
 {
     if (!command) return;
+
+    if (strcmp(command, "share") == 0 && param && param[0])
+    {
+        @autoreleasepool
+        {
+            NSString *shareText = [NSString stringWithUTF8String:param];
+            NSArray  *items     = @[shareText];
+            NSSharingServicePicker *picker = [[NSSharingServicePicker alloc] initWithItems:items];
+            NSView *view = [[NSApp mainWindow] contentView];
+            if (view)
+                [picker showRelativeToRect:view.bounds ofView:view preferredEdge:NSRectEdgeMaxY];
+        }
+        return;
+    }
 
     if (strcmp(command, "get_tmp_folder") == 0 && !s_temp_folder.empty())
     {
