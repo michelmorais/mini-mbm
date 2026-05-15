@@ -136,7 +136,7 @@ int main(int /*argc*/, const char ** /*argv*/)
         mbm::set_app_name(title_app.c_str());
         mbm::set_expected_window_size(1920, 1080);
         mbm::set_verbose(false);
-        mbm::disable_splash();
+
 
         /* ------------------------------------------------------------------ */
         /* Monitor / resolution / fullscreen picker                           */

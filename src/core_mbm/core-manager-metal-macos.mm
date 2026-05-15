@@ -39,6 +39,28 @@
 @end
 
 // ---------------------------------------------------------------------------
+// MBMQuitHandler — handles the "Quit" menu item action.
+// Sets device->run = false so the engine loop exits cleanly and main()
+// returns 0, instead of calling exit() from inside AppKit (which bypasses
+// C++ destructors and produces a non-zero exit code in Xcode).
+// ---------------------------------------------------------------------------
+@interface MBMQuitHandler : NSObject
+@property (nonatomic, assign) bool* runFlag;
+- (void)quit:(id)sender;
+@end
+@implementation MBMQuitHandler
+- (void)quit:(id)sender
+{
+    (void)sender;
+    if (_runFlag)
+        *_runFlag = false;
+}
+@end
+
+// One instance lives for the lifetime of the process.
+static MBMQuitHandler* s_quitHandler = nil;
+
+// ---------------------------------------------------------------------------
 // MBMWindowDelegate — forwards macOS window events into the engine.
 // ---------------------------------------------------------------------------
 @interface MBMWindowDelegate : NSObject <NSWindowDelegate>
@@ -132,28 +154,31 @@ namespace mbm
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-        // Build a minimal menu bar so that the app-name menu in the macOS menu
-        // bar responds to clicks (About + Quit at minimum).  Without this the
-        // menu entry highlights but shows no items, which Apple review flags as
-        // a bug (the menu "does not respond when clicked").
-        if (![NSApp mainMenu])
+        // Always (re-)build the app menu so the app-name entry in the macOS
+        // menu bar has a working submenu with Quit (⌘Q).  We cannot guard this
+        // with `if (![NSApp mainMenu])` because macOS automatically creates a
+        // skeletal menu bar when NSApplicationActivationPolicyRegular is set,
+        // leaving the app-name item present but with an empty submenu.
         {
             NSString   *appName  = [NSString stringWithUTF8String:this->nameApplication.c_str()];
             NSMenu     *menuBar  = [[NSMenu alloc] initWithTitle:@"MainMenu"];
-            NSMenuItem *appItem  = [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""];
+            // The first item's title is shown as the app name in the menu bar.
+            NSMenuItem *appItem  = [[NSMenuItem alloc] initWithTitle:appName action:nil keyEquivalent:@""];
             [menuBar addItem:appItem];
 
-            NSMenu     *appMenu  = [[NSMenu alloc] initWithTitle:appName];
-            NSString   *aboutTitle = [@"About " stringByAppendingString:appName];
-            NSMenuItem *aboutItem  = [[NSMenuItem alloc] initWithTitle:aboutTitle
-                                                                action:@selector(orderFrontStandardAboutPanel:)
-                                                         keyEquivalent:@""];
-            [appMenu addItem:aboutItem];
-            [appMenu addItem:[NSMenuItem separatorItem]];
+            // Route Quit through MBMQuitHandler so the engine loop exits
+            // cleanly (device->run = false) instead of calling exit() from
+            // inside AppKit, which produces a non-zero exit code in Xcode.
+            if (!s_quitHandler)
+                s_quitHandler = [[MBMQuitHandler alloc] init];
+            s_quitHandler.runFlag = &this->device->run;
+
+            NSMenu     *appMenu   = [[NSMenu alloc] initWithTitle:appName];
             NSString   *quitTitle = [@"Quit " stringByAppendingString:appName];
             NSMenuItem *quitItem  = [[NSMenuItem alloc] initWithTitle:quitTitle
-                                                               action:@selector(terminate:)
+                                                               action:@selector(quit:)
                                                         keyEquivalent:@"q"];
+            [quitItem setTarget:s_quitHandler];
             [appMenu addItem:quitItem];
             [appItem setSubmenu:appMenu];
             [NSApp setMainMenu:menuBar];
@@ -189,10 +214,54 @@ namespace mbm
         if (!border)
             styleMask = NSWindowStyleMaskBorderless;
 
-        // macOS coordinate system: y=0 is the bottom of the screen.
-        NSRect screenFrame  = [[NSScreen mainScreen] frame];
-        CGFloat macY = screenFrame.size.height - py - height;
-        NSRect contentRect  = NSMakeRect(px, macY, width, height);
+        // For windowed mode, use the screen's visibleFrame (excludes the menu bar
+        // at the top and the Dock at the bottom / side) so the window never clips
+        // behind those system UI elements.
+        // For borderless / fullscreen, use the full screen frame (menu bar and
+        // Dock are auto-hidden via NSApplicationPresentationOptions anyway).
+        NSRect contentRect;
+        if (border)
+        {
+            // Find the screen whose frame contains the requested x position so
+            // multi-monitor setups are handled correctly.
+            NSScreen *targetScreen = [NSScreen mainScreen];
+            for (NSScreen *s in [NSScreen screens])
+            {
+                NSRect f = [s frame];
+                if ((CGFloat)px >= f.origin.x && (CGFloat)px < f.origin.x + f.size.width)
+                {
+                    targetScreen = s;
+                    break;
+                }
+            }
+            NSRect vis = [targetScreen visibleFrame];
+            // `initWithContentRect:` sizes the CONTENT area (below the title
+            // bar).  The window FRAME = content + title bar.  If we fill the
+            // full visibleFrame height with content, the title bar would sit
+            // above visibleFrame.top (in the menu bar zone), and macOS pushes
+            // the window down by titleBarHeight — causing it to overlap the
+            // Dock by exactly that amount.
+            // Fix: measure the title bar height for this style mask and subtract
+            // it from the available height; anchor the content bottom at
+            // vis.origin.y (top of Dock) so the window frame sits flush within
+            // the visible area.
+            NSRect  probeFrame = [NSWindow frameRectForContentRect:NSMakeRect(0,0,100,100)
+                                                         styleMask:styleMask];
+            CGFloat titleBarH  = probeFrame.size.height - 100.0;
+            CGFloat maxContentH = vis.size.height - titleBarH;
+            if ((CGFloat)width  > vis.size.width) width  = (int)vis.size.width;
+            if ((CGFloat)height > maxContentH)    height = (int)maxContentH;
+            // Content bottom at Dock top → title bar top aligns with the
+            // bottom of the macOS menu bar.
+            CGFloat macY = vis.origin.y;
+            contentRect  = NSMakeRect((CGFloat)px, macY, (CGFloat)width, (CGFloat)height);
+        }
+        else
+        {
+            NSRect screenFrame = [[NSScreen mainScreen] frame];
+            CGFloat macY       = screenFrame.size.height - (CGFloat)py - (CGFloat)height;
+            contentRect        = NSMakeRect((CGFloat)px, macY, (CGFloat)width, (CGFloat)height);
+        }
 
         // Use MBMBorderlessWindow for borderless/fullscreen so canBecomeKeyWindow
         // returns YES.  A standard NSWindow with NSWindowStyleMaskBorderless
