@@ -37,6 +37,7 @@
 #endif
 
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>
