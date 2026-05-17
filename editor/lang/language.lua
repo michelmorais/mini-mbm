@@ -725,6 +725,7 @@ M.en = {
     overlap_textures = "Overlap textures",
     overlap_texture_position = "Texture Position",
     note_overlap = "Note: Textures are placed freely and may overlap. Drag them in the viewport or edit position below.",
+    overlap_lock_position = "Lock position (block drag)",
     scale_per_texture_disabled = "Scale per texture is disabled when sorting by size.",
     total_selected_1 = "Total Selected (1)",
     -- Button labels (tImGui.Button)
@@ -1581,6 +1582,7 @@ M.pt_br = {
     overlap_textures = "Sobrepor texturas",
     overlap_texture_position = "Posição da Textura",
     note_overlap = "Nota: As texturas são posicionadas livremente e podem se sobrepor. Arraste-as na viewport ou edite a posição abaixo.",
+    overlap_lock_position = "Travar posição (bloquear arrastar)",
     scale_per_texture_disabled = "Escala por textura desativada ao ordenar por tamanho.",
     total_selected_1 = "Total selecionado (1)",
     -- Button labels (tImGui.Button)

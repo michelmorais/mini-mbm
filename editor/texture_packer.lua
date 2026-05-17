@@ -167,6 +167,7 @@ function onLoadTextureConfiguration()
                 tTexturesToEditor[i].fOverlapX = tTexturesToEditorLoaded[i].fOverlapX or 0
                 tTexturesToEditor[i].fOverlapY = tTexturesToEditorLoaded[i].fOverlapY or 0
                 tTexturesToEditor[i].fOverlapZ = tTexturesToEditorLoaded[i].fOverlapZ or 0
+                tTexturesToEditor[i].bOverlapLocked = tTexturesToEditorLoaded[i].bOverlapLocked or false
                 computeAndCacheAlphaBounds(i)
                 tRender:add(tTex)
             end
@@ -248,6 +249,7 @@ function onSaveTextureConfiguration()
                 fp:write(string.format("tTexturesToEditor[%d].fOverlapX = %f\n", i, tTexDesc.fOverlapX or 0))
                 fp:write(string.format("tTexturesToEditor[%d].fOverlapY = %f\n", i, tTexDesc.fOverlapY or 0))
                 fp:write(string.format("tTexturesToEditor[%d].fOverlapZ = %f\n", i, tTexDesc.fOverlapZ or 0))
+                fp:write(string.format("tTexturesToEditor[%d].bOverlapLocked = %s\n", i, tostring(tTexDesc.bOverlapLocked or false)))
                 fp:write(string.format("\n"))
             end
             fp:close()
@@ -1724,36 +1726,52 @@ function showOverlapTextureOptions()
     if tTexture.fOverlapX == nil then tTexture.fOverlapX = 0 end
     if tTexture.fOverlapY == nil then tTexture.fOverlapY = 0 end
     if tTexture.fOverlapZ == nil then tTexture.fOverlapZ = 0 end
+    if tTexture.bOverlapLocked == nil then tTexture.bOverlapLocked = false end
 
     -- Position panel right after the Texture Options panel (width 220 + 4px gap)
-    tUtil.setInitialWindowPositionLeft('title_overlap_texture_pos', 224, 0, 200, 200)
+    tUtil.setInitialWindowPositionLeft('title_overlap_texture_pos', 224, 0, 220, 220)
     local title = string.format('%s [%s]', tLang.L("overlap_texture_position"),
                                 tUtil.getShortName(tTexture.file_name))
     local is_opened, closed_clicked = tImGui.Begin(title, true, ImGuiWindowFlags_NoMove)
     if is_opened then
         local step      = 1
         local step_fast = 10
-        local flags     = 0
 
-        tImGui.Text(tLang.L("axis_x"))
-        local result, iValue = tImGui.InputInt('##OverlapPosX', math.floor(tTexture.fOverlapX), step, step_fast, flags)
-        if result then
-            tTexture.fOverlapX = iValue
-            tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
+        -- Lock checkbox
+        local bLocked = tTexture.bOverlapLocked
+        local newLocked = tImGui.Checkbox(tLang.L("overlap_lock_position") .. '##OverlapLock', bLocked)
+        if newLocked ~= bLocked then
+            tTexture.bOverlapLocked = newLocked
         end
 
-        tImGui.Text(tLang.L("axis_y"))
-        local result, iValue = tImGui.InputInt('##OverlapPosY', math.floor(tTexture.fOverlapY), step, step_fast, flags)
-        if result then
-            tTexture.fOverlapY = iValue
-            tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
-        end
+        if tTexture.bOverlapLocked then
+            -- Show current values as greyed-out text when position is locked
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=0.5, g=0.5, b=0.5, a=1})
+            tImGui.Text(string.format('%s: %d', tLang.L("axis_x"), math.floor(tTexture.fOverlapX)))
+            tImGui.Text(string.format('%s: %d', tLang.L("axis_y"), math.floor(tTexture.fOverlapY)))
+            tImGui.Text(string.format('%s: %d', tLang.L("axis_z"), math.floor(tTexture.fOverlapZ)))
+            tImGui.PopStyleColor(1)
+        else
+            tImGui.Text(tLang.L("axis_x"))
+            local result, iValue = tImGui.InputInt('##OverlapPosX', math.floor(tTexture.fOverlapX), step, step_fast, 0)
+            if result then
+                tTexture.fOverlapX = iValue
+                tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
+            end
 
-        tImGui.Text(tLang.L("axis_z"))
-        local result, iValue = tImGui.InputInt('##OverlapPosZ', math.floor(tTexture.fOverlapZ), step, step_fast, flags)
-        if result then
-            tTexture.fOverlapZ = iValue
-            tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
+            tImGui.Text(tLang.L("axis_y"))
+            local result, iValue = tImGui.InputInt('##OverlapPosY', math.floor(tTexture.fOverlapY), step, step_fast, 0)
+            if result then
+                tTexture.fOverlapY = iValue
+                tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
+            end
+
+            tImGui.Text(tLang.L("axis_z"))
+            local result, iValue = tImGui.InputInt('##OverlapPosZ', math.floor(tTexture.fOverlapZ), step, step_fast, 0)
+            if result then
+                tTexture.fOverlapZ = iValue
+                tTexture.tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
+            end
         end
     end
     if closed_clicked then
@@ -2080,24 +2098,29 @@ function onTouchDown(key,x,y)
     -- Overlap mode: hit-test textures for drag
     if key == 0 and tTextureOptions.iCurrentAlgorithm == 6 and not tImGui.IsAnyWindowHovered() then
         local wx, wy = mbm.to2dw(x, y)
-        -- Iterate in reverse so topmost (last drawn) texture wins
-        for i = #tTexturesToEditor, 1, -1 do
-            local tTexture = tTexturesToEditor[i]
-            if tTexture.tTex and tTexture.isSelected then
-                local tw, th = tTexture.tTex:getSize()
-                local tx = tTexture.fOverlapX or 0
-                local ty = tTexture.fOverlapY or 0
-                local hw = (tw or 0) * 0.5
-                local hh = (th or 0) * 0.5
-                if wx >= tx - hw and wx <= tx + hw and
-                   wy >= ty - hh and wy <= ty + hh then
-                    iOverlapDragIndex     = i
-                    iOverlapSelectedIndex = i
-                    tOverlapDragLastWorld = {x = wx, y = wy}
-                    isClickedMouseLeft = false
-                    camera2d.mx = x
-                    camera2d.my = y
-                    return
+        -- Only allow drag when click is inside the visible render2texture canvas
+        local canvasHW = tTextureOptions.fWidth  * 0.5 * (scale or 1)
+        local canvasHH = tTextureOptions.fHeight * 0.5 * (scale or 1)
+        if wx >= -canvasHW and wx <= canvasHW and wy >= -canvasHH and wy <= canvasHH then
+            -- Iterate in reverse so topmost (last drawn) texture wins
+            for i = #tTexturesToEditor, 1, -1 do
+                local tTexture = tTexturesToEditor[i]
+                if tTexture.tTex and tTexture.isSelected and not tTexture.bOverlapLocked then
+                    local tw, th = tTexture.tTex:getSize()
+                    local tx = tTexture.fOverlapX or 0
+                    local ty = tTexture.fOverlapY or 0
+                    local hw = (tw or 0) * 0.5
+                    local hh = (th or 0) * 0.5
+                    if wx >= tx - hw and wx <= tx + hw and
+                       wy >= ty - hh and wy <= ty + hh then
+                        iOverlapDragIndex     = i
+                        iOverlapSelectedIndex = i
+                        tOverlapDragLastWorld = {x = wx, y = wy}
+                        isClickedMouseLeft = false
+                        camera2d.mx = x
+                        camera2d.my = y
+                        return
+                    end
                 end
             end
         end
