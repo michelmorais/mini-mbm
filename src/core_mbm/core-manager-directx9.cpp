@@ -400,11 +400,32 @@ namespace mbm
                 return false;
             }
 
+            // DirectX 9 does NOT automatically resize the viewport when SetRenderTarget is called.
+            // The viewport stays at the back-buffer dimensions, so any content that falls below
+            // the window height (e.g. a 1024x1024 canvas on a 900px-tall window) is silently
+            // clipped. Set the viewport explicitly to the render target dimensions.
+            const D3DVIEWPORT9 rtViewport = { 0, 0,
+                static_cast<DWORD>(renderTarget->widthTexture),
+                static_cast<DWORD>(renderTarget->heightTexture),
+                0.0f, 1.0f };
+            pd3dDevice->SetViewport(&rtViewport);
+
+            // Swap in the render target's own depth stencil surface.
+            // The device auto-depth-stencil is sized to the back buffer; without this swap
+            // DX9 clips rendering to the back buffer height even when the viewport is larger.
+            IDirect3DSurface9* pOldDepthStencil = nullptr;
+            if (sf->pDepthStencilSurface)
+            {
+                pd3dDevice->GetDepthStencilSurface(&pOldDepthStencil);
+                pd3dDevice->SetDepthStencilSurface(sf->pDepthStencilSurface);
+            }
+
             hr = pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, renderTarget->colorClearBackGround, 1.0f, 0);
             //clear color and z-buffer
             if (FAILED(hr))
             {
                 ERROR_AT(__LINE__, __FILE__,"Error Clear Z buffer of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
                 return false;
             }
@@ -413,6 +434,7 @@ namespace mbm
             if (FAILED(hr))
             {
                 ERROR_AT(__LINE__, __FILE__, "Error BeginScene of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
                 return false;
             }
@@ -422,6 +444,7 @@ namespace mbm
             if (!renderTarget->render2Texture())
             {
                 ERROR_AT(__LINE__, __FILE__, "Error render2Texture!");
+                if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
                 this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 return false;
@@ -430,16 +453,24 @@ namespace mbm
             if (FAILED(hr))
             {
                 ERROR_AT(__LINE__, __FILE__, "Error EndScene of render 2 texture HRESULT: 0x%h use DXErr to verify!", hr);
+                if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
                 pd3dDevice->SetRenderTarget(0, pBackBuffer);
                 this->device->camera.updateCam(false, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
                 return false;
             }
+            if (pOldDepthStencil) { pd3dDevice->SetDepthStencilSurface(pOldDepthStencil); pOldDepthStencil->Release(); }
             oneRender = true;
         }
         if (oneRender)
         {
             pd3dDevice->SetRenderTarget(0, pBackBuffer);
+            // Restore the viewport to the back-buffer dimensions after render-to-texture pass.
+            const D3DVIEWPORT9 bbViewport = { 0, 0,
+                static_cast<DWORD>(device->backBufferWidth),
+                static_cast<DWORD>(device->backBufferHeight),
+                0.0f, 1.0f };
+            pd3dDevice->SetViewport(&bbViewport);
             this->device->camera.updateCam(true, static_cast<float>(device->backBufferWidth), static_cast<float>(device->backBufferHeight));
         }
         return true;
