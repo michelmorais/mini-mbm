@@ -136,7 +136,8 @@ namespace mbm
 
     struct RENDER2TARGET_DIRECTX9
     {
-        IDirect3DSurface9* pRenderSurface = nullptr;
+        IDirect3DSurface9* pRenderSurface       = nullptr;
+        IDirect3DSurface9* pDepthStencilSurface = nullptr; // per-target depth stencil (matches render target size)
         void release() noexcept;
         RENDER2TARGET_DIRECTX9() noexcept = default;
         ~RENDER2TARGET_DIRECTX9();

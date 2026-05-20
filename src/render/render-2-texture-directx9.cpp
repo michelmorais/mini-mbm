@@ -61,6 +61,9 @@ namespace mbm
         if (pRenderSurface)
             pRenderSurface->Release();
         pRenderSurface = nullptr;
+        if (pDepthStencilSurface)
+            pDepthStencilSurface->Release();
+        pDepthStencilSurface = nullptr;
     }
 
     bool RENDER_2_TEXTURE::saveAsPNG(const char* newFileOutNamePNG, const int x, const int y, const int _width, const int _height)

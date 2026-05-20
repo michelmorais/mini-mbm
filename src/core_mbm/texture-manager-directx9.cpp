@@ -465,6 +465,28 @@ namespace mbm
             ERROR_AT(__LINE__, __FILE__, "failed to get surface description level");
             return nullptr;
         }
+
+        // Create a dedicated depth stencil surface sized to match this render target.
+        // The device auto-depth-stencil is tied to the back buffer size; rendering to a
+        // larger target would clip any pixel whose row exceeds the back buffer height.
+        IDirect3DSurface9* pDepthStencil = nullptr;
+        if (SUCCEEDED(pd3dDevice->CreateDepthStencilSurface(
+                static_cast<UINT>(width),
+                static_cast<UINT>(height),
+                D3DFMT_D24S8,
+                D3DMULTISAMPLE_NONE,
+                0,
+                TRUE,
+                &pDepthStencil,
+                nullptr)))
+        {
+            sf->pDepthStencilSurface = pDepthStencil;
+        }
+        else
+        {
+            ERROR_AT(__LINE__, __FILE__, "failed to create depth stencil for render target — rendering may be clipped to back buffer height");
+        }
+
         texture->width                      = static_cast<uint32_t>(width);
         texture->height                     = static_cast<uint32_t>(height);
         texture->useAlphaChannel            = enableAlpha;
