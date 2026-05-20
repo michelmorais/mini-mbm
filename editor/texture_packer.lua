@@ -1729,7 +1729,7 @@ function showOverlapTextureOptions()
     if tTexture.bOverlapLocked == nil then tTexture.bOverlapLocked = false end
 
     -- Position panel right after the Texture Options panel (width 220 + 4px gap)
-    tUtil.setInitialWindowPositionLeft('title_overlap_texture_pos', 224, 0, 220, 220)
+    tUtil.setInitialWindowPositionLeft(tLang.L("overlap_texture_position"), 224, 0, 220, 220)
     local title = string.format('%s [%s]', tLang.L("overlap_texture_position"),
                                 tUtil.getShortName(tTexture.file_name))
     local is_opened, closed_clicked = tImGui.Begin(title, true, ImGuiWindowFlags_NoMove)
