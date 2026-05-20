@@ -68,6 +68,14 @@ platform-msvs/plugin-helper/x64/
 platform-msvs/tilemap/x64/
 platform-msvs/tiny-obj-loader/x64/
 platform-msvs/x64/
+platform-msvs/distribution-exe/Release/
+platform-msvs/distribution-exe/distribution-exe.vcxproj.user
+platform-msvs/distribution/Release/
+platform-msvs/distribution/distribution.vcxproj.user
+platform-msvs/steam/Release/
+platform-msvs/distribution-exe/Debug/
+platform-msvs/distribution/Debug/
+platform-msvs/steam/Debug/
 
 .vscode/
 bin/
