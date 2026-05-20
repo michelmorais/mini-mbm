@@ -283,9 +283,9 @@ upload-to-steam.bat "Tower Defense Monster" 1888760 1888761 ^
 
 ```sh
 # Make executable once
-chmod +x platform-msvs/upload-to-steam.sh
+chmod +x  plugins/steam/upload-to-steam.sh
 
-./platform-msvs/upload-to-steam.sh "Tower Defense Monster" 1888760 1888761 \
+./plugins/steam//upload-to-steam.sh "Tower Defense Monster" 1888760 1888761 \
     "/home/user/mini-mbm/build/Tower_Defense_Monster.GameDir" \
     "$HOME/.steam/steamcmd/steamcmd.sh" \
     "v1.2.0 release" "beta"
