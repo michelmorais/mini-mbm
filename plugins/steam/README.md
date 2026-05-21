@@ -175,25 +175,33 @@ steam.cloudDelete("save.dat")             -- -> boolean
 local exists = steam.cloudFileExists("save.dat")  -- -> boolean
 local enabled = steam.isCloudEnabled()             -- -> boolean
 
--- Cloud saves: serializing and restoring a Lua table
--- Mini-mbm has no built-in JSON library, so tables are serialized as Lua code
--- and restored with load(). Only flat tables with string/number/boolean values
--- are handled here; extend serialize() if you need nested tables.
+-- Cloud saves: serializing and restoring a Lua table (recursive)
+-- Tables are serialized as Lua code and restored with load().
+-- Supports nested tables, strings, numbers, and booleans.
+-- Circular references are not supported.
+
+local function serializeValue(v, indent)
+    local t = type(v)
+    if     t == "string"  then return string.format("%q", v)
+    elseif t == "number"  then return tostring(v)
+    elseif t == "boolean" then return tostring(v)
+    elseif t == "table"   then
+        local parts = {}
+        local nextIndent = indent .. "  "
+        for k, val in pairs(v) do
+            local key = type(k) == "string" and string.format("[%q]", k)
+                        or string.format("[%d]", k)
+            parts[#parts + 1] = nextIndent .. key .. " = " .. serializeValue(val, nextIndent)
+        end
+        if #parts == 0 then return "{}" end
+        return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent .. "}"
+    else
+        return "nil"  -- functions, userdata, etc. are skipped
+    end
+end
 
 local function serialize(t)
-    local parts = {}
-    for k, v in pairs(t) do
-        local key = type(k) == "string" and string.format("[%q]", k)
-                    or string.format("[%d]", k)
-        local val
-        if     type(v) == "string"  then val = string.format("%q", v)
-        elseif type(v) == "number"  then val = tostring(v)
-        elseif type(v) == "boolean" then val = tostring(v)
-        else   val = "nil"  -- skip unsupported types
-        end
-        parts[#parts + 1] = key .. "=" .. val
-    end
-    return "return {" .. table.concat(parts, ",") .. "}"
+    return "return " .. serializeValue(t, "")
 end
 
 local function deserialize(str)
@@ -206,8 +214,15 @@ local function deserialize(str)
     return fn()
 end
 
--- Save a table to Steam Cloud
-local saveData = { level = 5, score = 12340, playerName = "Hero", hardMode = true }
+-- Save a nested table to Steam Cloud
+local saveData = {
+    level     = 5,
+    score     = 12340,
+    playerName = "Hero",
+    hardMode  = true,
+    inventory = { sword = 1, shield = 1, potion = 5 },
+    position  = { x = 128.5, y = 64.0 },
+}
 if steam.isCloudEnabled() then
     steam.cloudWrite("save.dat", serialize(saveData))
 end
@@ -216,6 +231,8 @@ end
 local loaded = deserialize(steam.cloudRead("save.dat"))
 if loaded then
     print("Loaded level:", loaded.level, "score:", loaded.score)
+    print("Potions:", loaded.inventory.potion)
+    print("Position:", loaded.position.x, loaded.position.y)
 end
 
 -- Overlay
