@@ -175,6 +175,49 @@ steam.cloudDelete("save.dat")             -- -> boolean
 local exists = steam.cloudFileExists("save.dat")  -- -> boolean
 local enabled = steam.isCloudEnabled()             -- -> boolean
 
+-- Cloud saves: serializing and restoring a Lua table
+-- Mini-mbm has no built-in JSON library, so tables are serialized as Lua code
+-- and restored with load(). Only flat tables with string/number/boolean values
+-- are handled here; extend serialize() if you need nested tables.
+
+local function serialize(t)
+    local parts = {}
+    for k, v in pairs(t) do
+        local key = type(k) == "string" and string.format("[%q]", k)
+                    or string.format("[%d]", k)
+        local val
+        if     type(v) == "string"  then val = string.format("%q", v)
+        elseif type(v) == "number"  then val = tostring(v)
+        elseif type(v) == "boolean" then val = tostring(v)
+        else   val = "nil"  -- skip unsupported types
+        end
+        parts[#parts + 1] = key .. "=" .. val
+    end
+    return "return {" .. table.concat(parts, ",") .. "}"
+end
+
+local function deserialize(str)
+    if not str then return nil end
+    local fn, err = load(str)
+    if not fn then
+        print("cloud deserialize error: " .. tostring(err))
+        return nil
+    end
+    return fn()
+end
+
+-- Save a table to Steam Cloud
+local saveData = { level = 5, score = 12340, playerName = "Hero", hardMode = true }
+if steam.isCloudEnabled() then
+    steam.cloudWrite("save.dat", serialize(saveData))
+end
+
+-- Load the table back from Steam Cloud
+local loaded = deserialize(steam.cloudRead("save.dat"))
+if loaded then
+    print("Loaded level:", loaded.level, "score:", loaded.score)
+end
+
 -- Overlay
 steam.activateOverlay("achievements")    -- or "friends", "community", etc.
 steam.activateOverlayURL("https://steamcommunity.com/games/480")
