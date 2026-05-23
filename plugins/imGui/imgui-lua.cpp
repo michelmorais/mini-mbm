@@ -5429,20 +5429,6 @@ int onMenuItemImGuiLua(lua_State *lua)
     return 2;
 }
 
-int onBeginTooltipImGuiLua(lua_State *lua)
-{
-    //  Begin/append a tooltip window. to create full-featured tooltip (with any kind of items).
-    ImGui::BeginTooltip();
-    return 0;
-}
-
-int onEndTooltipImGuiLua(lua_State *lua)
-{
-    ImGui::EndTooltip();
-    return 0;
-}
-
-
 int onMakeFlagsImGuiLua(lua_State *lua)
 {
     std::vector<std::string> flags;
@@ -5530,6 +5516,22 @@ int onSetTooltipImGuiLua(lua_State *lua)
     int index_input                                                           = 1;
     const char * text                                                         = luaL_checkstring(lua,index_input++);
     ImGui::SetTooltip("%s",text);
+    return 0;
+}
+
+int onBeginTooltipImGuiLua(lua_State *lua)
+{
+    //  Begin/append a tooltip window. Returns true if tooltip is visible.
+    //  Use with EndTooltip(). Equivalent to: if (BeginTooltip()) { ...; EndTooltip(); }
+    lua_pushboolean(lua, ImGui::BeginTooltip() ? 1 : 0);
+    return 1;
+}
+
+int onEndTooltipImGuiLua(lua_State *lua)
+{
+    //  Close a tooltip window opened with BeginTooltip() or BeginItemTooltip().
+    //  Only call if Begin*Tooltip() returned true.
+    ImGui::EndTooltip();
     return 0;
 }
 

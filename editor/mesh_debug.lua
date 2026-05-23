@@ -855,6 +855,11 @@ function showMeshOptions(tEntry, index)
     local shortName = tUtil.getShortName(tEntry.fileName)
     local flags = 0
 
+    local hasFilt = false
+    for _, v in pairs(tEntry.tFrameSelection or {}) do
+        if v == false then hasFilt = true; break end
+    end
+
     local function onEdit()
         tEntry.modified = true
         if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
@@ -988,8 +993,10 @@ function showMeshOptions(tEntry, index)
                 end
                 tImGui.SameLine()
             end
-            local autoVal = tImGui.Checkbox(tLang.L('auto_refresh') .. '##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
-            tEntry.bAutoRefreshPreview = autoVal
+            local autoVal = tImGui.Checkbox(tLang.L('auto_refresh') .. '##autoRefresh-' .. index, tEntry.bAutoRefreshPreview and not tEntry.modified)
+            if not tEntry.modified then
+                tEntry.bAutoRefreshPreview = autoVal
+            end
             tImGui.Separator()
         end
 
@@ -1259,6 +1266,11 @@ function showMeshOptions(tEntry, index)
             tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(tLang.L(hasFilt and 'save_overwrite_tooltip_filt' or 'save_overwrite_tooltip'))
+        tImGui.EndTooltip()
+    end
     if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
         local ok = meshD:save(tEntry.fileName, true, false)
         if ok then
@@ -1270,10 +1282,20 @@ function showMeshOptions(tEntry, index)
             tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
         end
     end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(tLang.L(hasFilt and 'save_normals_tooltip_filt' or 'save_normals_tooltip'))
+        tImGui.EndTooltip()
+    end
     tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
     tImGui.Separator()
     if tImGui.Button(tLang.L("save_as") .. '##saveAs-' .. index) then
         doSaveAs(tEntry, index)
+    end
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(tLang.L(hasFilt and 'save_as_tooltip_filt' or 'save_as_tooltip'))
+        tImGui.EndTooltip()
     end
     tImGui.TextDisabled(tLang.L("save_as_hint"))
 end
