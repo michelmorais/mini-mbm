@@ -200,29 +200,6 @@ function updatePreviewMesh()
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
-        -- Texture sync: detect if the engine remapped texture names during preview load
-        local tempD = meshDebug:new()
-        if tempD:load(tPreviewMesh) then
-            local nF2 = meshD:getTotalFrame()
-            local nF3 = tempD:getTotalFrame()
-            local synced = false
-            for f = 1, math.min(nF2, nF3) do
-                local nS2 = meshD:getTotalSubset(f)  or 0
-                local nS3 = tempD:getTotalSubset(f)  or 0
-                for s = 1, math.min(nS2, nS3) do
-                    local okOld, oldTex = pcall(function() return meshD:getTexture(f, s) end)
-                    local okNew, newTex = pcall(function() return tempD:getTexture(f, s) end)
-                    if okOld and okNew and oldTex and newTex and oldTex ~= newTex then
-                        meshD:setTexture(f, s, newTex)
-                        tEntry.modified = true
-                        synced = true
-                    end
-                end
-            end
-            if synced then
-                tUtil.showMessage(tLang.L("textures_auto_updated"))
-            end
-        end
     else
         destroyPreviewMesh()
     end
@@ -390,7 +367,7 @@ function refreshFrameFilterPreview(tEntry, index)
         -- Zero frames selected: disable preview and warn
         destroyPreviewMesh()
         iLastPreviewedIndex = index
-        tUtil.showMessageWarn('No frames selected \u2014 preview disabled')
+        tUtil.showMessageWarn('No frames selected \xe2\x80\x94 preview disabled')
         return
     end
 
@@ -466,9 +443,9 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
 
                     tImGui.TableNextRow()
                     tImGui.TableNextColumn()
-                    local cbChanged, cbVal = tImGui.Checkbox('##animCb-' .. index .. '-' .. i, animChecked)
-                    if cbChanged then
-                        for f = initF, finF do tSel[f] = cbVal end
+                    local newAnimChecked = tImGui.Checkbox('##animCb-' .. index .. '-' .. i, animChecked)
+                    if newAnimChecked ~= animChecked then
+                        for f = initF, finF do tSel[f] = newAnimChecked end
                         tEntry.bFrameSelectionDirty = true
                     end
 
@@ -489,9 +466,9 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
                         local perLine, count = 8, 0
                         for f = initF, finF do
                             local fChecked = (tSel[f] ~= false)
-                            local fChanged, fVal = tImGui.Checkbox(tostring(f) .. '##fc-' .. index .. '-' .. f, fChecked)
-                            if fChanged then
-                                tSel[f] = fVal
+                            local newFChecked = tImGui.Checkbox(tostring(f) .. '##fc-' .. index .. '-' .. f, fChecked)
+                            if newFChecked ~= fChecked then
+                                tSel[f] = newFChecked
                                 tEntry.bFrameSelectionDirty = true
                             end
                             count = count + 1
@@ -518,9 +495,9 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
 
                 tImGui.TableNextRow()
                 tImGui.TableNextColumn()
-                local ocbChanged, ocbVal = tImGui.Checkbox('##orphCb-' .. index, orphanChecked)
-                if ocbChanged then
-                    for _, f in ipairs(orphans) do tSel[f] = ocbVal end
+                local newOrphanChecked = tImGui.Checkbox('##orphCb-' .. index, orphanChecked)
+                if newOrphanChecked ~= orphanChecked then
+                    for _, f in ipairs(orphans) do tSel[f] = newOrphanChecked end
                     tEntry.bFrameSelectionDirty = true
                 end
 
@@ -540,9 +517,9 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
                     local perLine, count = 8, 0
                     for _, f in ipairs(orphans) do
                         local fChecked = (tSel[f] ~= false)
-                        local fChanged, fVal = tImGui.Checkbox(tostring(f) .. '##ofc-' .. index .. '-' .. f, fChecked)
-                        if fChanged then
-                            tSel[f] = fVal
+                        local newFChecked = tImGui.Checkbox(tostring(f) .. '##ofc-' .. index .. '-' .. f, fChecked)
+                        if newFChecked ~= fChecked then
+                            tSel[f] = newFChecked
                             tEntry.bFrameSelectionDirty = true
                         end
                         count = count + 1
@@ -665,6 +642,38 @@ function showMeshInfoTable(tEntry, index)
                 tImGui.TextWrapped(tRows[i][2])
             end
             tImGui.EndTable()
+        end
+    end
+
+    -- Editable: Remap texture paths
+    if #texList > 0 then
+        tImGui.Spacing()
+        tImGui.Text(tLang.L("set_texture_path"))
+        for _, oldTex in ipairs(texList) do
+            tImGui.TextDisabled(tUtil.getShortName(oldTex))
+            tImGui.SameLine()
+            if tImGui.Button('...' .. '##remapTex-' .. index .. '-' .. oldTex) then
+                local newTex = mbm.openFile(sLastMeshPath, table.unpack(tUtil.supported_images or {'png','jpg','bmp','tga'}))
+                if newTex then
+                    if type(newTex) == 'table' then newTex = newTex[1] end
+                    local okF2, nF2 = pcall(function() return meshD:getTotalFrame() end)
+                    if okF2 and nF2 then
+                        for ff = 1, nF2 do
+                            local okS2, nS2 = pcall(function() return meshD:getTotalSubset(ff) end)
+                            if okS2 and nS2 then
+                                for ss = 1, nS2 do
+                                    local okG, curTex = pcall(function() return meshD:getTexture(ff, ss) end)
+                                    if okG and curTex == oldTex then
+                                        pcall(function() meshD:setTexture(ff, ss, newTex) end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    onEdit()
+                    tUtil.showMessage(string.format('%s -> %s', tUtil.getShortName(oldTex), tUtil.getShortName(newTex)))
+                end
+            end
         end
     end
 

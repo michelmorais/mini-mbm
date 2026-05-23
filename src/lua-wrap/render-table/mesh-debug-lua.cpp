@@ -1596,10 +1596,10 @@ namespace mbm
             return 1;
         }
         lua_pushstring(lua,head->headerAnim->nameAnimation);
-        lua_pushnumber(lua,static_cast<lua_Number>(head->headerAnim->initialFrame+1));
-        lua_pushnumber(lua,static_cast<lua_Number>(head->headerAnim->finalFrame+1));
+        lua_pushinteger(lua,static_cast<lua_Integer>(head->headerAnim->initialFrame+1));
+        lua_pushinteger(lua,static_cast<lua_Integer>(head->headerAnim->finalFrame+1));
         lua_pushnumber(lua,head->headerAnim->timeBetweenFrame);
-        lua_pushnumber(lua,static_cast<lua_Number>(head->headerAnim->typeAnimation));
+        lua_pushinteger(lua,static_cast<lua_Integer>(head->headerAnim->typeAnimation));
         return 5;
     }
 

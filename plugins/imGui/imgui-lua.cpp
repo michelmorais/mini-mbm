@@ -3294,6 +3294,19 @@ int onEndChildImGuiLua(lua_State *)
     return 0;
 }
 
+int onBeginDisabledImGuiLua(lua_State *lua)
+{
+    const bool disabled = lua_gettop(lua) >= 1 ? (bool)lua_toboolean(lua, 1) : true;
+    ImGui::BeginDisabled(disabled);
+    return 0;
+}
+
+int onEndDisabledImGuiLua(lua_State *)
+{
+    ImGui::EndDisabled();
+    return 0;
+}
+
 // Tables API - see imgui_demo.cpp "Tables & Columns"
 int onBeginTableImGuiLua(lua_State *lua)
 {
@@ -6864,6 +6877,8 @@ int onNewimguiLua(lua_State *lua)
         {"Begin",                                                       onBeginImGuiLua },
         {"BeginChild",                                             onBeginChildImGuiLua }, // Not Tested, Window/Layout
         // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
+        {"BeginDisabled",                                       onBeginDisabledImGuiLua },
+        {"EndDisabled",                                           onEndDisabledImGuiLua },
         {"BeginCombo",                                             onBeginComboImGuiLua }, // Not Tested, Window/Layout
         {"BeginGroup",                                             onBeginGroupImGuiLua }, // Not Tested, Window/Layout
         {"BeginMainMenuBar",                                 onBeginMainMenuBarImGuiLua },
