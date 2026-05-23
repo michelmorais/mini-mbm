@@ -199,7 +199,7 @@ function updatePreviewMesh()
         tPreviewMesh = mesh:new(coordType)
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'tile' then
-        tPreviewMesh = tile:new('2dw')   -- tile only supports 2dw
+        tPreviewMesh = tile:new(coordType)
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'particle' then
         tPreviewMesh = particle:new(coordType)
@@ -409,7 +409,7 @@ function refreshFrameFilterPreview(tEntry, index)
     elseif meshType == 'mesh' then
         tPreviewMesh = mesh:new(coordType);   ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'tile' then
-        tPreviewMesh = tile:new('2dw');       ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = tile:new(coordType);       ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'particle' then
         tPreviewMesh = particle:new(coordType)
         ok = tPreviewMesh:load(tEntry.framePreviewPath)
@@ -1505,11 +1505,11 @@ function showCameraWindow()
                     applyCam3d(c)
                 end
 
-                -- Focus (editable directly)
+                -- Focus (drag-to-edit)
                 tImGui.Text(tLang.L('cam_focus'))
-                local f1, nfx = tImGui.InputFloat('X##cfx', c.fx, 0, 0, '%.1f', 0)
-                local f2, nfy = tImGui.InputFloat('Y##cfy', c.fy, 0, 0, '%.1f', 0)
-                local f3, nfz = tImGui.InputFloat('Z##cfz', c.fz, 0, 0, '%.1f', 0)
+                local f1, nfx = tImGui.DragFloat('X##cfx', c.fx, 1.0, 0, 0, '%.1f', 0)
+                local f2, nfy = tImGui.DragFloat('Y##cfy', c.fy, 1.0, 0, 0, '%.1f', 0)
+                local f3, nfz = tImGui.DragFloat('Z##cfz', c.fz, 1.0, 0, 0, '%.1f', 0)
                 if f1 then c.fx = nfx end
                 if f2 then c.fy = nfy end
                 if f3 then c.fz = nfz end
@@ -1533,6 +1533,14 @@ function showCameraWindow()
                 tImGui.TextDisabled(tLang.L('cam_no_mesh'))
             end
         else
+            tImGui.PushItemWidth(72)
+            local rx, nx = tImGui.DragFloat('X##c2dx', camera2d.x, 5.0, 0, 0, '%.1f', 0)
+            local ry, ny = tImGui.DragFloat('Y##c2dy', camera2d.y, 5.0, 0, 0, '%.1f', 0)
+            if rx or ry then
+                camera2d:setPos(rx and nx or camera2d.x, ry and ny or camera2d.y)
+            end
+            tImGui.PopItemWidth()
+            tImGui.Separator()
             if tImGui.Button(tLang.L('reset_camera') .. '##cam2dReset') then
                 camera2d:setPos(0, 0)
             end
