@@ -120,6 +120,7 @@ function addMeshToTable(fileName)
         bAutoRefreshPreview  = true,
         bFrameSelectionDirty = false,
         framePreviewPath     = nil,
+        bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 }
     })
     return true
@@ -158,6 +159,35 @@ function applyCam3d(c)
     local x, y, z = cam3dGetPos(c)
     camera3d:setPos(x, y, z)
     camera3d:setFocus(c.fx, c.fy, c.fz)
+end
+
+-- Returns map[origAnimIdx] = filteredAnimIdx (integer) if the animation survives the frame
+-- filter, or false if all its frames are deselected. Also returns nRemoved count.
+function computeAnimFilterMap(tEntry, meshD, nAnim)
+    local tSel = tEntry.tFrameSelection or {}
+    local result = {}
+    local filteredCount = 0
+    local nRemoved = 0
+    for i = 1, nAnim do
+        local ok, _, initF, finF = pcall(function() return meshD:getAnim(i) end)
+        if ok and initF and finF then
+            local alive = false
+            for f = initF, finF do
+                if tSel[f] ~= false then alive = true; break end
+            end
+            if alive then
+                filteredCount = filteredCount + 1
+                result[i] = filteredCount
+            else
+                result[i] = false
+                nRemoved = nRemoved + 1
+            end
+        else
+            filteredCount = filteredCount + 1  -- unknown state: assume alive
+            result[i] = filteredCount
+        end
+    end
+    return result, nRemoved
 end
 
 -- Load selected mesh for preview. When mesh has unsaved changes, saves to temp and loads from there
@@ -221,6 +251,7 @@ function updatePreviewMesh()
         tPreviewMesh.visible = true
         pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
         if bCameraMode3D then applyCam3d(tEntry.cam3d) end
+        tEntry.bPreviewIsFiltered = false
     else
         destroyPreviewMesh()
     end
@@ -427,8 +458,26 @@ function refreshFrameFilterPreview(tEntry, index)
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
-        pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
+        pcall(function()
+            local nA = (tEntry.info and tEntry.info.animation) or 0
+            local selAnim = tEntry.iSelectedAnim or 1
+            if nA > 0 then
+                local animMap = computeAnimFilterMap(tEntry, meshD, nA)
+                local mapped = animMap[selAnim]
+                if mapped then
+                    tPreviewMesh:setAnim(mapped)
+                else
+                    -- Selected anim filtered out; play first surviving animation
+                    for i = 1, nA do
+                        if animMap[i] then tPreviewMesh:setAnim(animMap[i]); break end
+                    end
+                end
+            else
+                tPreviewMesh:setAnim(selAnim)
+            end
+        end)
         if bCameraMode3D then applyCam3d(tEntry.cam3d) end
+        tEntry.bPreviewIsFiltered = true
     else
         destroyPreviewMesh()
     end
@@ -937,7 +986,7 @@ function showMeshOptions(tEntry, index)
                 end
                 tImGui.SameLine()
             end
-            local autoVal = tImGui.Checkbox('Auto##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
+            local autoVal = tImGui.Checkbox(tLang.L('auto_refresh') .. '##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
             tEntry.bAutoRefreshPreview = autoVal
             tImGui.Separator()
         end
@@ -946,18 +995,29 @@ function showMeshOptions(tEntry, index)
         showAnimFrameSelectionTable(tEntry, meshD, index)
 
         if index == iSelectedMeshIndex and tPreviewMesh then
-            -- Build animation name list for the combo box
+            -- Build animation name list; mark filter-removed animations with [!]
             if nAnim > 0 then
+                local animMap, nRemoved = computeAnimFilterMap(tEntry, meshD, nAnim)
                 local tAnimNames = {}
                 for i = 1, nAnim do
                     local ok, aName = pcall(function() return meshD:getAnim(i) end)
-                    tAnimNames[i] = (ok and aName and aName ~= '') and aName or ('Anim ' .. i)
+                    local name = (ok and aName and aName ~= '') and aName or ('Anim ' .. i)
+                    tAnimNames[i] = animMap[i] == false and ('[!] ' .. name) or name
                 end
                 tEntry.iSelectedAnim = tEntry.iSelectedAnim or 1
                 local changed, newIdx = tImGui.Combo(tLang.L("animation") .. '##animSel-' .. index, tEntry.iSelectedAnim, tAnimNames, -1)
                 if changed and newIdx and newIdx >= 1 and newIdx <= nAnim then
                     tEntry.iSelectedAnim = newIdx
-                    pcall(function() tPreviewMesh:setAnim(newIdx) end)
+                    local filteredIdx = animMap[newIdx]
+                    if filteredIdx then
+                        -- Use remapped index when preview is filtered, original otherwise
+                        local targetIdx = tEntry.bPreviewIsFiltered and filteredIdx or newIdx
+                        pcall(function() tPreviewMesh:setAnim(targetIdx) end)
+                    end
+                    -- else: [!] animation removed by filter, skip setAnim silently
+                end
+                if nRemoved > 0 then
+                    tImGui.TextDisabled(string.format(tLang.L('anim_removed_by_filter_fmt'), nRemoved))
                 end
             end
             if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
@@ -1430,7 +1490,11 @@ function showMeshTreeWindow()
                 local tEntry = tLoadedMeshes[i]
                 local shortName = tUtil.getShortName(tEntry.fileName)
                 local typeStr = (tEntry.info and tEntry.info.type) or '?'
-                local label = string.format('%s [%s]%s', shortName, typeStr, tEntry.modified and ' *' or '')
+                local hasFilt = false
+                for _, v in pairs(tEntry.tFrameSelection or {}) do
+                    if v == false then hasFilt = true; break end
+                end
+                local label = string.format('%s [%s]%s', shortName, typeStr, (tEntry.modified or hasFilt) and ' *' or '')
 
                 local isSelected = (iSelectedMeshIndex == i)
                 tImGui.SetNextItemOpen(isSelected, tImGui.Flags('ImGuiCond_Always'))
