@@ -92,6 +92,8 @@ namespace mbm
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
         API_IMPL void addNormals();
+        API_IMPL void removeBuffer(uint32_t indexFrame);
+        API_IMPL void removeAnimation(uint32_t index);
         API_IMPL bool saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         API_IMPL bool loadDebug(const char *fileNamePath);

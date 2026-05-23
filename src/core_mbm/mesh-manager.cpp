@@ -1563,6 +1563,23 @@ namespace mbm
         calculateNormals();
         headerMesh.hasNorText[0] = HAS_NOR_IN_FILE;
     }
+
+    void MESH_MBM_DEBUG::removeBuffer(uint32_t indexFrame)
+    {
+        if (indexFrame >= static_cast<uint32_t>(this->buffer.size()))
+            return;
+        delete this->buffer[indexFrame];
+        this->buffer.erase(this->buffer.begin() + static_cast<ptrdiff_t>(indexFrame));
+    }
+
+    void MESH_MBM_DEBUG::removeAnimation(uint32_t index)
+    {
+        if (index >= static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size()))
+            return;
+        delete this->infoAnimation.lsHeaderAnim[index];
+        this->infoAnimation.lsHeaderAnim.erase(
+            this->infoAnimation.lsHeaderAnim.begin() + static_cast<ptrdiff_t>(index));
+    }
     
     void MESH_MBM_DEBUG::calculateUV()
     {

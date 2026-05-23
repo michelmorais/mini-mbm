@@ -41,8 +41,8 @@ make -j$(nproc)
 ### Full-featured build (Lua 5.4 + all plugins + editors)
 
 ```sh
-mkdir -p build/linux_debug && cd build/linux_debug
-cmake ../.. \
+mkdir -p build && cd build
+cmake .. \
     -DPLAT=Linux \
     -DUSE_ALL=1 \
     -DMBM_ENABLE_MESH_LEGACY_V7=1 \

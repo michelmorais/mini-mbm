@@ -101,12 +101,22 @@ function addMeshToTable(fileName)
     if not info then
         info = { type = 'unknown', hasNormal = false, hasTexture = false, totalFrames = 0 }
     end
+    local tFrameSel = {}
+    local nFrames = 0
+    local okF, nF = pcall(function() return meshD:getTotalFrame() end)
+    if okF and nF then nFrames = nF end
+    for f = 1, nFrames do tFrameSel[f] = true end
     table.insert(tLoadedMeshes, {
         fileName = fileName,
         meshDebug = meshD,
         info = info,
         loaded = true,
-        modified = false
+        modified = false,
+        tFrameSelection  = tFrameSel,
+        tAnimFrameExpanded  = {},
+        bAutoRefreshPreview  = true,
+        bFrameSelectionDirty = false,
+        framePreviewPath     = nil
     })
     return true
 end
@@ -190,6 +200,29 @@ function updatePreviewMesh()
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
+        -- Texture sync: detect if the engine remapped texture names during preview load
+        local tempD = meshDebug:new()
+        if tempD:load(tPreviewMesh) then
+            local nF2 = meshD:getTotalFrame()
+            local nF3 = tempD:getTotalFrame()
+            local synced = false
+            for f = 1, math.min(nF2, nF3) do
+                local nS2 = meshD:getTotalSubset(f)  or 0
+                local nS3 = tempD:getTotalSubset(f)  or 0
+                for s = 1, math.min(nS2, nS3) do
+                    local okOld, oldTex = pcall(function() return meshD:getTexture(f, s) end)
+                    local okNew, newTex = pcall(function() return tempD:getTexture(f, s) end)
+                    if okOld and okNew and oldTex and newTex and oldTex ~= newTex then
+                        meshD:setTexture(f, s, newTex)
+                        tEntry.modified = true
+                        synced = true
+                    end
+                end
+            end
+            if synced then
+                tUtil.showMessage(tLang.L("textures_auto_updated"))
+            end
+        end
     else
         destroyPreviewMesh()
     end
@@ -271,6 +304,261 @@ local tModeCullOpts   = {'FRONT','BACK','FRONT_AND_BACK'}
 local tModeFrontOpts  = {'CW','CCW'}
 -- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
 local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
+
+-- Animation type: 0 PAUSED, 1 GROWING, 2 GROWING_LOOP, 3 DECREASING, 4 DECREASING_LOOP, 5 RECURSIVE, 6 RECURSIVE_LOOP
+local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREASING_LOOP','RECURSIVE','RECURSIVE_LOOP'}
+
+-- Returns a table: frameIndex (1-based) -> animIndex (1-based) owning that frame, or 0 for orphan.
+function buildFrameOwnerMap(meshD, nAnim)
+    local ownerMap = {}
+    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not okT or not nFrames then return ownerMap end
+    for f = 1, nFrames do ownerMap[f] = 0 end
+    for i = 1, nAnim do
+        local ok, _, initF, finF = pcall(function() return meshD:getAnim(i) end)
+        if ok and initF and finF then
+            for f = initF, finF do
+                if ownerMap[f] ~= nil then ownerMap[f] = i end
+            end
+        end
+    end
+    return ownerMap
+end
+
+-- Builds a filtered meshDebug with only the selected frames + remapped animations.
+-- Source is always tEntry.fileName (saved file). Returns tempD or nil.
+function buildFilteredMesh(tEntry)
+    local meshD = tEntry.meshDebug
+    local tSel  = tEntry.tFrameSelection or {}
+    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not okT or not nFrames or nFrames == 0 then return nil end
+
+    -- Build old->new frame index map (only selected frames, ascending order)
+    local oldToNew = {}
+    local newIdx   = 0
+    for f = 1, nFrames do
+        if tSel[f] ~= false then
+            newIdx = newIdx + 1
+            oldToNew[f] = newIdx
+        end
+    end
+    if newIdx == 0 then return nil end
+
+    -- Load a fresh copy from the saved file
+    local tempD = meshDebug:new()
+    if not tempD:load(tEntry.fileName) then return nil end
+
+    -- Remap / remove animations (process in reverse so indices stay stable)
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    for i = nAnim, 1, -1 do
+        local ok, name, initF, finF, time, typ = pcall(function() return tempD:getAnim(i) end)
+        if ok and name and initF and finF then
+            local newInit, newFin
+            for f = initF, finF do
+                if oldToNew[f] then
+                    if not newInit then newInit = oldToNew[f] end
+                    newFin = oldToNew[f]
+                end
+            end
+            if not newInit then
+                tempD:removeAnim(i)
+            else
+                tempD:updateAnim(i, name, newInit, newFin, time or 0.1, typ or 0)
+            end
+        end
+    end
+
+    -- Remove unselected frames in reverse order to keep indices stable
+    for f = nFrames, 1, -1 do
+        if tSel[f] == false then
+            tempD:removeFrame(f)
+        end
+    end
+    return tempD
+end
+
+-- Rebuilds tPreviewMesh from a frame-filtered temp file. Blocked when tEntry.modified=true.
+function refreshFrameFilterPreview(tEntry, index)
+    if tEntry.modified then return end  -- blocked; UI shows tooltip
+
+    local meshD    = tEntry.meshDebug
+    local info     = tEntry.info or {}
+    local meshType = info.type or 'unknown'
+
+    local tempD = buildFilteredMesh(tEntry)
+    if not tempD then
+        -- Zero frames selected: disable preview and warn
+        destroyPreviewMesh()
+        iLastPreviewedIndex = index
+        tUtil.showMessageWarn('No frames selected \u2014 preview disabled')
+        return
+    end
+
+    -- Save filtered mesh to a dedicated temp path
+    local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
+    tEntry.framePreviewPath = tEntry.framePreviewPath or (os.tmpname() .. '.' .. ext)
+    if not tempD:save(tEntry.framePreviewPath, false, false) then return end
+    meshDebug:fakeRelease(tEntry.framePreviewPath)
+
+    local dir = tEntry.fileName:match('^(.*)[/\\]')
+    if dir then mbm.addPath(dir) end
+
+    destroyPreviewMesh()
+    local ok = false
+    if meshType == 'sprite' then
+        tPreviewMesh = sprite:new('2dw'); ok = tPreviewMesh:load(tEntry.framePreviewPath)
+    elseif meshType == 'mesh' then
+        tPreviewMesh = mesh:new('2dw');   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+    elseif meshType == 'tile' then
+        tPreviewMesh = tile:new('2dw');   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+    elseif meshType == 'particle' then
+        tPreviewMesh = particle:new('2dw')
+        ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        if ok then tPreviewMesh:add(100); tPreviewMesh.revive = true end
+    elseif meshType == 'font' then
+        tPreviewFont = font:new(tEntry.framePreviewPath)
+        if tPreviewFont then
+            tPreviewMesh = tPreviewFont:add('2dw', 'Mesh Debug')
+            tPreviewMesh.tFont = tPreviewFont
+            ok = (tPreviewMesh ~= nil)
+        end
+    elseif meshType == 'texture' then
+        tPreviewMesh = texture:new('2dw'); ok = tPreviewMesh:load(tEntry.framePreviewPath)
+    end
+
+    if ok and tPreviewMesh then
+        tPreviewMesh.visible = true
+        pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
+    else
+        destroyPreviewMesh()
+    end
+    iLastPreviewedIndex = index  -- prevent updatePreviewMesh from overriding this
+end
+
+-- Renders the compact+expand frame-selection table inside the Animations tree node.
+function showAnimFrameSelectionTable(tEntry, meshD, index)
+    local tSel  = tEntry.tFrameSelection or {}
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not okT or not nFrames or nFrames == 0 then return end
+
+    local ownerMap = buildFrameOwnerMap(meshD, nAnim)
+
+    if tImGui.TreeNodeEx(tLang.L("frame_selection") .. '##fsel-' .. index, 0) then
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
+        if tImGui.BeginTable('frameSel-' .. index, 3, tblFlags) then
+            tImGui.TableSetupColumn('##cbcol', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn('Animation')
+            tImGui.TableSetupColumn('Selected', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 90)
+            tImGui.TableHeadersRow()
+
+            -- Per-animation rows
+            for i = 1, nAnim do
+                local ok, name, initF, finF = pcall(function() return meshD:getAnim(i) end)
+                if ok and name and initF and finF then
+                    -- Count selected frames in this animation range
+                    local total, selected = 0, 0
+                    for f = initF, finF do
+                        total = total + 1
+                        if tSel[f] ~= false then selected = selected + 1 end
+                    end
+                    local animChecked = (selected == total)
+
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    local cbChanged, cbVal = tImGui.Checkbox('##animCb-' .. index .. '-' .. i, animChecked)
+                    if cbChanged then
+                        for f = initF, finF do tSel[f] = cbVal end
+                        tEntry.bFrameSelectionDirty = true
+                    end
+
+                    tImGui.TableNextColumn()
+                    local expandLabel = (tEntry.tAnimFrameExpanded[i] and '\xe2\x96\xbc ' or '\xe2\x96\xba ') .. (name ~= '' and name or ('Anim ' .. i)) .. '  (' .. initF .. '\xe2\x80\x93' .. finF .. ')'
+                    if tImGui.Selectable(expandLabel .. '##animRow-' .. index .. '-' .. i, false, 0) then
+                        tEntry.tAnimFrameExpanded[i] = not tEntry.tAnimFrameExpanded[i]
+                    end
+
+                    tImGui.TableNextColumn()
+                    tImGui.Text(string.format(tLang.L("frames_selected_fmt"), selected, total))
+
+                    -- Expanded per-frame checkboxes
+                    if tEntry.tAnimFrameExpanded[i] then
+                        tImGui.TableNextRow()
+                        tImGui.TableNextColumn()
+                        tImGui.TableNextColumn()
+                        local perLine, count = 8, 0
+                        for f = initF, finF do
+                            local fChecked = (tSel[f] ~= false)
+                            local fChanged, fVal = tImGui.Checkbox(tostring(f) .. '##fc-' .. index .. '-' .. f, fChecked)
+                            if fChanged then
+                                tSel[f] = fVal
+                                tEntry.bFrameSelectionDirty = true
+                            end
+                            count = count + 1
+                            if count < (finF - initF + 1) and count % perLine ~= 0 then
+                                tImGui.SameLine()
+                            end
+                        end
+                        tImGui.TableNextColumn()
+                    end
+                end
+            end
+
+            -- Orphan (unassigned) frames row
+            local orphans = {}
+            for f = 1, nFrames do
+                if ownerMap[f] == 0 then table.insert(orphans, f) end
+            end
+            if #orphans > 0 then
+                local selOrphan = 0
+                for _, f in ipairs(orphans) do
+                    if tSel[f] ~= false then selOrphan = selOrphan + 1 end
+                end
+                local orphanChecked = (selOrphan == #orphans)
+
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                local ocbChanged, ocbVal = tImGui.Checkbox('##orphCb-' .. index, orphanChecked)
+                if ocbChanged then
+                    for _, f in ipairs(orphans) do tSel[f] = ocbVal end
+                    tEntry.bFrameSelectionDirty = true
+                end
+
+                tImGui.TableNextColumn()
+                local orphKey = 'orphRow-' .. index
+                local orphLabel = (tEntry.tAnimFrameExpanded[orphKey] and '\xe2\x96\xbc ' or '\xe2\x96\xba ') .. tLang.L("unassigned_frames") .. '  (' .. #orphans .. ')'
+                if tImGui.Selectable(orphLabel .. '##' .. orphKey, false, 0) then
+                    tEntry.tAnimFrameExpanded[orphKey] = not tEntry.tAnimFrameExpanded[orphKey]
+                end
+                tImGui.TableNextColumn()
+                tImGui.Text(string.format(tLang.L("frames_selected_fmt"), selOrphan, #orphans))
+
+                if tEntry.tAnimFrameExpanded[orphKey] then
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    local perLine, count = 8, 0
+                    for _, f in ipairs(orphans) do
+                        local fChecked = (tSel[f] ~= false)
+                        local fChanged, fVal = tImGui.Checkbox(tostring(f) .. '##ofc-' .. index .. '-' .. f, fChecked)
+                        if fChanged then
+                            tSel[f] = fVal
+                            tEntry.bFrameSelectionDirty = true
+                        end
+                        count = count + 1
+                        if count < #orphans and count % perLine ~= 0 then
+                            tImGui.SameLine()
+                        end
+                    end
+                    tImGui.TableNextColumn()
+                end
+            end
+
+            tImGui.EndTable()
+        end
+        tImGui.TreePop()
+    end
+end
 
 -- Shader effect variable helpers (same as shader_editor)
 local function shaderInputFloatMinMax(psVs, tVar, index, sAlias, sTreeName)
@@ -552,6 +840,27 @@ function showMeshOptions(tEntry, index)
 
     local nAnim = info.animation or 0
     if tImGui.TreeNodeEx(tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+        -- Frame-filter preview refresh controls (only for the currently selected mesh)
+        if index == iSelectedMeshIndex then
+            if tEntry.modified then
+                tImGui.BeginDisabled(true)
+                tImGui.Button(tLang.L("save_first_to_preview") .. '##rfpBtn-' .. index)
+                tImGui.EndDisabled()
+            elseif not tEntry.bAutoRefreshPreview then
+                if tImGui.Button('Refresh Preview##rfpBtn-' .. index) then
+                    refreshFrameFilterPreview(tEntry, index)
+                    tEntry.bFrameSelectionDirty = false
+                end
+                tImGui.SameLine()
+            end
+            local _, autoVal = tImGui.Checkbox('Auto##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
+            tEntry.bAutoRefreshPreview = autoVal
+            tImGui.Separator()
+        end
+
+        -- Frame selection compact+expand table
+        showAnimFrameSelectionTable(tEntry, meshD, index)
+
         if index == iSelectedMeshIndex and tPreviewMesh then
             -- Build animation name list for the combo box
             if nAnim > 0 then
@@ -816,6 +1125,51 @@ function showMeshOptions(tEntry, index)
         end
     end
     tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
+    tImGui.Separator()
+    if tImGui.Button(tLang.L("save_as") .. '##saveAs-' .. index) then
+        doSaveAs(tEntry, index)
+    end
+    tImGui.TextDisabled(tLang.L("save_as_hint"))
+end
+
+function doSaveAs(tEntry, index)
+    local info     = tEntry.info or {}
+    local meshD    = tEntry.meshDebug
+    local shortName = tUtil.getShortName(tEntry.fileName)
+    local extMap   = { mesh = 'msh', sprite = 'spt', font = 'fnt', tile = 'tile', particle = 'ptl' }
+    local suggestedExt = extMap[info.type] or 'msh'
+
+    local newFile = mbm.saveFile(sLastMeshPath, suggestedExt)
+    if not newFile or newFile == '' then return end
+
+    -- Check whether any frame has been deselected
+    local tSel = tEntry.tFrameSelection or {}
+    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    nFrames = (okT and nFrames) or 0
+    local hasDeselected = false
+    for f = 1, nFrames do
+        if tSel[f] == false then hasDeselected = true; break end
+    end
+
+    local ok = false
+    if not hasDeselected then
+        -- All frames selected: simple save
+        ok = meshD:save(newFile, false, false)
+    else
+        local tempD = buildFilteredMesh(tEntry)
+        if not tempD then
+            tUtil.showMessageWarn('Nothing to save (all frames deselected)')
+            return
+        end
+        ok = tempD:save(newFile, false, false)
+    end
+
+    if ok then
+        tUtil.showMessage(string.format(tLang.L("save_as_success_fmt"), tUtil.getShortName(newFile)))
+        sLastMeshPath = newFile
+    else
+        tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+    end
 end
 
 function applyToAll(operation)
@@ -1026,6 +1380,14 @@ function onLoop(delta)
     main_menu_mesh_debug()
     showMeshTreeWindow()
     updatePreviewMesh()
+    -- Auto-refresh frame-filter preview when any frame checkbox was toggled
+    if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local tE = tLoadedMeshes[iSelectedMeshIndex]
+        if tE.bFrameSelectionDirty and tE.bAutoRefreshPreview and not tE.modified then
+            refreshFrameFilterPreview(tE, iSelectedMeshIndex)
+            tE.bFrameSelectionDirty = false
+        end
+    end
     tUtil.showOverlayMessage()
 end
 

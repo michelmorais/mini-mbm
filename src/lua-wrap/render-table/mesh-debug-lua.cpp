@@ -1395,6 +1395,22 @@ namespace mbm
         return 0;
     }
 
+    int onRemoveFrameDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *  meshDebug  = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t    indexFrame = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        meshDebug->mesh.removeBuffer(indexFrame);
+        return 0;
+    }
+
+    int onRemoveAnimationDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  index     = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        meshDebug->mesh.removeAnimation(index);
+        return 0;
+    }
+
     int onAddNormalsMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1659,8 +1675,10 @@ namespace mbm
                                           {"getTexture", onGetTextureNameMeshDebugLua},
                                           {"setTexture", onSetTextureNameMeshDebugLua},
                                           {"addFrame", onAddFrameDebugLua},
+                                          {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},
                                           {"addAnim", onAddAnimationDebugLua},
+                                          {"removeAnim", onRemoveAnimationDebugLua},
                                           {"centralize", onCentralizeMeshDebugLua},
                                           {"check", onCheckMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
