@@ -281,6 +281,37 @@ function updatePreviewMesh()
     end
 end
 
+-- Inverts UV coordinates (u = 1-u and/or v = 1-v) across the mesh.
+-- targetFrame: 0 = all frames, 1..N = specific frame.
+-- Returns total number of vertices modified.
+function invertMeshUV(meshD, targetFrame, invertU, invertV)
+    local total = 0
+    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not ok or not nFrames then return 0 end
+    local fStart = targetFrame == 0 and 1 or targetFrame
+    local fEnd   = targetFrame == 0 and nFrames or targetFrame
+    for f = fStart, fEnd do
+        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        if ok2 and nSubsets then
+            for s = 1, nSubsets do
+                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                if ok3 and nV then
+                    for v = 1, nV do
+                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        if ok4 and vd then
+                            if invertU then vd.u = 1 - vd.u end
+                            if invertV then vd.v = 1 - vd.v end
+                            pcall(function() meshD:setVertex(f, s, v, vd) end)
+                            total = total + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return total
+end
+
 -- Returns total vertex count across all frames/subsets, or 0 on error
 function getMeshTotalVertices(meshD)
     local total = 0
@@ -1008,6 +1039,66 @@ function showMeshOptions(tEntry, index)
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("scale_applied_fmt"), target))
                 xf.sx = 1; xf.sy = 1; xf.sz = 1
+            end
+        end
+
+        tImGui.TreePop()
+    end
+
+    if tImGui.TreeNodeEx(tLang.L("uv_label"), 0, 'uv-' .. index) then
+        if info and info.hasTexture then
+            tImGui.TextDisabled('Has UV')
+        else
+            tImGui.TextDisabled('No UV')
+        end
+
+        tEntry.tUvUI = tEntry.tUvUI or { frame = 0 }
+        local uv = tEntry.tUvUI
+        local totalFrames = info.totalFrames or 0
+
+        tImGui.Separator()
+        tImGui.Text(tLang.L("target_frame_label"))
+        local _, nf = tImGui.InputInt('##uvFrame-' .. index, uv.frame, 1, 1, 0)
+        if nf ~= nil then
+            nf = math.max(0, math.min(nf, totalFrames))
+            uv.frame = nf
+        end
+
+        tImGui.Spacing()
+        if tImGui.Button(tLang.L("invert_u") .. '##' .. index) then
+            if not (info and info.hasTexture) then
+                tUtil.showMessage(string.format(tLang.L("uv_no_data_warning"), shortName))
+            else
+                local n = invertMeshUV(meshD, uv.frame, true, false)
+                if n > 0 then
+                    onEdit()
+                    local target = uv.frame == 0 and 'all frames' or ('frame ' .. uv.frame)
+                    tUtil.showMessage(string.format(tLang.L("uv_invert_applied_fmt"), 'U ' .. target, shortName))
+                end
+            end
+        end
+        if tImGui.Button(tLang.L("invert_v") .. '##' .. index) then
+            if not (info and info.hasTexture) then
+                tUtil.showMessage(string.format(tLang.L("uv_no_data_warning"), shortName))
+            else
+                local n = invertMeshUV(meshD, uv.frame, false, true)
+                if n > 0 then
+                    onEdit()
+                    local target = uv.frame == 0 and 'all frames' or ('frame ' .. uv.frame)
+                    tUtil.showMessage(string.format(tLang.L("uv_invert_applied_fmt"), 'V ' .. target, shortName))
+                end
+            end
+        end
+        if tImGui.Button(tLang.L("invert_uv") .. '##' .. index) then
+            if not (info and info.hasTexture) then
+                tUtil.showMessage(string.format(tLang.L("uv_no_data_warning"), shortName))
+            else
+                local n = invertMeshUV(meshD, uv.frame, true, true)
+                if n > 0 then
+                    onEdit()
+                    local target = uv.frame == 0 and 'all frames' or ('frame ' .. uv.frame)
+                    tUtil.showMessage(string.format(tLang.L("uv_invert_applied_fmt"), 'UV ' .. target, shortName))
+                end
             end
         end
 
