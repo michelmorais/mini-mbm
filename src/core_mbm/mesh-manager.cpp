@@ -2790,7 +2790,100 @@ namespace mbm
             }
         }
     }
-    
+
+    void MESH_MBM_DEBUG::rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ)
+    {
+        if (indexFrame < 0)
+        {
+            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+                rotateFrame(static_cast<int>(i), indexSubset, angleX, angleY, angleZ);
+            return;
+        }
+        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
+        const float radX = angleX * static_cast<float>(M_PI) / 180.0f;
+        const float radY = angleY * static_cast<float>(M_PI) / 180.0f;
+        const float radZ = angleZ * static_cast<float>(M_PI) / 180.0f;
+        const float cosX = cosf(radX), sinX = sinf(radX);
+        const float cosY = cosf(radY), sinY = sinf(radY);
+        const float cosZ = cosf(radZ), sinZ = sinf(radZ);
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+        const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
+        auto applyRotation                      = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
+            const uint32_t n = vertexStart + vertexCount;
+            for (uint32_t j = vertexStart; j < n; ++j)
+            {
+                VEC3 *p = &pPosition[j];
+                if (angleX != 0.0f)
+                {
+                    const float y = p->y * cosX - p->z * sinX;
+                    const float z = p->y * sinX + p->z * cosX;
+                    p->y = y; p->z = z;
+                }
+                if (angleY != 0.0f)
+                {
+                    const float x =  p->x * cosY + p->z * sinY;
+                    const float z = -p->x * sinY + p->z * cosY;
+                    p->x = x; p->z = z;
+                }
+                if (angleZ != 0.0f)
+                {
+                    const float x = p->x * cosZ - p->y * sinZ;
+                    const float y = p->x * sinZ + p->y * cosZ;
+                    p->x = x; p->y = y;
+                }
+            }
+        };
+        if (indexSubset < 0)
+        {
+            for (uint32_t i = 0; i < s; ++i)
+            {
+                const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[i];
+                applyRotation(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+            }
+        }
+        else if (indexSubset < static_cast<int>(s))
+        {
+            const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[static_cast<uint32_t>(indexSubset)];
+            applyRotation(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+        }
+    }
+
+    void MESH_MBM_DEBUG::scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz)
+    {
+        if (indexFrame < 0)
+        {
+            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+                scaleFrame(static_cast<int>(i), indexSubset, sx, sy, sz);
+            return;
+        }
+        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+        const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
+        auto applyScale                         = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
+            const uint32_t n = vertexStart + vertexCount;
+            for (uint32_t j = vertexStart; j < n; ++j)
+            {
+                VEC3 *p = &pPosition[j];
+                p->x *= sx; p->y *= sy; p->z *= sz;
+            }
+        };
+        if (indexSubset < 0)
+        {
+            for (uint32_t i = 0; i < s; ++i)
+            {
+                const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[i];
+                applyScale(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+            }
+        }
+        else if (indexSubset < static_cast<int>(s))
+        {
+            const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[static_cast<uint32_t>(indexSubset)];
+            applyScale(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+        }
+    }
+
     bool MESH_MBM_DEBUG::addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                         const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
                         char *strErrorOut, const int strErrorOutLen)

@@ -200,6 +200,7 @@ function updatePreviewMesh()
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
+        pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
     else
         destroyPreviewMesh()
     end
@@ -844,6 +845,58 @@ function showMeshOptions(tEntry, index)
             if index == iSelectedMeshIndex then iLastPreviewedIndex = 0 end
             tUtil.showMessage(string.format('Centralized: %s', shortName))
         end
+
+        -- Rotate/Scale with per-frame or all-frames targeting
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1 }
+        local xf = tEntry.tXformUI
+        local totalFrames = info.totalFrames or 0
+
+        tImGui.Separator()
+        tImGui.Text(tLang.L("target_frame_label"))
+        local _, nf = tImGui.InputInt('##xfFrame-' .. index, xf.frame, 1, 1, 0)
+        if nf ~= nil then
+            nf = math.max(0, math.min(nf, totalFrames))
+            xf.frame = nf
+        end
+
+        -- Rotation
+        tImGui.Spacing()
+        tImGui.Text(tLang.L("rotate_xyz"))
+        local _, rx = tImGui.InputFloat('##xfRx-' .. index, xf.rx, 1, 10, '%.2f', 0)
+        local _, ry = tImGui.InputFloat('##xfRy-' .. index, xf.ry, 1, 10, '%.2f', 0)
+        local _, rz = tImGui.InputFloat('##xfRz-' .. index, xf.rz, 1, 10, '%.2f', 0)
+        if rx ~= nil then xf.rx = rx end
+        if ry ~= nil then xf.ry = ry end
+        if rz ~= nil then xf.rz = rz end
+        if tImGui.Button(tLang.L("apply_rotation") .. '##' .. index) then
+            local ok = pcall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end)
+            if ok then
+                onEdit()
+                local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
+                tUtil.showMessage(string.format(tLang.L("rotation_applied_fmt"), target))
+                xf.rx = 0; xf.ry = 0; xf.rz = 0
+            end
+        end
+
+        -- Scale
+        tImGui.Spacing()
+        tImGui.Text(tLang.L("scale_xyz"))
+        local _, sx = tImGui.InputFloat('##xfSx-' .. index, xf.sx, 0.1, 0.5, '%.3f', 0)
+        local _, sy = tImGui.InputFloat('##xfSy-' .. index, xf.sy, 0.1, 0.5, '%.3f', 0)
+        local _, sz = tImGui.InputFloat('##xfSz-' .. index, xf.sz, 0.1, 0.5, '%.3f', 0)
+        if sx ~= nil then xf.sx = sx end
+        if sy ~= nil then xf.sy = sy end
+        if sz ~= nil then xf.sz = sz end
+        if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
+            local ok = pcall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end)
+            if ok then
+                onEdit()
+                local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
+                tUtil.showMessage(string.format(tLang.L("scale_applied_fmt"), target))
+                xf.sx = 1; xf.sy = 1; xf.sz = 1
+            end
+        end
+
         tImGui.TreePop()
     end
 

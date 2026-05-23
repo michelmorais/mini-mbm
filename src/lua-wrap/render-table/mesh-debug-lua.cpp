@@ -1343,6 +1343,34 @@ namespace mbm
         return 0;
     }
 
+    // rotateFrame(frame, ax, ay, az)  -- frame=0 means all; angles in degrees
+    int onRotateFrameDebugLua(lua_State *lua)
+    {
+        const int       top         = lua_gettop(lua);
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       frameArg    = top > 1 ? luaL_checkinteger(lua, 2) : 0;
+        const int       indexFrame  = frameArg <= 0 ? -1 : frameArg - 1;
+        const float     angleX      = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 0.0)) : 0.0f;
+        const float     angleY      = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 0.0)) : 0.0f;
+        const float     angleZ      = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 0.0)) : 0.0f;
+        meshDebug->mesh.rotateFrame(indexFrame, -1, angleX, angleY, angleZ);
+        return 0;
+    }
+
+    // scaleFrame(frame, sx, sy, sz)  -- frame=0 means all
+    int onScaleFrameDebugLua(lua_State *lua)
+    {
+        const int       top         = lua_gettop(lua);
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       frameArg    = top > 1 ? luaL_checkinteger(lua, 2) : 0;
+        const int       indexFrame  = frameArg <= 0 ? -1 : frameArg - 1;
+        const float     sx          = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 1.0)) : 1.0f;
+        const float     sy          = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 1.0)) : 1.0f;
+        const float     sz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 1.0)) : 1.0f;
+        meshDebug->mesh.scaleFrame(indexFrame, -1, sx, sy, sz);
+        return 0;
+    }
+
     int onCheckMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1680,6 +1708,8 @@ namespace mbm
                                           {"addAnim", onAddAnimationDebugLua},
                                           {"removeAnim", onRemoveAnimationDebugLua},
                                           {"centralize", onCentralizeMeshDebugLua},
+                                          {"rotateFrame", onRotateFrameDebugLua},
+                                          {"scaleFrame", onScaleFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
                                           {"enableNormal", onEnableNormalsMeshDebugLua},
