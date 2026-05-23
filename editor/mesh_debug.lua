@@ -977,7 +977,9 @@ function showMeshOptions(tEntry, index)
         if index == iSelectedMeshIndex then
             if tEntry.modified then
                 tImGui.BeginDisabled(true)
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
                 tImGui.Button(tLang.L("save_first_to_preview") .. '##rfpBtn-' .. index)
+                tImGui.PopStyleColor(1)
                 tImGui.EndDisabled()
             elseif not tEntry.bAutoRefreshPreview then
                 if tImGui.Button('Refresh Preview##rfpBtn-' .. index) then
@@ -1494,7 +1496,9 @@ function showMeshTreeWindow()
                 for _, v in pairs(tEntry.tFrameSelection or {}) do
                     if v == false then hasFilt = true; break end
                 end
-                local label = string.format('%s [%s]%s', shortName, typeStr, (tEntry.modified or hasFilt) and ' *' or '')
+                local label = string.format('%s [%s]%s%s', shortName, typeStr,
+                    tEntry.modified and ' *' or '',
+                    hasFilt and ' ~' or '')
 
                 local isSelected = (iSelectedMeshIndex == i)
                 tImGui.SetNextItemOpen(isSelected, tImGui.Flags('ImGuiCond_Always'))
