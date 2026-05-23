@@ -35,6 +35,8 @@ tUtil         =     require "editor_utils"
 
 function onInitScene()
     camera2d              = mbm.getCamera("2d")
+    camera3d              = mbm.getCamera("3d")
+    bCameraMode3D         = false
     tLoadedMeshes         = {}
     sLastMeshPath         = mbm.get('user_home') or mbm.get('HOME') or '~'
     sLastFolderPath       = sLastMeshPath
@@ -51,6 +53,7 @@ function onInitScene()
     tPreviewFont         = nil    -- font object when preview is a font (tPreviewMesh.tFont)
     iLastPreviewedIndex  = 0      -- track which mesh we last previewed
     isClickedMouseleft   = false
+    isClickedMouseRight  = false
 end
 
 function onLoadMeshFromFile()
@@ -116,7 +119,8 @@ function addMeshToTable(fileName)
         tAnimFrameExpanded  = {},
         bAutoRefreshPreview  = true,
         bFrameSelectionDirty = false,
-        framePreviewPath     = nil
+        framePreviewPath     = nil,
+        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 }
     })
     return true
 end
@@ -140,6 +144,20 @@ function destroyPreviewMesh()
         tPreviewMesh = nil
     end
     tPreviewFont = nil
+end
+
+-- Spherical coordinate helpers for 3D camera orbit
+function cam3dGetPos(c)
+    local x = c.fx + c.distance * math.cos(c.elevation) * math.sin(c.azimuth)
+    local y = c.fy + c.distance * math.sin(c.elevation)
+    local z = c.fz + c.distance * math.cos(c.elevation) * math.cos(c.azimuth)
+    return x, y, z
+end
+
+function applyCam3d(c)
+    local x, y, z = cam3dGetPos(c)
+    camera3d:setPos(x, y, z)
+    camera3d:setFocus(c.fx, c.fy, c.fz)
 end
 
 -- Load selected mesh for preview. When mesh has unsaved changes, saves to temp and loads from there
@@ -172,35 +190,37 @@ function updatePreviewMesh()
     local dir = fileName:match('^(.*)[/\\]')
     if dir then mbm.addPath(dir) end
 
+    local coordType = bCameraMode3D and '3d' or '2dw'
     local ok = false
     if meshType == 'sprite' then
-        tPreviewMesh = sprite:new('2dw')
+        tPreviewMesh = sprite:new(coordType)
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'mesh' then
-        tPreviewMesh = mesh:new('2dw')
+        tPreviewMesh = mesh:new(coordType)
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'tile' then
-        tPreviewMesh = tile:new('2dw')
+        tPreviewMesh = tile:new('2dw')   -- tile only supports 2dw
         ok = tPreviewMesh:load(loadPath)
     elseif meshType == 'particle' then
-        tPreviewMesh = particle:new('2dw')
+        tPreviewMesh = particle:new(coordType)
         ok = tPreviewMesh:load(loadPath)
         if ok then tPreviewMesh:add(100); tPreviewMesh.revive = true end
     elseif meshType == 'font' then
         tPreviewFont = font:new(loadPath)
         if tPreviewFont then
-            tPreviewMesh = tPreviewFont:add('2dw', 'Mesh Debug')
+            tPreviewMesh = tPreviewFont:add(coordType, 'Mesh Debug')
             tPreviewMesh.tFont = tPreviewFont
             ok = (tPreviewMesh ~= nil)
         end
     elseif meshType == 'texture' then
-        tPreviewMesh = texture:new('2dw')
+        tPreviewMesh = texture:new(coordType)
         ok = tPreviewMesh:load(loadPath)
     end
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
         pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
+        if bCameraMode3D then applyCam3d(tEntry.cam3d) end
     else
         destroyPreviewMesh()
     end
@@ -382,31 +402,33 @@ function refreshFrameFilterPreview(tEntry, index)
     if dir then mbm.addPath(dir) end
 
     destroyPreviewMesh()
+    local coordType = bCameraMode3D and '3d' or '2dw'
     local ok = false
     if meshType == 'sprite' then
-        tPreviewMesh = sprite:new('2dw'); ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = sprite:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'mesh' then
-        tPreviewMesh = mesh:new('2dw');   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = mesh:new(coordType);   ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'tile' then
-        tPreviewMesh = tile:new('2dw');   ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = tile:new('2dw');       ok = tPreviewMesh:load(tEntry.framePreviewPath)
     elseif meshType == 'particle' then
-        tPreviewMesh = particle:new('2dw')
+        tPreviewMesh = particle:new(coordType)
         ok = tPreviewMesh:load(tEntry.framePreviewPath)
         if ok then tPreviewMesh:add(100); tPreviewMesh.revive = true end
     elseif meshType == 'font' then
         tPreviewFont = font:new(tEntry.framePreviewPath)
         if tPreviewFont then
-            tPreviewMesh = tPreviewFont:add('2dw', 'Mesh Debug')
+            tPreviewMesh = tPreviewFont:add(coordType, 'Mesh Debug')
             tPreviewMesh.tFont = tPreviewFont
             ok = (tPreviewMesh ~= nil)
         end
     elseif meshType == 'texture' then
-        tPreviewMesh = texture:new('2dw'); ok = tPreviewMesh:load(tEntry.framePreviewPath)
+        tPreviewMesh = texture:new(coordType); ok = tPreviewMesh:load(tEntry.framePreviewPath)
     end
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
         pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
+        if bCameraMode3D then applyCam3d(tEntry.cam3d) end
     else
         destroyPreviewMesh()
     end
@@ -1438,8 +1460,91 @@ function showMeshTreeWindow()
     tImGui.End()
 end
 
+function showCameraWindow()
+    local iW = mbm.getSizeScreen()
+    local winW = 240
+    tImGui.SetNextWindowPos({x = iW - winW - 5, y = 25}, tImGui.Flags('ImGuiCond_Always'))
+    local wFlags = tImGui.Flags('ImGuiWindowFlags_NoMove', 'ImGuiWindowFlags_AlwaysAutoResize',
+                                'ImGuiWindowFlags_NoCollapse')
+    local opened = tImGui.Begin(tLang.L('camera_panel') .. '##camWin', false, wFlags)
+    if opened then
+        -- Mode toggle: 2D / 3D radio buttons
+        local prev3d = bCameraMode3D
+        local camMode = bCameraMode3D and 1 or 0
+        camMode = tImGui.RadioButton(tLang.L('camera_2d') .. '##camMode', camMode, 0)
+        tImGui.SameLine()
+        camMode = tImGui.RadioButton(tLang.L('camera_3d') .. '##camMode', camMode, 1)
+        bCameraMode3D = (camMode == 1)
+        if prev3d ~= bCameraMode3D then
+            iLastPreviewedIndex = 0  -- force preview reload with correct coord type
+        end
+        tImGui.Separator()
+
+        if bCameraMode3D then
+            if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+                local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
+                local px, py, pz = cam3dGetPos(c)
+                tImGui.PushItemWidth(72)
+
+                -- Position (editable; back-computes spherical coords on change)
+                tImGui.Text(tLang.L('cam_position'))
+                local r1, nx = tImGui.InputFloat('X##cpx', px, 0, 0, '%.1f', 0)
+                local r2, ny = tImGui.InputFloat('Y##cpy', py, 0, 0, '%.1f', 0)
+                local r3, nz = tImGui.InputFloat('Z##cpz', pz, 0, 0, '%.1f', 0)
+                if r1 or r2 or r3 then
+                    nx = r1 and nx or px
+                    ny = r2 and ny or py
+                    nz = r3 and nz or pz
+                    local dx = nx - c.fx; local dy = ny - c.fy; local dz = nz - c.fz
+                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+                    if dist > 0 then
+                        c.distance  = dist
+                        c.elevation = math.asin(math.max(-1, math.min(1, dy / dist)))
+                        c.azimuth   = math.atan(dx, dz)
+                    end
+                    applyCam3d(c)
+                end
+
+                -- Focus (editable directly)
+                tImGui.Text(tLang.L('cam_focus'))
+                local f1, nfx = tImGui.InputFloat('X##cfx', c.fx, 0, 0, '%.1f', 0)
+                local f2, nfy = tImGui.InputFloat('Y##cfy', c.fy, 0, 0, '%.1f', 0)
+                local f3, nfz = tImGui.InputFloat('Z##cfz', c.fz, 0, 0, '%.1f', 0)
+                if f1 then c.fx = nfx end
+                if f2 then c.fy = nfy end
+                if f3 then c.fz = nfz end
+                if f1 or f2 or f3 then applyCam3d(c) end
+
+                -- Distance shortcut
+                local rd, ndist = tImGui.InputFloat(tLang.L('cam_distance') .. '##cdist',
+                                                    c.distance, 10, 100, '%.0f', 0)
+                if rd and ndist and ndist > 0 then c.distance = ndist; applyCam3d(c) end
+
+                tImGui.PopItemWidth()
+                tImGui.Separator()
+                if tImGui.Button(tLang.L('reset_camera') .. '##cam3dReset') then
+                    c.azimuth = 0.3; c.elevation = 0.3; c.distance = 500
+                    c.fx = 0; c.fy = 0; c.fz = 0
+                    applyCam3d(c)
+                end
+                tImGui.TextDisabled(tLang.L('cam_hint_3d'))
+                tImGui.TextDisabled('Scroll:zoom')
+            else
+                tImGui.TextDisabled(tLang.L('cam_no_mesh'))
+            end
+        else
+            if tImGui.Button(tLang.L('reset_camera') .. '##cam2dReset') then
+                camera2d:setPos(0, 0)
+            end
+            tImGui.TextDisabled(tLang.L('cam_hint_2d'))
+        end
+    end
+    tImGui.End()
+end
+
 function onLoop(delta)
     main_menu_mesh_debug()
+    showCameraWindow()
     showMeshTreeWindow()
     updatePreviewMesh()
     -- Auto-refresh frame-filter preview when any frame checkbox was toggled
@@ -1455,14 +1560,41 @@ end
 
 function onTouchDown(key, x, y)
     if not tImGui.IsAnyWindowHovered() then
-        isClickedMouseleft = (key == 0)
+        isClickedMouseleft  = (key == 0)
+        isClickedMouseRight = (key == 1)
         camera2d.mx = x
         camera2d.my = y
     end
 end
 
 function onTouchMove(key, x, y)
-    if isClickedMouseleft and not tImGui.IsAnyWindowHovered() then
+    if tImGui.IsAnyWindowHovered() then return end
+    if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
+        if isClickedMouseleft then
+            -- Orbit: rotate around focus point
+            c.azimuth   = c.azimuth   - (x - camera2d.mx) * 0.005
+            c.elevation = c.elevation + (y - camera2d.my) * 0.005
+            c.elevation = math.max(-math.pi * 0.49, math.min(math.pi * 0.49, c.elevation))
+        elseif isClickedMouseRight then
+            -- Pan: translate focus in the camera right+up plane
+            local px, py, pz = cam3dGetPos(c)
+            local vx, vy, vz = c.fx - px, c.fy - py, c.fz - pz
+            local vlen = math.sqrt(vx*vx + vy*vy + vz*vz)
+            if vlen > 0 then vx, vy, vz = vx/vlen, vy/vlen, vz/vlen end
+            -- right = normalize(cross(view, worldUp=(0,1,0))) = (vz, 0, -vx)
+            local rx, rz = vz, -vx
+            local rlen = math.sqrt(rx*rx + rz*rz)
+            if rlen > 0 then rx, rz = rx/rlen, rz/rlen end
+            local scale = c.distance * 0.001
+            c.fx = c.fx + rx * (camera2d.mx - x) * scale
+            c.fy = c.fy + (y - camera2d.my) * scale
+            c.fz = c.fz + rz * (camera2d.mx - x) * scale
+        end
+        camera2d.mx = x
+        camera2d.my = y
+        if tPreviewMesh then applyCam3d(c) end
+    elseif isClickedMouseleft then
         local px = (camera2d.mx - x) * camera2d.sx
         local py = (camera2d.my - y) * camera2d.sy
         camera2d.mx = x
@@ -1472,13 +1604,20 @@ function onTouchMove(key, x, y)
 end
 
 function onTouchUp(key, x, y)
-    isClickedMouseleft = false
+    isClickedMouseleft  = false
+    isClickedMouseRight = false
     camera2d.mx = x
     camera2d.my = y
 end
 
 function onTouchZoom(zoom)
-    if tPreviewMesh and not tImGui.IsAnyWindowHovered() then
+    if tImGui.IsAnyWindowHovered() then return end
+    if bCameraMode3D and iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
+        local c = tLoadedMeshes[iSelectedMeshIndex].cam3d
+        c.distance = c.distance * (1.0 - zoom * 0.15)
+        c.distance = math.max(1, c.distance)
+        if tPreviewMesh then applyCam3d(c) end
+    elseif tPreviewMesh then
         local s = zoom * 0.2
         tPreviewMesh.sx = (tPreviewMesh.sx or 1) + s
         if (tPreviewMesh.sx or 1) < 0.2 then tPreviewMesh.sx = 0.2 end
