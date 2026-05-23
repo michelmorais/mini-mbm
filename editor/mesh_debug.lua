@@ -937,7 +937,7 @@ function showMeshOptions(tEntry, index)
                 end
                 tImGui.SameLine()
             end
-            local _, autoVal = tImGui.Checkbox('Auto##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
+            local autoVal = tImGui.Checkbox('Auto##autoRefresh-' .. index, tEntry.bAutoRefreshPreview)
             tEntry.bAutoRefreshPreview = autoVal
             tImGui.Separator()
         end
