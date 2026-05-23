@@ -312,6 +312,74 @@ function invertMeshUV(meshD, targetFrame, invertU, invertV)
     return total
 end
 
+-- Detects the V coordinate range and applies the correct legacy fix:
+--   V in [-1, 0]  → v = -v    (old format: V was stored as -V_correct)
+--   V in [1, 2]   → v = v - 1 (already had 1-V inversion applied once, shift back)
+-- targetFrame: 0 = all frames, 1..N = specific frame.
+-- Returns fixType ('negate'|'shift'|'none'), total vertices touched; or false on error.
+function normalizeLegacyV(meshD, targetFrame)
+    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not ok or not nFrames then return false end
+    local fStart = targetFrame == 0 and 1 or targetFrame
+    local fEnd   = targetFrame == 0 and nFrames or targetFrame
+
+    -- First pass: scan V range
+    local minV, maxV = math.huge, -math.huge
+    for f = fStart, fEnd do
+        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        if ok2 and nSubsets then
+            for s = 1, nSubsets do
+                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                if ok3 and nV then
+                    for v = 1, nV do
+                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        if ok4 and vd then
+                            if vd.v < minV then minV = vd.v end
+                            if vd.v > maxV then maxV = vd.v end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if minV == math.huge then return false end
+
+    -- Determine which fix applies based on the detected range
+    local fixType = 'none'
+    if maxV < 0.1 and minV < -0.1 then
+        fixType = 'negate'   -- V in [-1, 0]: was stored as -V_correct; fix = -v
+    elseif minV > 0.9 then
+        fixType = 'shift'    -- V in [1, 2]: shift down by 1; fix = v - 1
+    end
+    if fixType == 'none' then return 'none', 0 end
+
+    -- Second pass: apply fix
+    local total = 0
+    for f = fStart, fEnd do
+        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        if ok2 and nSubsets then
+            for s = 1, nSubsets do
+                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                if ok3 and nV then
+                    for v = 1, nV do
+                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        if ok4 and vd then
+                            if fixType == 'negate' then
+                                vd.v = -vd.v
+                            else
+                                vd.v = vd.v - 1
+                            end
+                            pcall(function() meshD:setVertex(f, s, v, vd) end)
+                            total = total + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return fixType, total
+end
+
 -- Returns total vertex count across all frames/subsets, or 0 on error
 function getMeshTotalVertices(meshD)
     local total = 0
@@ -1100,6 +1168,27 @@ function showMeshOptions(tEntry, index)
                     tUtil.showMessage(string.format(tLang.L("uv_invert_applied_fmt"), 'UV ' .. target, shortName))
                 end
             end
+        end
+        if tImGui.Button(tLang.L("fix_legacy_v") .. '##' .. index) then
+            if not (info and info.hasTexture) then
+                tUtil.showMessage(string.format(tLang.L("uv_no_data_warning"), shortName))
+            else
+                local fixType, n = normalizeLegacyV(meshD, uv.frame)
+                if fixType == false then
+                    tUtil.showMessageWarn('Failed to scan UV data: ' .. shortName)
+                elseif fixType == 'none' then
+                    tUtil.showMessage(string.format(tLang.L("fix_legacy_v_none_fmt"), shortName))
+                else
+                    onEdit()
+                    local target = uv.frame == 0 and 'all frames' or ('frame ' .. uv.frame)
+                    tUtil.showMessage(string.format(tLang.L("fix_legacy_v_ok_fmt"), fixType, n, target, shortName))
+                end
+            end
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L("fix_legacy_v_tooltip"))
+            tImGui.EndTooltip()
         end
 
         tImGui.TreePop()
