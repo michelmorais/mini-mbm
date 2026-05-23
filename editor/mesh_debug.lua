@@ -1479,6 +1479,40 @@ function main_menu_mesh_debug()
         end
         if tImGui.BeginMenu(tLang.L("menu_options")) then
             tLang.renderLanguageSubmenu()
+
+            if tImGui.BeginMenu(tLang.L("background_color")) then
+                local sz        = tImGui.GetTextLineHeight()
+                
+                local rounding  =  0
+                local flags     =  0
+
+                local colors    = { {'default',    tUtil.tColorBackground},
+                                    {'white',      {r=1,g=1,b=1,a=1}},
+                                    {'black',      {r=0,g=0,b=0,a=1}},
+                                    {'red',        {r=1,g=0,b=0,a=1}},
+                                    {'green',      {r=0,g=1,b=0,a=1}},
+                                    {'blue',       {r=0,g=0,b=1,a=1}},
+                                    {'cyan',       {r=0,g=1,b=1,a=1}},
+                                    {'yellow',     {r=1,g=1,b=0,a=1}},
+                                    {'magenta',    {r=1,g=0,b=1,a=1}}
+                                  }
+                
+                for i=1, #colors do
+                    local winPos  = tImGui.GetCursorScreenPos()
+                    local p_max   = {x=winPos.x + sz,y=winPos.y + sz}
+                    local name    = tLang.L(colors[i][1])
+                    local color   = colors[i][2]
+                    tImGui.AddRectFilled(winPos, p_max, color, rounding, flags)
+                    tImGui.Dummy({x =sz, y = sz})
+                    tImGui.SameLine()
+                    local pressed,checked = tImGui.MenuItem(name)
+                    if pressed then
+                        mbm.setColor(color.r,color.g,color.b)
+                        tColorBackgroundGlobal = color
+                    end
+                end
+                tImGui.EndMenu()
+            end
             tImGui.EndMenu()
         end
         if tImGui.BeginMenu(tLang.L("menu_about")) then
