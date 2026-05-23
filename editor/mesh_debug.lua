@@ -55,6 +55,29 @@ function onInitScene()
     iLastPreviewedIndex  = 0      -- track which mesh we last previewed
     isClickedMouseleft   = false
     isClickedMouseRight  = false
+    -- Origin lines: 2D (X red, Y green) and 3D (X red, Y green, Z blue)
+    originLine2dX = line:new('2dw', 0, 0, 50)
+    originLine2dY = line:new('2dw', 0, 0, 50)
+    originLine2dX:add({-9999999, 0, 9999999, 0})
+    originLine2dY:add({0, -9999999, 0, 9999999})
+    originLine2dX:setColor(255, 0, 0)
+    originLine2dY:setColor(0, 255, 0)
+    originLine2dX.visible = false
+    originLine2dY.visible = false
+    originLine3dX = line:new('3d', 0, 0, 0)
+    originLine3dY = line:new('3d', 0, 0, 0)
+    originLine3dZ = line:new('3d', 0, 0, 0)
+    originLine3dX:add({-9999999, 0, 0,  9999999, 0, 0})
+    originLine3dY:add({0, -9999999, 0,  0, 9999999, 0})
+    originLine3dZ:add({0, 0, -9999999,  0, 0, 9999999})
+    originLine3dX:setColor(255, 0, 0)
+    originLine3dY:setColor(0, 255, 0)
+    originLine3dZ:setColor(0, 0, 255)
+    originLine3dX.visible = false
+    originLine3dY.visible = false
+    originLine3dZ.visible = false
+    bShowOrigin2d = false
+    bShowOrigin3d = false
 end
 
 function onLoadMeshFromFile()
@@ -606,6 +629,20 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
 
             tImGui.EndTable()
         end
+        tImGui.Separator()
+        local hasFilt = false
+        for _, v in pairs(tSel) do
+            if v == false then hasFilt = true; break end
+        end
+        if tImGui.Button(tLang.L("save_frame_sel_as") .. '##saveAs-' .. index) then
+            doSaveAs(tEntry, index)
+        end
+        if tImGui.IsItemHovered(0) then
+            tImGui.BeginTooltip()
+            tImGui.Text(tLang.L(hasFilt and 'save_as_tooltip_filt' or 'save_as_tooltip'))
+            tImGui.EndTooltip()
+        end
+        tImGui.TextDisabled(tLang.L("save_as_hint"))
         tImGui.TreePop()
     end
 end
@@ -1289,16 +1326,6 @@ function showMeshOptions(tEntry, index)
         tImGui.EndTooltip()
     end
     tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
-    tImGui.Separator()
-    if tImGui.Button(tLang.L("save_as") .. '##saveAs-' .. index) then
-        doSaveAs(tEntry, index)
-    end
-    if tImGui.IsItemHovered(0) then
-        tImGui.BeginTooltip()
-        tImGui.Text(tLang.L(hasFilt and 'save_as_tooltip_filt' or 'save_as_tooltip'))
-        tImGui.EndTooltip()
-    end
-    tImGui.TextDisabled(tLang.L("save_as_hint"))
 end
 
 function doSaveAs(tEntry, index)
@@ -1568,6 +1595,27 @@ function showCameraWindow()
         bCameraMode3D = (camMode == 1)
         if prev3d ~= bCameraMode3D then
             iLastPreviewedIndex = 0  -- force preview reload with correct coord type
+            -- Sync origin line visibility to the newly active camera
+            originLine2dX.visible = (not bCameraMode3D) and bShowOrigin2d
+            originLine2dY.visible = (not bCameraMode3D) and bShowOrigin2d
+            originLine3dX.visible = bCameraMode3D and bShowOrigin3d
+            originLine3dY.visible = bCameraMode3D and bShowOrigin3d
+            originLine3dZ.visible = bCameraMode3D and bShowOrigin3d
+        end
+        -- Origin lines checkbox (per-camera)
+        local showOrig = bCameraMode3D and bShowOrigin3d or bShowOrigin2d
+        local newOrig = tImGui.Checkbox(tLang.L('enable_origin_lines') .. '##origLines', showOrig)
+        if newOrig ~= showOrig then
+            if bCameraMode3D then
+                bShowOrigin3d = newOrig
+                originLine3dX.visible = newOrig
+                originLine3dY.visible = newOrig
+                originLine3dZ.visible = newOrig
+            else
+                bShowOrigin2d = newOrig
+                originLine2dX.visible = newOrig
+                originLine2dY.visible = newOrig
+            end
         end
         tImGui.Separator()
 
