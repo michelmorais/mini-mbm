@@ -36,6 +36,7 @@ tUtil         =     require "editor_utils"
 function onInitScene()
     camera2d              = mbm.getCamera("2d")
     camera3d              = mbm.getCamera("3d")
+    camera3d:setFar(9999999)
     bCameraMode3D         = false
     tLoadedMeshes         = {}
     sLastMeshPath         = mbm.get('user_home') or mbm.get('HOME') or '~'
