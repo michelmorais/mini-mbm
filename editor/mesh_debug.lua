@@ -1327,8 +1327,10 @@ function showFramePickWindow(tEntry, meshD, index)
                     local tgtFrame  = math.floor(anchorRow / 100)
                     local tgtSubset = anchorRow % 100
                     table.sort(selectedRightSubsets, function(a, b)
-                        if a.f == b.f then return before and a.s < b.s or a.s > b.s end
-                        return before and a.f < b.f or a.f > b.f
+                        if a.f == b.f then
+                            if before then return a.s < b.s else return a.s > b.s end
+                        end
+                        if before then return a.f < b.f else return a.f > b.f end
                     end)
                     for _, ss in ipairs(selectedRightSubsets) do
                         table.insert(tEntry.tPendingOps, {
