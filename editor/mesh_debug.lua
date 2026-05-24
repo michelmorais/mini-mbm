@@ -1195,7 +1195,7 @@ function showFramePickWindow(tEntry, meshD, index)
             if not okLF then nLeftFrames = 0 end
             tImGui.Text(tLang.L('frame_pick_left'))
             if tImGui.BeginTable('fpLeft-' .. index, 2, tblFlags, {x=halfW, y=popH - 120}) then
-                tImGui.TableSetupColumn('##fpleft-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+                tImGui.TableSetupColumn('##fpleft-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 40)
                 tImGui.TableSetupColumn(tLang.L('frame_selection'))
                 tImGui.TableHeadersRow()
                 for f = 1, (nLeftFrames or 0) do
@@ -1248,7 +1248,7 @@ function showFramePickWindow(tEntry, meshD, index)
             tImGui.BeginGroup()
             tImGui.Text(tLang.L('frame_pick_right'))
             if tImGui.BeginTable('fpRight-' .. index, 2, tblFlags, {x=halfW, y=popH - 120}) then
-                tImGui.TableSetupColumn('##fpright-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+                tImGui.TableSetupColumn('##fpright-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 40)
                 tImGui.TableSetupColumn(tLang.L('frame_selection'))
                 tImGui.TableHeadersRow()
                 for f = 1, (nRightFrames or 0) do
@@ -1609,7 +1609,6 @@ function showFrameNode(tEntry, meshD, index)
                 tEntry.tCheckedRemove[sub3.f * 100 + sub3.s] = true
             end
         end
-        tImGui.SameLine()
     end
 
     -- Remove unselected (always visible)
@@ -1617,31 +1616,29 @@ function showFrameNode(tEntry, meshD, index)
         for f = 1, nFrames do
             if not pendingFrames[f] then
                 local fChecked = tEntry.tCheckedRemove[f * 100] or false
-                if not fChecked then
-                    local fSubsets, anySubChecked = {}, false
-                    for _, sub2 in ipairs(allSubsets) do
-                        if sub2.f == f then
-                            table.insert(fSubsets, sub2.s)
-                            if tEntry.tCheckedRemove[f * 100 + sub2.s] then anySubChecked = true end
+                local fSubsets, anySubChecked = {}, false
+                for _, sub2 in ipairs(allSubsets) do
+                    if sub2.f == f then
+                        table.insert(fSubsets, sub2.s)
+                        if tEntry.tCheckedRemove[f * 100 + sub2.s] then anySubChecked = true end
+                    end
+                end
+                if fChecked or anySubChecked then
+                    -- Frame or at least one subset is selected: remove only the unselected subsets
+                    for _, s in ipairs(fSubsets) do
+                        if not (tEntry.tCheckedRemove[f * 100 + s] or false)
+                           and not pendingSubsets[f * 1000 + s] then
+                            table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
                         end
                     end
-                    if anySubChecked then
-                        -- Some subsets selected: remove the UN-selected subsets of this frame
-                        for _, s in ipairs(fSubsets) do
-                            if not (tEntry.tCheckedRemove[f * 100 + s] or false)
-                               and not pendingSubsets[f * 1000 + s] then
-                                table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
-                            end
-                        end
-                    else
-                        -- Whole frame unselected: remove it
-                        local already = false
-                        for _, op in ipairs(tEntry.tPendingOps) do
-                            if op.kind == 'removeFrame' and op.frame == f then already = true; break end
-                        end
-                        if not already then
-                            table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
-                        end
+                else
+                    -- Nothing selected for this frame: remove the whole frame
+                    local already = false
+                    for _, op in ipairs(tEntry.tPendingOps) do
+                        if op.kind == 'removeFrame' and op.frame == f then already = true; break end
+                    end
+                    if not already then
+                        table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
                     end
                 end
             end
@@ -1670,6 +1667,23 @@ function showFrameNode(tEntry, meshD, index)
         tImGui.SameLine()
         if tImGui.Button('X##fnclr-' .. index) then
             tEntry.tPendingOps = {}
+        end
+    end
+    -- Save As (visible after Execute, when mesh is modified in-memory)
+    if tEntry.modified then
+        if tImGui.Button(tLang.L('save_frame_sel_as') .. '##fnsa-' .. index) then
+            local info    = tEntry.info or {}
+            local extMap  = { mesh = 'msh', sprite = 'spt', font = 'fnt', tile = 'tile', particle = 'ptl' }
+            local ext     = extMap[info.type] or 'msh'
+            local newFile = mbm.saveFile(sLastMeshPath, ext)
+            if newFile and newFile ~= '' then
+                if meshD:save(newFile, false, false) then
+                    tUtil.showMessage(string.format(tLang.L('save_as_success_fmt'), tUtil.getShortName(newFile)))
+                    sLastMeshPath = newFile
+                else
+                    tUtil.showMessageWarn(string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName)))
+                end
+            end
         end
     end
 
