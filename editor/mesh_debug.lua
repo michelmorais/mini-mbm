@@ -570,20 +570,31 @@ function buildFilteredMesh(tEntry)
     -- For kept frames with subset-level selection: remove UN-checked subsets
     -- (whole-frame selection keeps all subsets; subset selection keeps only chosen ones)
     local tCR = tEntry.tCheckedRemove or {}
+    local framesToRemove = {}
     for f = nFrames, 1, -1 do
         if tSel[f] ~= false then
             local okS, nSubs = dpCall(function() return tempD:getTotalSubset(f) end)
             if okS and nSubs then
-                -- Check whether any subset is unchecked for this frame
+                -- Count checked vs unchecked subsets
                 local anyUnchecked = false
+                local anyChecked   = false
                 for s = 1, nSubs do
-                    if not (tCR[f * 100 + s] or false) then anyUnchecked = true; break end
+                    if tCR[f * 100 + s] or false then
+                        anyChecked = true
+                    else
+                        anyUnchecked = true
+                    end
                 end
                 if anyUnchecked then
-                    -- Keep only checked subsets, remove the rest
-                    for s = nSubs, 1, -1 do
-                        if not (tCR[f * 100 + s] or false) then
-                            tempD:removeSubset(f, s)
+                    if not anyChecked then
+                        -- All subsets unchecked: remove whole frame to avoid empty-frame error
+                        framesToRemove[f] = true
+                    else
+                        -- Some subsets unchecked: remove only the unchecked ones
+                        for s = nSubs, 1, -1 do
+                            if not (tCR[f * 100 + s] or false) then
+                                tempD:removeSubset(f, s)
+                            end
                         end
                     end
                 end
@@ -591,9 +602,18 @@ function buildFilteredMesh(tEntry)
         end
     end
 
-    -- Remove unselected frames in reverse order to keep indices stable
+    -- Guard: if nothing survives after both frame + subset filters, bail out early
+    local survivingFrames = 0
+    for f = 1, nFrames do
+        if tSel[f] ~= false and not framesToRemove[f] then
+            survivingFrames = survivingFrames + 1
+        end
+    end
+    if survivingFrames == 0 then return nil end
+
+    -- Remove unselected frames (tFrameSelection) and all-subsets-unchecked frames
     for f = nFrames, 1, -1 do
-        if tSel[f] == false then
+        if tSel[f] == false or framesToRemove[f] then
             tempD:removeFrame(f)
         end
     end
@@ -610,10 +630,10 @@ function refreshFrameFilterPreview(tEntry, index)
 
     local tempD = buildFilteredMesh(tEntry)
     if not tempD then
-        -- Zero frames selected: disable preview and warn
+        -- Zero frames/subsets selected: disable preview and warn
         destroyPreviewMesh()
         iLastPreviewedIndex = index
-        tUtil.showMessageWarn('No frames selected \xe2\x80\x94 preview disabled')
+        tUtil.showMessageWarn(tLang.L('no_frames_to_save'))
         return
     end
 
@@ -1395,48 +1415,48 @@ function showFrameNode(tEntry, meshD, index)
 
         -- ── Left: frames ───────────────────────────────────────────────
         tImGui.TableSetColumnIndex(0)
-        if tImGui.BeginChild('fnFrames-' .. index, {x=0, y=listH}, false, 0) then
-            for f = 1, nFrames do
-                local key = f * 100
-                if pendingFrames[f] then
-                    tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                    tImGui.Text('[DEL] Frame ' .. f)
-                    tImGui.PopStyleColor()
-                else
-                    local explicitChecked = tEntry.tCheckedRemove[key] or false
-                    -- Frame appears checked if explicitly staged OR if any of its subsets are staged
-                    local displayChecked = explicitChecked or (tImplicit[f] or false)
-                    local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, displayChecked)
-                    if newChecked ~= displayChecked then
-                        frameSelChanged = true
-                        if not newChecked then
-                            -- User unchecked: clear frame AND all its subset checks
-                            tEntry.tCheckedRemove[key] = false
-                            for _, sub2 in ipairs(allSubsets) do
-                                if sub2.f == f then
-                                    tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = false
-                                end
-                            end
-                        else
-                            -- User explicitly checked the frame: restore frame + all its subsets
-                            tEntry.tCheckedRemove[key] = true
-                            for _, sub2 in ipairs(allSubsets) do
-                                if sub2.f == f then
-                                    tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = true
-                                end
+        tImGui.BeginChild('fnFrames-' .. index, {x=0, y=listH}, false, 0)
+        for f = 1, nFrames do
+            local key = f * 100
+            if pendingFrames[f] then
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                tImGui.Text('[DEL] Frame ' .. f)
+                tImGui.PopStyleColor()
+            else
+                local explicitChecked = tEntry.tCheckedRemove[key] or false
+                -- Frame appears checked if explicitly staged OR if any of its subsets are staged
+                local displayChecked = explicitChecked or (tImplicit[f] or false)
+                local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, displayChecked)
+                if newChecked ~= displayChecked then
+                    frameSelChanged = true
+                    if not newChecked then
+                        -- User unchecked: clear frame AND all its subset checks
+                        tEntry.tCheckedRemove[key] = false
+                        for _, sub2 in ipairs(allSubsets) do
+                            if sub2.f == f then
+                                tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = false
                             end
                         end
                     else
-                        tEntry.tCheckedRemove[key] = explicitChecked
+                        -- User explicitly checked the frame: restore frame + all its subsets
+                        tEntry.tCheckedRemove[key] = true
+                        for _, sub2 in ipairs(allSubsets) do
+                            if sub2.f == f then
+                                tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = true
+                            end
+                        end
                     end
+                else
+                    tEntry.tCheckedRemove[key] = explicitChecked
                 end
             end
-            tImGui.EndChild()
         end
+        tImGui.EndChild()
 
         -- ── Right: all subsets ─────────────────────────────────────────
         tImGui.TableSetColumnIndex(1)
-        if tImGui.BeginChild('fnSubsets-' .. index, {x=0, y=listH}, false, 0) then
+        tImGui.BeginChild('fnSubsets-' .. index, {x=0, y=listH}, false, 0)
+        do
             for _, sub in ipairs(allSubsets) do
                 local f, s, texName = sub.f, sub.s, sub.texName
                 local subKey = f * 100 + s
@@ -1451,11 +1471,21 @@ function showFrameNode(tEntry, meshD, index)
                     tEntry.tCheckedRemove[subKey] = newChecked
                     if newChecked ~= checked then
                         frameSelChanged = true
+                        -- If last subset unchecked: auto-clear the frame key so frame shows unchecked
+                        if not newChecked then
+                            local allUnchecked = true
+                            for _, sub3 in ipairs(allSubsets) do
+                                if sub3.f == f and (tEntry.tCheckedRemove[sub3.f * 100 + sub3.s] or false) then
+                                    allUnchecked = false; break
+                                end
+                            end
+                            if allUnchecked then tEntry.tCheckedRemove[f * 100] = false end
+                        end
                     end
                 end
             end
-            tImGui.EndChild()
-        end
+        end  -- do
+        tImGui.EndChild()
 
         tImGui.EndTable()
     end
