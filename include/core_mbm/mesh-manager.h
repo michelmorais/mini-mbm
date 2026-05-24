@@ -79,6 +79,9 @@ namespace mbm
         API_IMPL virtual ~MESH_MBM_DEBUG();
         API_IMPL uint32_t addBuffer(const int stride = 3);
         API_IMPL uint32_t addSubset(uint32_t indexFrame);
+        API_IMPL void     removeSubset(uint32_t indexFrame, uint32_t indexSubset);
+        API_IMPL uint32_t copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx);
+        API_IMPL uint32_t copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx);
         API_IMPL bool getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut, INFO_BOUND_FONT **datailFontOut,
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,

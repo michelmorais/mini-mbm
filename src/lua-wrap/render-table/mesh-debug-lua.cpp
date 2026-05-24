@@ -1431,6 +1431,37 @@ namespace mbm
         return 0;
     }
 
+    int onRemoveSubsetDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  indexFrame   = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        const uint32_t  indexSubset  = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        meshDebug->mesh.removeSubset(indexFrame, indexSubset);
+        return 0;
+    }
+
+    int onCopyFrameFromDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
+        MESH_DEBUG_LUA *srcDebug     = getMeshDebugFromRawTable(lua, 1, 2);
+        const uint32_t  srcFrameIdx  = static_cast<uint32_t>(luaL_checkinteger(lua, 3) - 1);
+        const uint32_t  ret          = meshDebug->mesh.copyBufferFrom(srcDebug->mesh, srcFrameIdx);
+        lua_pushinteger(lua, static_cast<lua_Integer>(ret));
+        return 1;
+    }
+
+    int onCopySubsetFromDebugLua(lua_State *lua)
+    {
+        MESH_DEBUG_LUA *meshDebug    = getMeshDebugFromRawTable(lua, 1, 1);
+        const uint32_t  targetFrame  = static_cast<uint32_t>(luaL_checkinteger(lua, 2) - 1);
+        MESH_DEBUG_LUA *srcDebug     = getMeshDebugFromRawTable(lua, 1, 3);
+        const uint32_t  srcFrame     = static_cast<uint32_t>(luaL_checkinteger(lua, 4) - 1);
+        const uint32_t  srcSubset    = static_cast<uint32_t>(luaL_checkinteger(lua, 5) - 1);
+        const uint32_t  ret          = meshDebug->mesh.copySubsetFrom(targetFrame, srcDebug->mesh, srcFrame, srcSubset);
+        lua_pushinteger(lua, static_cast<lua_Integer>(ret));
+        return 1;
+    }
+
     int onRemoveAnimationDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1705,6 +1736,9 @@ namespace mbm
                                           {"addFrame", onAddFrameDebugLua},
                                           {"removeFrame", onRemoveFrameDebugLua},
                                           {"addSubSet", onAddSubsetDebugLua},
+                                          {"removeSubset", onRemoveSubsetDebugLua},
+                                          {"copyFrameFrom", onCopyFrameFromDebugLua},
+                                          {"copySubsetFrom", onCopySubsetFromDebugLua},
                                           {"addAnim", onAddAnimationDebugLua},
                                           {"removeAnim", onRemoveAnimationDebugLua},
                                           {"centralize", onCentralizeMeshDebugLua},

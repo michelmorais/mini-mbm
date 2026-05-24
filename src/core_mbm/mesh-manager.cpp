@@ -1572,6 +1572,212 @@ namespace mbm
         this->buffer.erase(this->buffer.begin() + static_cast<ptrdiff_t>(indexFrame));
     }
 
+    void MESH_MBM_DEBUG::removeSubset(uint32_t indexFrame, uint32_t indexSubset)
+    {
+        if (indexFrame >= static_cast<uint32_t>(this->buffer.size()))
+            return;
+        util::BUFFER_MESH_DEBUG *buf = this->buffer[indexFrame];
+        if (indexSubset >= static_cast<uint32_t>(buf->subset.size()))
+            return;
+        util::SUBSET_DEBUG *sub = buf->subset[indexSubset];
+        const int vStart  = sub->vertexStart;
+        const int vCount  = sub->vertexCount;
+        const int iStart  = sub->indexStart;
+        const int iCount  = sub->indexCount;
+        const int stride  = buf->headerFrame.stride;
+        const int totalV  = buf->headerFrame.sizeVertexBuffer;
+        const int totalI  = buf->headerFrame.sizeIndexBuffer;
+        // Compact position
+        if (buf->position && vCount > 0 && (vStart + vCount) < totalV)
+        {
+            float *dst       = buf->position + (vStart * stride);
+            const float *src = buf->position + ((vStart + vCount) * stride);
+            const int n      = (totalV - vStart - vCount) * stride;
+            memmove(dst, src, static_cast<size_t>(n) * sizeof(float));
+        }
+        // Compact normals
+        if (buf->normal && vCount > 0 && (vStart + vCount) < totalV)
+        {
+            float *dst       = buf->normal + (vStart * 3);
+            const float *src = buf->normal + ((vStart + vCount) * 3);
+            const int n      = (totalV - vStart - vCount) * 3;
+            memmove(dst, src, static_cast<size_t>(n) * sizeof(float));
+        }
+        // Compact UVs
+        if (buf->uv && vCount > 0 && (vStart + vCount) < totalV)
+        {
+            float *dst       = buf->uv + (vStart * 2);
+            const float *src = buf->uv + ((vStart + vCount) * 2);
+            const int n      = (totalV - vStart - vCount) * 2;
+            memmove(dst, src, static_cast<size_t>(n) * sizeof(float));
+        }
+        // Fix index buffer: adjust vertex references, then compact
+        if (buf->indexBuffer)
+        {
+            for (int i = 0; i < totalI; ++i)
+            {
+                if (i >= iStart && i < iStart + iCount)
+                    continue; // skip entries being removed
+                if (buf->indexBuffer[i] >= static_cast<uint16_t>(vStart + vCount))
+                    buf->indexBuffer[i] -= static_cast<uint16_t>(vCount);
+            }
+            if (iCount > 0 && (iStart + iCount) < totalI)
+            {
+                uint16_t *dst       = buf->indexBuffer + iStart;
+                const uint16_t *src = buf->indexBuffer + iStart + iCount;
+                memmove(dst, src, static_cast<size_t>(totalI - iStart - iCount) * sizeof(uint16_t));
+            }
+            buf->headerFrame.sizeIndexBuffer -= iCount;
+        }
+        // Adjust remaining subsets
+        for (size_t i = 0; i < buf->subset.size(); ++i)
+        {
+            if (i == static_cast<size_t>(indexSubset))
+                continue;
+            util::SUBSET_DEBUG *s = buf->subset[i];
+            if (s->vertexStart > vStart)
+                s->vertexStart -= vCount;
+            if (s->indexStart > iStart)
+                s->indexStart -= iCount;
+        }
+        delete sub;
+        buf->subset.erase(buf->subset.begin() + static_cast<ptrdiff_t>(indexSubset));
+        buf->headerFrame.totalSubset--;
+        buf->headerFrame.sizeVertexBuffer -= vCount;
+    }
+
+    uint32_t MESH_MBM_DEBUG::copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx)
+    {
+        if (srcFrameIdx >= static_cast<uint32_t>(src.buffer.size()))
+            return 0;
+        util::BUFFER_MESH_DEBUG *srcBuf = src.buffer[srcFrameIdx];
+        auto *newBuf                    = new util::BUFFER_MESH_DEBUG();
+        newBuf->headerFrame             = srcBuf->headerFrame;
+        const int stride  = srcBuf->headerFrame.stride;
+        const int totalV  = srcBuf->headerFrame.sizeVertexBuffer;
+        const int totalI  = srcBuf->headerFrame.sizeIndexBuffer;
+        if (srcBuf->position && totalV > 0)
+        {
+            const size_t n    = static_cast<size_t>(totalV * stride);
+            newBuf->position  = new float[n];
+            memcpy(newBuf->position, srcBuf->position, n * sizeof(float));
+        }
+        if (srcBuf->normal && totalV > 0)
+        {
+            const size_t n  = static_cast<size_t>(totalV * 3);
+            newBuf->normal  = new float[n];
+            memcpy(newBuf->normal, srcBuf->normal, n * sizeof(float));
+        }
+        if (srcBuf->uv && totalV > 0)
+        {
+            const size_t n = static_cast<size_t>(totalV * 2);
+            newBuf->uv     = new float[n];
+            memcpy(newBuf->uv, srcBuf->uv, n * sizeof(float));
+        }
+        if (srcBuf->indexBuffer && totalI > 0)
+        {
+            const size_t n      = static_cast<size_t>(totalI);
+            newBuf->indexBuffer = new uint16_t[n];
+            memcpy(newBuf->indexBuffer, srcBuf->indexBuffer, n * sizeof(uint16_t));
+        }
+        for (auto *srcSub : srcBuf->subset)
+        {
+            auto *newSub = new util::SUBSET_DEBUG();
+            *newSub      = *srcSub;
+            newBuf->subset.push_back(newSub);
+        }
+        this->buffer.push_back(newBuf);
+        return static_cast<uint32_t>(this->buffer.size());
+    }
+
+    uint32_t MESH_MBM_DEBUG::copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx)
+    {
+        if (targetFrame >= static_cast<uint32_t>(this->buffer.size()))
+            return 0;
+        if (srcFrame >= static_cast<uint32_t>(src.buffer.size()))
+            return 0;
+        util::BUFFER_MESH_DEBUG *tgtBuf = this->buffer[targetFrame];
+        util::BUFFER_MESH_DEBUG *srcBuf = src.buffer[srcFrame];
+        if (srcSubsetIdx >= static_cast<uint32_t>(srcBuf->subset.size()))
+            return 0;
+        const int tgtStride = tgtBuf->headerFrame.stride;
+        const int srcStride = srcBuf->headerFrame.stride;
+        if (tgtStride != srcStride)
+            return 0; // incompatible strides
+        const bool tgtHasIB = (tgtBuf->indexBuffer != nullptr);
+        const bool srcHasIB = (srcBuf->indexBuffer != nullptr);
+        if (tgtHasIB != srcHasIB)
+            return 0; // incompatible VB/IB modes
+        util::SUBSET_DEBUG *srcSub = srcBuf->subset[srcSubsetIdx];
+        const int srcVStart  = srcSub->vertexStart;
+        const int srcVCount  = srcSub->vertexCount;
+        const int srcIStart  = srcSub->indexStart;
+        const int srcICount  = srcSub->indexCount;
+        const int tgtOldV    = tgtBuf->headerFrame.sizeVertexBuffer;
+        const int tgtOldI    = tgtBuf->headerFrame.sizeIndexBuffer;
+        // Append vertex data
+        if (srcVCount > 0)
+        {
+            const int newTotalV = tgtOldV + srcVCount;
+            // position
+            {
+                const size_t oldN = static_cast<size_t>(tgtOldV * tgtStride);
+                const size_t addN = static_cast<size_t>(srcVCount * srcStride);
+                auto *newPos      = new float[oldN + addN];
+                if (tgtBuf->position) memcpy(newPos, tgtBuf->position, oldN * sizeof(float));
+                memcpy(newPos + oldN, srcBuf->position + srcVStart * srcStride, addN * sizeof(float));
+                delete[] tgtBuf->position;
+                tgtBuf->position = newPos;
+            }
+            // normals
+            if (srcBuf->normal)
+            {
+                const size_t oldN = static_cast<size_t>(tgtOldV * 3);
+                const size_t addN = static_cast<size_t>(srcVCount * 3);
+                auto *newNrm      = new float[oldN + addN]();
+                if (tgtBuf->normal) memcpy(newNrm, tgtBuf->normal, oldN * sizeof(float));
+                memcpy(newNrm + oldN, srcBuf->normal + srcVStart * 3, addN * sizeof(float));
+                delete[] tgtBuf->normal;
+                tgtBuf->normal = newNrm;
+            }
+            // UVs
+            if (srcBuf->uv)
+            {
+                const size_t oldN = static_cast<size_t>(tgtOldV * 2);
+                const size_t addN = static_cast<size_t>(srcVCount * 2);
+                auto *newUv       = new float[oldN + addN]();
+                if (tgtBuf->uv) memcpy(newUv, tgtBuf->uv, oldN * sizeof(float));
+                memcpy(newUv + oldN, srcBuf->uv + srcVStart * 2, addN * sizeof(float));
+                delete[] tgtBuf->uv;
+                tgtBuf->uv = newUv;
+            }
+            tgtBuf->headerFrame.sizeVertexBuffer = newTotalV;
+        }
+        // Append index data (adjust vertex indices by tgtOldV)
+        if (srcHasIB && srcICount > 0)
+        {
+            const int newTotalI = tgtOldI + srcICount;
+            auto *newIdx        = new uint16_t[static_cast<size_t>(newTotalI)];
+            if (tgtBuf->indexBuffer) memcpy(newIdx, tgtBuf->indexBuffer, static_cast<size_t>(tgtOldI) * sizeof(uint16_t));
+            for (int i = 0; i < srcICount; ++i)
+                newIdx[tgtOldI + i] = static_cast<uint16_t>(srcBuf->indexBuffer[srcIStart + i] - srcVStart + tgtOldV);
+            delete[] tgtBuf->indexBuffer;
+            tgtBuf->indexBuffer              = newIdx;
+            tgtBuf->headerFrame.sizeIndexBuffer = newTotalI;
+            strncpy(tgtBuf->headerFrame.typeBuffer, "IB", sizeof(tgtBuf->headerFrame.typeBuffer) - 1);
+        }
+        // Create new subset entry
+        auto *newSub       = new util::SUBSET_DEBUG();
+        newSub->texture    = srcSub->texture;
+        newSub->vertexStart = tgtOldV;
+        newSub->vertexCount = srcVCount;
+        newSub->indexStart  = tgtOldI;
+        newSub->indexCount  = srcICount;
+        tgtBuf->subset.push_back(newSub);
+        tgtBuf->headerFrame.totalSubset = static_cast<int>(tgtBuf->subset.size());
+        return static_cast<uint32_t>(tgtBuf->subset.size());
+    }
+
     void MESH_MBM_DEBUG::removeAnimation(uint32_t index)
     {
         if (index >= static_cast<uint32_t>(this->infoAnimation.lsHeaderAnim.size()))

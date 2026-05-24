@@ -145,8 +145,25 @@ function addMeshToTable(fileName)
         bFrameSelectionDirty = false,
         framePreviewPath     = nil,
         bPreviewIsFiltered   = false,
-        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 }
+        cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
+        tPendingOps          = {},
+        tFrameNodeExpanded   = {},
+        bShowFramePick       = false,
+        tImportMeshD         = nil,
+        iLeftSelectedRow     = nil,
+        tRightChecked        = {},
+        tPickLeftExpanded    = {},
+        tPickRightExpanded   = {}
     })
+    -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
+    if info.type == 'mesh' and not bCameraMode3D then
+        bCameraMode3D = true
+        originLine2dX.visible = false
+        originLine2dY.visible = false
+        originLine3dX.visible = bShowOrigin3d
+        originLine3dY.visible = bShowOrigin3d
+        originLine3dZ.visible = bShowOrigin3d
+    end
     return true
 end
 
@@ -616,7 +633,7 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
 
     local ownerMap = buildFrameOwnerMap(meshD, nAnim)
 
-    if tImGui.TreeNodeEx(tLang.L("frame_selection") .. '##fsel-' .. index, 0) then
+    if tImGui.TreeNodeEx(tLang.L("frame_animation_edit") .. '##fsel-' .. index, 0) then
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg')
         if tImGui.BeginTable('frameSel-' .. index, 3, tblFlags) then
             tImGui.TableSetupColumn('##cbcol', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
@@ -986,6 +1003,444 @@ function showMeshInfoTable(tEntry, index)
     end
 end
 
+-- ---------------------------------------------------------------------------
+-- Execute all pending frame/subset ops for tEntry in-memory
+-- ---------------------------------------------------------------------------
+function executeFrameOps(tEntry, meshD, index)
+    local ops = tEntry.tPendingOps
+    if not ops or #ops == 0 then return end
+    -- Sort removals descending to avoid index shifting
+    local removals = {}
+    local copies   = {}
+    for _, op in ipairs(ops) do
+        if op.kind == 'removeFrame' or op.kind == 'removeSubset' then
+            table.insert(removals, op)
+        else
+            table.insert(copies, op)
+        end
+    end
+    -- Execute copy/insert ops first (low→high target)
+    for _, op in ipairs(copies) do
+        if op.kind == 'copyFrame' then
+            pcall(function()
+                meshD:copyFrameFrom(op.srcMesh, op.srcFrame)
+            end)
+        elseif op.kind == 'copySubset' then
+            pcall(function()
+                meshD:copySubsetFrom(op.targetFrame, op.srcMesh, op.srcFrame, op.srcSubset)
+            end)
+        end
+    end
+    -- Sort removals: subsets first (desc within same frame), then frames (desc)
+    table.sort(removals, function(a, b)
+        if a.kind == 'removeSubset' and b.kind == 'removeSubset' then
+            if a.frame == b.frame then return a.subset > b.subset end
+            return a.frame > b.frame
+        elseif a.kind == 'removeFrame' and b.kind == 'removeFrame' then
+            return a.frame > b.frame
+        elseif a.kind == 'removeSubset' then return true
+        else return false
+        end
+    end)
+    for _, op in ipairs(removals) do
+        if op.kind == 'removeFrame' then
+            pcall(function() meshD:removeFrame(op.frame) end)
+        elseif op.kind == 'removeSubset' then
+            pcall(function() meshD:removeSubset(op.frame, op.subset) end)
+        end
+    end
+    tEntry.tPendingOps        = {}
+    tEntry.iLeftSelectedRow   = nil
+    tEntry.tRightChecked      = {}
+    tEntry.tFrameNodeExpanded = {}
+    -- Refresh info
+    local ok, newInfo = pcall(function() return getMeshInfo(meshD) end)
+    if ok and newInfo then tEntry.info = newInfo end
+    -- Clean orphaned animation frames
+    local nAnim = (tEntry.info and tEntry.info.animation) or 0
+    local okTF, nF = pcall(function() return meshD:getTotalFrame() end)
+    if okTF and nF and nF > 0 and nAnim > 0 then
+        for i = nAnim, 1, -1 do
+            local ok2, initF, finF = pcall(function() return meshD:getAnimInfo(i) end)
+            if ok2 and initF and finF then
+                if initF > nF and finF > nF then
+                    pcall(function() meshD:removeAnim(i) end)
+                else
+                    local clampI = math.min(initF, nF)
+                    local clampF = math.min(finF, nF)
+                    if clampI ~= initF or clampF ~= finF then
+                        pcall(function()
+                            local _, name, _, _, t, typ = meshD:getAnimInfo(i)
+                            meshD:updateAnim(i, name, clampI, clampF, t, typ)
+                        end)
+                    end
+                end
+            end
+        end
+        local ok3, newInfo2 = pcall(function() return getMeshInfo(meshD) end)
+        if ok3 and newInfo2 then tEntry.info = newInfo2 end
+    end
+    tEntry.modified = true
+end
+
+-- ---------------------------------------------------------------------------
+-- Frame Pick popup (import frames/subsets from another .msh file)
+-- ---------------------------------------------------------------------------
+function showFramePickWindow(tEntry, meshD, index)
+    if not tEntry.bShowFramePick then return end
+    local title = tLang.L('frame_pick_title') .. '##fp-' .. index
+    local ww, wh = mbm.getSizeScreen()
+    local popW   = math.min(900, ww - 40)
+    local popH   = math.min(540, wh - 80)
+    tImGui.SetNextWindowSize({x=popW, y=popH}, tImGui.Flags('ImGuiCond_Appearing'))
+    tImGui.SetNextWindowPos({x=ww * 0.5, y=wh * 0.5}, tImGui.Flags('ImGuiCond_Appearing'), {x=0.5, y=0.5})
+    local fp_visible, fp_closed = tImGui.Begin(title, true, 0)
+    if fp_visible then
+        -- Load button
+        if tImGui.Button(tLang.L('import_from_file') .. '##pickLoad-' .. index) then
+            local file = mbm.openFile(sLastMeshPath, 'msh')
+            if file and file ~= '' then
+                local newD = meshDebug:new()
+                if newD:load(file) then
+                    tEntry.tImportMeshD    = newD
+                    tEntry.tPickLeftExpanded  = {}
+                    tEntry.tPickRightExpanded = {}
+                    tEntry.tRightChecked   = {}
+                    tEntry.iLeftSelectedRow = nil
+                end
+            end
+        end
+        local importD = tEntry.tImportMeshD
+        if importD then
+            -- Two-column layout
+            local halfW = (popW - 20) * 0.5
+            local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_RowBg')
+
+            -- Left table: current mesh (single-select anchor)
+            local okLF, nLeftFrames = pcall(function() return meshD:getTotalFrame() end)
+            if not okLF then nLeftFrames = 0 end
+            tImGui.Text(tLang.L('frame_pick_left'))
+            if tImGui.BeginTable('fpLeft-' .. index, 2, tblFlags, {x=halfW, y=popH - 120}) then
+                tImGui.TableSetupColumn('##fpleft-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+                tImGui.TableSetupColumn(tLang.L('frame_selection'))
+                tImGui.TableHeadersRow()
+                for f = 1, (nLeftFrames or 0) do
+                    local isPendingDel = false
+                    for _, op in ipairs(tEntry.tPendingOps) do
+                        if op.kind == 'removeFrame' and op.frame == f then isPendingDel = true break end
+                    end
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0)
+                    if isPendingDel then
+                        tImGui.TextDisabled('x')
+                    else
+                        local cur = tEntry.iLeftSelectedRow or 0
+                        local newVal = tImGui.RadioButton('##fplr-' .. index .. '-' .. f, cur, f * 100)
+                        if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
+                    end
+                    tImGui.TableSetColumnIndex(1)
+                    local expanded = tEntry.tPickLeftExpanded[f]
+                    if isPendingDel then
+                        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                        tImGui.Text('[DEL] Frame ' .. f)
+                        tImGui.PopStyleColor()
+                    else
+                        if tImGui.TreeNodeEx('Frame ' .. f .. '##fplt-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
+                            tEntry.tPickLeftExpanded[f] = true
+                            local okS, nS = pcall(function() return meshD:getTotalSubSet(f) end)
+                            for s = 1, (okS and nS or 0) do
+                                tImGui.TableNextRow()
+                                tImGui.TableSetColumnIndex(0)
+                                local cur = tEntry.iLeftSelectedRow or 0
+                                local newVal = tImGui.RadioButton('##fpls-' .. index .. '-' .. f .. '-' .. s, cur, f * 100 + s)
+                                if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
+                                tImGui.TableSetColumnIndex(1)
+                                tImGui.Text('    Subset ' .. s)
+                            end
+                            tImGui.TreePop()
+                        else
+                            tEntry.tPickLeftExpanded[f] = false
+                        end
+                    end
+                end
+                tImGui.EndTable()
+            end
+
+            tImGui.SameLine()
+
+            -- Right table: import mesh (multi-select checkboxes)
+            local okRF, nRightFrames = pcall(function() return importD:getTotalFrame() end)
+            if not okRF then nRightFrames = 0 end
+            tImGui.BeginGroup()
+            tImGui.Text(tLang.L('frame_pick_right'))
+            if tImGui.BeginTable('fpRight-' .. index, 2, tblFlags, {x=halfW, y=popH - 120}) then
+                tImGui.TableSetupColumn('##fpright-sel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+                tImGui.TableSetupColumn(tLang.L('frame_selection'))
+                tImGui.TableHeadersRow()
+                for f = 1, (nRightFrames or 0) do
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0)
+                    local key = 'f' .. f
+                    local checked = tEntry.tRightChecked[key] and true or false
+                    tEntry.tRightChecked[key] = tImGui.Checkbox('##fprc-' .. index .. '-' .. f, checked)
+                    tImGui.TableSetColumnIndex(1)
+                    local expanded = tEntry.tPickRightExpanded[f]
+                    if tImGui.TreeNodeEx('Frame ' .. f .. '##fprt-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
+                        tEntry.tPickRightExpanded[f] = true
+                        local okS, nS = pcall(function() return importD:getTotalSubSet(f) end)
+                        for s = 1, (okS and nS or 0) do
+                            tImGui.TableNextRow()
+                            tImGui.TableSetColumnIndex(0)
+                            local skey = 'f' .. f .. 's' .. s
+                            local schecked = tEntry.tRightChecked[skey] and true or false
+                            tEntry.tRightChecked[skey] = tImGui.Checkbox('##fprsc-' .. index .. '-' .. f .. '-' .. s, schecked)
+                            tImGui.TableSetColumnIndex(1)
+                            tImGui.Text('    Subset ' .. s)
+                        end
+                        tImGui.TreePop()
+                    else
+                        tEntry.tPickRightExpanded[f] = false
+                    end
+                end
+                tImGui.EndTable()
+            end
+            tImGui.EndGroup()
+
+            tImGui.Separator()
+
+            -- Validate selection
+            local anchorRow  = tEntry.iLeftSelectedRow
+            local anchorIsFrame = anchorRow and (anchorRow % 100 == 0)
+            local rightHasFrames, rightHasSubsets = false, false
+            local selectedRightFrames = {}
+            local selectedRightSubsets = {}
+            for k, v in pairs(tEntry.tRightChecked) do
+                if v then
+                    if k:match('^f%d+$') then
+                        rightHasFrames = true
+                        local fn = tonumber(k:match('%d+'))
+                        table.insert(selectedRightFrames, fn)
+                    elseif k:match('^f%d+s%d+$') then
+                        rightHasSubsets = true
+                        local fn, sn = k:match('^f(%d+)s(%d+)$')
+                        table.insert(selectedRightSubsets, {f=tonumber(fn), s=tonumber(sn)})
+                    end
+                end
+            end
+            local mixedRight = rightHasFrames and rightHasSubsets
+
+            -- Add buttons
+            local canAddFrame  = anchorIsFrame and rightHasFrames and not mixedRight and anchorRow
+            local canAddSubset = (not anchorIsFrame and anchorRow) and rightHasSubsets and not mixedRight
+
+            if not anchorRow then
+                tImGui.TextDisabled(tLang.L('no_anchor_selected'))
+            elseif mixedRight then
+                tImGui.TextDisabled(tLang.L('select_frames_or_subsets'))
+            else
+                local function queueFrames(before)
+                    local tgt = math.floor(anchorRow / 100)
+                    table.sort(selectedRightFrames)
+                    if not before then table.sort(selectedRightFrames, function(a,b) return a > b end) end
+                    for _, f in ipairs(selectedRightFrames) do
+                        table.insert(tEntry.tPendingOps, {
+                            kind='copyFrame', srcMesh=importD, srcFrame=f, insertBefore=before, anchor=tgt
+                        })
+                    end
+                    tEntry.bShowFramePick = false
+                end
+                local function queueSubsets(before)
+                    local tgtFrame  = math.floor(anchorRow / 100)
+                    local tgtSubset = anchorRow % 100
+                    table.sort(selectedRightSubsets, function(a, b)
+                        if a.f == b.f then return before and a.s < b.s or a.s > b.s end
+                        return before and a.f < b.f or a.f > b.f
+                    end)
+                    for _, ss in ipairs(selectedRightSubsets) do
+                        table.insert(tEntry.tPendingOps, {
+                            kind='copySubset', srcMesh=importD, srcFrame=ss.f, srcSubset=ss.s,
+                            targetFrame=tgtFrame, insertBefore=before, anchorSubset=tgtSubset
+                        })
+                    end
+                    tEntry.bShowFramePick = false
+                end
+                if canAddFrame then
+                    if tImGui.Button(tLang.L('add_frame_after') .. '##fpaf-' .. index) then queueFrames(false) end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('add_frame_before') .. '##fpbf-' .. index) then queueFrames(true) end
+                elseif canAddSubset then
+                    if tImGui.Button(tLang.L('add_subset_after') .. '##fpas-' .. index) then queueSubsets(false) end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('add_subset_before') .. '##fpbs-' .. index) then queueSubsets(true) end
+                end
+            end
+        end
+    end
+    if fp_closed then tEntry.bShowFramePick = false end
+    tImGui.End()
+end
+
+-- ---------------------------------------------------------------------------
+-- Frame tree node: view/queue removals, open Frame Pick
+-- ---------------------------------------------------------------------------
+function showFrameNode(tEntry, meshD, index)
+    local nodeFlags = 0
+    if not tImGui.TreeNodeEx(tLang.L('frame_node') .. '##frameNode-' .. index, nodeFlags) then
+        return
+    end
+
+    local okTF, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    if not okTF then nFrames = 0 end
+
+    local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
+    local tableH   = math.min(nFrames * 26 + 60, 300)
+
+    if tImGui.BeginTable('frameTable-' .. index, 2, tblFlags, {x=0, y=tableH}) then
+        tImGui.TableSetupColumn('##ftsel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+        tImGui.TableSetupColumn(tLang.L('frame_selection'))
+        tImGui.TableHeadersRow()
+
+        for f = 1, (nFrames or 0) do
+            -- Check pending ops
+            local framePendingDel = false
+            local pendingDelSubsets = {}
+            for _, op in ipairs(tEntry.tPendingOps) do
+                if op.kind == 'removeFrame' and op.frame == f then framePendingDel = true end
+                if op.kind == 'removeSubset' and op.frame == f then pendingDelSubsets[op.subset] = true end
+            end
+
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0)
+
+            if framePendingDel then
+                -- Non-selectable, show red X
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                tImGui.Text('[x]')
+                tImGui.PopStyleColor()
+            else
+                local cur = tEntry.iLeftSelectedRow or 0
+                local newVal = tImGui.RadioButton('##fnr-' .. index .. '-' .. f, cur, f * 100)
+                if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
+            end
+
+            tImGui.TableSetColumnIndex(1)
+
+            local rowLabel
+            if framePendingDel then
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                rowLabel = '[DEL] Frame ' .. f
+            else
+                rowLabel = 'Frame ' .. f
+            end
+
+            local expanded = tEntry.tFrameNodeExpanded[f]
+            if tImGui.TreeNodeEx(rowLabel .. '##fnte-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
+                tEntry.tFrameNodeExpanded[f] = true
+                if framePendingDel then tImGui.PopStyleColor() end
+
+                local okS, nSubsets = pcall(function() return meshD:getTotalSubSet(f) end)
+                for s = 1, (okS and nSubsets or 0) do
+                    tImGui.TableNextRow()
+                    tImGui.TableSetColumnIndex(0)
+                    if not framePendingDel then
+                        local subPendingDel = pendingDelSubsets[s] or false
+                        if subPendingDel then
+                            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                            tImGui.Text('[x]')
+                            tImGui.PopStyleColor()
+                        else
+                            local cur = tEntry.iLeftSelectedRow or 0
+                            local newVal = tImGui.RadioButton('##fnrs-' .. index .. '-' .. f .. '-' .. s, cur, f * 100 + s)
+                            if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
+                        end
+                    end
+                    tImGui.TableSetColumnIndex(1)
+                    local ok2, tex = pcall(function() return meshD:getTexture(f, s) end)
+                    local texName = (ok2 and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
+                    local subLabel = '    Subset ' .. s .. texName
+                    if pendingDelSubsets[s] then
+                        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                        tImGui.Text('[DEL] ' .. subLabel)
+                        tImGui.PopStyleColor()
+                    else
+                        tImGui.Text(subLabel)
+                    end
+                end
+                tImGui.TreePop()
+            else
+                tEntry.tFrameNodeExpanded[f] = false
+                if framePendingDel then tImGui.PopStyleColor() end
+            end
+        end
+        tImGui.EndTable()
+    end
+
+    tImGui.Separator()
+
+    -- Queued pending ops list
+    if #tEntry.tPendingOps > 0 then
+        tImGui.Text(tLang.L('pending_ops') .. ':')
+        for i, op in ipairs(tEntry.tPendingOps) do
+            local desc = '?'
+            if op.kind == 'removeFrame'  then desc = '[DEL] Frame ' .. op.frame
+            elseif op.kind == 'removeSubset' then desc = '[DEL] Frame ' .. op.frame .. ' Subset ' .. op.subset
+            elseif op.kind == 'copyFrame'    then desc = '+ Frame (import)'
+            elseif op.kind == 'copySubset'   then desc = '+ Subset (import)'
+            end
+            tImGui.BulletText(i .. '. ' .. desc)
+        end
+        tImGui.Separator()
+    end
+
+    -- Action buttons
+    local anchorRow = tEntry.iLeftSelectedRow
+    local function queueRemove()
+        if not anchorRow then return end
+        local f = math.floor(anchorRow / 100)
+        local s = anchorRow % 100
+        local isSubset = (s > 0)
+        if isSubset then
+            -- Check not already queued
+            for _, op in ipairs(tEntry.tPendingOps) do
+                if op.kind == 'removeSubset' and op.frame == f and op.subset == s then return end
+            end
+            table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
+        else
+            for _, op in ipairs(tEntry.tPendingOps) do
+                if op.kind == 'removeFrame' and op.frame == f then return end
+            end
+            table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
+        end
+        tEntry.iLeftSelectedRow = nil
+    end
+
+    if anchorRow then
+        if tImGui.Button(tLang.L('remove_selected') .. '##fnrm-' .. index) then
+            queueRemove()
+        end
+        tImGui.SameLine()
+    end
+
+    if tImGui.Button(tLang.L('import_from_file') .. '##fnif-' .. index) then
+        tEntry.bShowFramePick = true
+        tEntry.tRightChecked  = {}
+        tEntry.iLeftSelectedRow = nil
+    end
+
+    if #tEntry.tPendingOps > 0 then
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('execute_ops') .. '##fnex-' .. index) then
+            executeFrameOps(tEntry, meshD, index)
+        end
+        tImGui.SameLine()
+        if tImGui.Button('X##fnclr-' .. index) then
+            tEntry.tPendingOps = {}
+        end
+    end
+
+    tImGui.TreePop()
+end
+
 function showMeshOptions(tEntry, index)
     local meshD = tEntry.meshDebug
     local info = tEntry.info or {}
@@ -1294,6 +1749,9 @@ function showMeshOptions(tEntry, index)
         end
         tImGui.TreePop()
     end
+
+    -- Frame node: view/queue frame+subset edits (outside Animations)
+    showFrameNode(tEntry, meshD, index)
 
     if tImGui.TreeNodeEx(tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
@@ -1817,7 +2275,8 @@ function showCameraWindow()
             originLine3dZ.visible = bCameraMode3D and bShowOrigin3d
         end
         -- Origin lines checkbox (per-camera)
-        local showOrig = bCameraMode3D and bShowOrigin3d or bShowOrigin2d
+        local showOrig
+        if bCameraMode3D then showOrig = bShowOrigin3d else showOrig = bShowOrigin2d end
         local newOrig = tImGui.Checkbox(tLang.L('enable_origin_lines') .. '##origLines', showOrig)
         if newOrig ~= showOrig then
             if bCameraMode3D then
@@ -1908,6 +2367,13 @@ function onLoop(delta)
     showCameraWindow()
     showMeshTreeWindow()
     updatePreviewMesh()
+    -- Frame Pick popup (per loaded mesh)
+    for i = 1, #tLoadedMeshes do
+        local tE = tLoadedMeshes[i]
+        if tE.bShowFramePick then
+            showFramePickWindow(tE, tE.meshDebug, i)
+        end
+    end
     -- Auto-refresh frame-filter preview when any frame checkbox was toggled
     if iSelectedMeshIndex > 0 and iSelectedMeshIndex <= #tLoadedMeshes then
         local tE = tLoadedMeshes[iSelectedMeshIndex]
