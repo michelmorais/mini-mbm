@@ -1103,6 +1103,39 @@ function executeFrameOps(tEntry, meshD, index)
             dpCall(function()
                 meshD:copySubsetFrom(op.targetFrame, op.srcMesh, op.srcFrame, op.srcSubset)
             end)
+            -- copySubsetFrom always appends; rotate into the correct position when an
+            -- explicit anchor is set (insertBefore=true → position anchor; false → anchor+1).
+            local anchor = op.anchorSubset or 0
+            if anchor > 0 then
+                local okS, nTotal = dpCall(function() return meshD:getTotalSubset(op.targetFrame) end)
+                nTotal = (okS and nTotal) or 0
+                -- Desired 1-based position for the newly appended subset
+                local insertAt = op.insertBefore and anchor or (anchor + 1)
+                -- Rotation only needed when the new subset (at nTotal) isn't already there
+                if insertAt > 0 and insertAt < nTotal then
+                    -- Duplicate targetFrame as a temp staging frame so we can safely
+                    -- copy from it (self-copy within the same frame is a use-after-free in C++).
+                    local okF, nFramesNow = dpCall(function() return meshD:getTotalFrame() end)
+                    nFramesNow = (okF and nFramesNow) or 0
+                    dpCall(function() meshD:copyFrameFrom(meshD, op.targetFrame) end)
+                    local tempFrame = nFramesNow + 1
+                    -- For each subset that must shift right (positions insertAt..nTotal-1),
+                    -- copy it from the stable tempFrame to the end of targetFrame and then
+                    -- remove the original at position insertAt.
+                    -- After (nTotal-insertAt) passes the new subset has bubbled to insertAt.
+                    for i = 0, (nTotal - 1 - insertAt) do
+                        local srcIdx = insertAt + i
+                        dpCall(function()
+                            meshD:copySubsetFrom(op.targetFrame, meshD, tempFrame, srcIdx)
+                        end)
+                        dpCall(function()
+                            meshD:removeSubset(op.targetFrame, insertAt)
+                        end)
+                    end
+                    -- Remove the temporary staging frame (always the last frame)
+                    dpCall(function() meshD:removeFrame(tempFrame) end)
+                end
+            end
         end
     end
     -- Sort removals: subsets first (desc within same frame), then frames (desc)
