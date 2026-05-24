@@ -1393,86 +1393,51 @@ function showFrameNode(tEntry, meshD, index)
         end
     end
 
-    -- Two-column split: left = frames, right = all subsets
-    local listH   = math.min(math.max(nFrames, #allSubsets) * 22 + 8, 220)
-    local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders')
+    -- Per-frame aligned table: each frame occupies its own row group.
+    -- Left column = frame checkbox; right column = that frame's subsets (one per row).
+    -- A separator row divides consecutive frame groups.
+    local listH      = math.min((nFrames + #allSubsets) * 22 + 8, 300)
+    local tblFlags   = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY')
     local frameSelChanged = false
 
-    if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH + 26}) then
+    -- Precompute: which frames have at least one subset staged for removal
+    local tImplicit = {}
+    for _, sub2 in ipairs(allSubsets) do
+        if tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] then
+            tImplicit[sub2.f] = true
+        end
+    end
+
+    if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH}) then
+        tImGui.TableSetupScrollFreeze(0, 1)
         tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.4)
         tImGui.TableSetupColumn(tLang.L('subsets'),   tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.6)
         tImGui.TableHeadersRow()
 
-        tImGui.TableNextRow()
-
-        -- Precompute: which frames have at least one subset staged for removal
-        local tImplicit = {}
-        for _, sub2 in ipairs(allSubsets) do
-            if tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] then
-                tImplicit[sub2.f] = true
-            end
-        end
-
-        -- ── Left: frames ───────────────────────────────────────────────
-        tImGui.TableSetColumnIndex(0)
-        tImGui.BeginChild('fnFrames-' .. index, {x=0, y=listH}, false, 0)
         for f = 1, nFrames do
             local key = f * 100
-            if pendingFrames[f] then
-                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                tImGui.Text('[DEL] Frame ' .. f)
-                tImGui.PopStyleColor()
-            else
-                local explicitChecked = tEntry.tCheckedRemove[key] or false
-                -- Frame appears checked if explicitly staged OR if any of its subsets are staged
-                local displayChecked = explicitChecked or (tImplicit[f] or false)
-                local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, displayChecked)
-                if newChecked ~= displayChecked then
-                    frameSelChanged = true
-                    if not newChecked then
-                        -- User unchecked: clear frame AND all its subset checks
-                        tEntry.tCheckedRemove[key] = false
-                        for _, sub2 in ipairs(allSubsets) do
-                            if sub2.f == f then
-                                tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = false
-                            end
-                        end
-                    else
-                        -- User explicitly checked the frame: restore frame + all its subsets
-                        tEntry.tCheckedRemove[key] = true
-                        for _, sub2 in ipairs(allSubsets) do
-                            if sub2.f == f then
-                                tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = true
-                            end
-                        end
-                    end
-                else
-                    tEntry.tCheckedRemove[key] = explicitChecked
-                end
-            end
-        end
-        tImGui.EndChild()
-
-        -- ── Right: all subsets ─────────────────────────────────────────
-        tImGui.TableSetColumnIndex(1)
-        tImGui.BeginChild('fnSubsets-' .. index, {x=0, y=listH}, false, 0)
-        do
+            -- Collect subsets that belong to this frame, in order
+            local fSubsets = {}
             for _, sub in ipairs(allSubsets) do
-                local f, s, texName = sub.f, sub.s, sub.texName
-                local subKey = f * 100 + s
-                local label  = 'F' .. f .. ' S' .. s .. texName
-                if pendingFrames[f] or pendingSubsets[f * 1000 + s] then
+                if sub.f == f then table.insert(fSubsets, sub) end
+            end
+
+            -- Helper: render one subset cell (called for column 1 of any row in this group)
+            local function renderSubsetCell(sub)
+                local subKey = sub.f * 100 + sub.s
+                local label  = 'F' .. sub.f .. ' S' .. sub.s .. sub.texName
+                if pendingFrames[f] or pendingSubsets[f * 1000 + sub.s] then
                     tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
                     tImGui.Text('[DEL] ' .. label)
                     tImGui.PopStyleColor()
                 else
-                    local checked = tEntry.tCheckedRemove[subKey] or false
-                    local newChecked = tImGui.Checkbox(label .. '##fnrcb-' .. index .. '-' .. f .. '-' .. s, checked)
+                    local checked    = tEntry.tCheckedRemove[subKey] or false
+                    local newChecked = tImGui.Checkbox(label .. '##fnrcb-' .. index .. '-' .. sub.f .. '-' .. sub.s, checked)
                     tEntry.tCheckedRemove[subKey] = newChecked
                     if newChecked ~= checked then
                         frameSelChanged = true
-                        -- If last subset unchecked: auto-clear the frame key so frame shows unchecked
                         if not newChecked then
+                            -- auto-clear frame key when every subset of this frame is unchecked
                             local allUnchecked = true
                             for _, sub3 in ipairs(allSubsets) do
                                 if sub3.f == f and (tEntry.tCheckedRemove[sub3.f * 100 + sub3.s] or false) then
@@ -1484,8 +1449,49 @@ function showFrameNode(tEntry, meshD, index)
                     end
                 end
             end
-        end  -- do
-        tImGui.EndChild()
+
+            -- ── First row of this frame group ────────────────────────────
+            tImGui.TableNextRow()
+            tImGui.TableSetColumnIndex(0)
+            if pendingFrames[f] then
+                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                tImGui.Text('[DEL] Frame ' .. f)
+                tImGui.PopStyleColor()
+            else
+                local explicitChecked = tEntry.tCheckedRemove[key] or false
+                local displayChecked  = explicitChecked or (tImplicit[f] or false)
+                local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, displayChecked)
+                if newChecked ~= displayChecked then
+                    frameSelChanged = true
+                    tEntry.tCheckedRemove[key] = newChecked
+                    for _, sub2 in ipairs(allSubsets) do
+                        if sub2.f == f then
+                            tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = newChecked
+                        end
+                    end
+                else
+                    tEntry.tCheckedRemove[key] = explicitChecked
+                end
+            end
+            tImGui.TableSetColumnIndex(1)
+            if #fSubsets >= 1 then renderSubsetCell(fSubsets[1]) end
+
+            -- ── Additional rows: blank left, one more subset on right ────
+            for i = 2, #fSubsets do
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(1)
+                renderSubsetCell(fSubsets[i])
+            end
+
+            -- ── Thin separator row between frame groups ──────────────────
+            if f < nFrames then
+                tImGui.TableNextRow()
+                tImGui.TableSetColumnIndex(0)
+                tImGui.Separator()
+                tImGui.TableSetColumnIndex(1)
+                tImGui.Separator()
+            end
+        end
 
         tImGui.EndTable()
     end
