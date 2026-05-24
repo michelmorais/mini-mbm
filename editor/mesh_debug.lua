@@ -150,10 +150,18 @@ function addMeshToTable(fileName)
         info = { type = 'unknown', hasNormal = false, hasTexture = false, totalFrames = 0 }
     end
     local tFrameSel = {}
+    local tCheckedRm = {}
     local nFrames = 0
     local okF, nF = dpCall(function() return meshD:getTotalFrame() end)
     if okF and nF then nFrames = nF end
-    for f = 1, nFrames do tFrameSel[f] = true end
+    for f = 1, nFrames do
+        tFrameSel[f] = true
+        tCheckedRm[f * 100] = true
+        local okS, nS = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nS then
+            for s = 1, nS do tCheckedRm[f * 100 + s] = true end
+        end
+    end
     table.insert(tLoadedMeshes, {
         fileName = fileName,
         meshDebug = meshD,
@@ -168,7 +176,7 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tCheckedRemove       = {},
+        tCheckedRemove       = tCheckedRm,
         bShowFramePick       = false,
         tImportMeshD         = nil,
         iLeftSelectedRow     = nil,
@@ -559,15 +567,24 @@ function buildFilteredMesh(tEntry)
         end
     end
 
-    -- Remove staged subsets from kept frames (before frame removal so indices are still valid)
+    -- For kept frames with subset-level selection: remove UN-checked subsets
+    -- (whole-frame selection keeps all subsets; subset selection keeps only chosen ones)
     local tCR = tEntry.tCheckedRemove or {}
     for f = nFrames, 1, -1 do
         if tSel[f] ~= false then
             local okS, nSubs = dpCall(function() return tempD:getTotalSubset(f) end)
             if okS and nSubs then
-                for s = nSubs, 1, -1 do
-                    if tCR[f * 100 + s] then
-                        tempD:removeSubset(f, s)
+                -- Check whether any subset is unchecked for this frame
+                local anyUnchecked = false
+                for s = 1, nSubs do
+                    if not (tCR[f * 100 + s] or false) then anyUnchecked = true; break end
+                end
+                if anyUnchecked then
+                    -- Keep only checked subsets, remove the rest
+                    for s = nSubs, 1, -1 do
+                        if not (tCR[f * 100 + s] or false) then
+                            tempD:removeSubset(f, s)
+                        end
                     end
                 end
             end
@@ -1134,7 +1151,7 @@ function showFramePickWindow(tEntry, meshD, index)
     local fp_visible, fp_closed = tImGui.Begin(title, true, 0)
     if fp_visible then
         -- Load button
-        if tImGui.Button(tLang.L('import_from_file') .. '##pickLoad-' .. index) then
+        if tImGui.Button(tLang.L('import_frames_from_file') .. '##pickLoad-' .. index) then
             local file = mbm.openFile(sLastMeshPath, 'msh')
             if file and file ~= '' then
                 local newD = meshDebug:new()
@@ -1400,11 +1417,14 @@ function showFrameNode(tEntry, meshD, index)
                                     tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = false
                                 end
                             end
-                            tEntry.tFrameSelection[f] = true
                         else
-                            -- User explicitly checked the frame: stage whole frame removal
+                            -- User explicitly checked the frame: restore frame + all its subsets
                             tEntry.tCheckedRemove[key] = true
-                            tEntry.tFrameSelection[f] = false
+                            for _, sub2 in ipairs(allSubsets) do
+                                if sub2.f == f then
+                                    tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = true
+                                end
+                            end
                         end
                     else
                         tEntry.tCheckedRemove[key] = explicitChecked
@@ -1442,6 +1462,29 @@ function showFrameNode(tEntry, meshD, index)
 
     -- Auto-refresh preview when any checkbox changed
     if frameSelChanged then
+        -- Rebuild tFrameSelection as positive selection:
+        -- checked frame/subset = shown; nothing checked = show all
+        local anyChecked = false
+        for _, v in pairs(tEntry.tCheckedRemove) do
+            if v then anyChecked = true; break end
+        end
+        if anyChecked then
+            -- Recompute implicit (with updated tCheckedRemove)
+            local newImplicit = {}
+            for _, sub2 in ipairs(allSubsets) do
+                if tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] then
+                    newImplicit[sub2.f] = true
+                end
+            end
+            for f = 1, nFrames do
+                tEntry.tFrameSelection[f] =
+                    (tEntry.tCheckedRemove[f * 100] or false) or (newImplicit[f] or false)
+            end
+        else
+            for f = 1, nFrames do
+                tEntry.tFrameSelection[f] = true
+            end
+        end
         tEntry.bFrameSelectionDirty = true
         if index == iSelectedMeshIndex and tEntry.bAutoRefreshPreview and not tEntry.modified then
             refreshFrameFilterPreview(tEntry, index)
@@ -1528,12 +1571,62 @@ function showFrameNode(tEntry, meshD, index)
                 end
             end
             tEntry.tCheckedRemove = {}
+            for f2 = 1, nFrames do
+                tEntry.tCheckedRemove[f2 * 100] = true
+                tEntry.tFrameSelection[f2] = true
+            end
+            for _, sub3 in ipairs(allSubsets) do
+                tEntry.tCheckedRemove[sub3.f * 100 + sub3.s] = true
+            end
         end
         tImGui.SameLine()
     end
 
+    -- Remove unselected (always visible)
+    if tImGui.Button(tLang.L('remove_unselected') .. '##fnrmu-' .. index) then
+        for f = 1, nFrames do
+            if not pendingFrames[f] then
+                local fChecked = tEntry.tCheckedRemove[f * 100] or false
+                if not fChecked then
+                    local fSubsets, anySubChecked = {}, false
+                    for _, sub2 in ipairs(allSubsets) do
+                        if sub2.f == f then
+                            table.insert(fSubsets, sub2.s)
+                            if tEntry.tCheckedRemove[f * 100 + sub2.s] then anySubChecked = true end
+                        end
+                    end
+                    if anySubChecked then
+                        -- Some subsets selected: remove the UN-selected subsets of this frame
+                        for _, s in ipairs(fSubsets) do
+                            if not (tEntry.tCheckedRemove[f * 100 + s] or false)
+                               and not pendingSubsets[f * 1000 + s] then
+                                table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
+                            end
+                        end
+                    else
+                        -- Whole frame unselected: remove it
+                        local already = false
+                        for _, op in ipairs(tEntry.tPendingOps) do
+                            if op.kind == 'removeFrame' and op.frame == f then already = true; break end
+                        end
+                        if not already then
+                            table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
+                        end
+                    end
+                end
+            end
+        end
+        tEntry.tCheckedRemove = {}
+        for f2 = 1, nFrames do
+            tEntry.tCheckedRemove[f2 * 100] = true
+            tEntry.tFrameSelection[f2] = true
+        end
+        for _, sub3 in ipairs(allSubsets) do
+            tEntry.tCheckedRemove[sub3.f * 100 + sub3.s] = true
+        end
+    end
     -- Import from file (always visible)
-    if tImGui.Button(tLang.L('import_from_file') .. '##fnif-' .. index) then
+    if tImGui.Button(tLang.L('import_frames_from_file') .. '##fnif-' .. index) then
         tEntry.bShowFramePick = true
         tEntry.tRightChecked  = {}
     end
