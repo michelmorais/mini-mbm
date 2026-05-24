@@ -39,6 +39,18 @@ local function dpCall(fn, ...)
     return table.unpack(res, 1, res.n)
 end
 
+-- Mutual-exclusion tree node: only one top-level node per mesh can be open at a time.
+-- Uses SetNextItemOpen to enforce state; IsItemClicked detects toggle intent.
+local function openNode(tEntry, nodeKey, label, flags, id)
+    local wantOpen = (tEntry.sOpenNode == nodeKey)
+    tImGui.SetNextItemOpen(wantOpen, tImGui.Flags('ImGuiCond_Always'))
+    local isOpen = tImGui.TreeNodeEx(label, flags or 0, id)
+    if tImGui.IsItemClicked() then
+        tEntry.sOpenNode = wantOpen and nil or nodeKey
+    end
+    return isOpen
+end
+
 -- Mesh entry: { fileName, meshDebug, info, loaded }
 -- info from meshDebug:getInfo(fileName) - type, hasNormal, hasTexture, totalFrames, etc.
 
@@ -162,7 +174,8 @@ function addMeshToTable(fileName)
         iLeftSelectedRow     = nil,
         tRightChecked        = {},
         tPickLeftExpanded    = {},
-        tPickRightExpanded   = {}
+        tPickRightExpanded   = {},
+        sOpenNode            = nil
     })
     -- Auto-switch camera to 3D when a mesh (.msh) file is loaded
     if info.type == 'mesh' and not bCameraMode3D then
@@ -542,6 +555,21 @@ function buildFilteredMesh(tEntry)
                 tempD:removeAnim(i)
             else
                 tempD:updateAnim(i, name, newInit, newFin, time or 0.1, typ or 0)
+            end
+        end
+    end
+
+    -- Remove staged subsets from kept frames (before frame removal so indices are still valid)
+    local tCR = tEntry.tCheckedRemove or {}
+    for f = nFrames, 1, -1 do
+        if tSel[f] ~= false then
+            local okS, nSubs = dpCall(function() return tempD:getTotalSubset(f) end)
+            if okS and nSubs then
+                for s = nSubs, 1, -1 do
+                    if tCR[f * 100 + s] then
+                        tempD:removeSubset(f, s)
+                    end
+                end
             end
         end
     end
@@ -1294,9 +1322,13 @@ end
 -- ---------------------------------------------------------------------------
 function showFrameNode(tEntry, meshD, index)
     local nodeFlags = 0
-    if not tImGui.TreeNodeEx(tLang.L('frame_node') .. '##frameNode-' .. index, nodeFlags) then
-        return
+    local wantOpen = (tEntry.sOpenNode == 'frameNode')
+    tImGui.SetNextItemOpen(wantOpen, tImGui.Flags('ImGuiCond_Always'))
+    local isOpen = tImGui.TreeNodeEx(tLang.L('frame_node') .. '##frameNode-' .. index, nodeFlags)
+    if tImGui.IsItemClicked() then
+        tEntry.sOpenNode = wantOpen and nil or 'frameNode'
     end
+    if not isOpen then return end
 
     local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okTF then nFrames = 0 end
@@ -1327,6 +1359,7 @@ function showFrameNode(tEntry, meshD, index)
     -- Two-column split: left = frames, right = all subsets
     local listH   = math.min(math.max(nFrames, #allSubsets) * 22 + 8, 220)
     local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders')
+    local frameSelChanged = false
 
     if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH + 26}) then
         tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.4)
@@ -1334,6 +1367,14 @@ function showFrameNode(tEntry, meshD, index)
         tImGui.TableHeadersRow()
 
         tImGui.TableNextRow()
+
+        -- Precompute: which frames have at least one subset staged for removal
+        local tImplicit = {}
+        for _, sub2 in ipairs(allSubsets) do
+            if tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] then
+                tImplicit[sub2.f] = true
+            end
+        end
 
         -- ── Left: frames ───────────────────────────────────────────────
         tImGui.TableSetColumnIndex(0)
@@ -1345,9 +1386,29 @@ function showFrameNode(tEntry, meshD, index)
                     tImGui.Text('[DEL] Frame ' .. f)
                     tImGui.PopStyleColor()
                 else
-                    local checked = tEntry.tCheckedRemove[key] or false
-                    local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, checked)
-                    tEntry.tCheckedRemove[key] = newChecked
+                    local explicitChecked = tEntry.tCheckedRemove[key] or false
+                    -- Frame appears checked if explicitly staged OR if any of its subsets are staged
+                    local displayChecked = explicitChecked or (tImplicit[f] or false)
+                    local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, displayChecked)
+                    if newChecked ~= displayChecked then
+                        frameSelChanged = true
+                        if not newChecked then
+                            -- User unchecked: clear frame AND all its subset checks
+                            tEntry.tCheckedRemove[key] = false
+                            for _, sub2 in ipairs(allSubsets) do
+                                if sub2.f == f then
+                                    tEntry.tCheckedRemove[sub2.f * 100 + sub2.s] = false
+                                end
+                            end
+                            tEntry.tFrameSelection[f] = true
+                        else
+                            -- User explicitly checked the frame: stage whole frame removal
+                            tEntry.tCheckedRemove[key] = true
+                            tEntry.tFrameSelection[f] = false
+                        end
+                    else
+                        tEntry.tCheckedRemove[key] = explicitChecked
+                    end
                 end
             end
             tImGui.EndChild()
@@ -1368,12 +1429,45 @@ function showFrameNode(tEntry, meshD, index)
                     local checked = tEntry.tCheckedRemove[subKey] or false
                     local newChecked = tImGui.Checkbox(label .. '##fnrcb-' .. index .. '-' .. f .. '-' .. s, checked)
                     tEntry.tCheckedRemove[subKey] = newChecked
+                    if newChecked ~= checked then
+                        frameSelChanged = true
+                    end
                 end
             end
             tImGui.EndChild()
         end
 
         tImGui.EndTable()
+    end
+
+    -- Auto-refresh preview when any checkbox changed
+    if frameSelChanged then
+        tEntry.bFrameSelectionDirty = true
+        if index == iSelectedMeshIndex and tEntry.bAutoRefreshPreview and not tEntry.modified then
+            refreshFrameFilterPreview(tEntry, index)
+            tEntry.bFrameSelectionDirty = false
+        end
+    end
+
+    -- Preview refresh controls (same pattern as Animations section)
+    if index == iSelectedMeshIndex then
+        if tEntry.modified then
+            tImGui.BeginDisabled(true)
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), {r=1,g=1,b=0,a=1})
+            tImGui.Button(tLang.L("save_first_to_preview") .. '##rfpBtnFN-' .. index)
+            tImGui.PopStyleColor(1)
+            tImGui.EndDisabled()
+        elseif not tEntry.bAutoRefreshPreview then
+            if tImGui.Button('Refresh Preview##rfpBtnFN-' .. index) then
+                refreshFrameFilterPreview(tEntry, index)
+                tEntry.bFrameSelectionDirty = false
+            end
+            tImGui.SameLine()
+        end
+        local autoVal = tImGui.Checkbox(tLang.L('auto_refresh') .. '##autoRefreshFN-' .. index, tEntry.bAutoRefreshPreview and not tEntry.modified)
+        if not tEntry.modified then
+            tEntry.bAutoRefreshPreview = autoVal
+        end
     end
 
     tImGui.Separator()
@@ -1481,12 +1575,12 @@ function showMeshOptions(tEntry, index)
         tImGui.PopStyleColor(1)
     end
 
-    if tImGui.TreeNodeEx(tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
+    if openNode(tEntry, 'meshinfo', tLang.L("mesh_info"), 0, 'meshinfo-' .. index) then
         showMeshInfoTable(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx(tLang.L("normals_label"), 0, 'normals-' .. index) then
+    if openNode(tEntry, 'normals', tLang.L("normals_label"), 0, 'normals-' .. index) then
         if info and info.hasNormal then
             tImGui.TextDisabled('Has normals')
         else
@@ -1524,7 +1618,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx(tLang.L("transform"), 0, 'transform-' .. index) then
+    if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             meshD:centralize()
             tEntry.modified = true
@@ -1586,7 +1680,7 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
-    if tImGui.TreeNodeEx(tLang.L("uv_label"), 0, 'uv-' .. index) then
+    if openNode(tEntry, 'uv', tLang.L("uv_label"), 0, 'uv-' .. index) then
         if info and info.hasTexture then
             tImGui.TextDisabled('Has UV')
         else
@@ -1668,7 +1762,7 @@ function showMeshOptions(tEntry, index)
     end
 
     local nAnim = info.animation or 0
-    if tImGui.TreeNodeEx(tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
+    if openNode(tEntry, 'anims', tLang.L("animations") .. (nAnim and nAnim > 0 and (' (' .. nAnim .. ')') or ''), 0, 'anims-' .. index) then
         -- Frame-filter preview refresh controls (only for the currently selected mesh)
         if index == iSelectedMeshIndex then
             if tEntry.modified then
@@ -1771,7 +1865,7 @@ function showMeshOptions(tEntry, index)
     -- Frame node: view/queue frame+subset edits (outside Animations)
     showFrameNode(tEntry, meshD, index)
 
-    if tImGui.TreeNodeEx(tLang.L("shader_label"), 0, 'shader-' .. index) then
+    if openNode(tEntry, 'shader', tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
             local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
