@@ -1099,6 +1099,27 @@ function executeFrameOps(tEntry, meshD, index)
             dpCall(function()
                 meshD:copyFrameFrom(op.srcMesh, op.srcFrame)
             end)
+            -- copyFrameFrom always appends; rotate into the correct position when an
+            -- explicit anchor is set (insertBefore=true → position anchor; false → anchor+1).
+            local anchor = op.anchor or 0
+            if anchor > 0 then
+                local okF, nTotal = dpCall(function() return meshD:getTotalFrame() end)
+                nTotal = (okF and nTotal) or 0
+                local insertAt = op.insertBefore and anchor or (anchor + 1)
+                -- Rotation needed only when fNEW (at nTotal) isn't already at the right spot
+                if insertAt > 0 and insertAt < nTotal then
+                    local N = nTotal - 1  -- number of frames before this append
+                    -- Create stable staging copies of the frames that must shift right
+                    for p = insertAt, N do
+                        dpCall(function() meshD:copyFrameFrom(meshD, p) end)
+                    end
+                    -- Remove the original frames by always picking from position insertAt;
+                    -- each removal shifts subsequent frames left, bubbling fNEW into place.
+                    for _ = insertAt, N do
+                        dpCall(function() meshD:removeFrame(insertAt) end)
+                    end
+                end
+            end
         elseif op.kind == 'copySubset' then
             dpCall(function()
                 meshD:copySubsetFrom(op.targetFrame, op.srcMesh, op.srcFrame, op.srcSubset)
