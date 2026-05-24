@@ -30,6 +30,15 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 
+-- pcall wrapper that prints the error on failure, then returns all values normally
+local function dpCall(fn, ...)
+    local res = table.pack(pcall(fn, ...))
+    if not res[1] then
+        print('[mesh_debug] ' .. tostring(res[2]))
+    end
+    return table.unpack(res, 1, res.n)
+end
+
 -- Mesh entry: { fileName, meshDebug, info, loaded }
 -- info from meshDebug:getInfo(fileName) - type, hasNormal, hasTexture, totalFrames, etc.
 
@@ -130,7 +139,7 @@ function addMeshToTable(fileName)
     end
     local tFrameSel = {}
     local nFrames = 0
-    local okF, nF = pcall(function() return meshD:getTotalFrame() end)
+    local okF, nF = dpCall(function() return meshD:getTotalFrame() end)
     if okF and nF then nFrames = nF end
     for f = 1, nFrames do tFrameSel[f] = true end
     table.insert(tLoadedMeshes, {
@@ -147,7 +156,7 @@ function addMeshToTable(fileName)
         bPreviewIsFiltered   = false,
         cam3d                = { azimuth=0.3, elevation=0.3, distance=500, fx=0, fy=0, fz=0 },
         tPendingOps          = {},
-        tFrameNodeExpanded   = {},
+        tCheckedRemove       = {},
         bShowFramePick       = false,
         tImportMeshD         = nil,
         iLeftSelectedRow     = nil,
@@ -210,7 +219,7 @@ function computeAnimFilterMap(tEntry, meshD, nAnim)
     local filteredCount = 0
     local nRemoved = 0
     for i = 1, nAnim do
-        local ok, _, initF, finF = pcall(function() return meshD:getAnim(i) end)
+        local ok, _, initF, finF = dpCall(function() return meshD:getAnim(i) end)
         if ok and initF and finF then
             local alive = false
             for f = initF, finF do
@@ -290,7 +299,7 @@ function updatePreviewMesh()
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
-        pcall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
+        dpCall(function() tPreviewMesh:setAnim(tEntry.iSelectedAnim or 1) end)
         if bCameraMode3D then applyCam3d(tEntry.cam3d) end
         tEntry.bPreviewIsFiltered = false
     else
@@ -303,22 +312,22 @@ end
 -- Returns total number of vertices modified.
 function invertMeshUV(meshD, targetFrame, invertU, invertV)
     local total = 0
-    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not ok or not nFrames then return 0 end
     local fStart = targetFrame == 0 and 1 or targetFrame
     local fEnd   = targetFrame == 0 and nFrames or targetFrame
     for f = fStart, fEnd do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                local ok3, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if ok3 and nV then
                     for v = 1, nV do
-                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        local ok4, vd = dpCall(function() return meshD:getVertex(f, s, v) end)
                         if ok4 and vd then
                             if invertU then vd.u = 1 - vd.u end
                             if invertV then vd.v = 1 - vd.v end
-                            pcall(function() meshD:setVertex(f, s, v, vd) end)
+                            dpCall(function() meshD:setVertex(f, s, v, vd) end)
                             total = total + 1
                         end
                     end
@@ -335,7 +344,7 @@ end
 -- targetFrame: 0 = all frames, 1..N = specific frame.
 -- Returns fixType ('negate'|'shift'|'none'), total vertices touched; or false on error.
 function normalizeLegacyV(meshD, targetFrame)
-    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not ok or not nFrames then return false end
     local fStart = targetFrame == 0 and 1 or targetFrame
     local fEnd   = targetFrame == 0 and nFrames or targetFrame
@@ -343,13 +352,13 @@ function normalizeLegacyV(meshD, targetFrame)
     -- First pass: scan V range
     local minV, maxV = math.huge, -math.huge
     for f = fStart, fEnd do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                local ok3, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if ok3 and nV then
                     for v = 1, nV do
-                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        local ok4, vd = dpCall(function() return meshD:getVertex(f, s, v) end)
                         if ok4 and vd then
                             if vd.v < minV then minV = vd.v end
                             if vd.v > maxV then maxV = vd.v end
@@ -373,20 +382,20 @@ function normalizeLegacyV(meshD, targetFrame)
     -- Second pass: apply fix
     local total = 0
     for f = fStart, fEnd do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                local ok3, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if ok3 and nV then
                     for v = 1, nV do
-                        local ok4, vd = pcall(function() return meshD:getVertex(f, s, v) end)
+                        local ok4, vd = dpCall(function() return meshD:getVertex(f, s, v) end)
                         if ok4 and vd then
                             if fixType == 'negate' then
                                 vd.v = -vd.v
                             else
                                 vd.v = vd.v - 1
                             end
-                            pcall(function() meshD:setVertex(f, s, v, vd) end)
+                            dpCall(function() meshD:setVertex(f, s, v, vd) end)
                             total = total + 1
                         end
                     end
@@ -400,13 +409,13 @@ end
 -- Returns total vertex count across all frames/subsets, or 0 on error
 function getMeshTotalVertices(meshD)
     local total = 0
-    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not ok or not nFrames then return 0 end
     for f = 1, nFrames do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, nV = pcall(function() return meshD:getTotalVertex(f, s) end)
+                local ok3, nV = dpCall(function() return meshD:getTotalVertex(f, s) end)
                 if ok3 and nV then
                     total = total + nV
                 end
@@ -419,13 +428,13 @@ end
 -- Returns total triangle count (indexCount/3) across all frames/subsets, or 0 on error
 function getMeshTotalTriangles(meshD)
     local total = 0
-    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not ok or not nFrames then return 0 end
     for f = 1, nFrames do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, nIdx = pcall(function() return meshD:getTotalIndex(f, s) end)
+                local ok3, nIdx = dpCall(function() return meshD:getTotalIndex(f, s) end)
                 if ok3 and nIdx then
                     total = total + math.floor(nIdx / 3)
                 end
@@ -439,13 +448,13 @@ end
 function getMeshTextures(meshD)
     local seen = {}
     local list = {}
-    local ok, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local ok, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not ok or not nFrames then return list end
     for f = 1, nFrames do
-        local ok2, nSubsets = pcall(function() return meshD:getTotalSubset(f) end)
+        local ok2, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
         if ok2 and nSubsets then
             for s = 1, nSubsets do
-                local ok3, tex = pcall(function() return meshD:getTexture(f, s) end)
+                local ok3, tex = dpCall(function() return meshD:getTexture(f, s) end)
                 if ok3 and tex and tex ~= '' and not seen[tex] then
                     seen[tex] = true
                     table.insert(list, tex)
@@ -480,11 +489,11 @@ local tAnimTypeOpts   = {'PAUSED','GROWING','GROWING_LOOP','DECREASING','DECREAS
 -- Returns a table: frameIndex (1-based) -> animIndex (1-based) owning that frame, or 0 for orphan.
 function buildFrameOwnerMap(meshD, nAnim)
     local ownerMap = {}
-    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okT or not nFrames then return ownerMap end
     for f = 1, nFrames do ownerMap[f] = 0 end
     for i = 1, nAnim do
-        local ok, _, initF, finF = pcall(function() return meshD:getAnim(i) end)
+        local ok, _, initF, finF = dpCall(function() return meshD:getAnim(i) end)
         if ok and initF and finF then
             for f = initF, finF do
                 if ownerMap[f] ~= nil then ownerMap[f] = i end
@@ -499,7 +508,7 @@ end
 function buildFilteredMesh(tEntry)
     local meshD = tEntry.meshDebug
     local tSel  = tEntry.tFrameSelection or {}
-    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okT or not nFrames or nFrames == 0 then return nil end
 
     -- Build old->new frame index map (only selected frames, ascending order)
@@ -520,7 +529,7 @@ function buildFilteredMesh(tEntry)
     -- Remap / remove animations (process in reverse so indices stay stable)
     local nAnim = (tEntry.info and tEntry.info.animation) or 0
     for i = nAnim, 1, -1 do
-        local ok, name, initF, finF, time, typ = pcall(function() return tempD:getAnim(i) end)
+        local ok, name, initF, finF, time, typ = dpCall(function() return tempD:getAnim(i) end)
         if ok and name and initF and finF then
             local newInit, newFin
             for f = initF, finF do
@@ -598,7 +607,7 @@ function refreshFrameFilterPreview(tEntry, index)
 
     if ok and tPreviewMesh then
         tPreviewMesh.visible = true
-        pcall(function()
+        dpCall(function()
             local nA = (tEntry.info and tEntry.info.animation) or 0
             local selAnim = tEntry.iSelectedAnim or 1
             if nA > 0 then
@@ -628,7 +637,7 @@ end
 function showAnimFrameSelectionTable(tEntry, meshD, index)
     local tSel  = tEntry.tFrameSelection or {}
     local nAnim = (tEntry.info and tEntry.info.animation) or 0
-    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okT or not nFrames or nFrames == 0 then return end
 
     local ownerMap = buildFrameOwnerMap(meshD, nAnim)
@@ -643,7 +652,7 @@ function showAnimFrameSelectionTable(tEntry, meshD, index)
 
             -- Per-animation rows
             for i = 1, nAnim do
-                local ok, name, initF, finF = pcall(function() return meshD:getAnim(i) end)
+                local ok, name, initF, finF = dpCall(function() return meshD:getAnim(i) end)
                 if ok and name and initF and finF then
                     -- Count selected frames in this animation range
                     local total, selected = 0, 0
@@ -839,9 +848,9 @@ function showMeshInfoTable(tEntry, index)
         if val ~= nil and val ~= '' then table.insert(tRows, { prop, tostring(val) }) end
     end
     addRow('File version', info.version)
-    do local ok, v = pcall(function() return meshD:getVersion() end); if ok and v and v > 0 then addRow('Loaded version', v) end end
+    do local ok, v = dpCall(function() return meshD:getVersion() end); if ok and v and v > 0 then addRow('Loaded version', v) end end
     addRow('Type', info.type)
-    do local ok, v = pcall(function() return meshD:getTotalFrame() end); addRow('Total frames', info.totalFrames or (ok and v)) end
+    do local ok, v = dpCall(function() return meshD:getTotalFrame() end); addRow('Total frames', info.totalFrames or (ok and v)) end
     if info.type == 'particle' then addRow('Stages', info.stages) end
     if info.type == 'texture' and info.ext then addRow('Extension', info.ext) end
     addRow('Has normals', info.hasNormal ~= nil and (info.hasNormal and 'yes' or 'no') or nil)
@@ -850,7 +859,7 @@ function showMeshInfoTable(tEntry, index)
     if nVert > 0 then addRow('Total vertices', nVert) end
     local nTri = getMeshTotalTriangles(meshD)
     if nTri > 0 then addRow('Total triangles', nTri) end
-    do local ok, ib = pcall(function() return meshD:isIndexBuffer() end); if ok then addRow('Index buffer', ib and 'yes' or 'no') end end
+    do local ok, ib = dpCall(function() return meshD:isIndexBuffer() end); if ok then addRow('Index buffer', ib and 'yes' or 'no') end end
     local texList = getMeshTextures(meshD)
     if #texList > 0 then addRow('Textures', table.concat(texList, ', ')) end
 
@@ -882,15 +891,15 @@ function showMeshInfoTable(tEntry, index)
                 local newTex = mbm.openFile(sLastMeshPath, table.unpack(tUtil.supported_images or {'png','jpg','bmp','tga'}))
                 if newTex then
                     if type(newTex) == 'table' then newTex = newTex[1] end
-                    local okF2, nF2 = pcall(function() return meshD:getTotalFrame() end)
+                    local okF2, nF2 = dpCall(function() return meshD:getTotalFrame() end)
                     if okF2 and nF2 then
                         for ff = 1, nF2 do
-                            local okS2, nS2 = pcall(function() return meshD:getTotalSubset(ff) end)
+                            local okS2, nS2 = dpCall(function() return meshD:getTotalSubset(ff) end)
                             if okS2 and nS2 then
                                 for ss = 1, nS2 do
-                                    local okG, curTex = pcall(function() return meshD:getTexture(ff, ss) end)
+                                    local okG, curTex = dpCall(function() return meshD:getTexture(ff, ss) end)
                                     if okG and curTex == oldTex then
-                                        pcall(function() meshD:setTexture(ff, ss, newTex) end)
+                                        dpCall(function() meshD:setTexture(ff, ss, newTex) end)
                                     end
                                 end
                             end
@@ -909,12 +918,12 @@ function showMeshInfoTable(tEntry, index)
     tImGui.SameLine()
     tImGui.HelpMarker(tLang.L("help_draw_mode_error"))
     do
-        local ok, curMode = pcall(function() return meshD:getModeDraw() end)
+        local ok, curMode = dpCall(function() return meshD:getModeDraw() end)
         if ok and curMode then
             local idx = indexOf(tModeDrawOpts, curMode)
             local ret, newIdx = tImGui.Combo('##modeDraw-' .. index, idx, tModeDrawOpts, -1)
             if ret and newIdx and newIdx ~= idx then
-                local okSet = pcall(function() meshD:setModeDraw(tModeDrawOpts[newIdx]) end)
+                local okSet = dpCall(function() meshD:setModeDraw(tModeDrawOpts[newIdx]) end)
                 if okSet then onEdit() end
             end
         end
@@ -923,12 +932,12 @@ function showMeshInfoTable(tEntry, index)
     -- Editable: Face culling
     tImGui.Text(tLang.L("face_culling"))
     do
-        local ok, curMode = pcall(function() return meshD:getModeCullFace() end)
+        local ok, curMode = dpCall(function() return meshD:getModeCullFace() end)
         if ok and curMode then
             local idx = indexOf(tModeCullOpts, curMode)
             local ret, newIdx = tImGui.Combo('##modeCull-' .. index, idx, tModeCullOpts, -1)
             if ret and newIdx and newIdx ~= idx then
-                local okSet = pcall(function() meshD:setModeCullFace(tModeCullOpts[newIdx]) end)
+                local okSet = dpCall(function() meshD:setModeCullFace(tModeCullOpts[newIdx]) end)
                 if okSet then onEdit() end
             end
         end
@@ -937,12 +946,12 @@ function showMeshInfoTable(tEntry, index)
     -- Editable: Front face
     tImGui.Text(tLang.L("front_face_label"))
     do
-        local ok, curMode = pcall(function() return meshD:getModeFrontFace() end)
+        local ok, curMode = dpCall(function() return meshD:getModeFrontFace() end)
         if ok and curMode then
             local idx = indexOf(tModeFrontOpts, curMode)
             local ret, newIdx = tImGui.Combo('##modeFront-' .. index, idx, tModeFrontOpts, -1)
             if ret and newIdx and newIdx ~= idx then
-                local okSet = pcall(function() meshD:setModeFrontFace(tModeFrontOpts[newIdx]) end)
+                local okSet = dpCall(function() meshD:setModeFrontFace(tModeFrontOpts[newIdx]) end)
                 if okSet then onEdit() end
             end
         end
@@ -951,14 +960,14 @@ function showMeshInfoTable(tEntry, index)
     -- Editable: Default angle
     tImGui.Text(tLang.L("default_angle_xyz"))
     do
-        local ok, ang = pcall(function() return meshD:getAngle() end)
+        local ok, ang = dpCall(function() return meshD:getAngle() end)
         if ok and ang then
             local v = {ang.x or 0, ang.y or 0, ang.z or 0}
             local r1, n1 = tImGui.InputFloat('##angX-' .. index, v[1], step, stepFast, fmt, flags)
             local r2, n2 = tImGui.InputFloat('##angY-' .. index, v[2], step, stepFast, fmt, flags)
             local r3, n3 = tImGui.InputFloat('##angZ-' .. index, v[3], step, stepFast, fmt, flags)
             if (r1 or r2 or r3) then
-                local okSet = pcall(function() meshD:setAngle(n1 or v[1], n2 or v[2], n3 or v[3]) end)
+                local okSet = dpCall(function() meshD:setAngle(n1 or v[1], n2 or v[2], n3 or v[3]) end)
                 if okSet then onEdit() end
             end
         end
@@ -967,14 +976,14 @@ function showMeshInfoTable(tEntry, index)
     -- Editable: Default position
     tImGui.Text(tLang.L("default_position_xyz"))
     do
-        local ok, pos = pcall(function() return meshD:getPosition() end)
+        local ok, pos = dpCall(function() return meshD:getPosition() end)
         if ok and pos then
             local v = {pos.x or 0, pos.y or 0, pos.z or 0}
             local r1, n1 = tImGui.InputFloat('##posX-' .. index, v[1], step, stepFast, fmt, flags)
             local r2, n2 = tImGui.InputFloat('##posY-' .. index, v[2], step, stepFast, fmt, flags)
             local r3, n3 = tImGui.InputFloat('##posZ-' .. index, v[3], step, stepFast, fmt, flags)
             if (r1 or r2 or r3) then
-                local okSet = pcall(function() meshD:setPosition(n1 or v[1], n2 or v[2], n3 or v[3]) end)
+                local okSet = dpCall(function() meshD:setPosition(n1 or v[1], n2 or v[2], n3 or v[3]) end)
                 if okSet then onEdit() end
             end
         end
@@ -982,20 +991,20 @@ function showMeshInfoTable(tEntry, index)
 
     -- Editable: Material (Diffuse + Power)
     if tImGui.TreeNodeEx(tLang.L("material"), 0, 'material-' .. index) then
-        local ok, mat = pcall(function() return meshD:getMaterial() end)
+        local ok, mat = dpCall(function() return meshD:getMaterial() end)
         if ok and mat and mat.Diffuse then
             local d = {r=mat.Diffuse.r or 1, g=mat.Diffuse.g or 1, b=mat.Diffuse.b or 1}
             local clicked, newD = tImGui.ColorEdit3(tLang.L("diffuse") .. '##mat-' .. index, d, flags)
             if clicked and newD then
                 local newMat = { Diffuse = {r=newD.r,g=newD.g,b=newD.b,a=1}, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = mat.Power or 1 }
-                local okSet = pcall(function() meshD:setMaterial(newMat) end)
+                local okSet = dpCall(function() meshD:setMaterial(newMat) end)
                 if okSet then onEdit() end
             end
             local pw = mat.Power or 1
             local rp, np = tImGui.InputFloat(tLang.L("power") .. '##mat-' .. index, pw, 0.1, 1, '%.2f', flags)
             if rp then
                 local newMat = { Diffuse = mat.Diffuse, Ambient = mat.Ambient, Specular = mat.Specular, Emissive = mat.Emissive, Power = np }
-                local okSet = pcall(function() meshD:setMaterial(newMat) end)
+                local okSet = dpCall(function() meshD:setMaterial(newMat) end)
                 if okSet then onEdit() end
             end
         end
@@ -1022,11 +1031,11 @@ function executeFrameOps(tEntry, meshD, index)
     -- Execute copy/insert ops first (low→high target)
     for _, op in ipairs(copies) do
         if op.kind == 'copyFrame' then
-            pcall(function()
+            dpCall(function()
                 meshD:copyFrameFrom(op.srcMesh, op.srcFrame)
             end)
         elseif op.kind == 'copySubset' then
-            pcall(function()
+            dpCall(function()
                 meshD:copySubsetFrom(op.targetFrame, op.srcMesh, op.srcFrame, op.srcSubset)
             end)
         end
@@ -1044,40 +1053,40 @@ function executeFrameOps(tEntry, meshD, index)
     end)
     for _, op in ipairs(removals) do
         if op.kind == 'removeFrame' then
-            pcall(function() meshD:removeFrame(op.frame) end)
+            dpCall(function() meshD:removeFrame(op.frame) end)
         elseif op.kind == 'removeSubset' then
-            pcall(function() meshD:removeSubset(op.frame, op.subset) end)
+            dpCall(function() meshD:removeSubset(op.frame, op.subset) end)
         end
     end
     tEntry.tPendingOps        = {}
     tEntry.iLeftSelectedRow   = nil
     tEntry.tRightChecked      = {}
-    tEntry.tFrameNodeExpanded = {}
+    tEntry.tCheckedRemove     = {}
     -- Refresh info
-    local ok, newInfo = pcall(function() return getMeshInfo(meshD) end)
+    local ok, newInfo = dpCall(function() return meshDebug:getInfo(tEntry.fileName) end)
     if ok and newInfo then tEntry.info = newInfo end
     -- Clean orphaned animation frames
     local nAnim = (tEntry.info and tEntry.info.animation) or 0
-    local okTF, nF = pcall(function() return meshD:getTotalFrame() end)
+    local okTF, nF = dpCall(function() return meshD:getTotalFrame() end)
     if okTF and nF and nF > 0 and nAnim > 0 then
         for i = nAnim, 1, -1 do
-            local ok2, initF, finF = pcall(function() return meshD:getAnimInfo(i) end)
+            local ok2, _, initF, finF = dpCall(function() return meshD:getAnim(i) end)
             if ok2 and initF and finF then
                 if initF > nF and finF > nF then
-                    pcall(function() meshD:removeAnim(i) end)
+                    dpCall(function() meshD:removeAnim(i) end)
                 else
                     local clampI = math.min(initF, nF)
                     local clampF = math.min(finF, nF)
                     if clampI ~= initF or clampF ~= finF then
-                        pcall(function()
-                            local _, name, _, _, t, typ = meshD:getAnimInfo(i)
+                        dpCall(function()
+                            local name, _, _, t, typ = meshD:getAnim(i)
                             meshD:updateAnim(i, name, clampI, clampF, t, typ)
                         end)
                     end
                 end
             end
         end
-        local ok3, newInfo2 = pcall(function() return getMeshInfo(meshD) end)
+        local ok3, newInfo2 = dpCall(function() return meshDebug:getInfo(tEntry.fileName) end)
         if ok3 and newInfo2 then tEntry.info = newInfo2 end
     end
     tEntry.modified = true
@@ -1117,7 +1126,7 @@ function showFramePickWindow(tEntry, meshD, index)
             local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_RowBg')
 
             -- Left table: current mesh (single-select anchor)
-            local okLF, nLeftFrames = pcall(function() return meshD:getTotalFrame() end)
+            local okLF, nLeftFrames = dpCall(function() return meshD:getTotalFrame() end)
             if not okLF then nLeftFrames = 0 end
             tImGui.Text(tLang.L('frame_pick_left'))
             if tImGui.BeginTable('fpLeft-' .. index, 2, tblFlags, {x=halfW, y=popH - 120}) then
@@ -1147,7 +1156,7 @@ function showFramePickWindow(tEntry, meshD, index)
                     else
                         if tImGui.TreeNodeEx('Frame ' .. f .. '##fplt-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
                             tEntry.tPickLeftExpanded[f] = true
-                            local okS, nS = pcall(function() return meshD:getTotalSubSet(f) end)
+                            local okS, nS = dpCall(function() return meshD:getTotalSubset(f) end)
                             for s = 1, (okS and nS or 0) do
                                 tImGui.TableNextRow()
                                 tImGui.TableSetColumnIndex(0)
@@ -1169,7 +1178,7 @@ function showFramePickWindow(tEntry, meshD, index)
             tImGui.SameLine()
 
             -- Right table: import mesh (multi-select checkboxes)
-            local okRF, nRightFrames = pcall(function() return importD:getTotalFrame() end)
+            local okRF, nRightFrames = dpCall(function() return importD:getTotalFrame() end)
             if not okRF then nRightFrames = 0 end
             tImGui.BeginGroup()
             tImGui.Text(tLang.L('frame_pick_right'))
@@ -1187,7 +1196,7 @@ function showFramePickWindow(tEntry, meshD, index)
                     local expanded = tEntry.tPickRightExpanded[f]
                     if tImGui.TreeNodeEx('Frame ' .. f .. '##fprt-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
                         tEntry.tPickRightExpanded[f] = true
-                        local okS, nS = pcall(function() return importD:getTotalSubSet(f) end)
+                        local okS, nS = dpCall(function() return importD:getTotalSubset(f) end)
                         for s = 1, (okS and nS or 0) do
                             tImGui.TableNextRow()
                             tImGui.TableSetColumnIndex(0)
@@ -1289,144 +1298,153 @@ function showFrameNode(tEntry, meshD, index)
         return
     end
 
-    local okTF, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local okTF, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     if not okTF then nFrames = 0 end
+    nFrames = nFrames or 0
 
-    local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
-    local tableH   = math.min(nFrames * 26 + 60, 300)
+    -- Build full subset list (all frames, all subsets)
+    local allSubsets = {}
+    for f = 1, nFrames do
+        local okS, nSubs = dpCall(function() return meshD:getTotalSubset(f) end)
+        for s = 1, (okS and nSubs or 0) do
+            local okT, tex = dpCall(function() return meshD:getTexture(f, s) end)
+            local texName = (okT and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
+            table.insert(allSubsets, {f=f, s=s, texName=texName})
+        end
+    end
 
-    if tImGui.BeginTable('frameTable-' .. index, 2, tblFlags, {x=0, y=tableH}) then
-        tImGui.TableSetupColumn('##ftsel', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
-        tImGui.TableSetupColumn(tLang.L('frame_selection'))
+    -- Helper: is a frame queued for removal?
+    local pendingFrames   = {}
+    local pendingSubsets  = {}   -- key = f*1000+s
+    for _, op in ipairs(tEntry.tPendingOps) do
+        if op.kind == 'removeFrame' then
+            pendingFrames[op.frame] = true
+        elseif op.kind == 'removeSubset' then
+            pendingSubsets[op.frame * 1000 + op.subset] = true
+        end
+    end
+
+    -- Two-column split: left = frames, right = all subsets
+    local listH   = math.min(math.max(nFrames, #allSubsets) * 22 + 8, 220)
+    local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders')
+
+    if tImGui.BeginTable('fnOuter-' .. index, 2, tblFlags, {x=0, y=listH + 26}) then
+        tImGui.TableSetupColumn(tLang.L('frame_node'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.4)
+        tImGui.TableSetupColumn(tLang.L('subsets'),   tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'), 0.6)
         tImGui.TableHeadersRow()
 
-        for f = 1, (nFrames or 0) do
-            -- Check pending ops
-            local framePendingDel = false
-            local pendingDelSubsets = {}
-            for _, op in ipairs(tEntry.tPendingOps) do
-                if op.kind == 'removeFrame' and op.frame == f then framePendingDel = true end
-                if op.kind == 'removeSubset' and op.frame == f then pendingDelSubsets[op.subset] = true end
-            end
+        tImGui.TableNextRow()
 
-            tImGui.TableNextRow()
-            tImGui.TableSetColumnIndex(0)
-
-            if framePendingDel then
-                -- Non-selectable, show red X
-                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                tImGui.Text('[x]')
-                tImGui.PopStyleColor()
-            else
-                local cur = tEntry.iLeftSelectedRow or 0
-                local newVal = tImGui.RadioButton('##fnr-' .. index .. '-' .. f, cur, f * 100)
-                if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
-            end
-
-            tImGui.TableSetColumnIndex(1)
-
-            local rowLabel
-            if framePendingDel then
-                tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                rowLabel = '[DEL] Frame ' .. f
-            else
-                rowLabel = 'Frame ' .. f
-            end
-
-            local expanded = tEntry.tFrameNodeExpanded[f]
-            if tImGui.TreeNodeEx(rowLabel .. '##fnte-' .. index .. '-' .. f, expanded and tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen') or 0) then
-                tEntry.tFrameNodeExpanded[f] = true
-                if framePendingDel then tImGui.PopStyleColor() end
-
-                local okS, nSubsets = pcall(function() return meshD:getTotalSubSet(f) end)
-                for s = 1, (okS and nSubsets or 0) do
-                    tImGui.TableNextRow()
-                    tImGui.TableSetColumnIndex(0)
-                    if not framePendingDel then
-                        local subPendingDel = pendingDelSubsets[s] or false
-                        if subPendingDel then
-                            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                            tImGui.Text('[x]')
-                            tImGui.PopStyleColor()
-                        else
-                            local cur = tEntry.iLeftSelectedRow or 0
-                            local newVal = tImGui.RadioButton('##fnrs-' .. index .. '-' .. f .. '-' .. s, cur, f * 100 + s)
-                            if newVal ~= cur then tEntry.iLeftSelectedRow = newVal end
-                        end
-                    end
-                    tImGui.TableSetColumnIndex(1)
-                    local ok2, tex = pcall(function() return meshD:getTexture(f, s) end)
-                    local texName = (ok2 and tex and tex ~= '') and (' [' .. tUtil.getShortName(tex) .. ']') or ''
-                    local subLabel = '    Subset ' .. s .. texName
-                    if pendingDelSubsets[s] then
-                        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
-                        tImGui.Text('[DEL] ' .. subLabel)
-                        tImGui.PopStyleColor()
-                    else
-                        tImGui.Text(subLabel)
-                    end
+        -- ── Left: frames ───────────────────────────────────────────────
+        tImGui.TableSetColumnIndex(0)
+        if tImGui.BeginChild('fnFrames-' .. index, {x=0, y=listH}, false, 0) then
+            for f = 1, nFrames do
+                local key = f * 100
+                if pendingFrames[f] then
+                    tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                    tImGui.Text('[DEL] Frame ' .. f)
+                    tImGui.PopStyleColor()
+                else
+                    local checked = tEntry.tCheckedRemove[key] or false
+                    local newChecked = tImGui.Checkbox('Frame ' .. f .. '##fnlcb-' .. index .. '-' .. f, checked)
+                    tEntry.tCheckedRemove[key] = newChecked
                 end
-                tImGui.TreePop()
-            else
-                tEntry.tFrameNodeExpanded[f] = false
-                if framePendingDel then tImGui.PopStyleColor() end
             end
+            tImGui.EndChild()
         end
+
+        -- ── Right: all subsets ─────────────────────────────────────────
+        tImGui.TableSetColumnIndex(1)
+        if tImGui.BeginChild('fnSubsets-' .. index, {x=0, y=listH}, false, 0) then
+            for _, sub in ipairs(allSubsets) do
+                local f, s, texName = sub.f, sub.s, sub.texName
+                local subKey = f * 100 + s
+                local label  = 'F' .. f .. ' S' .. s .. texName
+                if pendingFrames[f] or pendingSubsets[f * 1000 + s] then
+                    tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Text'), 0.9, 0.3, 0.3, 1)
+                    tImGui.Text('[DEL] ' .. label)
+                    tImGui.PopStyleColor()
+                else
+                    local checked = tEntry.tCheckedRemove[subKey] or false
+                    local newChecked = tImGui.Checkbox(label .. '##fnrcb-' .. index .. '-' .. f .. '-' .. s, checked)
+                    tEntry.tCheckedRemove[subKey] = newChecked
+                end
+            end
+            tImGui.EndChild()
+        end
+
         tImGui.EndTable()
     end
 
     tImGui.Separator()
 
-    -- Queued pending ops list
+    -- Pending ops list
     if #tEntry.tPendingOps > 0 then
         tImGui.Text(tLang.L('pending_ops') .. ':')
         for i, op in ipairs(tEntry.tPendingOps) do
-            local desc = '?'
-            if op.kind == 'removeFrame'  then desc = '[DEL] Frame ' .. op.frame
+            local desc
+            if     op.kind == 'removeFrame'  then desc = '[DEL] Frame ' .. op.frame
             elseif op.kind == 'removeSubset' then desc = '[DEL] Frame ' .. op.frame .. ' Subset ' .. op.subset
             elseif op.kind == 'copyFrame'    then desc = '+ Frame (import)'
             elseif op.kind == 'copySubset'   then desc = '+ Subset (import)'
+            else                                  desc = op.kind
             end
             tImGui.BulletText(i .. '. ' .. desc)
         end
         tImGui.Separator()
     end
 
-    -- Action buttons
-    local anchorRow = tEntry.iLeftSelectedRow
-    local function queueRemove()
-        if not anchorRow then return end
-        local f = math.floor(anchorRow / 100)
-        local s = anchorRow % 100
-        local isSubset = (s > 0)
-        if isSubset then
-            -- Check not already queued
-            for _, op in ipairs(tEntry.tPendingOps) do
-                if op.kind == 'removeSubset' and op.frame == f and op.subset == s then return end
-            end
-            table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
-        else
-            for _, op in ipairs(tEntry.tPendingOps) do
-                if op.kind == 'removeFrame' and op.frame == f then return end
-            end
-            table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
-        end
-        tEntry.iLeftSelectedRow = nil
+    -- ── Buttons ────────────────────────────────────────────────────────
+    -- Check if any checkbox is ticked
+    local anyChecked = false
+    for _, v in pairs(tEntry.tCheckedRemove) do
+        if v then anyChecked = true; break end
     end
 
-    if anchorRow then
+    -- Remove selected: queue all checked items, then clear tCheckedRemove
+    if anyChecked then
         if tImGui.Button(tLang.L('remove_selected') .. '##fnrm-' .. index) then
-            queueRemove()
+            for key, checked in pairs(tEntry.tCheckedRemove) do
+                if checked then
+                    local f = math.floor(key / 100)
+                    local s = key % 100
+                    if s > 0 then
+                        -- subset removal
+                        local already = false
+                        for _, op in ipairs(tEntry.tPendingOps) do
+                            if op.kind == 'removeSubset' and op.frame == f and op.subset == s then
+                                already = true; break
+                            end
+                        end
+                        if not already then
+                            table.insert(tEntry.tPendingOps, {kind='removeSubset', frame=f, subset=s})
+                        end
+                    else
+                        -- whole frame removal
+                        local already = false
+                        for _, op in ipairs(tEntry.tPendingOps) do
+                            if op.kind == 'removeFrame' and op.frame == f then
+                                already = true; break
+                            end
+                        end
+                        if not already then
+                            table.insert(tEntry.tPendingOps, {kind='removeFrame', frame=f})
+                        end
+                    end
+                end
+            end
+            tEntry.tCheckedRemove = {}
         end
         tImGui.SameLine()
     end
 
+    -- Import from file (always visible)
     if tImGui.Button(tLang.L('import_from_file') .. '##fnif-' .. index) then
         tEntry.bShowFramePick = true
         tEntry.tRightChecked  = {}
-        tEntry.iLeftSelectedRow = nil
     end
 
+    -- Execute and Clear (when pending ops exist)
     if #tEntry.tPendingOps > 0 then
         tImGui.SameLine()
         if tImGui.Button(tLang.L('execute_ops') .. '##fnex-' .. index) then
@@ -1537,7 +1555,7 @@ function showMeshOptions(tEntry, index)
         if ry ~= nil then xf.ry = ry end
         if rz ~= nil then xf.rz = rz end
         if tImGui.Button(tLang.L("apply_rotation") .. '##' .. index) then
-            local ok = pcall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end)
+            local ok = dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end)
             if ok then
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
@@ -1556,7 +1574,7 @@ function showMeshOptions(tEntry, index)
         if sy ~= nil then xf.sy = sy end
         if sz ~= nil then xf.sz = sz end
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
-            local ok = pcall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end)
+            local ok = dpCall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end)
             if ok then
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
@@ -1682,7 +1700,7 @@ function showMeshOptions(tEntry, index)
                 local animMap, nRemoved = computeAnimFilterMap(tEntry, meshD, nAnim)
                 local tAnimNames = {}
                 for i = 1, nAnim do
-                    local ok, aName = pcall(function() return meshD:getAnim(i) end)
+                    local ok, aName = dpCall(function() return meshD:getAnim(i) end)
                     local name = (ok and aName and aName ~= '') and aName or ('Anim ' .. i)
                     tAnimNames[i] = animMap[i] == false and ('[!] ' .. name) or name
                 end
@@ -1694,7 +1712,7 @@ function showMeshOptions(tEntry, index)
                     if filteredIdx then
                         -- Use remapped index when preview is filtered, original otherwise
                         local targetIdx = tEntry.bPreviewIsFiltered and filteredIdx or newIdx
-                        pcall(function() tPreviewMesh:setAnim(targetIdx) end)
+                        dpCall(function() tPreviewMesh:setAnim(targetIdx) end)
                     end
                     -- else: [!] animation removed by filter, skip setAnim silently
                 end
@@ -1703,12 +1721,12 @@ function showMeshOptions(tEntry, index)
                 end
             end
             if tImGui.Button(tLang.L("restart_animation") .. '##' .. index) then
-                pcall(function() tPreviewMesh:restartAnim() end)
+                dpCall(function() tPreviewMesh:restartAnim() end)
             end
         end
         if nAnim and nAnim > 0 then
             for i = 1, nAnim do
-                local ok, name, initF, finF, time, typ = pcall(function()
+                local ok, name, initF, finF, time, typ = dpCall(function()
                     return meshD:getAnim(i)
                 end)
                 if ok and name then
@@ -1727,14 +1745,14 @@ function showMeshOptions(tEntry, index)
                         local nty = (rty and newTypIdx and newTypIdx > 0) and (newTypIdx - 1) or (typ or 0)
                         if (mod or ri or rf or rt or rty) then
                             local totalFrames = info.totalFrames or 0
-                            local okTotal, nF = pcall(function() return meshD:getTotalFrame() end)
+                            local okTotal, nF = dpCall(function() return meshD:getTotalFrame() end)
                             if okTotal and nF then totalFrames = nF end
                             local initVal = math.max(1, math.min(ni or initF or 1, totalFrames > 0 and totalFrames or 1))
                             local finVal  = math.max(1, math.min(nf or finF or 1, totalFrames > 0 and totalFrames or 1))
                             local timeVal = (nt or time or 0.1) > 0 and (nt or time or 0.1) or 0.1
                             local typeVal = math.max(0, math.min(nty, 6))
                             if totalFrames > 0 then
-                                local okUp = pcall(function()
+                                local okUp = dpCall(function()
                                     meshD:updateAnim(i, newName or name, initVal, finVal, timeVal, typeVal)
                                 end)
                                 if okUp then onEdit() end
@@ -1755,7 +1773,7 @@ function showMeshOptions(tEntry, index)
 
     if tImGui.TreeNodeEx(tLang.L("shader_label"), 0, 'shader-' .. index) then
         if index == iSelectedMeshIndex and tPreviewMesh then
-            local okSh, tShader = pcall(function() return tPreviewMesh:getShader() end)
+            local okSh, tShader = dpCall(function() return tPreviewMesh:getShader() end)
             if okSh and tShader then
                 tImGui.PushItemWidth(180)
                 local sAnim, iCurAnim = tPreviewMesh:getAnim()
@@ -1806,7 +1824,7 @@ function showMeshOptions(tEntry, index)
                         tImGui.Text(tLang.L("type_label"))
                         local _, iTypePs = tShader:getPStype()
                         r, ci = tImGui.Combo('##TypePS-' .. index, (iTypePs or 0) + 1, tAnimTypeOpts)
-                        if r and ci then tShader:setPStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
+                        if r and ci then tShader:setPStype(ci - 1) dpCall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
                         tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getPStime()
                         local rt, ft = tImGui.InputFloat('##TimePS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
@@ -1851,7 +1869,7 @@ function showMeshOptions(tEntry, index)
                         tImGui.Text(tLang.L("type_label"))
                         local _, iTypeVs = tShader:getVStype()
                         r, ci = tImGui.Combo('##TypeVS-' .. index, (iTypeVs or 0) + 1, tAnimTypeOpts)
-                        if r and ci then tShader:setVStype(ci - 1) pcall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
+                        if r and ci then tShader:setVStype(ci - 1) dpCall(function() tPreviewMesh:restartAnim() end) applyShaderToMesh() end
                         tImGui.Text(tLang.L("time_short"))
                         local fTime = tShader:getVStime()
                         local rt, ft = tImGui.InputFloat('##TimeVS-' .. index, fTime or 1, 0.1, 1, '%.3f', 0)
@@ -1978,7 +1996,7 @@ function doSaveAs(tEntry, index)
 
     -- Check whether any frame has been deselected
     local tSel = tEntry.tFrameSelection or {}
-    local okT, nFrames = pcall(function() return meshD:getTotalFrame() end)
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
     nFrames = (okT and nFrames) or 0
     local hasDeselected = false
     for f = 1, nFrames do
