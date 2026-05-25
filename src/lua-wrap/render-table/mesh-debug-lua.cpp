@@ -1343,7 +1343,7 @@ namespace mbm
         return 0;
     }
 
-    // rotateFrame(frame, ax, ay, az)  -- frame=0 means all; angles in degrees
+    // rotateFrame(frame, ax, ay, az [,subset])  -- frame=0 means all; subset=0 means all; angles in degrees
     int onRotateFrameDebugLua(lua_State *lua)
     {
         const int       top         = lua_gettop(lua);
@@ -1353,11 +1353,13 @@ namespace mbm
         const float     angleX      = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 0.0)) : 0.0f;
         const float     angleY      = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 0.0)) : 0.0f;
         const float     angleZ      = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 0.0)) : 0.0f;
-        meshDebug->mesh.rotateFrame(indexFrame, -1, angleX, angleY, angleZ);
+        const int       subsetArg   = top > 5 ? luaL_optinteger(lua, 6, 0) : 0;
+        const int       indexSubset = subsetArg <= 0 ? -1 : subsetArg - 1;
+        meshDebug->mesh.rotateFrame(indexFrame, indexSubset, angleX, angleY, angleZ);
         return 0;
     }
 
-    // scaleFrame(frame, sx, sy, sz)  -- frame=0 means all
+    // scaleFrame(frame, sx, sy, sz [,subset])  -- frame=0 means all; subset=0 means all
     int onScaleFrameDebugLua(lua_State *lua)
     {
         const int       top         = lua_gettop(lua);
@@ -1367,11 +1369,13 @@ namespace mbm
         const float     sx          = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 1.0)) : 1.0f;
         const float     sy          = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 1.0)) : 1.0f;
         const float     sz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 1.0)) : 1.0f;
-        meshDebug->mesh.scaleFrame(indexFrame, -1, sx, sy, sz);
+        const int       subsetArg   = top > 5 ? luaL_optinteger(lua, 6, 0) : 0;
+        const int       indexSubset = subsetArg <= 0 ? -1 : subsetArg - 1;
+        meshDebug->mesh.scaleFrame(indexFrame, indexSubset, sx, sy, sz);
         return 0;
     }
 
-    // translateFrame(frame, dx, dy, dz)  -- frame=0 means all; values added to each vertex position
+    // translateFrame(frame, dx, dy, dz [,subset])  -- frame=0 means all; subset=0 means all; values added to each vertex position
     int onTranslateFrameDebugLua(lua_State *lua)
     {
         const int       top         = lua_gettop(lua);
@@ -1381,7 +1385,9 @@ namespace mbm
         const float     dx          = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 0.0)) : 0.0f;
         const float     dy          = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 0.0)) : 0.0f;
         const float     dz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 0.0)) : 0.0f;
-        meshDebug->mesh.translateFrame(indexFrame, -1, dx, dy, dz);
+        const int       subsetArg   = top > 5 ? luaL_optinteger(lua, 6, 0) : 0;
+        const int       indexSubset = subsetArg <= 0 ? -1 : subsetArg - 1;
+        meshDebug->mesh.translateFrame(indexFrame, indexSubset, dx, dy, dz);
         return 0;
     }
 
