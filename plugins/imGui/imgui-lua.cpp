@@ -3294,6 +3294,19 @@ int onEndChildImGuiLua(lua_State *)
     return 0;
 }
 
+int onBeginDisabledImGuiLua(lua_State *lua)
+{
+    const bool disabled = lua_gettop(lua) >= 1 ? (bool)lua_toboolean(lua, 1) : true;
+    ImGui::BeginDisabled(disabled);
+    return 0;
+}
+
+int onEndDisabledImGuiLua(lua_State *)
+{
+    ImGui::EndDisabled();
+    return 0;
+}
+
 // Tables API - see imgui_demo.cpp "Tables & Columns"
 int onBeginTableImGuiLua(lua_State *lua)
 {
@@ -5416,20 +5429,6 @@ int onMenuItemImGuiLua(lua_State *lua)
     return 2;
 }
 
-int onBeginTooltipImGuiLua(lua_State *lua)
-{
-    //  Begin/append a tooltip window. to create full-featured tooltip (with any kind of items).
-    ImGui::BeginTooltip();
-    return 0;
-}
-
-int onEndTooltipImGuiLua(lua_State *lua)
-{
-    ImGui::EndTooltip();
-    return 0;
-}
-
-
 int onMakeFlagsImGuiLua(lua_State *lua)
 {
     std::vector<std::string> flags;
@@ -5517,6 +5516,22 @@ int onSetTooltipImGuiLua(lua_State *lua)
     int index_input                                                           = 1;
     const char * text                                                         = luaL_checkstring(lua,index_input++);
     ImGui::SetTooltip("%s",text);
+    return 0;
+}
+
+int onBeginTooltipImGuiLua(lua_State *lua)
+{
+    //  Begin/append a tooltip window. Returns true if tooltip is visible.
+    //  Use with EndTooltip(). Equivalent to: if (BeginTooltip()) { ...; EndTooltip(); }
+    lua_pushboolean(lua, ImGui::BeginTooltip() ? 1 : 0);
+    return 1;
+}
+
+int onEndTooltipImGuiLua(lua_State *lua)
+{
+    //  Close a tooltip window opened with BeginTooltip() or BeginItemTooltip().
+    //  Only call if Begin*Tooltip() returned true.
+    ImGui::EndTooltip();
     return 0;
 }
 
@@ -6864,6 +6879,8 @@ int onNewimguiLua(lua_State *lua)
         {"Begin",                                                       onBeginImGuiLua },
         {"BeginChild",                                             onBeginChildImGuiLua }, // Not Tested, Window/Layout
         // BeginChildFrame removed - deprecated in ImGui 1.92, use BeginChild with styling instead
+        {"BeginDisabled",                                       onBeginDisabledImGuiLua },
+        {"EndDisabled",                                           onEndDisabledImGuiLua },
         {"BeginCombo",                                             onBeginComboImGuiLua }, // Not Tested, Window/Layout
         {"BeginGroup",                                             onBeginGroupImGuiLua }, // Not Tested, Window/Layout
         {"BeginMainMenuBar",                                 onBeginMainMenuBarImGuiLua },

@@ -79,6 +79,9 @@ namespace mbm
         API_IMPL virtual ~MESH_MBM_DEBUG();
         API_IMPL uint32_t addBuffer(const int stride = 3);
         API_IMPL uint32_t addSubset(uint32_t indexFrame);
+        API_IMPL void     removeSubset(uint32_t indexFrame, uint32_t indexSubset);
+        API_IMPL uint32_t copyBufferFrom(MESH_MBM_DEBUG &src, uint32_t srcFrameIdx);
+        API_IMPL uint32_t copySubsetFrom(uint32_t targetFrame, MESH_MBM_DEBUG &src, uint32_t srcFrame, uint32_t srcSubsetIdx);
         API_IMPL bool getInfo(util::HEADER_MESH &headerMeshMbmOut, util::TYPE_MESH &typeOut, INFO_BOUND_FONT **datailFontOut,
                      std::vector<util::STAGE_PARTICLE> &lsStageParticle);
         API_IMPL static bool getInfo(const char *fileNamePath, util::HEADER_MESH &headerMeshMbmOut,util::INFO_DRAW_MODE & info_mode,
@@ -92,11 +95,16 @@ namespace mbm
         API_IMPL void calculateUV();
         API_IMPL void removeNormals();
         API_IMPL void addNormals();
+        API_IMPL void removeBuffer(uint32_t indexFrame);
+        API_IMPL void removeAnimation(uint32_t index);
         API_IMPL bool saveDebug(const char *fileOut, const bool recalculateNormal, const bool recalculateUV, char *errorOut,const int lenErrorOut);
         API_IMPL bool loadDebugFromMemory(const MESH_MBM* meshMemory);
         API_IMPL bool loadDebug(const char *fileNamePath);
         API_IMPL bool check(char *error,const int lenError);
         API_IMPL void centralizeFrame(const int indexFrame, const int indexSubset);
+        API_IMPL void rotateFrame(const int indexFrame, const int indexSubset, const float angleX, const float angleY, const float angleZ);
+        API_IMPL void scaleFrame(const int indexFrame, const int indexSubset, const float sx, const float sy, const float sz);
+        API_IMPL void translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz);
         API_IMPL bool addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                             const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
                             char *strErrorOut, const int strErrorOutLen);
