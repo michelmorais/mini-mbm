@@ -2833,12 +2833,18 @@ function main_menu_mesh_debug()
             tImGui.Separator()
             local pressedLT, _ = tImGui.MenuItem(tLang.L('list_textures'))
             if pressedLT then
-                tListTexturesWin.open        = true
+                tListTexturesWin.open = true
+                if tListTexturesWin.folder == '' and sLastFolderPath ~= '' then
+                    tListTexturesWin.folder = sLastFolderPath
+                end
                 tListTexturesWin.needRebuild = true
             end
             local pressedLM, _ = tImGui.MenuItem(tLang.L('list_meshes'))
             if pressedLM then
-                tListMeshesWin.open        = true
+                tListMeshesWin.open = true
+                if tListMeshesWin.folder == '' and sLastFolderPath ~= '' then
+                    tListMeshesWin.folder = sLastFolderPath
+                end
                 tListMeshesWin.needRebuild = true
             end
             if tImGui.BeginMenu(tLang.L("background_color")) then
