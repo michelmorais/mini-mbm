@@ -2018,7 +2018,9 @@ function showMeshOptions(tEntry, index)
             end
         end
         if nAnim and nAnim > 0 then
+            local bAnimRemoved = false
             for i = 1, nAnim do
+                if bAnimRemoved then break end
                 local ok, name, initF, finF, time, typ = dpCall(function()
                     return meshD:getAnim(i)
                 end)
@@ -2048,15 +2050,47 @@ function showMeshOptions(tEntry, index)
                                 local okUp = dpCall(function()
                                     meshD:updateAnim(i, newName or name, initVal, finVal, timeVal, typeVal)
                                 end)
-                                if okUp then onEdit() end
+                                if okUp then
+                                    tEntry.iSelectedAnim = i
+                                    onEdit()
+                                end
                             end
                         end
+                        tImGui.Separator()
+                        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0.6,g=0.1,b=0.1,a=1})
+                        if tImGui.Button(tLang.L('remove_animation_btn') .. '##animRm-' .. index .. '-' .. i) then
+                            dpCall(function() meshD:removeAnim(i) end)
+                            tEntry.info = tEntry.info or {}
+                            tEntry.info.animation = math.max(0, (tEntry.info.animation or 1) - 1)
+                            if tEntry.iSelectedAnim and tEntry.iSelectedAnim >= i and tEntry.iSelectedAnim > 1 then
+                                tEntry.iSelectedAnim = tEntry.iSelectedAnim - 1
+                            end
+                            onEdit()
+                            bAnimRemoved = true
+                        end
+                        tImGui.PopStyleColor(1)
                         tImGui.TreePop()
                     end
                 end
             end
         else
             tImGui.TextDisabled('No animations')
+        end
+        local okTFAdd, nFAdd = dpCall(function() return meshD:getTotalFrame() end)
+        local nTotalFramesAdd = (okTFAdd and nFAdd and nFAdd > 0) and nFAdd or (info.totalFrames or 0)
+        if tImGui.Button(tLang.L('add_animation_btn') .. '##animAdd-' .. index) then
+            if nTotalFramesAdd > 0 then
+                local newAnimName = 'Animation ' .. ((tEntry.info and tEntry.info.animation or 0) + 1)
+                local okA = dpCall(function()
+                    return meshD:addAnim(newAnimName, 1, nTotalFramesAdd, 0.1, 1)
+                end)
+                if okA then
+                    tEntry.info = tEntry.info or {}
+                    tEntry.info.animation = (tEntry.info.animation or 0) + 1
+                    tEntry.iSelectedAnim = tEntry.info.animation
+                    onEdit()
+                end
+            end
         end
         tImGui.TreePop()
     end

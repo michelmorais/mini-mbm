@@ -808,6 +808,7 @@ M.en = {
     restart_animation_btn2 = "Restart Animation",
     
     add_animation_btn = "Add Animation",
+    remove_animation_btn = "Remove Animation",
     delete_btn = "Delete",
     select_this_animation = "Select this animation",
     apply_current_options = "Apply current options",
@@ -1725,6 +1726,7 @@ M.pt_br = {
     add_all = "Adicionar todos",
     restart_animation_btn2 = "Reiniciar animação",
     add_animation_btn = "Adicionar animação",
+    remove_animation_btn = "Remover animação",
     delete_btn = "Excluir",
     select_this_animation = "Selecionar esta animação",
     apply_current_options = "Aplicar opções atuais",
