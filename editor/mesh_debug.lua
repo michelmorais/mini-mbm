@@ -3384,7 +3384,7 @@ local function buildListMeshesData()
                             name     = name,
                             path     = fullPath,
                             inEditor = entry ~= nil,
-                            valid    = entry ~= nil and entry.valid or true,
+                            valid    = entry == nil or entry.valid,
                             checkErr = entry ~= nil and entry.err or nil,
                             selected = false,
                         })
@@ -3583,6 +3583,7 @@ function showListMeshesWindow()
             tImGui.Separator()
             if tImGui.Button(tLang.L('ok') .. '##lmwOk', {x=120, y=0}) then
                 local deleted = 0
+                local removedNames = {}
                 local i = 1
                 while i <= #win.folderFiles do
                     local f = win.folderFiles[i]
@@ -3590,6 +3591,9 @@ function showListMeshesWindow()
                         local ok, err = os.remove(f.path)
                         if ok then
                             deleted = deleted + 1
+                            if f.inEditor then
+                                removedNames[f.name] = true
+                            end
                             table.remove(win.folderFiles, i)
                         else
                             tUtil.showMessageWarn(string.format(
@@ -3601,7 +3605,21 @@ function showListMeshesWindow()
                         i = i + 1
                     end
                 end
+                -- Remove deleted meshes from the editor (descending to keep indices valid)
+                if next(removedNames) then
+                    local toRemove = {}
+                    for idx, tE in ipairs(tLoadedMeshes) do
+                        local bn = tUtil.getBaseFileName(tE.fileName)
+                        if removedNames[bn] then
+                            table.insert(toRemove, idx)
+                        end
+                    end
+                    for j = #toRemove, 1, -1 do
+                        removeMeshFromTable(toRemove[j])
+                    end
+                end
                 win.selectedCount = 0
+                win.needRebuild   = true
                 if deleted > 0 then
                     tUtil.showMessage(string.format(
                         tLang.L('lmw_delete_ok_fmt'), deleted))
