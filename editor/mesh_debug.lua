@@ -2643,28 +2643,28 @@ function showMeshOptions(tEntry, index)
         tImGui.Text(tLang.L(hasFilt and 'save_overwrite_tooltip_filt' or 'save_overwrite_tooltip'))
         tImGui.EndTooltip()
     end
-    if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
-        local animErr = collectAnimFrameErrors(tEntry)
-        if animErr then
-            tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
-        else
-            local ok = meshD:save(tEntry.fileName, true, false)
-            if ok then
-                tEntry.modified = false
-                if tEntry.info then tEntry.info.hasNormal = true end
-                iLastPreviewedIndex = 0
-                tUtil.showMessage(string.format('Saved: %s', shortName))
-            else
-                tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
-            end
-        end
-    end
-    if tImGui.IsItemHovered(0) then
-        tImGui.BeginTooltip()
-        tImGui.Text(tLang.L(hasFilt and 'save_normals_tooltip_filt' or 'save_normals_tooltip'))
-        tImGui.EndTooltip()
-    end
-    tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
+    --if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
+    --    local animErr = collectAnimFrameErrors(tEntry)
+    --    if animErr then
+    --        tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
+    --    else
+    --        local ok = meshD:save(tEntry.fileName, true, false)
+    --        if ok then
+    --            tEntry.modified = false
+    --            if tEntry.info then tEntry.info.hasNormal = true end
+    --            iLastPreviewedIndex = 0
+    --            tUtil.showMessage(string.format('Saved: %s', shortName))
+    --        else
+    --            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+    --        end
+    --    end
+    --end
+    --if tImGui.IsItemHovered(0) then
+    --    tImGui.BeginTooltip()
+    --    tImGui.Text(tLang.L(hasFilt and 'save_normals_tooltip_filt' or 'save_normals_tooltip'))
+    --    tImGui.EndTooltip()
+    --end
+    --tImGui.TextDisabled('Overwrite: as-is. Calculated: compute normals from geometry then save.')
 end
 
 function doSaveAs(tEntry, index)
