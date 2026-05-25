@@ -120,6 +120,114 @@ function onInitScene()
     }
 end
 
+-- Converts a parsed OBJ data table (from tiny_obj_loader.tiny_parse) into a .msh file,
+-- then loads it into tLoadedMeshes via addMeshToTable. Returns true on success.
+-- Each entry in tParsed is a shape subset: { tVertex, tIndex, tMaterial }.
+-- tVertex[i] = { x, y, z, u, v, nx, ny, nz }   (1-based, named fields)
+-- tIndex[i]  = integer (1-based vertex index into tVertex)
+-- Note: tiny_parse only populates tParsed when the OBJ file has at least one .mtl material.
+local function convertObjToMesh(objPath, tParsed)
+    if not tParsed or #tParsed == 0 then
+        tUtil.showMessage(string.format("OBJ has no usable shapes (needs a .mtl material file): %s", objPath))
+        return false
+    end
+
+    local meshD = meshDebug:new()
+    meshD:setType("mesh")
+    local frameIdx = meshD:addFrame(3)  -- stride 3 = x,y,z
+
+    for s = 1, #tParsed do
+        local subset = tParsed[s]
+        local subIdx = meshD:addSubSet(frameIdx)
+
+        -- Add vertices: array of {x,y,z,u,v,nx,ny,nz}
+        if subset.tVertex and #subset.tVertex > 0 then
+            if not meshD:addVertex(frameIdx, subIdx, subset.tVertex) then
+                tUtil.showMessage(string.format("Failed to add vertices for subset %d in %s", s, objPath))
+                return false
+            end
+        end
+
+        -- Add indices (already 1-based from tiny_parse)
+        if subset.tIndex and #subset.tIndex > 0 then
+            if not meshD:addIndex(frameIdx, subIdx, subset.tIndex) then
+                tUtil.showMessage(string.format("Failed to add indices for subset %d in %s", s, objPath))
+                return false
+            end
+        end
+
+        -- Apply diffuse texture from material if available
+        if subset.tMaterial then
+            local texName = subset.tMaterial.map_Kd
+            if texName and texName ~= '' then
+                meshD:setTexture(frameIdx, subIdx, texName)
+            end
+        end
+    end
+
+    -- Recalculate smooth normals from geometry
+    meshD:addNormals()
+
+    -- Output .msh next to the original .obj
+    local mshPath = objPath:gsub('%.obj$', '.msh')
+    if mshPath == objPath then
+        mshPath = objPath .. '.msh'
+    end
+
+    if not meshD:save(mshPath, false, false) then
+        tUtil.showMessage(string.format("Failed to save converted mesh: %s", mshPath))
+        return false
+    end
+
+    return addMeshToTable(mshPath)
+end
+
+function onLoadObj()
+    local fileName = mbm.openMultiFile(sLastMeshPath, "obj")
+    if fileName then
+        local ok, tiny_obj_loader = pcall(require, "tiny_obj_loader")
+        if ok then
+            local tFiles = {}
+            if type(fileName) == 'string' then
+                tFiles = { fileName }
+            elseif type(fileName) == 'table' then
+                tFiles = fileName
+            end
+            local nConverted = 0
+            for i = 1, #tFiles do
+                local objPath = tFiles[i]
+                local dir = objPath:match('^(.*)[/\\]')
+                if dir then mbm.addPath(dir) end
+                local parsed_ok, tParsed = tiny_obj_loader.tiny_parse(objPath)
+                if parsed_ok then
+                    if convertObjToMesh(objPath, tParsed) then
+                        nConverted = nConverted + 1
+                        -- Switch to 3D camera for OBJ/mesh viewing
+                        if not bCameraMode3D then
+                            bCameraMode3D = true
+                            originLine2dX.visible = false
+                            originLine2dY.visible = false
+                            originLine3dX.visible = bShowOrigin3d
+                            originLine3dY.visible = bShowOrigin3d
+                            originLine3dZ.visible = bShowOrigin3d
+                        end
+                    end
+                else
+                    tUtil.showMessage(string.format("Failed to parse OBJ: %s", objPath))
+                end
+            end
+            if #tFiles > 0 then
+                sLastMeshPath = tFiles[1]
+                bShowMeshTree = true
+                tUtil.showMessage(string.format("Converted %d/%d OBJ file(s) to .msh", nConverted, #tFiles))
+            end
+        else
+            print('Failed to load tiny_obj_loader module')
+            tUtil.showMessage("Failed to load tiny_obj_loader module")
+        end
+    end
+end
+
 function onLoadMeshFromFile()
     local fileName = mbm.openMultiFile(sLastMeshPath, "spt", "msh", "fnt", "tile", "ptl")
     if fileName then
@@ -2804,6 +2912,10 @@ function main_menu_mesh_debug()
             end
             if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
+            end
+            tImGui.Separator()
+            if tImGui.MenuItem('Load OBJ(s)') then
+                onLoadObj()
             end
             tImGui.Separator()
             showApplyToAllMenu()

@@ -1176,9 +1176,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #    add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
     #endif()
 
-    #if(NOT PLAT_LOWER STREQUAL "android")
-    #    add_subdirectory(${MODULES}                     ${MODULES})
-    #endif()
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
+        add_subdirectory(${MODULES}                     ${MODULES})
+    endif()
     
     #end plugins ############################################################################################
 
