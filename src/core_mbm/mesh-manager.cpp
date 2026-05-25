@@ -3090,6 +3090,41 @@ namespace mbm
         }
     }
 
+    void MESH_MBM_DEBUG::translateFrame(const int indexFrame, const int indexSubset, const float dx, const float dy, const float dz)
+    {
+        if (indexFrame < 0)
+        {
+            for (uint32_t i = 0; i < this->buffer.size(); ++i)
+                translateFrame(static_cast<int>(i), indexSubset, dx, dy, dz);
+            return;
+        }
+        if (indexFrame >= static_cast<int>(this->buffer.size())) return;
+        util::BUFFER_MESH_DEBUG *bufferCurrent = this->buffer[static_cast<std::vector<util::BUFFER_MESH_DEBUG *>::size_type>(indexFrame)];
+        auto *const              pPosition     = reinterpret_cast<VEC3 *>(bufferCurrent->position);
+        const auto               s             = static_cast<uint32_t>(bufferCurrent->subset.size());
+        auto applyTranslate                     = [&](const uint32_t vertexStart, const uint32_t vertexCount) {
+            const uint32_t n = vertexStart + vertexCount;
+            for (uint32_t j = vertexStart; j < n; ++j)
+            {
+                VEC3 *p = &pPosition[j];
+                p->x += dx; p->y += dy; p->z += dz;
+            }
+        };
+        if (indexSubset < 0)
+        {
+            for (uint32_t i = 0; i < s; ++i)
+            {
+                const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[i];
+                applyTranslate(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+            }
+        }
+        else if (indexSubset < static_cast<int>(s))
+        {
+            const util::SUBSET_DEBUG *pSub = bufferCurrent->subset[static_cast<uint32_t>(indexSubset)];
+            applyTranslate(static_cast<uint32_t>(pSub->vertexStart), static_cast<uint32_t>(pSub->vertexCount));
+        }
+    }
+
     bool MESH_MBM_DEBUG::addIndex(const uint32_t indexFrame, const uint32_t indexSubset,
                         const uint16_t *newIndexPart, const uint32_t sizeArrayNewIndexPart,
                         char *strErrorOut, const int strErrorOutLen)

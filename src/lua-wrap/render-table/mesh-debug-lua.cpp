@@ -1371,6 +1371,20 @@ namespace mbm
         return 0;
     }
 
+    // translateFrame(frame, dx, dy, dz)  -- frame=0 means all; values added to each vertex position
+    int onTranslateFrameDebugLua(lua_State *lua)
+    {
+        const int       top         = lua_gettop(lua);
+        MESH_DEBUG_LUA *meshDebug   = getMeshDebugFromRawTable(lua, 1, 1);
+        const int       frameArg    = top > 1 ? luaL_checkinteger(lua, 2) : 0;
+        const int       indexFrame  = frameArg <= 0 ? -1 : frameArg - 1;
+        const float     dx          = top > 2 ? static_cast<float>(luaL_optnumber(lua, 3, 0.0)) : 0.0f;
+        const float     dy          = top > 3 ? static_cast<float>(luaL_optnumber(lua, 4, 0.0)) : 0.0f;
+        const float     dz          = top > 4 ? static_cast<float>(luaL_optnumber(lua, 5, 0.0)) : 0.0f;
+        meshDebug->mesh.translateFrame(indexFrame, -1, dx, dy, dz);
+        return 0;
+    }
+
     int onCheckMeshDebugLua(lua_State *lua)
     {
         MESH_DEBUG_LUA *meshDebug     = getMeshDebugFromRawTable(lua, 1, 1);
@@ -1744,6 +1758,7 @@ namespace mbm
                                           {"centralize", onCentralizeMeshDebugLua},
                                           {"rotateFrame", onRotateFrameDebugLua},
                                           {"scaleFrame", onScaleFrameDebugLua},
+                                          {"translateFrame", onTranslateFrameDebugLua},
                                           {"check", onCheckMeshDebugLua},
                                           {"setStride", onSetStrideMeshDebugLua},
                                           {"enableNormal", onEnableNormalsMeshDebugLua},

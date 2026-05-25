@@ -1841,6 +1841,13 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
+    -- Auto-cancel transform preview when the Transform node is closed
+    if tEntry.tXformPreviewMesh and tEntry.sOpenNode ~= 'transform' then
+        tEntry.tXformPreviewMesh:destroy()
+        tEntry.tXformPreviewMesh = nil
+        if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
+    end
+
     if openNode(tEntry, 'transform', tLang.L("transform"), 0, 'transform-' .. index) then
         if tImGui.Button(tLang.L("centralize") .. '##' .. index) then
             meshD:centralize()
@@ -1849,10 +1856,19 @@ function showMeshOptions(tEntry, index)
             tUtil.showMessage(string.format('Centralized: %s', shortName))
         end
 
-        -- Rotate/Scale with per-frame or all-frames targeting
-        tEntry.tXformUI = tEntry.tXformUI or { frame=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1 }
+        -- Rotate/Scale/Translate with per-frame or all-frames targeting
+        tEntry.tXformUI = tEntry.tXformUI or { frame=0, rx=0, ry=0, rz=0, sx=1, sy=1, sz=1, dx=0, dy=0, dz=0 }
         local xf = tEntry.tXformUI
+        xf.dx = xf.dx or 0; xf.dy = xf.dy or 0; xf.dz = xf.dz or 0
         local totalFrames = info.totalFrames or 0
+
+        local function cancelXformPreview()
+            if tEntry.tXformPreviewMesh then
+                tEntry.tXformPreviewMesh:destroy()
+                tEntry.tXformPreviewMesh = nil
+            end
+            if tPreviewMesh and index == iSelectedMeshIndex then tPreviewMesh.visible = true end
+        end
 
         tImGui.Separator()
         tImGui.Text(tLang.L("target_frame_label"))
@@ -1874,6 +1890,7 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button(tLang.L("apply_rotation") .. '##' .. index) then
             local ok = dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end)
             if ok then
+                cancelXformPreview()
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("rotation_applied_fmt"), target))
@@ -1893,11 +1910,117 @@ function showMeshOptions(tEntry, index)
         if tImGui.Button(tLang.L("apply_scale") .. '##' .. index) then
             local ok = dpCall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end)
             if ok then
+                cancelXformPreview()
                 onEdit()
                 local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
                 tUtil.showMessage(string.format(tLang.L("scale_applied_fmt"), target))
                 xf.sx = 1; xf.sy = 1; xf.sz = 1
             end
+        end
+
+        -- Translate
+        tImGui.Spacing()
+        tImGui.Text(tLang.L("translate_xyz"))
+        local _, dx = tImGui.InputFloat('##xfDx-' .. index, xf.dx, 1, 10, '%.3f', 0)
+        local _, dy = tImGui.InputFloat('##xfDy-' .. index, xf.dy, 1, 10, '%.3f', 0)
+        local _, dz = tImGui.InputFloat('##xfDz-' .. index, xf.dz, 1, 10, '%.3f', 0)
+        if dx ~= nil then xf.dx = dx end
+        if dy ~= nil then xf.dy = dy end
+        if dz ~= nil then xf.dz = dz end
+        if tImGui.Button(tLang.L("apply_translate") .. '##' .. index) then
+            local ok = dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz) end)
+            if ok then
+                cancelXformPreview()
+                onEdit()
+                local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
+                tUtil.showMessage(string.format(tLang.L("translate_applied_fmt"), target))
+                xf.dx = 0; xf.dy = 0; xf.dz = 0
+            end
+        end
+
+        -- Combined Preview → Apply workflow
+        tImGui.Separator()
+        if not tEntry.tXformPreviewMesh then
+            if tImGui.Button(tLang.L("preview_transform") .. '##' .. index) then
+                local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
+                tEntry.xfPreviewPath = tEntry.xfPreviewPath or (os.tmpname() .. '_xf.' .. ext)
+                if meshD:save(tEntry.xfPreviewPath, false, false) then
+                    local cloneMeshD = meshDebug:new()
+                    if cloneMeshD:load(tEntry.xfPreviewPath) then
+                        if xf.rx ~= 0 or xf.ry ~= 0 or xf.rz ~= 0 then
+                            dpCall(function() cloneMeshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end)
+                        end
+                        if xf.sx ~= 1 or xf.sy ~= 1 or xf.sz ~= 1 then
+                            dpCall(function() cloneMeshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end)
+                        end
+                        if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
+                            dpCall(function() cloneMeshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz) end)
+                        end
+                        if cloneMeshD:save(tEntry.xfPreviewPath, false, false) then
+                            meshDebug:fakeRelease(tEntry.xfPreviewPath)
+                            local dir = tEntry.fileName:match('^(.*)[/\\]')
+                            if dir then mbm.addPath(dir) end
+                            local coordType = bCameraMode3D and '3d' or '2dw'
+                            local meshType = info.type or 'unknown'
+                            local cloneRender, rok = nil, false
+                            if meshType == 'sprite' then
+                                cloneRender = sprite:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
+                            elseif meshType == 'mesh' then
+                                cloneRender = mesh:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
+                            elseif meshType == 'tile' then
+                                cloneRender = tile:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
+                            elseif meshType == 'particle' then
+                                cloneRender = particle:new(coordType)
+                                rok = cloneRender:load(tEntry.xfPreviewPath)
+                                if rok then cloneRender:add(100); cloneRender.revive = true end
+                            elseif meshType == 'texture' then
+                                cloneRender = texture:new(coordType); rok = cloneRender:load(tEntry.xfPreviewPath)
+                            end
+                            if rok and cloneRender then
+                                cloneRender:setColor(255, 220, 50, 200)
+                                dpCall(function() cloneRender:setAnim(tEntry.iSelectedAnim or 1) end)
+                                tEntry.tXformPreviewMesh = cloneRender
+                                if tPreviewMesh and index == iSelectedMeshIndex then
+                                    tPreviewMesh.visible = false
+                                end
+                            else
+                                if cloneRender then cloneRender:destroy() end
+                                tUtil.showMessageWarn('Failed to create transform preview')
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0.1,g=0.5,b=0.1,a=1})
+            if tImGui.Button(tLang.L("apply_transform") .. '##' .. index) then
+                local anyChange = false
+                if xf.rx ~= 0 or xf.ry ~= 0 or xf.rz ~= 0 then
+                    if dpCall(function() meshD:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz) end) then anyChange = true end
+                end
+                if xf.sx ~= 1 or xf.sy ~= 1 or xf.sz ~= 1 then
+                    if dpCall(function() meshD:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz) end) then anyChange = true end
+                end
+                if xf.dx ~= 0 or xf.dy ~= 0 or xf.dz ~= 0 then
+                    if dpCall(function() meshD:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz) end) then anyChange = true end
+                end
+                cancelXformPreview()
+                if anyChange then
+                    local target = xf.frame == 0 and 'all frames' or ('frame ' .. xf.frame)
+                    tUtil.showMessage(string.format(tLang.L("transform_applied_fmt"), target))
+                    xf.rx = 0; xf.ry = 0; xf.rz = 0
+                    xf.sx = 1; xf.sy = 1; xf.sz = 1
+                    xf.dx = 0; xf.dy = 0; xf.dz = 0
+                    onEdit()
+                end
+            end
+            tImGui.PopStyleColor(1)
+            tImGui.SameLine()
+            tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'), {r=0.5,g=0.1,b=0.1,a=1})
+            if tImGui.Button(tLang.L("cancel_preview") .. '##' .. index) then
+                cancelXformPreview()
+            end
+            tImGui.PopStyleColor(1)
         end
 
         tImGui.TreePop()
