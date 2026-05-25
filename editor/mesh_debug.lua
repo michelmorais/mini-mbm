@@ -1752,6 +1752,30 @@ function showFrameNode(tEntry, meshD, index)
     tImGui.TreePop()
 end
 
+-- Returns nil when all animation frame indices are within bounds,
+-- or an error string listing every violation.
+function collectAnimFrameErrors(tEntry)
+    local meshD  = tEntry.meshDebug
+    local info   = tEntry.info or {}
+    local okTF, nTotalF = dpCall(function() return meshD:getTotalFrame() end)
+    local totalF = (okTF and nTotalF) or (info.totalFrames or 0)
+    if totalF == 0 then return nil end
+    local errors = {}
+    local nAnimC = info.animation or 0
+    for ai = 1, nAnimC do
+        local okA, aName, initF, finF = dpCall(function() return meshD:getAnim(ai) end)
+        if okA and aName then
+            if (initF or 0) > totalF then
+                errors[#errors+1] = string.format('Anim %d (%s): initFrame %d > totalFrames %d', ai, aName, initF, totalF)
+            end
+            if (finF or 0) > totalF then
+                errors[#errors+1] = string.format('Anim %d (%s): finFrame %d > totalFrames %d', ai, aName, finF, totalF)
+            end
+        end
+    end
+    return #errors > 0 and table.concat(errors, '\n') or nil
+end
+
 function showMeshOptions(tEntry, index)
     local meshD = tEntry.meshDebug
     local info = tEntry.info or {}
@@ -2270,21 +2294,31 @@ function showMeshOptions(tEntry, index)
 
     if tImGui.Button(tLang.L("check") .. '##' .. index) then
         local ok, err = meshD:check()
-        if ok then
+        local animErr = collectAnimFrameErrors(tEntry)
+        if ok and not animErr then
             tUtil.showMessage(string.format('Check OK: %s', shortName))
+        elseif ok and animErr then
+            tUtil.showMessageWarn('Animation frame bounds exceeded:\n' .. animErr)
+        elseif not ok and animErr then
+            tUtil.showMessageWarn(string.format(tLang.L("check_failed_fmt"), shortName, (err or '') .. '\nAnimation frame bounds exceeded:\n' .. animErr))
         else
             tUtil.showMessageWarn(string.format(tLang.L("check_failed_fmt"), shortName, err or ''))
         end
     end
 
     if tImGui.Button(tLang.L("save_all_overwrite") .. '##' .. index) then
-        local ok = meshD:save(tEntry.fileName, false, false)
-        if ok then
-            tEntry.modified = false
-            iLastPreviewedIndex = 0
-            tUtil.showMessage(string.format('Saved: %s', shortName))
+        local animErr = collectAnimFrameErrors(tEntry)
+        if animErr then
+            tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
         else
-            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+            local ok = meshD:save(tEntry.fileName, false, false)
+            if ok then
+                tEntry.modified = false
+                iLastPreviewedIndex = 0
+                tUtil.showMessage(string.format('Saved: %s', shortName))
+            else
+                tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+            end
         end
     end
     if tImGui.IsItemHovered(0) then
@@ -2293,14 +2327,19 @@ function showMeshOptions(tEntry, index)
         tImGui.EndTooltip()
     end
     if tImGui.Button(tLang.L("save_all_calc_normals") .. '##' .. index) then
-        local ok = meshD:save(tEntry.fileName, true, false)
-        if ok then
-            tEntry.modified = false
-            if tEntry.info then tEntry.info.hasNormal = true end
-            iLastPreviewedIndex = 0
-            tUtil.showMessage(string.format('Saved: %s', shortName))
+        local animErr = collectAnimFrameErrors(tEntry)
+        if animErr then
+            tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
         else
-            tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+            local ok = meshD:save(tEntry.fileName, true, false)
+            if ok then
+                tEntry.modified = false
+                if tEntry.info then tEntry.info.hasNormal = true end
+                iLastPreviewedIndex = 0
+                tUtil.showMessage(string.format('Saved: %s', shortName))
+            else
+                tUtil.showMessageWarn(string.format(tLang.L("save_failed_fmt"), shortName))
+            end
         end
     end
     if tImGui.IsItemHovered(0) then
@@ -2320,6 +2359,12 @@ function doSaveAs(tEntry, index)
 
     local newFile = mbm.saveFile(sLastMeshPath, suggestedExt)
     if not newFile or newFile == '' then return end
+
+    local animErr = collectAnimFrameErrors(tEntry)
+    if animErr then
+        tUtil.showMessageWarn('Cannot save — animation frame bounds exceeded:\n' .. animErr)
+        return
+    end
 
     -- Check whether any frame has been deselected
     local tSel = tEntry.tFrameSelection or {}
@@ -2381,13 +2426,19 @@ function applyToAll(operation)
             tEntry.modified = true
             ok = true
         elseif operation == 'save' then
-            ok = meshD:save(tEntry.fileName, false, false)
-            if ok then tEntry.modified = false end
+            local animErr = collectAnimFrameErrors(tEntry)
+            if not animErr then
+                ok = meshD:save(tEntry.fileName, false, false)
+                if ok then tEntry.modified = false end
+            end
         elseif operation == 'saveRecalcNormals' then
-            ok = meshD:save(tEntry.fileName, true, false)
-            if ok then
-                tEntry.modified = false
-                if tEntry.info then tEntry.info.hasNormal = true end
+            local animErr = collectAnimFrameErrors(tEntry)
+            if not animErr then
+                ok = meshD:save(tEntry.fileName, true, false)
+                if ok then
+                    tEntry.modified = false
+                    if tEntry.info then tEntry.info.hasNormal = true end
+                end
             end
         end
         if ok then
