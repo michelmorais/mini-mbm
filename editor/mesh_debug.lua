@@ -109,6 +109,15 @@ function onInitScene()
         needRebuild   = true,
         showConfirm   = false,
     }
+    tListMeshesWin = {
+        open          = false,
+        folder        = '',
+        loadedSet     = {},
+        loadedList    = {},
+        folderFiles   = {},
+        selectedCount = 0,
+        needRebuild   = true,
+    }
 end
 
 function onLoadMeshFromFile()
@@ -2827,6 +2836,11 @@ function main_menu_mesh_debug()
                 tListTexturesWin.open        = true
                 tListTexturesWin.needRebuild = true
             end
+            local pressedLM, _ = tImGui.MenuItem(tLang.L('list_meshes'))
+            if pressedLM then
+                tListMeshesWin.open        = true
+                tListMeshesWin.needRebuild = true
+            end
             if tImGui.BeginMenu(tLang.L("background_color")) then
                 local sz        = tImGui.GetTextLineHeight()
                 
@@ -3334,11 +3348,288 @@ function showListTexturesWindow()
     end
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- List Meshes window
+-- ─────────────────────────────────────────────────────────────────────────────
+local function buildListMeshesData()
+    local win = tListMeshesWin
+    win.loadedSet  = {}
+    win.loadedList = {}
+    for _, tE in ipairs(tLoadedMeshes) do
+        local bn = tUtil.getBaseFileName(tE.fileName)
+        if bn and bn ~= '' and not win.loadedSet[bn] then
+            local ok, err = tE.meshDebug:check()
+            win.loadedSet[bn] = { valid = ok, err = err }
+            table.insert(win.loadedList, bn)
+        end
+    end
+    table.sort(win.loadedList)
+
+    win.folderFiles   = {}
+    win.selectedCount = 0
+    if win.folder ~= '' then
+        local meshExts = { spt=true, msh=true, fnt=true, tile=true, ptl=true }
+        local tFiles   = mbm.listFiles(win.folder, false)
+        if tFiles then
+            local sep = tFiles.separator or '/'
+            for i = 1, #tFiles do
+                local tDir = tFiles[i]
+                for j = 1, #tDir do
+                    local name = tDir[j]
+                    local ext  = (name:match('%.([^%.]+)$') or ''):lower()
+                    if meshExts[ext] then
+                        local fullPath = tDir.path .. sep .. name
+                        local entry = win.loadedSet[name]
+                        table.insert(win.folderFiles, {
+                            name     = name,
+                            path     = fullPath,
+                            inEditor = entry ~= nil,
+                            valid    = entry ~= nil and entry.valid or true,
+                            checkErr = entry ~= nil and entry.err or nil,
+                            selected = false,
+                        })
+                    end
+                end
+            end
+        end
+        table.sort(win.folderFiles, function(a, b)
+            return a.name:lower() < b.name:lower()
+        end)
+    end
+    win.needRebuild = false
+end
+
+function showListMeshesWindow()
+    local win = tListMeshesWin
+    if not win.open then return end
+    if win.needRebuild then buildListMeshesData() end
+
+    local iW, iH = mbm.getSizeScreen()
+    tImGui.SetNextWindowSize({x=620, y=540}, tImGui.Flags('ImGuiCond_Appearing'))
+    tImGui.SetNextWindowPos({x=iW*0.5, y=iH*0.5},
+        tImGui.Flags('ImGuiCond_Appearing'), {x=0.5, y=0.5})
+
+    local is_open, closed = tImGui.Begin(
+        tLang.L('list_meshes') .. '##lmwWin', true, 0)
+
+    if is_open then
+        -- ── Top panel: meshes loaded in editor ───────────────────────────────
+        tImGui.Text(tLang.L('lmw_loaded_section')
+            .. string.format(' (%d)', #win.loadedList))
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('lmw_refresh') .. '##lmwRefresh') then
+            win.needRebuild = true
+            buildListMeshesData()
+        end
+        local loadedText = #win.loadedList > 0
+            and table.concat(win.loadedList, '\n')
+            or  tLang.L('lmw_no_meshes')
+        local flagsRO = tImGui.Flags('ImGuiInputTextFlags_ReadOnly')
+        tImGui.InputTextMultiline('##lmwLoaded', loadedText, {x=-1, y=110}, flagsRO)
+
+        tImGui.Separator()
+
+        -- ── Folder selector ───────────────────────────────────────────────────
+        tImGui.Text(tLang.L('lmw_folder_section'))
+        tImGui.Spacing()
+        tImGui.Text(tLang.L('lmw_folder_label'))
+        tImGui.SameLine()
+        local dispFolder = win.folder ~= '' and win.folder
+                           or tLang.L('lmw_no_folder')
+        tImGui.TextDisabled(dispFolder)
+        if tImGui.IsItemHovered(0) and win.folder ~= '' then
+            tImGui.BeginTooltip()
+            tImGui.Text(win.folder)
+            tImGui.EndTooltip()
+        end
+        if tImGui.Button(tLang.L('lmw_browse_folder') .. '##lmwBrowse') then
+            local picked = mbm.openFolder(tLang.L('list_meshes'),
+                win.folder ~= '' and win.folder or sLastFolderPath)
+            if picked then
+                win.folder = picked:gsub('\\', '/')
+                sLastFolderPath = win.folder
+                win.needRebuild = true
+                buildListMeshesData()
+            end
+        end
+        if win.folder ~= '' then
+            local total   = #win.folderFiles
+            local notInEd = 0
+            local invalid = 0
+            for _, f in ipairs(win.folderFiles) do
+                if not f.inEditor then notInEd = notInEd + 1 end
+                if f.inEditor and not f.valid then invalid = invalid + 1 end
+            end
+            tImGui.SameLine()
+            tImGui.TextDisabled(string.format(
+                tLang.L('lmw_unloaded_count_fmt'), total, notInEd, invalid))
+        end
+
+        tImGui.Spacing()
+
+        -- ── File table ────────────────────────────────────────────────────────
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders',
+                                      'ImGuiTableFlags_RowBg',
+                                      'ImGuiTableFlags_ScrollY')
+        if tImGui.BeginTable('lmwFiles', 3, tblFlags, {x=-1, y=-38}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn('##cb',
+                tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn('File')
+            tImGui.TableSetupColumn('Status',
+                tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 96)
+            tImGui.TableHeadersRow()
+
+            if #win.folderFiles == 0 then
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                tImGui.TableNextColumn()
+                tImGui.TextDisabled(win.folder ~= ''
+                    and tLang.L('lmw_no_files')
+                    or  tLang.L('lmw_no_folder'))
+            else
+                for idx, f in ipairs(win.folderFiles) do
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    local canDelete = not f.inEditor or not f.valid
+                    if canDelete then
+                        local newSel = tImGui.Checkbox('##lmwCb-' .. idx, f.selected)
+                        if newSel ~= f.selected then
+                            f.selected        = newSel
+                            win.selectedCount = win.selectedCount
+                                + (newSel and 1 or -1)
+                        end
+                    else
+                        tImGui.BeginDisabled(true)
+                        tImGui.Checkbox('##lmwCb-' .. idx, false)
+                        tImGui.EndDisabled()
+                    end
+
+                    tImGui.TableNextColumn()
+                    tImGui.Text(f.name)
+                    if tImGui.IsItemHovered(0) then
+                        tImGui.BeginTooltip()
+                        tImGui.Text(f.path)
+                        tImGui.EndTooltip()
+                    end
+
+                    tImGui.TableNextColumn()
+                    if f.inEditor and f.valid then
+                        tImGui.PushStyleColor(
+                            tImGui.Flags('ImGuiCol_Text'),
+                            {r=0.3, g=0.9, b=0.3, a=1})
+                        tImGui.Text(tLang.L('lmw_status_in_editor'))
+                        tImGui.PopStyleColor(1)
+                    elseif f.inEditor and not f.valid then
+                        tImGui.PushStyleColor(
+                            tImGui.Flags('ImGuiCol_Text'),
+                            {r=0.9, g=0.2, b=0.2, a=1})
+                        tImGui.Text(tLang.L('lmw_status_invalid'))
+                        tImGui.PopStyleColor(1)
+                        if tImGui.IsItemHovered(0) and f.checkErr then
+                            tImGui.BeginTooltip()
+                            tImGui.Text(f.checkErr)
+                            tImGui.EndTooltip()
+                        end
+                    else
+                        tImGui.PushStyleColor(
+                            tImGui.Flags('ImGuiCol_Text'),
+                            {r=0.9, g=0.6, b=0.1, a=1})
+                        tImGui.Text(tLang.L('lmw_status_not_in_editor'))
+                        tImGui.PopStyleColor(1)
+                    end
+                end
+            end
+            tImGui.EndTable()
+        end
+
+        -- ── Bottom action bar ─────────────────────────────────────────────────
+        if tImGui.Button(tLang.L('lmw_select_all') .. '##lmwSelAll') then
+            win.selectedCount = 0
+            for _, f in ipairs(win.folderFiles) do
+                if not f.inEditor or not f.valid then
+                    f.selected        = true
+                    win.selectedCount = win.selectedCount + 1
+                end
+            end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('lmw_select_none') .. '##lmwSelNone') then
+            for _, f in ipairs(win.folderFiles) do
+                f.selected = false
+            end
+            win.selectedCount = 0
+        end
+        tImGui.SameLine()
+        local hasSelection = win.selectedCount > 0
+        if not hasSelection then tImGui.BeginDisabled(true) end
+        tImGui.PushStyleColor(tImGui.Flags('ImGuiCol_Button'),
+            {r=0.55, g=0.1, b=0.1, a=1})
+        if tImGui.Button(string.format(
+                tLang.L('lmw_delete_selected'), win.selectedCount)
+                .. '##lmwDel') then
+            tImGui.OpenPopup('lmwConfirmDel##lmw')
+        end
+        tImGui.PopStyleColor(1)
+        if not hasSelection then tImGui.EndDisabled() end
+
+        -- ── Confirmation popup ────────────────────────────────────────────────
+        local pFlags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+        local popOpen, _ = tImGui.BeginPopupModal(
+            'lmwConfirmDel##lmw', false, pFlags)
+        if popOpen then
+            tImGui.Text(string.format(
+                tLang.L('lmw_confirm_msg'), win.selectedCount))
+            tImGui.Separator()
+            if tImGui.Button(tLang.L('ok') .. '##lmwOk', {x=120, y=0}) then
+                local deleted = 0
+                local i = 1
+                while i <= #win.folderFiles do
+                    local f = win.folderFiles[i]
+                    if f.selected then
+                        local ok, err = os.remove(f.path)
+                        if ok then
+                            deleted = deleted + 1
+                            table.remove(win.folderFiles, i)
+                        else
+                            tUtil.showMessageWarn(string.format(
+                                'Could not delete: %s',
+                                err or f.name))
+                            i = i + 1
+                        end
+                    else
+                        i = i + 1
+                    end
+                end
+                win.selectedCount = 0
+                if deleted > 0 then
+                    tUtil.showMessage(string.format(
+                        tLang.L('lmw_delete_ok_fmt'), deleted))
+                end
+                tImGui.CloseCurrentPopup()
+            end
+            tImGui.SetItemDefaultFocus()
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L('cancel') .. '##lmwCancel',
+                    {x=120, y=0}) then
+                tImGui.CloseCurrentPopup()
+            end
+            tImGui.EndPopup()
+        end
+    end
+
+    tImGui.End()
+    if closed then
+        win.open = false
+    end
+end
+
 function onLoop(delta)
     main_menu_mesh_debug()
     showCameraWindow()
     showMeshTreeWindow()
     showListTexturesWindow()
+    showListMeshesWindow()
     updatePreviewMesh()
     -- Frame Pick popup (per loaded mesh)
     for i = 1, #tLoadedMeshes do
