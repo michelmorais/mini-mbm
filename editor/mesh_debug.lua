@@ -2075,6 +2075,132 @@ function showMeshOptions(tEntry, index)
         tImGui.TreePop()
     end
 
+    -- ── Texture node ──────────────────────────────────────────────────────────
+    if openNode(tEntry, 'texture', tLang.L("texture_node"), 0, 'texture-' .. index) then
+        tEntry.tTexUI = tEntry.tTexUI or { frame=0, subset=0, stage=0, filename='' }
+        local tx      = tEntry.tTexUI
+        tx.filename   = tx.filename or ''
+
+        local totalFrames  = info.totalFrames or 0
+        local totalSubsets = 0
+        do
+            local okS, nS = dpCall(function() return meshD:getTotalSubset(math.max(1, tx.frame)) end)
+            if okS and nS then totalSubsets = nS end
+        end
+
+        -- Frame / subset selectors (0 = all, consistent with Transform node)
+        tImGui.Separator()
+        tImGui.Text(tLang.L("target_frame_label"))
+        local _, nf = tImGui.InputInt('##txFrame-' .. index, tx.frame, 1, 1, 0)
+        if nf ~= nil then tx.frame = math.max(0, math.min(nf, totalFrames)) end
+
+        tImGui.Text(tLang.L("target_subset_label"))
+        local _, ns = tImGui.InputInt('##txSubset-' .. index, tx.subset, 1, 1, 0)
+        if ns ~= nil then tx.subset = math.max(0, math.min(ns, totalSubsets)) end
+
+        -- Stage selector
+        tImGui.Spacing()
+        tImGui.Text(tLang.L("tex_stage_label"))
+        local stageOpts = {'0 - Primary', '1 - FX (per anim step)'}
+        local stageRet, newStageIdx = tImGui.Combo('##txStage-' .. index, tx.stage + 1, stageOpts, -1)
+        if stageRet and newStageIdx then tx.stage = newStageIdx - 1 end
+
+        tImGui.Spacing()
+        if tx.stage == 1 then
+            tImGui.TextWrapped(tLang.L("tex_stage1_note"))
+        else
+            -- Show current texture when a specific frame+subset is selected
+            if tx.frame > 0 and tx.subset > 0 then
+                local okG, curTex = dpCall(function() return meshD:getTexture(tx.frame, tx.subset) end)
+                if okG then
+                    tImGui.Text(tLang.L("tex_current_label"))
+                    tImGui.SameLine()
+                    if curTex and curTex ~= '' then
+                        tImGui.TextDisabled(tUtil.getShortName(curTex))
+                        if tImGui.IsItemHovered(0) then
+                            tImGui.BeginTooltip()
+                            tImGui.Text(curTex)
+                            tImGui.EndTooltip()
+                        end
+                    else
+                        tImGui.TextDisabled('(none)')
+                    end
+                end
+            end
+
+            -- Filename input + browse button
+            tImGui.Text(tLang.L("tex_filename_label"))
+            local modF, newFile = tImGui.InputText('##txFile-' .. index, tx.filename, 512, 0)
+            if modF and newFile ~= nil then tx.filename = newFile end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("tex_browse") .. '##txBrowse-' .. index) then
+                local picked = mbm.openFile(sLastMeshPath,
+                    table.unpack(tUtil.supported_images or {'png', 'jpg', 'bmp', 'tga'}))
+                if picked then
+                    if type(picked) == 'table' then picked = picked[1] end
+                    tx.filename = picked
+                end
+            end
+
+            -- Set / Clear buttons
+            tImGui.Spacing()
+            if tImGui.Button(tLang.L("tex_set") .. '##txSet-' .. index) then
+                local fn = tx.filename or ''
+                if fn == '' then
+                    tUtil.showMessageWarn('No filename specified')
+                else
+                    local count = 0
+                    local f1, f2 = tx.frame == 0 and 1 or tx.frame, tx.frame == 0 and totalFrames or tx.frame
+                    for f = f1, f2 do
+                        local nS2 = totalSubsets
+                        if tx.subset == 0 then
+                            local okS2, ns2 = dpCall(function() return meshD:getTotalSubset(f) end)
+                            if okS2 and ns2 then nS2 = ns2 end
+                        end
+                        local s1 = tx.subset == 0 and 1 or tx.subset
+                        local s2 = tx.subset == 0 and nS2 or tx.subset
+                        for s = s1, s2 do
+                            local ok = dpCall(function() meshD:setTexture(f, s, fn) end)
+                            if ok then count = count + 1 end
+                        end
+                    end
+                    if count > 0 then
+                        onEdit()
+                        local target = (tx.frame == 0 and 'all frames' or ('frame ' .. tx.frame))
+                                    .. ' / ' .. (tx.subset == 0 and 'all subsets' or ('subset ' .. tx.subset))
+                        tUtil.showMessage(string.format(tLang.L("tex_set_ok_fmt"), target, tUtil.getShortName(fn)))
+                    end
+                end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("tex_clear") .. '##txClear-' .. index) then
+                local count = 0
+                local f1, f2 = tx.frame == 0 and 1 or tx.frame, tx.frame == 0 and totalFrames or tx.frame
+                for f = f1, f2 do
+                    local nS2 = totalSubsets
+                    if tx.subset == 0 then
+                        local okS2, ns2 = dpCall(function() return meshD:getTotalSubset(f) end)
+                        if okS2 and ns2 then nS2 = ns2 end
+                    end
+                    local s1 = tx.subset == 0 and 1 or tx.subset
+                    local s2 = tx.subset == 0 and nS2 or tx.subset
+                    for s = s1, s2 do
+                        local ok = dpCall(function() meshD:setTexture(f, s, '') end)
+                        if ok then count = count + 1 end
+                    end
+                end
+                if count > 0 then
+                    onEdit()
+                    local target = (tx.frame == 0 and 'all frames' or ('frame ' .. tx.frame))
+                               .. ' / ' .. (tx.subset == 0 and 'all subsets' or ('subset ' .. tx.subset))
+                    tUtil.showMessage(string.format(tLang.L("tex_clear_ok_fmt"), target))
+                end
+            end
+        end
+
+        tImGui.TreePop()
+    end
+
     if openNode(tEntry, 'uv', tLang.L("uv_label"), 0, 'uv-' .. index) then
         if info and info.hasTexture then
             tImGui.TextDisabled('Has UV')
