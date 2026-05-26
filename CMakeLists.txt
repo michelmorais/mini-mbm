@@ -1176,7 +1176,9 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #    add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
     #endif()
 
-    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
+    # We keep the modules only for Linux / Windows, as they are mostly for editor helpers and do not make sense on mobile platforms. 
+    # Also, for MacOs we need to make them static libraries due the rules of the App Store, and we do not need that.
+    if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         add_subdirectory(${MODULES}                     ${MODULES})
     endif()
     
