@@ -305,4 +305,26 @@ function M.importGroups(svgPath, tSelectedIds, width, height, outputDir)
     return M.tLastResults
 end
 
+-- ─── Async helpers (used by the coroutine-based importer) ─────────────────────
+
+-- Returns true if the file at `path` exists and can be opened for reading.
+function M.fileExists(path)
+    local f = io.open(path, "r")
+    if f then f:close(); return true end
+    return false
+end
+
+-- Launches an inkscape command as a background (non-blocking) process.
+-- On Unix  : appends ' >/dev/null 2>&1 &'
+-- On Windows: runs synchronously (no simple background equivalent via os.execute)
+function M.launchCmdAsync(cmd)
+    if package.config:sub(1, 1) == '\\' then
+        -- Windows fallback: synchronous
+        os.execute(cmd)
+    else
+        -- Unix: detach to background, suppress output
+        os.execute(cmd .. ' >/dev/null 2>&1 &')
+    end
+end
+
 return M

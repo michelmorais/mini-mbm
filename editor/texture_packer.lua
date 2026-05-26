@@ -138,6 +138,10 @@ function onInitScene()
         sStatus      = '',
         bStatusOk    = true,
         bKeepInSvgFolder = false,
+        bImporting   = false,  -- true while coroutine is running
+        co           = nil,    -- active coroutine
+        iProgress    = 0,      -- groups completed so far
+        iTotal       = 0,      -- total groups to process
     }
 end
 
@@ -387,44 +391,109 @@ local function loadSvgPngsIntoEditor(tPaths)
     mbm.enableTextureFilter(true)
 end
 
--- ── SVG import: dispatch rasterisation and load results ───────────────────────
-local function doSvgImport()
-    local st  = tSvgImportState
+-- ── SVG import: batch size for parallel inkscape processes ───────────────────
+local IMPORT_MAX_PARALLEL = 5
+
+-- Coroutine body: launches inkscape in the background in small batches,
+-- polling each frame for file completion so the UI stays responsive.
+local function svgImportCoroutine()
+    local st = tSvgImportState
     local outputDir = nil
     if not st.bKeepInSvgFolder then
         outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
     end
-    local pngs = {}
+
+    -- Build the full list of (cmd, outputPath) jobs.
+    local jobs = {}
     if st.iMode == 1 then
-        -- Single image
-        local result = tInkscape.importSingle(st.svgFilePath, st.iWidth, st.iHeight, outputDir)
-        if result.ok then
-            table.insert(pngs, result.outputPath)
+        local outputPath
+        if outputDir then
+            outputPath = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath) .. ".png"
+        else
+            outputPath = tInkscape.getSvgStem(st.svgFilePath) .. ".png"
+        end
+        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil)
+        if cmd then
+            table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
         end
     else
-        -- By groups: collect selected ids
-        local tSelectedIds = {}
+        local stem
+        if outputDir then
+            stem = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath)
+        else
+            stem = tInkscape.getSvgStem(st.svgFilePath)
+        end
         for _, g in ipairs(st.tGroups) do
             if g.bSelected then
-                table.insert(tSelectedIds, g.id)
-            end
-        end
-        local results = tInkscape.importGroups(st.svgFilePath, tSelectedIds, st.iWidth, st.iHeight, outputDir)
-        for _, r in ipairs(results) do
-            if r.ok then
-                table.insert(pngs, r.outputPath)
+                local outputPath = stem .. "_" .. g.id .. ".png"
+                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id)
+                if cmd then
+                    table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
+                end
             end
         end
     end
 
-    if #pngs > 0 then
-        loadSvgPngsIntoEditor(pngs)
-        st.sStatus   = string.format(tLang.L("svg_import_done_fmt"), #pngs)
+    st.iTotal    = #jobs
+    st.iProgress = 0
+    local allPngs = {}
+
+    -- Process in batches: launch IMPORT_MAX_PARALLEL background processes,
+    -- then poll each frame until all outputs in the batch exist.
+    local i = 1
+    while i <= #jobs do
+        local batchEnd = math.min(i + IMPORT_MAX_PARALLEL - 1, #jobs)
+
+        -- Remove stale outputs from prior runs and launch this batch.
+        for j = i, batchEnd do
+            os.remove(jobs[j].outputPath)
+            tInkscape.launchCmdAsync(jobs[j].cmd)
+        end
+
+        -- Poll every frame until every file in this batch has been written.
+        local batchDone = false
+        while not batchDone do
+            batchDone = true
+            for j = i, batchEnd do
+                if not jobs[j].done then
+                    if tInkscape.fileExists(jobs[j].outputPath) then
+                        jobs[j].done  = true
+                        st.iProgress  = st.iProgress + 1
+                        table.insert(allPngs, jobs[j].outputPath)
+                    else
+                        batchDone = false
+                    end
+                end
+            end
+            if not batchDone then
+                coroutine.yield()  -- let the UI render one frame
+            end
+        end
+
+        i = batchEnd + 1
+    end
+
+    -- All inkscape processes have finished; load results into the editor.
+    if #allPngs > 0 then
+        loadSvgPngsIntoEditor(allPngs)
+        st.sStatus   = string.format(tLang.L("svg_import_done_fmt"), #allPngs)
         st.bStatusOk = true
     else
         st.sStatus   = tLang.L("svg_import_failed")
         st.bStatusOk = false
     end
+    st.bImporting = false
+end
+
+-- Kicks off the import by creating the coroutine; the dialog drives it.
+local function startSvgImport()
+    local st     = tSvgImportState
+    st.iProgress = 0
+    st.iTotal    = 0
+    st.sStatus   = ''
+    st.bStatusOk = true
+    st.bImporting = true
+    st.co        = coroutine.create(svgImportCoroutine)
 end
 
 -- ── SVG import: ImGui modal dialog ────────────────────────────────────────────
@@ -440,6 +509,46 @@ function showSvgImportDialog()
     local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
     local is_open, _ = tImGui.BeginPopupModal("svg_import_modal", false, flags)
     if not is_open then return end
+
+    -- ── While the import coroutine is running: show progress bar ──────────────
+    if st.bImporting then
+        -- Advance the coroutine (processes one poll frame or one batch launch).
+        if st.co and coroutine.status(st.co) == "suspended" then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co         = nil
+                st.sStatus    = tostring(err)
+                st.bStatusOk  = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L("svg_import_progress_fmt"), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+
+        -- Coroutine just finished this frame?
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L("svg_import_btn_cancel")) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+    -- ─────────────────────────────────────────────────────────────────────────────────────
 
     -- Mode selection
     st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_single"), st.iMode, 1)
@@ -513,12 +622,7 @@ function showSvgImportDialog()
     local canImport = ink and ink.found
     tImGui.BeginDisabled(not canImport)
         if tImGui.Button(tLang.L("svg_import_btn_import")) then
-            doSvgImport()
-            if st.bStatusOk then
-                tUtil.showMessage(st.sStatus)
-                st.bOpen = false
-                tImGui.CloseCurrentPopup()
-            end
+            startSvgImport()
         end
     tImGui.EndDisabled()
     tImGui.SameLine()
