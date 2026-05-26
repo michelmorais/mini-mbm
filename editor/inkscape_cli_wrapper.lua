@@ -82,6 +82,13 @@ function M.getSvgStem(svgPath)
     return svgPath:match("(.+)%.[^%.]+$") or svgPath
 end
 
+-- Returns just the filename stem (no directory, no extension).
+--   "/a/b/char.svg"  →  "char"
+function M.getFileBaseStem(svgPath)
+    local name = svgPath:match("[/\\]([^/\\]+)$") or svgPath
+    return name:match("(.+)%.[^%.]+$") or name
+end
+
 -- ─── SVG group parser ─────────────────────────────────────────────────────────
 
 -- Parses an SVG file and collects all <g> elements at a specific XML depth.
@@ -243,13 +250,19 @@ end
 -- ─── High-level import helpers ────────────────────────────────────────────────
 
 -- Rasterizes the whole SVG as a single PNG.
--- Output file: <svgStem>.png  (same directory as the SVG)
+-- outputDir : (optional) directory for the output file;
+--             nil = same directory as the SVG
 --
 -- Stores result in M.tLastResults.
 -- Returns: {ok=bool, outputPath=string, message=string}
-function M.importSingle(svgPath, width, height)
+function M.importSingle(svgPath, width, height, outputDir)
     M.tLastResults = {}
-    local outputPath = M.getSvgStem(svgPath) .. ".png"
+    local outputPath
+    if outputDir then
+        outputPath = outputDir .. "/" .. M.getFileBaseStem(svgPath) .. ".png"
+    else
+        outputPath = M.getSvgStem(svgPath) .. ".png"
+    end
     local cmd        = M.buildCmd(svgPath, outputPath, width, height, nil)
     local result
     if not cmd then
@@ -263,14 +276,20 @@ function M.importSingle(svgPath, width, height)
 end
 
 -- Rasterizes each selected group as a separate PNG.
--- Output files: <svgStem>_<groupId>.png  (same directory as the SVG)
--- tSelectedIds: list of id strings, e.g. {"g1060", "g1064"}
+-- outputDir    : (optional) directory for the output files;
+--               nil = same directory as the SVG
+-- tSelectedIds : list of id strings, e.g. {"g1060", "g1064"}
 --
 -- Stores all results in M.tLastResults.
 -- Returns: [{ok, outputPath, message}]
-function M.importGroups(svgPath, tSelectedIds, width, height)
+function M.importGroups(svgPath, tSelectedIds, width, height, outputDir)
     M.tLastResults = {}
-    local stem = M.getSvgStem(svgPath)
+    local stem
+    if outputDir then
+        stem = outputDir .. "/" .. M.getFileBaseStem(svgPath)
+    else
+        stem = M.getSvgStem(svgPath)
+    end
     for _, id in ipairs(tSelectedIds) do
         local outputPath = stem .. "_" .. id .. ".png"
         local cmd        = M.buildCmd(svgPath, outputPath, width, height, id)

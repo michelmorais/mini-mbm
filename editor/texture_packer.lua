@@ -137,6 +137,7 @@ function onInitScene()
         tGroups      = {},   -- [{id, displayName, bSelected}]
         sStatus      = '',
         bStatusOk    = true,
+        bKeepInSvgFolder = false,
     }
 end
 
@@ -389,10 +390,14 @@ end
 -- ── SVG import: dispatch rasterisation and load results ───────────────────────
 local function doSvgImport()
     local st  = tSvgImportState
+    local outputDir = nil
+    if not st.bKeepInSvgFolder then
+        outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    end
     local pngs = {}
     if st.iMode == 1 then
         -- Single image
-        local result = tInkscape.importSingle(st.svgFilePath, st.iWidth, st.iHeight)
+        local result = tInkscape.importSingle(st.svgFilePath, st.iWidth, st.iHeight, outputDir)
         if result.ok then
             table.insert(pngs, result.outputPath)
         end
@@ -404,7 +409,7 @@ local function doSvgImport()
                 table.insert(tSelectedIds, g.id)
             end
         end
-        local results = tInkscape.importGroups(st.svgFilePath, tSelectedIds, st.iWidth, st.iHeight)
+        local results = tInkscape.importGroups(st.svgFilePath, tSelectedIds, st.iWidth, st.iHeight, outputDir)
         for _, r in ipairs(results) do
             if r.ok then
                 table.insert(pngs, r.outputPath)
@@ -448,6 +453,8 @@ function showSvgImportDialog()
     if wChanged and newW and newW > 0 then st.iWidth  = newW end
     local hChanged, newH = tImGui.InputInt(tLang.L("svg_import_height"), st.iHeight, 1, 64)
     if hChanged and newH and newH > 0 then st.iHeight = newH end
+
+    st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
 
     -- Group depth + group list (only when mode = By Groups)
     tImGui.BeginDisabled(st.iMode ~= 2)
@@ -507,7 +514,11 @@ function showSvgImportDialog()
     tImGui.BeginDisabled(not canImport)
         if tImGui.Button(tLang.L("svg_import_btn_import")) then
             doSvgImport()
-            -- Keep dialog open so user can see the status result.
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            end
         end
     tImGui.EndDisabled()
     tImGui.SameLine()
