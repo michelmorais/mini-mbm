@@ -1176,13 +1176,25 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
     #    add_subdirectory(${BULLET_LIB} 			${BULLET_LIB})
     #endif()
 
+    #end plugins ############################################################################################
+
+    #modules #################################################################################################
+    # Modules are different from plugins as they are optional features, and they usually does not interact with the core engine, 
+    # they are more like 'extensions' that can be used in the editor or in the game.
+    #
+    # The problem of trying to use module in some platforms is that some platforms do not support dynamic libraries, and modules are usually built as dynamic libraries, 
+    # so we need to check if the platform supports it before trying to use it.
+    #
+    # I would say that module are mostly for editor helpers, and they do not make sense on mobile platforms, so we are going to build them only for Windows and Linux, 
+    # and for MacOs we need to make them static libraries due the rules of the App Store, and we do not need that.
+    #
     # We keep the modules only for Linux / Windows, as they are mostly for editor helpers and do not make sense on mobile platforms. 
     # Also, for MacOs we need to make them static libraries due the rules of the App Store, and we do not need that.
     if (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows" OR ${ENGINE_TARGET_PLATFORM} STREQUAL "Linux")
         add_subdirectory(${MODULES}                     ${MODULES})
     endif()
     
-    #end plugins ############################################################################################
+    #end modules #############################################################################################
 
     # in case you want a wrapper over portaudio uncomment this
     if (${AUDIO} STREQUAL "portaudio" )
