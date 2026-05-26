@@ -138,6 +138,7 @@ function onInitScene()
         sStatus      = '',
         bStatusOk    = true,
         bKeepInSvgFolder = false,
+        bKeepAspectRatio = false,  -- when true, height is auto-calculated by inkscape
         bImporting   = false,  -- true while coroutine is running
         co           = nil,    -- active coroutine
         iProgress    = 0,      -- groups completed so far
@@ -412,7 +413,7 @@ local function svgImportCoroutine()
         else
             outputPath = tInkscape.getSvgStem(st.svgFilePath) .. ".png"
         end
-        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil)
+        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil, st.bKeepAspectRatio)
         if cmd then
             table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
         end
@@ -426,7 +427,7 @@ local function svgImportCoroutine()
         for _, g in ipairs(st.tGroups) do
             if g.bSelected then
                 local outputPath = stem .. "_" .. g.id .. ".png"
-                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id)
+                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id, st.bKeepAspectRatio)
                 if cmd then
                     table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
                 end
@@ -560,8 +561,11 @@ function showSvgImportDialog()
     -- Width / Height inputs
     local wChanged, newW = tImGui.InputInt(tLang.L("svg_import_width"),  st.iWidth,  1, 64)
     if wChanged and newW and newW > 0 then st.iWidth  = newW end
-    local hChanged, newH = tImGui.InputInt(tLang.L("svg_import_height"), st.iHeight, 1, 64)
-    if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.BeginDisabled(st.bKeepAspectRatio)
+        local hChanged, newH = tImGui.InputInt(tLang.L("svg_import_height"), st.iHeight, 1, 64)
+        if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.EndDisabled()
+    st.bKeepAspectRatio  = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_ratio"), st.bKeepAspectRatio)
 
     st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
 

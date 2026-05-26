@@ -184,42 +184,58 @@ end
 -- Builds the inkscape CLI command string for rasterizing an SVG (or a group
 -- within it) to a PNG file.
 --
--- svgPath    : path to the source SVG
--- outputPath : path for the output PNG
--- width      : output width in pixels
--- height     : output height in pixels
--- groupId    : (optional) id of a <g> element to export; nil = whole SVG
+-- svgPath         : path to the source SVG
+-- outputPath      : path for the output PNG
+-- width           : output width in pixels (always honoured)
+-- height          : output height in pixels (ignored when keepAspectRatio=true)
+-- groupId         : (optional) id of a <g> element to export; nil = whole SVG
+-- keepAspectRatio : (optional bool, default false)
+--                   When true, only width is passed to inkscape; the height is
+--                   derived automatically to preserve the source aspect ratio.
 --
 -- Returns the command string, or nil if inkscape is not available.
-function M.buildCmd(svgPath, outputPath, width, height, groupId)
+function M.buildCmd(svgPath, outputPath, width, height, groupId, keepAspectRatio)
     local ink = M.inkscape or M.detectInkscape()
     if not ink.found then return nil end
+
+    -- Build the dimension flags based on the aspect-ratio mode.
+    local sizeFlags
+    if keepAspectRatio then
+        if ink.is_v1 then
+            sizeFlags = string.format("--export-width=%d", width)
+        else
+            sizeFlags = string.format("-w %d", width)
+        end
+    else
+        if ink.is_v1 then
+            sizeFlags = string.format("--export-width=%d --export-height=%d", width, height)
+        else
+            sizeFlags = string.format("-w %d -h %d", width, height)
+        end
+    end
 
     if ink.is_v1 then
         -- inkscape 1.x command-line syntax
         if groupId then
             return string.format(
                 "inkscape %q --export-id=%s --export-area-drawing"
-                .. " --export-type=png --export-width=%d --export-height=%d"
-                .. " --export-filename=%q",
-                svgPath, groupId, width, height, outputPath)
+                .. " --export-type=png %s --export-filename=%q",
+                svgPath, groupId, sizeFlags, outputPath)
         else
             return string.format(
-                "inkscape %q --export-type=png"
-                .. " --export-width=%d --export-height=%d"
-                .. " --export-filename=%q",
-                svgPath, width, height, outputPath)
+                "inkscape %q --export-type=png %s --export-filename=%q",
+                svgPath, sizeFlags, outputPath)
         end
     else
         -- inkscape 0.9x legacy syntax
         if groupId then
             return string.format(
-                "inkscape -z -i %s --export-area-drawing -w %d -h %d -e %q %q",
-                groupId, width, height, outputPath, svgPath)
+                "inkscape -z -i %s --export-area-drawing %s -e %q %q",
+                groupId, sizeFlags, outputPath, svgPath)
         else
             return string.format(
-                "inkscape -z -w %d -h %d -e %q %q",
-                width, height, outputPath, svgPath)
+                "inkscape -z %s -e %q %q",
+                sizeFlags, outputPath, svgPath)
         end
     end
 end

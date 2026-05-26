@@ -120,6 +120,7 @@ M.en = {
     svg_import_done_fmt = "%d image(s) imported",
     svg_import_failed = "Import failed. Check inkscape installation.",
     svg_import_progress_fmt = "Exporting %d / %d...",
+    svg_import_keep_aspect_ratio = "Keep aspect ratio (height auto)",
     svg_import_keep_in_svg_folder = "Keep images in SVG folder",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1115,6 +1116,7 @@ M.pt_br = {
     svg_import_done_fmt = "%d imagem(ns) importada(s)",
     svg_import_failed = "Importação falhou. Verifique a instalação do inkscape.",
     svg_import_progress_fmt = "Exportando %d / %d...",
+    svg_import_keep_aspect_ratio = "Manter proporção (altura automática)",
     svg_import_keep_in_svg_folder = "Manter imagens na pasta do SVG",
     -- Particle editor
     particle_editor = "Editor de Partículas",
