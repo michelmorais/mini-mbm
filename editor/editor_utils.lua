@@ -256,7 +256,7 @@ tUtil.loadInfoImagesToTable = function(tFiles,tTexturesIn)
         local bSuccess = false
         for i=1, #tFiles do
             local texInfo = mbm.loadTexture(tFiles[i])
-            if texInfo:isValid() then
+            if texInfo and texInfo:isValid() then
                 bSuccess = true
                 local base_file_name = tUtil.getBaseFileName(tFiles[i])
                 table.insert(tTexturesIn,{file_name = tFiles[i],width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
@@ -266,7 +266,7 @@ tUtil.loadInfoImagesToTable = function(tFiles,tTexturesIn)
         end
     elseif type(tFiles) == 'string' then
         local texInfo = mbm.loadTexture(tFiles)
-        if texInfo:isValid() then
+        if texInfo and texInfo:isValid() then
             local base_file_name = tUtil.getBaseFileName(tFiles)
             table.insert(tTexturesIn,{file_name = tFiles,width = texInfo:getWidth(), height = texInfo:getHeight(), alpha = texInfo:hasAlpha(),id = texInfo , base_file_name = base_file_name})
         else
