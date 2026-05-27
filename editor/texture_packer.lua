@@ -143,6 +143,7 @@ function onInitScene()
         co           = nil,    -- active coroutine
         iProgress    = 0,      -- groups completed so far
         iTotal       = 0,      -- total groups to process
+        customInkscapePath = '',  -- user-browsed executable path
     }
 end
 
@@ -346,7 +347,9 @@ function onImportSvg()
     -- Detect inkscape once (cached).
     local ink = tInkscape.detectInkscape()
     if not ink.found then
-        tSvgImportState.sStatus   = tLang.L("svg_import_inkscape_missing")
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'svg_import_inkscape_missing_' .. os_name
+        tSvgImportState.sStatus   = tLang.L(key)
         tSvgImportState.bStatusOk = false
     end
 
@@ -614,12 +617,30 @@ function showSvgImportDialog()
         end
     end
 
-    -- Inkscape missing warning
+    -- Inkscape missing warning + browse fallback
     local ink = tInkscape.inkscape
     if ink and not ink.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'svg_import_inkscape_missing_' .. os_name
         tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.6, b=0, a=1})
-        tImGui.TextWrapped(tLang.L("svg_import_inkscape_missing"))
+        tImGui.TextWrapped(tLang.L(key))
         tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L("svg_import_browse_inkscape")) then
+            local exeFilter = (os_name == "windows") and "*.exe" or "*"
+            local picked = mbm.openFile(st.customInkscapePath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customInkscapePath = picked
+                tInkscape.setCustomPath(picked)
+                local newInk = tInkscape.detectInkscape()
+                if newInk.found then
+                    st.sStatus   = ''
+                    st.bStatusOk = true
+                else
+                    st.sStatus   = tLang.L(key)
+                    st.bStatusOk = false
+                end
+            end
+        end
     end
 
     -- Import / Cancel buttons

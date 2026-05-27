@@ -41,37 +41,109 @@ local M = {}
 
 -- ─── Module state ────────────────────────────────────────────────────────────
 
-M.inkscape     = nil   -- cached {found=bool, is_v1=bool, version=string}
+M.inkscape     = nil   -- cached {found=bool, is_v1=bool, version=string, path=string}
+M.customPath   = nil   -- user-supplied executable path (overrides auto-detection)
 M.tGroups      = {}    -- [{id=string, displayName=string}]
 M.tLastResults = {}    -- [{ok=bool, outputPath=string, message=string}]
 
+-- ─── OS detection ────────────────────────────────────────────────────────────
+
+-- Returns "windows", "macos", "linux", "android", or "ios".
+-- Uses mbm.get('os') which returns the capitalised platform name at runtime.
+function M.getOS()
+    local s = (mbm and mbm.get('os') or ''):lower()
+    if s == '' then
+        -- Fallback when running outside the engine (e.g. unit tests).
+        return package.config:sub(1, 1) == '\\' and 'windows' or 'linux'
+    end
+    return s
+end
+
+-- ─── Shell quoting & command wrapping ────────────────────────────────────────
+
+-- Wraps a file-system path in double-quotes for a shell command.
+-- Does NOT double backslashes (unlike Lua's %q), so Windows paths work.
+local function shellQuote(s)
+    return '"' .. s:gsub('"', '\\"') .. '"'
+end
+
+-- On Windows, cmd.exe mis-parses a command that starts with a quoted path
+-- unless the whole thing is wrapped in an extra pair of outer quotes.
+-- Prefix with 'cmd /c "..."' to handle that correctly.
+local function wrapCmd(cmd)
+    if M.getOS() == "windows" then
+        return 'cmd /c "' .. cmd .. '"'
+    end
+    return cmd
+end
+
 -- ─── Inkscape detection ───────────────────────────────────────────────────────
 
--- Detects whether inkscape is installed and which version family it belongs to.
--- Caches the result in M.inkscape; subsequent calls return the cached value.
--- Returns: {found=bool, is_v1=bool, version=string}
-function M.detectInkscape()
-    if M.inkscape ~= nil then return M.inkscape end
-    local f = io.popen("inkscape --version 2>&1")
-    if not f then
-        M.inkscape = { found = false, is_v1 = false, version = "" }
-        return M.inkscape
-    end
+-- Internal helper: try running `exe --version` and parse output.
+-- Returns {found, is_v1, version, path} or nil if the exe is not usable.
+local function tryDetectExe(exe)
+    local f = io.popen(wrapCmd(shellQuote(exe) .. " --version") .. " 2>&1")
+    if not f then return nil end
     local output = f:read("*a")
     f:close()
     if output and output:find("Inkscape") then
         local version = output:match("Inkscape%s+([%d%.]+)") or ""
         local major   = tonumber(version:match("^(%d+)")) or 0
-        M.inkscape = { found = true, is_v1 = (major >= 1), version = version }
-    else
-        M.inkscape = { found = false, is_v1 = false, version = "" }
+        return { found = true, is_v1 = (major >= 1), version = version, path = exe }
     end
+    return nil
+end
+
+-- Candidate paths to probe on Windows when `inkscape` is not on PATH.
+local WINDOWS_INKSCAPE_CANDIDATES = {
+    "C:\\Program Files\\Inkscape\\bin\\inkscape.exe",
+    "C:\\Program Files (x86)\\Inkscape\\bin\\inkscape.exe",
+    "C:\\Program Files\\Inkscape\\inkscape.exe",
+}
+
+-- Detects whether inkscape is installed and which version family it belongs to.
+-- Probes (in order): M.customPath → PATH → Windows common install dirs.
+-- Caches the result in M.inkscape; subsequent calls return the cached value.
+-- Returns: {found=bool, is_v1=bool, version=string, path=string}
+function M.detectInkscape()
+    if M.inkscape ~= nil then return M.inkscape end
+
+    -- 1. User-supplied custom path takes priority.
+    if M.customPath and M.customPath ~= "" then
+        local r = tryDetectExe(M.customPath)
+        if r then M.inkscape = r; return M.inkscape end
+    end
+
+    -- 2. Try `inkscape` on the system PATH.
+    local r = tryDetectExe("inkscape")
+    if r then M.inkscape = r; return M.inkscape end
+
+    -- 3. On Windows, probe common installation directories.
+    if M.getOS() == "windows" then
+        for _, candidate in ipairs(WINDOWS_INKSCAPE_CANDIDATES) do
+            local probe = io.open(candidate, "r")
+            if probe then
+                probe:close()
+                r = tryDetectExe(candidate)
+                if r then M.inkscape = r; return M.inkscape end
+            end
+        end
+    end
+
+    M.inkscape = { found = false, is_v1 = false, version = "", path = "" }
     return M.inkscape
 end
 
 -- Force a fresh detection (discards the cache).
 function M.resetDetection()
     M.inkscape = nil
+end
+
+-- Set a user-supplied inkscape executable path and reset the detection cache.
+-- Call this when the user browses for the executable manually.
+function M.setCustomPath(path)
+    M.customPath = path
+    M.inkscape   = nil
 end
 
 -- ─── Path helpers ─────────────────────────────────────────────────────────────
@@ -214,28 +286,30 @@ function M.buildCmd(svgPath, outputPath, width, height, groupId, keepAspectRatio
         end
     end
 
+    local exe = shellQuote(ink.path)
+
     if ink.is_v1 then
         -- inkscape 1.x command-line syntax
         if groupId then
             return string.format(
-                "inkscape %q --export-id=%s --export-area-drawing"
-                .. " --export-type=png %s --export-filename=%q",
-                svgPath, groupId, sizeFlags, outputPath)
+                "%s %s --export-id=%s --export-area-drawing"
+                .. " --export-type=png %s --export-filename=%s",
+                exe, shellQuote(svgPath), groupId, sizeFlags, shellQuote(outputPath))
         else
             return string.format(
-                "inkscape %q --export-type=png %s --export-filename=%q",
-                svgPath, sizeFlags, outputPath)
+                "%s %s --export-type=png %s --export-filename=%s",
+                exe, shellQuote(svgPath), sizeFlags, shellQuote(outputPath))
         end
     else
         -- inkscape 0.9x legacy syntax
         if groupId then
             return string.format(
-                "inkscape -z -i %s --export-area-drawing %s -e %q %q",
-                groupId, sizeFlags, outputPath, svgPath)
+                "%s -z -i %s --export-area-drawing %s -e %s %s",
+                exe, groupId, sizeFlags, shellQuote(outputPath), shellQuote(svgPath))
         else
             return string.format(
-                "inkscape -z %s -e %q %q",
-                sizeFlags, outputPath, svgPath)
+                "%s -z %s -e %s %s",
+                exe, sizeFlags, shellQuote(outputPath), shellQuote(svgPath))
         end
     end
 end
@@ -248,7 +322,7 @@ end
 --
 -- Returns: {ok=bool, message=string}
 function M.runCmd(cmd, outputPath)
-    local f      = io.popen(cmd .. " 2>&1")
+    local f      = io.popen(wrapCmd(cmd) .. " 2>&1")
     local output = f and f:read("*a") or ""
     if f then f:close() end
 
@@ -334,9 +408,11 @@ end
 -- On Unix  : appends ' >/dev/null 2>&1 &'
 -- On Windows: runs synchronously (no simple background equivalent via os.execute)
 function M.launchCmdAsync(cmd)
-    if package.config:sub(1, 1) == '\\' then
-        -- Windows fallback: synchronous
-        os.execute(cmd)
+    if M.getOS() == "windows" then
+        -- 'start /b' launches the process in the background without blocking,
+        -- so the coroutine can yield between frames and the progress bar updates.
+        -- The empty "" is a required window-title placeholder for the start command.
+        os.execute('cmd /c start /b "" ' .. cmd)
     else
         -- Unix: detach to background, suppress output
         os.execute(cmd .. ' >/dev/null 2>&1 &')

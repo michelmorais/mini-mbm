@@ -337,6 +337,10 @@ namespace mbm
         {
             ph->removeObject(object);
         }
+        // Always evict from any RENDER_2_TEXTURE lists, regardless of the isRender2Texture flag,
+        // to prevent stale (dangling) pointers from remaining in those lists after this object is freed.
+        this->stopRender2Texture2(object);
+
         if (object->is3D)
         {
             for (std::vector<RENDERIZABLE *>::size_type i = 0; i < lsObjectRender3D.size(); ++i)
@@ -344,8 +348,6 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender3D[i];
                 if (ptr == object)
                 {
-                    if (ptr->isRender2Texture)
-                        this->stopRender2Texture2(ptr);
                     for (auto ph : this->lsPhysics)
                     {
                         ph->removeObject(ptr);
@@ -362,8 +364,6 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender2DW[i];
                 if (ptr == object)
                 {
-                    if (ptr->isRender2Texture)
-                        this->stopRender2Texture2(ptr);
                     for (auto ph : this->lsPhysics)
                     {
                         ph->removeObject(ptr);
@@ -380,8 +380,6 @@ namespace mbm
                 RENDERIZABLE *ptr = lsObjectRender2DS[i];
                 if (ptr == object)
                 {
-                    if (ptr->isRender2Texture)
-                        this->stopRender2Texture2(ptr);
                     for (auto ph : this->lsPhysics)
                     {
                         ph->removeObject(ptr);
