@@ -103,7 +103,8 @@ M.en = {
     load_texture_config = "Load Texture configuration",
     pre_load_texture_filter = "Pre load texture (enable filter)",
     -- SVG importer (texture packer)
-    import_svg = "Import SVG...",
+    import_svg = "Import SVG (via Inkscape)...",
+    svg_import_modal_title = "SVG Import - Inkscape",
     svg_import_mode_single = "Single Image",
     svg_import_mode_groups = "By Groups",
     svg_import_width = "Width (px)",
@@ -123,7 +124,8 @@ M.en = {
     svg_import_done_fmt = "%d image(s) imported",
     svg_import_failed = "Import failed. Check inkscape installation.",
     svg_import_progress_fmt = "Exporting %d / %d...",
-    svg_import_keep_aspect_ratio = "Keep aspect ratio (height auto)",
+    svg_import_keep_aspect_ratio = "Keep aspect ratio",
+    svg_import_keep_aspect_on_height = "Fix height, width auto",
     svg_import_keep_in_svg_folder = "Keep images in SVG folder",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1102,7 +1104,8 @@ M.pt_br = {
     load_texture_config = "Carregar configuração de textura",
     pre_load_texture_filter = "Pré-carregar textura (habilitar filtro)",
     -- SVG importer (texture packer)
-    import_svg = "Importar SVG...",
+    import_svg = "Importar SVG (via Inkscape)...",
+    svg_import_modal_title = "Importar SVG - Inkscape",
     svg_import_mode_single = "Imagem Única",
     svg_import_mode_groups = "Por Grupos",
     svg_import_width = "Largura (px)",
@@ -1122,7 +1125,8 @@ M.pt_br = {
     svg_import_done_fmt = "%d imagem(ns) importada(s)",
     svg_import_failed = "Importação falhou. Verifique a instalação do inkscape.",
     svg_import_progress_fmt = "Exportando %d / %d...",
-    svg_import_keep_aspect_ratio = "Manter proporção (altura automática)",
+    svg_import_keep_aspect_ratio = "Manter proporção",
+    svg_import_keep_aspect_on_height = "Fixar altura, largura automática",
     svg_import_keep_in_svg_folder = "Manter imagens na pasta do SVG",
     -- Particle editor
     particle_editor = "Editor de Partículas",

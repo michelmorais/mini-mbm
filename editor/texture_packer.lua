@@ -138,7 +138,8 @@ function onInitScene()
         sStatus      = '',
         bStatusOk    = true,
         bKeepInSvgFolder = false,
-        bKeepAspectRatio = false,  -- when true, height is auto-calculated by inkscape
+        bKeepAspectRatio = true,   -- when true, one dimension is auto-calculated by inkscape
+        bKeepAspectOnHeight = false, -- when true: fix height, width auto; when false: fix width, height auto
         bImporting   = false,  -- true while coroutine is running
         co           = nil,    -- active coroutine
         iProgress    = 0,      -- groups completed so far
@@ -416,7 +417,7 @@ local function svgImportCoroutine()
         else
             outputPath = tInkscape.getSvgStem(st.svgFilePath) .. ".png"
         end
-        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil, st.bKeepAspectRatio)
+        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
         if cmd then
             table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
         end
@@ -430,7 +431,7 @@ local function svgImportCoroutine()
         for _, g in ipairs(st.tGroups) do
             if g.bSelected then
                 local outputPath = stem .. "_" .. g.id .. ".png"
-                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id, st.bKeepAspectRatio)
+                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
                 if cmd then
                     table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
                 end
@@ -511,7 +512,7 @@ function showSvgImportDialog()
     end
 
     local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
-    local is_open, _ = tImGui.BeginPopupModal("svg_import_modal", false, flags)
+    local is_open, _ = tImGui.BeginPopupModal(tLang.L("svg_import_modal_title") .. "###svg_import_modal", false, flags)
     if not is_open then return end
 
     -- ── While the import coroutine is running: show progress bar ──────────────
@@ -562,13 +563,21 @@ function showSvgImportDialog()
     tImGui.Separator()
 
     -- Width / Height inputs
-    local wChanged, newW = tImGui.InputInt(tLang.L("svg_import_width"),  st.iWidth,  1, 64)
-    if wChanged and newW and newW > 0 then st.iWidth  = newW end
-    tImGui.BeginDisabled(st.bKeepAspectRatio)
+    -- Width is disabled when aspect ratio is locked on height (height is fixed, width auto)
+    tImGui.BeginDisabled(st.bKeepAspectRatio and st.bKeepAspectOnHeight)
+        local wChanged, newW = tImGui.InputInt(tLang.L("svg_import_width"),  st.iWidth,  1, 64)
+        if wChanged and newW and newW > 0 then st.iWidth  = newW end
+    tImGui.EndDisabled()
+    -- Height is disabled when aspect ratio is locked on width (width is fixed, height auto)
+    tImGui.BeginDisabled(st.bKeepAspectRatio and not st.bKeepAspectOnHeight)
         local hChanged, newH = tImGui.InputInt(tLang.L("svg_import_height"), st.iHeight, 1, 64)
         if hChanged and newH and newH > 0 then st.iHeight = newH end
     tImGui.EndDisabled()
-    st.bKeepAspectRatio  = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    st.bKeepAspectRatio = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    if st.bKeepAspectRatio then
+        tImGui.SameLine()
+        st.bKeepAspectOnHeight = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_on_height"), st.bKeepAspectOnHeight)
+    end
 
     st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
 

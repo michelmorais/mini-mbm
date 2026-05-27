@@ -266,17 +266,27 @@ end
 --                   derived automatically to preserve the source aspect ratio.
 --
 -- Returns the command string, or nil if inkscape is not available.
-function M.buildCmd(svgPath, outputPath, width, height, groupId, keepAspectRatio)
+function M.buildCmd(svgPath, outputPath, width, height, groupId, keepAspectRatio, keepAspectOnHeight)
     local ink = M.inkscape or M.detectInkscape()
     if not ink.found then return nil end
 
     -- Build the dimension flags based on the aspect-ratio mode.
     local sizeFlags
     if keepAspectRatio then
-        if ink.is_v1 then
-            sizeFlags = string.format("--export-width=%d", width)
+        if keepAspectOnHeight then
+            -- Fix height, let inkscape derive width automatically.
+            if ink.is_v1 then
+                sizeFlags = string.format("--export-height=%d", height)
+            else
+                sizeFlags = string.format("-h %d", height)
+            end
         else
-            sizeFlags = string.format("-w %d", width)
+            -- Fix width, let inkscape derive height automatically.
+            if ink.is_v1 then
+                sizeFlags = string.format("--export-width=%d", width)
+            else
+                sizeFlags = string.format("-w %d", width)
+            end
         end
     else
         if ink.is_v1 then
