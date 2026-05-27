@@ -407,16 +407,24 @@ end
 
 -- ─── Async helpers (used by the coroutine-based importer) ─────────────────────
 
--- Returns true if the file at `path` exists and can be opened for reading.
+-- Returns true only when the file at `path` is a complete, fully-written PNG.
+-- A valid PNG always ends with the 12-byte IEND chunk
+-- (4-byte zero length + 4-byte "IEND" + 4-byte CRC).
+-- Checking for IEND is race-condition-free: the marker is only present once
+-- inkscape has finished writing the entire file and closed it.
 function M.fileExists(path)
-    local f = io.open(path, "r")
-    if f then f:close(); return true end
-    return false
+    local f = io.open(path, "rb")
+    if not f then return false end
+    local ok = f:seek("end", -12)
+    if not ok then f:close(); return false end
+    local tail = f:read(12)
+    f:close()
+    return tail ~= nil and tail:sub(5, 8) == "IEND"
 end
 
 -- Launches an inkscape command as a background (non-blocking) process.
--- On Unix  : appends ' >/dev/null 2>&1 &'
--- On Windows: runs synchronously (no simple background equivalent via os.execute)
+-- On Unix  : appends ' >/dev/null 2>&1 &' to detach inkscape.
+-- On Windows: runs via 'start /b' to avoid blocking the frame loop.
 function M.launchCmdAsync(cmd)
     if M.getOS() == "windows" then
         -- 'start /b' launches the process in the background without blocking,
@@ -424,7 +432,7 @@ function M.launchCmdAsync(cmd)
         -- The empty "" is a required window-title placeholder for the start command.
         os.execute('cmd /c start /b "" ' .. cmd)
     else
-        -- Unix: detach to background, suppress output
+        -- Unix: detach to background, suppress output.
         os.execute(cmd .. ' >/dev/null 2>&1 &')
     end
 end
