@@ -610,7 +610,9 @@ function showSvgImportDialog()
     st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
 
     local toChanged, newTo = tImGui.InputInt(tLang.L("svg_import_timeout_secs"), st.iTimeoutSecs, 5, 30)
-    if toChanged and newTo and newTo >= 5 then st.iTimeoutSecs = newTo end
+    if toChanged and newTo and newTo >= 5 then 
+        st.iTimeoutSecs = newTo 
+    end
 
     -- Group depth + group list (only when mode = By Groups)
     tImGui.BeginDisabled(st.iMode ~= 2)
