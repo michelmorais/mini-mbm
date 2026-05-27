@@ -144,6 +144,8 @@ function onInitScene()
         co           = nil,    -- active coroutine
         iProgress    = 0,      -- groups completed so far
         iTotal       = 0,      -- total groups to process
+        iRangeFrom   = 1,      -- range-select: first group index (1-based)
+        iRangeTo     = 10,     -- range-select: last  group index (1-based)
         customInkscapePath = '',  -- user-browsed executable path
     }
 end
@@ -593,7 +595,13 @@ function showSvgImportDialog()
 
         local nGroups = #st.tGroups
         if nGroups > 0 then
+            local nSelected = 0
+            for _, g in ipairs(st.tGroups) do if g.bSelected then nSelected = nSelected + 1 end end
             tImGui.Text(string.format(tLang.L("svg_import_groups_found_fmt"), nGroups, st.iGroupDepth))
+            tImGui.SameLine()
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
+            tImGui.Text(string.format(tLang.L("svg_import_selected_fmt"), nSelected))
+            tImGui.PopStyleColor()
             -- Select All / Deselect All
             if tImGui.Button(tLang.L("svg_import_select_all")) then
                 for _, g in ipairs(st.tGroups) do g.bSelected = true end
@@ -601,6 +609,41 @@ function showSvgImportDialog()
             tImGui.SameLine()
             if tImGui.Button(tLang.L("svg_import_deselect_all")) then
                 for _, g in ipairs(st.tGroups) do g.bSelected = false end
+            end
+            -- Range select row
+            tImGui.Text(tLang.L("svg_import_range_label"))
+            tImGui.SameLine()
+            tImGui.SetNextItemWidth(80)
+            local rfChanged, newRF = tImGui.InputInt("##rng_from", st.iRangeFrom, 1, 10)
+            if rfChanged and newRF ~= nil then 
+                if newRF < 1 then newRF = 1 end
+                if newRF > nGroups then newRF = nGroups end
+                st.iRangeFrom = newRF 
+            end
+            tImGui.SameLine()
+            tImGui.Text("-")
+            tImGui.SameLine()
+            tImGui.SetNextItemWidth(80)
+            local rtChanged, newRT = tImGui.InputInt("##rng_to", st.iRangeTo, 1, 10)
+            if rtChanged and newRT ~= nil then 
+                if newRT < 1 then newRT = 1 end
+                if newRT > nGroups then newRT = nGroups end
+                st.iRangeTo = newRT 
+            end
+            -- Live preview: show how many groups the current range covers.
+            local rFrom    = math.max(1, st.iRangeFrom)
+            local rTo      = math.min(nGroups, st.iRangeTo)
+            local rPreview = math.max(0, rTo - rFrom + 1)
+            tImGui.SameLine()
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=0.6, g=0.6, b=0.6, a=1})
+            tImGui.Text(string.format("= %d", rPreview))
+            tImGui.PopStyleColor()
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("svg_import_range_btn")) then
+                -- Exclusive select: clear all first, then mark only the range.
+                for i = 1, nGroups do
+                    st.tGroups[i].bSelected = (i >= rFrom and i <= rTo)
+                end
             end
             -- Scrollable checkbox list
             tImGui.BeginChild("svg_groups_list", {x=0, y=150}, true)
