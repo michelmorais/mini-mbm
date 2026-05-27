@@ -144,6 +144,9 @@ function onInitScene()
         co           = nil,    -- active coroutine
         iProgress    = 0,      -- groups completed so far
         iTotal       = 0,      -- total groups to process
+        iTimedOutCount = 0,    -- groups skipped due to timeout
+        iTimeoutSecs = 60,     -- per-batch inkscape timeout (user-configurable)
+        bAbortRequested = false, -- set by Abort button; drains current batch and finishes
         iRangeFrom   = 1,      -- range-select: first group index (1-based)
         iRangeTo     = 10,     -- range-select: last  group index (1-based)
         customInkscapePath = '',  -- user-browsed executable path
@@ -457,16 +460,27 @@ local function svgImportCoroutine()
             tInkscape.launchCmdAsync(jobs[j].cmd)
         end
 
-        -- Poll every frame until every file in this batch has been written.
+        -- Poll every frame until every file in this batch has been written,
+        -- until the per-batch timeout expires, or until the user aborts.
+        local batchStartTime = os.time()
         local batchDone = false
         while not batchDone do
             batchDone = true
+            local elapsed  = os.time() - batchStartTime
+            local timedOut = elapsed >= st.iTimeoutSecs
+            local abort    = st.bAbortRequested
             for j = i, batchEnd do
                 if not jobs[j].done then
                     if tInkscape.fileExists(jobs[j].outputPath) then
                         jobs[j].done  = true
                         st.iProgress  = st.iProgress + 1
                         table.insert(allPngs, jobs[j].outputPath)
+                    elseif timedOut or abort then
+                        -- inkscape produced no output; skip and count as timed-out.
+                        jobs[j].done      = true
+                        st.iProgress      = st.iProgress + 1
+                        st.iTimedOutCount = st.iTimedOutCount + 1
+                        print("SVG import: timed out waiting for", jobs[j].outputPath)
                     else
                         batchDone = false
                     end
@@ -478,12 +492,18 @@ local function svgImportCoroutine()
         end
 
         i = batchEnd + 1
+        -- Stop launching new batches if the user requested abort.
+        if st.bAbortRequested then break end
     end
 
-    -- All inkscape processes have finished; load results into the editor.
+    -- All done (or aborted); load whatever succeeded into the editor.
     if #allPngs > 0 then
         loadSvgPngsIntoEditor(allPngs)
-        st.sStatus   = string.format(tLang.L("svg_import_done_fmt"), #allPngs)
+        if st.iTimedOutCount > 0 then
+            st.sStatus = string.format(tLang.L("svg_import_done_with_timeouts_fmt"), #allPngs, st.iTimedOutCount)
+        else
+            st.sStatus = string.format(tLang.L("svg_import_done_fmt"), #allPngs)
+        end
         st.bStatusOk = true
     else
         st.sStatus   = tLang.L("svg_import_failed")
@@ -497,6 +517,8 @@ local function startSvgImport()
     local st     = tSvgImportState
     st.iProgress = 0
     st.iTotal    = 0
+    st.iTimedOutCount   = 0
+    st.bAbortRequested  = false
     st.sStatus   = ''
     st.bStatusOk = true
     st.bImporting = true
@@ -533,6 +555,10 @@ function showSvgImportDialog()
         local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
         tImGui.Text(string.format(tLang.L("svg_import_progress_fmt"), st.iProgress, st.iTotal))
         tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("svg_import_btn_abort")) then
+            st.bAbortRequested = true
+        end
 
         -- Coroutine just finished this frame?
         if not st.bImporting then
@@ -582,6 +608,9 @@ function showSvgImportDialog()
     end
 
     st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
+
+    local toChanged, newTo = tImGui.InputInt(tLang.L("svg_import_timeout_secs"), st.iTimeoutSecs, 5, 30)
+    if toChanged and newTo and newTo >= 5 then st.iTimeoutSecs = newTo end
 
     -- Group depth + group list (only when mode = By Groups)
     tImGui.BeginDisabled(st.iMode ~= 2)
