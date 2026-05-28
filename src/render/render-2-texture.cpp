@@ -81,7 +81,7 @@ namespace mbm
     
     void RENDER_2_TEXTURE::removeFromRender2Texture(RENDERIZABLE *ptr)
     {
-        if (ptr && ptr->isRender2Texture)
+        if (ptr)
         {
             for (unsigned int i = 0; i < this->lsObjects2dRender.size(); ++i)
             {

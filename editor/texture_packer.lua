@@ -30,6 +30,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tInkscape     =     require "inkscape_cli_wrapper"
 
 function onInitScene()
     
@@ -124,6 +125,32 @@ function onInitScene()
     iOverlapDragIndex     = nil  -- index of texture being dragged
     iOverlapSelectedIndex = nil  -- index of texture selected for the position panel
     tOverlapDragLastWorld = nil  -- last world-space mouse position while dragging
+    -- SVG import dialog state
+    tSvgImportState = {
+        bOpen        = false,
+        bOpenPopup   = false,
+        svgFilePath  = '',
+        iMode        = 1,    -- 1=Single Image, 2=By Groups
+        iWidth       = 256,
+        iHeight      = 256,
+        iGroupDepth  = 1,
+        tGroups      = {},   -- [{id, displayName, bSelected}]
+        sStatus      = '',
+        bStatusOk    = true,
+        bKeepInSvgFolder = false,
+        bKeepAspectRatio = true,   -- when true, one dimension is auto-calculated by inkscape
+        bKeepAspectOnHeight = false, -- when true: fix height, width auto; when false: fix width, height auto
+        bImporting   = false,  -- true while coroutine is running
+        co           = nil,    -- active coroutine
+        iProgress    = 0,      -- groups completed so far
+        iTotal       = 0,      -- total groups to process
+        iTimedOutCount = 0,    -- groups skipped due to timeout
+        iTimeoutSecs = 60,     -- per-batch inkscape timeout (user-configurable)
+        bAbortRequested = false, -- set by Abort button; drains current batch and finishes
+        iRangeFrom   = 1,      -- range-select: first group index (1-based)
+        iRangeTo     = 10,     -- range-select: last  group index (1-based)
+        customInkscapePath = '',  -- user-browsed executable path
+    }
 end
 
 function onSaveTexture()
@@ -314,6 +341,408 @@ function onOpenTexturesFromFolder()
     end
     mbm.enableTextureFilter(true)
 end
+
+-- ── SVG import: open file dialog, parse groups ────────────────────────────────
+function onImportSvg()
+    local filePath = mbm.openFile(tSvgImportState.svgFilePath, '*.svg')
+    if not filePath then return end
+    tSvgImportState.svgFilePath = filePath
+    tSvgImportState.sStatus     = ''
+    tSvgImportState.bStatusOk   = true
+
+    -- Detect inkscape once (cached).
+    local ink = tInkscape.detectInkscape()
+    if not ink.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'svg_import_inkscape_missing_' .. os_name
+        tSvgImportState.sStatus   = tLang.L(key)
+        tSvgImportState.bStatusOk = false
+    end
+
+    -- Parse groups at the current depth level.
+    local rawGroups = tInkscape.parseSvgGroupsAtDepth(filePath, tSvgImportState.iGroupDepth)
+    tSvgImportState.tGroups = {}
+    for _, g in ipairs(rawGroups) do
+        table.insert(tSvgImportState.tGroups, { id = g.id, displayName = g.displayName, bSelected = true })
+    end
+
+    tSvgImportState.bOpen      = true
+    tSvgImportState.bOpenPopup = true
+end
+
+-- ── SVG import: reload group list when depth changes ─────────────────────────
+local function refreshSvgGroups()
+    local rawGroups = tInkscape.parseSvgGroupsAtDepth(tSvgImportState.svgFilePath, tSvgImportState.iGroupDepth)
+    tSvgImportState.tGroups = {}
+    for _, g in ipairs(rawGroups) do
+        table.insert(tSvgImportState.tGroups, { id = g.id, displayName = g.displayName, bSelected = true })
+    end
+end
+
+-- ── SVG import: load PNGs into editor after rasterisation ────────────────────
+local function loadSvgPngsIntoEditor(tPaths)
+    if not tPaths or #tPaths == 0 then return end
+    mbm.enableTextureFilter(tTextureOptions.bFilter)
+    tTexturesToEditor = tUtil.loadInfoImagesToTable(tPaths, tTexturesToEditor)
+    -- Create texture objects only for entries that don't have one yet.
+    for i = 1, #tTexturesToEditor do
+        local tDesc = tTexturesToEditor[i]
+        if tDesc.tTex == nil then
+            tDesc.isSelected = true
+            local tTex = texture:new('2dw')
+            tTex:load(tDesc.file_name, tDesc.width, tDesc.height)
+            tDesc.tTex = tTex
+            computeAndCacheAlphaBounds(i)
+            tRender:add(tTex)
+        end
+    end
+    bTextureViewOpened  = true
+    bViewTextureOptions = true
+    mbm.enableTextureFilter(true)
+end
+
+-- ── SVG import: batch size for parallel inkscape processes ───────────────────
+local IMPORT_MAX_PARALLEL = 5
+
+-- Coroutine body: launches inkscape in the background in small batches,
+-- polling each frame for file completion so the UI stays responsive.
+local function svgImportCoroutine()
+    local st = tSvgImportState
+    local outputDir = nil
+    if not st.bKeepInSvgFolder then
+        outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    end
+
+    -- Build the full list of (cmd, outputPath) jobs.
+    local jobs = {}
+    if st.iMode == 1 then
+        local outputPath
+        if outputDir then
+            outputPath = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath) .. ".png"
+        else
+            outputPath = tInkscape.getSvgStem(st.svgFilePath) .. ".png"
+        end
+        local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, nil, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
+        if cmd then
+            table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
+        end
+    else
+        local stem
+        if outputDir then
+            stem = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath)
+        else
+            stem = tInkscape.getSvgStem(st.svgFilePath)
+        end
+        for _, g in ipairs(st.tGroups) do
+            if g.bSelected then
+                local outputPath = stem .. "_" .. g.id .. ".png"
+                local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, g.id, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
+                if cmd then
+                    table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
+                end
+            end
+        end
+    end
+
+    st.iTotal    = #jobs
+    st.iProgress = 0
+    local allPngs = {}
+
+    -- Process in batches: launch IMPORT_MAX_PARALLEL background processes,
+    -- then poll each frame until all outputs in the batch exist.
+    local i = 1
+    while i <= #jobs do
+        local batchEnd = math.min(i + IMPORT_MAX_PARALLEL - 1, #jobs)
+
+        -- Remove stale outputs from prior runs and launch this batch.
+        for j = i, batchEnd do
+            os.remove(jobs[j].outputPath)
+            tInkscape.launchCmdAsync(jobs[j].cmd)
+        end
+
+        -- Poll every frame until every file in this batch has been written,
+        -- until the per-batch timeout expires, or until the user aborts.
+        local batchStartTime = os.time()
+        local batchDone = false
+        while not batchDone do
+            batchDone = true
+            local elapsed  = os.time() - batchStartTime
+            local timedOut = elapsed >= st.iTimeoutSecs
+            local abort    = st.bAbortRequested
+            for j = i, batchEnd do
+                if not jobs[j].done then
+                    if tInkscape.fileExists(jobs[j].outputPath) then
+                        jobs[j].done  = true
+                        st.iProgress  = st.iProgress + 1
+                        table.insert(allPngs, jobs[j].outputPath)
+                    elseif timedOut or abort then
+                        -- inkscape produced no output; skip and count as timed-out.
+                        jobs[j].done      = true
+                        st.iProgress      = st.iProgress + 1
+                        st.iTimedOutCount = st.iTimedOutCount + 1
+                        print("SVG import: timed out waiting for", jobs[j].outputPath)
+                    else
+                        batchDone = false
+                    end
+                end
+            end
+            if not batchDone then
+                coroutine.yield()  -- let the UI render one frame
+            end
+        end
+
+        i = batchEnd + 1
+        -- Stop launching new batches if the user requested abort.
+        if st.bAbortRequested then break end
+    end
+
+    -- All done (or aborted); load whatever succeeded into the editor.
+    if #allPngs > 0 then
+        loadSvgPngsIntoEditor(allPngs)
+        if st.iTimedOutCount > 0 then
+            st.sStatus = string.format(tLang.L("svg_import_done_with_timeouts_fmt"), #allPngs, st.iTimedOutCount)
+        else
+            st.sStatus = string.format(tLang.L("svg_import_done_fmt"), #allPngs)
+        end
+        st.bStatusOk = true
+    else
+        st.sStatus   = tLang.L("svg_import_failed")
+        st.bStatusOk = false
+    end
+    st.bImporting = false
+end
+
+-- Kicks off the import by creating the coroutine; the dialog drives it.
+local function startSvgImport()
+    local st     = tSvgImportState
+    st.iProgress = 0
+    st.iTotal    = 0
+    st.iTimedOutCount   = 0
+    st.bAbortRequested  = false
+    st.sStatus   = ''
+    st.bStatusOk = true
+    st.bImporting = true
+    st.co        = coroutine.create(svgImportCoroutine)
+end
+
+-- ── SVG import: ImGui modal dialog ────────────────────────────────────────────
+function showSvgImportDialog()
+    local st = tSvgImportState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup("svg_import_modal")
+        st.bOpenPopup = false
+    end
+
+    local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
+    local is_open, _ = tImGui.BeginPopupModal(tLang.L("svg_import_modal_title") .. "###svg_import_modal", false, flags)
+    if not is_open then return end
+
+    -- ── While the import coroutine is running: show progress bar ──────────────
+    if st.bImporting then
+        -- Advance the coroutine (processes one poll frame or one batch launch).
+        if st.co and coroutine.status(st.co) == "suspended" then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co         = nil
+                st.sStatus    = tostring(err)
+                st.bStatusOk  = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L("svg_import_progress_fmt"), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("svg_import_btn_abort")) then
+            st.bAbortRequested = true
+        end
+
+        -- Coroutine just finished this frame?
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L("svg_import_btn_cancel")) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+    -- ─────────────────────────────────────────────────────────────────────────────────────
+
+    -- Mode selection
+    st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_single"), st.iMode, 1)
+    tImGui.SameLine()
+    st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_groups"), st.iMode, 2)
+
+    tImGui.Separator()
+
+    -- Width / Height inputs
+    -- Width is disabled when aspect ratio is locked on height (height is fixed, width auto)
+    tImGui.BeginDisabled(st.bKeepAspectRatio and st.bKeepAspectOnHeight)
+        local wChanged, newW = tImGui.InputInt(tLang.L("svg_import_width"),  st.iWidth,  1, 64)
+        if wChanged and newW and newW > 0 then st.iWidth  = newW end
+    tImGui.EndDisabled()
+    -- Height is disabled when aspect ratio is locked on width (width is fixed, height auto)
+    tImGui.BeginDisabled(st.bKeepAspectRatio and not st.bKeepAspectOnHeight)
+        local hChanged, newH = tImGui.InputInt(tLang.L("svg_import_height"), st.iHeight, 1, 64)
+        if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.EndDisabled()
+    st.bKeepAspectRatio = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    if st.bKeepAspectRatio then
+        tImGui.SameLine()
+        st.bKeepAspectOnHeight = tImGui.Checkbox(tLang.L("svg_import_keep_aspect_on_height"), st.bKeepAspectOnHeight)
+    end
+
+    st.bKeepInSvgFolder = tImGui.Checkbox(tLang.L("svg_import_keep_in_svg_folder"), st.bKeepInSvgFolder)
+
+    local toChanged, newTo = tImGui.InputInt(tLang.L("svg_import_timeout_secs"), st.iTimeoutSecs, 5, 30)
+    if toChanged and newTo and newTo >= 5 then 
+        st.iTimeoutSecs = newTo 
+    end
+
+    -- Group depth + group list (only when mode = By Groups)
+    tImGui.BeginDisabled(st.iMode ~= 2)
+        local dChanged, newD = tImGui.InputInt(tLang.L("svg_import_group_depth"), st.iGroupDepth, 1, 1)
+        if dChanged and newD and newD >= 1 then
+            st.iGroupDepth = newD
+            if st.svgFilePath ~= '' then
+                refreshSvgGroups()
+            end
+        end
+
+        local nGroups = #st.tGroups
+        if nGroups > 0 then
+            local nSelected = 0
+            for _, g in ipairs(st.tGroups) do if g.bSelected then nSelected = nSelected + 1 end end
+            tImGui.Text(string.format(tLang.L("svg_import_groups_found_fmt"), nGroups, st.iGroupDepth))
+            tImGui.SameLine()
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
+            tImGui.Text(string.format(tLang.L("svg_import_selected_fmt"), nSelected))
+            tImGui.PopStyleColor()
+            -- Select All / Deselect All
+            if tImGui.Button(tLang.L("svg_import_select_all")) then
+                for _, g in ipairs(st.tGroups) do g.bSelected = true end
+            end
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("svg_import_deselect_all")) then
+                for _, g in ipairs(st.tGroups) do g.bSelected = false end
+            end
+            -- Range select row
+            tImGui.Text(tLang.L("svg_import_range_label"))
+            tImGui.SameLine()
+            tImGui.SetNextItemWidth(80)
+            local rfChanged, newRF = tImGui.InputInt("##rng_from", st.iRangeFrom, 1, 10)
+            if rfChanged and newRF ~= nil then 
+                if newRF < 1 then newRF = 1 end
+                if newRF > nGroups then newRF = nGroups end
+                st.iRangeFrom = newRF 
+            end
+            tImGui.SameLine()
+            tImGui.Text("-")
+            tImGui.SameLine()
+            tImGui.SetNextItemWidth(80)
+            local rtChanged, newRT = tImGui.InputInt("##rng_to", st.iRangeTo, 1, 10)
+            if rtChanged and newRT ~= nil then 
+                if newRT < 1 then newRT = 1 end
+                if newRT > nGroups then newRT = nGroups end
+                st.iRangeTo = newRT 
+            end
+            -- Live preview: show how many groups the current range covers.
+            local rFrom    = math.max(1, st.iRangeFrom)
+            local rTo      = math.min(nGroups, st.iRangeTo)
+            local rPreview = math.max(0, rTo - rFrom + 1)
+            tImGui.SameLine()
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=0.6, g=0.6, b=0.6, a=1})
+            tImGui.Text(string.format("= %d", rPreview))
+            tImGui.PopStyleColor()
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("svg_import_range_btn")) then
+                -- Exclusive select: clear all first, then mark only the range.
+                for i = 1, nGroups do
+                    st.tGroups[i].bSelected = (i >= rFrom and i <= rTo)
+                end
+            end
+            -- Scrollable checkbox list
+            tImGui.BeginChild("svg_groups_list", {x=0, y=150}, true)
+                for i, g in ipairs(st.tGroups) do
+                    st.tGroups[i].bSelected = tImGui.Checkbox(g.displayName, g.bSelected)
+                end
+            tImGui.EndChild()
+        else
+            tImGui.TextWrapped(tLang.L("svg_import_no_groups"))
+        end
+    tImGui.EndDisabled()
+
+    tImGui.Separator()
+
+    -- Status line
+    if st.sStatus ~= '' then
+        if not st.bStatusOk then
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+            tImGui.TextWrapped(st.sStatus)
+            tImGui.PopStyleColor()
+        else
+            tImGui.TextWrapped(st.sStatus)
+        end
+    end
+
+    -- Inkscape missing warning + browse fallback
+    local ink = tInkscape.inkscape
+    if ink and not ink.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'svg_import_inkscape_missing_' .. os_name
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(tLang.L(key))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L("svg_import_browse_inkscape")) then
+            local exeFilter = (os_name == "windows") and "*.exe" or "*"
+            local picked = mbm.openFile(st.customInkscapePath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customInkscapePath = picked
+                tInkscape.setCustomPath(picked)
+                local newInk = tInkscape.detectInkscape()
+                if newInk.found then
+                    st.sStatus   = ''
+                    st.bStatusOk = true
+                else
+                    st.sStatus   = tLang.L(key)
+                    st.bStatusOk = false
+                end
+            end
+        end
+    end
+
+    -- Import / Cancel buttons
+    local canImport = ink and ink.found
+    tImGui.BeginDisabled(not canImport)
+        if tImGui.Button(tLang.L("svg_import_btn_import")) then
+            startSvgImport()
+        end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L("svg_import_btn_cancel")) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
 
 function getNextNickName()
     iNextNickName = iNextNickName + 1
@@ -1827,6 +2256,9 @@ function main_menu_texture_packer()
                 onOpenTexturesFromFolder()
             end
 
+            local pressed, _ = tImGui.MenuItem(tLang.L("import_svg"), nil, false)
+            if pressed then onImportSvg() end
+
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_png"), nil, false)
             if pressed then
@@ -2212,6 +2644,7 @@ function onLoop(delta)
     end
 
     showOverlapTextureOptions()
+    showSvgImportDialog()
 
     tUtil.showOverlayMessage()
 
