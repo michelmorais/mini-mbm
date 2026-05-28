@@ -251,6 +251,89 @@ function M.parseSvgGroupsAtDepth(svgPath, targetDepth)
     return M.tGroups
 end
 
+-- Finds all direct <g> children whose immediate parent id is in parentIdSet.
+--
+-- parentIdSet : a hash table  { ["gtile1"] = true, ["gtile2"] = true, ... }
+--              Use any group IDs previously returned by parseSvgGroupsAtDepth.
+--
+-- The function walks the entire SVG XML while tracking a stack of open ancestor
+-- element IDs ("" for non-<g> elements).  A <g> is collected only when the
+-- top of that stack matches a key in parentIdSet.
+--
+-- Returns: [ {id=string, displayName=string, parentId=string} ]
+function M.parseChildrenOfGroups(svgPath, parentIdSet)
+    local results = {}
+
+    local f = io.open(svgPath, "r")
+    if not f then return results end
+    local content = f:read("*a")
+    f:close()
+
+    local svgTagOpen  = content:find("<svg[%s>]")
+    if not svgTagOpen  then return results end
+    local svgTagClose = content:find(">", svgTagOpen)
+    if not svgTagClose then return results end
+
+    local pos   = svgTagClose + 1
+    local len   = #content
+    local stack = {}   -- stack[i] = group id (or "" for non-<g> elements)
+
+    while pos <= len do
+        local tagStart = content:find("<", pos, true)
+        if not tagStart then break end
+
+        if content:sub(tagStart, tagStart + 3) == "<!--" then
+            local e = content:find("-->", tagStart + 4, true)
+            pos = e and (e + 3) or (len + 1)
+
+        elseif content:sub(tagStart, tagStart + 8) == "<![CDATA[" then
+            local e = content:find("]]", tagStart + 9, true)
+            pos = e and (e + 3) or (len + 1)
+
+        elseif content:sub(tagStart, tagStart + 1) == "<?" or
+               content:sub(tagStart, tagStart + 1) == "<!" then
+            local e = content:find(">", tagStart + 2, true)
+            pos = e and (e + 1) or (len + 1)
+
+        elseif content:sub(tagStart, tagStart + 1) == "</" then
+            -- Closing tag: pop one ancestor off the stack.
+            local e = content:find(">", tagStart + 2, true)
+            if #stack > 0 then table.remove(stack) end
+            pos = e and (e + 1) or (len + 1)
+
+        else
+            local tagEnd = content:find(">", tagStart + 1, true)
+            if not tagEnd then break end
+            local tagContent  = content:sub(tagStart, tagEnd)
+            local selfClosing = tagContent:match("/>%s*$") ~= nil
+
+            if not selfClosing then
+                local tagName = tagContent:match("^<([%w:%-_]+)")
+                if tagName == "g" then
+                    local id = tagContent:match('id="([^"]+)"')
+                           or  tagContent:match("id='([^']+)'")
+                    -- Collect this group if its direct parent is a selected container.
+                    local parentId = stack[#stack]
+                    if parentId and parentIdSet[parentId] and id then
+                        table.insert(results, {
+                            id          = id,
+                            displayName = id,
+                            parentId    = parentId,
+                        })
+                    end
+                    table.insert(stack, id or "")
+                else
+                    -- Non-<g> opening tag: push placeholder to keep the stack balanced.
+                    table.insert(stack, "")
+                end
+            end
+            pos = tagEnd + 1
+        end
+    end
+
+    return results
+end
+
 -- ─── Inkscape command builder ─────────────────────────────────────────────────
 
 -- Builds the inkscape CLI command string for rasterizing an SVG (or a group

@@ -426,7 +426,7 @@ local function svgImportCoroutine()
         if cmd then
             table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
         end
-    else
+    elseif st.iMode == 2 then
         local stem
         if outputDir then
             stem = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath)
@@ -440,6 +440,27 @@ local function svgImportCoroutine()
                 if cmd then
                     table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
                 end
+            end
+        end
+    elseif st.iMode == 3 then
+        -- Children-of-groups mode: build a set from selected containers, then
+        -- export each direct <g> child of those containers.
+        local parentSet = {}
+        for _, g in ipairs(st.tGroups) do
+            if g.bSelected then parentSet[g.id] = true end
+        end
+        local children = tInkscape.parseChildrenOfGroups(st.svgFilePath, parentSet)
+        local stem
+        if outputDir then
+            stem = outputDir .. "/" .. tInkscape.getFileBaseStem(st.svgFilePath)
+        else
+            stem = tInkscape.getSvgStem(st.svgFilePath)
+        end
+        for _, child in ipairs(children) do
+            local outputPath = stem .. "_" .. child.id .. ".png"
+            local cmd = tInkscape.buildCmd(st.svgFilePath, outputPath, st.iWidth, st.iHeight, child.id, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
+            if cmd then
+                table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
             end
         end
     end
@@ -587,6 +608,8 @@ function showSvgImportDialog()
     st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_single"), st.iMode, 1)
     tImGui.SameLine()
     st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_groups"), st.iMode, 2)
+    tImGui.SameLine()
+    st.iMode = tImGui.RadioButton(tLang.L("svg_import_mode_children"), st.iMode, 3)
 
     tImGui.Separator()
 
@@ -614,8 +637,8 @@ function showSvgImportDialog()
         st.iTimeoutSecs = newTo 
     end
 
-    -- Group depth + group list (only when mode = By Groups)
-    tImGui.BeginDisabled(st.iMode ~= 2)
+    -- Group depth + group list (only when mode = By Groups or Children of Groups)
+    tImGui.BeginDisabled(st.iMode ~= 2 and st.iMode ~= 3)
         local dChanged, newD = tImGui.InputInt(tLang.L("svg_import_group_depth"), st.iGroupDepth, 1, 1)
         if dChanged and newD and newD >= 1 then
             st.iGroupDepth = newD
@@ -633,6 +656,11 @@ function showSvgImportDialog()
             tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
             tImGui.Text(string.format(tLang.L("svg_import_selected_fmt"), nSelected))
             tImGui.PopStyleColor()
+            if st.iMode == 3 then
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=0.7, g=0.9, b=1, a=1})
+                tImGui.TextWrapped(tLang.L("svg_import_mode_children_hint"))
+                tImGui.PopStyleColor()
+            end
             -- Select All / Deselect All
             if tImGui.Button(tLang.L("svg_import_select_all")) then
                 for _, g in ipairs(st.tGroups) do g.bSelected = true end
