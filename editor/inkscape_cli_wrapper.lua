@@ -520,4 +520,45 @@ function M.launchCmdAsync(cmd)
     end
 end
 
+-- ─── Adobe Illustrator helpers ────────────────────────────────────────────────
+
+-- Returns true if `path` has a .ai extension (case-insensitive).
+function M.isAiFile(path)
+    return path:lower():sub(-3) == ".ai"
+end
+
+-- Converts an Adobe Illustrator (.ai) file to a plain SVG using Inkscape.
+-- This is a synchronous operation (via io.popen) intended to run once before
+-- the SVG group-parsing and export pipeline is entered.
+--
+-- aiPath        : full path to the source .ai file
+-- outputSvgPath : destination .svg path for the converted file
+--
+-- Returns true on success (the output file exists), false otherwise.
+function M.convertAiToSvg(aiPath, outputSvgPath)
+    local ink = M.inkscape or M.detectInkscape()
+    if not ink.found then return false end
+
+    local exe = shellQuote(ink.path)
+    local cmd
+    if ink.is_v1 then
+        -- Inkscape 1.x
+        cmd = string.format(
+            "%s %s --export-type=svg --export-filename=%s",
+            exe, shellQuote(aiPath), shellQuote(outputSvgPath))
+    else
+        -- Inkscape 0.9x
+        cmd = string.format(
+            "%s %s --export-plain-svg=%s",
+            exe, shellQuote(aiPath), shellQuote(outputSvgPath))
+    end
+
+    local f = io.popen(wrapCmd(cmd) .. " 2>&1")
+    if f then f:read("*a"); f:close() end
+
+    local probe = io.open(outputSvgPath, "r")
+    if probe then probe:close(); return true end
+    return false
+end
+
 return M

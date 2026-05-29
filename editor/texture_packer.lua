@@ -31,6 +31,7 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tInkscape     =     require "inkscape_cli_wrapper"
+tImageMagick  =     require "imagick_cli_wrapper"
 
 function onInitScene()
     
@@ -150,6 +151,31 @@ function onInitScene()
         iRangeFrom   = 1,      -- range-select: first group index (1-based)
         iRangeTo     = 10,     -- range-select: last  group index (1-based)
         customInkscapePath = '',  -- user-browsed executable path
+        aiTempSvgPath = nil,  -- temp .svg path when a .ai file was opened
+    }
+
+    tPsdImportState = {
+        bOpen        = false,
+        bOpenPopup   = false,
+        psdFilePath  = '',
+        tLayers      = {},   -- [{index=N (0-based), displayName=string, bSelected=bool}]
+        iWidth       = 256,
+        iHeight      = 256,
+        bKeepAspectRatio    = true,
+        bKeepAspectOnHeight = false,
+        bKeepInPsdFolder    = false,
+        sStatus      = '',
+        bStatusOk    = true,
+        bImporting   = false,
+        co           = nil,
+        iProgress    = 0,
+        iTotal       = 0,
+        iTimedOutCount = 0,
+        iTimeoutSecs = 60,
+        bAbortRequested = false,
+        iRangeFrom   = 1,
+        iRangeTo     = 10,
+        customImageMagickPath = '',
     }
 end
 
@@ -344,11 +370,40 @@ end
 
 -- ── SVG import: open file dialog, parse groups ────────────────────────────────
 function onImportSvg()
-    local filePath = mbm.openFile(tSvgImportState.svgFilePath, '*.svg')
+    local filePath = mbm.openFile(tSvgImportState.svgFilePath, '*.svg','*.ai')
     if not filePath then return end
-    tSvgImportState.svgFilePath = filePath
-    tSvgImportState.sStatus     = ''
-    tSvgImportState.bStatusOk   = true
+    tSvgImportState.sStatus   = ''
+    tSvgImportState.bStatusOk = true
+
+    -- If the user picked a .ai file, convert it to a temp SVG first.
+    local svgFilePath = filePath
+    if tInkscape.isAiFile(filePath) then
+        local ink = tInkscape.detectInkscape()
+        if not ink.found then
+            local os_name = (mbm.get('os') or ''):lower()
+            local key = 'svg_import_inkscape_missing_' .. os_name
+            tSvgImportState.sStatus   = tLang.L(key)
+            tSvgImportState.bStatusOk = false
+            tSvgImportState.bOpen      = true
+            tSvgImportState.bOpenPopup = true
+            return
+        end
+        local tmpDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+        local stem   = tInkscape.getFileBaseStem(filePath)
+        svgFilePath  = tmpDir .. "/" .. stem .. "_ai_converted.svg"
+        if not tInkscape.convertAiToSvg(filePath, svgFilePath) then
+            tSvgImportState.sStatus   = 'AI to SVG conversion failed. Check inkscape installation.'
+            tSvgImportState.bStatusOk = false
+            tSvgImportState.bOpen      = true
+            tSvgImportState.bOpenPopup = true
+            return
+        end
+        tSvgImportState.aiTempSvgPath = svgFilePath
+    else
+        tSvgImportState.aiTempSvgPath = nil
+    end
+
+    tSvgImportState.svgFilePath = svgFilePath
 
     -- Detect inkscape once (cached).
     local ink = tInkscape.detectInkscape()
@@ -360,7 +415,7 @@ function onImportSvg()
     end
 
     -- Parse groups at the current depth level.
-    local rawGroups = tInkscape.parseSvgGroupsAtDepth(filePath, tSvgImportState.iGroupDepth)
+    local rawGroups = tInkscape.parseSvgGroupsAtDepth(svgFilePath, tSvgImportState.iGroupDepth)
     tSvgImportState.tGroups = {}
     for _, g in ipairs(rawGroups) do
         table.insert(tSvgImportState.tGroups, { id = g.id, displayName = g.displayName, bSelected = true })
@@ -531,6 +586,11 @@ local function svgImportCoroutine()
         st.bStatusOk = false
     end
     st.bImporting = false
+    -- Clean up the temporary SVG that was created from a .ai file, if any.
+    if st.aiTempSvgPath then
+        os.remove(st.aiTempSvgPath)
+        st.aiTempSvgPath = nil
+    end
 end
 
 -- Kicks off the import by creating the coroutine; the dialog drives it.
@@ -763,6 +823,335 @@ function showSvgImportDialog()
     tImGui.EndDisabled()
     tImGui.SameLine()
     if tImGui.Button(tLang.L("svg_import_btn_cancel")) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
+end
+
+-- ─── PSD import ───────────────────────────────────────────────────────────────
+
+-- Open file dialog, count layers, populate tPsdImportState.
+function onImportPsd()
+    local filePath = mbm.openFile(tPsdImportState.psdFilePath, '*.psd')
+    if not filePath then return end
+    tPsdImportState.psdFilePath = filePath
+    tPsdImportState.sStatus     = ''
+    tPsdImportState.bStatusOk   = true
+
+    -- Detect ImageMagick once (cached).
+    local im = tImageMagick.detectImageMagick()
+    if not im.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_import_imagemagick_missing_' .. os_name
+        tPsdImportState.sStatus   = tLang.L(key)
+        tPsdImportState.bStatusOk = false
+    end
+
+    -- Count layers and build the layer list.
+    local nLayers = im.found and tImageMagick.countPsdLayers(filePath) or 0
+    tPsdImportState.tLayers = {}
+    for i = 0, nLayers - 1 do
+        table.insert(tPsdImportState.tLayers, {
+            index       = i,
+            displayName = string.format("Layer %d", i),
+            bSelected   = true,
+        })
+    end
+
+    tPsdImportState.bOpen      = true
+    tPsdImportState.bOpenPopup = true
+end
+
+-- Coroutine body: launches ImageMagick in batches, polls for completion.
+local function psdImportCoroutine()
+    local st  = tPsdImportState
+    local outputDir
+    if not st.bKeepInPsdFolder then
+        outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    end
+
+    local stem
+    if outputDir then
+        stem = outputDir .. "/" .. tImageMagick.getFileBaseStem(st.psdFilePath)
+    else
+        stem = tImageMagick.getFileDir(st.psdFilePath) .. tImageMagick.getFileBaseStem(st.psdFilePath)
+    end
+
+    -- Build job list for selected layers.
+    local jobs = {}
+    for _, layer in ipairs(st.tLayers) do
+        if layer.bSelected then
+            local outputPath = string.format("%s_layer%d.png", stem, layer.index)
+            local cmd = tImageMagick.buildLayerCmd(st.psdFilePath, layer.index, outputPath)
+            if cmd then
+                table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
+            end
+        end
+    end
+
+    st.iTotal    = #jobs
+    st.iProgress = 0
+    local allPngs = {}
+
+    local i = 1
+    while i <= #jobs do
+        local batchEnd = math.min(i + IMPORT_MAX_PARALLEL - 1, #jobs)
+
+        for j = i, batchEnd do
+            os.remove(jobs[j].outputPath)
+            tImageMagick.launchCmdAsync(jobs[j].cmd)
+        end
+
+        local batchStartTime = os.time()
+        local batchDone = false
+        while not batchDone do
+            batchDone = true
+            local elapsed  = os.time() - batchStartTime
+            local timedOut = elapsed >= st.iTimeoutSecs
+            local abort    = st.bAbortRequested
+            for j = i, batchEnd do
+                if not jobs[j].done then
+                    if tImageMagick.fileExists(jobs[j].outputPath) then
+                        jobs[j].done  = true
+                        st.iProgress  = st.iProgress + 1
+                        table.insert(allPngs, jobs[j].outputPath)
+                    elseif timedOut or abort then
+                        jobs[j].done      = true
+                        st.iProgress      = st.iProgress + 1
+                        st.iTimedOutCount = st.iTimedOutCount + 1
+                        print("PSD import: timed out waiting for", jobs[j].outputPath)
+                    else
+                        batchDone = false
+                    end
+                end
+            end
+            if not batchDone then
+                coroutine.yield()
+            end
+        end
+
+        i = batchEnd + 1
+        if st.bAbortRequested then break end
+    end
+
+    if #allPngs > 0 then
+        loadSvgPngsIntoEditor(allPngs)
+        if st.iTimedOutCount > 0 then
+            st.sStatus = string.format(tLang.L("psd_import_done_with_timeouts_fmt"), #allPngs, st.iTimedOutCount)
+        else
+            st.sStatus = string.format(tLang.L("psd_import_done_fmt"), #allPngs)
+        end
+        st.bStatusOk = true
+    else
+        st.sStatus   = tLang.L("psd_import_failed")
+        st.bStatusOk = false
+    end
+    st.bImporting = false
+end
+
+-- Kicks off the PSD import coroutine.
+local function startPsdImport()
+    local st = tPsdImportState
+    st.iProgress       = 0
+    st.iTotal          = 0
+    st.iTimedOutCount  = 0
+    st.bAbortRequested = false
+    st.sStatus         = ''
+    st.bStatusOk       = true
+    st.bImporting      = true
+    st.co              = coroutine.create(psdImportCoroutine)
+end
+
+-- ImGui modal dialog for PSD import.
+function showPsdImportDialog()
+    local st = tPsdImportState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup("psd_import_modal")
+        st.bOpenPopup = false
+    end
+
+    local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
+    local is_open, _ = tImGui.BeginPopupModal(tLang.L("psd_import_modal_title") .. "###psd_import_modal", false, flags)
+    if not is_open then return end
+
+    -- Progress view while coroutine is running.
+    if st.bImporting then
+        if st.co and coroutine.status(st.co) == "suspended" then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co         = nil
+                st.sStatus    = tostring(err)
+                st.bStatusOk  = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L("psd_import_progress_fmt"), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_btn_abort")) then
+            st.bAbortRequested = true
+        end
+
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L("psd_import_btn_cancel")) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+
+    -- Width / Height inputs
+    tImGui.BeginDisabled(st.bKeepAspectRatio and st.bKeepAspectOnHeight)
+        local wChanged, newW = tImGui.InputInt(tLang.L("psd_import_width"),  st.iWidth,  1, 64)
+        if wChanged and newW and newW > 0 then st.iWidth  = newW end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(st.bKeepAspectRatio and not st.bKeepAspectOnHeight)
+        local hChanged, newH = tImGui.InputInt(tLang.L("psd_import_height"), st.iHeight, 1, 64)
+        if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.EndDisabled()
+    st.bKeepAspectRatio = tImGui.Checkbox(tLang.L("psd_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    if st.bKeepAspectRatio then
+        tImGui.SameLine()
+        st.bKeepAspectOnHeight = tImGui.Checkbox(tLang.L("psd_import_keep_aspect_on_height"), st.bKeepAspectOnHeight)
+    end
+
+    st.bKeepInPsdFolder = tImGui.Checkbox(tLang.L("psd_import_keep_in_psd_folder"), st.bKeepInPsdFolder)
+
+    local toChanged, newTo = tImGui.InputInt(tLang.L("psd_import_timeout_secs"), st.iTimeoutSecs, 5, 30)
+    if toChanged and newTo and newTo >= 5 then st.iTimeoutSecs = newTo end
+
+    tImGui.Separator()
+
+    -- Layer list
+    local nLayers = #st.tLayers
+    if nLayers > 0 then
+        local nSelected = 0
+        for _, layer in ipairs(st.tLayers) do if layer.bSelected then nSelected = nSelected + 1 end end
+        tImGui.Text(string.format(tLang.L("psd_import_layers_found_fmt"), nLayers))
+        tImGui.SameLine()
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
+        tImGui.Text(string.format(tLang.L("psd_import_selected_fmt"), nSelected))
+        tImGui.PopStyleColor()
+
+        if tImGui.Button(tLang.L("psd_import_select_all")) then
+            for _, layer in ipairs(st.tLayers) do layer.bSelected = true end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_deselect_all")) then
+            for _, layer in ipairs(st.tLayers) do layer.bSelected = false end
+        end
+
+        -- Range select
+        tImGui.Text(tLang.L("psd_import_range_label"))
+        tImGui.SameLine()
+        tImGui.SetNextItemWidth(80)
+        local rfChanged, newRF = tImGui.InputInt("##psd_rng_from", st.iRangeFrom, 1, 10)
+        if rfChanged and newRF ~= nil then
+            if newRF < 1 then newRF = 1 end
+            if newRF > nLayers then newRF = nLayers end
+            st.iRangeFrom = newRF
+        end
+        tImGui.SameLine()
+        tImGui.Text("-")
+        tImGui.SameLine()
+        tImGui.SetNextItemWidth(80)
+        local rtChanged, newRT = tImGui.InputInt("##psd_rng_to", st.iRangeTo, 1, 10)
+        if rtChanged and newRT ~= nil then
+            if newRT < 1 then newRT = 1 end
+            if newRT > nLayers then newRT = nLayers end
+            st.iRangeTo = newRT
+        end
+        local rFrom    = math.max(1, st.iRangeFrom)
+        local rTo      = math.min(nLayers, st.iRangeTo)
+        local rPreview = math.max(0, rTo - rFrom + 1)
+        tImGui.SameLine()
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=0.6, g=0.6, b=0.6, a=1})
+        tImGui.Text(string.format("= %d", rPreview))
+        tImGui.PopStyleColor()
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_range_btn")) then
+            for i = 1, nLayers do
+                st.tLayers[i].bSelected = (i >= rFrom and i <= rTo)
+            end
+        end
+
+        -- Scrollable checkbox list
+        tImGui.BeginChild("psd_layers_list", {x=0, y=150}, true)
+            for i, layer in ipairs(st.tLayers) do
+                st.tLayers[i].bSelected = tImGui.Checkbox(layer.displayName, layer.bSelected)
+            end
+        tImGui.EndChild()
+    else
+        tImGui.TextWrapped(tLang.L("psd_import_no_layers"))
+    end
+
+    tImGui.Separator()
+
+    -- Status line
+    if st.sStatus ~= '' then
+        if not st.bStatusOk then
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+            tImGui.TextWrapped(st.sStatus)
+            tImGui.PopStyleColor()
+        else
+            tImGui.TextWrapped(st.sStatus)
+        end
+    end
+
+    -- ImageMagick missing warning + browse fallback
+    local im = tImageMagick.imagick
+    if im and not im.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_import_imagemagick_missing_' .. os_name
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(tLang.L(key))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L("psd_import_browse_imagemagick")) then
+            local exeFilter = (os_name == "windows") and "*.exe" or "*"
+            local picked = mbm.openFile(st.customImageMagickPath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customImageMagickPath = picked
+                tImageMagick.setCustomPath(picked)
+                local newIm = tImageMagick.detectImageMagick()
+                if newIm.found then
+                    st.sStatus   = ''
+                    st.bStatusOk = true
+                else
+                    st.sStatus   = tLang.L(key)
+                    st.bStatusOk = false
+                end
+            end
+        end
+    end
+
+    -- Import / Cancel buttons
+    local canImport = im and im.found and nLayers > 0
+    tImGui.BeginDisabled(not canImport)
+        if tImGui.Button(tLang.L("psd_import_btn_import")) then
+            startPsdImport()
+        end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L("psd_import_btn_cancel")) then
         st.bOpen = false
         tImGui.CloseCurrentPopup()
     end
@@ -2287,6 +2676,9 @@ function main_menu_texture_packer()
             local pressed, _ = tImGui.MenuItem(tLang.L("import_svg"), nil, false)
             if pressed then onImportSvg() end
 
+            local pressed, _ = tImGui.MenuItem(tLang.L("import_psd"), nil, false)
+            if pressed then onImportPsd() end
+
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_png"), nil, false)
             if pressed then
@@ -2673,6 +3065,7 @@ function onLoop(delta)
 
     showOverlapTextureOptions()
     showSvgImportDialog()
+    showPsdImportDialog()
 
     tUtil.showOverlayMessage()
 
