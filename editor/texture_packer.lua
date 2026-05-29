@@ -1141,6 +1141,8 @@ function showPsdImportDialog()
         tImGui.SameLine()
         st.bShowVectorLayers = tImGui.Checkbox(tLang.L("psd_import_show_vector"), st.bShowVectorLayers)
 
+        tImGui.Separator()
+
         -- Custom-size bulk buttons
         if tImGui.Button(tLang.L("psd_import_use_recommended_all")) then
             for _, idx in ipairs(visList) do
@@ -1162,16 +1164,24 @@ function showPsdImportDialog()
             tImGui.SetTooltip(tLang.L("psd_import_use_global_all_tip"))
         end
         tImGui.Separator()
+        tImGui.Text(tLang.L("psd_import_auto_fit"))
         if tImGui.Button(tLang.L("psd_import_fit_to_global")) then
-            -- Scale each visible layer proportionally so it fits within the
-            -- global W×H box (neither dimension exceeds the limit).
+            -- Scale each visible layer independently so it fits within the
+            -- global W×H box, respecting the aspect-ratio checkbox state.
             local maxW = st.iWidth
             local maxH = st.iHeight
             for _, idx in ipairs(visList) do
                 local nw = st.tLayers[idx].width
                 local nh = st.tLayers[idx].height
                 if nw > 0 and nh > 0 then
-                    local scale = math.min(maxW / nw, maxH / nh)
+                    local scale
+                    if st.bKeepAspectOnHeight then
+                        -- fix height, let width float
+                        scale = maxH / nh
+                    else
+                        -- fit inside W×H box
+                        scale = math.min(maxW / nw, maxH / nh)
+                    end
                     st.tLayers[idx].bCustomSize = true
                     st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
                     st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
@@ -1222,6 +1232,7 @@ function showPsdImportDialog()
             tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_max_tip"), biggestW, biggestH, st.iWidth, st.iHeight))
         end
 
+        tImGui.Separator()
         -- Search filter (full width)
         tImGui.SetNextItemWidth(-1)
         local fMod, fNew = tImGui.InputTextWithHint('##psd_filter', st.sFilter, tLang.L('psd_import_filter_hint'))
