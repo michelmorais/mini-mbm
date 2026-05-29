@@ -164,6 +164,8 @@ M.en = {
     psd_import_filter_hint = "Filter layers by name...",
     psd_import_col_name   = "Layer Name",
     psd_import_col_size   = "Size",
+    psd_import_visible    = "visible",
+    psd_import_show_vector = "Show <Group>/<Path>",
     psd_import_failed = "Import failed. Check ImageMagick installation.",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1200,6 +1202,8 @@ M.pt_br = {
     psd_import_filter_hint = "Filtrar camadas por nome...",
     psd_import_col_name   = "Nome da Camada",
     psd_import_col_size   = "Tamanho",
+    psd_import_visible    = "vis\195\173veis",
+    psd_import_show_vector = "Mostrar <Group>/<Path>",
     psd_import_failed = "Importa\195\167\195\163o falhou. Verifique a instala\195\167\195\163o do ImageMagick.",
     -- Particle editor
     particle_editor = "Editor de Partículas",

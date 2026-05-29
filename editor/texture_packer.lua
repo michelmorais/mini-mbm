@@ -177,6 +177,7 @@ function onInitScene()
         iRangeTo     = 10,
         customImageMagickPath = '',
         sFilter      = '',   -- text filter for the layer table
+        bShowVectorLayers = false,  -- show <Group>/<Path>/<Compound Path> layers
     }
 end
 
@@ -861,6 +862,9 @@ function onImportPsd()
             bSelected   = true,
             width       = info.width,
             height      = info.height,
+            bCustomSize = false,  -- when true, iCustomW/iCustomH override global size
+            iCustomW    = info.width,
+            iCustomH    = info.height,
         })
     end
 
@@ -888,8 +892,16 @@ local function psdImportCoroutine()
     for _, layer in ipairs(st.tLayers) do
         if layer.bSelected then
             local outputPath = string.format("%s_layer%d.png", stem, layer.index)
+            -- Per-layer custom size overrides the global dialog size.
+            local w, h, keepAsp, keepOnH
+            if layer.bCustomSize and layer.iCustomW and layer.iCustomH
+               and layer.iCustomW > 0 and layer.iCustomH > 0 then
+                w, h, keepAsp, keepOnH = layer.iCustomW, layer.iCustomH, false, false
+            else
+                w, h, keepAsp, keepOnH = st.iWidth, st.iHeight, st.bKeepAspectRatio, st.bKeepAspectOnHeight
+            end
             local cmd = tImageMagick.buildLayerCmd(st.psdFilePath, layer.index, outputPath,
-                            st.iWidth, st.iHeight, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
+                            w, h, keepAsp, keepOnH)
             if cmd then
                 table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
             end
@@ -1047,71 +1059,194 @@ function showPsdImportDialog()
     tImGui.Separator()
 
     -- Layer list
+    -- Vector-tool auto-names used by Photoshop shape layers.
+    local VECTOR_NAMES = { ["<group>"]=true, ["<path>"]=true, ["<compound path>"]=true,
+                           ["<shape layer>"]=true, ["<clipping mask>"]=true }
+    local function isVectorLayer(name)
+        return VECTOR_NAMES[name:lower()] ~= nil
+    end
+
+    -- Build the list of layers that pass the current visibility/filter settings.
+    local function buildVisibleList()
+        local vis = {}
+        local filterLower = st.sFilter:lower()
+        for i, layer in ipairs(st.tLayers) do
+            local show = true
+            if not st.bShowVectorLayers and isVectorLayer(layer.displayName) then show = false end
+            if show and filterLower ~= '' and not layer.displayName:lower():find(filterLower, 1, true) then show = false end
+            if show then table.insert(vis, i) end
+        end
+        return vis
+    end
+
+    -- Compute prefix groups from a list of layer indices.
+    -- Returns [{prefix=string, indices=[...]}] sorted to preserve original order.
+    -- Layers whose name shares a common word-prefix with at least one other layer
+    -- are grouped under that prefix.  Singletons form a group named "" (no header).
+    local function buildPrefixGroups(visList)
+        -- Extract first word(s) as prefix candidate (up to 2 words).
+        local function prefix1(name)
+            return name:match("^(%S+)") or name
+        end
+        local prefixCount = {}
+        for _, idx in ipairs(visList) do
+            local p = prefix1(st.tLayers[idx].displayName)
+            prefixCount[p] = (prefixCount[p] or 0) + 1
+        end
+        -- Assign each layer to a group.
+        local groups  = {}    -- ordered list of {prefix, indices}
+        local groupAt = {}    -- prefix → position in groups[]
+        local function getOrCreate(p)
+            if not groupAt[p] then
+                table.insert(groups, { prefix=p, indices={} })
+                groupAt[p] = #groups
+            end
+            return groupAt[p]
+        end
+        for _, idx in ipairs(visList) do
+            local name = st.tLayers[idx].displayName
+            local p    = prefix1(name)
+            -- Use prefix grouping only when >=2 layers share the prefix.
+            local gp   = (prefixCount[p] and prefixCount[p] >= 2) and p or ""
+            local pos  = getOrCreate(gp)
+            table.insert(groups[pos].indices, idx)
+        end
+        return groups
+    end
+
     local nLayers = #st.tLayers
     if nLayers > 0 then
+        local visList  = buildVisibleList()
+        local nVisible = #visList
         local nSelected = 0
-        for _, layer in ipairs(st.tLayers) do if layer.bSelected then nSelected = nSelected + 1 end end
+        for _, idx in ipairs(visList) do if st.tLayers[idx].bSelected then nSelected = nSelected + 1 end end
+
         tImGui.Text(string.format(tLang.L("psd_import_layers_found_fmt"), nLayers))
         tImGui.SameLine()
         tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
         tImGui.Text(string.format(tLang.L("psd_import_selected_fmt"), nSelected))
         tImGui.PopStyleColor()
+        tImGui.SameLine()
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=0.5, g=0.8, b=0.5, a=1})
+        tImGui.Text(string.format("(%d %s)", nVisible, tLang.L("psd_import_visible")))
+        tImGui.PopStyleColor()
 
         if tImGui.Button(tLang.L("psd_import_select_all")) then
-            for i, layer in ipairs(st.tLayers) do
-                -- only affect visible (filtered) layers
-                local lname = layer.displayName:lower()
-                if st.sFilter == '' or lname:find(st.sFilter:lower(), 1, true) then
-                    st.tLayers[i].bSelected = true
-                end
-            end
+            for _, idx in ipairs(visList) do st.tLayers[idx].bSelected = true end
         end
         tImGui.SameLine()
         if tImGui.Button(tLang.L("psd_import_deselect_all")) then
-            for i, layer in ipairs(st.tLayers) do
-                local lname = layer.displayName:lower()
-                if st.sFilter == '' or lname:find(st.sFilter:lower(), 1, true) then
-                    st.tLayers[i].bSelected = false
-                end
-            end
+            for _, idx in ipairs(visList) do st.tLayers[idx].bSelected = false end
         end
+        tImGui.SameLine()
+        st.bShowVectorLayers = tImGui.Checkbox(tLang.L("psd_import_show_vector"), st.bShowVectorLayers)
 
-        -- Search filter
+        -- Search filter (full width)
         tImGui.SetNextItemWidth(-1)
         local fMod, fNew = tImGui.InputTextWithHint('##psd_filter', st.sFilter, tLang.L('psd_import_filter_hint'))
         if fMod and fNew ~= nil then st.sFilter = fNew end
 
-        -- Scrollable table: [ ] | # | Name | Size
+        -- Scrollable table: [✓] | # | Name | Size | [custom override]
+        -- Columns: cb(22) | idx(36) | name(stretch) | size(80) | custom(22) | cW(60) | cH(60)
         local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
                                       'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_SizingFixedFit')
-        if tImGui.BeginTable('psd_layers_tbl', 4, tblFlags, {x=0, y=220}) then
+        if tImGui.BeginTable('psd_layers_tbl', 7, tblFlags, {x=0, y=240}) then
             tImGui.TableSetupScrollFreeze(0, 1)
-            tImGui.TableSetupColumn('##cb',   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
-            tImGui.TableSetupColumn('#',      tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 36)
-            tImGui.TableSetupColumn(tLang.L('psd_import_col_name'))
+            tImGui.TableSetupColumn('##cb',  tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
+            tImGui.TableSetupColumn('#',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 36)
+            tImGui.TableSetupColumn(tLang.L('psd_import_col_name'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
             tImGui.TableSetupColumn(tLang.L('psd_import_col_size'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn('##cust', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
+            tImGui.TableSetupColumn('W',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+            tImGui.TableSetupColumn('H',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
             tImGui.TableHeadersRow()
 
-            local filterLower = st.sFilter:lower()
-            for i, layer in ipairs(st.tLayers) do
-                local lname = layer.displayName:lower()
-                if filterLower == '' or lname:find(filterLower, 1, true) then
+            local groups = buildPrefixGroups(visList)
+            -- Track which tree nodes we opened so we can close them properly.
+            for gi, grp in ipairs(groups) do
+                local hasHeader = grp.prefix ~= ""
+                local groupOpen = true
+                if hasHeader then
+                    -- Count selected in group
+                    local gSel, gTotal = 0, #grp.indices
+                    for _, idx in ipairs(grp.indices) do if st.tLayers[idx].bSelected then gSel = gSel + 1 end end
+                    local allSel = gSel == gTotal
+
                     tImGui.TableNextRow()
                     tImGui.TableNextColumn()
-                    local newSel = tImGui.Checkbox('##psd_cb_' .. i, layer.bSelected)
-                    if newSel ~= layer.bSelected then st.tLayers[i].bSelected = newSel end
-                    tImGui.TableNextColumn()
-                    tImGui.Text(tostring(layer.index))
-                    tImGui.TableNextColumn()
-                    -- clicking the name row also toggles the checkbox
-                    if tImGui.Selectable(layer.displayName .. '##psd_row_' .. i, layer.bSelected,
-                                         tImGui.Flags('ImGuiSelectableFlags_SpanAllColumns')) then
-                        st.tLayers[i].bSelected = not layer.bSelected
+                    -- Group-level checkbox: toggle all children
+                    local newAllSel = tImGui.Checkbox('##grp_cb_' .. gi, allSel)
+                    if newAllSel ~= allSel then
+                        for _, idx in ipairs(grp.indices) do st.tLayers[idx].bSelected = newAllSel end
                     end
                     tImGui.TableNextColumn()
-                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
-                    tImGui.Text(string.format('%dx%d', layer.width, layer.height))
+                    tImGui.TableNextColumn()
+                    -- TreeNode spanning the name column
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.9, g=0.75, b=0.3, a=1})
+                    groupOpen = tImGui.TreeNodeEx(grp.prefix .. ' (' .. gTotal .. ')##grpnode_' .. gi,
+                                                   tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen',
+                                                                 'ImGuiTreeNodeFlags_SpanFullWidth'))
                     tImGui.PopStyleColor()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                end
+
+                if groupOpen then
+                    for _, idx in ipairs(grp.indices) do
+                        local layer = st.tLayers[idx]
+                        tImGui.TableNextRow()
+                        tImGui.TableNextColumn()
+                        local newSel = tImGui.Checkbox('##psd_cb_' .. idx, layer.bSelected)
+                        if newSel ~= layer.bSelected then st.tLayers[idx].bSelected = newSel end
+                        tImGui.TableNextColumn()
+                        tImGui.Text(tostring(layer.index))
+                        tImGui.TableNextColumn()
+                        local indent = hasHeader and "  " or ""
+                        if tImGui.Selectable(indent .. layer.displayName .. '##psd_row_' .. idx,
+                                             layer.bSelected, 0) then
+                            st.tLayers[idx].bSelected = not layer.bSelected
+                        end
+                        tImGui.TableNextColumn()
+                        -- Natural size (dimmed). Click to copy into custom W/H.
+                        tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
+                        local sizeLabel = string.format('%dx%d##sz_%d', layer.width, layer.height, idx)
+                        if tImGui.Selectable(sizeLabel, false, 0) then
+                            -- Clicking the size copies it to custom fields and enables override.
+                            st.tLayers[idx].bCustomSize = true
+                            st.tLayers[idx].iCustomW    = layer.width
+                            st.tLayers[idx].iCustomH    = layer.height
+                        end
+                        tImGui.PopStyleColor()
+                        tImGui.TableNextColumn()
+                        -- Custom size toggle checkbox
+                        local newCust = tImGui.Checkbox('##psd_cust_' .. idx, layer.bCustomSize)
+                        if newCust ~= layer.bCustomSize then
+                            st.tLayers[idx].bCustomSize = newCust
+                            if newCust and (not layer.iCustomW or layer.iCustomW == 0) then
+                                st.tLayers[idx].iCustomW = layer.width
+                                st.tLayers[idx].iCustomH = layer.height
+                            end
+                        end
+                        tImGui.TableNextColumn()
+                        if layer.bCustomSize then
+                            tImGui.SetNextItemWidth(54)
+                            local wC, nW = tImGui.InputInt('##cW_' .. idx, layer.iCustomW, 0, 0)
+                            if wC and nW and nW > 0 then st.tLayers[idx].iCustomW = nW end
+                        else
+                            tImGui.TextDisabled('-')
+                        end
+                        tImGui.TableNextColumn()
+                        if layer.bCustomSize then
+                            tImGui.SetNextItemWidth(54)
+                            local hC, nH = tImGui.InputInt('##cH_' .. idx, layer.iCustomH, 0, 0)
+                            if hC and nH and nH > 0 then st.tLayers[idx].iCustomH = nH end
+                        else
+                            tImGui.TextDisabled('-')
+                        end
+                    end
+                    if hasHeader then tImGui.TreePop() end
                 end
             end
             tImGui.EndTable()
