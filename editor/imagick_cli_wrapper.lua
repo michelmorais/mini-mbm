@@ -162,29 +162,28 @@ function M.getFileDir(path)
     return path:match("(.*[/\\])") or "./"
 end
 
--- ─── PSD layer count ──────────────────────────────────────────────────────────
+-- ─── PSD layer introspection ──────────────────────────────────────────────────
 
--- Returns the number of frames/layers in the PSD file.
--- Uses `identify -format "%n\n"` which prints the frame count.
+-- Internal helper: returns the correct identify command prefix.
+-- IM 7 unified binary: `magick identify`; IM 6: standalone `identify` binary.
+local function getIdentifyExe(exePath)
+    if exePath:match("[/\\]?magick$") or exePath:match("[/\\]?magick%.exe$")
+       or exePath == "magick" then
+        return shellQuote(exePath) .. " identify"
+    else
+        return "identify"
+    end
+end
+
+-- Returns the total frame count reported by ImageMagick for the PSD.
 -- Returns 0 on any failure.
 function M.countPsdLayers(psdPath)
     local im = M.imagick or M.detectImageMagick()
     if not im.found then return 0 end
 
-    -- Use the detected exe; for `magick` (IM 7) we call `magick identify`.
-    local exe       = im.path
-    local identifyCmd
-    if exe:match("[/\\]?magick$") or exe:match("[/\\]?magick%.exe$")
-       or exe == "magick" then
-        identifyCmd = shellQuote(exe) .. " identify"
-    else
-        -- `convert` / legacy IM 6: `identify` is a separate binary on PATH;
-        -- fall back to it, or try `convert -identify` which also works.
-        identifyCmd = "identify"
-    end
-
+    local identifyExe = getIdentifyExe(im.path)
     local cmd = wrapCmd(
-        identifyCmd .. " -format \"%n\\n\" " .. shellQuote(psdPath) .. "[0]"
+        identifyExe .. " -format \"%n\\n\" " .. shellQuote(psdPath) .. "[0]"
     ) .. " 2>&1"
 
     local f = io.popen(cmd)
@@ -196,32 +195,101 @@ function M.countPsdLayers(psdPath)
     return n and math.max(0, n) or 0
 end
 
+-- Returns per-layer info for each frame in the PSD that has actual pixel data.
+-- Runs `identify -format "%[label]|%w|%h\n"` to read the layer name and
+-- bounding-box size for every frame.  Frames with zero dimensions (empty
+-- merged composites, blank adjustment layers) are silently skipped.
+--
+-- Returns: [{index=int, displayName=string, width=int, height=int}]
+function M.getPsdLayerInfo(psdPath)
+    local im = M.imagick or M.detectImageMagick()
+    if not im.found then return {} end
+
+    local identifyExe = getIdentifyExe(im.path)
+    -- Format per frame: "label|width|height".  | is safe because PSD layer
+    -- names rarely contain pipes.
+    local cmd = wrapCmd(
+        identifyExe .. " -format \"%[label]|%w|%h\\n\" " .. shellQuote(psdPath)
+    ) .. " 2>&1"
+
+    local f = io.popen(cmd)
+    if not f then return {} end
+    local output = f:read("*a")
+    f:close()
+
+    local layers   = {}
+    local frameIdx = 0
+    for line in output:gmatch("[^\n\r]+") do
+        -- Only process lines that are actual frame data in "label|w|h" format.
+        -- IM 6 emits a stderr warning ("unknown image property %[label]") that
+        -- appears in the output when we use 2>&1.  That warning line does NOT
+        -- contain "|digits|digits", so it will not match and frameIdx will NOT
+        -- be incremented for it — keeping all layer indices correct.
+        local label, ws, hs = line:match("^([^|]*)|(%d+)|(%d+)")
+        if ws and hs then
+            local w = tonumber(ws) or 0
+            local h = tonumber(hs) or 0
+            -- Only expose frames that actually contain pixel data.
+            if w > 0 and h > 0 then
+                -- Use the PSD layer name when available; fall back to "Layer N".
+                local name = (label and label:match("%S")) and label
+                             or string.format("Layer %d", frameIdx)
+                table.insert(layers, {
+                    index       = frameIdx,
+                    displayName = name,
+                    width       = w,
+                    height      = h,
+                })
+            end
+            -- Increment only for real frame lines (not warning/error lines).
+            frameIdx = frameIdx + 1
+        end
+    end
+    return layers
+end
+
 -- ─── Layer command builder ────────────────────────────────────────────────────
 
 -- Builds the ImageMagick CLI command to extract a single PSD layer to PNG.
 --
--- psdPath    : path to the source PSD file
--- layerIndex : 0-based layer index (e.g. 0 = first layer / merged composite)
--- outputPath : destination PNG path
+-- psdPath           : path to the source PSD file
+-- layerIndex        : 0-based frame index (as returned by getPsdLayerInfo)
+-- outputPath        : destination PNG path
+-- width, height     : (optional) desired output dimensions in pixels
+-- keepAspectRatio   : (optional bool) when true, only one axis is fixed
+-- keepAspectOnHeight: (optional bool) relevant when keepAspectRatio=true;
+--                     if true: fix height, width is auto; otherwise fix width
 --
 -- Returns the command string, or nil if ImageMagick is not available.
-function M.buildLayerCmd(psdPath, layerIndex, outputPath)
+function M.buildLayerCmd(psdPath, layerIndex, outputPath, width, height, keepAspectRatio, keepAspectOnHeight)
     local im = M.imagick or M.detectImageMagick()
     if not im.found then return nil end
 
-    local exe = shellQuote(im.path)
-    -- The [N] suffix on the input path selects a specific frame/layer.
-    local input = shellQuote(psdPath .. "[" .. tostring(layerIndex) .. "]")
+    local exe    = shellQuote(im.path)
+    -- The [N] suffix selects a specific frame/layer.
+    local input  = shellQuote(psdPath .. "[" .. tostring(layerIndex) .. "]")
     local output = shellQuote(outputPath)
 
-    -- `convert` / `magick convert` both accept: convert input[N] output.png
-    -- For IM 7 `magick`, we use `magick convert` for clarity.
+    -- Build the optional resize flag.
+    local resizeFlag = ""
+    if width and height and width > 0 and height > 0 then
+        if keepAspectRatio then
+            if keepAspectOnHeight then
+                resizeFlag = string.format(" -resize x%d", height)
+            else
+                resizeFlag = string.format(" -resize %dx", width)
+            end
+        else
+            resizeFlag = string.format(" -resize %dx%d!", width, height)
+        end
+    end
+
     local baseExe = im.path
     if baseExe:match("[/\\]?magick$") or baseExe:match("[/\\]?magick%.exe$")
        or baseExe == "magick" then
-        return string.format("%s convert %s %s", exe, input, output)
+        return string.format("%s convert %s -alpha on%s %s", exe, input, resizeFlag, output)
     else
-        return string.format("%s %s %s", exe, input, output)
+        return string.format("%s %s -alpha on%s %s", exe, input, resizeFlag, output)
     end
 end
 

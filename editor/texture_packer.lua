@@ -176,6 +176,7 @@ function onInitScene()
         iRangeFrom   = 1,
         iRangeTo     = 10,
         customImageMagickPath = '',
+        sFilter      = '',   -- text filter for the layer table
     }
 end
 
@@ -849,14 +850,17 @@ function onImportPsd()
         tPsdImportState.bStatusOk = false
     end
 
-    -- Count layers and build the layer list.
-    local nLayers = im.found and tImageMagick.countPsdLayers(filePath) or 0
+    -- Query per-layer info (real names + geometry); frames with zero dimensions
+    -- (empty merged composite, adjustment/group layers) are pre-filtered out.
+    local tLayerInfo = im.found and tImageMagick.getPsdLayerInfo(filePath) or {}
     tPsdImportState.tLayers = {}
-    for i = 0, nLayers - 1 do
+    for _, info in ipairs(tLayerInfo) do
         table.insert(tPsdImportState.tLayers, {
-            index       = i,
-            displayName = string.format("Layer %d", i),
+            index       = info.index,
+            displayName = info.displayName,
             bSelected   = true,
+            width       = info.width,
+            height      = info.height,
         })
     end
 
@@ -884,7 +888,8 @@ local function psdImportCoroutine()
     for _, layer in ipairs(st.tLayers) do
         if layer.bSelected then
             local outputPath = string.format("%s_layer%d.png", stem, layer.index)
-            local cmd = tImageMagick.buildLayerCmd(st.psdFilePath, layer.index, outputPath)
+            local cmd = tImageMagick.buildLayerCmd(st.psdFilePath, layer.index, outputPath,
+                            st.iWidth, st.iHeight, st.bKeepAspectRatio, st.bKeepAspectOnHeight)
             if cmd then
                 table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
             end
@@ -1053,53 +1058,64 @@ function showPsdImportDialog()
         tImGui.PopStyleColor()
 
         if tImGui.Button(tLang.L("psd_import_select_all")) then
-            for _, layer in ipairs(st.tLayers) do layer.bSelected = true end
+            for i, layer in ipairs(st.tLayers) do
+                -- only affect visible (filtered) layers
+                local lname = layer.displayName:lower()
+                if st.sFilter == '' or lname:find(st.sFilter:lower(), 1, true) then
+                    st.tLayers[i].bSelected = true
+                end
+            end
         end
         tImGui.SameLine()
         if tImGui.Button(tLang.L("psd_import_deselect_all")) then
-            for _, layer in ipairs(st.tLayers) do layer.bSelected = false end
-        end
-
-        -- Range select
-        tImGui.Text(tLang.L("psd_import_range_label"))
-        tImGui.SameLine()
-        tImGui.SetNextItemWidth(80)
-        local rfChanged, newRF = tImGui.InputInt("##psd_rng_from", st.iRangeFrom, 1, 10)
-        if rfChanged and newRF ~= nil then
-            if newRF < 1 then newRF = 1 end
-            if newRF > nLayers then newRF = nLayers end
-            st.iRangeFrom = newRF
-        end
-        tImGui.SameLine()
-        tImGui.Text("-")
-        tImGui.SameLine()
-        tImGui.SetNextItemWidth(80)
-        local rtChanged, newRT = tImGui.InputInt("##psd_rng_to", st.iRangeTo, 1, 10)
-        if rtChanged and newRT ~= nil then
-            if newRT < 1 then newRT = 1 end
-            if newRT > nLayers then newRT = nLayers end
-            st.iRangeTo = newRT
-        end
-        local rFrom    = math.max(1, st.iRangeFrom)
-        local rTo      = math.min(nLayers, st.iRangeTo)
-        local rPreview = math.max(0, rTo - rFrom + 1)
-        tImGui.SameLine()
-        tImGui.PushStyleColor("ImGuiCol_Text", {r=0.6, g=0.6, b=0.6, a=1})
-        tImGui.Text(string.format("= %d", rPreview))
-        tImGui.PopStyleColor()
-        tImGui.SameLine()
-        if tImGui.Button(tLang.L("psd_import_range_btn")) then
-            for i = 1, nLayers do
-                st.tLayers[i].bSelected = (i >= rFrom and i <= rTo)
-            end
-        end
-
-        -- Scrollable checkbox list
-        tImGui.BeginChild("psd_layers_list", {x=0, y=150}, true)
             for i, layer in ipairs(st.tLayers) do
-                st.tLayers[i].bSelected = tImGui.Checkbox(layer.displayName, layer.bSelected)
+                local lname = layer.displayName:lower()
+                if st.sFilter == '' or lname:find(st.sFilter:lower(), 1, true) then
+                    st.tLayers[i].bSelected = false
+                end
             end
-        tImGui.EndChild()
+        end
+
+        -- Search filter
+        tImGui.SetNextItemWidth(-1)
+        local fMod, fNew = tImGui.InputTextWithHint('##psd_filter', st.sFilter, tLang.L('psd_import_filter_hint'))
+        if fMod and fNew ~= nil then st.sFilter = fNew end
+
+        -- Scrollable table: [ ] | # | Name | Size
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
+                                      'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_SizingFixedFit')
+        if tImGui.BeginTable('psd_layers_tbl', 4, tblFlags, {x=0, y=220}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn('##cb',   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn('#',      tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 36)
+            tImGui.TableSetupColumn(tLang.L('psd_import_col_name'))
+            tImGui.TableSetupColumn(tLang.L('psd_import_col_size'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableHeadersRow()
+
+            local filterLower = st.sFilter:lower()
+            for i, layer in ipairs(st.tLayers) do
+                local lname = layer.displayName:lower()
+                if filterLower == '' or lname:find(filterLower, 1, true) then
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    local newSel = tImGui.Checkbox('##psd_cb_' .. i, layer.bSelected)
+                    if newSel ~= layer.bSelected then st.tLayers[i].bSelected = newSel end
+                    tImGui.TableNextColumn()
+                    tImGui.Text(tostring(layer.index))
+                    tImGui.TableNextColumn()
+                    -- clicking the name row also toggles the checkbox
+                    if tImGui.Selectable(layer.displayName .. '##psd_row_' .. i, layer.bSelected,
+                                         tImGui.Flags('ImGuiSelectableFlags_SpanAllColumns')) then
+                        st.tLayers[i].bSelected = not layer.bSelected
+                    end
+                    tImGui.TableNextColumn()
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
+                    tImGui.Text(string.format('%dx%d', layer.width, layer.height))
+                    tImGui.PopStyleColor()
+                end
+            end
+            tImGui.EndTable()
+        end
     else
         tImGui.TextWrapped(tLang.L("psd_import_no_layers"))
     end

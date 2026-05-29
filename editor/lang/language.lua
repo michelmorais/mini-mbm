@@ -161,6 +161,9 @@ M.en = {
     psd_import_progress_fmt = "Exporting layer %d / %d...",
     psd_import_done_fmt = "%d layer(s) imported",
     psd_import_done_with_timeouts_fmt = "%d layer(s) imported (%d skipped \226\128\148 ImageMagick timed out)",
+    psd_import_filter_hint = "Filter layers by name...",
+    psd_import_col_name   = "Layer Name",
+    psd_import_col_size   = "Size",
     psd_import_failed = "Import failed. Check ImageMagick installation.",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1194,6 +1197,9 @@ M.pt_br = {
     psd_import_progress_fmt = "Exportando camada %d / %d...",
     psd_import_done_fmt = "%d camada(s) importada(s)",
     psd_import_done_with_timeouts_fmt = "%d camada(s) importada(s) (%d ignorada(s) \226\128\148 ImageMagick expirou)",
+    psd_import_filter_hint = "Filtrar camadas por nome...",
+    psd_import_col_name   = "Nome da Camada",
+    psd_import_col_size   = "Tamanho",
     psd_import_failed = "Importa\195\167\195\163o falhou. Verifique a instala\195\167\195\163o do ImageMagick.",
     -- Particle editor
     particle_editor = "Editor de Partículas",
