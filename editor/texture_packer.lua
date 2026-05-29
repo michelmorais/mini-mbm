@@ -1608,10 +1608,12 @@ local function gimpPsdImportCoroutine()
     -- Launch GIMP asynchronously.
     tGimp.launchExportAsync(info.cmd)
 
-    st.iTotal    = 1
+    st.iTotal    = #jobs   -- real per-image progress
     st.iProgress = 0
 
-    -- Poll for the metadata sentinel file.
+    -- Poll until GIMP writes the sentinel ("-- END") to the meta file.
+    -- Update iProgress every frame by counting completed lines so the
+    -- progress bar advances as each image is saved.
     local deadline = os.time() + st.iTimeoutSecs
     while not tGimp.metaFileExists(metaOutPath) do
         if os.time() >= deadline or st.bAbortRequested then
@@ -1622,10 +1624,11 @@ local function gimpPsdImportCoroutine()
             st.bImporting = false
             return
         end
+        st.iProgress = tGimp.countExportedSoFar(metaOutPath)
         coroutine.yield()
     end
 
-    st.iProgress = 1
+    st.iProgress = st.iTotal
 
     -- Read results.
     local entries = tGimp.loadExportMeta(metaOutPath)

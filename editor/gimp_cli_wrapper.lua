@@ -298,6 +298,20 @@ function M.metaFileExists(path)
     return content ~= nil and content:find("-- END", 1, true) ~= nil
 end
 
+-- Returns the number of successfully exported images written so far
+-- (counts non-sentinel, non-empty lines in the meta file).
+function M.countExportedSoFar(path)
+    local f = io.open(path, "r")
+    if not f then return 0 end
+    local n = 0
+    for line in f:lines() do
+        if line == "-- END" then break end
+        if line ~= "" then n = n + 1 end
+    end
+    f:close()
+    return n
+end
+
 -- Synchronous info call: build the script, run GIMP, parse the output.
 -- Blocks for ~3-5 s on first call. Returns the same array as parseMetaFile.
 function M.getPsdLayerInfo(psdPath)
