@@ -103,6 +103,66 @@ local function tryDetectExe(exe)
     return nil
 end
 
+-- Windows: use 'where.exe' to locate an executable on PATH
+-- (also resolves app-execution aliases created by Windows Store installs).
+local function whereExe(exe)
+    local f = io.popen('where "' .. exe .. '" 2>nul')
+    if not f then return nil end
+    local line = f:read("*l")
+    f:close()
+    if line and line ~= "" and not line:lower():find("could not find") then
+        return line:match("^%s*(.-)%s*$")
+    end
+    return nil
+end
+
+-- Windows: use PowerShell Get-AppxPackage to find a Store-installed GIMP.
+-- This is the only reliable way to get the install location of an MSIX package
+-- because C:\Program Files\WindowsApps denies LIST_DIRECTORY to regular users.
+-- Returns a list of candidate exe paths built from the package's InstallLocation.
+local function findWindowsStoreGimpViaPowerShell()
+    local results = {}
+    local cmd = 'powershell -NoProfile -NonInteractive -Command ' ..
+        '"(Get-AppxPackage -Name \"*GIMP*\" | Select-Object -First 1).InstallLocation" 2>nul'
+    local f = io.popen(cmd)
+    if not f then return results end
+    local line = f:read("*l")
+    f:close()
+    if line then line = line:match("^%s*(.-)%s*$") end
+    if not line or line == "" or line:lower() == "null" then return results end
+    -- MSIX Desktop Bridge layout: <InstallLocation>\VFS\ProgramFilesX64\GIMP\bin\
+    for _, sub in ipairs({
+        "\\VFS\\ProgramFilesX64\\GIMP\\bin\\gimp-3.0.exe",
+        "\\VFS\\ProgramFilesX64\\GIMP\\bin\\gimp-2.10.exe",
+        "\\bin\\gimp-3.0.exe",
+        "\\bin\\gimp-2.10.exe",
+    }) do
+        table.insert(results, line .. sub)
+    end
+    return results
+end
+
+-- Windows: enumerate C:\Program Files\WindowsApps for a Store-installed GIMP.
+-- NOTE: This usually returns nothing for standard (non-admin) users because
+-- WindowsApps denies LIST_DIRECTORY.  Kept as a last-resort fallback.
+local function findWindowsStoreGimpPaths()
+    local results = {}
+    local base = "C:\\Program Files\\WindowsApps"
+    local f = io.popen('cmd /c dir /b /ad "' .. base .. '\\GIMP*" 2>nul')
+    if not f then return results end
+    for line in f:lines() do
+        line = line:match("^%s*(.-)%s*$")
+        if line and line ~= "" then
+            local binDir = base .. "\\" .. line .. "\\VFS\\ProgramFilesX64\\GIMP\\bin"
+            for _, exe in ipairs({ "gimp-3.0.exe", "gimp-2.10.exe" }) do
+                table.insert(results, binDir .. "\\" .. exe)
+            end
+        end
+    end
+    f:close()
+    return results
+end
+
 -- Detects whether GIMP is installed.
 -- Probes (in order): M.customPath → platform-appropriate exe names on PATH
 -- → Windows common install dirs.
@@ -124,6 +184,23 @@ function M.detectGimp()
     end
 
     if os_name == "windows" then
+        -- 1. PowerShell Get-AppxPackage: authoritative for Windows Store installs.
+        --    The WindowsApps folder denies directory-listing to regular users, so
+        --    this is the only way to reliably get the real install path.
+        for _, candidate in ipairs(findWindowsStoreGimpViaPowerShell()) do
+            local r = tryDetectExe(candidate)
+            if r then M.gimp = r; return M.gimp end
+        end
+        -- 2. 'where.exe' finds executables on PATH; on Windows 10/11 this also
+        --    resolves App Execution Aliases when they are enabled by the user.
+        for _, exe in ipairs({ "gimp-3.0.exe", "gimp-2.10.exe" }) do
+            local path = whereExe(exe)
+            if path then
+                local r = tryDetectExe(path)
+                if r then M.gimp = r; return M.gimp end
+            end
+        end
+        -- 3. Traditional installer paths (GIMP 2/3 via official .exe installer).
         for _, candidate in ipairs(WINDOWS_GIMP_CANDIDATES) do
             local probe = io.open(candidate, "r")
             if probe then
@@ -131,6 +208,11 @@ function M.detectGimp()
                 local r = tryDetectExe(candidate)
                 if r then M.gimp = r; return M.gimp end
             end
+        end
+        -- 4. Dynamic WindowsApps dir enumeration (requires admin; usually a no-op).
+        for _, candidate in ipairs(findWindowsStoreGimpPaths()) do
+            local r = tryDetectExe(candidate)
+            if r then M.gimp = r; return M.gimp end
         end
     end
 
