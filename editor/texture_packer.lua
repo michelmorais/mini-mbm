@@ -208,6 +208,7 @@ function onInitScene()
         bKeepLuaMeta    = false,  -- keep .lua sidecar next to PSD after import
         bWriteJsonMeta  = false,  -- write .json sidecar next to PSD after import
         tempFiles       = {},     -- paths to clean up on finish
+        bGroupsOnlyView = false,  -- show only root-level groups (one image per group)
     }
 end
 
@@ -1480,6 +1481,18 @@ function onImportPsdGimp()
         })
     end
 
+    -- Auto-detect root-level groups and enable merge mode on them.
+    -- This makes the default behavior "export each top-level group as one image".
+    local hasRootGroups = false
+    for _, layer in ipairs(tGimpPsdImportState.tLayers) do
+        if layer.isGroup and layer.groupPath == "" then
+            hasRootGroups    = true
+            layer.bMergeGroup = true
+            layer.bSelected   = true
+        end
+    end
+    tGimpPsdImportState.bGroupsOnlyView = hasRootGroups
+
     tGimpPsdImportState.bOpen      = true
     tGimpPsdImportState.bOpenPopup = true
 end
@@ -1518,6 +1531,23 @@ local function gimpPsdImportCoroutine()
         return false
     end
 
+    -- Helper: is this leaf layer under a group that exists but is deselected?
+    -- Used in groups-only mode to fully suppress layers belonging to excluded groups.
+    local function isUnderDeselectedGroup(layerEntry)
+        if layerEntry.groupPath == "" then return false end
+        for _, candidate in ipairs(st.tLayers) do
+            if candidate.isGroup and not candidate.bSelected then
+                local grpFullPath = (candidate.groupPath == "") and candidate.displayName
+                    or (candidate.groupPath .. "/" .. candidate.displayName)
+                if layerEntry.groupPath == grpFullPath
+                   or layerEntry.groupPath:sub(1, #grpFullPath + 1) == grpFullPath .. "/" then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
     -- Build job list.
     local jobs = {}
     local seenMergedGroups = {}
@@ -1538,7 +1568,8 @@ local function gimpPsdImportCoroutine()
                         isMerge     = true,
                     })
                 end
-            elseif not layer.isGroup and not isUnderMergedGroup(layer) then
+            elseif not layer.isGroup and not isUnderMergedGroup(layer)
+                   and not (st.bGroupsOnlyView and isUnderDeselectedGroup(layer)) then
                 -- Export individual leaf layer.
                 local outputPath = string.format("%s_gimp_%d.png", stem, layer.gimpId)
                 local w = layer.bCustomSize and layer.iCustomW or st.iWidth
@@ -1719,6 +1750,17 @@ function showPsdGimpImportDialog()
 
     st.bKeepInPsdFolder = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_in_psd_folder"), st.bKeepInPsdFolder)
     st.bShowHiddenLayers = tImGui.Checkbox(tLang.L("psd_gimp_import_show_hidden"), st.bShowHiddenLayers)
+    -- Show "Groups only" toggle when the PSD has root-level groups.
+    do
+        local hasRootGroups = false
+        for _, layer in ipairs(st.tLayers) do
+            if layer.isGroup and layer.groupPath == "" then hasRootGroups = true; break end
+        end
+        if hasRootGroups then
+            tImGui.SameLine()
+            st.bGroupsOnlyView = tImGui.Checkbox(tLang.L("psd_gimp_import_groups_only_view"), st.bGroupsOnlyView)
+        end
+    end
 
     -- ── Sidecar options ────────────────────────────────────────────────────
     local psdStem = tGimp.getFileDir(st.psdFilePath) .. tGimp.getFileBaseStem(st.psdFilePath)
@@ -1742,23 +1784,71 @@ function showPsdGimpImportDialog()
     if nLayers > 0 then
         -- ── Select All / Deselect All ──────────────────────────────────────
         if tImGui.Button(tLang.L("psd_gimp_import_select_all")) then
-            for i = 1, #st.tLayers do st.tLayers[i].bSelected = true end
+            for i = 1, #st.tLayers do
+                local layer = st.tLayers[i]
+                if not st.bGroupsOnlyView or (layer.isGroup and layer.groupPath == "") then
+                    st.tLayers[i].bSelected = true
+                end
+            end
         end
         tImGui.SameLine()
         if tImGui.Button(tLang.L("psd_gimp_import_deselect_all")) then
-            for i = 1, #st.tLayers do st.tLayers[i].bSelected = false end
+            for i = 1, #st.tLayers do
+                local layer = st.tLayers[i]
+                if not st.bGroupsOnlyView or (layer.isGroup and layer.groupPath == "") then
+                    st.tLayers[i].bSelected = false
+                end
+            end
+        end
+
+        -- "From selected groups": switch to full-layer view and select only
+        -- the leaves that belong to the currently-selected groups.
+        if st.bGroupsOnlyView then
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("psd_gimp_import_from_selected_groups")) then
+                -- Collect full paths of selected root groups.
+                local selectedGroupPaths = {}
+                for _, layer in ipairs(st.tLayers) do
+                    if layer.isGroup and layer.groupPath == "" and layer.bSelected then
+                        selectedGroupPaths[layer.displayName] = true
+                    end
+                end
+                -- Switch to full-layer view.
+                st.bGroupsOnlyView = false
+                -- Deselect everything, then select leaves whose groupPath
+                -- starts with one of the selected group names.
+                for i, layer in ipairs(st.tLayers) do
+                    if layer.isGroup then
+                        st.tLayers[i].bSelected   = false
+                        st.tLayers[i].bMergeGroup = false
+                    else
+                        -- Root segment of groupPath (first component).
+                        local rootGroup = layer.groupPath:match("^([^/]+)") or ""
+                        st.tLayers[i].bSelected = selectedGroupPaths[rootGroup] == true
+                    end
+                end
+            end
+            if tImGui.IsItemHovered() then
+                tImGui.SetTooltip(tLang.L("psd_gimp_import_from_selected_groups_tip"))
+            end
         end
 
         tImGui.Separator()
 
         -- ── Fit-to buttons ─────────────────────────────────────────────────
-        -- Build a visibility list (non-group leaf layers that are not hidden
-        -- unless bShowHiddenLayers is true).
+        -- Build a visibility list used by fit-to buttons.
+        -- In groups-only mode, consider root groups; otherwise leaf layers.
         local visList = {}
         for i, layer in ipairs(st.tLayers) do
-            if not layer.isGroup then
-                if layer.visible or st.bShowHiddenLayers then
+            if st.bGroupsOnlyView then
+                if layer.isGroup and layer.groupPath == "" and layer.bSelected then
                     table.insert(visList, i)
+                end
+            else
+                if not layer.isGroup then
+                    if layer.visible or st.bShowHiddenLayers then
+                        table.insert(visList, i)
+                    end
                 end
             end
         end
@@ -1842,8 +1932,8 @@ function showPsdGimpImportDialog()
                                       'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_SizingFixedFit')
         if tImGui.BeginTable('gimp_psd_layers_tbl', 8, tblFlags, {x=0, y=260}) then
             tImGui.TableSetupScrollFreeze(0, 1)
-            tImGui.TableSetupColumn('##cb',    tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
-            tImGui.TableSetupColumn('##merge', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 46)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_include'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_merge'),   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 46)
             tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_name'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
             tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_offset'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 76)
             tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_size'),   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 76)
@@ -1877,13 +1967,17 @@ function showPsdGimpImportDialog()
             end
 
             for i, layer in ipairs(st.tLayers) do
+                -- In groups-only mode, show only root-level groups.
+                if st.bGroupsOnlyView and not (layer.isGroup and layer.groupPath == "") then
+                    goto continue_gimp_row
+                end
                 -- Apply text filter.
                 local filterLower = st.sFilter:lower()
                 if filterLower ~= "" and not layer.displayName:lower():find(filterLower, 1, true) then
                     goto continue_gimp_row
                 end
-                -- Hide hidden layers unless checkbox is on.
-                if not layer.visible and not st.bShowHiddenLayers then
+                -- Hide hidden layers unless checkbox is on (not relevant in groups-only mode).
+                if not st.bGroupsOnlyView and not layer.visible and not st.bShowHiddenLayers then
                     goto continue_gimp_row
                 end
 
@@ -1898,12 +1992,15 @@ function showPsdGimpImportDialog()
                     local indent = string.rep("  ", depth)
 
                     tImGui.TableNextRow()
-                    -- Col 0: selected checkbox
+                    -- Col 0: selected checkbox (include in export)
                     tImGui.TableNextColumn()
                     tImGui.BeginDisabled(ancestorMerged)
                         local newSel = tImGui.Checkbox('##gcb_' .. i, layer.bSelected)
                         if newSel ~= layer.bSelected then st.tLayers[i].bSelected = newSel end
                     tImGui.EndDisabled()
+                    if tImGui.IsItemHovered() then
+                        tImGui.SetTooltip(tLang.L("psd_gimp_import_cb_tip"))
+                    end
 
                     -- Col 1: merge toggle (groups only)
                     tImGui.TableNextColumn()

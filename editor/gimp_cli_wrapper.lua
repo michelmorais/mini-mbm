@@ -93,7 +93,9 @@ local function tryDetectExe(exe)
     if not f then return nil end
     local output = f:read("*a")
     f:close()
-    if output and (output:find("GIMP") or output:find("gimp")) then
+    -- Must match actual GIMP version output ("GNU Image Manipulation Program version X.Y.Z")
+    -- Avoid false-positives from shell "gimp-3.0: not found" error messages.
+    if output and output:find("GNU Image Manipulation") then
         local version = output:match("version%s+([%d%.]+)") or ""
         local major   = tonumber(version:match("^(%d+)")) or 2
         return { found = true, path = exe, version = version, major = major }
@@ -300,14 +302,35 @@ end
 -- Blocks for ~3-5 s on first call. Returns the same array as parseMetaFile.
 function M.getPsdLayerInfo(psdPath)
     local g = M.gimp or M.detectGimp()
-    if not g.found then return {} end
+    print("[gimp_cli] detectGimp: found=" .. tostring(g.found) .. " path=" .. tostring(g.path) .. " version=" .. tostring(g.version))
+    if not g.found then
+        print("[gimp_cli] GIMP not found, aborting layer info scan")
+        return {}
+    end
 
     local info = M.buildInfoScript(psdPath)
-    if not info then return {} end
+    if not info then
+        print("[gimp_cli] buildInfoScript returned nil (could not write temp .scm)")
+        return {}
+    end
+    print("[gimp_cli] script: " .. info.scriptPath)
+    print("[gimp_cli] meta:   " .. info.metaPath)
+    print("[gimp_cli] cmd:    " .. info.cmd)
 
-    -- Run synchronously (blocking).
-    local f = io.popen(wrapCmd(info.cmd) .. " 2>&1")
-    if f then f:read("*a"); f:close() end
+    -- Run synchronously (blocking). Capture and print GIMP's stdout/stderr.
+    local fullCmd = wrapCmd(info.cmd) .. " 2>&1"
+    print("[gimp_cli] running: " .. fullCmd)
+    local f = io.popen(fullCmd)
+    local gimpOutput = ""
+    if f then
+        gimpOutput = f:read("*a") or ""
+        f:close()
+    end
+    if gimpOutput ~= "" then
+        print("[gimp_cli] GIMP output:\n" .. gimpOutput)
+    else
+        print("[gimp_cli] GIMP produced no output")
+    end
 
     -- Poll up to 30 s for the meta file (GIMP may still be writing on slow machines).
     local deadline = os.time() + 30
@@ -315,7 +338,27 @@ function M.getPsdLayerInfo(psdPath)
         -- tiny busy-wait — acceptable since this is a one-off synchronous call
     end
 
+    if not M.metaFileExists(info.metaPath) then
+        print("[gimp_cli] TIMEOUT: meta file never appeared at " .. info.metaPath)
+        os.remove(info.scriptPath)
+        return {}
+    end
+    print("[gimp_cli] meta file ready: " .. info.metaPath)
+
+    -- Print first few lines of the meta file for inspection.
+    local dbg = io.open(info.metaPath, "r")
+    if dbg then
+        local n = 0
+        for line in dbg:lines() do
+            print("[gimp_cli] meta[" .. n .. "]: " .. line)
+            n = n + 1
+            if n >= 5 then print("[gimp_cli] meta[...]: (truncated)"); break end
+        end
+        dbg:close()
+    end
+
     local layers = M.parseMetaFile(info.metaPath)
+    print("[gimp_cli] parsed " .. #layers .. " layer(s)")
     os.remove(info.scriptPath)
     os.remove(info.metaPath)
     return layers
