@@ -1161,7 +1161,7 @@ function showPsdImportDialog()
         if tImGui.IsItemHovered() then
             tImGui.SetTooltip(tLang.L("psd_import_use_global_all_tip"))
         end
-        tImGui.SameLine()
+        tImGui.Separator()
         if tImGui.Button(tLang.L("psd_import_fit_to_global")) then
             -- Scale each visible layer proportionally so it fits within the
             -- global W×H box (neither dimension exceeds the limit).
@@ -1180,6 +1180,46 @@ function showPsdImportDialog()
         end
         if tImGui.IsItemHovered() then
             tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_global_tip"), st.iWidth, st.iHeight))
+        end
+        -- Pre-compute the largest natural dimensions across visible layers
+        -- (used for the tooltip and the uniform-scale calculation below).
+        local biggestW, biggestH = 0, 0
+        for _, idx in ipairs(visList) do
+            local nw = st.tLayers[idx].width
+            local nh = st.tLayers[idx].height
+            if nw > biggestW then biggestW = nw end
+            if nh > biggestH then biggestH = nh end
+        end
+        
+        -- Bulk: uniform scale — derive one scale factor from the largest layer
+        -- so all layers shrink/grow together and their relative sizes are kept.
+        if tImGui.Button(tLang.L("psd_import_fit_to_max")) then
+            local maxW  = st.iWidth
+            local maxH  = st.iHeight
+            local scale = nil
+            if biggestW > 0 and biggestH > 0 then
+                if st.bKeepAspectOnHeight then
+                    -- fix height, let width float proportionally
+                    scale = maxH / biggestH
+                else
+                    -- fit within the W×H box (keep aspect ratio or full-box)
+                    scale = math.min(maxW / biggestW, maxH / biggestH)
+                end
+            end
+            if scale then
+                for _, idx in ipairs(visList) do
+                    local nw = st.tLayers[idx].width
+                    local nh = st.tLayers[idx].height
+                    if nw > 0 and nh > 0 then
+                        st.tLayers[idx].bCustomSize = true
+                        st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                        st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                    end
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_max_tip"), biggestW, biggestH, st.iWidth, st.iHeight))
         end
 
         -- Search filter (full width)

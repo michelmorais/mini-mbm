@@ -172,6 +172,8 @@ M.en = {
     psd_import_use_global_all_tip = "Remove all per-layer size overrides; use the W/H fields above",
     psd_import_fit_to_global = "Fit to W\195\151H",
     psd_import_fit_to_global_tip = "Scale each layer proportionally to fit within %d\195\151%d",
+    psd_import_fit_to_max = "Fit to W\195\151H (relative)",
+    psd_import_fit_to_max_tip = "Largest layer: %d\195\151%d. Applies one uniform scale to all layers so the largest fits %d\195\151%d \226\128\148 relative sizes preserved",
     psd_import_failed = "Import failed. Check ImageMagick installation.",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1216,6 +1218,8 @@ M.pt_br = {
     psd_import_use_global_all_tip = "Remover todos os tamanhos personalizados; usar os campos W/H acima",
     psd_import_fit_to_global = "Ajustar ao W\195\151H",
     psd_import_fit_to_global_tip = "Redimensionar cada camada proporcionalmente para caber em %d\195\151%d",
+    psd_import_fit_to_max = "Ajustar ao W\195\151H (relativo)",
+    psd_import_fit_to_max_tip = "Maior camada: %d\195\151%d. Aplica uma escala uniforme para que a maior caiba em %d\195\151%d \226\128\148 tamanhos relativos preservados",
     psd_import_failed = "Importa\195\167\195\163o falhou. Verifique a instala\195\167\195\163o do ImageMagick.",
     -- Particle editor
     particle_editor = "Editor de Partículas",
