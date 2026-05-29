@@ -170,6 +170,8 @@ M.en = {
     psd_import_use_recommended_all_tip = "Set each visible layer to export at its own natural size",
     psd_import_use_global_all = "Use Global Size",
     psd_import_use_global_all_tip = "Remove all per-layer size overrides; use the W/H fields above",
+    psd_import_fit_to_global = "Fit to W\195\151H",
+    psd_import_fit_to_global_tip = "Scale each layer proportionally to fit within %d\195\151%d",
     psd_import_failed = "Import failed. Check ImageMagick installation.",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1212,6 +1214,8 @@ M.pt_br = {
     psd_import_use_recommended_all_tip = "Exportar cada camada vis\195\173vel no seu tamanho natural",
     psd_import_use_global_all = "Usar Tamanho Global",
     psd_import_use_global_all_tip = "Remover todos os tamanhos personalizados; usar os campos W/H acima",
+    psd_import_fit_to_global = "Ajustar ao W\195\151H",
+    psd_import_fit_to_global_tip = "Redimensionar cada camada proporcionalmente para caber em %d\195\151%d",
     psd_import_failed = "Importa\195\167\195\163o falhou. Verifique a instala\195\167\195\163o do ImageMagick.",
     -- Particle editor
     particle_editor = "Editor de Partículas",

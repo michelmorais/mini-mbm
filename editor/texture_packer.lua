@@ -1161,6 +1161,26 @@ function showPsdImportDialog()
         if tImGui.IsItemHovered() then
             tImGui.SetTooltip(tLang.L("psd_import_use_global_all_tip"))
         end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_fit_to_global")) then
+            -- Scale each visible layer proportionally so it fits within the
+            -- global W×H box (neither dimension exceeds the limit).
+            local maxW = st.iWidth
+            local maxH = st.iHeight
+            for _, idx in ipairs(visList) do
+                local nw = st.tLayers[idx].width
+                local nh = st.tLayers[idx].height
+                if nw > 0 and nh > 0 then
+                    local scale = math.min(maxW / nw, maxH / nh)
+                    st.tLayers[idx].bCustomSize = true
+                    st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                    st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_global_tip"), st.iWidth, st.iHeight))
+        end
 
         -- Search filter (full width)
         tImGui.SetNextItemWidth(-1)
