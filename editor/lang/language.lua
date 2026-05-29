@@ -166,6 +166,10 @@ M.en = {
     psd_import_col_size   = "Size",
     psd_import_visible    = "visible",
     psd_import_show_vector = "Show <Group>/<Path>",
+    psd_import_use_recommended_all = "Use Recommended Sizes",
+    psd_import_use_recommended_all_tip = "Set each visible layer to export at its own natural size",
+    psd_import_use_global_all = "Use Global Size",
+    psd_import_use_global_all_tip = "Remove all per-layer size overrides; use the W/H fields above",
     psd_import_failed = "Import failed. Check ImageMagick installation.",
     -- Particle editor
     particle_editor = "Particle Editor",
@@ -1204,6 +1208,10 @@ M.pt_br = {
     psd_import_col_size   = "Tamanho",
     psd_import_visible    = "vis\195\173veis",
     psd_import_show_vector = "Mostrar <Group>/<Path>",
+    psd_import_use_recommended_all = "Usar Tamanhos Recomendados",
+    psd_import_use_recommended_all_tip = "Exportar cada camada vis\195\173vel no seu tamanho natural",
+    psd_import_use_global_all = "Usar Tamanho Global",
+    psd_import_use_global_all_tip = "Remover todos os tamanhos personalizados; usar os campos W/H acima",
     psd_import_failed = "Importa\195\167\195\163o falhou. Verifique a instala\195\167\195\163o do ImageMagick.",
     -- Particle editor
     particle_editor = "Editor de Partículas",

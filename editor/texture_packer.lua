@@ -1141,6 +1141,27 @@ function showPsdImportDialog()
         tImGui.SameLine()
         st.bShowVectorLayers = tImGui.Checkbox(tLang.L("psd_import_show_vector"), st.bShowVectorLayers)
 
+        -- Custom-size bulk buttons
+        if tImGui.Button(tLang.L("psd_import_use_recommended_all")) then
+            for _, idx in ipairs(visList) do
+                st.tLayers[idx].bCustomSize = true
+                st.tLayers[idx].iCustomW    = st.tLayers[idx].width
+                st.tLayers[idx].iCustomH    = st.tLayers[idx].height
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(tLang.L("psd_import_use_recommended_all_tip"))
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_use_global_all")) then
+            for _, idx in ipairs(visList) do
+                st.tLayers[idx].bCustomSize = false
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(tLang.L("psd_import_use_global_all_tip"))
+        end
+
         -- Search filter (full width)
         tImGui.SetNextItemWidth(-1)
         local fMod, fNew = tImGui.InputTextWithHint('##psd_filter', st.sFilter, tLang.L('psd_import_filter_hint'))
