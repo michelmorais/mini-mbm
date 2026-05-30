@@ -432,6 +432,7 @@ def traverse(layer, group_path, out):
 
 image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(%s))
 with open(%s, 'w', encoding='utf-8') as out:
+    out.write('IMAGE|{}|{}\n'.format(image.get_width(), image.get_height()))
     for layer in image.get_layers():
         traverse(layer, '', out)
     out.write('-- END\n')
@@ -483,6 +484,14 @@ image.delete()
     )
   )
   (let* ((top-layers (gimp-image-get-layers image)))
+    (display
+      (string-append
+        "IMAGE|"
+        (number->string (car (gimp-image-width image))) "|"
+        (number->string (car (gimp-image-height image))) "\n"
+      )
+      port
+    )
     (for-each
       (lambda (item-id) (traverse item-id ""))
       (vector->list (cadr top-layers))
@@ -523,31 +532,40 @@ image.delete()
 end
 
 -- Parses the pipe-delimited metadata file written by the info Script-Fu.
--- Returns [{gimpId, name, offsetX, offsetY, width, height, visible, isGroup, groupPath}]
+-- Returns layers, psdWidth, psdHeight
+-- layers: [{gimpId, name, offsetX, offsetY, width, height, visible, isGroup, groupPath}]
 function M.parseMetaFile(metaPath)
     local layers = {}
+    local psdW, psdH = 0, 0
     local f = io.open(metaPath, "r")
-    if not f then return layers end
+    if not f then return layers, psdW, psdH end
     for line in f:lines() do
         if line == "-- END" then break end
-        local id, name, ox, oy, w, h, vis, isGrp, grpPath =
-            line:match("^(%d+)|([^|]*)|(-?%d+)|(-?%d+)|(%d+)|(%d+)|([01])|([01])|(.*)")
-        if id then
-            table.insert(layers, {
-                gimpId    = tonumber(id),
-                name      = name,
-                offsetX   = tonumber(ox),
-                offsetY   = tonumber(oy),
-                width     = tonumber(w),
-                height    = tonumber(h),
-                visible   = (vis == "1"),
-                isGroup   = (isGrp == "1"),
-                groupPath = grpPath or "",
-            })
+        -- IMAGE dimensions header (written as first line by buildInfoScript)
+        local iw, ih = line:match("^IMAGE|(%d+)|(%d+)$")
+        if iw then
+            psdW = tonumber(iw) or 0
+            psdH = tonumber(ih) or 0
+        else
+            local id, name, ox, oy, w, h, vis, isGrp, grpPath =
+                line:match("^(%d+)|([^|]*)|(-?%d+)|(-?%d+)|(%d+)|(%d+)|([01])|([01])|(.*)")
+            if id then
+                table.insert(layers, {
+                    gimpId    = tonumber(id),
+                    name      = name,
+                    offsetX   = tonumber(ox),
+                    offsetY   = tonumber(oy),
+                    width     = tonumber(w),
+                    height    = tonumber(h),
+                    visible   = (vis == "1"),
+                    isGroup   = (isGrp == "1"),
+                    groupPath = grpPath or "",
+                })
+            end
         end
     end
     f:close()
-    return layers
+    return layers, psdW, psdH
 end
 
 -- Checks whether the metadata file is complete (sentinel present).
@@ -640,11 +658,11 @@ function M.getPsdLayerInfo(psdPath)
         dbg:close()
     end
 
-    local layers = M.parseMetaFile(info.metaPath)
-    print("[gimp_cli] parsed " .. #layers .. " layer(s)")
+    local layers, psdW, psdH = M.parseMetaFile(info.metaPath)
+    print("[gimp_cli] parsed " .. #layers .. " layer(s), PSD canvas " .. psdW .. "x" .. psdH)
     os.remove(info.scriptPath)
     os.remove(info.metaPath)
-    return layers
+    return layers, psdW, psdH
 end
 
 -- ─── Export phase ─────────────────────────────────────────────────────────────

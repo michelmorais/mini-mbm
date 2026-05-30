@@ -209,6 +209,9 @@ function onInitScene()
         bWriteJsonMeta  = false,  -- write .json sidecar next to PSD after import
         tempFiles       = {},     -- paths to clean up on finish
         bGroupsOnlyView = false,  -- show only root-level groups (one image per group)
+        bFreeOffset     = false,  -- apply PSD canvas offsets to Overlap Textures
+        iPsdWidth       = 0,      -- PSD canvas width in pixels (set on scan)
+        iPsdHeight      = 0,      -- PSD canvas height in pixels (set on scan)
     }
 end
 
@@ -1461,7 +1464,9 @@ function onImportPsdGimp()
 
     -- Synchronous scan — blocks for ~3-5 s while GIMP loads the PSD.
     tGimpPsdImportState.tLayers = {}
-    local tLayerInfo = tGimp.getPsdLayerInfo(filePath)
+    local tLayerInfo, psdW, psdH = tGimp.getPsdLayerInfo(filePath)
+    tGimpPsdImportState.iPsdWidth  = psdW or 0
+    tGimpPsdImportState.iPsdHeight = psdH or 0
     for _, info in ipairs(tLayerInfo) do
         table.insert(tGimpPsdImportState.tLayers, {
             gimpId      = info.gimpId,
@@ -1654,6 +1659,58 @@ local function gimpPsdImportCoroutine()
 
     if #allPngs > 0 then
         loadSvgPngsIntoEditor(allPngs)
+
+        -- If "Free offset position" is checked, switch to Overlap Textures and
+        -- position each texture to match its original canvas position in the PSD.
+        if st.bFreeOffset and st.iPsdWidth > 0 and st.iPsdHeight > 0 then
+            tTextureOptions.iCurrentAlgorithm = 6  -- Overlap textures
+
+            -- Build quick-lookup tables.
+            local jobByPath = {}
+            local zByGimpId = {}
+            for idx, job in ipairs(jobs) do
+                jobByPath[job.outputPath] = job
+                -- Keep the same visible order shown in the GIMP import table:
+                -- first exported item gets Z=1, second gets Z=2, etc.
+                -- In overlap mode, lower Z is treated as front-most.
+                zByGimpId[job.gimpId] = idx
+            end
+            local layerByGimpId = {}
+            for _, layer in ipairs(st.tLayers) do
+                layerByGimpId[layer.gimpId] = layer
+            end
+            local metaByPath = {}
+            for _, entry in ipairs(entries) do
+                metaByPath[entry.outputPath] = entry
+            end
+
+            local psdW = st.iPsdWidth
+            local psdH = st.iPsdHeight
+            for i, texDesc in ipairs(tTexturesToEditor) do
+                local meta = metaByPath[texDesc.file_name]
+                local job  = jobByPath[texDesc.file_name]
+                if meta and job then
+                    local layerInfo = layerByGimpId[job.gimpId]
+                    if layerInfo then
+                        local naturalW = layerInfo.width
+                        local naturalH = layerInfo.height
+                        local exportW  = job.width
+                        local exportH  = job.height
+                        -- Center of the layer in PSD pixel space.
+                        local centerPsdX = meta.offsetX + naturalW * 0.5
+                        local centerPsdY = meta.offsetY + naturalH * 0.5
+                        -- Convert to world space: origin at PSD canvas centre, Y flipped.
+                        -- Scale proportionally to match the exported image dimensions.
+                        local scaleX = (naturalW > 0) and (exportW / naturalW) or 1
+                        local scaleY = (naturalH > 0) and (exportH / naturalH) or 1
+                        tTexturesToEditor[i].fOverlapX = (centerPsdX - psdW * 0.5) * scaleX
+                        tTexturesToEditor[i].fOverlapY = (psdH * 0.5 - centerPsdY) * scaleY
+                        tTexturesToEditor[i].fOverlapZ = zByGimpId[job.gimpId] or 0
+                    end
+                end
+            end
+        end
+
         st.sStatus   = string.format(tLang.L("psd_gimp_import_done_fmt"), #allPngs)
         st.bStatusOk = true
     else
@@ -1768,6 +1825,11 @@ function showPsdGimpImportDialog()
 
     st.bKeepInPsdFolder = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_in_psd_folder"), st.bKeepInPsdFolder)
     st.bShowHiddenLayers = tImGui.Checkbox(tLang.L("psd_gimp_import_show_hidden"), st.bShowHiddenLayers)
+    tImGui.SameLine()
+    st.bFreeOffset = tImGui.Checkbox(tLang.L("psd_gimp_import_free_offset"), st.bFreeOffset)
+    if tImGui.IsItemHovered() then
+        tImGui.SetTooltip(tLang.L("psd_gimp_import_free_offset_tip"))
+    end
     -- Show "Groups only" toggle when the PSD has root-level groups.
     do
         local hasRootGroups = false
@@ -2991,6 +3053,7 @@ end
 function draw_overlap_algorithm()
     -- All selected textures are placed at their individually stored overlap positions.
     -- Textures may overlap freely. Positions are set by drag-and-drop or the position panel.
+    local overlapOrder = {}
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
@@ -2999,13 +3062,32 @@ function draw_overlap_algorithm()
             if tTexture.fOverlapX == nil then tTexture.fOverlapX = 0 end
             if tTexture.fOverlapY == nil then tTexture.fOverlapY = 0 end
             if tTexture.fOverlapZ == nil then tTexture.fOverlapZ = 0 end
+            table.insert(overlapOrder, {idx = i, z = tTexture.fOverlapZ or 0})
+        elseif tTex then
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+
+    -- Draw back-to-front by overlap Z (lower Z appears in front).
+    table.sort(overlapOrder, function(a, b)
+        if a.z == b.z then
+            return a.idx < b.idx
+        end
+        return a.z > b.z
+    end)
+
+    for _, item in ipairs(overlapOrder) do
+        local i = item.idx
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            -- Reinserting guarantees the renderer list follows Z ordering.
+            tRender:remove(tTex)
             tRender:add(tTex)
             tTex.visible = true
             apply_scale_for_tex(i)
             tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
-        elseif tTex then
-            tRender:remove(tTex)
-            tTex.visible = false
         end
     end
     return countTotalInOut()
@@ -3474,6 +3556,38 @@ function showTextureOptions()
                         local result, iValue = tImGui.InputInt(tLang.L("axis_y") .. '##OffsetPerTextureY' .. tostring(i), tTexturesToEditor[i].iOffsetPerTextureY or 0, step, step_fast, flags)
                         if result then
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
+                        end
+
+                        if tTextureOptions.iCurrentAlgorithm == 6 then
+                            if tTexturesToEditor[i].fOverlapX == nil then tTexturesToEditor[i].fOverlapX = 0 end
+                            if tTexturesToEditor[i].fOverlapY == nil then tTexturesToEditor[i].fOverlapY = 0 end
+                            if tTexturesToEditor[i].fOverlapZ == nil then tTexturesToEditor[i].fOverlapZ = 0 end
+
+                            tImGui.Text(tLang.L("overlap_texture_position"))
+
+                            local changedX, overlapX = tImGui.InputInt(tLang.L("axis_x") .. '##OverlapPosPanelX' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapX), step, step_fast, flags)
+                            if changedX then
+                                tTexturesToEditor[i].fOverlapX = overlapX
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
+
+                            local changedY, overlapY = tImGui.InputInt(tLang.L("axis_y") .. '##OverlapPosPanelY' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapY), step, step_fast, flags)
+                            if changedY then
+                                tTexturesToEditor[i].fOverlapY = overlapY
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
+
+                            local changedZ, overlapZ = tImGui.InputInt(tLang.L("axis_z") .. '##OverlapPosPanelZ' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapZ), step, step_fast, flags)
+                            if changedZ then
+                                tTexturesToEditor[i].fOverlapZ = overlapZ
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
                         end
 
                         tImGui.Text(tLang.L("rotation_per_texture"))
@@ -3966,26 +4080,36 @@ function onTouchDown(key,x,y)
         local canvasHW = tTextureOptions.fWidth  * 0.5 * (scale or 1)
         local canvasHH = tTextureOptions.fHeight * 0.5 * (scale or 1)
         if wx >= -canvasHW and wx <= canvasHW and wy >= -canvasHH and wy <= canvasHH then
-            -- Iterate in reverse so topmost (last drawn) texture wins
-            for i = #tTexturesToEditor, 1, -1 do
+            -- Pick frontmost hit by overlap Z, then by index as tie-break.
+            local bestIndex = nil
+            local bestZ = nil
+            for i = 1, #tTexturesToEditor do
                 local tTexture = tTexturesToEditor[i]
                 if tTexture.tTex and tTexture.isSelected and not tTexture.bOverlapLocked then
                     local tw, th = tTexture.tTex:getSize()
                     local tx = tTexture.fOverlapX or 0
                     local ty = tTexture.fOverlapY or 0
+                    local tz = tTexture.fOverlapZ or 0
                     local hw = (tw or 0) * 0.5
                     local hh = (th or 0) * 0.5
                     if wx >= tx - hw and wx <= tx + hw and
                        wy >= ty - hh and wy <= ty + hh then
-                        iOverlapDragIndex     = i
-                        iOverlapSelectedIndex = i
-                        tOverlapDragLastWorld = {x = wx, y = wy}
-                        isClickedMouseLeft = false
-                        camera2d.mx = x
-                        camera2d.my = y
-                        return
+                        if bestIndex == nil or tz < bestZ or (tz == bestZ and i < bestIndex) then
+                            bestIndex = i
+                            bestZ = tz
+                        end
                     end
                 end
+            end
+
+            if bestIndex ~= nil then
+                iOverlapDragIndex     = bestIndex
+                iOverlapSelectedIndex = bestIndex
+                tOverlapDragLastWorld = {x = wx, y = wy}
+                isClickedMouseLeft = false
+                camera2d.mx = x
+                camera2d.my = y
+                return
             end
         end
     end
