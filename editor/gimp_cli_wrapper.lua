@@ -106,7 +106,9 @@ local WINDOWS_GIMP_CANDIDATES = {
 local function tryDetectExe(exe)
     local f = io.popen(wrapCmd(shellQuote(exe) .. " --version") .. " 2>&1")
     local time_stamp = os.date("%Y-%m-%d %H:%M:%S")
-    print("[gimp_cli] " .. time_stamp .." trying to detect GIMP with command: " .. shellQuote(exe) .. " --version" .. "result: " .. tostring(f))
+    if bDebugEnabled then
+        print("[gimp_cli] " .. time_stamp .." trying to detect GIMP with command: " .. shellQuote(exe) .. " --version" .. "result: " .. tostring(f))
+    end
     if not f then return nil end
     local output = f:read("*a")
     f:close()
@@ -194,7 +196,9 @@ local function detectWindowsStoreGimp()
             end
             -- GUI subsystem (gimp-3.exe) or console build with uncapturable output:
             -- use the package version from PackageManager metadata.
-            print("[gimp_cli] Windows Store GIMP (alias+meta): " .. aliasPath .. " v=" .. pkgVersion)
+            if bDebugEnabled then
+                print("[gimp_cli] Windows Store GIMP (alias+meta): " .. aliasPath .. " v=" .. pkgVersion)
+            end
             return { found = true, path = aliasPath, version = pkgVersion, major = pkgMajor }
         end
     end
@@ -213,7 +217,9 @@ local function detectWindowsStoreGimp()
                 local r = tryDetectExe(exePath)
                 if r then return r end
             end
-            print("[gimp_cli] Windows Store GIMP (pkg meta): " .. exePath .. " v=" .. pkgVersion)
+            if bDebugEnabled then
+                print("[gimp_cli] Windows Store GIMP (pkg meta): " .. exePath .. " v=" .. pkgVersion)
+            end
             return { found = true, path = exePath, version = pkgVersion, major = pkgMajor }
         end
     end
@@ -596,7 +602,9 @@ end
 -- Blocks for ~3-5 s on first call. Returns the same array as parseMetaFile.
 function M.getPsdLayerInfo(psdPath)
     local g = M.gimp or M.detectGimp()
-    print("[gimp_cli] detectGimp: found=" .. tostring(g.found) .. " path=" .. tostring(g.path) .. " version=" .. tostring(g.version))
+    if bDebugEnabled then
+        print("[gimp_cli] detectGimp: found=" .. tostring(g.found) .. " path=" .. tostring(g.path) .. " version=" .. tostring(g.version))
+    end
     if not g.found then
         print("[gimp_cli] GIMP not found, aborting layer info scan")
         return {}
@@ -607,23 +615,29 @@ function M.getPsdLayerInfo(psdPath)
         print("[gimp_cli] buildInfoScript returned nil (could not write temp .scm)")
         return {}
     end
-    print("[gimp_cli] script: " .. info.scriptPath)
-    print("[gimp_cli] meta:   " .. info.metaPath)
-    print("[gimp_cli] cmd:    " .. info.cmd)
+    if bDebugEnabled then
+        print("[gimp_cli] script: " .. info.scriptPath)
+        print("[gimp_cli] meta:   " .. info.metaPath)
+        print("[gimp_cli] cmd:    " .. info.cmd)
+    end
 
     -- Run synchronously (blocking). Capture and print GIMP's stdout/stderr.
     local fullCmd = wrapCmd(info.cmd) .. " 2>&1"
-    print("[gimp_cli] running: " .. fullCmd)
+    if bDebugEnabled then
+        print("[gimp_cli] running: " .. fullCmd)
+    end
     local f = io.popen(fullCmd)
     local gimpOutput = ""
     if f then
         gimpOutput = f:read("*a") or ""
         f:close()
     end
-    if gimpOutput ~= "" then
-        print("[gimp_cli] GIMP output:\n" .. gimpOutput)
-    else
-        print("[gimp_cli] GIMP produced no output")
+    if bDebugEnabled then
+        if gimpOutput ~= "" then
+            print("[gimp_cli] GIMP output:\n" .. gimpOutput)
+        else
+            print("[gimp_cli] GIMP produced no output")
+        end
     end
 
     -- io.popen + read("*a") already blocked until GIMP exited, so the meta
@@ -633,33 +647,43 @@ function M.getPsdLayerInfo(psdPath)
     while not M.metaFileExists(info.metaPath) and os.time() < deadline do end
 
     if not M.metaFileExists(info.metaPath) then
-        print("[gimp_cli] GIMP exited without producing the meta file (script error)")
-        print("[gimp_cli] Script kept for inspection: " .. info.scriptPath)
-        local sf = io.open(info.scriptPath, "r")
-        if sf then
-            print("[gimp_cli] --- generated script ---")
-            print(sf:read("*a"))
-            print("[gimp_cli] --- end script ---")
-            sf:close()
+        if bDebugEnabled then
+            print("[gimp_cli] GIMP exited without producing the meta file (script error)")
+            print("[gimp_cli] Script kept for inspection: " .. info.scriptPath)
+        end
+        if bDebugEnabled then
+            local sf = io.open(info.scriptPath, "r")
+            if sf then
+                print("[gimp_cli] --- generated script ---")
+                print(sf:read("*a"))
+                print("[gimp_cli] --- end script ---")
+                sf:close()
+            end
         end
         return {}
     end
-    print("[gimp_cli] meta file ready: " .. info.metaPath)
+    if bDebugEnabled then
+        print("[gimp_cli] meta file ready: " .. info.metaPath)
+    end
 
     -- Print first few lines of the meta file for inspection.
-    local dbg = io.open(info.metaPath, "r")
-    if dbg then
-        local n = 0
-        for line in dbg:lines() do
-            print("[gimp_cli] meta[" .. n .. "]: " .. line)
-            n = n + 1
-            if n >= 5 then print("[gimp_cli] meta[...]: (truncated)"); break end
+    if bDebugEnabled then
+        local dbg = io.open(info.metaPath, "r")
+        if dbg then
+            local n = 0
+            for line in dbg:lines() do
+                print("[gimp_cli] meta[" .. n .. "]: " .. line)
+                n = n + 1
+                if n >= 5 then print("[gimp_cli] meta[...]: (truncated)"); break end
+            end
+            dbg:close()
         end
-        dbg:close()
     end
 
     local layers, psdW, psdH = M.parseMetaFile(info.metaPath)
-    print("[gimp_cli] parsed " .. #layers .. " layer(s), PSD canvas " .. psdW .. "x" .. psdH)
+    if bDebugEnabled then
+        print("[gimp_cli] parsed " .. #layers .. " layer(s), PSD canvas " .. psdW .. "x" .. psdH)
+    end
     os.remove(info.scriptPath)
     os.remove(info.metaPath)
     return layers, psdW, psdH
@@ -885,29 +909,37 @@ end
 -- and logs everything. Returns true if the meta sentinel was written.
 function M.runExportSync(info)
     -- Log the script content so failures can be diagnosed.
-    print("[gimp_cli] export script: " .. info.scriptPath)
-    print("[gimp_cli] export meta:   " .. info.metaPath)
-    print("[gimp_cli] export cmd:    " .. info.cmd)
-    local sf = io.open(info.scriptPath, "r")
-    if sf then
-        print("[gimp_cli] --- export script content ---")
-        print(sf:read("*a"))
-        print("[gimp_cli] --- end export script ---")
-        sf:close()
+    if bDebugEnabled then
+        print("[gimp_cli] export script: " .. info.scriptPath)
+        print("[gimp_cli] export meta:   " .. info.metaPath)
+        print("[gimp_cli] export cmd:    " .. info.cmd)
+    end
+    if bDebugEnabled then
+        local sf = io.open(info.scriptPath, "r")
+        if sf then
+            print("[gimp_cli] --- export script content ---")
+            print(sf:read("*a"))
+            print("[gimp_cli] --- end export script ---")
+            sf:close()
+        end
     end
 
     local fullCmd = wrapCmd(info.cmd) .. " 2>&1"
-    print("[gimp_cli] running export: " .. fullCmd)
+    if bDebugEnabled then
+        print("[gimp_cli] running export: " .. fullCmd)
+    end
     local f = io.popen(fullCmd)
     local gimpOutput = ""
     if f then
         gimpOutput = f:read("*a") or ""
         f:close()
     end
-    if gimpOutput ~= "" then
-        print("[gimp_cli] GIMP export output:\n" .. gimpOutput)
-    else
-        print("[gimp_cli] GIMP export produced no output")
+    if bDebugEnabled then
+        if gimpOutput ~= "" then
+            print("[gimp_cli] GIMP export output:\n" .. gimpOutput)
+        else
+            print("[gimp_cli] GIMP export produced no output")
+        end
     end
 
     -- Brief grace period for filesystem flush.
@@ -921,15 +953,17 @@ function M.runExportSync(info)
     end
 
     -- Log first few result lines.
-    local dbg = io.open(info.metaPath, "r")
-    if dbg then
-        local n = 0
-        for line in dbg:lines() do
-            print("[gimp_cli] export meta[" .. n .. "]: " .. line)
-            n = n + 1
-            if n >= 5 then print("[gimp_cli] export meta[...]: (truncated)"); break end
+    if bDebugEnabled then
+        local dbg = io.open(info.metaPath, "r")
+        if dbg then
+            local n = 0
+            for line in dbg:lines() do
+                print("[gimp_cli] export meta[" .. n .. "]: " .. line)
+                n = n + 1
+                if n >= 5 then print("[gimp_cli] export meta[...]: (truncated)"); break end
+            end
+            dbg:close()
         end
-        dbg:close()
     end
     return true
 end

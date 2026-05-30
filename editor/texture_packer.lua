@@ -1611,14 +1611,16 @@ local function gimpPsdImportCoroutine()
     st.tempFiles = { info.scriptPath, metaOutPath }
 
     -- Log script for debuggability before launching.
-    print("[gimp_cli] export script: " .. info.scriptPath)
-    print("[gimp_cli] export cmd:    " .. info.cmd)
-    local _sf = io.open(info.scriptPath, "r")
-    if _sf then
-        print("[gimp_cli] --- export script content ---")
-        print(_sf:read("*a"))
-        print("[gimp_cli] --- end export script ---")
-        _sf:close()
+    if bDebugEnabled then
+        print("[gimp_cli] export script: " .. info.scriptPath)
+        print("[gimp_cli] export cmd:    " .. info.cmd)
+        local _sf = io.open(info.scriptPath, "r")
+        if _sf then
+            print("[gimp_cli] --- export script content ---")
+            print(_sf:read("*a"))
+            print("[gimp_cli] --- end export script ---")
+            _sf:close()
+        end
     end
 
     -- Launch GIMP asynchronously so the progress bar can update while it runs.
@@ -4018,10 +4020,10 @@ function main_menu_texture_packer()
 
             local label  = "Debug: print texture info with algorithm"
             local size   =  {x=0,y=0}
-            if tImGui.Button(label, size) then
-                bPrintDebug = true
+            bPrintDebug = tImGui.Checkbox(label, bPrintDebug)
+            if bPrintDebug then
+                bDebugEnabled = true
             end
-            
             tImGui.EndMenu()
         end
 
