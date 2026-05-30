@@ -1605,18 +1605,33 @@ local function gimpPsdImportCoroutine()
 
     st.tempFiles = { info.scriptPath, metaOutPath }
 
-    -- Launch GIMP asynchronously.
+    -- Log script for debuggability before launching.
+    print("[gimp_cli] export script: " .. info.scriptPath)
+    print("[gimp_cli] export cmd:    " .. info.cmd)
+    local _sf = io.open(info.scriptPath, "r")
+    if _sf then
+        print("[gimp_cli] --- export script content ---")
+        print(_sf:read("*a"))
+        print("[gimp_cli] --- end export script ---")
+        _sf:close()
+    end
+
+    -- Launch GIMP asynchronously so the progress bar can update while it runs.
     tGimp.launchExportAsync(info.cmd)
 
-    st.iTotal    = #jobs   -- real per-image progress
+    st.iTotal    = #jobs
     st.iProgress = 0
 
-    -- Poll until GIMP writes the sentinel ("-- END") to the meta file.
-    -- Update iProgress every frame by counting completed lines so the
-    -- progress bar advances as each image is saved.
+    -- Poll until GIMP writes the sentinel ("-- END").
+    -- export_item flushes after each PNG so iProgress advances per saved image.
     local deadline = os.time() + st.iTimeoutSecs
     while not tGimp.metaFileExists(metaOutPath) do
         if os.time() >= deadline or st.bAbortRequested then
+            -- On timeout try a synchronous re-run to capture any error output.
+            if not st.bAbortRequested then
+                print("[gimp_cli] Export timed out; re-running sync to capture errors...")
+                tGimp.runExportSync(info)
+            end
             st.sStatus   = tLang.L("psd_gimp_import_timed_out")
             st.bStatusOk = false
             tGimp.cleanupTempFiles(st.tempFiles)

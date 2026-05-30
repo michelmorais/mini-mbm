@@ -77,26 +77,54 @@ end
 -- ─── GIMP detection ──────────────────────────────────────────────────────────
 
 local PROBE_EXES = {
-    linux   = { "gimp", "gimp-2.10", "gimp-3.0" },
-    macos   = { "gimp", "gimp-2.10", "gimp-3.0" },
-    windows = { "gimp-2.10.exe", "gimp-3.0.exe" },
+    linux   = { "gimp", "gimp-2.10", "gimp-3.0", "gimp-3", "gimp-3.2" },
+    macos   = { "gimp", "gimp-2.10", "gimp-3.0", "gimp-3", "gimp-3.2" },
+    -- Console variants are listed first on Windows: they are compiled with the console
+    -- subsystem so --version output is reliably captured by io.popen.  The plain
+    -- gimp-3.exe (GUI subsystem) is also included as it is the MSIX-signed entry point
+    -- that actually runs from the WindowsApps VFS path without "Access denied".
+    windows = {
+        "gimp-console.exe", "gimp-console-3.exe", "gimp-console-3.2.exe",
+        "gimp-3.exe", "gimp-3.2.exe",
+        "gimp.exe", "gimp-2.10.exe", "gimp-3.0.exe",
+    },
 }
 
 local WINDOWS_GIMP_CANDIDATES = {
-    "C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe",
+    -- GIMP 3.2+ traditional installer paths (prefer console variants for stdout capture)
+    "C:\\Program Files\\GIMP 3\\bin\\gimp-console-3.2.exe",
+    "C:\\Program Files\\GIMP 3\\bin\\gimp-console-3.exe",
+    "C:\\Program Files\\GIMP 3\\bin\\gimp-console.exe",
+    "C:\\Program Files\\GIMP 3\\bin\\gimp-3.2.exe",
+    "C:\\Program Files\\GIMP 3\\bin\\gimp-3.exe",
     "C:\\Program Files\\GIMP 3\\bin\\gimp-3.0.exe",
+    -- GIMP 2.x traditional installer paths
+    "C:\\Program Files\\GIMP 2\\bin\\gimp-2.10.exe",
     "C:\\Program Files (x86)\\GIMP 2\\bin\\gimp-2.10.exe",
 }
 
 local function tryDetectExe(exe)
     local f = io.popen(wrapCmd(shellQuote(exe) .. " --version") .. " 2>&1")
+    local time_stamp = os.date("%Y-%m-%d %H:%M:%S")
+    print("[gimp_cli] " .. time_stamp .." trying to detect GIMP with command: " .. shellQuote(exe) .. " --version" .. "result: " .. tostring(f))
     if not f then return nil end
     local output = f:read("*a")
     f:close()
-    -- Must match actual GIMP version output ("GNU Image Manipulation Program version X.Y.Z")
-    -- Avoid false-positives from shell "gimp-3.0: not found" error messages.
-    if output and output:find("GNU Image Manipulation") then
-        local version = output:match("version%s+([%d%.]+)") or ""
+    -- "GNU" is a proper noun and is never translated in any locale.
+    -- GIMP 2.x English:    "GNU Image Manipulation Program version X.Y.Z"
+    -- GIMP 3.x Portuguese: "Programa de manipulação de imagem do GNU versão X.Y.Z"
+    -- GIMP 3.x Spanish:    "Programa de manipulación de imágenes de GNU versión X.Y.Z"
+    -- All translated outputs still contain "GNU" and a version number.
+    -- Avoid false-positives: require BOTH "GNU" AND a digit-dot sequence.
+    if output and output:find("GNU") and output:find("%d+%.%d+") then
+        -- Extract version after any word meaning "version" in common locales,
+        -- or fall back to the first X.Y.Z triplet in the output.
+        -- Note: "versão" is UTF-8; Lua patterns work on bytes, so we match
+        -- "vers" followed by non-space chars, then a space, then the number.
+        local version = output:match("[Vv]ersion%s+([%d%.]+)")
+                     or output:match("vers%S*%s+([%d%.]+)")
+                     or output:match("(%d+%.%d+%.%d+)")
+                     or ""
         local major   = tonumber(version:match("^(%d+)")) or 2
         return { found = true, path = exe, version = version, major = major }
     end
@@ -116,30 +144,80 @@ local function whereExe(exe)
     return nil
 end
 
--- Windows: use PowerShell Get-AppxPackage to find a Store-installed GIMP.
--- This is the only reliable way to get the install location of an MSIX package
--- because C:\Program Files\WindowsApps denies LIST_DIRECTORY to regular users.
--- Returns a list of candidate exe paths built from the package's InstallLocation.
-local function findWindowsStoreGimpViaPowerShell()
-    local results = {}
-    local cmd = 'powershell -NoProfile -NonInteractive -Command ' ..
-        '"(Get-AppxPackage -Name \"*GIMP*\" | Select-Object -First 1).InstallLocation" 2>nul'
-    local f = io.popen(cmd)
-    if not f then return results end
-    local line = f:read("*l")
+-- Windows: query MSIX package metadata via PowerShell and locate the GIMP exe.
+-- For Windows Store MSIX installs, the GUI-subsystem gimp-3.exe uses AllocConsole /
+-- AttachConsole which writes directly to the console window, bypassing the stdout pipe
+-- created by io.popen.  Running --version therefore yields empty pipe output even
+-- though the text is visible on screen.  We work around this by:
+--   1. Reading the GIMP version from the MSIX PackageManager ($p.Version).
+--   2. Verifying exe existence on disk with io.open rather than running the exe.
+--   3. For console-subsystem builds (gimp-console-*.exe) we still attempt --version
+--      capture first, since those write to the pipe correctly.
+-- Returns {found=bool, path=string, version=string, major=int} or nil.
+local function detectWindowsStoreGimp()
+    -- One PowerShell call outputs two lines: InstallLocation then Version.
+    local psCmd = 'powershell -NoProfile -NonInteractive -Command ' ..
+        '"$p = Get-AppxPackage -Name \"*GIMP*\" | Select-Object -First 1; ' ..
+        'if ($p) { $p.InstallLocation; $p.Version }" 2>nul'
+    local f = io.popen(psCmd)
+    if not f then return nil end
+    local out = f:read("*a")
     f:close()
-    if line then line = line:match("^%s*(.-)%s*$") end
-    if not line or line == "" or line:lower() == "null" then return results end
-    -- MSIX Desktop Bridge layout: <InstallLocation>\VFS\ProgramFilesX64\GIMP\bin\
-    for _, sub in ipairs({
-        "\\VFS\\ProgramFilesX64\\GIMP\\bin\\gimp-3.0.exe",
-        "\\VFS\\ProgramFilesX64\\GIMP\\bin\\gimp-2.10.exe",
-        "\\bin\\gimp-3.0.exe",
-        "\\bin\\gimp-2.10.exe",
-    }) do
-        table.insert(results, line .. sub)
+
+    local loc, pkgVer
+    for line in out:gmatch("[^\r\n]+") do
+        line = line:match("^%s*(.-)%s*$")
+        if line ~= "" and line:lower() ~= "null" then
+            if not loc then loc = line
+            elseif not pkgVer then pkgVer = line end
+        end
     end
-    return results
+    if not loc or loc == "" then return nil end
+
+    -- MSIX package version is "A.B.C.D"; normalise to "A.B.C" for display.
+    local pkgVersion = (pkgVer or ""):match("^(%d+%.%d+%.%d+)") or (pkgVer or "")
+    local pkgMajor   = tonumber((pkgVer or ""):match("^(%d+)")) or 3
+
+    -- Prefer App Execution Alias stubs. These are zero-byte reparse-point files
+    -- (mode -a---l in PowerShell) that io.open cannot open, but where.exe resolves
+    -- them correctly since Windows adds the alias dir to PATH for MSIX packages.
+    -- They invoke GIMP through the proper MSIX activation context (no Access Denied).
+    for _, name in ipairs({
+        "gimp-console-3.2.exe", "gimp-console-3.exe", "gimp-console.exe",
+        "gimp-3.exe",
+    }) do
+        local aliasPath = whereExe(name)
+        if aliasPath then
+            if name:find("console") then
+                local r = tryDetectExe(aliasPath)
+                if r then return r end
+            end
+            -- GUI subsystem (gimp-3.exe) or console build with uncapturable output:
+            -- use the package version from PackageManager metadata.
+            print("[gimp_cli] Windows Store GIMP (alias+meta): " .. aliasPath .. " v=" .. pkgVersion)
+            return { found = true, path = aliasPath, version = pkgVersion, major = pkgMajor }
+        end
+    end
+
+    -- Fallback: VFS path (readable but execution-denied for regular users on most setups).
+    local binDir = loc .. "\\VFS\\ProgramFilesX64\\GIMP\\bin"
+    for _, name in ipairs({
+        "gimp-console-3.2.exe", "gimp-console-3.exe", "gimp-console.exe",
+        "gimp-3.exe",
+    }) do
+        local exePath = binDir .. "\\" .. name
+        local probe = io.open(exePath, "rb")
+        if probe then
+            probe:close()
+            if name:find("console") then
+                local r = tryDetectExe(exePath)
+                if r then return r end
+            end
+            print("[gimp_cli] Windows Store GIMP (pkg meta): " .. exePath .. " v=" .. pkgVersion)
+            return { found = true, path = exePath, version = pkgVersion, major = pkgMajor }
+        end
+    end
+    return nil
 end
 
 -- Windows: enumerate C:\Program Files\WindowsApps for a Store-installed GIMP.
@@ -154,12 +232,35 @@ local function findWindowsStoreGimpPaths()
         line = line:match("^%s*(.-)%s*$")
         if line and line ~= "" then
             local binDir = base .. "\\" .. line .. "\\VFS\\ProgramFilesX64\\GIMP\\bin"
-            for _, exe in ipairs({ "gimp-3.0.exe", "gimp-2.10.exe" }) do
+            for _, exe in ipairs({
+                "gimp-console-3.2.exe", "gimp-console-3.exe", "gimp-console.exe",
+                "gimp-3.exe", "gimp-3.2.exe", "gimp-3.0.exe", "gimp-2.10.exe",
+            }) do
                 table.insert(results, binDir .. "\\" .. exe)
             end
         end
     end
     f:close()
+    return results
+end
+
+-- Windows: look for GIMP app execution alias stubs in %LOCALAPPDATA%\Microsoft\WindowsApps\.
+-- Windows Store MSIX apps (e.g. GIMP from the Microsoft Store) register lightweight alias
+-- stubs here.  These stubs invoke the app through the proper MSIX activation context;
+-- running the physical exe under C:\Program Files\WindowsApps\...\VFS\... bypasses that
+-- context and typically produces no usable output (access denied or empty stdout).
+local function findWindowsAppExecutionAliases()
+    local results = {}
+    local localAppData = os.getenv("LOCALAPPDATA") or ""
+    if localAppData == "" then return results end
+    local aliasDir = localAppData .. "\\Microsoft\\WindowsApps"
+    for _, name in ipairs({
+        "gimp-console.exe", "gimp-console-3.exe", "gimp-console-3.2.exe",
+        "gimp-3.exe", "gimp-3.2.exe",
+        "gimp.exe", "gimp-3.0.exe", "gimp-2.10.exe",
+    }) do
+        table.insert(results, aliasDir .. "\\" .. name)
+    end
     return results
 end
 
@@ -184,23 +285,38 @@ function M.detectGimp()
     end
 
     if os_name == "windows" then
-        -- 1. PowerShell Get-AppxPackage: authoritative for Windows Store installs.
-        --    The WindowsApps folder denies directory-listing to regular users, so
-        --    this is the only way to reliably get the real install path.
-        for _, candidate in ipairs(findWindowsStoreGimpViaPowerShell()) do
-            local r = tryDetectExe(candidate)
-            if r then M.gimp = r; return M.gimp end
+        -- 1. Windows Store MSIX package: read version from PackageManager metadata and
+        --    verify exe existence on disk.  MSIX GUI builds (gimp-3.exe) use AllocConsole
+        --    which writes version output directly to the console, bypassing the io.popen
+        --    pipe, so --version capture is unreliable for this install type.
+        local storeResult = detectWindowsStoreGimp()
+        if storeResult then M.gimp = storeResult; return M.gimp end
+        -- 2. App execution aliases (%LOCALAPPDATA%\Microsoft\WindowsApps):
+        --    MSIX Store apps register alias stubs here that invoke GIMP through
+        --    the proper MSIX activation context.  Running the physical exe under
+        --    C:\Program Files\WindowsApps\...\VFS\... does not work reliably.
+        for _, candidate in ipairs(findWindowsAppExecutionAliases()) do
+            local probe = io.open(candidate, "r")
+            if probe then
+                probe:close()
+                local r = tryDetectExe(candidate)
+                if r then M.gimp = r; return M.gimp end
+            end
         end
-        -- 2. 'where.exe' finds executables on PATH; on Windows 10/11 this also
+        -- 3. 'where.exe' finds executables on PATH; on Windows 10/11 this also
         --    resolves App Execution Aliases when they are enabled by the user.
-        for _, exe in ipairs({ "gimp-3.0.exe", "gimp-2.10.exe" }) do
+        for _, exe in ipairs({
+            "gimp-console.exe", "gimp-console-3.exe", "gimp-console-3.2.exe",
+            "gimp-3.exe", "gimp-3.2.exe",
+            "gimp.exe", "gimp-3.0.exe", "gimp-2.10.exe",
+        }) do
             local path = whereExe(exe)
             if path then
                 local r = tryDetectExe(path)
                 if r then M.gimp = r; return M.gimp end
             end
         end
-        -- 3. Traditional installer paths (GIMP 2/3 via official .exe installer).
+        -- 4. Traditional installer paths (GIMP 2/3 via official .exe installer).
         for _, candidate in ipairs(WINDOWS_GIMP_CANDIDATES) do
             local probe = io.open(candidate, "r")
             if probe then
@@ -209,7 +325,7 @@ function M.detectGimp()
                 if r then M.gimp = r; return M.gimp end
             end
         end
-        -- 4. Dynamic WindowsApps dir enumeration (requires admin; usually a no-op).
+        -- 5. Dynamic WindowsApps dir enumeration (requires admin; usually a no-op).
         for _, candidate in ipairs(findWindowsStoreGimpPaths()) do
             local r = tryDetectExe(candidate)
             if r then M.gimp = r; return M.gimp end
@@ -273,7 +389,58 @@ function M.buildInfoScript(psdPath)
     local scriptPath = td .. "/gimp_info_" .. stem .. "_" .. tostring(os.time()) .. ".scm"
     local metaPath   = td .. "/gimp_info_" .. stem .. "_" .. tostring(os.time()) .. ".lua"
 
-    local scm = string.format([[
+    local gimp3 = (M.gimp and M.gimp.major or 2) >= 3
+    local scm
+
+    if gimp3 then
+        -- GIMP 3.x: Script-Fu's plug-in-script-fu-eval has a broken IMAGE type
+        -- bridge — gimp-file-load returns GObject cells that legacy PDB functions
+        -- reject as "non-numeric", and key helpers (gimp-image-get-id,
+        -- gimp-image-list, open-append-file) are simply unbound.  Switch to
+        -- Python-Fu which uses GObject Introspection and works correctly.
+        scriptPath = td .. "/gimp_info_" .. stem .. "_" .. tostring(os.time()) .. ".py"
+        local function pyStr(s)
+            s = s:gsub("\\", "/")   -- forward slashes work on Windows in Python
+            s = s:gsub("'", "\\'")  -- escape single quotes
+            return "'" .. s .. "'"
+        end
+        scm = string.format([[
+import gi
+gi.require_version('Gimp', '3.0')
+from gi.repository import Gimp, Gio
+
+def get_offsets(layer):
+    o = layer.get_offsets()
+    if hasattr(o, 'offset_x'):
+        return o.offset_x, o.offset_y
+    return int(o[0]), int(o[1])
+
+def traverse(layer, group_path, out):
+    name     = layer.get_name()
+    ox, oy   = get_offsets(layer)
+    w        = layer.get_width()
+    h        = layer.get_height()
+    visible  = 1 if layer.get_visible() else 0
+    is_group = 1 if layer.is_group() else 0
+    layer_id = layer.get_id()
+    my_path  = name if not group_path else (group_path + '/' + name)
+    out.write('{}|{}|{}|{}|{}|{}|{}|{}|{}\n'.format(
+        layer_id, name, ox, oy, w, h, visible, is_group, group_path))
+    if is_group:
+        for child in layer.get_children():
+            traverse(child, my_path, out)
+
+image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(%s))
+with open(%s, 'w', encoding='utf-8') as out:
+    for layer in image.get_layers():
+        traverse(layer, '', out)
+    out.write('-- END\n')
+image.delete()
+]], pyStr(psdPath), pyStr(metaPath))
+    else
+        -- GIMP 2.x: all PDB returns are wrapped in lists (need car for single values).
+        -- gimp-image-get-layers / gimp-item-get-children return (count #(ids...)).
+        scm = string.format([[
 (let* (
   (image (car (gimp-file-load RUN-NONINTERACTIVE %s %s)))
   (port  (open-output-file %s))
@@ -326,18 +493,31 @@ function M.buildInfoScript(psdPath)
   (gimp-image-delete image)
 )
 ]], scmStr(psdPath), scmStr(psdPath), scmStr(metaPath))
+    end
 
     local f = io.open(scriptPath, "w")
     if not f then return nil end
     f:write(scm)
     f:close()
 
-    local cmd = string.format(
-        "%s -i -b %s -b %s",
-        shellQuote(M.gimp and M.gimp.path or "gimp"),
-        shellQuote("(load " .. scmStr(scriptPath) .. ")"),
-        shellQuote("(gimp-quit 0)")
-    )
+    -- GIMP 3.x uses Python-Fu (python-fu-eval); Gimp.quit(0) is in the script.
+    -- GIMP 2.x uses Script-Fu with a second -b arg for (gimp-quit 0).
+    local cmd
+    if gimp3 then
+        local pyPath = scriptPath:gsub("\\", "/"):gsub("'", "\\'")
+        cmd = string.format(
+            "%s -i --batch-interpreter python-fu-eval -b %s --quit",
+            shellQuote(M.gimp and M.gimp.path or "gimp"),
+            shellQuote("exec(open('" .. pyPath .. "').read())")
+        )
+    else
+        cmd = string.format(
+            "%s -i -b %s -b %s",
+            shellQuote(M.gimp and M.gimp.path or "gimp"),
+            shellQuote("(load " .. scmStr(scriptPath) .. ")"),
+            shellQuote("(gimp-quit 0)")
+        )
+    end
 
     return { scriptPath = scriptPath, metaPath = metaPath, cmd = cmd }
 end
@@ -428,15 +608,22 @@ function M.getPsdLayerInfo(psdPath)
         print("[gimp_cli] GIMP produced no output")
     end
 
-    -- Poll up to 30 s for the meta file (GIMP may still be writing on slow machines).
-    local deadline = os.time() + 30
-    while not M.metaFileExists(info.metaPath) and os.time() < deadline do
-        -- tiny busy-wait — acceptable since this is a one-off synchronous call
-    end
+    -- io.popen + read("*a") already blocked until GIMP exited, so the meta
+    -- file is either there now or never.  Give the filesystem a 2-second grace
+    -- period for slow network/antivirus flushes, then give up immediately.
+    local deadline = os.time() + 2
+    while not M.metaFileExists(info.metaPath) and os.time() < deadline do end
 
     if not M.metaFileExists(info.metaPath) then
-        print("[gimp_cli] TIMEOUT: meta file never appeared at " .. info.metaPath)
-        os.remove(info.scriptPath)
+        print("[gimp_cli] GIMP exited without producing the meta file (script error)")
+        print("[gimp_cli] Script kept for inspection: " .. info.scriptPath)
+        local sf = io.open(info.scriptPath, "r")
+        if sf then
+            print("[gimp_cli] --- generated script ---")
+            print(sf:read("*a"))
+            print("[gimp_cli] --- end script ---")
+            sf:close()
+        end
         return {}
     end
     print("[gimp_cli] meta file ready: " .. info.metaPath)
@@ -475,14 +662,32 @@ end
 function M.buildExportScript(psdPath, jobs, metaOutPath)
     local td         = tmpDir()
     local stem       = M.getFileBaseStem(psdPath)
-    local scriptPath = td .. "/gimp_export_" .. stem .. "_" .. tostring(os.time()) .. ".scm"
+    local gimp3 = (M.gimp and M.gimp.major or 2) >= 3
+    local scriptPath
+    if gimp3 then
+        scriptPath = td .. "/gimp_export_" .. stem .. "_" .. tostring(os.time()) .. ".py"
+    else
+        scriptPath = td .. "/gimp_export_" .. stem .. "_" .. tostring(os.time()) .. ".scm"
+    end
+
+    local function pyStr(s)
+        s = s:gsub("\\", "/")
+        s = s:gsub("'", "\\'")
+        return "'" .. s .. "'"
+    end
 
     -- Build the per-job export calls.
     local jobLines = {}
     for _, job in ipairs(jobs) do
-        if job.isMerge then
-            -- Merge-group: flatten all visible children of the group into a new image.
-            table.insert(jobLines, string.format([[
+        if gimp3 then
+            -- GIMP 3.x Python: new_from_drawable flattens group layers automatically,
+            -- so merge and regular layers use the same export_item() code path.
+            table.insert(jobLines, string.format(
+                "    export_item(Gimp.Item.get_by_id(%d), %s, %d, %d, out)\n",
+                job.gimpId, pyStr(job.outputPath), job.width, job.height))
+        else
+            if job.isMerge then
+                table.insert(jobLines, string.format([[
   (let* (
     (grp-layer  %d)
     (new-img    (car (gimp-image-new %d %d RGB)))
@@ -503,9 +708,8 @@ function M.buildExportScript(psdPath, jobs, metaOutPath)
     job.width, job.height, job.width, job.height,
     scmStr(job.outputPath), scmStr(M.getFileBaseStem(job.outputPath)),
     scmStr(job.outputPath)))
-        else
-            -- Leaf layer: copy to a new image sized to the layer.
-            table.insert(jobLines, string.format([[
+            else
+                table.insert(jobLines, string.format([[
   (let* (
     (layer      %d)
     (lw         (car (gimp-drawable-width layer)))
@@ -528,12 +732,65 @@ function M.buildExportScript(psdPath, jobs, metaOutPath)
     job.width, job.height, job.width, job.height,
     scmStr(job.outputPath), scmStr(M.getFileBaseStem(job.outputPath)),
     scmStr(job.outputPath)))
+            end
         end
     end
 
-    local scm = string.format([[
-(let* (
-  (image (car (gimp-file-load RUN-NONINTERACTIVE %s %s)))
+    local scm
+    if gimp3 then
+        scm = string.format([[
+import gi
+gi.require_version('Gimp', '3.0')
+from gi.repository import Gimp, Gio
+import os
+
+def get_offsets(item):
+    o = item.get_offsets()
+    if hasattr(o, 'offset_x'):
+        return o.offset_x, o.offset_y
+    return int(o[0]), int(o[1])
+
+def save_as_png(img, drawable, path):
+    file_obj = Gio.File.new_for_path(path)
+    # GIMP 3.2+: Gimp.file_save(run_mode, image, file, options)
+    # Drawable argument was removed from the signature in GIMP 3.2.
+    if hasattr(Gimp, 'file_save'):
+        Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, img, file_obj, None)
+        return
+    # Fallback: Gimp.file_overwrite (older GIMP 3.x builds)
+    if hasattr(Gimp, 'file_overwrite'):
+        Gimp.file_overwrite(Gimp.RunMode.NONINTERACTIVE, img, file_obj, None)
+        return
+    raise RuntimeError('No PNG save method; attrs: ' + str([a for a in dir(Gimp) if any(k in a.lower() for k in ('file', 'export', 'save'))]))
+
+def export_item(item, out_path, width, height, out):
+    os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
+    ox, oy = get_offsets(item)
+    name = item.get_name()
+    lw = item.get_width()
+    lh = item.get_height()
+    new_img = Gimp.Image.new(lw, lh, Gimp.ImageBaseType.RGB)
+    new_layer = Gimp.Layer.new_from_drawable(item, new_img)
+    new_img.insert_layer(new_layer, None, -1)
+    if width > 0 and height > 0:
+        new_layer.scale(width, height, False)
+        new_img.resize_to_layers()
+    save_as_png(new_img, new_layer, out_path)
+    new_img.delete()
+    out.write('{}|{}|{}|{}\n'.format(out_path, name, ox, oy))
+    out.flush()  # flush after each item so async progress polling works
+
+image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(%s))
+with open(%s, 'w', encoding='utf-8') as out:
+%s    out.write('-- END\n')
+image.delete()
+]], pyStr(psdPath), pyStr(metaOutPath), table.concat(jobLines, ""))
+    else
+        local outerLoad = string.format(
+            "(let* (\n  (image (car (gimp-file-load RUN-NONINTERACTIVE %s %s)))",
+            scmStr(psdPath), scmStr(psdPath))
+        scm = string.format([[
+%s
   (port  (open-output-file %s))
 )
 %s
@@ -541,19 +798,31 @@ function M.buildExportScript(psdPath, jobs, metaOutPath)
   (close-output-port port)
   (gimp-image-delete image)
 )
-]], scmStr(psdPath), scmStr(psdPath), scmStr(metaOutPath), table.concat(jobLines, "\n"))
+]], outerLoad, scmStr(metaOutPath), table.concat(jobLines, "\n"))
+    end
 
     local f = io.open(scriptPath, "w")
     if not f then return nil end
     f:write(scm)
     f:close()
 
-    local cmd = string.format(
-        "%s -i -b %s -b %s",
-        shellQuote(M.gimp and M.gimp.path or "gimp"),
-        shellQuote("(load " .. scmStr(scriptPath) .. ")"),
-        shellQuote("(gimp-quit 0)")
-    )
+    -- GIMP 3.x uses Python-Fu (python-fu-eval); GIMP 2.x uses Script-Fu.
+    local cmd
+    if gimp3 then
+        local pyPath = scriptPath:gsub("\\", "/"):gsub("'", "\\'")
+        cmd = string.format(
+            "%s -i --batch-interpreter python-fu-eval -b %s --quit",
+            shellQuote(M.gimp and M.gimp.path or "gimp"),
+            shellQuote("exec(open('" .. pyPath .. "').read())")
+        )
+    else
+        cmd = string.format(
+            "%s -i -b %s -b %s",
+            shellQuote(M.gimp and M.gimp.path or "gimp"),
+            shellQuote("(load " .. scmStr(scriptPath) .. ")"),
+            shellQuote("(gimp-quit 0)")
+        )
+    end
 
     return { scriptPath = scriptPath, metaPath = metaOutPath, cmd = cmd }
 end
@@ -590,6 +859,61 @@ function M.launchExportAsync(cmd)
     else
         os.execute(cmd .. ' >/dev/null 2>&1 &')
     end
+end
+
+-- ─── Synchronous export (with full output capture for debugging) ──────────────
+
+-- Runs the export script synchronously (blocking), captures GIMP stdout/stderr,
+-- and logs everything. Returns true if the meta sentinel was written.
+function M.runExportSync(info)
+    -- Log the script content so failures can be diagnosed.
+    print("[gimp_cli] export script: " .. info.scriptPath)
+    print("[gimp_cli] export meta:   " .. info.metaPath)
+    print("[gimp_cli] export cmd:    " .. info.cmd)
+    local sf = io.open(info.scriptPath, "r")
+    if sf then
+        print("[gimp_cli] --- export script content ---")
+        print(sf:read("*a"))
+        print("[gimp_cli] --- end export script ---")
+        sf:close()
+    end
+
+    local fullCmd = wrapCmd(info.cmd) .. " 2>&1"
+    print("[gimp_cli] running export: " .. fullCmd)
+    local f = io.popen(fullCmd)
+    local gimpOutput = ""
+    if f then
+        gimpOutput = f:read("*a") or ""
+        f:close()
+    end
+    if gimpOutput ~= "" then
+        print("[gimp_cli] GIMP export output:\n" .. gimpOutput)
+    else
+        print("[gimp_cli] GIMP export produced no output")
+    end
+
+    -- Brief grace period for filesystem flush.
+    local deadline = os.time() + 2
+    while not M.metaFileExists(info.metaPath) and os.time() < deadline do end
+
+    if not M.metaFileExists(info.metaPath) then
+        print("[gimp_cli] GIMP export exited without producing the meta file")
+        print("[gimp_cli] Script kept for inspection: " .. info.scriptPath)
+        return false
+    end
+
+    -- Log first few result lines.
+    local dbg = io.open(info.metaPath, "r")
+    if dbg then
+        local n = 0
+        for line in dbg:lines() do
+            print("[gimp_cli] export meta[" .. n .. "]: " .. line)
+            n = n + 1
+            if n >= 5 then print("[gimp_cli] export meta[...]: (truncated)"); break end
+        end
+        dbg:close()
+    end
+    return true
 end
 
 -- ─── Sidecar writers ─────────────────────────────────────────────────────────
