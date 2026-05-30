@@ -1666,10 +1666,17 @@ local function gimpPsdImportCoroutine()
             tTextureOptions.iCurrentAlgorithm = 6  -- Overlap textures
 
             -- Build quick-lookup tables.
+            local function pathKey(path)
+                local key = tostring(path or ""):gsub("\\", "/")
+                if mbm.is("windows") then
+                    key = key:lower()
+                end
+                return key
+            end
             local jobByPath = {}
             local zByGimpId = {}
             for idx, job in ipairs(jobs) do
-                jobByPath[job.outputPath] = job
+                jobByPath[pathKey(job.outputPath)] = job
                 -- Keep the same visible order shown in the GIMP import table:
                 -- first exported item gets Z=1, second gets Z=2, etc.
                 -- In overlap mode, lower Z is treated as front-most.
@@ -1681,14 +1688,15 @@ local function gimpPsdImportCoroutine()
             end
             local metaByPath = {}
             for _, entry in ipairs(entries) do
-                metaByPath[entry.outputPath] = entry
+                metaByPath[pathKey(entry.outputPath)] = entry
             end
 
             local psdW = st.iPsdWidth
             local psdH = st.iPsdHeight
             for i, texDesc in ipairs(tTexturesToEditor) do
-                local meta = metaByPath[texDesc.file_name]
-                local job  = jobByPath[texDesc.file_name]
+                local key = pathKey(texDesc.file_name)
+                local meta = metaByPath[key]
+                local job  = jobByPath[key]
                 if meta and job then
                     local layerInfo = layerByGimpId[job.gimpId]
                     if layerInfo then
