@@ -31,6 +31,8 @@
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
 tInkscape     =     require "inkscape_cli_wrapper"
+tImageMagick  =     require "imagick_cli_wrapper"
+tGimp         =     require "gimp_cli_wrapper"
 
 function onInitScene()
     
@@ -150,6 +152,66 @@ function onInitScene()
         iRangeFrom   = 1,      -- range-select: first group index (1-based)
         iRangeTo     = 10,     -- range-select: last  group index (1-based)
         customInkscapePath = '',  -- user-browsed executable path
+        aiTempSvgPath = nil,  -- temp .svg path when a .ai file was opened
+    }
+
+    tPsdImportState = {
+        bOpen        = false,
+        bOpenPopup   = false,
+        psdFilePath  = '',
+        tLayers      = {},   -- [{index=N (0-based), displayName=string, bSelected=bool}]
+        iWidth       = 256,
+        iHeight      = 256,
+        bKeepAspectRatio    = true,
+        bKeepAspectOnHeight = false,
+        bKeepInPsdFolder    = false,
+        sStatus      = '',
+        bStatusOk    = true,
+        bImporting   = false,
+        co           = nil,
+        iProgress    = 0,
+        iTotal       = 0,
+        iTimedOutCount = 0,
+        iTimeoutSecs = 60,
+        bAbortRequested = false,
+        iRangeFrom   = 1,
+        iRangeTo     = 10,
+        customImageMagickPath = '',
+        sFilter      = '',   -- text filter for the layer table
+        bShowVectorLayers = false,  -- show <Group>/<Path>/<Compound Path> layers
+    }
+
+    tGimpPsdImportState = {
+        bOpen        = false,
+        bOpenPopup   = false,
+        psdFilePath  = '',
+        -- Each entry: {gimpId, displayName, bSelected, width, height,
+        --              offsetX, offsetY, visible, isGroup, groupPath,
+        --              bMergeGroup, bCustomSize, iCustomW, iCustomH}
+        tLayers      = {},
+        iWidth       = 256,
+        iHeight      = 256,
+        bKeepAspectRatio    = true,
+        bKeepAspectOnHeight = false,
+        bKeepInPsdFolder    = false,
+        sStatus      = '',
+        bStatusOk    = true,
+        bImporting   = false,
+        co           = nil,
+        iProgress    = 0,
+        iTotal       = 1,   -- always 1: single GIMP run
+        iTimeoutSecs = 120,
+        bAbortRequested = false,
+        customGimpPath  = '',
+        sFilter         = '',
+        bShowHiddenLayers = false,
+        bKeepLuaMeta    = false,  -- keep .lua sidecar next to PSD after import
+        bWriteJsonMeta  = false,  -- write .json sidecar next to PSD after import
+        tempFiles       = {},     -- paths to clean up on finish
+        bGroupsOnlyView = false,  -- show only root-level groups (one image per group)
+        bFreeOffset     = false,  -- apply PSD canvas offsets to Overlap Textures
+        iPsdWidth       = 0,      -- PSD canvas width in pixels (set on scan)
+        iPsdHeight      = 0,      -- PSD canvas height in pixels (set on scan)
     }
 end
 
@@ -344,11 +406,40 @@ end
 
 -- ── SVG import: open file dialog, parse groups ────────────────────────────────
 function onImportSvg()
-    local filePath = mbm.openFile(tSvgImportState.svgFilePath, '*.svg')
+    local filePath = mbm.openFile(tSvgImportState.svgFilePath, '*.svg','*.ai')
     if not filePath then return end
-    tSvgImportState.svgFilePath = filePath
-    tSvgImportState.sStatus     = ''
-    tSvgImportState.bStatusOk   = true
+    tSvgImportState.sStatus   = ''
+    tSvgImportState.bStatusOk = true
+
+    -- If the user picked a .ai file, convert it to a temp SVG first.
+    local svgFilePath = filePath
+    if tInkscape.isAiFile(filePath) then
+        local ink = tInkscape.detectInkscape()
+        if not ink.found then
+            local os_name = (mbm.get('os') or ''):lower()
+            local key = 'svg_import_inkscape_missing_' .. os_name
+            tSvgImportState.sStatus   = tLang.L(key)
+            tSvgImportState.bStatusOk = false
+            tSvgImportState.bOpen      = true
+            tSvgImportState.bOpenPopup = true
+            return
+        end
+        local tmpDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+        local stem   = tInkscape.getFileBaseStem(filePath)
+        svgFilePath  = tmpDir .. "/" .. stem .. "_ai_converted.svg"
+        if not tInkscape.convertAiToSvg(filePath, svgFilePath) then
+            tSvgImportState.sStatus   = 'AI to SVG conversion failed. Check inkscape installation.'
+            tSvgImportState.bStatusOk = false
+            tSvgImportState.bOpen      = true
+            tSvgImportState.bOpenPopup = true
+            return
+        end
+        tSvgImportState.aiTempSvgPath = svgFilePath
+    else
+        tSvgImportState.aiTempSvgPath = nil
+    end
+
+    tSvgImportState.svgFilePath = svgFilePath
 
     -- Detect inkscape once (cached).
     local ink = tInkscape.detectInkscape()
@@ -360,7 +451,7 @@ function onImportSvg()
     end
 
     -- Parse groups at the current depth level.
-    local rawGroups = tInkscape.parseSvgGroupsAtDepth(filePath, tSvgImportState.iGroupDepth)
+    local rawGroups = tInkscape.parseSvgGroupsAtDepth(svgFilePath, tSvgImportState.iGroupDepth)
     tSvgImportState.tGroups = {}
     for _, g in ipairs(rawGroups) do
         table.insert(tSvgImportState.tGroups, { id = g.id, displayName = g.displayName, bSelected = true })
@@ -531,6 +622,11 @@ local function svgImportCoroutine()
         st.bStatusOk = false
     end
     st.bImporting = false
+    -- Clean up the temporary SVG that was created from a .ai file, if any.
+    if st.aiTempSvgPath then
+        os.remove(st.aiTempSvgPath)
+        st.aiTempSvgPath = nil
+    end
 end
 
 -- Kicks off the import by creating the coroutine; the dialog drives it.
@@ -763,6 +859,1380 @@ function showSvgImportDialog()
     tImGui.EndDisabled()
     tImGui.SameLine()
     if tImGui.Button(tLang.L("svg_import_btn_cancel")) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
+end
+
+-- ─── PSD import ───────────────────────────────────────────────────────────────
+
+-- Open file dialog, count layers, populate tPsdImportState.
+function onImportPsd()
+    local filePath = mbm.openFile(tPsdImportState.psdFilePath, '*.psd')
+    if not filePath then return end
+    tPsdImportState.psdFilePath = filePath
+    tPsdImportState.sStatus     = ''
+    tPsdImportState.bStatusOk   = true
+
+    -- Detect ImageMagick once (cached).
+    local im = tImageMagick.detectImageMagick()
+    if not im.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_import_imagemagick_missing_' .. os_name
+        tPsdImportState.sStatus   = tLang.L(key)
+        tPsdImportState.bStatusOk = false
+    end
+
+    -- Query per-layer info (real names + geometry); frames with zero dimensions
+    -- (empty merged composite, adjustment/group layers) are pre-filtered out.
+    local tLayerInfo = im.found and tImageMagick.getPsdLayerInfo(filePath) or {}
+    tPsdImportState.tLayers = {}
+    for _, info in ipairs(tLayerInfo) do
+        table.insert(tPsdImportState.tLayers, {
+            index       = info.index,
+            displayName = info.displayName,
+            bSelected   = true,
+            width       = info.width,
+            height      = info.height,
+            bCustomSize = false,  -- when true, iCustomW/iCustomH override global size
+            iCustomW    = info.width,
+            iCustomH    = info.height,
+        })
+    end
+
+    tPsdImportState.bOpen      = true
+    tPsdImportState.bOpenPopup = true
+end
+
+-- Coroutine body: launches ImageMagick in batches, polls for completion.
+local function psdImportCoroutine()
+    local st  = tPsdImportState
+    local outputDir
+    if not st.bKeepInPsdFolder then
+        outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    end
+
+    local stem
+    if outputDir then
+        stem = outputDir .. "/" .. tImageMagick.getFileBaseStem(st.psdFilePath)
+    else
+        stem = tImageMagick.getFileDir(st.psdFilePath) .. tImageMagick.getFileBaseStem(st.psdFilePath)
+    end
+
+    -- Build job list for selected layers.
+    local jobs = {}
+    for _, layer in ipairs(st.tLayers) do
+        if layer.bSelected then
+            local outputPath = string.format("%s_layer%d.png", stem, layer.index)
+            -- Per-layer custom size overrides the global dialog size.
+            local w, h, keepAsp, keepOnH
+            if layer.bCustomSize and layer.iCustomW and layer.iCustomH
+               and layer.iCustomW > 0 and layer.iCustomH > 0 then
+                w, h, keepAsp, keepOnH = layer.iCustomW, layer.iCustomH, false, false
+            else
+                w, h, keepAsp, keepOnH = st.iWidth, st.iHeight, st.bKeepAspectRatio, st.bKeepAspectOnHeight
+            end
+            local cmd = tImageMagick.buildLayerCmd(st.psdFilePath, layer.index, outputPath,
+                            w, h, keepAsp, keepOnH)
+            if cmd then
+                table.insert(jobs, { cmd = cmd, outputPath = outputPath, done = false })
+            end
+        end
+    end
+
+    st.iTotal    = #jobs
+    st.iProgress = 0
+    local allPngs = {}
+
+    local i = 1
+    while i <= #jobs do
+        local batchEnd = math.min(i + IMPORT_MAX_PARALLEL - 1, #jobs)
+
+        for j = i, batchEnd do
+            os.remove(jobs[j].outputPath)
+            tImageMagick.launchCmdAsync(jobs[j].cmd)
+        end
+
+        local batchStartTime = os.time()
+        local batchDone = false
+        while not batchDone do
+            batchDone = true
+            local elapsed  = os.time() - batchStartTime
+            local timedOut = elapsed >= st.iTimeoutSecs
+            local abort    = st.bAbortRequested
+            for j = i, batchEnd do
+                if not jobs[j].done then
+                    if tImageMagick.fileExists(jobs[j].outputPath) then
+                        jobs[j].done  = true
+                        st.iProgress  = st.iProgress + 1
+                        table.insert(allPngs, jobs[j].outputPath)
+                    elseif timedOut or abort then
+                        jobs[j].done      = true
+                        st.iProgress      = st.iProgress + 1
+                        st.iTimedOutCount = st.iTimedOutCount + 1
+                        print("PSD import: timed out waiting for", jobs[j].outputPath)
+                    else
+                        batchDone = false
+                    end
+                end
+            end
+            if not batchDone then
+                coroutine.yield()
+            end
+        end
+
+        i = batchEnd + 1
+        if st.bAbortRequested then break end
+    end
+
+    if #allPngs > 0 then
+        loadSvgPngsIntoEditor(allPngs)
+        if st.iTimedOutCount > 0 then
+            st.sStatus = string.format(tLang.L("psd_import_done_with_timeouts_fmt"), #allPngs, st.iTimedOutCount)
+        else
+            st.sStatus = string.format(tLang.L("psd_import_done_fmt"), #allPngs)
+        end
+        st.bStatusOk = true
+    else
+        st.sStatus   = tLang.L("psd_import_failed")
+        st.bStatusOk = false
+    end
+    st.bImporting = false
+end
+
+-- Kicks off the PSD import coroutine.
+local function startPsdImport()
+    local st = tPsdImportState
+    st.iProgress       = 0
+    st.iTotal          = 0
+    st.iTimedOutCount  = 0
+    st.bAbortRequested = false
+    st.sStatus         = ''
+    st.bStatusOk       = true
+    st.bImporting      = true
+    st.co              = coroutine.create(psdImportCoroutine)
+end
+
+-- ImGui modal dialog for PSD import.
+function showPsdImportDialog()
+    local st = tPsdImportState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup("psd_import_modal")
+        st.bOpenPopup = false
+    end
+
+    local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
+    local is_open, _ = tImGui.BeginPopupModal(tLang.L("psd_import_modal_title") .. "###psd_import_modal", false, flags)
+    if not is_open then return end
+
+    -- Progress view while coroutine is running.
+    if st.bImporting then
+        if st.co and coroutine.status(st.co) == "suspended" then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co         = nil
+                st.sStatus    = tostring(err)
+                st.bStatusOk  = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L("psd_import_progress_fmt"), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_btn_abort")) then
+            st.bAbortRequested = true
+        end
+
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L("psd_import_btn_cancel")) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+
+    -- Width / Height inputs
+    tImGui.BeginDisabled(st.bKeepAspectRatio and st.bKeepAspectOnHeight)
+        local wChanged, newW = tImGui.InputInt(tLang.L("psd_import_width"),  st.iWidth,  1, 64)
+        if wChanged and newW and newW > 0 then st.iWidth  = newW end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(st.bKeepAspectRatio and not st.bKeepAspectOnHeight)
+        local hChanged, newH = tImGui.InputInt(tLang.L("psd_import_height"), st.iHeight, 1, 64)
+        if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.EndDisabled()
+    st.bKeepAspectRatio = tImGui.Checkbox(tLang.L("psd_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    if st.bKeepAspectRatio then
+        tImGui.SameLine()
+        st.bKeepAspectOnHeight = tImGui.Checkbox(tLang.L("psd_import_keep_aspect_on_height"), st.bKeepAspectOnHeight)
+    end
+
+    st.bKeepInPsdFolder = tImGui.Checkbox(tLang.L("psd_import_keep_in_psd_folder"), st.bKeepInPsdFolder)
+
+    local toChanged, newTo = tImGui.InputInt(tLang.L("psd_import_timeout_secs"), st.iTimeoutSecs, 5, 30)
+    if toChanged and newTo and newTo >= 5 then st.iTimeoutSecs = newTo end
+
+    tImGui.Separator()
+
+    -- Layer list
+    -- Vector-tool auto-names used by Photoshop shape layers.
+    local VECTOR_NAMES = { ["<group>"]=true, ["<path>"]=true, ["<compound path>"]=true,
+                           ["<shape layer>"]=true, ["<clipping mask>"]=true }
+    local function isVectorLayer(name)
+        return VECTOR_NAMES[name:lower()] ~= nil
+    end
+
+    -- Build the list of layers that pass the current visibility/filter settings.
+    local function buildVisibleList()
+        local vis = {}
+        local filterLower = st.sFilter:lower()
+        for i, layer in ipairs(st.tLayers) do
+            local show = true
+            if not st.bShowVectorLayers and isVectorLayer(layer.displayName) then show = false end
+            if show and filterLower ~= '' and not layer.displayName:lower():find(filterLower, 1, true) then show = false end
+            if show then table.insert(vis, i) end
+        end
+        return vis
+    end
+
+    -- Compute prefix groups from a list of layer indices.
+    -- Returns [{prefix=string, indices=[...]}] sorted to preserve original order.
+    -- Layers whose name shares a common word-prefix with at least one other layer
+    -- are grouped under that prefix.  Singletons form a group named "" (no header).
+    local function buildPrefixGroups(visList)
+        -- Extract first word(s) as prefix candidate (up to 2 words).
+        local function prefix1(name)
+            return name:match("^(%S+)") or name
+        end
+        local prefixCount = {}
+        for _, idx in ipairs(visList) do
+            local p = prefix1(st.tLayers[idx].displayName)
+            prefixCount[p] = (prefixCount[p] or 0) + 1
+        end
+        -- Assign each layer to a group.
+        local groups  = {}    -- ordered list of {prefix, indices}
+        local groupAt = {}    -- prefix → position in groups[]
+        local function getOrCreate(p)
+            if not groupAt[p] then
+                table.insert(groups, { prefix=p, indices={} })
+                groupAt[p] = #groups
+            end
+            return groupAt[p]
+        end
+        for _, idx in ipairs(visList) do
+            local name = st.tLayers[idx].displayName
+            local p    = prefix1(name)
+            -- Use prefix grouping only when >=2 layers share the prefix.
+            local gp   = (prefixCount[p] and prefixCount[p] >= 2) and p or ""
+            local pos  = getOrCreate(gp)
+            table.insert(groups[pos].indices, idx)
+        end
+        return groups
+    end
+
+    local nLayers = #st.tLayers
+    if nLayers > 0 then
+        local visList  = buildVisibleList()
+        local nVisible = #visList
+        local nSelected = 0
+        for _, idx in ipairs(visList) do if st.tLayers[idx].bSelected then nSelected = nSelected + 1 end end
+
+        tImGui.Text(string.format(tLang.L("psd_import_layers_found_fmt"), nLayers))
+        tImGui.SameLine()
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=1, b=0.3, a=1})
+        tImGui.Text(string.format(tLang.L("psd_import_selected_fmt"), nSelected))
+        tImGui.PopStyleColor()
+        tImGui.SameLine()
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=0.5, g=0.8, b=0.5, a=1})
+        tImGui.Text(string.format("(%d %s)", nVisible, tLang.L("psd_import_visible")))
+        tImGui.PopStyleColor()
+
+        if tImGui.Button(tLang.L("psd_import_select_all")) then
+            for _, idx in ipairs(visList) do st.tLayers[idx].bSelected = true end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_deselect_all")) then
+            for _, idx in ipairs(visList) do st.tLayers[idx].bSelected = false end
+        end
+        tImGui.SameLine()
+        st.bShowVectorLayers = tImGui.Checkbox(tLang.L("psd_import_show_vector"), st.bShowVectorLayers)
+
+        tImGui.Separator()
+
+        -- Custom-size bulk buttons
+        if tImGui.Button(tLang.L("psd_import_use_recommended_all")) then
+            for _, idx in ipairs(visList) do
+                st.tLayers[idx].bCustomSize = true
+                st.tLayers[idx].iCustomW    = st.tLayers[idx].width
+                st.tLayers[idx].iCustomH    = st.tLayers[idx].height
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(tLang.L("psd_import_use_recommended_all_tip"))
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_import_use_global_all")) then
+            for _, idx in ipairs(visList) do
+                st.tLayers[idx].bCustomSize = false
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(tLang.L("psd_import_use_global_all_tip"))
+        end
+        tImGui.Separator()
+        tImGui.Text(tLang.L("psd_import_auto_fit"))
+        if tImGui.Button(tLang.L("psd_import_fit_to_global")) then
+            -- Scale each visible layer independently so it fits within the
+            -- global W×H box, respecting the aspect-ratio checkbox state.
+            local maxW = st.iWidth
+            local maxH = st.iHeight
+            for _, idx in ipairs(visList) do
+                local nw = st.tLayers[idx].width
+                local nh = st.tLayers[idx].height
+                if nw > 0 and nh > 0 then
+                    local scale
+                    if st.bKeepAspectOnHeight then
+                        -- fix height, let width float
+                        scale = maxH / nh
+                    else
+                        -- fit inside W×H box
+                        scale = math.min(maxW / nw, maxH / nh)
+                    end
+                    st.tLayers[idx].bCustomSize = true
+                    st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                    st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_global_tip"), st.iWidth, st.iHeight))
+        end
+        -- Pre-compute the largest natural dimensions across visible layers
+        -- (used for the tooltip and the uniform-scale calculation below).
+        local biggestW, biggestH = 0, 0
+        for _, idx in ipairs(visList) do
+            local nw = st.tLayers[idx].width
+            local nh = st.tLayers[idx].height
+            if nw > biggestW then biggestW = nw end
+            if nh > biggestH then biggestH = nh end
+        end
+        
+        -- Bulk: uniform scale — derive one scale factor from the largest layer
+        -- so all layers shrink/grow together and their relative sizes are kept.
+        if tImGui.Button(tLang.L("psd_import_fit_to_max")) then
+            local maxW  = st.iWidth
+            local maxH  = st.iHeight
+            local scale = nil
+            if biggestW > 0 and biggestH > 0 then
+                if st.bKeepAspectOnHeight then
+                    -- fix height, let width float proportionally
+                    scale = maxH / biggestH
+                else
+                    -- fit within the W×H box (keep aspect ratio or full-box)
+                    scale = math.min(maxW / biggestW, maxH / biggestH)
+                end
+            end
+            if scale then
+                for _, idx in ipairs(visList) do
+                    local nw = st.tLayers[idx].width
+                    local nh = st.tLayers[idx].height
+                    if nw > 0 and nh > 0 then
+                        st.tLayers[idx].bCustomSize = true
+                        st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                        st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                    end
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_max_tip"), biggestW, biggestH, st.iWidth, st.iHeight))
+        end
+
+        tImGui.Separator()
+        -- Search filter (full width)
+        tImGui.SetNextItemWidth(-1)
+        local fMod, fNew = tImGui.InputTextWithHint('##psd_filter', st.sFilter, tLang.L('psd_import_filter_hint'))
+        if fMod and fNew ~= nil then st.sFilter = fNew end
+
+        -- Scrollable table: [✓] | # | Name | Size | [custom override]
+        -- Columns: cb(22) | idx(36) | name(stretch) | size(80) | custom(22) | cW(60) | cH(60)
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
+                                      'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_SizingFixedFit')
+        if tImGui.BeginTable('psd_layers_tbl', 7, tblFlags, {x=0, y=240}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn('##cb',  tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
+            tImGui.TableSetupColumn('#',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 36)
+            tImGui.TableSetupColumn(tLang.L('psd_import_col_name'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+            tImGui.TableSetupColumn(tLang.L('psd_import_col_size'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn('##cust', tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 50)
+            tImGui.TableSetupColumn('W',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+            tImGui.TableSetupColumn('H',     tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+            tImGui.TableHeadersRow()
+
+            local groups = buildPrefixGroups(visList)
+            -- Track which tree nodes we opened so we can close them properly.
+            for gi, grp in ipairs(groups) do
+                local hasHeader = grp.prefix ~= ""
+                local groupOpen = true
+                if hasHeader then
+                    -- Count selected in group
+                    local gSel, gTotal = 0, #grp.indices
+                    for _, idx in ipairs(grp.indices) do if st.tLayers[idx].bSelected then gSel = gSel + 1 end end
+                    local allSel = gSel == gTotal
+
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    -- Group-level checkbox: toggle all children
+                    local newAllSel = tImGui.Checkbox('##grp_cb_' .. gi, allSel)
+                    if newAllSel ~= allSel then
+                        for _, idx in ipairs(grp.indices) do st.tLayers[idx].bSelected = newAllSel end
+                    end
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    -- TreeNode spanning the name column
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.9, g=0.75, b=0.3, a=1})
+                    groupOpen = tImGui.TreeNodeEx(grp.prefix .. ' (' .. gTotal .. ')##grpnode_' .. gi,
+                                                   tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen',
+                                                                 'ImGuiTreeNodeFlags_SpanFullWidth'))
+                    tImGui.PopStyleColor()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                    tImGui.TableNextColumn()
+                end
+
+                if groupOpen then
+                    for _, idx in ipairs(grp.indices) do
+                        local layer = st.tLayers[idx]
+                        tImGui.TableNextRow()
+                        tImGui.TableNextColumn()
+                        local newSel = tImGui.Checkbox('##psd_cb_' .. idx, layer.bSelected)
+                        if newSel ~= layer.bSelected then st.tLayers[idx].bSelected = newSel end
+                        tImGui.TableNextColumn()
+                        tImGui.Text(tostring(layer.index))
+                        tImGui.TableNextColumn()
+                        local indent = hasHeader and "  " or ""
+                        if tImGui.Selectable(indent .. layer.displayName .. '##psd_row_' .. idx,
+                                             layer.bSelected, 0) then
+                            st.tLayers[idx].bSelected = not layer.bSelected
+                        end
+                        tImGui.TableNextColumn()
+                        -- Natural size (dimmed). Click to copy into custom W/H.
+                        tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
+                        local sizeLabel = string.format('%dx%d##sz_%d', layer.width, layer.height, idx)
+                        if tImGui.Selectable(sizeLabel, false, 0) then
+                            -- Clicking the size copies it to custom fields and enables override.
+                            st.tLayers[idx].bCustomSize = true
+                            st.tLayers[idx].iCustomW    = layer.width
+                            st.tLayers[idx].iCustomH    = layer.height
+                        end
+                        tImGui.PopStyleColor()
+                        tImGui.TableNextColumn()
+                        -- Custom size toggle checkbox
+                        local newCust = tImGui.Checkbox('##psd_cust_' .. idx, layer.bCustomSize)
+                        if newCust ~= layer.bCustomSize then
+                            st.tLayers[idx].bCustomSize = newCust
+                            if newCust and (not layer.iCustomW or layer.iCustomW == 0) then
+                                st.tLayers[idx].iCustomW = layer.width
+                                st.tLayers[idx].iCustomH = layer.height
+                            end
+                        end
+                        tImGui.TableNextColumn()
+                        if layer.bCustomSize then
+                            tImGui.SetNextItemWidth(54)
+                            local wC, nW = tImGui.InputInt('##cW_' .. idx, layer.iCustomW, 0, 0)
+                            if wC and nW and nW > 0 then st.tLayers[idx].iCustomW = nW end
+                        else
+                            tImGui.TextDisabled('-')
+                        end
+                        tImGui.TableNextColumn()
+                        if layer.bCustomSize then
+                            tImGui.SetNextItemWidth(54)
+                            local hC, nH = tImGui.InputInt('##cH_' .. idx, layer.iCustomH, 0, 0)
+                            if hC and nH and nH > 0 then st.tLayers[idx].iCustomH = nH end
+                        else
+                            tImGui.TextDisabled('-')
+                        end
+                    end
+                    if hasHeader then tImGui.TreePop() end
+                end
+            end
+            tImGui.EndTable()
+        end
+    else
+        tImGui.TextWrapped(tLang.L("psd_import_no_layers"))
+    end
+
+    tImGui.Separator()
+
+    -- Status line
+    if st.sStatus ~= '' then
+        if not st.bStatusOk then
+            tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+            tImGui.TextWrapped(st.sStatus)
+            tImGui.PopStyleColor()
+        else
+            tImGui.TextWrapped(st.sStatus)
+        end
+    end
+
+    -- ImageMagick missing warning + browse fallback
+    local im = tImageMagick.imagick
+    if im and not im.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_import_imagemagick_missing_' .. os_name
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(tLang.L(key))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L("psd_import_browse_imagemagick")) then
+            local exeFilter = (os_name == "windows") and "*.exe" or "*"
+            local picked = mbm.openFile(st.customImageMagickPath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customImageMagickPath = picked
+                tImageMagick.setCustomPath(picked)
+                local newIm = tImageMagick.detectImageMagick()
+                if newIm.found then
+                    st.sStatus   = ''
+                    st.bStatusOk = true
+                else
+                    st.sStatus   = tLang.L(key)
+                    st.bStatusOk = false
+                end
+            end
+        end
+    end
+
+    -- Import / Cancel buttons
+    local canImport = im and im.found and nLayers > 0
+    tImGui.BeginDisabled(not canImport)
+        if tImGui.Button(tLang.L("psd_import_btn_import")) then
+            startPsdImport()
+        end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L("psd_import_btn_cancel")) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
+end
+
+-- ─── PSD import — GIMP backend ───────────────────────────────────────────────
+
+-- Open file dialog, detect GIMP, run synchronous layer scan, populate state.
+function onImportPsdGimp()
+    local filePath = mbm.openFile(tGimpPsdImportState.psdFilePath, '*.psd')
+    if not filePath then return end
+    tGimpPsdImportState.psdFilePath = filePath
+    tGimpPsdImportState.sStatus     = ''
+    tGimpPsdImportState.bStatusOk   = true
+
+    -- Apply any user-supplied custom path before detection.
+    if tGimpPsdImportState.customGimpPath and tGimpPsdImportState.customGimpPath ~= '' then
+        tGimp.setCustomPath(tGimpPsdImportState.customGimpPath)
+    end
+
+    local g = tGimp.detectGimp()
+    if not g.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_gimp_import_gimp_missing_' .. os_name
+        tGimpPsdImportState.sStatus   = tLang.L(key)
+        tGimpPsdImportState.bStatusOk = false
+        tGimpPsdImportState.bOpen      = true
+        tGimpPsdImportState.bOpenPopup = true
+        return
+    end
+
+    -- Synchronous scan — blocks for ~3-5 s while GIMP loads the PSD.
+    tGimpPsdImportState.tLayers = {}
+    local tLayerInfo, psdW, psdH = tGimp.getPsdLayerInfo(filePath)
+    tGimpPsdImportState.iPsdWidth  = psdW or 0
+    tGimpPsdImportState.iPsdHeight = psdH or 0
+    for _, info in ipairs(tLayerInfo) do
+        table.insert(tGimpPsdImportState.tLayers, {
+            gimpId      = info.gimpId,
+            displayName = info.name,
+            bSelected   = info.visible,  -- hidden layers pre-deselected
+            width       = info.width,
+            height      = info.height,
+            offsetX     = info.offsetX,
+            offsetY     = info.offsetY,
+            visible     = info.visible,
+            isGroup     = info.isGroup,
+            groupPath   = info.groupPath,
+            bMergeGroup = false,  -- default: export leaf children, not merged group PNG
+            bCustomSize = false,
+            iCustomW    = info.width,
+            iCustomH    = info.height,
+        })
+    end
+
+    -- Auto-detect root-level groups and enable merge mode on them.
+    -- This makes the default behavior "export each top-level group as one image".
+    local hasRootGroups = false
+    for _, layer in ipairs(tGimpPsdImportState.tLayers) do
+        if layer.isGroup and layer.groupPath == "" then
+            hasRootGroups    = true
+            layer.bMergeGroup = true
+            layer.bSelected   = true
+        end
+    end
+    tGimpPsdImportState.bGroupsOnlyView = hasRootGroups
+
+    tGimpPsdImportState.bOpen      = true
+    tGimpPsdImportState.bOpenPopup = true
+end
+
+-- Coroutine body: builds a single GIMP export batch, polls for the metadata
+-- sentinel file, then loads the resulting PNGs into the editor.
+local function gimpPsdImportCoroutine()
+    local st  = tGimpPsdImportState
+    local outputDir
+    if not st.bKeepInPsdFolder then
+        outputDir = os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+    end
+
+    local stem
+    if outputDir then
+        stem = outputDir .. "/" .. tGimp.getFileBaseStem(st.psdFilePath)
+    else
+        stem = tGimp.getFileDir(st.psdFilePath) .. tGimp.getFileBaseStem(st.psdFilePath)
+    end
+
+    -- Helper: is item-id a descendant of a group that has bMergeGroup=true?
+    local function isUnderMergedGroup(layerEntry)
+        if layerEntry.groupPath == "" then return false end
+        -- Walk tLayers looking for a group whose full path matches a prefix.
+        for _, candidate in ipairs(st.tLayers) do
+            if candidate.isGroup and candidate.bMergeGroup and candidate.bSelected then
+                local grpFullPath = (candidate.groupPath == "") and candidate.displayName
+                    or (candidate.groupPath .. "/" .. candidate.displayName)
+                -- Check if layerEntry's groupPath starts with this group's full path.
+                if layerEntry.groupPath == grpFullPath
+                   or layerEntry.groupPath:sub(1, #grpFullPath + 1) == grpFullPath .. "/" then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    -- Helper: is this leaf layer under a group that exists but is deselected?
+    -- Used in groups-only mode to fully suppress layers belonging to excluded groups.
+    local function isUnderDeselectedGroup(layerEntry)
+        if layerEntry.groupPath == "" then return false end
+        for _, candidate in ipairs(st.tLayers) do
+            if candidate.isGroup and not candidate.bSelected then
+                local grpFullPath = (candidate.groupPath == "") and candidate.displayName
+                    or (candidate.groupPath .. "/" .. candidate.displayName)
+                if layerEntry.groupPath == grpFullPath
+                   or layerEntry.groupPath:sub(1, #grpFullPath + 1) == grpFullPath .. "/" then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    -- Build job list.
+    local jobs = {}
+    local seenMergedGroups = {}
+    for _, layer in ipairs(st.tLayers) do
+        if layer.bSelected then
+            if layer.isGroup and layer.bMergeGroup then
+                -- Export this group as one merged PNG.
+                if not seenMergedGroups[layer.gimpId] then
+                    seenMergedGroups[layer.gimpId] = true
+                    local outputPath = string.format("%s_gimp_%d_merged.png", stem, layer.gimpId)
+                    local w = layer.bCustomSize and layer.iCustomW or st.iWidth
+                    local h = layer.bCustomSize and layer.iCustomH or st.iHeight
+                    table.insert(jobs, {
+                        gimpId      = layer.gimpId,
+                        outputPath  = outputPath,
+                        width       = w,
+                        height      = h,
+                        isMerge     = true,
+                    })
+                end
+            elseif not layer.isGroup and not isUnderMergedGroup(layer)
+                   and not (st.bGroupsOnlyView and isUnderDeselectedGroup(layer)) then
+                -- Export individual leaf layer.
+                local outputPath = string.format("%s_gimp_%d.png", stem, layer.gimpId)
+                local w = layer.bCustomSize and layer.iCustomW or st.iWidth
+                local h = layer.bCustomSize and layer.iCustomH or st.iHeight
+                table.insert(jobs, {
+                    gimpId      = layer.gimpId,
+                    outputPath  = outputPath,
+                    width       = w,
+                    height      = h,
+                    isMerge     = false,
+                })
+            end
+        end
+    end
+
+    if #jobs == 0 then
+        st.sStatus   = tLang.L("psd_gimp_import_no_layers")
+        st.bStatusOk = false
+        st.bImporting = false
+        return
+    end
+
+    -- Build the temp meta output path.
+    local metaOutPath = stem .. "_gimp_export_meta_" .. tostring(os.time()) .. ".lua"
+
+    local info = tGimp.buildExportScript(st.psdFilePath, jobs, metaOutPath)
+    if not info then
+        st.sStatus   = tLang.L("psd_gimp_import_failed")
+        st.bStatusOk = false
+        st.bImporting = false
+        return
+    end
+
+    st.tempFiles = { info.scriptPath, metaOutPath }
+
+    -- Log script for debuggability before launching.
+    if bDebugEnabled then
+        print("[gimp_cli] export script: " .. info.scriptPath)
+        print("[gimp_cli] export cmd:    " .. info.cmd)
+        local _sf = io.open(info.scriptPath, "r")
+        if _sf then
+            print("[gimp_cli] --- export script content ---")
+            print(_sf:read("*a"))
+            print("[gimp_cli] --- end export script ---")
+            _sf:close()
+        end
+    end
+
+    -- Launch GIMP asynchronously so the progress bar can update while it runs.
+    tGimp.launchExportAsync(info.cmd)
+
+    st.iTotal    = #jobs
+    st.iProgress = 0
+
+    -- Poll until GIMP writes the sentinel ("-- END").
+    -- export_item flushes after each PNG so iProgress advances per saved image.
+    local deadline = os.time() + st.iTimeoutSecs
+    while not tGimp.metaFileExists(metaOutPath) do
+        if os.time() >= deadline or st.bAbortRequested then
+            -- On timeout try a synchronous re-run to capture any error output.
+            if not st.bAbortRequested then
+                print("[gimp_cli] Export timed out; re-running sync to capture errors...")
+                tGimp.runExportSync(info)
+            end
+            st.sStatus   = tLang.L("psd_gimp_import_timed_out")
+            st.bStatusOk = false
+            tGimp.cleanupTempFiles(st.tempFiles)
+            st.tempFiles  = {}
+            st.bImporting = false
+            return
+        end
+        st.iProgress = tGimp.countExportedSoFar(metaOutPath)
+        coroutine.yield()
+    end
+
+    st.iProgress = st.iTotal
+
+    -- Read results.
+    local entries = tGimp.loadExportMeta(metaOutPath)
+    local allPngs = {}
+    for _, e in ipairs(entries) do
+        table.insert(allPngs, e.outputPath)
+    end
+
+    if #allPngs > 0 then
+        loadSvgPngsIntoEditor(allPngs)
+
+        -- If "Free offset position" is checked, switch to Overlap Textures and
+        -- position each texture to match its original canvas position in the PSD.
+        if st.bFreeOffset and st.iPsdWidth > 0 and st.iPsdHeight > 0 then
+            tTextureOptions.iCurrentAlgorithm = 6  -- Overlap textures
+
+            -- Build quick-lookup tables.
+            local function pathKey(path)
+                local key = tostring(path or ""):gsub("\\", "/")
+                if mbm.is("windows") then
+                    key = key:lower()
+                end
+                return key
+            end
+            local jobByPath = {}
+            local zByGimpId = {}
+            for idx, job in ipairs(jobs) do
+                jobByPath[pathKey(job.outputPath)] = job
+                -- Keep the same visible order shown in the GIMP import table:
+                -- first exported item gets Z=1, second gets Z=2, etc.
+                -- In overlap mode, lower Z is treated as front-most.
+                zByGimpId[job.gimpId] = idx
+            end
+            local layerByGimpId = {}
+            for _, layer in ipairs(st.tLayers) do
+                layerByGimpId[layer.gimpId] = layer
+            end
+            local metaByPath = {}
+            for _, entry in ipairs(entries) do
+                metaByPath[pathKey(entry.outputPath)] = entry
+            end
+
+            local psdW = st.iPsdWidth
+            local psdH = st.iPsdHeight
+            for i, texDesc in ipairs(tTexturesToEditor) do
+                local key = pathKey(texDesc.file_name)
+                local meta = metaByPath[key]
+                local job  = jobByPath[key]
+                if meta and job then
+                    local layerInfo = layerByGimpId[job.gimpId]
+                    if layerInfo then
+                        local naturalW = layerInfo.width
+                        local naturalH = layerInfo.height
+                        local exportW  = job.width
+                        local exportH  = job.height
+                        -- Center of the layer in PSD pixel space.
+                        local centerPsdX = meta.offsetX + naturalW * 0.5
+                        local centerPsdY = meta.offsetY + naturalH * 0.5
+                        -- Convert to world space: origin at PSD canvas centre, Y flipped.
+                        -- Scale proportionally to match the exported image dimensions.
+                        local scaleX = (naturalW > 0) and (exportW / naturalW) or 1
+                        local scaleY = (naturalH > 0) and (exportH / naturalH) or 1
+                        tTexturesToEditor[i].fOverlapX = (centerPsdX - psdW * 0.5) * scaleX
+                        tTexturesToEditor[i].fOverlapY = (psdH * 0.5 - centerPsdY) * scaleY
+                        tTexturesToEditor[i].fOverlapZ = zByGimpId[job.gimpId] or 0
+                    end
+                end
+            end
+        end
+
+        st.sStatus   = string.format(tLang.L("psd_gimp_import_done_fmt"), #allPngs)
+        st.bStatusOk = true
+    else
+        st.sStatus   = tLang.L("psd_gimp_import_failed")
+        st.bStatusOk = false
+    end
+
+    -- Optional sidecar files next to the PSD.
+    local psdStem = tGimp.getFileDir(st.psdFilePath) .. tGimp.getFileBaseStem(st.psdFilePath)
+    if st.bKeepLuaMeta then
+        tGimp.writeLuaMeta(psdStem .. "_gimp_meta.lua", entries)
+        -- Remove from cleanup list so it is not deleted.
+        local kept = {}
+        for _, p in ipairs(st.tempFiles) do
+            if p ~= metaOutPath then table.insert(kept, p) end
+        end
+        st.tempFiles = kept
+    end
+    if st.bWriteJsonMeta then
+        tGimp.writeJsonMeta(psdStem .. "_gimp_meta.json", entries)
+    end
+
+    tGimp.cleanupTempFiles(st.tempFiles)
+    st.tempFiles  = {}
+    st.bImporting = false
+end
+
+-- Kicks off the GIMP PSD import coroutine.
+local function startGimpPsdImport()
+    local st = tGimpPsdImportState
+    st.iProgress       = 0
+    st.iTotal          = 1
+    st.bAbortRequested = false
+    st.sStatus         = ''
+    st.bStatusOk       = true
+    st.bImporting      = true
+    st.tempFiles       = {}
+    st.co              = coroutine.create(gimpPsdImportCoroutine)
+end
+
+-- ImGui modal dialog for GIMP PSD import.
+function showPsdGimpImportDialog()
+    local st = tGimpPsdImportState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup("psd_gimp_import_modal")
+        st.bOpenPopup = false
+    end
+
+    local flags = tImGui.Flags("ImGuiWindowFlags_AlwaysAutoResize")
+    local is_open, _ = tImGui.BeginPopupModal(
+        tLang.L("psd_gimp_import_modal_title") .. "###psd_gimp_import_modal", false, flags)
+    if not is_open then return end
+
+    -- ── Progress view (while coroutine is running) ─────────────────────────
+    if st.bImporting then
+        if st.co and coroutine.status(st.co) == "suspended" then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co         = nil
+                st.sStatus    = tostring(err)
+                st.bStatusOk  = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L("psd_gimp_import_progress_fmt"), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_gimp_import_btn_abort")) then
+            st.bAbortRequested = true
+        end
+
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L("psd_gimp_import_btn_cancel")) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+
+    -- ── Config: W / H ──────────────────────────────────────────────────────
+    tImGui.BeginDisabled(st.bKeepAspectRatio and st.bKeepAspectOnHeight)
+        local wChanged, newW = tImGui.InputInt(tLang.L("psd_gimp_import_width"),  st.iWidth,  1, 64)
+        if wChanged and newW and newW > 0 then st.iWidth  = newW end
+    tImGui.EndDisabled()
+    tImGui.BeginDisabled(st.bKeepAspectRatio and not st.bKeepAspectOnHeight)
+        local hChanged, newH = tImGui.InputInt(tLang.L("psd_gimp_import_height"), st.iHeight, 1, 64)
+        if hChanged and newH and newH > 0 then st.iHeight = newH end
+    tImGui.EndDisabled()
+
+    st.bKeepAspectRatio = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_aspect_ratio"), st.bKeepAspectRatio)
+    if st.bKeepAspectRatio then
+        tImGui.SameLine()
+        st.bKeepAspectOnHeight = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_aspect_on_height"), st.bKeepAspectOnHeight)
+    end
+
+    st.bKeepInPsdFolder = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_in_psd_folder"), st.bKeepInPsdFolder)
+    st.bShowHiddenLayers = tImGui.Checkbox(tLang.L("psd_gimp_import_show_hidden"), st.bShowHiddenLayers)
+    tImGui.SameLine()
+    st.bFreeOffset = tImGui.Checkbox(tLang.L("psd_gimp_import_free_offset"), st.bFreeOffset)
+    if tImGui.IsItemHovered() then
+        tImGui.SetTooltip(tLang.L("psd_gimp_import_free_offset_tip"))
+    end
+    -- Show "Groups only" toggle when the PSD has root-level groups.
+    do
+        local hasRootGroups = false
+        for _, layer in ipairs(st.tLayers) do
+            if layer.isGroup and layer.groupPath == "" then hasRootGroups = true; break end
+        end
+        if hasRootGroups then
+            tImGui.SameLine()
+            st.bGroupsOnlyView = tImGui.Checkbox(tLang.L("psd_gimp_import_groups_only_view"), st.bGroupsOnlyView)
+        end
+    end
+
+    -- ── Sidecar options ────────────────────────────────────────────────────
+    local psdStem = tGimp.getFileDir(st.psdFilePath) .. tGimp.getFileBaseStem(st.psdFilePath)
+    st.bKeepLuaMeta = tImGui.Checkbox(tLang.L("psd_gimp_import_keep_lua_meta"), st.bKeepLuaMeta)
+    if tImGui.IsItemHovered() then
+        tImGui.SetTooltip(psdStem .. "_gimp_meta.lua")
+    end
+    tImGui.SameLine()
+    st.bWriteJsonMeta = tImGui.Checkbox(tLang.L("psd_gimp_import_write_json_meta"), st.bWriteJsonMeta)
+    if tImGui.IsItemHovered() then
+        tImGui.SetTooltip(psdStem .. "_gimp_meta.json")
+    end
+
+    -- ── Timeout ────────────────────────────────────────────────────────────
+    local tChanged, newT = tImGui.InputInt(tLang.L("psd_gimp_import_timeout_secs"), st.iTimeoutSecs, 10, 60)
+    if tChanged and newT and newT >= 10 then st.iTimeoutSecs = newT end
+
+    tImGui.Separator()
+
+    local nLayers = #st.tLayers
+    if nLayers > 0 then
+        -- ── Select All / Deselect All ──────────────────────────────────────
+        if tImGui.Button(tLang.L("psd_gimp_import_select_all")) then
+            for i = 1, #st.tLayers do
+                local layer = st.tLayers[i]
+                if not st.bGroupsOnlyView or (layer.isGroup and layer.groupPath == "") then
+                    st.tLayers[i].bSelected = true
+                end
+            end
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L("psd_gimp_import_deselect_all")) then
+            for i = 1, #st.tLayers do
+                local layer = st.tLayers[i]
+                if not st.bGroupsOnlyView or (layer.isGroup and layer.groupPath == "") then
+                    st.tLayers[i].bSelected = false
+                end
+            end
+        end
+
+        -- "From selected groups": switch to full-layer view and select only
+        -- the leaves that belong to the currently-selected groups.
+        if st.bGroupsOnlyView then
+            tImGui.SameLine()
+            if tImGui.Button(tLang.L("psd_gimp_import_from_selected_groups")) then
+                -- Collect full paths of selected root groups.
+                local selectedGroupPaths = {}
+                for _, layer in ipairs(st.tLayers) do
+                    if layer.isGroup and layer.groupPath == "" and layer.bSelected then
+                        selectedGroupPaths[layer.displayName] = true
+                    end
+                end
+                -- Switch to full-layer view.
+                st.bGroupsOnlyView = false
+                -- Deselect everything, then select leaves whose groupPath
+                -- starts with one of the selected group names.
+                for i, layer in ipairs(st.tLayers) do
+                    if layer.isGroup then
+                        st.tLayers[i].bSelected   = false
+                        st.tLayers[i].bMergeGroup = false
+                    else
+                        -- Root segment of groupPath (first component).
+                        local rootGroup = layer.groupPath:match("^([^/]+)") or ""
+                        st.tLayers[i].bSelected = selectedGroupPaths[rootGroup] == true
+                    end
+                end
+            end
+            if tImGui.IsItemHovered() then
+                tImGui.SetTooltip(tLang.L("psd_gimp_import_from_selected_groups_tip"))
+            end
+        end
+
+        tImGui.Separator()
+
+        -- ── Fit-to buttons ─────────────────────────────────────────────────
+        -- Build a visibility list used by fit-to buttons.
+        -- In groups-only mode, consider root groups; otherwise leaf layers.
+        local visList = {}
+        for i, layer in ipairs(st.tLayers) do
+            if st.bGroupsOnlyView then
+                if layer.isGroup and layer.groupPath == "" and layer.bSelected then
+                    table.insert(visList, i)
+                end
+            else
+                if not layer.isGroup then
+                    if layer.visible or st.bShowHiddenLayers then
+                        table.insert(visList, i)
+                    end
+                end
+            end
+        end
+
+        -- Compute biggest natural dimensions across visible layers.
+        local biggestW, biggestH = 0, 0
+        for _, idx in ipairs(visList) do
+            local nw = st.tLayers[idx].width
+            local nh = st.tLayers[idx].height
+            if nw > biggestW then biggestW = nw end
+            if nh > biggestH then biggestH = nh end
+        end
+
+        -- "Fit to W×H" — each layer scaled independently.
+        if tImGui.Button(tLang.L("psd_import_fit_to_global")) then
+            local maxW = st.iWidth
+            local maxH = st.iHeight
+            for _, idx in ipairs(visList) do
+                local nw = st.tLayers[idx].width
+                local nh = st.tLayers[idx].height
+                if nw > 0 and nh > 0 then
+                    local scale
+                    if st.bKeepAspectOnHeight then
+                        scale = maxH / nh
+                    else
+                        scale = math.min(maxW / nw, maxH / nh)
+                    end
+                    st.tLayers[idx].bCustomSize = true
+                    st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                    st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_global_tip"), st.iWidth, st.iHeight))
+        end
+
+        tImGui.SameLine()
+
+        -- "Fit to W×H (relative)" — uniform scale from largest layer.
+        if tImGui.Button(tLang.L("psd_import_fit_to_max")) then
+            local maxW  = st.iWidth
+            local maxH  = st.iHeight
+            local scale = nil
+            if biggestW > 0 and biggestH > 0 then
+                if st.bKeepAspectOnHeight then
+                    scale = maxH / biggestH
+                else
+                    scale = math.min(maxW / biggestW, maxH / biggestH)
+                end
+            end
+            if scale then
+                for _, idx in ipairs(visList) do
+                    local nw = st.tLayers[idx].width
+                    local nh = st.tLayers[idx].height
+                    if nw > 0 and nh > 0 then
+                        st.tLayers[idx].bCustomSize = true
+                        st.tLayers[idx].iCustomW    = math.max(1, math.floor(nw * scale + 0.5))
+                        st.tLayers[idx].iCustomH    = math.max(1, math.floor(nh * scale + 0.5))
+                    end
+                end
+            end
+        end
+        if tImGui.IsItemHovered() then
+            tImGui.SetTooltip(string.format(tLang.L("psd_import_fit_to_max_tip"),
+                biggestW, biggestH, st.iWidth, st.iHeight))
+        end
+
+        tImGui.Separator()
+
+        -- ── Search filter ──────────────────────────────────────────────────
+        tImGui.SetNextItemWidth(-1)
+        local fMod, fNew = tImGui.InputTextWithHint('##gimp_psd_filter', st.sFilter,
+                                                     tLang.L('psd_gimp_import_filter_hint'))
+        if fMod and fNew ~= nil then st.sFilter = fNew end
+
+        -- ── Layer tree table ───────────────────────────────────────────────
+        -- Columns: cb(22) | merge(46) | name(stretch) | offset(76) |
+        --          size(76) | custom(22) | cW(58) | cH(58)
+        local tblFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg',
+                                      'ImGuiTableFlags_ScrollY', 'ImGuiTableFlags_SizingFixedFit')
+        if tImGui.BeginTable('gimp_psd_layers_tbl', 8, tblFlags, {x=0, y=260}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_include'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_merge'),   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 46)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_name'), tImGui.Flags('ImGuiTableColumnFlags_WidthStretch'))
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_offset'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 76)
+            tImGui.TableSetupColumn(tLang.L('psd_gimp_import_col_size'),   tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 76)
+            tImGui.TableSetupColumn('##cust',  tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 22)
+            tImGui.TableSetupColumn('W',       tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+            tImGui.TableSetupColumn('H',       tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 58)
+            tImGui.TableHeadersRow()
+
+            -- Pre-compute which parent groups are in merge-mode (by full path).
+            local mergedGroupPaths = {}
+            for _, layer in ipairs(st.tLayers) do
+                if layer.isGroup and layer.bMergeGroup and layer.bSelected then
+                    local fullPath = (layer.groupPath == "") and layer.displayName
+                        or (layer.groupPath .. "/" .. layer.displayName)
+                    mergedGroupPaths[fullPath] = true
+                end
+            end
+
+            local function isAncestorMerged(layer)
+                if layer.groupPath == "" then return false end
+                -- Check each prefix segment of groupPath.
+                local path = layer.groupPath
+                while path ~= "" do
+                    if mergedGroupPaths[path] then return true end
+                    -- Strip last component.
+                    local parent = path:match("^(.*)/[^/]+$")
+                    if not parent then break end
+                    path = parent
+                end
+                return false
+            end
+
+            for i, layer in ipairs(st.tLayers) do
+                -- In groups-only mode, show only root-level groups.
+                if st.bGroupsOnlyView and not (layer.isGroup and layer.groupPath == "") then
+                    goto continue_gimp_row
+                end
+                -- Apply text filter.
+                local filterLower = st.sFilter:lower()
+                if filterLower ~= "" and not layer.displayName:lower():find(filterLower, 1, true) then
+                    goto continue_gimp_row
+                end
+                -- Hide hidden layers unless checkbox is on (not relevant in groups-only mode).
+                if not st.bGroupsOnlyView and not layer.visible and not st.bShowHiddenLayers then
+                    goto continue_gimp_row
+                end
+
+                do
+                    local ancestorMerged = isAncestorMerged(layer)
+                    -- Indentation depth from groupPath.
+                    local depth = 0
+                    if layer.groupPath ~= "" then
+                        for _ in layer.groupPath:gmatch("/") do depth = depth + 1 end
+                        depth = depth + 1
+                    end
+                    local indent = string.rep("  ", depth)
+
+                    tImGui.TableNextRow()
+                    -- Col 0: selected checkbox (include in export)
+                    tImGui.TableNextColumn()
+                    tImGui.BeginDisabled(ancestorMerged)
+                        local newSel = tImGui.Checkbox('##gcb_' .. i, layer.bSelected)
+                        if newSel ~= layer.bSelected then st.tLayers[i].bSelected = newSel end
+                    tImGui.EndDisabled()
+                    if tImGui.IsItemHovered() then
+                        tImGui.SetTooltip(tLang.L("psd_gimp_import_cb_tip"))
+                    end
+
+                    -- Col 1: merge toggle (groups only)
+                    tImGui.TableNextColumn()
+                    if layer.isGroup then
+                        local newMerge = tImGui.Checkbox('##gmerge_' .. i, layer.bMergeGroup)
+                        if newMerge ~= layer.bMergeGroup then
+                            st.tLayers[i].bMergeGroup = newMerge
+                        end
+                        if tImGui.IsItemHovered() then
+                            tImGui.SetTooltip(tLang.L("psd_gimp_import_merge_group_tip"))
+                        end
+                    end
+
+                    -- Col 2: name
+                    tImGui.TableNextColumn()
+                    tImGui.BeginDisabled(ancestorMerged)
+                        local dimColor = not layer.visible and {r=0.5, g=0.5, b=0.5, a=0.7} or nil
+                        if dimColor then tImGui.PushStyleColor('ImGuiCol_Text', dimColor) end
+                        if layer.isGroup then
+                            tImGui.PushStyleColor('ImGuiCol_Text', {r=0.9, g=0.75, b=0.3, a=1})
+                        end
+                        if tImGui.Selectable(indent .. layer.displayName .. '##grow_' .. i,
+                                             layer.bSelected and not ancestorMerged, 0) then
+                            if not ancestorMerged then
+                                st.tLayers[i].bSelected = not layer.bSelected
+                            end
+                        end
+                        if layer.isGroup then tImGui.PopStyleColor() end
+                        if dimColor then tImGui.PopStyleColor() end
+                    tImGui.EndDisabled()
+
+                    -- Col 3: offset (from PSD canvas origin)
+                    tImGui.TableNextColumn()
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
+                    tImGui.Text(string.format('%d,%d', layer.offsetX, layer.offsetY))
+                    tImGui.PopStyleColor()
+
+                    -- Col 4: natural size (click to copy to custom)
+                    tImGui.TableNextColumn()
+                    tImGui.PushStyleColor('ImGuiCol_Text', {r=0.55, g=0.55, b=0.55, a=1})
+                    local sizeLabel = string.format('%dx%d##gsz_%d', layer.width, layer.height, i)
+                    if tImGui.Selectable(sizeLabel, false, 0) then
+                        st.tLayers[i].bCustomSize = true
+                        st.tLayers[i].iCustomW    = layer.width
+                        st.tLayers[i].iCustomH    = layer.height
+                    end
+                    tImGui.PopStyleColor()
+
+                    -- Only show W/H overrides when merge-mode ON (for groups) or for leaf layers.
+                    local showWH = (not layer.isGroup) or layer.bMergeGroup
+
+                    -- Col 5: custom size toggle
+                    tImGui.TableNextColumn()
+                    if showWH then
+                        local newCust = tImGui.Checkbox('##gcust_' .. i, layer.bCustomSize)
+                        if newCust ~= layer.bCustomSize then
+                            st.tLayers[i].bCustomSize = newCust
+                            if newCust and (not layer.iCustomW or layer.iCustomW == 0) then
+                                st.tLayers[i].iCustomW = layer.width
+                                st.tLayers[i].iCustomH = layer.height
+                            end
+                        end
+                    end
+
+                    -- Col 6: custom W
+                    tImGui.TableNextColumn()
+                    if showWH and layer.bCustomSize then
+                        tImGui.SetNextItemWidth(54)
+                        local wC, nW = tImGui.InputInt('##gcW_' .. i, layer.iCustomW, 0, 0)
+                        if wC and nW and nW > 0 then st.tLayers[i].iCustomW = nW end
+                    else
+                        tImGui.TextDisabled('-')
+                    end
+
+                    -- Col 7: custom H
+                    tImGui.TableNextColumn()
+                    if showWH and layer.bCustomSize then
+                        tImGui.SetNextItemWidth(54)
+                        local hC, nH = tImGui.InputInt('##gcH_' .. i, layer.iCustomH, 0, 0)
+                        if hC and nH and nH > 0 then st.tLayers[i].iCustomH = nH end
+                    else
+                        tImGui.TextDisabled('-')
+                    end
+                end
+
+                ::continue_gimp_row::
+            end
+
+            tImGui.EndTable()
+        end
+    else
+        tImGui.TextWrapped(tLang.L("psd_gimp_import_no_layers"))
+    end
+
+    -- ── GIMP missing warning + browse fallback ─────────────────────────────
+    local g = tGimp.gimp
+    if g and not g.found then
+        local os_name = (mbm.get('os') or ''):lower()
+        local key = 'psd_gimp_import_gimp_missing_' .. os_name
+        tImGui.PushStyleColor("ImGuiCol_Text", {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(tLang.L(key))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L("psd_gimp_import_browse_gimp")) then
+            local exeFilter = ((mbm.get('os') or ''):lower() == "windows") and "*.exe" or "*"
+            local picked = mbm.openFile(st.customGimpPath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customGimpPath = picked
+                tGimp.setCustomPath(picked)
+                local newG = tGimp.detectGimp()
+                if newG.found then
+                    st.sStatus   = ''
+                    st.bStatusOk = true
+                else
+                    st.sStatus   = tLang.L(key)
+                    st.bStatusOk = false
+                end
+            end
+        end
+    end
+
+    -- Status message
+    if st.sStatus and st.sStatus ~= '' then
+        tImGui.Separator()
+        local col = st.bStatusOk and {r=0.2, g=0.8, b=0.2, a=1} or {r=1, g=0.3, b=0.3, a=1}
+        tImGui.PushStyleColor("ImGuiCol_Text", col)
+        tImGui.TextWrapped(st.sStatus)
+        tImGui.PopStyleColor()
+    end
+
+    tImGui.Separator()
+
+    -- ── Import / Cancel buttons ────────────────────────────────────────────
+    local canImport = (g == nil or g.found) and nLayers > 0
+    tImGui.BeginDisabled(not canImport)
+        if tImGui.Button(tLang.L("psd_gimp_import_btn_import")) then
+            startGimpPsdImport()
+        end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L("psd_gimp_import_btn_cancel")) then
+        tGimp.cleanupTempFiles(st.tempFiles)
+        st.tempFiles = {}
         st.bOpen = false
         tImGui.CloseCurrentPopup()
     end
@@ -1593,6 +3063,7 @@ end
 function draw_overlap_algorithm()
     -- All selected textures are placed at their individually stored overlap positions.
     -- Textures may overlap freely. Positions are set by drag-and-drop or the position panel.
+    local overlapOrder = {}
     for i=1, #tTexturesToEditor do
         local tTexture = tTexturesToEditor[i]
         local tTex     = tTexture.tTex
@@ -1601,13 +3072,32 @@ function draw_overlap_algorithm()
             if tTexture.fOverlapX == nil then tTexture.fOverlapX = 0 end
             if tTexture.fOverlapY == nil then tTexture.fOverlapY = 0 end
             if tTexture.fOverlapZ == nil then tTexture.fOverlapZ = 0 end
+            table.insert(overlapOrder, {idx = i, z = tTexture.fOverlapZ or 0})
+        elseif tTex then
+            tRender:remove(tTex)
+            tTex.visible = false
+        end
+    end
+
+    -- Draw back-to-front by overlap Z (lower Z appears in front).
+    table.sort(overlapOrder, function(a, b)
+        if a.z == b.z then
+            return a.idx < b.idx
+        end
+        return a.z > b.z
+    end)
+
+    for _, item in ipairs(overlapOrder) do
+        local i = item.idx
+        local tTexture = tTexturesToEditor[i]
+        local tTex     = tTexture.tTex
+        if tTex and tTexture.isSelected then
+            -- Reinserting guarantees the renderer list follows Z ordering.
+            tRender:remove(tTex)
             tRender:add(tTex)
             tTex.visible = true
             apply_scale_for_tex(i)
             tTex:setPos(tTexture.fOverlapX, tTexture.fOverlapY, tTexture.fOverlapZ)
-        elseif tTex then
-            tRender:remove(tTex)
-            tTex.visible = false
         end
     end
     return countTotalInOut()
@@ -2078,6 +3568,38 @@ function showTextureOptions()
                             tTexturesToEditor[i].iOffsetPerTextureY = iValue
                         end
 
+                        if tTextureOptions.iCurrentAlgorithm == 6 then
+                            if tTexturesToEditor[i].fOverlapX == nil then tTexturesToEditor[i].fOverlapX = 0 end
+                            if tTexturesToEditor[i].fOverlapY == nil then tTexturesToEditor[i].fOverlapY = 0 end
+                            if tTexturesToEditor[i].fOverlapZ == nil then tTexturesToEditor[i].fOverlapZ = 0 end
+
+                            tImGui.Text(tLang.L("overlap_texture_position"))
+
+                            local changedX, overlapX = tImGui.InputInt(tLang.L("axis_x") .. '##OverlapPosPanelX' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapX), step, step_fast, flags)
+                            if changedX then
+                                tTexturesToEditor[i].fOverlapX = overlapX
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
+
+                            local changedY, overlapY = tImGui.InputInt(tLang.L("axis_y") .. '##OverlapPosPanelY' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapY), step, step_fast, flags)
+                            if changedY then
+                                tTexturesToEditor[i].fOverlapY = overlapY
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
+
+                            local changedZ, overlapZ = tImGui.InputInt(tLang.L("axis_z") .. '##OverlapPosPanelZ' .. tostring(i), math.floor(tTexturesToEditor[i].fOverlapZ), step, step_fast, flags)
+                            if changedZ then
+                                tTexturesToEditor[i].fOverlapZ = overlapZ
+                                if tTexturesToEditor[i].tTex then
+                                    tTexturesToEditor[i].tTex:setPos(tTexturesToEditor[i].fOverlapX, tTexturesToEditor[i].fOverlapY, tTexturesToEditor[i].fOverlapZ)
+                                end
+                            end
+                        end
+
                         tImGui.Text(tLang.L("rotation_per_texture"))
                         local result, iValue = tImGui.InputInt(tLang.L("rotation_rx") .. '##RotationPerTextureX' .. tostring(i), tTexturesToEditor[i].iAnglePerTextureRX or 0, step, step_fast, flags)
                         if result then
@@ -2287,6 +3809,12 @@ function main_menu_texture_packer()
             local pressed, _ = tImGui.MenuItem(tLang.L("import_svg"), nil, false)
             if pressed then onImportSvg() end
 
+            local pressed, _ = tImGui.MenuItem(tLang.L("import_psd"), nil, false)
+            if pressed then onImportPsd() end
+
+            local pressed, _ = tImGui.MenuItem(tLang.L("import_psd_gimp"), nil, false)
+            if pressed then onImportPsdGimp() end
+
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem(tLang.L("save_texture_png"), nil, false)
             if pressed then
@@ -2492,10 +4020,10 @@ function main_menu_texture_packer()
 
             local label  = "Debug: print texture info with algorithm"
             local size   =  {x=0,y=0}
-            if tImGui.Button(label, size) then
-                bPrintDebug = true
+            bPrintDebug = tImGui.Checkbox(label, bPrintDebug)
+            if bPrintDebug then
+                bDebugEnabled = true
             end
-            
             tImGui.EndMenu()
         end
 
@@ -2562,26 +4090,36 @@ function onTouchDown(key,x,y)
         local canvasHW = tTextureOptions.fWidth  * 0.5 * (scale or 1)
         local canvasHH = tTextureOptions.fHeight * 0.5 * (scale or 1)
         if wx >= -canvasHW and wx <= canvasHW and wy >= -canvasHH and wy <= canvasHH then
-            -- Iterate in reverse so topmost (last drawn) texture wins
-            for i = #tTexturesToEditor, 1, -1 do
+            -- Pick frontmost hit by overlap Z, then by index as tie-break.
+            local bestIndex = nil
+            local bestZ = nil
+            for i = 1, #tTexturesToEditor do
                 local tTexture = tTexturesToEditor[i]
                 if tTexture.tTex and tTexture.isSelected and not tTexture.bOverlapLocked then
                     local tw, th = tTexture.tTex:getSize()
                     local tx = tTexture.fOverlapX or 0
                     local ty = tTexture.fOverlapY or 0
+                    local tz = tTexture.fOverlapZ or 0
                     local hw = (tw or 0) * 0.5
                     local hh = (th or 0) * 0.5
                     if wx >= tx - hw and wx <= tx + hw and
                        wy >= ty - hh and wy <= ty + hh then
-                        iOverlapDragIndex     = i
-                        iOverlapSelectedIndex = i
-                        tOverlapDragLastWorld = {x = wx, y = wy}
-                        isClickedMouseLeft = false
-                        camera2d.mx = x
-                        camera2d.my = y
-                        return
+                        if bestIndex == nil or tz < bestZ or (tz == bestZ and i < bestIndex) then
+                            bestIndex = i
+                            bestZ = tz
+                        end
                     end
                 end
+            end
+
+            if bestIndex ~= nil then
+                iOverlapDragIndex     = bestIndex
+                iOverlapSelectedIndex = bestIndex
+                tOverlapDragLastWorld = {x = wx, y = wy}
+                isClickedMouseLeft = false
+                camera2d.mx = x
+                camera2d.my = y
+                return
             end
         end
     end
@@ -2673,6 +4211,8 @@ function onLoop(delta)
 
     showOverlapTextureOptions()
     showSvgImportDialog()
+    showPsdImportDialog()
+    showPsdGimpImportDialog()
 
     tUtil.showOverlayMessage()
 
