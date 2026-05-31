@@ -245,6 +245,70 @@ local function blenderDebugPrint(st, fmt, ...)
     end
 end
 
+local function readTextFile(path)
+    local fp = io.open(path, 'rb')
+    if not fp then return nil end
+    local content = fp:read('*a')
+    fp:close()
+    return content
+end
+
+local function getLogLastNonEmptyLine(content)
+    if type(content) ~= 'string' or content == '' then
+        return nil
+    end
+    local last = nil
+    for line in content:gmatch('[^\r\n]+') do
+        if line and line:match('%S') then
+            last = line
+        end
+    end
+    return last
+end
+
+local function extractBlenderLogError(logPath)
+    if not logPath or logPath == '' then
+        return nil
+    end
+    local content = readTextFile(logPath)
+    if type(content) ~= 'string' or content == '' then
+        return nil
+    end
+
+    local picked = nil
+    for line in content:gmatch('[^\r\n]+') do
+        if not picked and line:find('Exporter failed:', 1, true) then
+            picked = line
+        end
+        if line:find('RuntimeError:', 1, true) then
+            picked = line
+        end
+        if line:find('Traceback (most recent call last):', 1, true) then
+            picked = picked or line
+        end
+        if line:find('ERROR:', 1, true) or line:find('Error:', 1, true) then
+            picked = line
+        end
+    end
+
+    if picked then
+        return picked
+    end
+
+    return nil
+end
+
+local function enrichBlenderErrorMessage(msg)
+    if type(msg) ~= 'string' then
+        return msg
+    end
+    local lower = msg:lower()
+    if lower:find('ascii fbx files are not supported', 1, true) then
+        return msg .. ' | Hint: re-export this FBX as Binary FBX (not ASCII) or convert with a DCC tool before importing.'
+    end
+    return msg
+end
+
 local function validateIntermediateData(tData)
     if type(tData) ~= 'table' then
         return false, 'Intermediate file did not return a table.'
@@ -422,7 +486,7 @@ local function blenderImportCoroutine()
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         os.remove(outLua)
         os.remove(outMsh)
-        if st.bPrintDebugSteps then os.remove(dbgLog) end
+        os.remove(dbgLog)
 
         blenderDebugPrint(st, 'file %d/%d: %s', i, total, src)
         blenderDebugPrint(st, 'outputs: lua=%s msh=%s log=%s', outLua, outMsh, dbgLog)
@@ -432,7 +496,7 @@ local function blenderImportCoroutine()
             debugSteps = st.bPrintDebugSteps,
         })
         if cmd then
-            tBlender.launchCmdAsync(cmd, st.bPrintDebugSteps and dbgLog or nil)
+            tBlender.launchCmdAsync(cmd, dbgLog)
             local startTime = os.time()
             local lastWaitLog = -1
             local finished = false
@@ -489,6 +553,26 @@ local function blenderImportCoroutine()
                     finished = true
                 else
                     local elapsed = os.time() - startTime
+                    if tBlender.fileExists(dbgLog) then
+                        local logErr = extractBlenderLogError(dbgLog)
+                        if logErr then
+                            logErr = enrichBlenderErrorMessage(logErr)
+                            failed = failed + 1
+                            lastErr = logErr
+                            blenderDebugPrint(st, 'detected exporter error from log: %s', logErr)
+                            pushBlenderRunResult(src, 'failed', logErr .. ' (' .. dbgLog .. ')')
+                            finished = true
+                        end
+                    end
+                    if finished then
+                        -- If we already found an explicit error in Blender output, skip timeout wait.
+                    elseif st.bPrintDebugSteps then
+                        local content = readTextFile(dbgLog)
+                        local lastLine = getLogLastNonEmptyLine(content)
+                        if lastLine and lastLine ~= '' then
+                            blenderDebugPrint(st, 'latest log: %s', lastLine)
+                        end
+                    end
                     if st.bPrintDebugSteps then
                         local nowTick = math.floor(elapsed / 5)
                         if nowTick ~= lastWaitLog then
@@ -496,7 +580,7 @@ local function blenderImportCoroutine()
                             lastWaitLog = nowTick
                         end
                     end
-                    if elapsed >= st.iTimeoutSecs or st.bAbortRequested then
+                    if not finished and (elapsed >= st.iTimeoutSecs or st.bAbortRequested) then
                         timedOut = timedOut + 1
                         local msg = tLang.L('blender_import_status_timed_out')
                         if st.bPrintDebugSteps then
