@@ -32,6 +32,15 @@ local M = {}
 
 M.blender = nil
 M.customPath = nil
+M.debugEnabled = false
+
+local function debugPrint(fmt, ...)
+    if not M.debugEnabled then return end
+    local ok, msg = pcall(string.format, fmt, ...)
+    if ok then
+        print('[blender_cli] ' .. msg)
+    end
+end
 
 function M.getOS()
     local s = (mbm and mbm.get('os') or ''):lower()
@@ -53,14 +62,17 @@ local function wrapCmd(cmd)
 end
 
 local function tryDetectExe(exe)
+    debugPrint('detect: probing executable [%s]', tostring(exe))
     local f = io.popen(wrapCmd(shellQuote(exe) .. ' --version') .. ' 2>&1')
     if not f then return nil end
     local output = f:read('*a')
     f:close()
     if output and output:find('Blender') then
         local version = output:match('Blender%s+([%d%.]+)') or ''
+        debugPrint('detect: found Blender version [%s] at [%s]', version, tostring(exe))
         return { found = true, path = exe, version = version }
     end
+    debugPrint('detect: not a Blender executable [%s]', tostring(exe))
     return nil
 end
 
@@ -104,6 +116,10 @@ end
 function M.setCustomPath(path)
     M.customPath = path
     M.blender = nil
+end
+
+function M.setDebugEnabled(enabled)
+    M.debugEnabled = enabled and true or false
 end
 
 function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
@@ -152,14 +168,33 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(options.sampleStep))
     end
 
-    return table.concat(args, ' ')
+    if options.debugSteps then
+        table.insert(args, '--debug-steps')
+    end
+
+    local cmd = table.concat(args, ' ')
+    debugPrint('build cmd: %s', cmd)
+    return cmd
 end
 
-function M.launchCmdAsync(cmd)
+function M.launchCmdAsync(cmd, logPath)
+    local osName = M.getOS()
+    debugPrint('launch async (%s): %s', osName, cmd)
+    if logPath and logPath ~= '' then
+        debugPrint('launch log path: %s', logPath)
+    end
     if M.getOS() == 'windows' then
-        os.execute('cmd /c start /b "" ' .. cmd)
+        if logPath and logPath ~= '' then
+            os.execute('cmd /c start /b "" ' .. cmd .. ' > ' .. shellQuote(logPath) .. ' 2>&1')
+        else
+            os.execute('cmd /c start /b "" ' .. cmd)
+        end
     else
-        os.execute(cmd .. ' >/dev/null 2>&1 &')
+        if logPath and logPath ~= '' then
+            os.execute(cmd .. ' >' .. shellQuote(logPath) .. ' 2>&1 &')
+        else
+            os.execute(cmd .. ' >/dev/null 2>&1 &')
+        end
     end
 end
 

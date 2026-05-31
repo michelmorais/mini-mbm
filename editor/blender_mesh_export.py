@@ -25,7 +25,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--frame-start", type=int, default=1)
     parser.add_argument("--frame-end", type=int, default=1)
     parser.add_argument("--sample-step", type=int, default=1)
+    parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
+
+
+def debug_print(enabled: bool, message: str) -> None:
+    if enabled:
+        print(f"[blender_export] {message}", flush=True)
 
 
 def lua_quote(value: str) -> str:
@@ -215,6 +221,7 @@ def import_source(input_path: str) -> None:
 
 def build_data(args: argparse.Namespace) -> dict[str, Any]:
     source_path = os.path.abspath(args.input)
+    debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
 
@@ -228,11 +235,14 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
 
     frames_out: list[dict[str, Any]] = []
     if args.bake_animation:
+        debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
         for frame in range(frame_start, frame_end + 1, step):
             scene.frame_set(frame)
+            debug_print(args.debug_steps, f"export frame: {frame}")
             frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
     else:
         frame = int(scene.frame_current)
+        debug_print(args.debug_steps, f"export current frame: {frame}")
         frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
         frame_start = frame
         frame_end = frame
@@ -276,12 +286,15 @@ def main() -> int:
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
+    debug_print(args.debug_steps, f"output: {out_path}")
 
     data = build_data(args)
+    debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
     with open(out_path, "w", encoding="utf-8") as fp:
         fp.write("return ")
         fp.write(as_lua(data, 0))
         fp.write("\n")
+    debug_print(args.debug_steps, "done")
 
     return 0
 

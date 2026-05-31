@@ -126,6 +126,7 @@ function onInitScene()
         tSourceFiles = {},
         iSelectedCount = 0,
         bIntermediateOnly = false,
+        bPrintDebugSteps = false,
         sStatus = '',
         bStatusOk = true,
         bImporting = false,
@@ -234,6 +235,14 @@ local function pushBlenderRunResult(source, status, message)
         status = status,
         message = message or '',
     })
+end
+
+local function blenderDebugPrint(st, fmt, ...)
+    if not st or not st.bPrintDebugSteps then return end
+    local ok, msg = pcall(string.format, fmt, ...)
+    if ok then
+        print('[blender_import] ' .. msg)
+    end
 end
 
 local function validateIntermediateData(tData)
@@ -400,6 +409,9 @@ local function blenderImportCoroutine()
     local lastErr = nil
     local modeIntermediateOnly = st.bIntermediateOnly
 
+    blenderDebugPrint(st, 'import start: selected=%d intermediateOnly=%s timeout=%ds', total, tostring(modeIntermediateOnly), st.iTimeoutSecs)
+    tBlender.setDebugEnabled(st.bPrintDebugSteps)
+
     for i = 1, total do
         if st.bAbortRequested then break end
 
@@ -407,19 +419,27 @@ local function blenderImportCoroutine()
         local baseDir = st.bKeepInSourceFolder and getFileDir(src) or getTempDir()
         local outLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         os.remove(outLua)
         os.remove(outMsh)
+        if st.bPrintDebugSteps then os.remove(dbgLog) end
+
+        blenderDebugPrint(st, 'file %d/%d: %s', i, total, src)
+        blenderDebugPrint(st, 'outputs: lua=%s msh=%s log=%s', outLua, outMsh, dbgLog)
 
         local cmd = tBlender.buildBakeCmd(src, outLua, exporterPath, {
             bakeAnimation = true,
+            debugSteps = st.bPrintDebugSteps,
         })
         if cmd then
-            tBlender.launchCmdAsync(cmd)
+            tBlender.launchCmdAsync(cmd, st.bPrintDebugSteps and dbgLog or nil)
             local startTime = os.time()
+            local lastWaitLog = -1
             local finished = false
             while not finished do
                 if tBlender.fileExists(outLua) then
                     exported = exported + 1
+                    blenderDebugPrint(st, 'file ready: %s', outLua)
                     local chunk, loadErr = loadfile(outLua)
                     if not chunk then
                         failed = failed + 1
@@ -436,24 +456,29 @@ local function blenderImportCoroutine()
                             if not okVal then
                                 failed = failed + 1
                                 lastErr = errVal
+                                blenderDebugPrint(st, 'validation failed: %s', errVal)
                                 pushBlenderRunResult(src, 'failed', lastErr)
                             else
                                 if modeIntermediateOnly then
+                                    blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                                     pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                                 else
                                     local okBuild, errBuild = buildMeshFromIntermediate(tData, outMsh)
                                     if not okBuild then
                                         failed = failed + 1
                                         lastErr = errBuild
+                                        blenderDebugPrint(st, 'build failed: %s', errBuild)
                                         pushBlenderRunResult(src, 'failed', lastErr)
                                     else
                                         if addMeshToTable(outMsh) then
                                             imported = imported + 1
                                             bShowMeshTree = true
+                                            blenderDebugPrint(st, 'imported mesh: %s', outMsh)
                                             pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
                                         else
                                             failed = failed + 1
                                             lastErr = 'Generated MSH could not be loaded into editor.'
+                                            blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
                                             pushBlenderRunResult(src, 'failed', lastErr)
                                         end
                                     end
@@ -464,9 +489,21 @@ local function blenderImportCoroutine()
                     finished = true
                 else
                     local elapsed = os.time() - startTime
+                    if st.bPrintDebugSteps then
+                        local nowTick = math.floor(elapsed / 5)
+                        if nowTick ~= lastWaitLog then
+                            blenderDebugPrint(st, 'waiting output (%ds): %s', elapsed, outLua)
+                            lastWaitLog = nowTick
+                        end
+                    end
                     if elapsed >= st.iTimeoutSecs or st.bAbortRequested then
                         timedOut = timedOut + 1
-                        pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
+                        local msg = tLang.L('blender_import_status_timed_out')
+                        if st.bPrintDebugSteps then
+                            msg = msg .. ' (' .. dbgLog .. ')'
+                        end
+                        blenderDebugPrint(st, 'timed out after %ds: %s', elapsed, src)
+                        pushBlenderRunResult(src, 'timed_out', msg)
                         finished = true
                     else
                         coroutine.yield()
@@ -475,6 +512,7 @@ local function blenderImportCoroutine()
             end
         else
             timedOut = timedOut + 1
+            blenderDebugPrint(st, 'failed to build command for: %s', src)
             pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
         end
         st.iProgress = i
@@ -494,6 +532,7 @@ local function blenderImportCoroutine()
         end
         st.bStatusOk = false
     end
+    blenderDebugPrint(st, 'import done: okCount=%d exported=%d imported=%d timedOut=%d failed=%d', okCount, exported, imported, timedOut, failed)
     st.bImporting = false
 end
 
@@ -506,6 +545,7 @@ local function startBlenderImport()
     st.bStatusOk = true
     st.bImporting = true
     clearBlenderRunResults()
+    tBlender.setDebugEnabled(st.bPrintDebugSteps)
     st.co = coroutine.create(blenderImportCoroutine)
 end
 
@@ -633,6 +673,7 @@ function showBlenderImportDialog()
     end
 
     st.bIntermediateOnly = tImGui.Checkbox(tLang.L('blender_import_intermediate_only'), st.bIntermediateOnly)
+    st.bPrintDebugSteps = tImGui.Checkbox(tLang.L('blender_import_print_debug_steps'), st.bPrintDebugSteps)
     st.bKeepInSourceFolder = tImGui.Checkbox(tLang.L('blender_import_keep_in_source_folder'), st.bKeepInSourceFolder)
     local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
     if toChanged and newTo and newTo >= 10 then
