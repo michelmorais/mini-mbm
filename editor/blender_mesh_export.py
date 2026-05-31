@@ -77,9 +77,9 @@ def as_lua(value: Any, indent: int = 0) -> str:
 
 
 def get_first_texture_path(material: Any) -> str:
-    if material is None or not getattr(material, "use_nodes", False):
+    if material is None:
         return ""
-    ntree = material.node_tree
+    ntree = getattr(material, "node_tree", None)
     if ntree is None:
         return ""
     for node in ntree.nodes:
@@ -93,6 +93,33 @@ def get_first_texture_path(material: Any) -> str:
 
 def round6(value: float) -> float:
     return round(float(value), 6)
+
+
+def ensure_loop_normals(mesh: Any) -> None:
+    # Blender <=3.x used calc_normals_split; newer versions removed it.
+    if hasattr(mesh, "calc_normals_split"):
+        mesh.calc_normals_split()
+    elif hasattr(mesh, "calc_normals"):
+        mesh.calc_normals()
+
+
+def get_loop_normal(mesh: Any, loop: Any, loop_index: int, vert: Any) -> Any:
+    # Prefer split/corner normal when available, then fall back to vertex normal.
+    try:
+        if hasattr(loop, "normal"):
+            return loop.normal
+    except Exception:
+        pass
+
+    try:
+        corner_normals = getattr(mesh, "corner_normals", None)
+        if corner_normals is not None and loop_index < len(corner_normals):
+            cn = corner_normals[loop_index]
+            return getattr(cn, "vector", cn)
+    except Exception:
+        pass
+
+    return vert.normal
 
 
 def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
@@ -110,7 +137,7 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
         try:
             if len(mesh.vertices) == 0:
                 continue
-            mesh.calc_normals_split()
+            ensure_loop_normals(mesh)
             mesh.calc_loop_triangles()
 
             uv_data = None
@@ -138,9 +165,10 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                 for loop_index in tri.loops:
                     loop = mesh.loops[loop_index]
                     vert = mesh.vertices[loop.vertex_index]
+                    local_no = get_loop_normal(mesh, loop, loop_index, vert)
 
                     world_pos = eval_obj.matrix_world @ vert.co
-                    world_no = (eval_obj.matrix_world.to_3x3() @ loop.normal).normalized()
+                    world_no = (eval_obj.matrix_world.to_3x3() @ local_no).normalized()
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
