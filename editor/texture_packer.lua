@@ -59,7 +59,7 @@ function onInitScene()
     sLastTextureOpened  = ''
     bViewTextureOptions  = false
     bTextureViewOpened   = false
-    bPrintDebug          = false
+    bPrintDebugCurrentEditorInputs          = false
     scale                = 1
 
     tTextureOptions = { fWidth    = 1024, 
@@ -1611,7 +1611,7 @@ local function gimpPsdImportCoroutine()
     st.tempFiles = { info.scriptPath, metaOutPath }
 
     -- Log script for debuggability before launching.
-    if bDebugEnabled then
+    if bPrintDebugCliWrapper then
         print("[gimp_cli] export script: " .. info.scriptPath)
         print("[gimp_cli] export cmd:    " .. info.cmd)
         local _sf = io.open(info.scriptPath, "r")
@@ -3170,8 +3170,8 @@ function drawSpriteSheet()
 
         applyRotationToTextures()
 
-        if bPrintDebug then
-            bPrintDebug = false
+        if bPrintDebugCurrentEditorInputs then
+            bPrintDebugCurrentEditorInputs = false
             --
             local sRefTex = (tTextureOptions.indexReferenceTexture == 1) and 'bigger' or
                             (tTextureOptions.indexReferenceTexture == 2) and 'lower'  or
@@ -4018,12 +4018,9 @@ function main_menu_texture_packer()
                 tImGui.EndMenu()
             end
 
-            local label  = "Debug: print texture info with algorithm"
             local size   =  {x=0,y=0}
-            bPrintDebug = tImGui.Checkbox(label, bPrintDebug)
-            if bPrintDebug then
-                bDebugEnabled = true
-            end
+            bPrintDebugCurrentEditorInputs = tImGui.Button("Debug: print current editor inputs")
+            bPrintDebugCliWrapper = tImGui.Checkbox("Debug: print CLI wrapper info", bPrintDebugCliWrapper)
             tImGui.EndMenu()
         end
 
