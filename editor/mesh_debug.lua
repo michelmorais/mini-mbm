@@ -29,6 +29,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tBlender      =     require "blender_cli_wrapper"
 
 -- pcall wrapper that prints the error on failure, then returns all values normally
 local function dpCall(fn, ...)
@@ -118,6 +119,609 @@ function onInitScene()
         selectedCount = 0,
         needRebuild   = true,
     }
+
+    tBlenderImportState = {
+        bOpen = false,
+        bOpenPopup = false,
+        tSourceFiles = {},
+        iSelectedCount = 0,
+        bIntermediateOnly = false,
+        sStatus = '',
+        bStatusOk = true,
+        bImporting = false,
+        co = nil,
+        iProgress = 0,
+        iTotal = 0,
+        iTimeoutSecs = 120,
+        bAbortRequested = false,
+        customBlenderPath = '',
+        bKeepInSourceFolder = false,
+        tRunResults = {},
+    }
+end
+
+local function getTempDir()
+    return os.getenv("TMPDIR") or os.getenv("TEMP") or os.getenv("TMP") or "/tmp"
+end
+
+local function getEditorDir()
+    local src = debug.getinfo(1, 'S').source or ''
+    if src:sub(1, 1) == '@' then
+        local path = src:sub(2)
+        local dir = path:match('^(.*)[/\\]')
+        return dir or '.'
+    end
+    return '.'
+end
+
+local function getFileDir(path)
+    return (path and path:match('^(.*)[/\\]')) or '.'
+end
+
+local function getFileStem(path)
+    local name = (path and path:match('[/\\]([^/\\]+)$')) or path or 'mesh'
+    return (name and name:match('(.+)%.[^%.]+$')) or name or 'mesh'
+end
+
+local function appendBlenderSourceFiles(tFiles)
+    local st = tBlenderImportState
+    local seen = {}
+    for i = 1, #st.tSourceFiles do
+        local row = st.tSourceFiles[i]
+        if row and row.path then
+            seen[row.path] = true
+        end
+    end
+    for i = 1, #tFiles do
+        local p = tFiles[i]
+        if p and p ~= '' and not seen[p] then
+            table.insert(st.tSourceFiles, { path = p, enabled = true })
+            seen[p] = true
+        end
+    end
+    local count = 0
+    for i = 1, #st.tSourceFiles do
+        if st.tSourceFiles[i].enabled then count = count + 1 end
+    end
+    st.iSelectedCount = count
+end
+
+local function setBlenderSelectionAll(enabled)
+    local st = tBlenderImportState
+    local count = 0
+    for i = 1, #st.tSourceFiles do
+        st.tSourceFiles[i].enabled = enabled
+        if enabled then count = count + 1 end
+    end
+    st.iSelectedCount = count
+end
+
+local function refreshBlenderSelectedCount()
+    local st = tBlenderImportState
+    local count = 0
+    for i = 1, #st.tSourceFiles do
+        if st.tSourceFiles[i].enabled then count = count + 1 end
+    end
+    st.iSelectedCount = count
+end
+
+local function removeBlenderSourceFileAt(index)
+    local st = tBlenderImportState
+    table.remove(st.tSourceFiles, index)
+    refreshBlenderSelectedCount()
+end
+
+local function getEnabledBlenderSourceFiles()
+    local st = tBlenderImportState
+    local out = {}
+    for i = 1, #st.tSourceFiles do
+        local row = st.tSourceFiles[i]
+        if row.enabled and row.path and row.path ~= '' then
+            table.insert(out, row.path)
+        end
+    end
+    return out
+end
+
+local function clearBlenderRunResults()
+    tBlenderImportState.tRunResults = {}
+end
+
+local function pushBlenderRunResult(source, status, message)
+    local st = tBlenderImportState
+    table.insert(st.tRunResults, {
+        source = source,
+        status = status,
+        message = message or '',
+    })
+end
+
+local function validateIntermediateData(tData)
+    if type(tData) ~= 'table' then
+        return false, 'Intermediate file did not return a table.'
+    end
+    local frames = tData.frames
+    if type(frames) ~= 'table' or #frames == 0 then
+        return false, 'No frames found in intermediate.'
+    end
+
+    for fi = 1, #frames do
+        local frame = frames[fi]
+        if type(frame) ~= 'table' then
+            return false, string.format('Frame %d is invalid.', fi)
+        end
+        local subsets = frame.subsets
+        if type(subsets) ~= 'table' or #subsets == 0 then
+            return false, string.format('Frame %d has no subsets.', fi)
+        end
+        for si = 1, #subsets do
+            local subset = subsets[si]
+            local verts = subset.vertices
+            local indices = subset.indices
+            if type(verts) ~= 'table' or #verts == 0 then
+                return false, string.format('Frame %d subset %d has no vertices.', fi, si)
+            end
+            if #verts > 65535 then
+                return false, string.format('Frame %d subset %d exceeds 65535 vertices.', fi, si)
+            end
+            if type(indices) ~= 'table' or #indices == 0 then
+                return false, string.format('Frame %d subset %d has no indices.', fi, si)
+            end
+            if (#indices % 3) ~= 0 then
+                return false, string.format('Frame %d subset %d indices must be divisible by 3.', fi, si)
+            end
+            for ii = 1, #indices do
+                local idx = indices[ii]
+                if type(idx) ~= 'number' then
+                    return false, string.format('Frame %d subset %d index %d is not numeric.', fi, si, ii)
+                end
+                idx = math.floor(idx)
+                if idx < 1 then
+                    return false, string.format('Frame %d subset %d index %d is < 1.', fi, si, ii)
+                end
+                if idx > #verts then
+                    return false, string.format('Frame %d subset %d index %d is out of bounds.', fi, si, ii)
+                end
+                indices[ii] = idx
+            end
+        end
+    end
+
+    if type(tData.animations) == 'table' then
+        for ai = 1, #tData.animations do
+            local anim = tData.animations[ai]
+            local ini = math.floor(anim.initialFrame or 1)
+            local fin = math.floor(anim.finalFrame or #frames)
+            if ini < 1 or ini > #frames or fin < 1 or fin > #frames or ini > fin then
+                return false, string.format('Animation %d has invalid frame range.', ai)
+            end
+            local tbf = tonumber(anim.timeBetweenFrame or 0)
+            if not tbf or tbf <= 0 then
+                return false, string.format('Animation %d has invalid frame time.', ai)
+            end
+            local typ = math.floor(anim.typeAnimation or 1)
+            if typ < 0 or typ > 6 then
+                return false, string.format('Animation %d type is out of range [0..6].', ai)
+            end
+            anim.initialFrame = ini
+            anim.finalFrame = fin
+            anim.timeBetweenFrame = tbf
+            anim.typeAnimation = typ
+        end
+    end
+
+    return true
+end
+
+local function buildMeshFromIntermediate(tData, outMshPath)
+    local meshD = meshDebug:new()
+    meshD:setType('mesh')
+
+    for fi = 1, #tData.frames do
+        local frame = tData.frames[fi]
+        local frameIdx = meshD:addFrame(3)
+        for si = 1, #frame.subsets do
+            local subset = frame.subsets[si]
+            local subsetIdx = meshD:addSubSet(frameIdx)
+            if subset.texture and subset.texture ~= '' then
+                meshD:setTexture(frameIdx, subsetIdx, subset.texture)
+            end
+            if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
+                return false, string.format('Failed to add vertices for frame %d subset %d.', fi, si)
+            end
+            if not meshD:addIndex(frameIdx, subsetIdx, subset.indices) then
+                return false, string.format('Failed to add indices for frame %d subset %d.', fi, si)
+            end
+        end
+    end
+
+    local anims = tData.animations
+    if type(anims) ~= 'table' or #anims == 0 then
+        if #tData.frames > 1 then
+            anims = {
+                {
+                    name = 'Bake',
+                    initialFrame = 1,
+                    finalFrame = #tData.frames,
+                    timeBetweenFrame = 1.0 / 30.0,
+                    typeAnimation = 1,
+                }
+            }
+        else
+            anims = {}
+        end
+    end
+
+    for ai = 1, #anims do
+        local anim = anims[ai]
+        local ret = meshD:addAnim(
+            anim.name or ('Bake ' .. ai),
+            anim.initialFrame,
+            anim.finalFrame,
+            anim.timeBetweenFrame,
+            anim.typeAnimation
+        )
+        if not ret then
+            return false, string.format('Failed to add animation %d.', ai)
+        end
+    end
+
+    local okCheck, errCheck = meshD:check()
+    if not okCheck then
+        return false, errCheck or 'Mesh check failed.'
+    end
+
+    if not meshD:save(outMshPath, false, false) then
+        return false, 'Failed to save generated MSH.'
+    end
+
+    return true
+end
+
+local function onOpenBlenderImportDialog()
+    local st = tBlenderImportState
+    st.bOpen = true
+    st.bOpenPopup = true
+    st.sStatus = ''
+    st.bStatusOk = true
+end
+
+local function blenderImportCoroutine()
+    local st = tBlenderImportState
+    local exporterPath = getEditorDir() .. '/blender_mesh_export.py'
+    local selected = getEnabledBlenderSourceFiles()
+    local total = #selected
+    st.iTotal = total
+    st.iProgress = 0
+    local exported = 0
+    local imported = 0
+    local timedOut = 0
+    local failed = 0
+    local lastErr = nil
+    local modeIntermediateOnly = st.bIntermediateOnly
+
+    for i = 1, total do
+        if st.bAbortRequested then break end
+
+        local src = selected[i]
+        local baseDir = st.bKeepInSourceFolder and getFileDir(src) or getTempDir()
+        local outLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
+        local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        os.remove(outLua)
+        os.remove(outMsh)
+
+        local cmd = tBlender.buildBakeCmd(src, outLua, exporterPath, {
+            bakeAnimation = true,
+        })
+        if cmd then
+            tBlender.launchCmdAsync(cmd)
+            local startTime = os.time()
+            local finished = false
+            while not finished do
+                if tBlender.fileExists(outLua) then
+                    exported = exported + 1
+                    local chunk, loadErr = loadfile(outLua)
+                    if not chunk then
+                        failed = failed + 1
+                        lastErr = loadErr or ('Failed to load intermediate: ' .. outLua)
+                        pushBlenderRunResult(src, 'failed', lastErr)
+                    else
+                        local okRun, tData = pcall(chunk)
+                        if not okRun then
+                            failed = failed + 1
+                            lastErr = tostring(tData)
+                            pushBlenderRunResult(src, 'failed', lastErr)
+                        else
+                            local okVal, errVal = validateIntermediateData(tData)
+                            if not okVal then
+                                failed = failed + 1
+                                lastErr = errVal
+                                pushBlenderRunResult(src, 'failed', lastErr)
+                            else
+                                if modeIntermediateOnly then
+                                    pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
+                                else
+                                    local okBuild, errBuild = buildMeshFromIntermediate(tData, outMsh)
+                                    if not okBuild then
+                                        failed = failed + 1
+                                        lastErr = errBuild
+                                        pushBlenderRunResult(src, 'failed', lastErr)
+                                    else
+                                        if addMeshToTable(outMsh) then
+                                            imported = imported + 1
+                                            bShowMeshTree = true
+                                            pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
+                                        else
+                                            failed = failed + 1
+                                            lastErr = 'Generated MSH could not be loaded into editor.'
+                                            pushBlenderRunResult(src, 'failed', lastErr)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    finished = true
+                else
+                    local elapsed = os.time() - startTime
+                    if elapsed >= st.iTimeoutSecs or st.bAbortRequested then
+                        timedOut = timedOut + 1
+                        pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
+                        finished = true
+                    else
+                        coroutine.yield()
+                    end
+                end
+            end
+        else
+            timedOut = timedOut + 1
+            pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
+        end
+        st.iProgress = i
+    end
+
+    local okCount = modeIntermediateOnly and exported or imported
+    if okCount > 0 then
+        st.sStatus = string.format(tLang.L('blender_import_done_fmt'), okCount, timedOut)
+        if failed > 0 and lastErr then
+            st.sStatus = st.sStatus .. '\n' .. string.format(tLang.L('blender_import_failed_with_reason_fmt'), failed, lastErr)
+        end
+        st.bStatusOk = true
+    else
+        st.sStatus = tLang.L('blender_import_failed')
+        if lastErr then
+            st.sStatus = st.sStatus .. '\n' .. lastErr
+        end
+        st.bStatusOk = false
+    end
+    st.bImporting = false
+end
+
+local function startBlenderImport()
+    local st = tBlenderImportState
+    st.iProgress = 0
+    st.iTotal = 0
+    st.bAbortRequested = false
+    st.sStatus = ''
+    st.bStatusOk = true
+    st.bImporting = true
+    clearBlenderRunResults()
+    st.co = coroutine.create(blenderImportCoroutine)
+end
+
+function showBlenderImportDialog()
+    local st = tBlenderImportState
+    if not st.bOpen then return end
+
+    if st.bOpenPopup then
+        tImGui.OpenPopup('blender_import_modal')
+        st.bOpenPopup = false
+    end
+
+    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_import_modal_title') .. '###blender_import_modal', false, flags)
+    if not isOpen then return end
+
+    local blender = tBlender.blender or tBlender.detectBlender()
+    local osName = (mbm.get('os') or ''):lower()
+
+    if st.bImporting then
+        if st.co and coroutine.status(st.co) == 'suspended' then
+            local ok, err = coroutine.resume(st.co)
+            if not ok then
+                st.bImporting = false
+                st.co = nil
+                st.sStatus = tostring(err)
+                st.bStatusOk = false
+            end
+        end
+
+        local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
+        tImGui.Text(string.format(tLang.L('blender_import_progress_fmt'), st.iProgress, st.iTotal))
+        tImGui.ProgressBar(fraction)
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('blender_import_btn_abort')) then
+            st.bAbortRequested = true
+        end
+
+        if not st.bImporting then
+            if st.bStatusOk then
+                tUtil.showMessage(st.sStatus)
+                st.bOpen = false
+                tImGui.CloseCurrentPopup()
+            else
+                tImGui.Separator()
+                tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.3, b=0.3, a=1})
+                tImGui.TextWrapped(st.sStatus)
+                tImGui.PopStyleColor()
+                if tImGui.Button(tLang.L('blender_import_btn_close')) then
+                    st.bOpen = false
+                    tImGui.CloseCurrentPopup()
+                end
+            end
+        end
+
+        tImGui.EndPopup()
+        return
+    end
+
+    tImGui.Text(string.format(tLang.L('blender_import_selected_files_fmt'), st.iSelectedCount, #st.tSourceFiles))
+    if tImGui.Button(tLang.L('blender_import_pick_files')) then
+        local files = mbm.openMultiFile(sLastMeshPath, 'blend', 'fbx', 'glb', 'gltf', 'obj')
+        if files then
+            if type(files) == 'string' then
+                appendBlenderSourceFiles({ files })
+                sLastMeshPath = files
+            elseif type(files) == 'table' then
+                appendBlenderSourceFiles(files)
+                if #files > 0 then sLastMeshPath = files[1] end
+            end
+        end
+    end
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('blender_import_clear_files')) then
+        st.tSourceFiles = {}
+        st.iSelectedCount = 0
+    end
+
+    if #st.tSourceFiles > 0 then
+        if tImGui.Button(tLang.L('blender_import_select_all')) then
+            setBlenderSelectionAll(true)
+        end
+        tImGui.SameLine()
+        if tImGui.Button(tLang.L('blender_import_select_none')) then
+            setBlenderSelectionAll(false)
+        end
+
+        local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
+        if tImGui.BeginTable('blenderImportFilesTable', 3, tableFlags, {x=640, y=180}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_enable'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_remove'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
+            tImGui.TableHeadersRow()
+            local removeAt = 0
+            for i = 1, #st.tSourceFiles do
+                local row = st.tSourceFiles[i]
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                local newEnabled = tImGui.Checkbox('##blenderFileEnabled-' .. i, row.enabled)
+                if newEnabled ~= row.enabled then
+                    row.enabled = newEnabled
+                    refreshBlenderSelectedCount()
+                end
+                tImGui.TableNextColumn()
+                local base = tUtil.getShortName(row.path)
+                tImGui.Text(base)
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(row.path)
+                    tImGui.EndTooltip()
+                end
+                tImGui.TableNextColumn()
+                if tImGui.Button(tLang.L('blender_import_btn_remove') .. '##blenderRemove-' .. i) then
+                    removeAt = i
+                end
+            end
+            if removeAt > 0 then
+                removeBlenderSourceFileAt(removeAt)
+            end
+            tImGui.EndTable()
+        end
+    else
+        tImGui.TextDisabled(tLang.L('blender_import_no_files'))
+    end
+
+    st.bIntermediateOnly = tImGui.Checkbox(tLang.L('blender_import_intermediate_only'), st.bIntermediateOnly)
+    st.bKeepInSourceFolder = tImGui.Checkbox(tLang.L('blender_import_keep_in_source_folder'), st.bKeepInSourceFolder)
+    local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
+    if toChanged and newTo and newTo >= 10 then
+        st.iTimeoutSecs = newTo
+    end
+
+    if blender and not blender.found then
+        local key = 'blender_import_missing_' .. osName
+        tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(tLang.L(key))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L('blender_import_browse_blender')) then
+            local exeFilter = (osName == 'windows') and '*.exe' or '*'
+            local picked = mbm.openFile(st.customBlenderPath or '', exeFilter)
+            if picked and picked ~= '' then
+                st.customBlenderPath = picked
+                tBlender.setCustomPath(picked)
+                blender = tBlender.detectBlender()
+            end
+        end
+    end
+
+    if st.sStatus ~= '' then
+        local col = st.bStatusOk and {r=0.2, g=0.8, b=0.2, a=1} or {r=1, g=0.3, b=0.3, a=1}
+        tImGui.PushStyleColor('ImGuiCol_Text', col)
+        tImGui.TextWrapped(st.sStatus)
+        tImGui.PopStyleColor()
+    end
+
+    if #st.tRunResults > 0 then
+        tImGui.Separator()
+        tImGui.Text(tLang.L('blender_import_results_title'))
+        local resultFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
+        if tImGui.BeginTable('blenderImportResultsTable', 3, resultFlags, {x=640, y=150}) then
+            tImGui.TableSetupScrollFreeze(0, 1)
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_status'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_message'))
+            tImGui.TableHeadersRow()
+
+            for i = 1, #st.tRunResults do
+                local rr = st.tRunResults[i]
+                tImGui.TableNextRow()
+                tImGui.TableNextColumn()
+                tImGui.Text(tUtil.getShortName(rr.source or ''))
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(rr.source or '')
+                    tImGui.EndTooltip()
+                end
+                tImGui.TableNextColumn()
+                local statusLabel = rr.status or ''
+                local statusColor = {r=1, g=0.3, b=0.3, a=1}
+                if statusLabel == 'imported' then
+                    statusLabel = tLang.L('blender_import_status_imported')
+                    statusColor = {r=0.3, g=0.9, b=0.3, a=1}
+                elseif statusLabel == 'exported' then
+                    statusLabel = tLang.L('blender_import_status_exported')
+                    statusColor = {r=0.3, g=0.9, b=0.3, a=1}
+                elseif statusLabel == 'timed_out' then
+                    statusLabel = tLang.L('blender_import_status_timed_out')
+                    statusColor = {r=1, g=0.8, b=0.2, a=1}
+                else
+                    statusLabel = tLang.L('blender_import_status_failed')
+                end
+                tImGui.PushStyleColor('ImGuiCol_Text', statusColor)
+                tImGui.Text(statusLabel)
+                tImGui.PopStyleColor()
+                tImGui.TableNextColumn()
+                tImGui.TextWrapped(rr.message or '')
+            end
+            tImGui.EndTable()
+        end
+    end
+
+    tImGui.Separator()
+    local canImport = blender and blender.found and st.iSelectedCount > 0
+    tImGui.BeginDisabled(not canImport)
+        if tImGui.Button(tLang.L('blender_import_btn_import')) then
+            startBlenderImport()
+        end
+    tImGui.EndDisabled()
+    tImGui.SameLine()
+    if tImGui.Button(tLang.L('blender_import_btn_close')) then
+        st.bOpen = false
+        tImGui.CloseCurrentPopup()
+    end
+
+    tImGui.EndPopup()
 end
 
 -- Converts a parsed OBJ data table (from tiny_obj_loader.tiny_parse) into a .msh file,
@@ -2914,7 +3518,11 @@ function main_menu_mesh_debug()
                 onLoadMeshFromFolder()
             end
             tImGui.Separator()
-            if tImGui.MenuItem('Load OBJ(s)') then
+            if tImGui.MenuItem(tLang.L('import_via_blender')) then
+                onOpenBlenderImportDialog()
+            end
+            tImGui.Separator()
+            if tImGui.MenuItem('Legacy: Load OBJ(s)') then
                 onLoadObj()
             end
             tImGui.Separator()
@@ -3762,6 +4370,7 @@ end
 
 function onLoop(delta)
     main_menu_mesh_debug()
+    showBlenderImportDialog()
     showCameraWindow()
     showMeshTreeWindow()
     showListTexturesWindow()
