@@ -2844,7 +2844,9 @@ namespace mbm
                             snprintf(error, lenError, "index length is [0] in subset [%u] at frame [%u]", j, i);
                         return false;
                     }
-                    for (int k = 0; k < pTmpSubset->indexCount; ++k)
+                    const int indexStart = pTmpSubset->indexStart;
+                    const int indexEnd   = pTmpSubset->indexStart + pTmpSubset->indexCount;
+                    for (int k = indexStart; k < indexEnd; ++k)
                     {
                         uint16_t index = bufferCurrent->indexBuffer[k];
                         if (index > iTotalVertex)

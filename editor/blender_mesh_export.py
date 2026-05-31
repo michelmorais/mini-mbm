@@ -3,8 +3,8 @@
 Blender exporter for mini-mbm Mesh Debug import pipeline.
 
 Writes a Lua intermediate file with baked mesh frames:
-  - frames[i].subsets[j].vertices: [{x,y,z,u,v,nx,ny,nz}, ...]
-  - frames[i].subsets[j].indices:  [1-based triangle indices]
+    - frames[i].subsets[j].vertices: [{x,y,z,u,v,nx,ny,nz}, ...]
+    - frames[i].subsets[j].indices:  [1-based triangle indices]
   - frames[i].subsets[j].texture:  optional image filepath
   - animations: optional baked clip metadata
 """
@@ -33,6 +33,22 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def debug_print(enabled: bool, message: str) -> None:
     if enabled:
         print(f"[blender_export] {message}", flush=True)
+
+
+def apply_numpy_compat_shim(debug_enabled: bool) -> None:
+    """
+    Blender 3.4 glTF importer still references np.bool in some builds.
+    Newer NumPy removed this alias, so we restore it to keep imports working.
+    """
+    try:
+        import numpy as np  # type: ignore
+    except Exception:
+        return
+
+    if "bool" not in np.__dict__:
+        # Keep behavior compatible with old addon code paths.
+        np.bool = bool  # type: ignore[attr-defined]
+        debug_print(debug_enabled, "applied numpy compatibility shim: np.bool -> bool")
 
 
 def lua_quote(value: str) -> str:
@@ -91,10 +107,6 @@ def get_first_texture_path(material: Any) -> str:
     return ""
 
 
-def round6(value: float) -> float:
-    return round(float(value), 6)
-
-
 def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
@@ -150,15 +162,15 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                         u = 0.0
                         v = 0.0
 
+                    # Use a topology-safe key. Avoid float rounding welds because they can
+                    # collapse distinct vertices and produce broken triangles.
                     key = (
-                        round6(world_pos.x),
-                        round6(world_pos.y),
-                        round6(world_pos.z),
-                        round6(u),
-                        round6(v),
-                        round6(world_no.x),
-                        round6(world_no.y),
-                        round6(world_no.z),
+                        int(loop.vertex_index),
+                        float(u),
+                        float(v),
+                        float(world_no.x),
+                        float(world_no.y),
+                        float(world_no.z),
                     )
 
                     idx = vmap.get(key)
@@ -282,6 +294,7 @@ def main() -> int:
     if "--" in sys.argv:
         argv = sys.argv[sys.argv.index("--") + 1 :]
     args = parse_args(argv)
+    apply_numpy_compat_shim(args.debug_steps)
 
     out_path = os.path.abspath(args.output)
     out_dir = os.path.dirname(out_path)
@@ -291,10 +304,14 @@ def main() -> int:
 
     data = build_data(args)
     debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
-    with open(out_path, "w", encoding="utf-8") as fp:
+    tmp_out = f"{out_path}.tmp.{os.getpid()}"
+    with open(tmp_out, "w", encoding="utf-8") as fp:
         fp.write("return ")
         fp.write(as_lua(data, 0))
         fp.write("\n")
+        fp.flush()
+        os.fsync(fp.fileno())
+    os.replace(tmp_out, out_path)
     debug_print(args.debug_steps, "done")
 
     return 0

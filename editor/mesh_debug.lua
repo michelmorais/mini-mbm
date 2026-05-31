@@ -266,6 +266,28 @@ local function getLogLastNonEmptyLine(content)
     return last
 end
 
+local function shouldPrintBlenderLatestLogLine(line)
+    if type(line) ~= 'string' or line == '' then
+        return false
+    end
+
+    -- Hide traceback stack-frame chatter while keeping meaningful status/error lines.
+    if line:match('^%s*File ".+", line %d+') then
+        return false
+    end
+    if line:match('^%s*%a[%w_]*%s*=%s*.+') then
+        return false
+    end
+    if line:match('^%s*return .+') then
+        return false
+    end
+    if line:find('^%s*%^%s*$', 1) then
+        return false
+    end
+
+    return true
+end
+
 local function extractBlenderLogError(logPath)
     if not logPath or logPath == '' then
         return nil
@@ -275,24 +297,40 @@ local function extractBlenderLogError(logPath)
         return nil
     end
 
-    local picked = nil
+    local lines = {}
     for line in content:gmatch('[^\r\n]+') do
-        if not picked and line:find('Exporter failed:', 1, true) then
-            picked = line
-        end
-        if line:find('RuntimeError:', 1, true) then
-            picked = line
-        end
-        if line:find('Traceback (most recent call last):', 1, true) then
-            picked = picked or line
-        end
-        if line:find('ERROR:', 1, true) or line:find('Error:', 1, true) then
-            picked = line
+        if line and line:match('%S') then
+            table.insert(lines, line)
         end
     end
 
-    if picked then
-        return picked
+    local function normalize(msg)
+        if not msg then return nil end
+        msg = msg:gsub('^%[blender_export%]%s*', '')
+        msg = msg:gsub('^%s+', ''):gsub('%s+$', '')
+        return msg ~= '' and msg or nil
+    end
+
+    -- Prefer specific Python exception lines over generic traceback headers.
+    for i = #lines, 1, -1 do
+        local line = lines[i]
+        if line:match('^[%a_][%w_]*Error:%s+.+') or line:match('^[%a_][%w_]*Exception:%s+.+') then
+            return normalize(line)
+        end
+    end
+
+    -- Fallback: exporter/runtime wrapper messages with useful details.
+    for i = #lines, 1, -1 do
+        local line = lines[i]
+        if line:find('Exporter failed:', 1, true) then
+            return normalize(line)
+        end
+        if line:find('RuntimeError:', 1, true) and not line:find('Traceback %(most recent call last%)', 1) then
+            return normalize(line)
+        end
+        if (line:find('ERROR:', 1, true) or line:find('Error:', 1, true)) and not line:find('Traceback %(most recent call last%)', 1) then
+            return normalize(line)
+        end
     end
 
     return nil
@@ -305,6 +343,10 @@ local function enrichBlenderErrorMessage(msg)
     local lower = msg:lower()
     if lower:find('ascii fbx files are not supported', 1, true) then
         return msg .. ' | Hint: re-export this FBX as Binary FBX (not ASCII) or convert with a DCC tool before importing.'
+    end
+    if lower:find("module 'numpy' has no attribute 'bool'", 1, true)
+       or lower:find('module \"numpy\" has no attribute \"bool\"', 1, true) then
+        return msg .. ' | Hint: Blender 3.4 glTF addon is using deprecated np.bool with newer NumPy. Use Blender >= 3.6/4.x or install a compatible NumPy for this Blender build.'
     end
     return msg
 end
@@ -390,6 +432,22 @@ local function buildMeshFromIntermediate(tData, outMshPath)
     local meshD = meshDebug:new()
     meshD:setType('mesh')
 
+    local totalFrames = #tData.frames
+    local totalSubsets = 0
+    local totalVertices = 0
+    local totalIndices = 0
+    for fi = 1, totalFrames do
+        local frame = tData.frames[fi]
+        local subsets = frame and frame.subsets or {}
+        totalSubsets = totalSubsets + #subsets
+        for si = 1, #subsets do
+            local subset = subsets[si]
+            totalVertices = totalVertices + #(subset.vertices or {})
+            totalIndices = totalIndices + #(subset.indices or {})
+        end
+    end
+    blenderDebugPrint(tBlenderImportState, 'build mesh data: frames=%d subsets=%d vertices=%d indices=%d', totalFrames, totalSubsets, totalVertices, totalIndices)
+
     for fi = 1, #tData.frames do
         local frame = tData.frames[fi]
         local frameIdx = meshD:addFrame(3)
@@ -399,11 +457,16 @@ local function buildMeshFromIntermediate(tData, outMshPath)
             if subset.texture and subset.texture ~= '' then
                 meshD:setTexture(frameIdx, subsetIdx, subset.texture)
             end
+            blenderDebugPrint(tBlenderImportState, 'subset [%d/%d] vertices=%d indices=%d', si, #frame.subsets, #(subset.vertices or {}), #(subset.indices or {}))
             if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
-                return false, string.format('Failed to add vertices for frame %d subset %d.', fi, si)
+                return false, string.format('Failed to add vertices for frame %d subset %d (vertices=%d).', fi, si, #(subset.vertices or {}))
             end
             if not meshD:addIndex(frameIdx, subsetIdx, subset.indices) then
-                return false, string.format('Failed to add indices for frame %d subset %d.', fi, si)
+                local sample = {}
+                for ii = 1, math.min(6, #(subset.indices or {})) do
+                    sample[#sample + 1] = tostring(subset.indices[ii])
+                end
+                return false, string.format('Failed to add indices for frame %d subset %d (indices=%d sample=%s).', fi, si, #(subset.indices or {}), table.concat(sample, ','))
             end
         end
     end
@@ -499,6 +562,7 @@ local function blenderImportCoroutine()
             tBlender.launchCmdAsync(cmd, dbgLog)
             local startTime = os.time()
             local lastWaitLog = -1
+            local lastLogLinePrinted = nil
             local finished = false
             while not finished do
                 if tBlender.fileExists(outLua) then
@@ -569,8 +633,12 @@ local function blenderImportCoroutine()
                     elseif st.bPrintDebugSteps then
                         local content = readTextFile(dbgLog)
                         local lastLine = getLogLastNonEmptyLine(content)
-                        if lastLine and lastLine ~= '' then
+                        if lastLine
+                           and lastLine ~= ''
+                           and lastLine ~= lastLogLinePrinted
+                           and shouldPrintBlenderLatestLogLine(lastLine) then
                             blenderDebugPrint(st, 'latest log: %s', lastLine)
+                            lastLogLinePrinted = lastLine
                         end
                     end
                     if st.bPrintDebugSteps then
