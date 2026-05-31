@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 from typing import Any
 
 
@@ -299,6 +300,10 @@ def main() -> int:
     return 0
 
 
+def debug_requested_from_argv(argv: list[str]) -> bool:
+    return "--debug-steps" in argv
+
+
 if __name__ == "__main__":
     try:
         import bpy  # type: ignore
@@ -306,4 +311,17 @@ if __name__ == "__main__":
         sys.stderr.write(f"Failed to import bpy: {exc}\n")
         sys.exit(2)
 
-    sys.exit(main())
+    cli_argv = []
+    if "--" in sys.argv:
+        cli_argv = sys.argv[sys.argv.index("--") + 1 :]
+    debug_on = debug_requested_from_argv(cli_argv)
+
+    try:
+        sys.exit(main())
+    except Exception as exc:
+        if debug_on:
+            print(f"[blender_export] ERROR: {exc}", file=sys.stderr, flush=True)
+            traceback.print_exc()
+        else:
+            sys.stderr.write(f"Exporter failed: {exc}\n")
+        sys.exit(1)
