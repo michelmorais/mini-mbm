@@ -353,7 +353,7 @@ end
 
 function onOpenTextures()
     mbm.enableTextureFilter(tTextureOptions.bFilter)
-    local file_name = mbm.openMultiFile(sLastTextureOpened or '',"png","jpeg","jpg","bmp","gif","psd","pic","pnm","hdr","tga","tif")
+    local file_name = mbm.openMultiFile(sLastTextureOpened or '',"png","jpeg","jpg","bmp","gif","pic","pnm","hdr","tga","tif")
     if file_name then
         tTexturesToEditor = tUtil.loadInfoImagesToTable(file_name,tTexturesToEditor)
         bTextureViewOpened = true
