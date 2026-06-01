@@ -253,6 +253,14 @@ local function readTextFile(path)
     return content
 end
 
+local function getFileSize(path)
+    local fp = io.open(path, 'rb')
+    if not fp then return 0 end
+    local sz = fp:seek('end') or 0
+    fp:close()
+    return sz
+end
+
 local function getLogLastNonEmptyLine(content)
     if type(content) ~= 'string' or content == '' then
         return nil
@@ -511,6 +519,15 @@ local function buildMeshFromIntermediate(tData, outMshPath)
         return false, 'Failed to save generated MSH.'
     end
 
+    local okCheck, errCheck = meshD:check()
+    if not okCheck then
+        return false, errCheck or 'Mesh check failed.'
+    end
+
+    if not meshD:save(outMshPath, false, false) then
+        return false, 'Failed to save generated MSH.'
+    end
+
     return true
 end
 
@@ -566,55 +583,82 @@ local function blenderImportCoroutine()
             local finished = false
             while not finished do
                 if tBlender.fileExists(outLua) then
-                    exported = exported + 1
-                    blenderDebugPrint(st, 'file ready: %s', outLua)
-                    local chunk, loadErr = loadfile(outLua)
-                    if not chunk then
-                        failed = failed + 1
-                        lastErr = loadErr or ('Failed to load intermediate: ' .. outLua)
-                        pushBlenderRunResult(src, 'failed', lastErr)
-                    else
-                        local okRun, tData = pcall(chunk)
-                        if not okRun then
-                            failed = failed + 1
-                            lastErr = tostring(tData)
-                            pushBlenderRunResult(src, 'failed', lastErr)
-                        else
-                            local okVal, errVal = validateIntermediateData(tData)
-                            if not okVal then
-                                failed = failed + 1
-                                lastErr = errVal
-                                blenderDebugPrint(st, 'validation failed: %s', errVal)
-                                pushBlenderRunResult(src, 'failed', lastErr)
-                            else
-                                if modeIntermediateOnly then
-                                    blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
-                                    pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
-                                else
-                                    local okBuild, errBuild = buildMeshFromIntermediate(tData, outMsh)
-                                    if not okBuild then
-                                        failed = failed + 1
-                                        lastErr = errBuild
-                                        blenderDebugPrint(st, 'build failed: %s', errBuild)
-                                        pushBlenderRunResult(src, 'failed', lastErr)
-                                    else
-                                        if addMeshToTable(outMsh) then
-                                            imported = imported + 1
-                                            bShowMeshTree = true
-                                            blenderDebugPrint(st, 'imported mesh: %s', outMsh)
-                                            pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
-                                        else
-                                            failed = failed + 1
-                                            lastErr = 'Generated MSH could not be loaded into editor.'
-                                            blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
-                                            pushBlenderRunResult(src, 'failed', lastErr)
-                                        end
-                                    end
-                                end
+                    local elapsed = os.time() - startTime
+                    local outSize = getFileSize(outLua)
+                    if st.bPrintDebugSteps then
+                        blenderDebugPrint(st, 'file exists: %s (%d bytes)', outLua, outSize)
+                    end
+
+                    local chunk, loadErr = nil, nil
+                    local okRun, tData = false, nil
+                    local okVal, errVal = false, nil
+
+                    if outSize > 0 then
+                        chunk, loadErr = loadfile(outLua)
+                        if chunk then
+                            okRun, tData = pcall(chunk)
+                            if okRun then
+                                okVal, errVal = validateIntermediateData(tData)
                             end
                         end
                     end
-                    finished = true
+
+                    if outSize > 0 and chunk and okRun and okVal then
+                        exported = exported + 1
+                        blenderDebugPrint(st, 'file ready: %s', outLua)
+                        if modeIntermediateOnly then
+                            blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
+                            pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
+                        else
+                            local okBuild, errBuild = buildMeshFromIntermediate(tData, outMsh)
+                            if not okBuild then
+                                failed = failed + 1
+                                lastErr = errBuild
+                                blenderDebugPrint(st, 'build failed: %s', errBuild)
+                                pushBlenderRunResult(src, 'failed', lastErr)
+                            else
+                                if addMeshToTable(outMsh) then
+                                    imported = imported + 1
+                                    bShowMeshTree = true
+                                    blenderDebugPrint(st, 'imported mesh: %s', outMsh)
+                                    pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
+                                else
+                                    failed = failed + 1
+                                    lastErr = 'Generated MSH could not be loaded into editor.'
+                                    blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
+                                    pushBlenderRunResult(src, 'failed', lastErr)
+                                end
+                            end
+                        end
+                        finished = true
+                    else
+                        -- On Windows the file can appear before write completion; keep polling until valid or timeout.
+                        local parseReason = nil
+                        if outSize <= 0 then
+                            parseReason = 'intermediate file is still empty'
+                        elseif not chunk then
+                            parseReason = loadErr or 'failed to compile intermediate file'
+                        elseif not okRun then
+                            parseReason = tostring(tData)
+                        elseif not okVal then
+                            parseReason = errVal
+                        else
+                            parseReason = 'intermediate file is not ready yet'
+                        end
+
+                        if st.bPrintDebugSteps then
+                            blenderDebugPrint(st, 'waiting valid intermediate (%ds): %s', elapsed, tostring(parseReason))
+                        end
+
+                        if elapsed >= st.iTimeoutSecs or st.bAbortRequested then
+                            failed = failed + 1
+                            lastErr = parseReason
+                            pushBlenderRunResult(src, 'failed', tostring(parseReason))
+                            finished = true
+                        else
+                            coroutine.yield()
+                        end
+                    end
                 else
                     local elapsed = os.time() - startTime
                     if tBlender.fileExists(dbgLog) then

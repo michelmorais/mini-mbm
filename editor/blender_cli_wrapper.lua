@@ -61,7 +61,50 @@ local function wrapCmd(cmd)
     return cmd
 end
 
+local function trim(s)
+    return (tostring(s or ''):match('^%s*(.-)%s*$'))
+end
+
+local function pathExists(path)
+    local f = io.open(path, 'rb')
+    if not f then return false end
+    f:close()
+    return true
+end
+
+local function normalizeBlenderExePath(exe)
+    exe = trim(exe)
+    if exe == '' then return '' end
+
+    if M.getOS() == 'windows' then
+        if exe:lower():match('%.exe$') then
+            return exe
+        end
+
+        local clean = exe:gsub('[/\\]+$', '')
+        local withExe = clean .. '\\blender.exe'
+        if pathExists(withExe) then
+            return withExe
+        end
+        return exe
+    end
+
+    local clean = exe:gsub('[/\\]+$', '')
+    if clean:sub(-8) == '/blender' then
+        return clean
+    end
+
+    local withExe = clean .. '/blender'
+    if pathExists(withExe) then
+        return withExe
+    end
+    return exe
+end
+
 local function tryDetectExe(exe)
+    exe = normalizeBlenderExePath(exe)
+    if exe == '' then return nil end
+
     debugPrint('detect: probing executable [%s]', tostring(exe))
     local f = io.popen(wrapCmd(shellQuote(exe) .. ' --version') .. ' 2>&1')
     if not f then return nil end
@@ -77,11 +120,69 @@ local function tryDetectExe(exe)
 end
 
 local WINDOWS_BLENDER_CANDIDATES = {
+    'C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 5.1\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 4.4\\blender.exe',
     'C:\\Program Files\\Blender Foundation\\Blender 4.3\\blender.exe',
     'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
     'C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
     'C:\\Program Files\\Blender Foundation\\Blender\\blender.exe',
 }
+
+local function whereExe(exe)
+    local f = io.popen('where "' .. exe .. '" 2>nul')
+    if not f then return nil end
+    local line = f:read('*l')
+    f:close()
+    if line and line ~= '' and not line:lower():find('could not find') then
+        return trim(line)
+    end
+    return nil
+end
+
+local function findWindowsBlenderInstallCandidates()
+    local out = {}
+    local seen = {}
+
+    local function addCandidate(path)
+        path = trim(path)
+        if path ~= '' and not seen[path:lower()] then
+            seen[path:lower()] = true
+            table.insert(out, path)
+        end
+    end
+
+    local bases = {
+        os.getenv('ProgramW6432'),
+        os.getenv('ProgramFiles'),
+        os.getenv('ProgramFiles(x86)'),
+    }
+
+    for _, base in ipairs(bases) do
+        base = trim(base)
+        if base ~= '' then
+            local root = base .. '\\Blender Foundation'
+            local f = io.popen('cmd /c dir /b /ad "' .. root .. '\\Blender*" 2>nul')
+            if f then
+                for line in f:lines() do
+                    line = trim(line)
+                    if line ~= '' then
+                        addCandidate(root .. '\\' .. line .. '\\blender.exe')
+                    end
+                end
+                f:close()
+            end
+            addCandidate(root .. '\\Blender\\blender.exe')
+        end
+    end
+
+    for _, p in ipairs(WINDOWS_BLENDER_CANDIDATES) do
+        addCandidate(p)
+    end
+
+    return out
+end
 
 function M.detectBlender()
     if M.blender ~= nil then return M.blender end
@@ -95,7 +196,13 @@ function M.detectBlender()
     if r then M.blender = r; return M.blender end
 
     if M.getOS() == 'windows' then
-        for _, candidate in ipairs(WINDOWS_BLENDER_CANDIDATES) do
+        local whereBlender = whereExe('blender.exe')
+        if whereBlender then
+            r = tryDetectExe(whereBlender)
+            if r then M.blender = r; return M.blender end
+        end
+
+        for _, candidate in ipairs(findWindowsBlenderInstallCandidates()) do
             local probe = io.open(candidate, 'rb')
             if probe then
                 probe:close()
