@@ -119,6 +119,36 @@ function onInitScene()
         selectedCount = 0,
         needRebuild   = true,
     }
+    tApplyAllWin = {
+        open = false,
+        selectedType = nil,
+        transform = {
+            frame = 0,
+            subset = 0,
+            rx = 0,
+            ry = 0,
+            rz = 0,
+            sx = 1,
+            sy = 1,
+            sz = 1,
+            dx = 0,
+            dy = 0,
+            dz = 0,
+        },
+        texture = {
+            frame = 0,
+            subset = 0,
+            stage = 0,
+            filename = '',
+        },
+        uv = {
+            frame = 0,
+        },
+        shader = {
+            sourceFile = '',
+        },
+        lastResultText = '',
+    }
 
     tBlenderImportState = {
         bOpen = false,
@@ -3662,86 +3692,552 @@ function doSaveAs(tEntry, index)
     end
 end
 
-function applyToAll(operation)
-    local iSuccess = 0
-    local iFailed = 0
-    local iTotalVertices = 0
-    local iTotalBytesSaved = 0
-    for i = 1, #tLoadedMeshes do
-        local tEntry = tLoadedMeshes[i]
+local function getApplyAllTypeData()
+    local tOrder = {}
+    local tCounts = {}
+    for _, tEntry in ipairs(tLoadedMeshes) do
+        local sType = (tEntry.info and tEntry.info.type) or 'unknown'
+        if not tCounts[sType] then
+            tCounts[sType] = 0
+            table.insert(tOrder, sType)
+        end
+        tCounts[sType] = tCounts[sType] + 1
+    end
+    return tOrder, tCounts
+end
+
+local function ensureApplyAllTypeSelected()
+    local tOrder, tCounts = getApplyAllTypeData()
+    if #tOrder == 0 then
+        if tApplyAllWin then tApplyAllWin.selectedType = nil end
+        return tOrder, tCounts
+    end
+    if not tApplyAllWin.selectedType or not tCounts[tApplyAllWin.selectedType] then
+        tApplyAllWin.selectedType = tOrder[1]
+    end
+    return tOrder, tCounts
+end
+
+local function getApplyAllTargets(sType)
+    local tTargets = {}
+    if not sType or sType == '' then return tTargets end
+    for i, tEntry in ipairs(tLoadedMeshes) do
+        local entryType = (tEntry.info and tEntry.info.type) or 'unknown'
+        if entryType == sType then
+            table.insert(tTargets, { entry = tEntry, index = i })
+        end
+    end
+    return tTargets
+end
+
+local function formatApplyAllDetails(tDetails)
+    if not tDetails or #tDetails == 0 then return '' end
+    local tShown = {}
+    local limit = math.min(#tDetails, 6)
+    for i = 1, limit do
+        tShown[i] = tDetails[i]
+    end
+    if #tDetails > limit then
+        table.insert(tShown, string.format(tLang.L('apply_all_more_fmt'), #tDetails - limit))
+    end
+    return table.concat(tShown, '\n')
+end
+
+local function setApplyAllResult(summary)
+    local headline = string.format(
+        tLang.L('apply_all_summary_fmt'),
+        summary.operation,
+        summary.typeName or '?',
+        summary.total or 0,
+        summary.success or 0,
+        summary.skipped or 0,
+        summary.failed or 0)
+    local details = formatApplyAllDetails(summary.details)
+    if details ~= '' then
+        headline = headline .. '\n' .. details
+    end
+    tApplyAllWin.lastResultText = headline
+    if summary.failed > 0 and summary.success == 0 then
+        tUtil.showMessageWarn(headline)
+    else
+        tUtil.showMessage(headline, 8)
+    end
+end
+
+local function runApplyAllOperation(sType, sOperationLabel, fnApply)
+    local tTargets = getApplyAllTargets(sType)
+    local summary = {
+        operation = sOperationLabel,
+        typeName = sType,
+        total = #tTargets,
+        success = 0,
+        skipped = 0,
+        failed = 0,
+        details = {},
+    }
+    for _, target in ipairs(tTargets) do
+        local status, detail = fnApply(target.entry, target.index)
+        if status == 'success' then
+            summary.success = summary.success + 1
+            iLastPreviewedIndex = 0
+        elseif status == 'skipped' then
+            summary.skipped = summary.skipped + 1
+            if detail and detail ~= '' then
+                table.insert(summary.details, string.format('[skip] %s: %s', tUtil.getShortName(target.entry.fileName), detail))
+            end
+        else
+            summary.failed = summary.failed + 1
+            if detail and detail ~= '' then
+                table.insert(summary.details, string.format('[fail] %s: %s', tUtil.getShortName(target.entry.fileName), detail))
+            end
+        end
+    end
+    setApplyAllResult(summary)
+    return summary
+end
+
+local function openApplyAllWindow()
+    tApplyAllWin.open = true
+    ensureApplyAllTypeSelected()
+end
+
+local function applyAllRemoveNormals(sType)
+    local totalVertices = 0
+    local totalBytesSaved = 0
+    local summary = runApplyAllOperation(sType, tLang.L('remove_normals'), function(tEntry)
         local meshD = tEntry.meshDebug
+        if tEntry.info and tEntry.info.hasNormal then
+            local nVertices = getMeshTotalVertices(meshD)
+            totalVertices = totalVertices + nVertices
+            totalBytesSaved = totalBytesSaved + (nVertices * 12)
+        end
+        meshD:removeNormals()
+        if tEntry.info then tEntry.info.hasNormal = false end
+        tEntry.modified = true
+        return 'success'
+    end)
+    if totalVertices > 0 then
+        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
+            .. string.format('\n%d vertices, ~%s saved', totalVertices, formatBytes(totalBytesSaved))
+        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
+    end
+    return summary
+end
+
+local function applyAllAddNormals(sType)
+    local totalVertices = 0
+    local summary = runApplyAllOperation(sType, tLang.L('add_normals'), function(tEntry)
+        totalVertices = totalVertices + getMeshTotalVertices(tEntry.meshDebug)
+        tEntry.meshDebug:addNormals()
+        if tEntry.info then tEntry.info.hasNormal = true end
+        tEntry.modified = true
+        return 'success'
+    end)
+    if totalVertices > 0 then
+        tApplyAllWin.lastResultText = tApplyAllWin.lastResultText
+            .. string.format('\n%d vertices', totalVertices)
+        tUtil.showMessage(tApplyAllWin.lastResultText, 8)
+    end
+    return summary
+end
+
+local function applyAllCentralize(sType)
+    return runApplyAllOperation(sType, tLang.L('centralize'), function(tEntry)
+        tEntry.meshDebug:centralize()
+        tEntry.modified = true
+        return 'success'
+    end)
+end
+
+local function applyAllTransform(sType, sMode)
+    local xf = tApplyAllWin.transform
+    local operationLabel = tLang.L('apply_transform')
+    if sMode == 'rotate' then
+        operationLabel = tLang.L('apply_rotation')
+    elseif sMode == 'scale' then
+        operationLabel = tLang.L('apply_scale')
+    elseif sMode == 'translate' then
+        operationLabel = tLang.L('apply_translate')
+    end
+    return runApplyAllOperation(sType, operationLabel, function(tEntry)
         local ok = false
-        if operation == 'removeNormals' then
-            if tEntry.info and tEntry.info.hasNormal then
-                local nV = getMeshTotalVertices(meshD)
-                iTotalVertices = iTotalVertices + nV
-                iTotalBytesSaved = iTotalBytesSaved + (nV * 12)
-            end
-            meshD:removeNormals()
-            if tEntry.info then tEntry.info.hasNormal = false end
-            tEntry.modified = true
-            ok = true
-        elseif operation == 'addNormals' then
-            iTotalVertices = iTotalVertices + getMeshTotalVertices(meshD)
-            meshD:addNormals()
-            if tEntry.info then tEntry.info.hasNormal = true end
-            tEntry.modified = true
-            ok = true
-        elseif operation == 'centralize' then
-            meshD:centralize()
-            tEntry.modified = true
-            ok = true
-        elseif operation == 'save' then
-            local animErr = collectAnimFrameErrors(tEntry)
-            if not animErr then
-                ok = meshD:save(tEntry.fileName, false, false)
-                if ok then tEntry.modified = false end
-            end
-        elseif operation == 'saveRecalcNormals' then
-            local animErr = collectAnimFrameErrors(tEntry)
-            if not animErr then
-                ok = meshD:save(tEntry.fileName, true, false)
-                if ok then
-                    tEntry.modified = false
-                    if tEntry.info then tEntry.info.hasNormal = true end
-                end
-            end
+        if sMode == 'rotate' then
+            ok = dpCall(function() tEntry.meshDebug:rotateFrame(xf.frame, xf.rx, xf.ry, xf.rz, xf.subset) end)
+        elseif sMode == 'scale' then
+            ok = dpCall(function() tEntry.meshDebug:scaleFrame(xf.frame, xf.sx, xf.sy, xf.sz, xf.subset) end)
+        elseif sMode == 'translate' then
+            ok = dpCall(function() tEntry.meshDebug:translateFrame(xf.frame, xf.dx, xf.dy, xf.dz, xf.subset) end)
         end
         if ok then
-            iSuccess = iSuccess + 1
-            iLastPreviewedIndex = 0
-        else
-            iFailed = iFailed + 1
+            tEntry.modified = true
+            return 'success'
         end
+        return 'failed', tLang.L('an_error_occurred')
+    end)
+end
+
+local function applyAllTexture(sType, bClear)
+    local tx = tApplyAllWin.texture
+    local sOperation = bClear and tLang.L('tex_clear') or tLang.L('tex_set')
+    return runApplyAllOperation(sType, sOperation, function(tEntry)
+        local meshD = tEntry.meshDebug
+        local info = tEntry.info or {}
+        local totalFrames = info.totalFrames or 0
+        local count = 0
+        local f1 = tx.frame == 0 and 1 or tx.frame
+        local f2 = tx.frame == 0 and totalFrames or tx.frame
+        for f = f1, f2 do
+            local okS2, nS2 = dpCall(function() return meshD:getTotalSubset(f) end)
+            nS2 = (okS2 and nS2) or 0
+            local s1 = tx.subset == 0 and 1 or tx.subset
+            local s2 = tx.subset == 0 and nS2 or tx.subset
+            for s = s1, s2 do
+                local ok = dpCall(function()
+                    meshD:setTexture(f, s, bClear and '' or tx.filename)
+                end)
+                if ok then count = count + 1 end
+            end
+        end
+        if count > 0 then
+            tEntry.modified = true
+            return 'success'
+        end
+        return 'skipped', tLang.L('apply_all_no_matching_targets')
+    end)
+end
+
+local function applyAllUv(sType, sMode)
+    return runApplyAllOperation(sType, sMode, function(tEntry)
+        local shortName = tUtil.getShortName(tEntry.fileName)
+        local info = tEntry.info or {}
+        if not info.hasTexture then
+            return 'skipped', string.format(tLang.L('uv_no_data_warning'), shortName)
+        end
+        if sMode == tLang.L('fix_legacy_v') then
+            local fixType, n = normalizeLegacyV(tEntry.meshDebug, tApplyAllWin.uv.frame)
+            if fixType == false then
+                return 'failed', tLang.L('apply_all_uv_scan_failed')
+            elseif fixType == 'none' then
+                return 'skipped', tLang.L('fix_legacy_v_none_fmt'):format(shortName)
+            end
+            tEntry.modified = true
+            return 'success', string.format('%s (%d)', fixType, n or 0)
+        end
+        local invertU = (sMode == tLang.L('invert_u') or sMode == tLang.L('invert_uv'))
+        local invertV = (sMode == tLang.L('invert_v') or sMode == tLang.L('invert_uv'))
+        local n = invertMeshUV(tEntry.meshDebug, tApplyAllWin.uv.frame, invertU, invertV)
+        if n > 0 then
+            tEntry.modified = true
+            return 'success'
+        end
+        return 'skipped', tLang.L('apply_all_no_matching_targets')
+    end)
+end
+
+local function createShaderReferenceRenderizable(fileName)
+    local refInfo = meshDebug:getInfo(fileName)
+    if not refInfo or not refInfo.type then
+        return nil, tLang.L('could_not_read_mesh_info'), nil
     end
-    local msg = string.format('Apply to %d: %d success, %d failed', #tLoadedMeshes, iSuccess, iFailed)
-    if operation == 'removeNormals' and iTotalVertices > 0 then
-        msg = msg .. string.format('\n%d vertices, ~%s saved', iTotalVertices, formatBytes(iTotalBytesSaved))
-    elseif operation == 'addNormals' and iTotalVertices > 0 then
-        msg = msg .. string.format('\n%d vertices', iTotalVertices)
+    local refDir = fileName:match('^(.*)[/\\]')
+    if refDir then mbm.addPath(refDir) end
+    local refMesh = nil
+    if refInfo.type == 'sprite' then
+        refMesh = sprite:new('2dw')
+    elseif refInfo.type == 'mesh' then
+        refMesh = mesh:new('2dw')
+    elseif refInfo.type == 'tile' then
+        refMesh = tile:new('2dw')
+    elseif refInfo.type == 'particle' then
+        refMesh = particle:new('2dw')
+    elseif refInfo.type == 'font' then
+        local fontRef = font:new(fileName)
+        if fontRef then refMesh = fontRef:add('2dw', 'ApplyAllShader') end
+    elseif refInfo.type == 'texture' then
+        refMesh = texture:new('2dw')
     end
-    tUtil.showMessage(msg)
+    if not refMesh or not refMesh:load(fileName) then
+        if refMesh then refMesh:destroy() end
+        return nil, tLang.L('failed_to_load_reference_mesh'), refInfo
+    end
+    if refInfo.type == 'particle' then
+        refMesh:add(100)
+        refMesh.revive = true
+    end
+    return refMesh, nil, refInfo
+end
+
+local function applyAllShaderFromFile(sType)
+    local sourceFile = tApplyAllWin.shader.sourceFile or ''
+    if sourceFile == '' then
+        tUtil.showMessageWarn(tLang.L('apply_all_pick_shader_source'))
+        return nil
+    end
+    local refMesh, err, refInfo = createShaderReferenceRenderizable(sourceFile)
+    if not refMesh then
+        tUtil.showMessageWarn(err or tLang.L('failed_to_load_reference_mesh'))
+        return nil
+    end
+    if refInfo and refInfo.type and refInfo.type ~= sType then
+        if refMesh.destroy then refMesh:destroy() end
+        tUtil.showMessageWarn(string.format(tLang.L('apply_all_shader_type_mismatch_fmt'), refInfo.type, sType))
+        return nil
+    end
+    local summary = runApplyAllOperation(sType, tLang.L('shader_label'), function(tEntry)
+        local ok = tEntry.meshDebug:copyAnimationsFromMesh(refMesh)
+        if ok then
+            tEntry.modified = true
+            return 'success'
+        end
+        return 'skipped', tLang.L('copy_failed_no_shader')
+    end)
+    if refMesh.destroy then refMesh:destroy() end
+    return summary
+end
+
+local function applyAllCheck(sType)
+    return runApplyAllOperation(sType, tLang.L('check'), function(tEntry)
+        local ok, err = tEntry.meshDebug:check()
+        local animErr = collectAnimFrameErrors(tEntry)
+        if ok and not animErr then
+            return 'success'
+        end
+        if ok and animErr then
+            return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
+        end
+        if animErr then
+            return 'failed', (err or '') .. ' | ' .. tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
+        end
+        return 'failed', err or tLang.L('an_error_occurred')
+    end)
+end
+
+local function applyAllSave(sType, bRecalcNormals)
+    local operationLabel = bRecalcNormals and tLang.L('save_all_calc_normals') or tLang.L('save_all_overwrite')
+    return runApplyAllOperation(sType, operationLabel, function(tEntry)
+        local animErr = collectAnimFrameErrors(tEntry)
+        if animErr then
+            return 'failed', tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
+        end
+        local ok = tEntry.meshDebug:save(tEntry.fileName, bRecalcNormals, false)
+        if ok then
+            tEntry.modified = false
+            if bRecalcNormals and tEntry.info then tEntry.info.hasNormal = true end
+            return 'success'
+        end
+        return 'failed', string.format(tLang.L('save_failed_fmt'), tUtil.getShortName(tEntry.fileName))
+    end)
 end
 
 function showApplyToAllMenu()
     if tImGui.BeginMenu(tLang.L("apply_to_all")) then
         local enabled = (#tLoadedMeshes > 0)
-        if tImGui.MenuItem(tLang.L("remove_normals"), nil, false, enabled) then
-            applyToAll('removeNormals')
-        end
-        if tImGui.MenuItem(tLang.L("add_normals"), nil, false, enabled) then
-            applyToAll('addNormals')
-        end
-        if tImGui.MenuItem(tLang.L("centralize"), nil, false, enabled) then
-            applyToAll('centralize')
-        end
-        if tImGui.MenuItem(tLang.L("save_all_overwrite"), nil, false, enabled) then
-            applyToAll('save')
-        end
-        if tImGui.MenuItem(tLang.L("save_all_calc_normals"), nil, false, enabled) then
-            applyToAll('saveRecalcNormals')
+        if tImGui.MenuItem(tLang.L('apply_all_open_window'), nil, false, enabled) then
+            openApplyAllWindow()
         end
         tImGui.EndMenu()
+    end
+end
+
+function showApplyAllWindow()
+    local win = tApplyAllWin
+    if not win.open then return end
+
+    local tTypes, tCounts = ensureApplyAllTypeSelected()
+    local iW, iH = mbm.getSizeScreen()
+    tImGui.SetNextWindowSize({x=560, y=620}, tImGui.Flags('ImGuiCond_Appearing'))
+    tImGui.SetNextWindowPos({x=iW * 0.5, y=iH * 0.5}, tImGui.Flags('ImGuiCond_Appearing'), {x=0.5, y=0.5})
+
+    local isOpen, closed = tImGui.Begin(tLang.L(tWindowsTitle.title_apply_all) .. '##applyAllWin', true, 0)
+    if isOpen then
+        tImGui.TextDisabled(string.format(tLang.L('apply_all_loaded_meshes_fmt'), #tLoadedMeshes))
+        if #tTypes == 0 then
+            tImGui.Separator()
+            tImGui.TextWrapped(tLang.L('ltw_no_meshes'))
+        else
+            local labels = {}
+            local currentIndex = 1
+            for i, sType in ipairs(tTypes) do
+                labels[i] = string.format('%s (%d)', sType, tCounts[sType] or 0)
+                if sType == win.selectedType then currentIndex = i end
+            end
+            tImGui.Text(tLang.L('apply_all_target_type'))
+            local changedType, newTypeIndex = tImGui.Combo('##applyAllType', currentIndex, labels, -1)
+            if changedType and newTypeIndex then
+                win.selectedType = tTypes[newTypeIndex]
+            end
+            local tTargets = getApplyAllTargets(win.selectedType)
+            tImGui.TextDisabled(string.format(tLang.L('apply_all_target_count_fmt'), #tTargets, win.selectedType))
+            tImGui.Separator()
+
+            if tImGui.TreeNodeEx(tLang.L('normals_label') .. '##applyAllNormals', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                if tImGui.Button(tLang.L('remove_normals') .. '##applyAllRemoveNormals') then
+                    applyAllRemoveNormals(win.selectedType)
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('add_normals') .. '##applyAllAddNormals') then
+                    applyAllAddNormals(win.selectedType)
+                end
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('transform') .. '##applyAllTransform', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                local xf = win.transform
+                if tImGui.Button(tLang.L('centralize') .. '##applyAllCentralize') then
+                    applyAllCentralize(win.selectedType)
+                end
+                tImGui.Separator()
+                tImGui.Text(tLang.L('target_frame_label'))
+                local _, nf = tImGui.InputInt('##applyAllXfFrame', xf.frame, 1, 1, 0)
+                if nf ~= nil then xf.frame = math.max(0, nf) end
+                tImGui.Text(tLang.L('target_subset_label'))
+                local _, ns = tImGui.InputInt('##applyAllXfSubset', xf.subset, 1, 1, 0)
+                if ns ~= nil then xf.subset = math.max(0, ns) end
+                tImGui.Spacing()
+                tImGui.Text(tLang.L('rotate_xyz'))
+                local crx, rx = tImGui.DragFloat('X##applyAllRx', xf.rx, 1.0, 0, 0, '%.1f')
+                local cry, ry = tImGui.DragFloat('Y##applyAllRy', xf.ry, 1.0, 0, 0, '%.1f')
+                local crz, rz = tImGui.DragFloat('Z##applyAllRz', xf.rz, 1.0, 0, 0, '%.1f')
+                if crx then xf.rx = rx end
+                if cry then xf.ry = ry end
+                if crz then xf.rz = rz end
+                if tImGui.Button(tLang.L('apply_rotation') .. '##applyAllRotate') then
+                    applyAllTransform(win.selectedType, 'rotate')
+                end
+                tImGui.Spacing()
+                tImGui.Text(tLang.L('scale_xyz'))
+                local csx, sx = tImGui.DragFloat('X##applyAllSx', xf.sx, 0.01, 0, 0, '%.3f')
+                local csy, sy = tImGui.DragFloat('Y##applyAllSy', xf.sy, 0.01, 0, 0, '%.3f')
+                local csz, sz = tImGui.DragFloat('Z##applyAllSz', xf.sz, 0.01, 0, 0, '%.3f')
+                if csx then xf.sx = sx end
+                if csy then xf.sy = sy end
+                if csz then xf.sz = sz end
+                if tImGui.Button(tLang.L('apply_scale') .. '##applyAllScale') then
+                    applyAllTransform(win.selectedType, 'scale')
+                end
+                tImGui.Spacing()
+                tImGui.Text(tLang.L('translate_xyz'))
+                local cdx, dx = tImGui.DragFloat('X##applyAllDx', xf.dx, 1.0, 0, 0, '%.1f')
+                local cdy, dy = tImGui.DragFloat('Y##applyAllDy', xf.dy, 1.0, 0, 0, '%.1f')
+                local cdz, dz = tImGui.DragFloat('Z##applyAllDz', xf.dz, 1.0, 0, 0, '%.1f')
+                if cdx then xf.dx = dx end
+                if cdy then xf.dy = dy end
+                if cdz then xf.dz = dz end
+                if tImGui.Button(tLang.L('apply_translate') .. '##applyAllTranslate') then
+                    applyAllTransform(win.selectedType, 'translate')
+                end
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('texture_node') .. '##applyAllTexture', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                local tx = win.texture
+                tImGui.Text(tLang.L('target_frame_label'))
+                local _, nf = tImGui.InputInt('##applyAllTxFrame', tx.frame, 1, 1, 0)
+                if nf ~= nil then tx.frame = math.max(0, nf) end
+                tImGui.Text(tLang.L('target_subset_label'))
+                local _, ns = tImGui.InputInt('##applyAllTxSubset', tx.subset, 1, 1, 0)
+                if ns ~= nil then tx.subset = math.max(0, ns) end
+                tImGui.Text(tLang.L('tex_stage_label'))
+                local stageOpts = {'0 - Primary', '1 - FX (per anim step)'}
+                local rStage, newStageIdx = tImGui.Combo('##applyAllTxStage', tx.stage + 1, stageOpts, -1)
+                if rStage and newStageIdx then tx.stage = newStageIdx - 1 end
+                if tx.stage == 1 then
+                    tImGui.TextWrapped(tLang.L('tex_stage1_note'))
+                else
+                    local changedFile, newFile = tImGui.InputText('##applyAllTxFile', tx.filename or '', 512, 0)
+                    if changedFile and newFile ~= nil then tx.filename = newFile end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('tex_browse') .. '##applyAllTxBrowse') then
+                        local picked = mbm.openFile(sLastMeshPath,
+                            table.unpack(tUtil.supported_images or {'png', 'jpg', 'bmp', 'tga'}))
+                        if picked then
+                            if type(picked) == 'table' then picked = picked[1] end
+                            tx.filename = picked
+                        end
+                    end
+                    if tImGui.Button(tLang.L('tex_set') .. '##applyAllTxSet') then
+                        if not tx.filename or tx.filename == '' then
+                            tUtil.showMessageWarn('No filename specified')
+                        else
+                            applyAllTexture(win.selectedType, false)
+                        end
+                    end
+                    tImGui.SameLine()
+                    if tImGui.Button(tLang.L('tex_clear') .. '##applyAllTxClear') then
+                        applyAllTexture(win.selectedType, true)
+                    end
+                end
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('uv_label') .. '##applyAllUv', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                local uv = win.uv
+                tImGui.Text(tLang.L('target_frame_label'))
+                local _, nf = tImGui.InputInt('##applyAllUvFrame', uv.frame, 1, 1, 0)
+                if nf ~= nil then uv.frame = math.max(0, nf) end
+                if tImGui.Button(tLang.L('invert_u') .. '##applyAllInvU') then
+                    applyAllUv(win.selectedType, tLang.L('invert_u'))
+                end
+                if tImGui.Button(tLang.L('invert_v') .. '##applyAllInvV') then
+                    applyAllUv(win.selectedType, tLang.L('invert_v'))
+                end
+                if tImGui.Button(tLang.L('invert_uv') .. '##applyAllInvUV') then
+                    applyAllUv(win.selectedType, tLang.L('invert_uv'))
+                end
+                if tImGui.Button(tLang.L('fix_legacy_v') .. '##applyAllFixLegacyV') then
+                    applyAllUv(win.selectedType, tLang.L('fix_legacy_v'))
+                end
+                if tImGui.IsItemHovered(0) then
+                    tImGui.BeginTooltip()
+                    tImGui.Text(tLang.L('fix_legacy_v_tooltip'))
+                    tImGui.EndTooltip()
+                end
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('shader_label') .. '##applyAllShader', tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                tImGui.TextWrapped(tLang.L('apply_all_shader_help'))
+                local changedSource, newSource = tImGui.InputText('##applyAllShaderFile', win.shader.sourceFile or '', 512, 0)
+                if changedSource and newSource ~= nil then win.shader.sourceFile = newSource end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('copy_from_file') .. '##applyAllShaderBrowse') then
+                    local picked = mbm.openMultiFile(sLastMeshPath, 'spt', 'msh', 'fnt', 'tile', 'ptl')
+                    if picked then
+                        if type(picked) == 'table' then picked = picked[1] end
+                        win.shader.sourceFile = picked
+                    end
+                end
+                if tImGui.Button(tLang.L('apply_all_shader_copy') .. '##applyAllShaderCopy') then
+                    applyAllShaderFromFile(win.selectedType)
+                end
+                tImGui.TreePop()
+            end
+
+            if tImGui.TreeNodeEx(tLang.L('apply_all_validation_save'), tImGui.Flags('ImGuiTreeNodeFlags_DefaultOpen')) then
+                if tImGui.Button(tLang.L('check') .. '##applyAllCheck') then
+                    applyAllCheck(win.selectedType)
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('save_all_overwrite') .. '##applyAllSave') then
+                    applyAllSave(win.selectedType, false)
+                end
+                tImGui.SameLine()
+                if tImGui.Button(tLang.L('save_all_calc_normals') .. '##applyAllSaveNormals') then
+                    applyAllSave(win.selectedType, true)
+                end
+                tImGui.TreePop()
+            end
+
+            tImGui.Separator()
+            tImGui.Text(tLang.L('apply_all_last_result'))
+            local text = (win.lastResultText and win.lastResultText ~= '') and win.lastResultText or tLang.L('apply_all_no_result')
+            local flagsRO = tImGui.Flags('ImGuiInputTextFlags_ReadOnly')
+            tImGui.InputTextMultiline('##applyAllResult', text, {x=-1, y=130}, flagsRO)
+        end
+    end
+    tImGui.End()
+    if closed then
+        win.open = false
     end
 end
 
@@ -4610,6 +5106,7 @@ function onLoop(delta)
     showBlenderImportDialog()
     showCameraWindow()
     showMeshTreeWindow()
+    showApplyAllWindow()
     showListTexturesWindow()
     showListMeshesWindow()
     updatePreviewMesh()
