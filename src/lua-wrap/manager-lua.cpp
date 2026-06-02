@@ -34,6 +34,7 @@ extern "C"
 #include <platform/mismatch-platform.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/util-interface.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/renderizable-clone.h>
 #include <version/version.h>
 #include <static-resource/mini-mbm-logo.h>

@@ -21,6 +21,7 @@
 
 #include "mini-mbm-lib.h"
 #include <util-interface.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/strings-pt-br.h>
 #include <defaultThemePlusWindows.h>
 
