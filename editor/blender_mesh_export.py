@@ -107,6 +107,26 @@ def get_first_texture_path(material: Any) -> str:
     return ""
 
 
+def prepare_mesh_normals(mesh: Any) -> None:
+    """
+    Keep compatibility across Blender versions:
+      - Older versions expose calc_normals_split()
+      - Newer versions may only expose calc_normals()
+    """
+    if hasattr(mesh, "calc_normals_split"):
+        mesh.calc_normals_split()
+    elif hasattr(mesh, "calc_normals"):
+        mesh.calc_normals()
+
+
+def get_loop_normal(loop: Any, vert: Any) -> Any:
+    # Prefer per-loop normals when available; fallback to vertex normal.
+    loop_normal = getattr(loop, "normal", None)
+    if loop_normal is not None:
+        return loop_normal
+    return vert.normal
+
+
 def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
@@ -122,7 +142,7 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
         try:
             if len(mesh.vertices) == 0:
                 continue
-            mesh.calc_normals_split()
+            prepare_mesh_normals(mesh)
             mesh.calc_loop_triangles()
 
             uv_data = None
@@ -150,9 +170,10 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                 for loop_index in tri.loops:
                     loop = mesh.loops[loop_index]
                     vert = mesh.vertices[loop.vertex_index]
+                    loop_no = get_loop_normal(loop, vert)
 
                     world_pos = eval_obj.matrix_world @ vert.co
-                    world_no = (eval_obj.matrix_world.to_3x3() @ loop.normal).normalized()
+                    world_no = (eval_obj.matrix_world.to_3x3() @ loop_no).normalized()
 
                     if uv_data is not None:
                         uv = uv_data[loop_index].uv
