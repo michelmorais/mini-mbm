@@ -34,6 +34,7 @@
 #include <lua-wrap/audio-lua.h>
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/renderizable.h>

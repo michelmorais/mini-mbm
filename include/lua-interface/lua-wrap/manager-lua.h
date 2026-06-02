@@ -26,6 +26,9 @@
 #include <core_mbm/primitives.h>
 #include <core_mbm/core-manager.h>
 #include <plugin-helper/user-data-lua.h>
+#ifdef ANDROID
+    #include <jni.h>
+#endif
 
 struct lua_State;
 

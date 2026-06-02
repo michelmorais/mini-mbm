@@ -29,12 +29,6 @@
 #include "core-exports.h"
 #include <core_mbm/joystick-base.h>
 
-#if defined ANDROID
-    #include <jni.h>
-#elif (defined __linux__ || (defined(__APPLE__) && !defined(USE_METAL))) && !defined ANDROID
-    #include <X11/Xlib.h>
-#endif
-
 class PLUGIN;
 
 namespace mbm
@@ -211,14 +205,9 @@ namespace mbm
         API_IMPL void setMinMaxSizeWindow(int32_t min_x,int32_t min_y,int32_t max_x,int32_t max_y);
         API_IMPL void setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept; // This is workaround where  (false, false) the engine does not use default shaders when no shader is set in the objects (so, no shader is used, mostlly in directx)
 
-    #if !defined ANDROID
         API_IMPL void execute_system_cmd_thread(const char* command);//execute system command in other thread
-    #endif
         API_IMPL bool onLostDevice(const bool doSwapBuffers, int width, int height,const int px,const int py);
         API_IMPL bool initGraphics(const char *nameApplication = "Mini-mbm", int width = 800, int height = 600, const int px = 0, const int py = 0, const bool border = true,const bool enable_resize = true);
-    #if (defined  (__linux__) || (defined(__APPLE__) && !defined(USE_METAL))) && !defined(ANDROID)
-        bool initializeWindowx11();
-    #endif
 
         API_IMPL int onLoop(const bool singleLoop, const bool doSwapBuffers);
     
