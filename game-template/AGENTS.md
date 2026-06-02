@@ -1,4 +1,4 @@
-# mini-mbm Lua Game — Copilot Instructions
+# mini-mbm Lua Game — Codex Instructions
 
 ## What is mini-mbm
 
@@ -19,7 +19,7 @@ Run the game with:
 <game-folder>/
 ├── .github/
 │   └── copilot-instructions.md   ← Copilot context
-├── AGENTS.md                     ← Codex context
+├── AGENTS.md                     ← this file
 ├── main.lua                      ← entry point (or pass any .lua to the exe)
 ├── assets/                       ← sprites, fonts, textures, sounds, etc.
 │   ├── sprites/
