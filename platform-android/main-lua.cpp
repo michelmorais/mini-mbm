@@ -120,7 +120,7 @@ void MiniMbmEngine_init(JNIEnv *env, jobject obj, jint width, jint height, jstri
     }
     else
     {
-        game = new mbm::LUA_MANAGER(env, obj);
+        game = new mbm::LUA_MANAGER();
         if (game)
         {
             INFO_LOG("lib mini-mbm initialized\n width: %d height: %d", width, height);

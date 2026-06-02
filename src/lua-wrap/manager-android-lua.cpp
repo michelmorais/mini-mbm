@@ -44,12 +44,12 @@ namespace mbm
 {
     #if defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
     // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
+    LUA_MANAGER::LUA_MANAGER()
     {
     }
     #else
 
-    LUA_MANAGER::LUA_MANAGER(JNIEnv *env, jobject obj)
+    LUA_MANAGER::LUA_MANAGER()
     {
         mbm::DEVICE* device = mbm::DEVICE::getInstance();
         LUA_MANAGER::pLuaManager = this;
@@ -67,12 +67,16 @@ namespace mbm
 #else
         this->noSplash       = false;
 #endif
-        device->specificContextDevice->jenv = env;
         this->hasValueTextureLogo = false;
         this->onDoNativeCommand   = nullptr;
         INFO_LOG("%s", this->nameApplication.c_str());
     }
     #endif
+
+    void SCENE_SCRIPT::onDoubleClick(float /*x*/, float /*y*/, int /*key*/)
+    {
+        // Android has no double-click input event
+    }
 };
 
 #endif
