@@ -1549,6 +1549,11 @@ public:
             #if defined _WIN32
                 context = static_cast<HWND>(_context);
                 ImGui_ImplWin32_Init(context);
+                imGuIo.MouseDoubleClickTime = ((static_cast<float>(::GetDoubleClickTime()) / 1000.0f) > 0.50f) ? (static_cast<float>(::GetDoubleClickTime()) / 1000.0f) : 0.50f;
+                const int dbl_click_width = ::GetSystemMetrics(SM_CXDOUBLECLK);
+                const int dbl_click_height = ::GetSystemMetrics(SM_CYDOUBLECLK);
+                const float dbl_click_dist = static_cast<float>((dbl_click_width > dbl_click_height) ? dbl_click_width : dbl_click_height);
+                imGuIo.MouseDoubleClickMaxDist = (dbl_click_dist > 12.0f) ? dbl_click_dist : 12.0f;
                 // Windows: clipboard uses built-in Win32 handlers from imgui.cpp
             #elif defined USE_METAL
                 context = _context;  // NSWindow* as void*
