@@ -94,7 +94,7 @@ namespace log_util
     API_IMPL const char* getDirSeparator();
     API_IMPL void replaceString(std::string &source, const std::string &from, const std::string &to);
     API_IMPL void replaceString(std::string &source, const char *from, const char *to);
-    API_IMPL void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);
+    API_IMPL void replaceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);
     API_IMPL const char *basename(const char *fileName);
     API_IMPL void checkGlError(const char *fileName, const int numLine, const char *message);
     API_IMPL void checkGlError(const char *fileName, const int numLine);

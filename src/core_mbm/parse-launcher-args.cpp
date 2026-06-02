@@ -38,9 +38,9 @@ struct STORE_DATA_ARG
     std::vector<unsigned int> expected_height_list;
 };
 
-const char* PARSE_laucher_ARGS::getFileNameInitialLua() const { return this->data_arg->fileNameInitialLua.c_str(); }
-const char* PARSE_laucher_ARGS::getNameApplication() const { return this->data_arg->nameApplication.c_str(); }
-bool PARSE_laucher_ARGS::getWidthHeight(unsigned int& width, unsigned int& height) const
+const char* PARSE_launcher_ARGS::getFileNameInitialLua() const { return this->data_arg->fileNameInitialLua.c_str(); }
+const char* PARSE_launcher_ARGS::getNameApplication() const { return this->data_arg->nameApplication.c_str(); }
+bool PARSE_launcher_ARGS::getWidthHeight(unsigned int& width, unsigned int& height) const
 {
     if (this->data_arg->width_list.size() > 0 && this->data_arg->height_list.size() > 0)
     {
@@ -54,7 +54,7 @@ bool PARSE_laucher_ARGS::getWidthHeight(unsigned int& width, unsigned int& heigh
     }
 }
 
-bool PARSE_laucher_ARGS::getExpectedWidthHeight(unsigned int& width, unsigned int& height) const
+bool PARSE_launcher_ARGS::getExpectedWidthHeight(unsigned int& width, unsigned int& height) const
 {
     if (this->data_arg->expected_width_list.size() > 0 && this->data_arg->expected_height_list.size() > 0)
     {
@@ -69,7 +69,7 @@ bool PARSE_laucher_ARGS::getExpectedWidthHeight(unsigned int& width, unsigned in
 }
 
 #if defined _WIN32
-PARSE_laucher_ARGS::PARSE_laucher_ARGS(int argc, wchar_t** argv)
+PARSE_launcher_ARGS::PARSE_launcher_ARGS(int argc, wchar_t** argv)
 {
     noSplash = false;
     noBorder = false;
@@ -98,7 +98,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(int argc, wchar_t** argv)
 }
 #endif
 
-PARSE_laucher_ARGS::PARSE_laucher_ARGS()
+PARSE_launcher_ARGS::PARSE_launcher_ARGS()
 {
     noSplash = false;
     noBorder = false;
@@ -130,7 +130,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS()
 #endif
 }
 
-PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
+PARSE_launcher_ARGS::PARSE_launcher_ARGS(const char** argv, const int pNumArgs)
 {
     noSplash = false;
     noBorder = false;
@@ -178,7 +178,7 @@ PARSE_laucher_ARGS::PARSE_laucher_ARGS(const char** argv, const int pNumArgs)
     }
 
 }
-PARSE_laucher_ARGS::~PARSE_laucher_ARGS()
+PARSE_launcher_ARGS::~PARSE_launcher_ARGS()
 {
     if(this->data_arg)
     {
@@ -187,7 +187,7 @@ PARSE_laucher_ARGS::~PARSE_laucher_ARGS()
     }
 }
 
-void PARSE_laucher_ARGS::parserArgs(const char** argv, const int pNumArgs)
+void PARSE_launcher_ARGS::parserArgs(const char** argv, const int pNumArgs)
 {
     #if defined _DEBUG || defined DEBUG || defined _DEBUG_
     // Debug: print all arguments

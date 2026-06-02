@@ -19,6 +19,7 @@
 
 #ifndef PLATFORM_WIN32_MBM_H
 #define PLATFORM_WIN32_MBM_H
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 
 #include "core-exports.h"
 
@@ -31,7 +32,6 @@ namespace mbm
     API_IMPL const char* selectFolderDialog(char * folderPathOut);
 }
 
-#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 namespace util
 {
     API_IMPL wchar_t *toWchar(const char *str, wchar_t *outText);

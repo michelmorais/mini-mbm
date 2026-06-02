@@ -36,10 +36,10 @@ namespace mbm
 
     API_IMPL const char* getPSVersion();
     API_IMPL const char* getVSVersion();
-    void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDeafultPSwhenNoPsShader, const bool _useDeafultVSwhenNoVSShader) noexcept;
+    void _setUsageOfDefaultPS_VS_WhenNoShader(const bool _useDefaultPSwhenNoPsShader, const bool _useDefaultVSwhenNoVSShader) noexcept;
     bool useDefaultPSWhenNoShader() noexcept;
     bool useDefaultVSWhenNoShader() noexcept;
-	API_IMPL void setPSVersion(const char* version);// If the shader need version e.g.Direcxt9 (ps_2_0), we can set the version.
-    API_IMPL void setVSVersion(const char* version);// If the shader need version e.g.Direcxt9 (vs_2_0), we can set the version.
+	API_IMPL void setPSVersion(const char* version);// If the shader need version e.g.DirectX9 (ps_2_0), we can set the version.
+    API_IMPL void setVSVersion(const char* version);// If the shader need version e.g.DirectX9 (vs_2_0), we can set the version.
 }
 #endif

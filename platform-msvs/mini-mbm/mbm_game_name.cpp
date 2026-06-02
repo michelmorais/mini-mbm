@@ -22,6 +22,6 @@
 // actual game name supplied via -DGAME_NAME.  For the VS solution the value
 // below serves as the developer default; package-game.bat renames the
 // executable and assets at packaging time, so the runtime title comes from
-// PARSE_laucher_ARGS::getNameApplication() (command-line) or from this symbol
+// PARSE_launcher_ARGS::getNameApplication() (command-line) or from this symbol
 // when no name is supplied on the command line.
 extern const char mbm_baked_game_name[] = "Mini-mbm";

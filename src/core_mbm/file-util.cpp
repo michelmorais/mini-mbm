@@ -135,7 +135,7 @@ static const char * getCorrectSeparator2SO(const char *fileName)
         std::string out;
         static char f[1024] = "";
 
-        log_util::repalceDefaultSeparator(fileName, out);
+        log_util::replaceDefaultSeparator(fileName, out);
         strncpy(f, out.c_str(),sizeof(f)-1);
         return f;
     }
