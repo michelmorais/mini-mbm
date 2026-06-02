@@ -19,6 +19,12 @@
 
 #if defined USE_DIRECTX9
 #include <lua-wrap/framework-lua.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+    #include <pwd.h>
+    #include <langinfo.h>
+#endif
+#include <tinyfiledialogs/tinyfiledialogs.h>
+#include <core_mbm/dialog-util.h>
 #include <lua-wrap/camera-lua.h>
 #include <lua-wrap/vec2-lua.h>
 #include <lua-wrap/vec3-lua.h>

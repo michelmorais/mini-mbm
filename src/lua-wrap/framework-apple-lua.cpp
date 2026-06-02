@@ -24,6 +24,9 @@
 #if defined(__APPLE__) && !defined(ANDROID)
 
 #include <lua-wrap/framework-lua.h>
+#include <pwd.h>
+#include <tinyfiledialogs/tinyfiledialogs.h>
+#include <core_mbm/dialog-util.h>
 #include <core_mbm/device.h>
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>

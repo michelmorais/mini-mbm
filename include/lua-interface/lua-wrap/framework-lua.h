@@ -30,16 +30,6 @@ extern "C"
     #include <lua.h>
 }
 
-#if defined __linux__  || defined(__APPLE__) && !defined ANDROID
-    #include <pwd.h>
-    #include <langinfo.h>
-#endif
-
-#if (defined __linux__ || defined _WIN32 || defined(__APPLE__)) && !defined ANDROID
-    #include <tinyfiledialogs/tinyfiledialogs.h>
-    #include <core_mbm/dialog-util.h>
-#endif
-
 struct lua_State;
 
 enum TYPE_LOG : char;
@@ -109,9 +99,7 @@ namespace mbm
     int onGetSceneName(lua_State *lua);
     int onSaveFile(lua_State *lua);
     int openMultiSingleFile(lua_State *lua, int allowMultipleSelects);
-    #if defined ANDROID
     bool onShowMessageBoxAndroid(const char *const title, const char *const message, const char *dialogType);
-    #endif
     int onShowMessageBox(lua_State *lua);
     int onOpenFolder(lua_State *lua);
     int onOpenFile(lua_State *lua);
