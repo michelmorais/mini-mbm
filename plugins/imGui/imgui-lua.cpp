@@ -1554,6 +1554,7 @@ public:
                 const int dbl_click_height = ::GetSystemMetrics(SM_CYDOUBLECLK);
                 const float dbl_click_dist = static_cast<float>((dbl_click_width > dbl_click_height) ? dbl_click_width : dbl_click_height);
                 imGuIo.MouseDoubleClickMaxDist = (dbl_click_dist > 12.0f) ? dbl_click_dist : 12.0f;
+                imGuIo.ConfigDragClickToInputText = true;
                 // Windows: clipboard uses built-in Win32 handlers from imgui.cpp
             #elif defined USE_METAL
                 context = _context;  // NSWindow* as void*
