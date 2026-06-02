@@ -247,7 +247,7 @@ local g  = gif:new("2dw", 0, 0)
 local bg = backGround:new("2dw")
 local p  = particle:new("2dw", 0, 0)
 local sh = shape:new("2dw", 0, 0)
-local ln = lineMesh:new("2dw", 0, 0)
+local ln = line:new("2dw", 0, 0)
 -- font is different — no coord type, no position:
 local fnt = font:new("roboto.fnt", height?, spaceW?, spaceH?, savePng?)
 ```
@@ -259,7 +259,7 @@ local fnt = font:new("roboto.fnt", height?, spaceW?, spaceH?, savePng?)
 - `gif` → `.gif`
 - `font` → `.fnt` (pre-parsed binary font, created with the font_maker editor) or `.ttf`/`.otf`/`.true-font` (runtime parsed by engine)
 - `particle` → `.ptl` config file or configure manually
-- `backGround` / `shape` / `lineMesh` → procedural or load from file
+- `backGround` / `shape` / `line` → procedural or load from file
 
 ---
 
@@ -415,10 +415,10 @@ sh:create(
 sh:setPixelShader("tinted.ps", {color={1,0,0,1}})
 ```
 
-## lineMesh — Line Drawing
+## line — Line Drawing
 
 ```lua
-local ln = lineMesh:new("2dw", 0, 0)
+local ln = line:new("2dw", 0, 0)
 ln:add({0,0, 100,0, 100,100, 0,100, 0,0})  -- closed square
 ln:setColor(255, 255, 0)                    -- yellow
 -- update a segment:

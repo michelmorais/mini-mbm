@@ -33,16 +33,18 @@ mingw32-make -j...        # Windows MinGW
 ### Important optional flags
 | Flag | Effect |
 |---|---|
-| `-DUSE_ALL=1` | Enable all features (Lua + all plugins + editors) |
+| `-DUSE_ALL=1` | Enable common full-feature set (Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, Tiled); does not enable Steam or Bullet3D |
 | `-DUSE_LUA=1` | Embed Lua 5.4 scripting |
 | `-DUSE_VR=1` | Enable VR class (default on Linux/Windows, off on Android) |
 | `-DAUDIO=portaudio\|avfoundation\|opensl\|none` | Audio backend. `portaudio` is the default for Linux/Windows; `avfoundation` for macOS/iOS; `opensl` for Android |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | Compatibility for mesh files ≤ v7 |
 | `-DUSE_BOX2D=1` | Box2D 2.4.1 physics plugin |
 | `-DUSE_BOX2D_LIQUID_FUN=1` | LiquidFun 2.3.1 fluid physics plugin |
-| `-DUSE_BULLET=1` | Bullet 2.84 3D physics plugin |
+| `-DUSE_BULLET3D=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |
+| `-DUSE_TILEMAP=1` | Optional `plugins/tiled/` Lua plugin (`tilemap` library) for tilemap editor tooling; core `TILE` render type is built independently |
+| `-DUSE_STEAM=1` | Steamworks Lua plugin; requires `-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk` |
 
 ### Output directories (set by root CMakeLists.txt)
 | Build type | Binaries | Libraries |
@@ -202,9 +204,10 @@ class PLUGIN {
     virtual void onKeyDownJoystick(int player, int key) = 0;
     virtual void onKeyUpJoystick(int player, int key) = 0;
     virtual void onMoveJoystick(int player, float lx, float ly, float rx, float ry) = 0;
-    virtual void onInfoDeviceJoystick(int player, int maxNumberButton, ...) = 0;
+    virtual void onInfoDeviceJoystick(int player, int maxNumberButton,
+                                      const char* strDeviceName, const char* extraInfo) = 0;
     virtual void onPrepare() = 0;  // once before render loop starts
-    virtual void onLoop() = 0;
+    virtual void onLoop(float delta) = 0;
     virtual void onRender() = 0;
     virtual void onDestroy() = 0;
 };
@@ -235,7 +238,7 @@ All plugins link against `plugin-helper`. It provides:
 | Class | Header | Description |
 |---|---|---|
 | `SPRITE` | `render/sprite.h` | 2D/3D sprite with animation |
-| `MESH` | `render/mesh.h` | 3D mesh (`.mbm` format) |
+| `MESH` | `render/mesh.h` | 3D mesh (`.msh` format) |
 | `TEXTURE_VIEW` | `render/texture-view.h` | Plain texture quad |
 | `BACKGROUND` | `render/background.h` | Background/foreground mesh or texture |
 | `TEXT_DRAW` / `FONT_DRAW` | `render/font.h` | Text rendering |
@@ -356,7 +359,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 
 - **Lifecycle callbacks**: `onInitScene()`, `onLoop(delta)`, `onKeyDown(key)`, `onKeyUp(key)`, `onTouchDown(key,x,y)`, `onTouchUp(key,x,y)`, `onTouchMove(key,x,y)`, `onTouchZoom(zoom)`, `onKeyDownJoystick(player,key)`, `onMoveJoystick(player,lx,ly,rx,ry)`
 - **Namespace**: `mbm.*` — ~60 functions for scene control, display, camera, asset paths, file system, input, coordinate transforms, shaders, dialogs, encryption, and system info
-- **Render type constructors** (globals): `sprite`, `mesh`, `texture`, `gif`, `backGround`, `font`, `particle`, `shape`, `lineMesh`, `tile`, `render2texture`, `vec2`, `vec3`
+- **Render type constructors** (globals): `sprite`, `mesh`, `texture`, `gif`, `backGround`, `font`, `particle`, `shape`, `line`, `tile`, `render2texture`, `vec2`, `vec3`
 - **Coordinate type strings**: `"2dw"` (2D world), `"2ds"` (2D screen/HUD), `"3d"` (3D world)
 - **Plugins**: `require "box2d"`, `require "ImGui"` (returns as `tImGui`), `require "lsqlite3"`, `require "box2dLiquidFun"`
 
@@ -392,8 +395,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 
 ### macOS
 - Requires: Xcode CLI tools (`xcode-select --install`), CMake via Homebrew
-- Metal backend available with `-DUSE_METAL=1` (Xcode generator required for device deploy)
-- Default: OpenGL ES via X11 compatibility layer
+- Metal backend is the default on macOS; OpenGL ES is still selectable for the X11 compatibility path
 
 ### Android
 - Requires: Android Studio, NDK r29, Ninja, Java 17 JDK
@@ -418,7 +420,7 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 ## Important Constraints and Patterns
 
 - **CMake ≥ 3.25.1** is required; `cmake_policy(SET CMP0054 NEW)` is set everywhere
-- **`-DUSE_ALL=1`** is the recommended full-featured build flag — it enables Lua, all plugins, and editors in one shot
+- **`-DUSE_ALL=1`** is the recommended common full-featured build flag — it enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; Steam and Bullet3D remain explicit
 - **Plugin naming**: `CMAKE_SHARED_LIBRARY_PREFIX ""` removes the `lib` prefix so plugins load as `box2d.so` not `libbox2d.so`
 - **iOS plugins are STATIC** — do not link Lua/core_mbm inside them (absorbed by final link)
 - **`util::addPath(__FILE__)`** is a debug trick — add the source file's directory to the asset search path so relative image paths work from the IDE
