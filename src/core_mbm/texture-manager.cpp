@@ -401,15 +401,14 @@ namespace mbm
         return this->height;
     }
     
-#if defined (USE_DUMMY_BACK_END_ENGINE) && defined ANDROID
-    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha)
-    {
-        return false;
-    }
-#elif defined ANDROID
+#if defined ANDROID
     bool TEXTURE::loadFromAndroid(const char *_fileName, const bool hasAlpha) // Android 24/32 bits true color
     {
+#if defined (USE_DUMMY_BACK_END_ENGINE)
+        // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
+        (void)_fileName; (void)hasAlpha;
+        return false;
+#else
         mbm::DEVICE *device                    = mbm::DEVICE::getInstance();
         mbm::SPECIFIC_AUX_CONTEXT_DEVICE* cJni = device->specificContextDevice;
         int              wint   = 0;
@@ -426,7 +425,7 @@ namespace mbm
                              (static_cast<int>(pixels[2]) << 8 ) | 
                              (static_cast<int>(pixels[3])));
                 this->useAlphaChannel = (pixels[4] ? true : false) || hasAlpha;
-                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width,this->height, idTexture);
+                PRINT_IF_DEBUG("texture generated externally!\n width:%u height:%u id:%d", this->width, this->height, idTexture);
                 delete[] pixels;
                 return true;
             }
@@ -438,6 +437,12 @@ namespace mbm
             }
         }
         ERROR_LOG("%s", "Error 'getImageDataFromDroid' JNI ");
+        return false;
+#endif
+    }
+#else
+    bool TEXTURE::loadFromAndroid(const char* /*_fileName*/, const bool /*hasAlpha*/)
+    {
         return false;
     }
 #endif

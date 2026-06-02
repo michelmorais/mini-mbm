@@ -27,6 +27,7 @@
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
     #include <plusWindows/plusWindows.h>
+    #include <core_mbm/platform-win32.h>
 #endif
 
 namespace util

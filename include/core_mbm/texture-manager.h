@@ -62,9 +62,7 @@ namespace mbm
         std::string  fileName;
         uint32_t width;
         uint32_t height;
-    #if defined     ANDROID
         bool loadFromAndroid(const char *_fileName, const bool hasAlpha); // Android 24/32 bits true color
-    #endif
         bool loadFromData(const uint8_t *data, // Bitmap or uber image
                                  const uint32_t w, const uint32_t h, const uint16_t depth,
                                  const uint16_t channel, const bool hasAlpha);

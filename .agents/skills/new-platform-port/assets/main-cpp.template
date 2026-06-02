@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,66 +17,17 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined ANDROID
+// C++ mode entry point (pure C++, no Lua).
+// For ObjC++ platforms rename to main.mm and compile with -fobjc-arc.
 
-extern "C" 
+#include "my-scene.h"
+
+int main()
 {
-    #include <lua.h>
-    #include <lauxlib.h>
-    #include <lualib.h>
+    GAME game;
+    constexpr bool singleLoop    = false;
+    constexpr bool doSwapBuffers = true;
+    if (game.initGraphics("Hello-world"))
+        return game.onLoop(singleLoop, doSwapBuffers);
+    return -1;
 }
-
-#include <lua-wrap/manager-lua.h>
-#include <core_mbm/device.h>
-#include <core_mbm/util-interface.h>
-#include <version/version.h>
-#include <core_mbm/scene.h>
-
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
-#elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
-#else
-    #error "This file is only for OpenGL ES"
-#endif
-
-namespace mbm
-{
-    #if defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    LUA_MANAGER::LUA_MANAGER()
-    {
-    }
-    #else
-
-    LUA_MANAGER::LUA_MANAGER()
-    {
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        LUA_MANAGER::pLuaManager = this;
-        log_util::setScriptPrintLine(onScriptPrintLine);
-        util::setOnAddPathScript(onAddPathScript);
-        this->nameApplication = "Mini-mbm " MBM_VERSION " ";
-        this->nameApplication += device->getBackendEngineName();
-        this->nameApplication += "\n Compiled: " __DATE__;
-        this->widthWindow        = 800;
-        this->heightWindow       = 600;
-        this->maximizedWindow    = false;
-        this->fileNameInitialLua = "main.lua";
-#if defined _DEBUG
-        this->noSplash = true;
-#else
-        this->noSplash       = false;
-#endif
-        this->hasValueTextureLogo = false;
-        this->onDoNativeCommand   = nullptr;
-        INFO_LOG("%s", this->nameApplication.c_str());
-    }
-    #endif
-
-    void SCENE_SCRIPT::onDoubleClick(float /*x*/, float /*y*/, int /*key*/)
-    {
-        // Android has no double-click input event
-    }
-};
-
-#endif

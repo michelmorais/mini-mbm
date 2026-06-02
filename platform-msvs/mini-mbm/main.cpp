@@ -90,7 +90,7 @@ int main(const int /*argc*/, const char** /*argv*/)
 	mbm::set_callback_do_commands(onDoNativeCommand);
 
 	{
-		PARSE_laucher_ARGS parser;
+		PARSE_launcher_ARGS parser;
 
 		unsigned int width = 0, height = 0;
 		if (parser.getWidthHeight(width, height))

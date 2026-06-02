@@ -34,6 +34,7 @@ extern "C"
 #include <platform/mismatch-platform.h>
 #include <core_mbm/dynamic-var.h>
 #include <core_mbm/util-interface.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/renderizable-clone.h>
 #include <version/version.h>
 #include <static-resource/mini-mbm-logo.h>
@@ -796,7 +797,7 @@ namespace mbm
             }
         }
 
-    #if !defined     ANDROID
+    #if !defined ANDROID
         void SCENE_SCRIPT::onDoubleClick(float x, float y,int key)  // Double click of mouse. key ==0 left button; key == 1 right button.
         {
             if (this->lua)
@@ -818,8 +819,8 @@ namespace mbm
                     lua_pop(this->lua, 1);
             }
         }
-    #endif
-        
+    #endif // !ANDROID
+
         void SCENE_SCRIPT::onFinalizeScene() 
         {
             if (this->lua)
@@ -1144,9 +1145,8 @@ namespace mbm
             return true;
         }
         
-    
-    #if !defined ANDROID && (defined _WIN32 || defined __linux__ || defined __APPLE__)
-        
+
+    #if !defined ANDROID
         LUA_MANAGER::LUA_MANAGER()
         {
             LUA_MANAGER::pLuaManager = this;
@@ -1262,8 +1262,8 @@ namespace mbm
             if(device->verbose)
                 INFO_LOG("%s", this->nameApplication.c_str());
         }
-    #endif // Not ANDROID
-        
+    #endif // !ANDROID
+
         LUA_MANAGER::~LUA_MANAGER()
         {
             for (auto newScene : this->lsScene)

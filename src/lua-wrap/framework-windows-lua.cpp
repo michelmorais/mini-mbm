@@ -19,6 +19,8 @@
 
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32)) && !defined(USE_DIRECTX9)
 #include <lua-wrap/framework-lua.h>
+#include <tinyfiledialogs/tinyfiledialogs.h>
+#include <core_mbm/dialog-util.h>
 #include <lua-wrap/camera-lua.h>
 #include <lua-wrap/vec2-lua.h>
 #include <lua-wrap/vec3-lua.h>
@@ -34,6 +36,7 @@
 #include <lua-wrap/audio-lua.h>
 #include <core_mbm/log-util.h>
 #include <core_mbm/device.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/specific-opengl_es.h>
 #include <core_mbm/util-interface.h>
 #include <core_mbm/renderizable.h>

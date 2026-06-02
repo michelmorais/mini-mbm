@@ -9,7 +9,7 @@
 
 **Mini MBM** is a lightweight, cross-platform game engine designed to make **2D game development** simple and productive while providing the foundations for 3D as well. It offers a set of renderable object types (sprites, textures, meshes, particles, tile maps, fonts, and more), a flexible **plugin architecture**, multiple **render backends**, and an optional **Lua 5.4 scripting layer** that dramatically speeds up development.
 
-The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships with a collection of powerful **Lua-based editor tools** (built with [Dear ImGui](https://github.com/ocornut/imgui)) for creating sprites, fonts, shaders, particles, tile maps, scenes, and asset packages — all producing optimized binary formats ready for your game.
+The engine runs on **Windows**, **Linux**, **macOS**, **Android**, and **iOS**, and ships with a collection of powerful **Lua-based editor tools** (built with [Dear ImGui](https://github.com/ocornut/imgui)) for creating sprites, fonts, shaders, particles, tile maps, scenes, and asset packages — all producing optimized binary formats ready for your game.
 
 📖 **Online documentation (work in progress):** <https://mbm-documentation.readthedocs.io/en/latest/>
 
@@ -63,6 +63,7 @@ The engine runs on **Windows**, **Linux**, **macOS**, and **Android**, and ships
   - [macOS (CMake)](#macos-cmake)
   - [iOS (Metal, Xcode)](#ios-metal-xcode)
   - [CMake Option Flags](#cmake-option-flags)
+  - [Game Delivery Builds](#game-delivery-builds)
 - [Project Structure](#project-structure)
 - [Third-Party Libraries](#third-party-libraries)
 - [License](#license)
@@ -78,9 +79,9 @@ This section gets you from zero to a running application in minutes. Choose **Lu
 **1. Build the engine with Lua support:**
 
 ```bash
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug
-make -j8;
+mkdir -p build/linux_debug && cd build/linux_debug
+cmake ../.. -DPLAT=Linux -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
 ```
 
 **2. Create your game script** (e.g. `my_game.lua`):
@@ -117,8 +118,8 @@ end
 **3. Run it:**
 
 ```bash
-# From the build output directory
-./mini-mbm --scene ../my_game.lua
+# From the repository root after the build above
+./bin/debug/linux_x86/mini-mbm --scene my_game.lua
 ```
 
 Or launch the engine without arguments — a **launcher dialog** will appear where you can pick any of the built-in editors or browse to your own script.
@@ -128,8 +129,8 @@ Or launch the engine without arguments — a **launcher dialog** will appear whe
 **1. Build the engine (Lua not required):**
 
 ```bash
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
+mkdir -p build/linux_debug && cd build/linux_debug
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -146,14 +147,14 @@ public:
     void startLoading() override { /* show loading screen */ }
     void endLoading()   override { /* loading done */ }
 
-    void init() override {
+    void onInitScene() override {
         // Set up camera
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+        mbm::DEVICE *device = mbm::DEVICE::getInstance();
         device->camera.position = mbm::VEC3(0, 0, -500);
         device->camera.focus    = mbm::VEC3(0, 0, 0);
     }
 
-    void logic() override {
+    void onLoop() override {
         // Game logic — called every frame
     }
 
@@ -167,6 +168,7 @@ public:
     void onTouchMove(int btn, float x, float y) override {}
     void onKeyUp(int key) override {}
     void onFinalizeScene() override {}
+    void onResizeWindow() override {}
 };
 
 class GAME : public mbm::CORE_MANAGER {
@@ -174,6 +176,10 @@ public:
     MY_SCENE myScene;
     GAME()  { setScene(&myScene); }
     ~GAME() { mbm::DEVICE::quit(); }
+
+    bool existScene(const int idScene) override {
+        return idScene == myScene.getIdScene();
+    }
 };
 ```
 
@@ -245,7 +251,7 @@ build modes (Lua vs. pure C++), ARC rules, and separate game repo setup, see
 | Category | Highlights |
 |---|---|
 | **Rendering** | 13+ renderable types (sprites, meshes, textures, particles, tiles, fonts, shapes, …) with frustum culling, z-ordering, and blend modes |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS). Vulkan planned |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planned |
 | **Scripting** | Optional Lua 5.4 integration with full C++ type bindings |
 | **Animation** | 7 animation modes (paused, growing, loop, decreasing, recursive, …) with per-frame shader effects |
 | **Physics** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluids), Bullet 2.84 (3D) — all as optional plugins |
@@ -287,7 +293,7 @@ The engine is built around three central classes:
 │  └── FPS / delta / timers (TIME_CONTROL)        │
 │                                                 │
 │  SCENE (user-implemented per game screen)       │
-│  ├── init(), logic(), startLoading()            │
+│  ├── onInitScene(), onLoop(), startLoading()    │
 │  ├── Input callbacks (touch, key, joystick)     │
 │  └── Scene transitions via nextScene pointer    │
 └─────────────────────────────────────────────────┘
@@ -296,17 +302,26 @@ The engine is built around three central classes:
 **In C++ mode**, you subclass `mbm::CORE_MANAGER` (your game) and `mbm::SCENE` (each game screen), then call `initGraphics()` + `onLoop()`:
 
 ```cpp
+#include <core_mbm/scene.h>
 #include <core_mbm/core-manager.h>
 
 class MyScene : public mbm::SCENE {
-    void init() override { /* load assets */ }
-    void logic() override { /* game logic */ }
+public:
+    void startLoading() override {}
+    void endLoading() override {}
+    void onInitScene() override { /* load assets */ }
+    void onLoop() override { /* game logic */ }
+    void onResizeWindow() override {}
     // ... input callbacks
 };
 
 class MyGame : public mbm::CORE_MANAGER {
 public:
-    MyGame() { setScene(new MyScene()); }
+    MyScene myScene;
+    MyGame() { setScene(&myScene); }
+    bool existScene(const int idScene) override {
+        return idScene == myScene.getIdScene();
+    }
 };
 
 int main() {
@@ -324,7 +339,7 @@ int main() {
 
 Each frame, `CORE_MANAGER` executes:
 
-1. **`update()`** — process input events, run `SCENE::logic()`, update physics & audio
+1. **`update()`** — process input events, run `SCENE::onLoop()`, update physics & audio
 2. **`renderToTargets()`** — render all `RENDER_2_TEXTURE` objects to their FBOs
 3. **`prepareRender3d()` / `prepareRender2d()`** — frustum culling pass
 4. **`render()`** — draw 3D objects, then 2D-world objects, then 2D-screen objects (respecting z-order)
@@ -467,15 +482,15 @@ function onLoop(delta)
     tSprite:move(2, 0)  -- moves right (delta-time multiplied)
 end
 
-function onTouchDown(x, y, id)
+function onTouchDown(key, x, y)
     -- Touch / mouse press
 end
 
-function onTouchUp(x, y, id)
+function onTouchUp(key, x, y)
     -- Touch / mouse release
 end
 
-function onTouchMove(x, y, id)
+function onTouchMove(key, x, y)
     -- Touch / mouse drag
 end
 
@@ -504,9 +519,17 @@ Each C++ renderable type is exposed to Lua as a **global table**. You create ins
 | `backGround` | `BACKGROUND` | PNG, BMP | Full-screen backgrounds |
 | `font` | `TEXT_DRAW` | `.fnt` | Bitmap font text rendering |
 | `particle` | `PARTICLE` | `.ptl` | GPU particle systems |
+| `gif` | `GIF_VIEW` | GIF | Animated GIF playback |
 | `tile` | `TILE` | `.tile` | Tile-map renderer |
 | `shape` | `SHAPE_MESH` | — | Procedural geometry |
 | `line` | `LINE_MESH` | — | Line-based rendering |
+| `render2texture` | `RENDER_2_TEXTURE` | — | Off-screen render target |
+| `meshDebug` | — | `.msh`, `.spt`, `.fnt`, `.tile`, `.ptl` | Mesh/asset debug helper used by editors |
+| `auto` | — | — | Automation helper used by editor tooling |
+| `vec2`, `vec3` | `VEC2`, `VEC3` | — | Vector helper constructors |
+| `audio` | `AUDIO` | WAV/OGG/etc. | Audio object wrapper |
+| `timer` | — | — | Timer callback helper |
+| `vr` | `HMD` | — | VR/HMD wrapper when `USE_VR` is enabled |
 
 **Coordinate spaces** — passed as the first argument to `:new()`:
 
@@ -662,25 +685,30 @@ Shared utilities are provided by `editor_utils.lua` (window positioning, color t
 
 ## Plugin System
 
-Plugins extend the engine by implementing the `mbm::PLUGIN` interface (defined in `include/core_mbm/plugin-callback.h`). A plugin receives **lifecycle callbacks** that mirror the engine's main loop:
+Plugins extend the engine by implementing the `PLUGIN` interface (defined in `include/core_mbm/plugin-callback.h`). A plugin receives **lifecycle callbacks** that mirror the engine's main loop:
 
 ```cpp
 class PLUGIN {
-    virtual void onSubscribe();
+    virtual void onSubscribe(int width, int height, void *context, void *renderDevice);
     virtual void onPrepare();
-    virtual void onLoop();          // per-frame logic
+    virtual void onLoop(float delta); // per-frame logic
     virtual void onRender();        // per-frame rendering
     virtual void onDestroy();
     virtual void onResizeWindow(int w, int h);
     // Input callbacks:
-    virtual void onTouchDown/Up/Move(float x, float y, int id);
+    virtual void onTouchDown(int key, float x, float y);
+    virtual void onTouchUp(int key, float x, float y);
+    virtual void onTouchMove(int key, float x, float y);
     virtual void onTouchZoom(float zoom);
-    virtual void onKeyDown/Up(int keyCode);
-    virtual void onDoubleClick(float x, float y);
+    virtual void onKeyDown(int keyCode);
+    virtual void onKeyUp(int keyCode);
+    virtual void onDoubleClick(float x, float y, int key);
     // Joystick callbacks:
-    virtual void onKeyDown/UpJoystick(...);
-    virtual void onMoveJoystick(...);
-    virtual void onInfoDeviceJoystick(...);
+    virtual void onKeyDownJoystick(int player, int key);
+    virtual void onKeyUpJoystick(int player, int key);
+    virtual void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+    virtual void onInfoDeviceJoystick(int player, int maxButtons,
+                                      const char *deviceName, const char *extraInfo);
 };
 ```
 
@@ -695,9 +723,10 @@ Plugins are registered with `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | **Bullet 3D** | `plugins/bullet3d/` | 3D physics simulation via Bullet 2.84. Lua bindings for rigid bodies, collision shapes, and world configuration. |
 | **Dear ImGui** | `plugins/imGui/` | Immediate-mode GUI integration with Lua bindings. Backends for DirectX 9, OpenGL 3, Win32, and Metal. Powers all built-in editors. |
 | **Tiled** | `plugins/tiled/` | Tile map support with tile sets, layers, bricks, and a `TILE_EDITOR` renderizable subclass for in-engine level editing. |
+| **Steam** | `plugins/steam/` | Steamworks Lua plugin. Requires `-DUSE_STEAM=1` and `-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk`. |
 | **Plugin Helper** | `plugins/plugin-helper/` | Shared utilities for plugin development: Lua shader bindings, user data Lua bindings, and class identification. |
 
-On non-Android platforms, **all plugins are built automatically** when Lua is enabled. On Android, enable them individually with their CMake flags.
+Plugin flags default to `OFF` and require Lua. `-DUSE_ALL=1` enables Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled; it does **not** enable Steam because every developer must supply their own Steamworks SDK path. On iOS and macOS App Store (`MAS_DELIVERY`) builds, plugins are linked statically and CMake disables LiquidFun automatically when Box2D is also enabled to avoid duplicate symbols.
 
 ---
 
@@ -710,7 +739,7 @@ On non-Android platforms, **all plugins are built automatically** when Lua is en
 | **Linux** | C++17 compiler (GCC or Clang), CMake ≥ 3.25.1, X11 dev libraries, EGL/GLES2 dev libraries, PortAudio dev library |
 | **Windows** | Visual Studio 2022, DirectX 9 SDK (for DX9 backend) or EGL/GLES2 (for OpenGL ES backend) |
 | **Android** | Android NDK (`NDK_ROOT` env var), CMake ≥ 3.25.1, C++17-capable NDK toolchain |
-| **macOS** | C++17 compiler, CMake ≥ 3.25.1, X11 dev libraries |
+| **macOS** | Xcode command-line tools, CMake ≥ 3.25.1; X11 libraries only if selecting the OpenGL ES path |
 
 ### Linux (CMake)
 
@@ -720,21 +749,25 @@ git clone git@github.com:michelmorais/mini-mbm.git mini-mbm
 cd mini-mbm
 
 # Minimal build (C++ only, no Lua)
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
+mkdir -p build/linux_debug && cd build/linux_debug
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 
-# Full-featured build (Lua + all plugins + editors)
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
+# Full-featured build (Lua + common plugins + editors)
+cd ../..
+mkdir -p build/linux_debug_full && cd build/linux_debug_full
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
 make -j$(nproc)
 
 # Release build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=portaudio
+cd ../..
+mkdir -p build/linux_release && cd build/linux_release
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Release -DUSE_ALL=1 -DAUDIO=portaudio
 make -j$(nproc)
 
 # On Mac (Metal + AVFoundation audio is default)
-cmake -B build -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(sysctl -n hw.logicalcpu)
+cmake -B build/macos_debug -DPLAT=MacOs -DUSE_ALL=1 -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/macos_debug -j$(sysctl -n hw.logicalcpu)
 ```
 
 **Output locations:**
@@ -834,9 +867,9 @@ cmake ~/mini-mbm \
 ### macOS (CMake)
 
 ```bash
-mkdir build && cd build
-cmake .. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
-make -j$(nproc)
+mkdir -p build/macos_debug && cd build/macos_debug
+cmake ../.. -DPLAT=MacOs -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1
+make -j$(sysctl -n hw.logicalcpu)
 ```
 
 Audio defaults to **AVFoundation** on macOS when `-DAUDIO=` is not specified.
@@ -930,22 +963,46 @@ xcodebuild -project "build/My Game.xcodeproj" \
 |---|---|---|
 | `-DPLAT=` | **(required)** | Target platform: `Linux`, `Windows`, `Android`, `MacOs`, or `iOS` |
 | `-DCMAKE_BUILD_TYPE=` | `Release` | `Debug` or `Release` |
-| `-DUSE_ALL=1` | `OFF` | Enable all features (Lua, VR, and on Android all plugins) |
+| `-DUSE_ALL=1` | `OFF` | Enable the common full-feature set: Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3, and Tiled. Does not enable Steam or Bullet3D. |
 | `-DUSE_LUA=1` | `OFF` | Embed Lua 5.4.1 scripting engine |
-| `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android/Apple) |
+| `-DUSE_OPENGL_ES=1` | Auto | OpenGL ES 2.0 backend (auto-enabled on Linux/Android; selectable on Windows/macOS) |
 | `-DUSE_DIRECTX9=1` | Auto | DirectX 9 backend (auto-enabled on Windows) |
 | `-DUSE_VULKAN=1` | `OFF` | Vulkan backend (planned) |
-| `-DUSE_METAL=1` | `OFF` | Metal backend (macOS, iOS) |
+| `-DUSE_METAL=1` | Auto on Apple | Metal backend (macOS, iOS) |
+| `-DUSE_DUMMY_BACK_END_ENGINE=1` | `OFF` | Headless/dummy rendering backend |
 | `-DUSE_VR=1` | `ON` (Linux/Win) | VR class support |
-| `-DUSE_BOX2D=1` | Auto | Box2D physics plugin |
-| `-DUSE_BOX2D_LIQUID_FUN=1` | Auto | Box2D LiquidFun fluid simulation |
-| `-DUSE_BULLET3D=1` | Auto | Bullet 3D physics |
-| `-DUSE_IMGUI=1` | Auto | Dear ImGui plugin |
-| `-DUSE_LSQLITE3=1` | Auto | SQLite3 Lua bindings |
+| `-DDISABLE_VR=1` | `OFF` | Disable the VR class where it would otherwise be enabled |
+| `-DUSE_BOX2D=1` | `OFF` | Box2D physics plugin |
+| `-DUSE_BOX2D_LIQUID_FUN=1` | `OFF` | Box2D LiquidFun fluid simulation |
+| `-DUSE_BULLET3D=1` | `OFF` | Bullet 3D physics plugin |
+| `-DUSE_IMGUI=1` | `OFF` | Dear ImGui plugin |
+| `-DUSE_LSQLITE3=1` | `OFF` | SQLite3 Lua bindings |
+| `-DUSE_TILEMAP=1` | `OFF` | Build the optional `plugins/tiled/` Lua plugin (`tilemap` library) used by tilemap editor tooling; the core `TILE` render type exists independently |
+| `-DUSE_STEAM=1` | `OFF` | Steamworks Lua plugin; requires `STEAMWORKS_SDK_PATH` and is not supported on Android/iOS |
+| `-DSTEAMWORKS_SDK_PATH=` | _(empty)_ | Path to a local Steamworks SDK when `USE_STEAM=1` |
 | `-DAUDIO=` | Platform-dependent | Audio backend: `avfoundation` (macOS default), `portaudio` (Linux/Windows default), `opensl` (Android), or `none` |
 | `-DMBM_ENABLE_MESH_LEGACY_V7=1` | `OFF` | Compatibility for legacy mesh files (version ≤ 7) |
+| `-DGAME_NAME=` | `mini-mbm` | Per-game display/project name for generated delivery projects |
+| `-DGAME_ASSETS_DIR=` | _(empty)_ | Bundle/package assets for Android, iOS, Linux AppDir/AppImage, and Windows MinGW delivery builds |
+| `-DGAME_ICON_PNG=` | _(empty)_ | Optional per-game icon source for Android, iOS, Linux, and Windows delivery paths |
+| `-DGAME_PACKAGE=` | `com.mini.mbm.game` | Android application id |
+| `-DGAME_BUNDLE_ID=` | Platform default | iOS/macOS bundle id |
+| `-DMAS_DELIVERY=1` | `OFF` | macOS App Store delivery mode with static plugin linking |
 
-> On non-Android platforms with `USE_LUA=1`, all plugins (ImGui, lSQLite3, Box2D, LiquidFun, Tiled) are built automatically.
+> Plugin flags require `USE_LUA=1`. On iOS and macOS App Store builds, plugins are static; Box2D and LiquidFun cannot both be linked in those builds, so CMake disables LiquidFun when both are selected.
+
+### Game Delivery Builds
+
+The current CMake files can generate platform-specific game delivery outputs from an external Lua game assets folder:
+
+| Platform | Trigger | Output |
+|---|---|---|
+| **Linux** | `-DGAME_ASSETS_DIR=/path/to/assets` | `<build>/<GAME_NAME>.AppDir`; optional `make appimage` target |
+| **Windows MinGW** | `-DGAME_ASSETS_DIR=C:/path/to/assets` | `<build>/<GAME_NAME>.GameDir`; optional `nsis`, `msi`, and `zip` targets |
+| **Android** | `-DGAME_ASSETS_DIR=/path/to/assets` plus Android flags | Generated Gradle project with assets wired into the APK |
+| **iOS/macOS** | `-DGAME_NAME=...`, `-DGAME_ASSETS_DIR=...`, optional bundle/icon flags | App bundle project with assets copied into the bundle |
+
+For new standalone Lua games, start from `game-template/` (`main.lua`, `AGENTS.md`, and `.github/copilot-instructions.md`) so the game repo has the Lua API context without copying the engine source.
 
 ---
 
@@ -965,13 +1022,15 @@ mini-mbm/
 │   │   └── render-table/       #     Lua bindings for each renderable type
 │   ├── render/                 #   Renderable type implementations
 │   ├── platform/               #   Platform-specific utilities
-│   └── mini-mbm-lib/           #   Static library target
+│   ├── mini-mbm-lib/           #   Launcher/helper library sources
+│   └── test-lib/               #   Interactive renderable test executable/assets
 ├── plugins/                    # Plugin implementations
 │   ├── box2d/                  #   Box2D 2D physics
 │   ├── box2d-liquid-fun-lua/   #   LiquidFun fluid simulation
 │   ├── bullet3d/               #   Bullet 3D physics
 │   ├── imGui/                  #   Dear ImGui integration
 │   ├── tiled/                  #   Tile map support
+│   ├── steam/                  #   Steamworks Lua plugin
 │   └── plugin-helper/          #   Shared plugin utilities
 ├── editor/                     # Lua-based editor tools
 │   ├── sprite_maker.lua
@@ -987,10 +1046,13 @@ mini-mbm/
 │   ├── editor_utils.lua        #   Shared editor utilities
 │   └── lang/language.lua       #   Localization (EN / PT-BR)
 ├── third-party/                # Third-party libraries (see below)
+├── distribution/               # Asset package library and packer executable
+├── game-template/              # Standalone Lua game starter files
 ├── platform-linux/             # Linux entry points (main.cpp, main-lua.cpp)
 ├── platform-msvs/              # Windows Visual Studio solution
 ├── platform-android/           # Android NativeActivity entry point + Java helper
 ├── platform-macos/             # macOS entry points
+├── platform-ios/               # iOS UIKit + Metal entry point and bundle files
 ├── modules/                    # Additional modules (obj importer, test)
 ├── CMakeLists.txt              # Root CMake build file
 └── README.md                   # This file
@@ -1059,7 +1121,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 **Mini MBM** é um motor gráfico leve e multiplataforma projetado para tornar o **desenvolvimento de jogos 2D** simples e produtivo, além de fornecer uma base para 3D. Ele oferece diversos tipos de objetos renderizáveis (sprites, texturas, meshes, partículas, tile maps, fontes e mais), uma **arquitetura flexível de plugins**, múltiplos **backends de renderização** e uma camada opcional de **scripting Lua 5.4** que acelera significativamente o desenvolvimento.
 
-O motor roda em **Windows**, **Linux**, **macOS** e **Android**, e inclui uma coleção de poderosas **ferramentas de edição baseadas em Lua** (construídas com [Dear ImGui](https://github.com/ocornut/imgui)) para criar sprites, fontes, shaders, partículas, tile maps, cenas e pacotes de assets — todos produzindo formatos binários otimizados prontos para uso no seu jogo.
+O motor roda em **Windows**, **Linux**, **macOS**, **Android** e **iOS**, e inclui uma coleção de poderosas **ferramentas de edição baseadas em Lua** (construídas com [Dear ImGui](https://github.com/ocornut/imgui)) para criar sprites, fontes, shaders, partículas, tile maps, cenas e pacotes de assets — todos produzindo formatos binários otimizados prontos para uso no seu jogo.
 
 📖 **Documentação online (em andamento):** <https://mbm-documentation.readthedocs.io/en/latest/>
 
@@ -1092,8 +1154,8 @@ Esta seção leva você do zero a uma aplicação rodando em minutos. Escolha **
 **1. Compile o motor com suporte Lua:**
 
 ```bash
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio
+mkdir -p build/linux_debug && cd build/linux_debug
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DUSE_ALL=1 -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -1131,8 +1193,8 @@ end
 **3. Execute:**
 
 ```bash
-# A partir do diretório de build
-./mini-mbm --scene ../meu_jogo.lua
+# A partir da raiz do repositório depois do build acima
+./bin/debug/linux_x86/mini-mbm --scene meu_jogo.lua
 ```
 
 Ou lance o motor sem argumentos — uma **janela de seleção** aparecerá onde você pode escolher qualquer editor integrado ou navegar até seu próprio script.
@@ -1142,8 +1204,8 @@ Ou lance o motor sem argumentos — uma **janela de seleção** aparecerá onde 
 **1. Compile o motor (Lua não é necessário):**
 
 ```bash
-mkdir build && cd build
-cmake .. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
+mkdir -p build/linux_debug && cd build/linux_debug
+cmake ../.. -DPLAT=Linux -DCMAKE_BUILD_TYPE=Debug -DAUDIO=portaudio
 make -j$(nproc)
 ```
 
@@ -1157,12 +1219,16 @@ make -j$(nproc)
 
 class MY_SCENE : public mbm::SCENE {
 public:
-    void init() override {
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
+    void startLoading() override {}
+    void endLoading() override {}
+
+    void onInitScene() override {
+        mbm::DEVICE *device = mbm::DEVICE::getInstance();
         device->camera.position = mbm::VEC3(0, 0, -500);
         device->camera.focus    = mbm::VEC3(0, 0, 0);
     }
-    void logic() override { /* lógica do jogo */ }
+    void onLoop() override { /* lógica do jogo */ }
+    void onResizeWindow() override {}
     void onKeyDown(int key) override {
         if (key == 27) mbm::DEVICE::quit();
     }
@@ -1174,6 +1240,10 @@ public:
     MY_SCENE myScene;
     GAME()  { setScene(&myScene); }
     ~GAME() { mbm::DEVICE::quit(); }
+
+    bool existScene(const int idScene) override {
+        return idScene == myScene.getIdScene();
+    }
 };
 
 int main() {
@@ -1193,14 +1263,14 @@ int main() {
 | Categoria | Destaques |
 |---|---|
 | **Renderização** | 13+ tipos renderizáveis (sprites, meshes, texturas, partículas, tiles, fontes, shapes, …) com frustum culling, z-ordering e modos de blend |
-| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS). Vulkan planejado |
+| **Backends** | OpenGL ES 2.0 (Windows, Linux, Android), DirectX 9 (Windows), Dummy (headless), Metal (macOS/iOS). Vulkan planejado |
 | **Scripting** | Integração opcional com Lua 5.4 com bindings completos dos tipos C++ |
 | **Animação** | 7 modos de animação (pausado, crescente, loop, decrescente, recursivo, …) com efeitos de shader por frame |
 | **Física** | Box2D 2.4.1 (2D), LiquidFun 2.3.1 (fluidos), Bullet 2.84 (3D) — todos como plugins opcionais |
 | **Áudio** | Multi-backend: AVFoundation + OGG/stb_vorbis (macOS), PortAudio + OGG/stb_vorbis com mixer por software (Linux e Windows), OpenSL ES (Android) |
 | **GUI** | Plugin Dear ImGui com bindings Lua — alimenta todos os editores integrados |
 | **Editores** | Sprite Maker, Font Maker, Scene Editor 2D, Shader Editor, Particle Editor, Texture Packer, Tilemap Editor, Physics Editor, Mesh Debug, Asset Packager |
-| **Plataformas** | Windows, Linux, macOS, Android |
+| **Plataformas** | Windows, Linux, macOS, Android, iOS |
 | **Câmera** | Câmera 2D/3D com matrizes de projeção/visão, billboard, azimute, modo pixel-perfect |
 | **Shaders** | Sistema FX customizado com animação min/max por variável, suporte a PS + VS |
 | **Segurança** | Criptografia AES para scripts e assets (PlusAES) |
@@ -1214,7 +1284,7 @@ O motor é construído em torno de três classes centrais:
 
 - **`CORE_MANAGER`** — O executor do motor. Possui o `DEVICE`, gerencia o loop principal (update → render), sistema de plugins (`addPlugin`), fila de eventos de input (thread-safe) e gerenciamento de cenas (`setScene`).
 - **`DEVICE`** — Singleton (`DEVICE::getInstance()`). Gerencia o back buffer, câmera, listas de renderização (3D, 2D-world, 2D-screen, render-to-texture), frustum culling, detecção de colisão (AABB 2D/3D), transformações de coordenadas, ray casting, controle de z-order e FPS/delta/timers.
-- **`SCENE`** — Classe base que você implementa para cada tela do jogo. Métodos virtuais: `init()`, `logic()`, `startLoading()`, `endLoading()`, callbacks de input, e transição de cenas via ponteiro `nextScene`.
+- **`SCENE`** — Classe base que você implementa para cada tela do jogo. Métodos virtuais: `onInitScene()`, `onLoop()`, `startLoading()`, `endLoading()`, `onResizeWindow()`, callbacks de input, e transição de cenas via ponteiro `nextScene`.
 
 **No modo C++**, você herda de `mbm::CORE_MANAGER` (seu jogo) e `mbm::SCENE` (cada tela), depois chama `initGraphics()` + `onLoop()`.
 
@@ -1224,7 +1294,7 @@ O motor é construído em torno de três classes centrais:
 
 A cada frame, `CORE_MANAGER` executa:
 
-1. **`update()`** — processa eventos de input, executa `SCENE::logic()`, atualiza física e áudio
+1. **`update()`** — processa eventos de input, executa `SCENE::onLoop()`, atualiza física e áudio
 2. **`renderToTargets()`** — renderiza todos os objetos `RENDER_2_TEXTURE` para seus FBOs
 3. **`prepareRender3d()` / `prepareRender2d()`** — passa pelo frustum culling
 4. **`render()`** — desenha objetos 3D, depois 2D-world, depois 2D-screen (respeitando z-order)
@@ -1313,7 +1383,7 @@ function onLoop(delta)
     tSprite:move(2, 0)  -- move para a direita (multiplicado por delta-time)
 end
 
-function onTouchDown(x, y, id)
+function onTouchDown(key, x, y)
     -- Toque / pressionamento do mouse
 end
 
@@ -1338,9 +1408,17 @@ Cada tipo C++ renderizável é exposto ao Lua como uma **tabela global**. Você 
 | `backGround` | `BACKGROUND` | PNG, BMP | Fundos em tela cheia |
 | `font` | `TEXT_DRAW` | `.fnt` | Renderização de texto bitmap |
 | `particle` | `PARTICLE` | `.ptl` | Sistemas de partículas GPU |
+| `gif` | `GIF_VIEW` | GIF | Reprodução de GIF animado |
 | `tile` | `TILE` | `.tile` | Renderizador de tile map |
 | `shape` | `SHAPE_MESH` | — | Geometria procedural |
 | `line` | `LINE_MESH` | — | Renderização baseada em linhas |
+| `render2texture` | `RENDER_2_TEXTURE` | — | Target de renderização off-screen |
+| `meshDebug` | — | `.msh`, `.spt`, `.fnt`, `.tile`, `.ptl` | Helper de debug de assets usado pelos editores |
+| `auto` | — | — | Helper de automação usado pelos editores |
+| `vec2`, `vec3` | `VEC2`, `VEC3` | — | Construtores auxiliares de vetores |
+| `audio` | `AUDIO` | WAV/OGG/etc. | Wrapper de objeto de áudio |
+| `timer` | — | — | Helper de callback por timer |
+| `vr` | `HMD` | — | Wrapper VR/HMD quando `USE_VR` está habilitado |
 
 **Espaços de coordenadas** — passados como primeiro argumento de `:new()`:
 
@@ -1425,7 +1503,30 @@ O Mini MBM inclui um conjunto de **editores visuais baseados em Lua** (na pasta 
 
 ## Sistema de Plugins
 
-Plugins estendem o motor implementando a interface `mbm::PLUGIN`. Um plugin recebe **callbacks de ciclo de vida** que espelham o loop principal do motor: `onSubscribe`, `onPrepare`, `onLoop`, `onRender`, `onDestroy`, callbacks de input (touch, teclado, joystick) e `onResizeWindow`.
+Plugins estendem o motor implementando a interface `PLUGIN` em `include/core_mbm/plugin-callback.h`. Um plugin recebe **callbacks de ciclo de vida** que espelham o loop principal do motor:
+
+```cpp
+class PLUGIN {
+    virtual void onSubscribe(int width, int height, void *context, void *renderDevice);
+    virtual void onPrepare();
+    virtual void onLoop(float delta);
+    virtual void onRender();
+    virtual void onDestroy();
+    virtual void onResizeWindow(int width, int height);
+    virtual void onTouchDown(int key, float x, float y);
+    virtual void onTouchUp(int key, float x, float y);
+    virtual void onTouchMove(int key, float x, float y);
+    virtual void onTouchZoom(float zoom);
+    virtual void onKeyDown(int key);
+    virtual void onKeyUp(int key);
+    virtual void onDoubleClick(float x, float y, int key);
+    virtual void onKeyDownJoystick(int player, int key);
+    virtual void onKeyUpJoystick(int player, int key);
+    virtual void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+    virtual void onInfoDeviceJoystick(int player, int maxButtons,
+                                      const char *deviceName, const char *extraInfo);
+};
+```
 
 Plugins são registrados com `CORE_MANAGER::addPlugin(PLUGIN*)`.
 
@@ -1438,7 +1539,10 @@ Plugins são registrados com `CORE_MANAGER::addPlugin(PLUGIN*)`.
 | **Bullet 3D** | `plugins/bullet3d/` | Simulação de física 3D via Bullet 2.84. |
 | **Dear ImGui** | `plugins/imGui/` | Integração GUI de modo imediato com bindings Lua. |
 | **Tiled** | `plugins/tiled/` | Suporte a tile maps com tile sets, camadas e edição. |
+| **Steam** | `plugins/steam/` | Plugin Lua para Steamworks; requer `-DUSE_STEAM=1` e `-DSTEAMWORKS_SDK_PATH=/path/to/steamworks_sdk`. |
 | **Plugin Helper** | `plugins/plugin-helper/` | Utilitários compartilhados para desenvolvimento de plugins. |
+
+As flags de plugin começam desligadas e exigem `USE_LUA=1`. `-DUSE_ALL=1` habilita Lua, VR, Box2D, LiquidFun, ImGui, lSQLite3 e Tiled; não habilita Steam nem Bullet3D. Em iOS e macOS App Store (`MAS_DELIVERY`), plugins são ligados estaticamente e o CMake desabilita LiquidFun automaticamente quando Box2D também está habilitado.
 
 ---
 

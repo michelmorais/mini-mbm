@@ -22,6 +22,7 @@
 #include <util-interface.h>
 #include <lua-wrap/manager-lua.h>
 #include <device.h>
+#include <core_mbm/platform-win32.h>
 #include <version/version.h>
 #include <core_mbm/usage-help.h>
 #include <core_mbm/strings-pt-br.h>

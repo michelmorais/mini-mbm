@@ -30,6 +30,16 @@ if [[ ! -d "${TEMPLATE_DIR}" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${TEMPLATE_DIR}/.github/copilot-instructions.md" ]]; then
+    echo "Error: Copilot instructions not found in template." >&2
+    exit 1
+fi
+
+if [[ ! -f "${TEMPLATE_DIR}/AGENTS.md" ]]; then
+    echo "Error: Codex AGENTS.md not found in template." >&2
+    exit 1
+fi
+
 mkdir -p "${DEST}"
 cp -r "${TEMPLATE_DIR}/." "${DEST}/"
 mkdir -p "${DEST}/assets"
@@ -41,5 +51,8 @@ mkdir -p "${DEST}/assets/textures"
 mkdir -p "${DEST}/scenes"
 
 echo "Game template copied to: ${DEST}"
+echo "Copied agent instructions:"
+echo "  ${DEST}/.github/copilot-instructions.md"
+echo "  ${DEST}/AGENTS.md"
 echo "Run your game with:"
 echo "  cd \"${DEST}\" && /path/to/mini-mbm main.lua"

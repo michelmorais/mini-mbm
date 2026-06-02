@@ -57,7 +57,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     mbm::set_callback_do_commands(onDoNativeCommand);
     // parse arguments in next block
     {
-        PARSE_laucher_ARGS parser;
+        PARSE_launcher_ARGS parser;
 
         unsigned int width = 0, height = 0;
         if (parser.getWidthHeight(width, height))

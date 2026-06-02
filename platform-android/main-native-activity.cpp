@@ -277,12 +277,11 @@ static void onAppCmd(struct android_app* app, int32_t cmd)
             {
                 INFO_LOG("mini-mbm: APP_CMD_INIT_WINDOW %d x %d", w, h);
 
-                // Attach to the JVM — required by LUA_MANAGER(JNIEnv*, jobject) on Android.
                 JNIEnv* jenv = nullptr;
                 app->activity->vm->AttachCurrentThread(&jenv, nullptr);
 
 #ifdef USE_LUA
-                s_game = new mbm::LUA_MANAGER(jenv, app->activity->clazz);
+                s_game = new mbm::LUA_MANAGER();
 #else
                 // Pure C++ path — MY_GAME constructor calls setScene().
                 s_game = new MY_GAME();

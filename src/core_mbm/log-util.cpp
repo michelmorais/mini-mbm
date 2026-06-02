@@ -60,7 +60,7 @@ void replaceString(std::string &source, const char *from, const char *to)
     replaceString(source, _from, _to);
 }
 
-void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut)
+void replaceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut)
 {
     if (fileNameIn)
     {
@@ -82,7 +82,7 @@ const char *basename(const char *fileName)
     if (fileName)
     {
         std::string f;
-        repalceDefaultSeparator(fileName, f);
+        replaceDefaultSeparator(fileName, f);
         const size_t t2 = f.find_last_of(util::getCharDirSeparator());
         if (t2 == std::string::npos)
         {

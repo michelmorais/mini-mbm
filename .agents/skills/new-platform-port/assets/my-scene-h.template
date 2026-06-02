@@ -1,6 +1,6 @@
 /*-----------------------------------------------------------------------------------------------------------------------|
 | MIT License (MIT)                                                                                                      |
-| Copyright (C) 2004-2017 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
+| Copyright (C) 2015-2026 by Michel Braz de Morais  <michel.braz.morais@gmail.com>                                       |
 |                                                                                                                        |
 | Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated           |
 | documentation files (the "Software"), to deal in the Software without restriction, including without limitation        |
@@ -17,66 +17,44 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined ANDROID
+#ifndef MY_SCENE_CPP_H
+#define MY_SCENE_CPP_H
 
-extern "C" 
-{
-    #include <lua.h>
-    #include <lauxlib.h>
-    #include <lualib.h>
-}
-
-#include <lua-wrap/manager-lua.h>
-#include <core_mbm/device.h>
-#include <core_mbm/util-interface.h>
-#include <version/version.h>
 #include <core_mbm/scene.h>
+#include <core_mbm/core-manager.h>
 
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
-#elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
-#else
-    #error "This file is only for OpenGL ES"
-#endif
 
-namespace mbm
+class MY_SCENE : public mbm::SCENE
 {
-    #if defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    LUA_MANAGER::LUA_MANAGER()
-    {
-    }
-    #else
+  public:
+    MY_SCENE();
+    virtual ~MY_SCENE();
+    void startLoading();
+    void endLoading();
+    void onInitScene();
+    void onLoop();
+    void onTouchDown(int key, float x, float y);
+    void onTouchUp(int key, float x, float y);
+    void onTouchMove(int, float x, float y);
+    void onTouchZoom(float zoom);
+    void onFinalizeScene();
+    void onKeyDown(int key);
+    void onKeyUp(int key);
+    void onKeyDownJoystick(int player, int key);
+    void onKeyUpJoystick(int player, int key);
+    void onMoveJoystick(int player, float lx, float ly, float rx, float ry);
+    void onInfoDeviceJoystick(int player, int maxNumberButton,
+                              const char *strDeviceName, const char *extraInfo);
+    void onResizeWindow(){};
+};
 
-    LUA_MANAGER::LUA_MANAGER()
-    {
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        LUA_MANAGER::pLuaManager = this;
-        log_util::setScriptPrintLine(onScriptPrintLine);
-        util::setOnAddPathScript(onAddPathScript);
-        this->nameApplication = "Mini-mbm " MBM_VERSION " ";
-        this->nameApplication += device->getBackendEngineName();
-        this->nameApplication += "\n Compiled: " __DATE__;
-        this->widthWindow        = 800;
-        this->heightWindow       = 600;
-        this->maximizedWindow    = false;
-        this->fileNameInitialLua = "main.lua";
-#if defined _DEBUG
-        this->noSplash = true;
-#else
-        this->noSplash       = false;
-#endif
-        this->hasValueTextureLogo = false;
-        this->onDoNativeCommand   = nullptr;
-        INFO_LOG("%s", this->nameApplication.c_str());
-    }
-    #endif
-
-    void SCENE_SCRIPT::onDoubleClick(float /*x*/, float /*y*/, int /*key*/)
-    {
-        // Android has no double-click input event
-    }
+class GAME : public mbm::CORE_MANAGER
+{
+public:
+    MY_SCENE myScene;
+    bool existScene(const int idScene) override;
+    GAME();
+    virtual ~GAME();
 };
 
 #endif

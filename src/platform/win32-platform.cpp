@@ -21,6 +21,7 @@
 #if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
 
 #include <platform/win32-platform.h>
+#include <core_mbm/platform-win32.h>
 #include <core_mbm/device.h>
 
 #if defined (USE_DIRECTX9)

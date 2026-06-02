@@ -540,6 +540,64 @@ elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "Windows")
     # would require WinMain.
     target_link_options(mini-mbm PRIVATE -Wl,--subsystem,windows)
 
+    # ── Runtime DLLs → bin output dir (engine build, no delivery needed) ────────
+    # Copies all DLLs the exe needs so it can be run directly from
+    # bin\debug\windows_x86\ or bin\release\windows_x86\ without any extra steps.
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(_ENGINE_RT_DLLS "")
+
+        # MinGW runtime DLLs — needed on machines without MSYS2 on PATH.
+        # libgcc_s variant depends on exception model / architecture:
+        #   libgcc_s_dw2-1.dll  — 32-bit (DWARF/SJLJ), mingw32
+        #   libgcc_s_seh-1.dll  — 64-bit (SEH),         mingw64 / ucrt64
+        #   libgcc_s_deh-1.dll  — 64-bit (SJLJ, rare)
+        get_filename_component(_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        foreach(_CANDIDATE libgcc_s_dw2-1.dll libgcc_s_seh-1.dll libgcc_s_deh-1.dll)
+            if(EXISTS "${_MINGW_BIN}/${_CANDIDATE}")
+                list(APPEND _ENGINE_RT_DLLS "${_MINGW_BIN}/${_CANDIDATE}")
+                break()
+            endif()
+        endforeach()
+        foreach(_RT libstdc++-6.dll libwinpthread-1.dll)
+            if(EXISTS "${_MINGW_BIN}/${_RT}")
+                list(APPEND _ENGINE_RT_DLLS "${_MINGW_BIN}/${_RT}")
+            endif()
+        endforeach()
+
+        # Audio backend DLL
+        if(AUDIO STREQUAL "portaudio")
+            list(APPEND _ENGINE_RT_DLLS "${THIRD_PARTY}/portaudio/Windows/bin/portaudio_x86.dll")
+        endif()
+
+        # Graphics backend DLLs — D3DCompiler is needed by both DirectX9 and OpenGL ES.
+        list(APPEND _ENGINE_RT_DLLS "$ENV{SystemRoot}/System32/D3DCompiler_47.dll")
+        if(NOT USE_DIRECTX9)
+            list(APPEND _ENGINE_RT_DLLS
+                "${THIRD_PARTY}/gles/bin/libEGL.dll"
+                "${THIRD_PARTY}/gles/bin/libGLESv2.dll")
+        endif()
+
+        foreach(_DLL ${_ENGINE_RT_DLLS})
+            if(EXISTS "${_DLL}")
+                add_custom_command(TARGET mini-mbm POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_DLL}"
+                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                    COMMENT "Copying runtime DLL: ${_DLL}")
+            else()
+                message(WARNING "Runtime DLL not found (skipped): ${_DLL}")
+            endif()
+        endforeach()
+
+        # Copy the editor/ Lua scripts next to the executable so that
+        # mini-mbm.exe and mini-mbm-dev.exe can find them without extra setup.
+        add_custom_command(TARGET mini-mbm POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/editor"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
+            COMMENT "Copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
+    endif()
+
     # ── Windows game delivery (GameDir + NSIS installer + WiX MSI + ZIP) ──────
     # Activated only when -DGAME_ASSETS_DIR=/path/to/game/assets is passed at
     # configure time.  Mirrors the Linux/iOS -DGAME_NAME / -DGAME_ASSETS_DIR /
@@ -1228,6 +1286,67 @@ endif()
 
     endif() # GAME_ASSETS_DIR
 
+    # ── mini-mbm-dev target (MinGW/GCC only) ─────────────────────────────────
+    # Mirrors the MSVS mini-mbm-dev project: a launcher that opens an ImGui
+    # app-selector dialog showing all built-in Lua editor tools.
+    # Only meaningful when Lua + ImGui are available; not built by MSVC
+    # (the VS solution has its own project for that).
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND USE_LUA)
+        set(_DEV_MAIN "${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm-dev/mini-mbm-dev.cpp")
+
+        # Bake a distinct game-name symbol so the window title reads "Mini MBM Dev".
+        file(WRITE "${CMAKE_BINARY_DIR}/mbm_dev_game_name.cpp"
+            "extern const char mbm_baked_game_name[] = \"Mini MBM Dev\";\n")
+
+        add_executable(mini-mbm-dev
+            ${_DEV_MAIN}
+            ${SOURCES}
+            ${BOX2D_LIQUID_FUN_WRAP_SOURCES}
+            ${BULLET3D_WRAP_SOURCES}
+            ${LIB_MINIMBM_LUA_SRC}
+            ${LIB_MINIMBM_LUA_PLATFORM_SRC}
+            "${CMAKE_BINARY_DIR}/mbm_dev_game_name.cpp")
+
+        # mini-mbm-dev.cpp includes:
+        #   framework.h         → platform-msvs/mini-mbm-launcher/
+        #   mini-mbm-dev.h      → platform-msvs/mini-mbm-dev/ (includes resource.h)
+        # IDI_ICON1 is defined in the MSVS .rc; supply it as a compile definition
+        # for MinGW where windres is not used.
+        target_include_directories(mini-mbm-dev PRIVATE
+            "${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm-dev"
+            "${CMAKE_SOURCE_DIR}/platform-msvs/mini-mbm-launcher")
+
+        target_compile_definitions(mini-mbm-dev PRIVATE
+            LIB_MBM_EXPORTS
+            IDI_ICON1=101)
+
+        target_link_libraries(mini-mbm-dev ${CORE_MBM_LIBRARY})
+
+        # Same subsystem flag as mini-mbm — suppress the console window.
+        target_link_options(mini-mbm-dev PRIVATE -Wl,--subsystem,windows)
+
+        # Copy runtime DLLs and editor/ scripts next to mini-mbm-dev.exe.
+        # (mini-mbm POST_BUILD already copies them, but mini-mbm-dev may be
+        #  built independently so we copy them here too.)
+        foreach(_DLL ${_ENGINE_RT_DLLS})
+            if(EXISTS "${_DLL}")
+                add_custom_command(TARGET mini-mbm-dev POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_DLL}"
+                        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                    COMMENT "mini-mbm-dev: copying runtime DLL: ${_DLL}")
+            endif()
+        endforeach()
+
+        add_custom_command(TARGET mini-mbm-dev POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/editor"
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor"
+            COMMENT "mini-mbm-dev: copying editor/ → ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/editor/")
+
+        message(STATUS "mini-mbm-dev target enabled (MinGW dev launcher)")
+    endif() # mini-mbm-dev
+
 elseif (${ENGINE_TARGET_PLATFORM} STREQUAL "MacOs")
     if (USE_LUA)
         add_executable(mini-mbm ${MAIN}
@@ -1859,6 +1978,10 @@ endif()
 if (USE_LUA)
     target_link_libraries(mini-mbm ${LUA_LIBRARY})
     target_link_libraries(mini-mbm ${PLUGIN_HELPER_LIBRARY})
+    if(TARGET mini-mbm-dev)
+        target_link_libraries(mini-mbm-dev ${LUA_LIBRARY})
+        target_link_libraries(mini-mbm-dev ${PLUGIN_HELPER_LIBRARY})
+    endif()
 endif()
 
 # plugins for android (https://developer.android.com/about/versions/nougat/android-7.0-changes.html#ndk) will be linked (workaround)

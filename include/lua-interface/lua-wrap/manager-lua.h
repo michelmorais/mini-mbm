@@ -65,9 +65,7 @@ namespace mbm
         void onTouchMove(int key, float x, float y) override;
         void onTouchZoom(float zoom) override;
         void * get_lua_state() override;//if we are using lua we should be able to retrieve the current state
-#if !defined ANDROID
         void onDoubleClick(float x, float y,int key) override;
-#endif
         void onFinalizeScene() override;
         void onKeyDown(int key) override;
         void onKeyUp(int key) override;
@@ -109,16 +107,10 @@ namespace mbm
         bool                        noSplash;
 
         bool existScene(const int idScene)override;
-    #ifdef ANDROID
-        LUA_MANAGER(JNIEnv *env, jobject obj);
-        OnDoNativeCommand onDoNativeCommand;
-        
-    #elif defined _WIN32 || defined __linux__  || defined(__APPLE__)
         LUA_MANAGER();
-        LUA_MANAGER(const int argc,const char **argv);
+        LUA_MANAGER(const int argc, const char **argv);
         LUA_MANAGER(const std::vector<std::string> & args);
         OnDoNativeCommand onDoNativeCommand;
-    #endif
         virtual ~LUA_MANAGER();
         void setExpectedSizeOfWindow(int expectedWidth,int expectedHeight,const char * stretch);
         void getExpectedSizeOfWindow(int & expectedWidth,int & expectedHeight,std::string & stretch);

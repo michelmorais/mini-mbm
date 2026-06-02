@@ -43,6 +43,8 @@
 //#include <X11/Xmu/WinUtil.h>
 #endif
 
+struct SPECIFIC_AUX_CONTEXT_DEVICE;
+namespace mbm { static bool initializeWindowx11(SPECIFIC_AUX_CONTEXT_DEVICE* ctx); }
 
 namespace mbm
 {
@@ -59,7 +61,7 @@ namespace mbm
           // Initialize window position
         device->windowPositionX = px;
         device->windowPositionY = py;
-        if(initializeWindowx11() == false)
+        if(initializeWindowx11(this->device->specificContextDevice) == false)
         {
             INFO_LOG("Failed to initialize X11 window");
             return false;
@@ -218,9 +220,9 @@ namespace mbm
         return 0; // still don't abort; let the engine handle it
     }
 
-    bool CORE_MANAGER::initializeWindowx11()
+    static bool initializeWindowx11(SPECIFIC_AUX_CONTEXT_DEVICE* ctx)
     {
-        if(this->device->specificContextDevice->display_x11 == nullptr)
+        if(ctx->display_x11 == nullptr)
         {
             // Enable Xlib multi-threading before opening the display.
             // Required because execute_system_cmd_thread uses a background thread
@@ -232,16 +234,16 @@ namespace mbm
             XSetErrorHandler(x11ErrorHandler);
 
             char * dpyName = nullptr;
-            this->device->specificContextDevice->display_x11 = XOpenDisplay(dpyName);
-            if(this->device->specificContextDevice->display_x11 == nullptr)
+            ctx->display_x11 = XOpenDisplay(dpyName);
+            if(ctx->display_x11 == nullptr)
             {
                 ERROR_LOG("Error: couldn't open display %s\n", dpyName ? dpyName : getenv("DISPLAY"));
                 return false;
             }
             // Mark the X11 socket close-on-exec so child processes created via posix_spawn
             // never inherit it even during the brief fork\u2192exec window.
-            fcntl(ConnectionNumber(this->device->specificContextDevice->display_x11), F_SETFD, FD_CLOEXEC);
-            XFlush(this->device->specificContextDevice->display_x11);
+            fcntl(ConnectionNumber(ctx->display_x11), F_SETFD, FD_CLOEXEC);
+            XFlush(ctx->display_x11);
         }
         else
         {

@@ -55,11 +55,6 @@ enum COLOR_TERMINAL
 
 namespace util
 {
-    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-        API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
-        API_IMPL char *toChar(const WCHAR *wstr, char *outText);
-        API_IMPL void getDisplayMetrics(int * width, int * height);
-    #endif
     API_IMPL const char* getDirSeparator();
     API_IMPL const char  getCharDirSeparator();
     API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
@@ -99,7 +94,7 @@ namespace log_util
     API_IMPL const char* getDirSeparator();
     API_IMPL void replaceString(std::string &source, const std::string &from, const std::string &to);
     API_IMPL void replaceString(std::string &source, const char *from, const char *to);
-    API_IMPL void repalceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);
+    API_IMPL void replaceDefaultSeparator(const char *fileNameIn, std::string &fileNameOut);
     API_IMPL const char *basename(const char *fileName);
     API_IMPL void checkGlError(const char *fileName, const int numLine, const char *message);
     API_IMPL void checkGlError(const char *fileName, const int numLine);

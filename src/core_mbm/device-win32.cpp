@@ -19,6 +19,7 @@
 
 #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 #include <device.h>
+#include <core_mbm/platform-win32.h>
 #include <plusWindows/defaultThemePlusWindows.h>
 
 

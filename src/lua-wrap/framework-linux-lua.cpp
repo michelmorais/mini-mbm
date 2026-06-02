@@ -20,6 +20,10 @@
 #if !defined(ANDROID) && defined(__linux__) && !defined(__APPLE__)
 
 #include <lua-wrap/framework-lua.h>
+#include <pwd.h>
+#include <langinfo.h>
+#include <tinyfiledialogs/tinyfiledialogs.h>
+#include <core_mbm/dialog-util.h>
 #include <core_mbm/device.h>
 #include <lua-wrap/manager-lua.h>
 #include <core_mbm/util-interface.h>

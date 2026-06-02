@@ -303,7 +303,7 @@ All constructors follow the pattern: `TypeName:new(coordType, x?, y?, z?)`.
 | `font` | — | `.fnt` (pre-parsed binary) or `.ttf`/`.otf`/`.true-font` (runtime parsed) | Font renderer (see §7.4) |
 | `particle` | `2dw`, `2ds`, `3d` | `.ptl` config file or configure manually | Particle emitter |
 | `shape` | `2dw`, `2ds`, `3d` | procedural | Procedurally generated mesh |
-| `lineMesh` | `2dw`, `2ds`, `3d` | procedural | Line-based geometry |
+| `line` | `2dw`, `2ds`, `3d` | procedural | Line-based geometry |
 | `tile` | `2dw` | tile-map file | Tile map with layers |
 | `render2texture` | — | — | Off-screen render target |
 | `vec2` | — | — | 2D vector math object |
@@ -336,7 +336,7 @@ box:create({0,0, 0,50, 50,50, 50,0}, {1,2,3, 1,3,4}, {0,0, 0,1, 1,1, 1,0})
 
 ## 6. Common Renderizable Methods
 
-Every render object (sprite, mesh, texture, gif, backGround, particle, shape, lineMesh, tile, render2texture) inherits these methods.
+Every render object (sprite, mesh, texture, gif, backGround, particle, shape, line, tile, render2texture) inherits these methods.
 
 ### 6.1 Transform Methods
 
@@ -554,10 +554,10 @@ sh:createDynamicIndexed(vertices, indices, uvs)  -- updatable each frame
 sh:onRender(callback)  -- callback(sh) called every frame for dynamic update
 ```
 
-### 7.9 lineMesh
+### 7.9 line
 
 ```lua
-local ln = lineMesh:new("2dw", x, y)
+local ln = line:new("2dw", x, y)
 ln:add({x1,y1, x2,y2, x3,y3})   -- add line strip vertices
 ln:set(idx, {x1,y1, x2,y2})     -- update a specific segment
 ln:size()                         -- number of line segments

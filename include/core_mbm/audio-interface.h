@@ -22,10 +22,6 @@
 
 #include "core-exports.h"
 
-#ifdef _WIN32
-    #include <Windows.h>
-#endif
-
 namespace mbm 
 {
 	class CORE_MANAGER;

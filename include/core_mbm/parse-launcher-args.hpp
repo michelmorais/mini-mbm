@@ -6,15 +6,13 @@
 
 struct STORE_DATA_ARG;
 
-class API_IMPL PARSE_laucher_ARGS
+class API_IMPL PARSE_launcher_ARGS
 {
 public:
-	PARSE_laucher_ARGS();
-	PARSE_laucher_ARGS(const char** argv, const int pNumArgs);
-#if defined _WIN32
-	PARSE_laucher_ARGS(int argc, wchar_t** argv);
-#endif
-	~PARSE_laucher_ARGS();
+	PARSE_launcher_ARGS();
+	PARSE_launcher_ARGS(const char** argv, const int pNumArgs);
+	PARSE_launcher_ARGS(int argc, wchar_t** argv);
+	~PARSE_launcher_ARGS();
 	bool noSplash;
 	bool noBorder;
 	bool enableResizeWindow;

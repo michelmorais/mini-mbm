@@ -17,66 +17,27 @@
 |                                                                                                                        |
 |-----------------------------------------------------------------------------------------------------------------------*/
 
-#if defined ANDROID
+#ifndef PLATFORM_WIN32_MBM_H
+#define PLATFORM_WIN32_MBM_H
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
 
-extern "C" 
-{
-    #include <lua.h>
-    #include <lauxlib.h>
-    #include <lualib.h>
-}
-
-#include <lua-wrap/manager-lua.h>
-#include <core_mbm/device.h>
-#include <core_mbm/util-interface.h>
-#include <version/version.h>
-#include <core_mbm/scene.h>
-
-#if defined USE_OPENGL_ES
-    #include <core_mbm/specific-opengl_es.h>
-#elif defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    #include <core_mbm/specific-dummy.h> // for specific context of dummy engine
-#else
-    #error "This file is only for OpenGL ES"
-#endif
+#include "core-exports.h"
 
 namespace mbm
 {
-    #if defined USE_DUMMY_BACK_END_ENGINE && defined ANDROID
-    // ANDROID_AND_NOT_OPENGL_ES: For different backend engine on Android, implementation here
-    LUA_MANAGER::LUA_MANAGER()
-    {
-    }
-    #else
+    API_IMPL void setWin32IconToBeUsed(const int ID_ICON);
+    API_IMPL void setTheme(int value, bool enableBorder);
+    API_IMPL void hideConsoleWindow();
+    API_IMPL void showConsoleWindow();
+    API_IMPL const char* selectFolderDialog(char * folderPathOut);
+}
 
-    LUA_MANAGER::LUA_MANAGER()
-    {
-        mbm::DEVICE* device = mbm::DEVICE::getInstance();
-        LUA_MANAGER::pLuaManager = this;
-        log_util::setScriptPrintLine(onScriptPrintLine);
-        util::setOnAddPathScript(onAddPathScript);
-        this->nameApplication = "Mini-mbm " MBM_VERSION " ";
-        this->nameApplication += device->getBackendEngineName();
-        this->nameApplication += "\n Compiled: " __DATE__;
-        this->widthWindow        = 800;
-        this->heightWindow       = 600;
-        this->maximizedWindow    = false;
-        this->fileNameInitialLua = "main.lua";
-#if defined _DEBUG
-        this->noSplash = true;
-#else
-        this->noSplash       = false;
+namespace util
+{
+    API_IMPL wchar_t *toWchar(const char *str, wchar_t *outText);
+    API_IMPL char *toChar(const wchar_t *wstr, char *outText);
+    API_IMPL void getDisplayMetrics(int *width, int *height);
+}
 #endif
-        this->hasValueTextureLogo = false;
-        this->onDoNativeCommand   = nullptr;
-        INFO_LOG("%s", this->nameApplication.c_str());
-    }
-    #endif
-
-    void SCENE_SCRIPT::onDoubleClick(float /*x*/, float /*y*/, int /*key*/)
-    {
-        // Android has no double-click input event
-    }
-};
 
 #endif

@@ -28,12 +28,6 @@
 #include "camera.h"
 #include "time-control.h"
 
-#if defined ANDROID
-    // Android specific includes
-#elif (defined __linux__  || (defined(__APPLE__) && !defined(USE_METAL))) && !defined ANDROID
-    #include <X11/Xlib.h>
-#endif
-
 namespace mbm
 {
     class CONTROL_SCENE;
@@ -157,13 +151,5 @@ namespace mbm
         virtual ~DEVICE();
         void setProjectionMode(const bool is3D, const float width, const float height);
     };
-    
-#if (defined (__MINGW32__) || defined (__CYGWIN__) || defined(_WIN32))
-    API_IMPL void setWin32IconToBeUsed(const int ID_ICON);
-    API_IMPL void setTheme(int value, bool enableBorder);
-    API_IMPL void hideConsoleWindow();
-    API_IMPL void showConsoleWindow();
-    API_IMPL const char* selectFolderDialog(char * folderPathOut);
-#endif
 }
 #endif
