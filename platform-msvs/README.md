@@ -161,6 +161,72 @@ the same API used on Linux and macOS.
 
 ---
 
+## Building Just the Engine with CMake / MinGW
+
+Use this when you want to develop or test the engine itself — no game assets or
+packaging needed.  The build outputs `mini-mbm.exe` plus `mini-mbm-dev.exe` (the editor launcher) and
+all plugin `.dll` files into `bin\debug\windows_x86\` or `bin\release\windows_x86\`.
+
+MinGW runtime DLLs (`libgcc_s_*.dll`, `libstdc++-6.dll`, `libwinpthread-1.dll`),
+the audio backend DLL (`portaudio_x86.dll`), the graphics backend DLLs
+(`D3DCompiler_47.dll`; `libEGL.dll` + `libGLESv2.dll` for OpenGL ES), and the
+`editor\` folder of Lua scripts are all copied automatically next to the
+executables by CMake POST_BUILD steps, so no manual copying is required.
+
+```cmd
+mkdir build\mingw_release
+cd build\mingw_release
+
+cmake ..\.. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 ^
+    -DAUDIO=portaudio ^
+    -DCMAKE_BUILD_TYPE=Release
+
+mingw32-make -j%NUMBER_OF_PROCESSORS%
+```
+
+For a Debug build:
+
+```cmd
+mkdir build\mingw_debug
+cd build\mingw_debug
+
+cmake ..\.. -G "MinGW Makefiles" ^
+    -DPLAT=Windows -DUSE_ALL=1 ^
+    -DAUDIO=portaudio ^
+    -DCMAKE_BUILD_TYPE=Debug
+
+mingw32-make -j%NUMBER_OF_PROCESSORS%
+```
+
+To select the graphics backend explicitly, add one of:
+
+| Flag | Backend |
+|---|---|
+| `-DUSE_DIRECTX9=1` | DirectX 9 (adds `D3DCompiler_47.dll`) |
+| `-DUSE_OPENGL_ES=1` | OpenGL ES emulation (adds `libEGL.dll`, `libGLESv2.dll`) |
+
+After the build, run the engine directly from the repo root:
+
+```cmd
+rem Run a specific Lua script
+bin\release\windows_x86\mini-mbm.exe editor\scene_editor2d.lua
+
+rem Open the dev launcher (ImGui tool selector — same as the MSVS mini-mbm-dev project)
+bin\release\windows_x86\mini-mbm-dev.exe
+```
+
+> **Tip:** To also copy the `editor\` folder and the third-party runtime DLLs
+> (portaudio, gles) to the output directory for a self-contained run from the
+> bin folder, use `copy-dlls.bat` as described in the [Post-Build: Copying DLLs](#post-build-copying-dlls)
+> section above — it is the same script used for Visual Studio builds.
+
+---
+
+## Game Delivery — Distribution Packages
+
+---
+
 ### Path A — CMake / MinGW (recommended for CI and scripted builds)
 
 Mirrors the Linux AppDir and iOS Xcode packaging workflows. Pass the same three
