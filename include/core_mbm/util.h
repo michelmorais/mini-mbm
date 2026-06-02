@@ -30,10 +30,6 @@ namespace util
 {
 
     API_IMPL const char *getPathFromFullPathName(const char *fileNamePath);
-    #if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
-    API_IMPL WCHAR *toWchar(const char *str, WCHAR *outText);
-    API_IMPL char *toChar(const WCHAR *wstr, char *outText);
-    #endif
 
     API_IMPL float degreeToRadian(const float degree);
     API_IMPL float radianToDegree(const float radian);

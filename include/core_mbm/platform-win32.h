@@ -31,4 +31,13 @@ namespace mbm
     API_IMPL const char* selectFolderDialog(char * folderPathOut);
 }
 
+#if (defined(__MINGW32__) || defined(__CYGWIN__) || defined(_WIN32))
+namespace util
+{
+    API_IMPL wchar_t *toWchar(const char *str, wchar_t *outText);
+    API_IMPL char *toChar(const wchar_t *wstr, char *outText);
+    API_IMPL void getDisplayMetrics(int *width, int *height);
+}
+#endif
+
 #endif
