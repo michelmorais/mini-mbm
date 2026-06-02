@@ -427,9 +427,6 @@ namespace mbm
 
     int onSetGlobal(lua_State *lua)
     {
-        #if defined DEBUG_SET_GET_GLOBAL
-            luaL_dostring(lua,"if type(trace) == 'function' then trace(4,4) end");
-        #endif
         const int top = lua_gettop(lua);
         if (top == 2)
         {
@@ -444,9 +441,6 @@ namespace mbm
                     device->lsDynamicVarGlobal[what] = nullptr;
                     if (dyVar)
                         delete dyVar;
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG(" setGlobal('%s',nil)",what);
-                    #endif
                 }
                 break;
                 case LUA_TNUMBER:
@@ -484,9 +478,6 @@ namespace mbm
                             }
                         }
                     }
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG(" setGlobal('%s',%f)",what,var);
-                    #endif
                 }
                 break;
                 case LUA_TBOOLEAN:
@@ -507,9 +498,6 @@ namespace mbm
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_BOOL, &var);
                         device->lsDynamicVarGlobal[what] = dyVar;
                     }
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG(" setGlobal('%s',%s)",what,var ? "true" : "false");
-                    #endif
                 }
                 break;
                 case LUA_TSTRING:
@@ -530,9 +518,6 @@ namespace mbm
                         dyVar                            = new DYNAMIC_VAR(DYNAMIC_CSTRING, static_cast<const void*>(var));
                         device->lsDynamicVarGlobal[what] = dyVar;
                     }
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG("  setGlobal('%s',%s)",what,var);
-                    #endif
                 }
                 break;
                 case LUA_TTABLE: { return lua_error_debug(lua, "global variable [%s] not possible", what);}
@@ -552,9 +537,6 @@ namespace mbm
 
     int onGetGlobal(lua_State *lua)
     {
-        #if defined DEBUG_SET_GET_GLOBAL
-        luaL_dostring(lua,"if type(trace) == 'function' then trace(4,4) end");
-        #endif
         const char *      what      = luaL_checkstring(lua, 1);
         const char *      strinChar = nullptr;
         DEVICE *     device    = DEVICE::getInstance();
@@ -571,9 +553,6 @@ namespace mbm
                 {
                     const bool value = dyVar->getBool();
                     lua_pushboolean(lua, value ? 1 : 0);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG(" getGlobal('%s')-> %s",what,value ? "true" : "false");
-                    #endif
                 }
                 break;
                 case DYNAMIC_CHAR:
@@ -583,45 +562,30 @@ namespace mbm
                     str[0] = value;
                     str[1] = 0;
                     lua_pushstring(lua, str);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG("  getGlobal('%s')-> '%s'",what,str);
-                    #endif
                 }
                 break;
                 case DYNAMIC_INT:
                 {
                     const int value = dyVar->getInt();
                     lua_pushinteger(lua, value);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG("  getGlobal('%s')-> %d",what,value);
-                    #endif
                 }
                 break;
                 case DYNAMIC_FLOAT:
                 {
                     const float value = dyVar->getFloat();
                     lua_pushnumber(lua, value);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG("  getGlobal('%s')-> %f",what,value);
-                    #endif
                 }
                 break;
                 case DYNAMIC_CSTRING:
                 {
                     strinChar = dyVar->getString();
                     lua_pushstring(lua, strinChar);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG("  getGlobal('%s')-> '%s'",what,strinChar);
-                    #endif
                 }
                 break;
                 case DYNAMIC_SHORT:
                 {
                     const short value = dyVar->getShort();
                     lua_pushinteger(lua, (const int)value);
-                    #if defined DEBUG_SET_GET_GLOBAL
-                        INFO_LOG(" getGlobal('%s')-> %d",what,value);
-                    #endif
                 }
                 break;
                 case DYNAMIC_VOID:

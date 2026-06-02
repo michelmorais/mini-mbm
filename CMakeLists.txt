@@ -133,11 +133,6 @@ function(SHOW_OTHERS_OPTIONS_ENGINE)
     else()
         message("-DMBM_ENABLE_MESH_LEGACY_V7=0 : Compatibility for mesh loader and deprecated features (versions <= 7) (Current is DISABLED)")
     endif()
-    if(DEBUG_SET_GET_GLOBAL)
-        message("-DDEBUG_SET_GET_GLOBAL=1   : Debug for get and set global instruction using LUA (Current Debug LUA is ENABLED)")
-    else()
-        message("-DDEBUG_SET_GET_GLOBAL=0   : Debug for get and set global instruction using LUA (Current Debug LUA is DISABLED)")
-    endif()
     message("******************************************************************************************************")
 endfunction()
 
@@ -592,11 +587,6 @@ if(CMAKE_SUCCESS_SET_PLAT EQUAL 1)
             "explicitly (do not use -DUSE_ALL=1).")
         set(USE_BOX2D_LIQUID_FUN 0)
     endif()
-
-    OPTION(DEBUG_SET_GET_GLOBAL "debug getGlobal and setglobal lua" OFF) # Disabled by default
-    IF(DEBUG_SET_GET_GLOBAL)
-        add_definitions(-DDEBUG_SET_GET_GLOBAL)
-    ENDIF(DEBUG_SET_GET_GLOBAL)
 
     # Legacy/deprecated compatibility flag
     # Default is OFF when not provided.

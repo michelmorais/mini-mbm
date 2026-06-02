@@ -43,7 +43,6 @@ mingw32-make -j...        # Windows MinGW
 | `-DUSE_BULLET=1` | Bullet 2.84 3D physics plugin |
 | `-DUSE_IMGUI=1` | Dear ImGui plugin (required for editor tools) |
 | `-DUSE_LSQLITE3=1` | SQLite3 Lua bindings |
-| `-DDEBUG_SET_GET_GLOBAL=1` | Debug Lua global get/set |
 
 ### Output directories (set by root CMakeLists.txt)
 | Build type | Binaries | Libraries |
