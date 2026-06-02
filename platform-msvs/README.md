@@ -287,7 +287,7 @@ cmake .. -G "MinGW Makefiles" ^
     -DSTEAMWORKS_SDK_PATH="C:/Users/miche/Downloads/steamworks_sdk_164/sdk" ^
     -DGAME_NAME="Tower Defense Monster" ^
     -DGAME_ASSETS_DIR="C:\Users\miche\Documents\tower-defense\assets" ^
-    -DGAME_ASSETS_PASSWORD="agasdOyu865()55!" ^
+    -DGAME_ASSETS_PASSWORD="agasdOyu86555" ^
     -DGAME_ICON_PNG="C:\Users\miche\Documents\tower-defense\propaganda\1024x1024-icon.png"
 
 mingw32-make -j%NUMBER_OF_PROCESSORS%    :: GameDir assembled automatically
