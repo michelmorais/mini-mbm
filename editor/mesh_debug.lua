@@ -3692,6 +3692,177 @@ function doSaveAs(tEntry, index)
     end
 end
 
+local function normalizeFolderPath(path)
+    path = (path or ''):gsub('\\', '/')
+    return path:gsub('/+$', '')
+end
+
+local function joinFolderFile(folder, fileName)
+    folder = normalizeFolderPath(folder)
+    if folder == '' then return fileName end
+    return folder .. '/' .. fileName
+end
+
+local function getBatchPathKey(path)
+    if mbm and mbm.is and mbm.is('windows') then
+        return tostring(path or ''):lower()
+    end
+    return tostring(path or '')
+end
+
+local function makeUniqueBatchOutputPath(folder, sourceFile, usedPaths, index)
+    local baseName = tUtil.getBaseFileName(sourceFile or '') or ''
+    if baseName == '' then
+        baseName = string.format('mesh_%d.msh', index or 1)
+    end
+
+    local stem, ext = baseName:match('^(.*)(%.[^%.]+)$')
+    if not stem then
+        stem = baseName
+        ext = ''
+    end
+
+    local candidate = joinFolderFile(folder, baseName)
+    local key = getBatchPathKey(candidate)
+    local suffix = 2
+    while usedPaths[key] do
+        candidate = joinFolderFile(folder, string.format('%s_%d%s', stem, suffix, ext))
+        key = getBatchPathKey(candidate)
+        suffix = suffix + 1
+    end
+    usedPaths[key] = true
+    return candidate
+end
+
+local function hasFrameOrSubsetFilter(tEntry)
+    local meshD = tEntry.meshDebug
+    local tSel = tEntry.tFrameSelection or {}
+    local tChecked = tEntry.tCheckedRemove or {}
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okT or not nFrames then return false end
+
+    for f = 1, nFrames do
+        if tSel[f] == false then return true end
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = 1, nSubsets do
+                if tChecked[f * 100 + s] == false then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function buildCheckedRemoveDefaults(tEntry)
+    local meshD = tEntry.meshDebug
+    local oldChecked = tEntry.tCheckedRemove or {}
+    local checked = {}
+    local okT, nFrames = dpCall(function() return meshD:getTotalFrame() end)
+    if not okT or not nFrames then return checked end
+
+    for f = 1, nFrames do
+        checked[f * 100] = oldChecked[f * 100] == false and false or true
+        local okS, nSubsets = dpCall(function() return meshD:getTotalSubset(f) end)
+        if okS and nSubsets then
+            for s = 1, nSubsets do
+                checked[f * 100 + s] = oldChecked[f * 100 + s] == false and false or true
+            end
+        end
+    end
+    return checked
+end
+
+local function buildFilteredMeshForSave(tEntry)
+    local oldCheckedRemove = tEntry.tCheckedRemove
+    tEntry.tCheckedRemove = buildCheckedRemoveDefaults(tEntry)
+
+    local function restoreCheckedRemove()
+        tEntry.tCheckedRemove = oldCheckedRemove
+    end
+
+    if not tEntry.modified then
+        local tempD = buildFilteredMesh(tEntry)
+        restoreCheckedRemove()
+        return tempD
+    end
+
+    local ext = tEntry.fileName:match('%.([^%.]+)$') or 'msh'
+    local tempPath = os.tmpname() .. '.' .. ext
+    if not tEntry.meshDebug:save(tempPath, false, false) then
+        restoreCheckedRemove()
+        return nil
+    end
+
+    local oldFileName = tEntry.fileName
+    tEntry.fileName = tempPath
+    local tempD = buildFilteredMesh(tEntry)
+    tEntry.fileName = oldFileName
+    restoreCheckedRemove()
+    meshDebug:fakeRelease(tempPath)
+    os.remove(tempPath)
+    return tempD
+end
+
+local function saveMeshEntryToPath(tEntry, outFile)
+    local animErr = collectAnimFrameErrors(tEntry)
+    if animErr then
+        return false, tLang.L('apply_all_anim_bounds_failed') .. ': ' .. animErr
+    end
+
+    if hasFrameOrSubsetFilter(tEntry) then
+        local tempD = buildFilteredMeshForSave(tEntry)
+        if not tempD then
+            return false, tLang.L('no_frames_to_save')
+        end
+        return tempD:save(outFile, false, false)
+    end
+
+    return tEntry.meshDebug:save(outFile, false, false)
+end
+
+function onSaveAllToFolder()
+    if #tLoadedMeshes == 0 then
+        tUtil.showMessageWarn(tLang.L('save_all_to_folder_no_meshes'))
+        return
+    end
+
+    local folder = mbm.openFolder(tLang.L('save_all_to_folder'), sLastFolderPath)
+    if not folder or folder == '' then return end
+    folder = normalizeFolderPath(folder)
+    sLastFolderPath = folder
+
+    local usedPaths = {}
+    local success = 0
+    local failed = 0
+    local details = {}
+
+    for i, tEntry in ipairs(tLoadedMeshes) do
+        local outFile = makeUniqueBatchOutputPath(folder, tEntry.fileName, usedPaths, i)
+        local ok, err = saveMeshEntryToPath(tEntry, outFile)
+        if ok then
+            success = success + 1
+        else
+            failed = failed + 1
+            if #details < 6 then
+                table.insert(details, string.format('%s: %s',
+                    tUtil.getShortName(tEntry.fileName),
+                    err or tLang.L('an_error_occurred')))
+            end
+        end
+    end
+
+    local msg = string.format(tLang.L('save_all_to_folder_result_fmt'), success, #tLoadedMeshes, folder)
+    if failed > 0 then
+        msg = msg .. '\n' .. string.format(tLang.L('save_all_to_folder_failed_fmt'), failed)
+        if #details > 0 then msg = msg .. '\n' .. table.concat(details, '\n') end
+        tUtil.showMessageWarn(msg)
+    else
+        tUtil.showMessage(msg, 8)
+    end
+end
+
 local function getApplyAllTypeData()
     local tOrder = {}
     local tCounts = {}
@@ -4251,6 +4422,10 @@ function main_menu_mesh_debug()
                 onLoadMeshFromFolder()
             end
             tImGui.Separator()
+            if tImGui.MenuItem(tLang.L("save_all_to_folder"), nil, false, #tLoadedMeshes > 0) then
+                onSaveAllToFolder()
+            end
+            tImGui.Separator()
             if tImGui.MenuItem(tLang.L('import_via_blender')) then
                 onOpenBlenderImportDialog()
             end
@@ -4381,6 +4556,9 @@ function showMeshTreeWindow()
             end
             if tImGui.MenuItem(tLang.L("load_from_folder")) then
                 onLoadMeshFromFolder()
+            end
+            if tImGui.MenuItem(tLang.L("save_all_to_folder"), nil, false, #tLoadedMeshes > 0) then
+                onSaveAllToFolder()
             end
             showApplyToAllMenu()
             tImGui.EndMenuBar()
