@@ -171,6 +171,12 @@ function onInitScene()
         sCancelFile = '',
         customBlenderPath = '',
         bKeepInSourceFolder = false,
+        bImportPostProcess = true,
+        bImportInvertU = false,
+        bImportInvertV = true,
+        nImportAngleX = -90,
+        nImportAngleY = 0,
+        nImportAngleZ = 0,
         tRunResults = {},
     }
 end
@@ -222,6 +228,20 @@ local function joinPath(base, rel)
         return base .. rel
     end
     return base .. sep .. rel
+end
+
+local function parseBlenderVersion(version)
+    local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.?(%d*)')
+    return tonumber(major) or 0, tonumber(minor) or 0, tonumber(patch) or 0
+end
+
+local function isBlenderVersionOlderThan(blender, majorMin, minorMin)
+    if not blender or not blender.found then return false end
+    local major, minor = parseBlenderVersion(blender.version)
+    if major == 0 then return false end
+    if major < majorMin then return true end
+    if major > majorMin then return false end
+    return minor < minorMin
 end
 
 local function getDefaultSampleStep(frameStart, frameEnd)
@@ -813,7 +833,34 @@ local function validateStreamFrameData(tData, frameIndex)
     })
 end
 
-local function addIntermediateFrameToMesh(meshD, frame, frameNumber)
+local function applyImportVertexOptions(vertices, options)
+    if type(vertices) ~= 'table' or type(options) ~= 'table' then return end
+    if options.importPostProcess ~= true then return end
+    local invertU = options.importInvertU == true
+    local invertV = options.importInvertV == true
+    if not invertU and not invertV then return end
+    for vi = 1, #vertices do
+        local v = vertices[vi]
+        if type(v) == 'table' then
+            if invertU and type(v.u) == 'number' then v.u = 1 - v.u end
+            if invertV and type(v.v) == 'number' then v.v = 1 - v.v end
+        end
+    end
+end
+
+local function applyGeneratedMeshOptions(meshD, options)
+    if type(options) ~= 'table' then return end
+    if options.importPostProcess ~= true then return end
+    local ax = tonumber(options.importAngleX or 0) or 0
+    local ay = tonumber(options.importAngleY or 0) or 0
+    local az = tonumber(options.importAngleZ or 0) or 0
+    if ax ~= 0 or ay ~= 0 or az ~= 0 then
+        meshD:setAngle(ax, ay, az)
+        blenderDebugPrint(tBlenderImportState, 'applied import rotation: %.3f %.3f %.3f', ax, ay, az)
+    end
+end
+
+local function addIntermediateFrameToMesh(meshD, frame, frameNumber, options)
     local frameIdx = meshD:addFrame(3)
     for si = 1, #frame.subsets do
         local subset = frame.subsets[si]
@@ -821,6 +868,7 @@ local function addIntermediateFrameToMesh(meshD, frame, frameNumber)
         if subset.texture and subset.texture ~= '' then
             meshD:setTexture(frameIdx, subsetIdx, subset.texture)
         end
+        applyImportVertexOptions(subset.vertices, options)
         blenderDebugPrint(tBlenderImportState, 'subset [%d/%d] vertices=%d indices=%d', si, #frame.subsets, #(subset.vertices or {}), #(subset.indices or {}))
         if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
             return false, string.format('Failed to add vertices for frame %d subset %d (vertices=%d).', frameNumber, si, #(subset.vertices or {}))
@@ -881,7 +929,7 @@ local function saveGeneratedMesh(meshD, outMshPath)
     return true
 end
 
-local function buildMeshFromIntermediate(tData, outMshPath)
+local function buildMeshFromIntermediate(tData, outMshPath, options)
     local meshD = meshDebug:new()
     meshD:setType('mesh')
 
@@ -903,7 +951,7 @@ local function buildMeshFromIntermediate(tData, outMshPath)
 
     for fi = 1, #tData.frames do
         local frame = tData.frames[fi]
-        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frame, fi)
+        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frame, fi, options)
         if not okAdd then
             return false, errAdd
         end
@@ -911,10 +959,11 @@ local function buildMeshFromIntermediate(tData, outMshPath)
 
     local okAnim, errAnim = addAnimationsToMesh(meshD, tData.animations, #tData.frames)
     if not okAnim then return false, errAnim end
+    applyGeneratedMeshOptions(meshD, options)
     return saveGeneratedMesh(meshD, outMshPath)
 end
 
-local function buildMeshFromStreamManifest(manifestPath, outMshPath)
+local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
     local chunk, loadErr = loadfile(manifestPath)
     if not chunk then
         return false, loadErr or 'Failed to load stream manifest.'
@@ -962,7 +1011,7 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath)
         end
 
         tBlenderImportState.sProgressDetail = string.format(tLang.L('blender_import_progress_build_frame_fmt'), fi, totalFrames)
-        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frameData, fi)
+        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frameData, fi, options)
         if not okAdd then
             return false, errAdd
         end
@@ -971,6 +1020,7 @@ local function buildMeshFromStreamManifest(manifestPath, outMshPath)
 
     local okAnim, errAnim = addAnimationsToMesh(meshD, manifest.animations, totalFrames)
     if not okAnim then return false, errAnim end
+    applyGeneratedMeshOptions(meshD, options)
     return saveGeneratedMesh(meshD, outMshPath)
 end
 
@@ -1048,6 +1098,12 @@ local function blenderImportCoroutine()
         importOptions.debugSteps = st.bPrintDebugSteps
         importOptions.cancelFile = cancelFile
         importOptions.streamOutput = true
+        importOptions.importPostProcess = st.bImportPostProcess
+        importOptions.importInvertU = st.bImportInvertU
+        importOptions.importInvertV = st.bImportInvertV
+        importOptions.importAngleX = st.nImportAngleX
+        importOptions.importAngleY = st.nImportAngleY
+        importOptions.importAngleZ = st.nImportAngleZ
         local cmd = tBlender.buildBakeCmd(src, outDir, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
@@ -1098,7 +1154,7 @@ local function blenderImportCoroutine()
                             blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                             pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                         else
-                            local okBuild, errBuild = buildMeshFromStreamManifest(outManifest, outMsh)
+                            local okBuild, errBuild = buildMeshFromStreamManifest(outManifest, outMsh, importOptions)
                             if not okBuild then
                                 failed = failed + 1
                                 lastErr = errBuild
@@ -1163,7 +1219,12 @@ local function blenderImportCoroutine()
                         elseif progress.framesExported then
                             st.sProgressDetail = string.format(tLang.L('blender_import_progress_write_fmt'), progress.framesExported)
                         elseif progress.sourceFrame then
-                            st.sProgressDetail = string.format(tLang.L('blender_import_progress_frame_fmt'), progress.sourceFrame, expectedFrames)
+                            local targetFrame = 1
+                            if importOptions.bakeAnimation then
+                                targetFrame = math.floor((progress.sourceFrame - importOptions.frameStart) / math.max(1, importOptions.sampleStep)) + 1
+                                targetFrame = math.max(1, math.min(expectedFrames, targetFrame))
+                            end
+                            st.sProgressDetail = string.format(tLang.L('blender_import_progress_frame_fmt'), progress.sourceFrame, targetFrame, expectedFrames)
                         end
 
                         local logErr = extractBlenderLogError(dbgLog)
@@ -1564,6 +1625,23 @@ function showBlenderImportDialog()
     st.bIntermediateOnly = tImGui.Checkbox(tLang.L('blender_import_intermediate_only'), st.bIntermediateOnly)
     st.bPrintDebugSteps = tImGui.Checkbox(tLang.L('blender_import_print_debug_steps'), st.bPrintDebugSteps)
     st.bKeepInSourceFolder = tImGui.Checkbox(tLang.L('blender_import_keep_in_source_folder'), st.bKeepInSourceFolder)
+    tImGui.Separator()
+    st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
+    tImGui.BeginDisabled(not st.bImportPostProcess)
+    st.bImportInvertU = tImGui.Checkbox(tLang.L('blender_import_invert_u'), st.bImportInvertU)
+    tImGui.SameLine()
+    st.bImportInvertV = tImGui.Checkbox(tLang.L('blender_import_invert_v'), st.bImportInvertV)
+    tImGui.PushItemWidth(90)
+    local rxChanged, newRx = tImGui.InputFloat(tLang.L('blender_import_rotation_x'), st.nImportAngleX, 1, 15, '%.1f', 0)
+    if rxChanged and newRx then st.nImportAngleX = newRx end
+    tImGui.SameLine()
+    local ryChanged, newRy = tImGui.InputFloat(tLang.L('blender_import_rotation_y'), st.nImportAngleY, 1, 15, '%.1f', 0)
+    if ryChanged and newRy then st.nImportAngleY = newRy end
+    tImGui.SameLine()
+    local rzChanged, newRz = tImGui.InputFloat(tLang.L('blender_import_rotation_z'), st.nImportAngleZ, 1, 15, '%.1f', 0)
+    if rzChanged and newRz then st.nImportAngleZ = newRz end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
     local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
     if toChanged and newTo and newTo >= 10 then
         st.iTimeoutSecs = newTo
@@ -1583,6 +1661,10 @@ function showBlenderImportDialog()
                 blender = tBlender.detectBlender()
             end
         end
+    elseif isBlenderVersionOlderThan(blender, 5, 1) then
+        tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(string.format(tLang.L('blender_import_version_warning_fmt'), blender.version or '?'))
+        tImGui.PopStyleColor()
     end
 
     if st.sStatus ~= '' then
