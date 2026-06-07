@@ -230,6 +230,47 @@ local function joinPath(base, rel)
     return base .. sep .. rel
 end
 
+local function addPathIfValid(path, tSeen)
+    if type(path) ~= 'string' or path == '' then return 0 end
+    path = path:gsub("\\", "/")
+    if tSeen and tSeen[path] then return 0 end
+    mbm.addPath(path)
+    if tSeen then tSeen[path] = true end
+    return 1
+end
+
+local function addBlenderGeneratedMeshSearchPaths(metaPath, sourcePath)
+    local added = 0
+    local tSeen = {}
+
+    added = added + addPathIfValid(getFileDir(sourcePath), tSeen)
+
+    if not metaPath or metaPath == '' then
+        return added
+    end
+
+    local chunk = loadfile(metaPath)
+    if not chunk then
+        return added
+    end
+
+    local ok, meta = pcall(chunk)
+    if not ok or type(meta) ~= 'table' then
+        return added
+    end
+
+    local paths = meta.textureSearchPaths or meta.texturePaths
+    if type(paths) ~= 'table' then
+        return added
+    end
+
+    for _, path in ipairs(paths) do
+        added = added + addPathIfValid(path, tSeen)
+    end
+
+    return added
+end
+
 local function parseBlenderVersion(version)
     local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.?(%d*)')
     return tonumber(major) or 0, tonumber(minor) or 0, tonumber(patch) or 0
@@ -1082,12 +1123,14 @@ local function blenderImportCoroutine()
         local outManifest = joinPath(outDir, 'manifest.lua')
         local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local outMshMeta = outMsh .. '.meta.lua'
         local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
         os.remove(oldOutLua)
         removePathRecursive(outDir)
         os.remove(outMsh)
+        os.remove(outMshMeta)
         os.remove(dbgLog)
         os.remove(cancelFile)
 
@@ -1156,6 +1199,10 @@ local function blenderImportCoroutine()
                             blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                             pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                         else
+                            local addedPaths = addBlenderGeneratedMeshSearchPaths(outMshMeta, src)
+                            if addedPaths > 0 then
+                                blenderDebugPrint(st, 'added mesh search paths: %d', addedPaths)
+                            end
                             if addMeshToTable(outMsh) then
                                 imported = imported + 1
                                 bShowMeshTree = true

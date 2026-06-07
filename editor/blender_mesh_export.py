@@ -837,6 +837,19 @@ def texture_name_for_msh(path: str) -> str:
     return name if name else "default"
 
 
+def direct_msh_meta_path(out_path: str) -> str:
+    return f"{out_path}.meta.lua"
+
+
+def add_texture_search_path(texture_paths: set[str], texture_path: str) -> None:
+    if not texture_path:
+        return
+    full_path = os.path.abspath(texture_path)
+    tex_dir = os.path.dirname(full_path)
+    if tex_dir:
+        texture_paths.add(tex_dir)
+
+
 def apply_direct_vertex_options(vertices: list[dict[str, Any]], args: argparse.Namespace) -> None:
     if not args.post_process:
         return
@@ -980,6 +993,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
     temp_root = tempfile.mkdtemp(prefix="mbm_direct_msh_")
     raw_path = os.path.join(temp_root, "mesh.raw")
     frame_paths: list[str] = []
+    texture_paths: set[str] = set()
     bounds = {"min": [float("inf"), float("inf"), float("inf")], "max": [-float("inf"), -float("inf"), -float("inf")]}
     try:
         if args.bake_animation:
@@ -991,6 +1005,7 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             debug_print(args.debug_steps, f"export frame: {frame}")
             subsets = export_frame_subsets(scene)
             for subset in subsets:
+                add_texture_search_path(texture_paths, str(subset.get("texture") or ""))
                 update_bounds(bounds, subset.get("vertices") or [])
             frame_path = os.path.join(temp_root, f"frame_{out_index:06d}.bin")
             write_direct_frame_chunk(frame_path, subsets, args)
@@ -1039,6 +1054,14 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
+        write_lua_atomic(
+            direct_msh_meta_path(out_path),
+            {
+                "version": 1,
+                "source": source_path,
+                "textureSearchPaths": sorted(texture_paths),
+            },
+        )
         compress_file_zlib(raw_path, out_path)
         return len(frame_paths)
     finally:
