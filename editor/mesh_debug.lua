@@ -1595,6 +1595,7 @@ local function showBlenderAnimationSettingsPopup(st)
                 end
                 tImGui.EndTable()
             end
+            tImGui.TextDisabled(tLang.L('blender_anim_single_source_note'))
         end
 
         tImGui.Separator()
@@ -1892,6 +1893,7 @@ function showBlenderImportDialog()
             tImGui.TextWrapped(estimate.warning)
             tImGui.PopStyleColor()
         end
+        tImGui.TextDisabled(tLang.L('blender_import_multi_anim_note'))
     end
 
     if #st.tRunResults > 0 then
