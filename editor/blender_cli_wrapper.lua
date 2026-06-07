@@ -260,6 +260,10 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, '--stream-output')
     end
 
+    if options.directMshOutput then
+        table.insert(args, '--direct-msh-output')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
     end
@@ -286,6 +290,22 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     if options.animationName and options.animationName ~= '' then
         table.insert(args, '--animation-name')
         table.insert(args, shellQuote(options.animationName))
+    end
+
+    if options.importPostProcess then
+        table.insert(args, '--post-process')
+        if options.importInvertU then
+            table.insert(args, '--invert-u')
+        end
+        if options.importInvertV then
+            table.insert(args, '--invert-v')
+        end
+        table.insert(args, '--angle-x')
+        table.insert(args, tostring(options.importAngleX or 0))
+        table.insert(args, '--angle-y')
+        table.insert(args, tostring(options.importAngleY or 0))
+        table.insert(args, '--angle-z')
+        table.insert(args, tostring(options.importAngleZ or 0))
     end
 
     if options.cancelFile and options.cancelFile ~= '' then

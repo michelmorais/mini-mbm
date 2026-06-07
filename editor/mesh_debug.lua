@@ -1082,6 +1082,7 @@ local function blenderImportCoroutine()
         local outManifest = joinPath(outDir, 'manifest.lua')
         local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
         os.remove(oldOutLua)
@@ -1097,14 +1098,15 @@ local function blenderImportCoroutine()
         local importOptions = getBlenderImportOptionsForRow(row)
         importOptions.debugSteps = st.bPrintDebugSteps
         importOptions.cancelFile = cancelFile
-        importOptions.streamOutput = true
+        importOptions.streamOutput = modeIntermediateOnly
+        importOptions.directMshOutput = not modeIntermediateOnly
         importOptions.importPostProcess = st.bImportPostProcess
         importOptions.importInvertU = st.bImportInvertU
         importOptions.importInvertV = st.bImportInvertV
         importOptions.importAngleX = st.nImportAngleX
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
-        local cmd = tBlender.buildBakeCmd(src, outDir, exporterPath, importOptions)
+        local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
             st.sCancelFile = cancelFile
@@ -1125,18 +1127,18 @@ local function blenderImportCoroutine()
                     finished = true
                 end
 
-                if not finished and tBlender.fileExists(outManifest) then
+                if not finished and tBlender.fileExists(waitOutput) then
                     local elapsed = os.time() - startTime
-                    local outSize = getFileSize(outManifest)
+                    local outSize = getFileSize(waitOutput)
                     if st.bPrintDebugSteps then
-                        blenderDebugPrint(st, 'manifest exists: %s (%d bytes)', outManifest, outSize)
+                        blenderDebugPrint(st, 'output exists: %s (%d bytes)', waitOutput, outSize)
                     end
 
                     local chunk, loadErr = nil, nil
                     local okRun, tData = false, nil
-                    local okVal, errVal = false, nil
+                    local okVal, errVal = (not modeIntermediateOnly), nil
 
-                    if outSize > 0 then
+                    if outSize > 0 and modeIntermediateOnly then
                         chunk, loadErr = loadfile(outManifest)
                         if chunk then
                             okRun, tData = pcall(chunk)
@@ -1146,32 +1148,24 @@ local function blenderImportCoroutine()
                         end
                     end
 
-                    if outSize > 0 and chunk and okRun and okVal then
+                    if outSize > 0 and (not modeIntermediateOnly or (chunk and okRun and okVal)) then
                         exported = exported + 1
-                        blenderDebugPrint(st, 'stream manifest ready: %s', outManifest)
+                        blenderDebugPrint(st, 'output ready: %s', waitOutput)
                         st.sProgressDetail = tLang.L('blender_import_progress_building')
                         if modeIntermediateOnly then
                             blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                             pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                         else
-                            local okBuild, errBuild = buildMeshFromStreamManifest(outManifest, outMsh, importOptions)
-                            if not okBuild then
-                                failed = failed + 1
-                                lastErr = errBuild
-                                blenderDebugPrint(st, 'build failed: %s', errBuild)
-                                pushBlenderRunResult(src, 'failed', lastErr)
+                            if addMeshToTable(outMsh) then
+                                imported = imported + 1
+                                bShowMeshTree = true
+                                blenderDebugPrint(st, 'imported mesh: %s', outMsh)
+                                pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
                             else
-                                if addMeshToTable(outMsh) then
-                                    imported = imported + 1
-                                    bShowMeshTree = true
-                                    blenderDebugPrint(st, 'imported mesh: %s', outMsh)
-                                    pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
-                                else
-                                    failed = failed + 1
-                                    lastErr = 'Generated MSH could not be loaded into editor.'
-                                    blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
-                                    pushBlenderRunResult(src, 'failed', lastErr)
-                                end
+                                failed = failed + 1
+                                lastErr = 'Generated MSH could not be loaded into editor.'
+                                blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
+                                pushBlenderRunResult(src, 'failed', lastErr)
                             end
                         end
                         finished = true
@@ -1253,7 +1247,7 @@ local function blenderImportCoroutine()
                     if st.bPrintDebugSteps then
                         local nowTick = math.floor(elapsed / 5)
                         if nowTick ~= lastWaitLog then
-                            blenderDebugPrint(st, 'waiting output (%ds idle %ds): %s', elapsed, os.time() - lastActivityTime, outManifest)
+                            blenderDebugPrint(st, 'waiting output (%ds idle %ds): %s', elapsed, os.time() - lastActivityTime, waitOutput)
                             lastWaitLog = nowTick
                         end
                     end
