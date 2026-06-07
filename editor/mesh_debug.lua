@@ -239,35 +239,10 @@ local function addPathIfValid(path, tSeen)
     return 1
 end
 
-local function addBlenderGeneratedMeshSearchPaths(metaPath, sourcePath)
+local function addBlenderSourceFallbackSearchPath(sourcePath)
     local added = 0
     local tSeen = {}
-
     added = added + addPathIfValid(getFileDir(sourcePath), tSeen)
-
-    if not metaPath or metaPath == '' then
-        return added
-    end
-
-    local chunk = loadfile(metaPath)
-    if not chunk then
-        return added
-    end
-
-    local ok, meta = pcall(chunk)
-    if not ok or type(meta) ~= 'table' then
-        return added
-    end
-
-    local paths = meta.textureSearchPaths or meta.texturePaths
-    if type(paths) ~= 'table' then
-        return added
-    end
-
-    for _, path in ipairs(paths) do
-        added = added + addPathIfValid(path, tSeen)
-    end
-
     return added
 end
 
@@ -320,6 +295,131 @@ end
 local function getBakedFrameCount(frameStart, frameEnd, sampleStep)
     local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
     return math.floor((total - 1) / math.max(1, sampleStep or 1)) + 1
+end
+
+local function formatLargeInt(value)
+    value = math.floor(tonumber(value or 0) or 0)
+    local s = tostring(value)
+    local out = ''
+    while #s > 3 do
+        out = ',' .. s:sub(-3) .. out
+        s = s:sub(1, -4)
+    end
+    return s .. out
+end
+
+local function formatBytes(bytes)
+    bytes = tonumber(bytes or 0) or 0
+    local units = {'B', 'KB', 'MB', 'GB'}
+    local idx = 1
+    while bytes >= 1024 and idx < #units do
+        bytes = bytes / 1024
+        idx = idx + 1
+    end
+    if idx == 1 then
+        return string.format('%d %s', math.floor(bytes), units[idx])
+    end
+    return string.format('%.1f %s', bytes, units[idx])
+end
+
+local function getTextureSearchPathCountFromScan(row)
+    local anim = row and row.anim
+    local stats = anim and anim.scanData and anim.scanData.meshStats
+    local paths = type(stats) == 'table' and stats.textureSearchPaths or nil
+    return type(paths) == 'table' and #paths or nil
+end
+
+local function estimateRawMeshBytes(frames, verticesPerFrame, indicesPerFrame, subsetsPerFrame, texturePathBytes)
+    frames = math.max(1, math.floor(tonumber(frames or 1) or 1))
+    verticesPerFrame = math.max(0, math.floor(tonumber(verticesPerFrame or 0) or 0))
+    indicesPerFrame = math.max(0, math.floor(tonumber(indicesPerFrame or 0) or 0))
+    subsetsPerFrame = math.max(0, math.floor(tonumber(subsetsPerFrame or 0) or 0))
+    texturePathBytes = math.max(0, math.floor(tonumber(texturePathBytes or 0) or 0))
+    local headerBytes = 56 + texturePathBytes + 12 + 40 + 140
+    local frameBytes = 20 + (subsetsPerFrame * 84) + (indicesPerFrame * 2) + (verticesPerFrame * 32)
+    return headerBytes + (frameBytes * frames)
+end
+
+local getEnabledBlenderSourceRows
+local getBlenderImportOptionsForRow
+
+local function getRowImportEstimate(row)
+    local options = getBlenderImportOptionsForRow(row)
+    local targetFrames = options.bakeAnimation and getBakedFrameCount(options.frameStart, options.frameEnd, options.sampleStep) or 1
+    local anim = row and row.anim
+    local stats = anim and anim.scanData and anim.scanData.meshStats or nil
+    local out = {
+        targetFrames = targetFrames,
+        hasStats = type(stats) == 'table' and stats.available == true,
+        verticesPerFrame = nil,
+        indicesPerFrame = nil,
+        subsetsPerFrame = nil,
+        totalVertices = nil,
+        totalIndices = nil,
+        estimatedRawBytes = nil,
+        texturePaths = getTextureSearchPathCountFromScan(row),
+        animationText = '',
+    }
+    if options.bakeAnimation then
+        out.animationText = string.format('%s %d..%d step %d', options.animationName or 'Bake', options.frameStart or 1, options.frameEnd or 1, options.sampleStep or 1)
+    else
+        out.animationText = string.format('static frame %d', options.frameStart or 1)
+    end
+    if out.hasStats then
+        out.verticesPerFrame = math.max(0, math.floor(tonumber(stats.vertices or 0) or 0))
+        out.indicesPerFrame = math.max(0, math.floor(tonumber(stats.indices or 0) or 0))
+        out.subsetsPerFrame = math.max(0, math.floor(tonumber(stats.subsets or 0) or 0))
+        out.totalVertices = out.verticesPerFrame * targetFrames
+        out.totalIndices = out.indicesPerFrame * targetFrames
+        local pathBytes = 0
+        if type(stats.textureSearchPaths) == 'table' then
+            for i = 1, #stats.textureSearchPaths do
+                pathBytes = pathBytes + 5 + tostring(stats.textureSearchPaths[i]):len()
+            end
+        end
+        out.estimatedRawBytes = estimateRawMeshBytes(targetFrames, out.verticesPerFrame, out.indicesPerFrame, out.subsetsPerFrame, pathBytes)
+    end
+    return out
+end
+
+local function getBlenderImportEstimateSummary()
+    local rows = getEnabledBlenderSourceRows()
+    local fileCount = #rows
+    local targetFrames = 0
+    local vertices = 0
+    local indices = 0
+    local rawBytes = 0
+    local statsMissing = 0
+    local maxFrames = 0
+    for i = 1, #rows do
+        local est = getRowImportEstimate(rows[i])
+        targetFrames = targetFrames + est.targetFrames
+        maxFrames = math.max(maxFrames, est.targetFrames)
+        if est.hasStats then
+            vertices = vertices + (est.totalVertices or 0)
+            indices = indices + (est.totalIndices or 0)
+            rawBytes = rawBytes + (est.estimatedRawBytes or 0)
+        else
+            statsMissing = statsMissing + 1
+        end
+    end
+
+    local warning = nil
+    if rawBytes >= 1024 * 1024 * 1024 or maxFrames > 800 then
+        warning = tLang.L('blender_import_estimate_warning_large')
+    elseif rawBytes >= 256 * 1024 * 1024 or maxFrames > 300 then
+        warning = tLang.L('blender_import_estimate_warning_medium')
+    end
+
+    return {
+        fileCount = fileCount,
+        targetFrames = targetFrames,
+        vertices = vertices,
+        indices = indices,
+        rawBytes = rawBytes,
+        statsMissing = statsMissing,
+        warning = warning,
+    }
 end
 
 local function applyBlenderSourceToSettings(anim, src, index)
@@ -443,7 +543,7 @@ local function removeBlenderSourceFileAt(index)
     refreshBlenderSelectedCount()
 end
 
-local function getEnabledBlenderSourceRows()
+getEnabledBlenderSourceRows = function()
     local st = tBlenderImportState
     local out = {}
     for i = 1, #st.tSourceFiles do
@@ -657,6 +757,19 @@ local function validateBlenderScanData(tData)
         src.fps = tonumber(src.fps or scene.fps) or scene.fps
         src.confidence = tostring(src.confidence or 'low')
         src.reason = tostring(src.reason or '')
+    end
+
+    if type(tData.meshStats) == 'table' then
+        local stats = tData.meshStats
+        stats.available = stats.available == true
+        stats.frame = math.max(1, math.floor(tonumber(stats.frame or scene.currentFrame) or scene.currentFrame))
+        stats.subsets = math.max(0, math.floor(tonumber(stats.subsets or 0) or 0))
+        stats.vertices = math.max(0, math.floor(tonumber(stats.vertices or 0) or 0))
+        stats.indices = math.max(0, math.floor(tonumber(stats.indices or 0) or 0))
+        stats.textureSearchPaths = type(stats.textureSearchPaths) == 'table' and stats.textureSearchPaths or {}
+        stats.error = tostring(stats.error or '')
+    else
+        tData.meshStats = { available = false, textureSearchPaths = {} }
     end
 
     return true
@@ -1073,7 +1186,7 @@ local function onOpenBlenderImportDialog()
     st.bStatusOk = true
 end
 
-local function getBlenderImportOptionsForRow(row)
+getBlenderImportOptionsForRow = function(row)
     local anim = ensureBlenderAnimSettings(row)
     if anim.bEnableAnimation and canBakeBlenderAnimation(anim) then
         return {
@@ -1094,6 +1207,33 @@ local function getBlenderImportOptionsForRow(row)
         frameEnd = staticFrame,
         sampleStep = 1,
     }
+end
+
+local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
+    local info = meshDebug:getInfo(outMsh) or {}
+    local frames = tonumber(info.totalFrames or 0) or 0
+    local sizeText = formatBytes(getFileSize(outMsh))
+    local texturePaths = getTextureSearchPathCountFromScan(row)
+    local textureText = texturePaths and string.format(tLang.L('blender_import_summary_texture_paths_count_fmt'), texturePaths)
+        or tLang.L('blender_import_summary_texture_paths_embedded')
+    local animationText
+    if importOptions and importOptions.bakeAnimation then
+        animationText = string.format(
+            tLang.L('blender_import_summary_animation_fmt'),
+            importOptions.animationName or 'Bake',
+            importOptions.frameStart or 1,
+            importOptions.frameEnd or 1,
+            importOptions.sampleStep or 1)
+    else
+        animationText = string.format(tLang.L('blender_import_summary_static_fmt'), (importOptions and importOptions.frameStart) or 1)
+    end
+    return string.format(
+        tLang.L('blender_import_summary_fmt'),
+        outMsh,
+        frames,
+        animationText,
+        sizeText,
+        textureText)
 end
 
 local function blenderImportCoroutine()
@@ -1123,14 +1263,12 @@ local function blenderImportCoroutine()
         local outManifest = joinPath(outDir, 'manifest.lua')
         local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
-        local outMshMeta = outMsh .. '.meta.lua'
         local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
         local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
         os.remove(oldOutLua)
         removePathRecursive(outDir)
         os.remove(outMsh)
-        os.remove(outMshMeta)
         os.remove(dbgLog)
         os.remove(cancelFile)
 
@@ -1199,15 +1337,15 @@ local function blenderImportCoroutine()
                             blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                             pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                         else
-                            local addedPaths = addBlenderGeneratedMeshSearchPaths(outMshMeta, src)
+                            local addedPaths = addBlenderSourceFallbackSearchPath(src)
                             if addedPaths > 0 then
-                                blenderDebugPrint(st, 'added mesh search paths: %d', addedPaths)
+                                blenderDebugPrint(st, 'added fallback mesh search paths: %d', addedPaths)
                             end
                             if addMeshToTable(outMsh) then
                                 imported = imported + 1
                                 bShowMeshTree = true
                                 blenderDebugPrint(st, 'imported mesh: %s', outMsh)
-                                pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
+                                pushBlenderRunResult(src, 'imported', buildBlenderImportSuccessSummary(row, outMsh, importOptions))
                             else
                                 failed = failed + 1
                                 lastErr = 'Generated MSH could not be loaded into editor.'
@@ -1398,6 +1536,21 @@ local function showBlenderAnimationSettingsPopup(st)
             scene.frameStart or 1,
             scene.frameEnd or 1,
             tonumber(scene.fps or 0) or 0))
+        local stats = scan.meshStats or {}
+        if stats.available then
+            local rowEstimate = getRowImportEstimate(row)
+            tImGui.TextDisabled(string.format(
+                tLang.L('blender_anim_mesh_stats_fmt'),
+                stats.frame or scene.currentFrame or 1,
+                stats.subsets or 0,
+                formatLargeInt(stats.vertices or 0),
+                formatLargeInt(stats.indices or 0),
+                formatLargeInt(rowEstimate.totalVertices or 0),
+                formatLargeInt(rowEstimate.totalIndices or 0),
+                formatBytes(rowEstimate.estimatedRawBytes or 0)))
+        elseif stats.error and stats.error ~= '' then
+            tImGui.TextDisabled(string.format(tLang.L('blender_anim_mesh_stats_unavailable_fmt'), stats.error))
+        end
 
         local issues = scan.meshCacheIssues or {}
         if #issues > 0 then
@@ -1713,6 +1866,32 @@ function showBlenderImportDialog()
         tImGui.PushStyleColor('ImGuiCol_Text', col)
         tImGui.TextWrapped(st.sStatus)
         tImGui.PopStyleColor()
+    end
+
+    if st.iSelectedCount > 0 then
+        local estimate = getBlenderImportEstimateSummary()
+        tImGui.Separator()
+        tImGui.Text(tLang.L('blender_import_estimate_title'))
+        if estimate.statsMissing > 0 then
+            tImGui.TextWrapped(string.format(
+                tLang.L('blender_import_estimate_partial_fmt'),
+                estimate.fileCount,
+                estimate.targetFrames,
+                estimate.statsMissing))
+        else
+            tImGui.TextWrapped(string.format(
+                tLang.L('blender_import_estimate_full_fmt'),
+                estimate.fileCount,
+                estimate.targetFrames,
+                formatLargeInt(estimate.vertices),
+                formatLargeInt(estimate.indices),
+                formatBytes(estimate.rawBytes)))
+        end
+        if estimate.warning then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(estimate.warning)
+            tImGui.PopStyleColor()
+        end
     end
 
     if #st.tRunResults > 0 then

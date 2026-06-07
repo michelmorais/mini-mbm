@@ -279,6 +279,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     texture_sequences: list[dict[str, Any]] = []
     animated_objects: list[dict[str, Any]] = []
     nla_sources: list[dict[str, Any]] = []
+    mesh_stats: dict[str, Any] = {"available": False}
 
     for obj in scene.objects:
         object_has_animation = bool(getattr(obj, "animation_data", None) and obj.animation_data.action)
@@ -407,6 +408,31 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
 
     sources.sort(key=lambda s: (int(s.get("frameStart", 1)), str(s.get("kind", "")), str(s.get("name", ""))))
 
+    try:
+        scene.frame_set(int(scene.frame_current))
+        bpy.context.view_layer.update()
+        stat_subsets = export_frame_subsets(scene)
+        stat_texture_paths: set[str] = set()
+        total_vertices = 0
+        total_indices = 0
+        for subset in stat_subsets:
+            total_vertices += len(subset.get("vertices") or [])
+            total_indices += len(subset.get("indices") or [])
+            add_texture_search_path(stat_texture_paths, str(subset.get("texture") or ""))
+        mesh_stats = {
+            "available": True,
+            "frame": int(scene.frame_current),
+            "subsets": len(stat_subsets),
+            "vertices": total_vertices,
+            "indices": total_indices,
+            "textureSearchPaths": sorted(stat_texture_paths),
+        }
+    except Exception as exc:
+        mesh_stats = {
+            "available": False,
+            "error": str(exc),
+        }
+
     return {
         "version": 1,
         "source": source_path,
@@ -422,6 +448,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
         "animatedObjects": animated_objects,
         "nlaStrips": nla_sources,
         "meshCacheIssues": mesh_cache_issues,
+        "meshStats": mesh_stats,
     }
 
 
@@ -770,7 +797,7 @@ def write_vec2(fp: Any, value: tuple[float, float]) -> None:
     write_f32(fp, value[1])
 
 
-def write_header_v8(fp: Any) -> None:
+def write_header_v8(fp: Any, extra_header_count: int = 0) -> None:
     fp.write(fixed_bytes("mbm", 16))
     fp.write(fixed_bytes("Mesh 3d mbm", 16))
     write_i32(fp, 8)
@@ -778,7 +805,15 @@ def write_header_v8(fp: Any) -> None:
     write_i32(fp, 0)
     write_i32(fp, 0)
     write_i32(fp, 0)
-    write_i32(fp, 0)
+    write_i32(fp, extra_header_count)
+
+
+def write_extra_path_headers_v8(fp: Any, paths: list[str]) -> None:
+    for path in paths:
+        encoded = path.encode("utf-8")
+        fp.write(b"\x01")
+        write_i32(fp, len(encoded))
+        fp.write(encoded)
 
 
 def write_info_draw_mode_v8(fp: Any) -> None:
@@ -835,10 +870,6 @@ def write_empty_shader_step_v8(fp: Any) -> None:
 def texture_name_for_msh(path: str) -> str:
     name = os.path.basename(path or "")
     return name if name else "default"
-
-
-def direct_msh_meta_path(out_path: str) -> str:
-    return f"{out_path}.meta.lua"
 
 
 def add_texture_search_path(texture_paths: set[str], texture_path: str) -> None:
@@ -1040,8 +1071,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             float(args.angle_y) if args.post_process else 0.0,
             float(args.angle_z) if args.post_process else 0.0,
         )
+        texture_path_list = sorted(texture_paths)
         with open(raw_path, "wb") as fp:
-            write_header_v8(fp)
+            write_header_v8(fp, len(texture_path_list))
+            write_extra_path_headers_v8(fp, texture_path_list)
             write_info_draw_mode_v8(fp)
             write_detail_cube_v8(fp, finalize_bounds(bounds))
             write_header_mesh_v8(fp, len(frame_paths), len(animations), angles)
@@ -1054,14 +1087,6 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             os.fsync(fp.fileno())
         check_cancel_requested(args.cancel_file)
         debug_print(args.debug_steps, "writing output")
-        write_lua_atomic(
-            direct_msh_meta_path(out_path),
-            {
-                "version": 1,
-                "source": source_path,
-                "textureSearchPaths": sorted(texture_paths),
-            },
-        )
         compress_file_zlib(raw_path, out_path)
         return len(frame_paths)
     finally:
