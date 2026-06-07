@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import traceback
 from typing import Any
@@ -22,10 +23,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--scan-only", action="store_true")
     parser.add_argument("--bake-animation", action="store_true")
+    parser.add_argument("--use-scene-frame-range", action="store_true")
     parser.add_argument("--frame-start", type=int, default=1)
     parser.add_argument("--frame-end", type=int, default=1)
     parser.add_argument("--sample-step", type=int, default=1)
+    parser.add_argument("--animation-name", default="Bake")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
 
@@ -92,7 +96,34 @@ def as_lua(value: Any, indent: int = 0) -> str:
     return "nil"
 
 
-def get_first_texture_path(material: Any) -> str:
+def resolve_image_sequence_path(image: Any, image_user: Any, scene_frame: int) -> str:
+    raw_path = getattr(image, "filepath", "") or ""
+    if raw_path == "":
+        return ""
+
+    frame_start = int(getattr(image_user, "frame_start", 1) or 1)
+    frame_duration = int(getattr(image_user, "frame_duration", 0) or 0)
+    frame_offset = int(getattr(image_user, "frame_offset", 0) or 0)
+    seq_frame = int(scene_frame) - frame_start + 1 + frame_offset
+
+    if frame_duration > 0:
+        if getattr(image_user, "use_cyclic", False):
+            seq_frame = ((seq_frame - 1) % frame_duration) + 1
+        else:
+            seq_frame = max(1, min(seq_frame, frame_duration))
+    else:
+        seq_frame = max(1, seq_frame)
+
+    match = re.match(r"^(.*?)(\d+)(\.[^/\\.]*)$", raw_path)
+    if not match:
+        return bpy.path.abspath(raw_path)
+
+    prefix, digits, suffix = match.groups()
+    seq_path = f"{prefix}{seq_frame:0{len(digits)}d}{suffix}"
+    return bpy.path.abspath(seq_path)
+
+
+def get_first_texture_path(material: Any, scene_frame: int) -> str:
     if material is None or not getattr(material, "use_nodes", False):
         return ""
     ntree = material.node_tree
@@ -101,6 +132,9 @@ def get_first_texture_path(material: Any) -> str:
     for node in ntree.nodes:
         if node.type == "TEX_IMAGE" and getattr(node, "image", None) is not None:
             try:
+                image = node.image
+                if getattr(image, "source", "") == "SEQUENCE":
+                    return resolve_image_sequence_path(image, getattr(node, "image_user", None), scene_frame)
                 return bpy.path.abspath(node.image.filepath)
             except Exception:
                 return str(node.image.filepath or "")
@@ -127,9 +161,219 @@ def get_loop_normal(loop: Any, vert: Any) -> Any:
     return vert.normal
 
 
+def get_scene_fps(scene: Any) -> float:
+    fps_base = float(scene.render.fps_base) if scene.render.fps_base else 1.0
+    fps = float(scene.render.fps) / fps_base if fps_base > 0 else 24.0
+    return fps if fps > 0 else 24.0
+
+
+def get_material_texture_sequence_info(material: Any) -> list[dict[str, Any]]:
+    if material is None or not getattr(material, "use_nodes", False) or material.node_tree is None:
+        return []
+
+    out: list[dict[str, Any]] = []
+    for node in material.node_tree.nodes:
+        if node.type != "TEX_IMAGE" or getattr(node, "image", None) is None:
+            continue
+        image = node.image
+        if getattr(image, "source", "") != "SEQUENCE":
+            continue
+        image_user = getattr(node, "image_user", None)
+        out.append(
+            {
+                "node": str(getattr(node, "name", "")),
+                "path": bpy.path.abspath(getattr(image, "filepath", "") or ""),
+                "frameStart": int(getattr(image_user, "frame_start", 1) or 1),
+                "frameDuration": int(getattr(image_user, "frame_duration", 0) or 0),
+                "frameOffset": int(getattr(image_user, "frame_offset", 0) or 0),
+                "autoRefresh": bool(getattr(image_user, "use_auto_refresh", False)),
+            }
+        )
+    return out
+
+
+def action_frame_range(action: Any) -> tuple[int, int]:
+    frame_range = getattr(action, "frame_range", (1, 1))
+    return int(frame_range[0]), int(frame_range[1])
+
+
+def append_unique_source(sources: list[dict[str, Any]], source: dict[str, Any]) -> None:
+    key = (
+        source.get("kind"),
+        source.get("name"),
+        source.get("frameStart"),
+        source.get("frameEnd"),
+        source.get("object"),
+    )
+    for existing in sources:
+        existing_key = (
+            existing.get("kind"),
+            existing.get("name"),
+            existing.get("frameStart"),
+            existing.get("frameEnd"),
+            existing.get("object"),
+        )
+        if existing_key == key:
+            return
+    sources.append(source)
+
+
+def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
+    source_path = os.path.abspath(args.input)
+    debug_print(args.debug_steps, f"scan source: {source_path}")
+    import_source(source_path)
+    scene = bpy.context.scene
+    fps = get_scene_fps(scene)
+
+    mesh_cache_objects: list[dict[str, Any]] = []
+    texture_sequences: list[dict[str, Any]] = []
+    animated_objects: list[dict[str, Any]] = []
+    nla_sources: list[dict[str, Any]] = []
+
+    for obj in scene.objects:
+        object_has_animation = bool(getattr(obj, "animation_data", None) and obj.animation_data.action)
+        if object_has_animation:
+            action = obj.animation_data.action
+            start, end = action_frame_range(action)
+            animated_objects.append(
+                {
+                    "object": str(obj.name),
+                    "type": str(obj.type),
+                    "action": str(action.name),
+                    "frameStart": start,
+                    "frameEnd": end,
+                }
+            )
+
+        animation_data = getattr(obj, "animation_data", None)
+        if animation_data is not None:
+            for track in getattr(animation_data, "nla_tracks", []):
+                for strip in getattr(track, "strips", []):
+                    nla_sources.append(
+                        {
+                            "object": str(obj.name),
+                            "track": str(getattr(track, "name", "")),
+                            "name": str(getattr(strip, "name", "")),
+                            "frameStart": int(getattr(strip, "frame_start", 1)),
+                            "frameEnd": int(getattr(strip, "frame_end", 1)),
+                        }
+                    )
+
+        if obj.type == "MESH":
+            for mod in getattr(obj, "modifiers", []):
+                if mod.type == "MESH_SEQUENCE_CACHE":
+                    cache_file = getattr(mod, "cache_file", None)
+                    mesh_cache_objects.append(
+                        {
+                            "object": str(obj.name),
+                            "modifier": str(mod.name),
+                            "cacheFile": bpy.path.abspath(getattr(cache_file, "filepath", "") or ""),
+                            "objectPath": str(getattr(mod, "object_path", "")),
+                        }
+                    )
+            for mat in obj.data.materials:
+                for seq in get_material_texture_sequence_info(mat):
+                    seq["object"] = str(obj.name)
+                    seq["material"] = str(getattr(mat, "name", ""))
+                    texture_sequences.append(seq)
+
+            shape_keys = getattr(obj.data, "shape_keys", None)
+            shape_anim = getattr(shape_keys, "animation_data", None) if shape_keys else None
+            if shape_anim and shape_anim.action:
+                start, end = action_frame_range(shape_anim.action)
+                animated_objects.append(
+                    {
+                        "object": str(obj.name),
+                        "type": "SHAPE_KEYS",
+                        "action": str(shape_anim.action.name),
+                        "frameStart": start,
+                        "frameEnd": end,
+                    }
+                )
+
+    sources: list[dict[str, Any]] = []
+    has_geometry_animation = bool(mesh_cache_objects or animated_objects or nla_sources)
+    has_texture_animation = bool(texture_sequences)
+
+    if int(scene.frame_end) > int(scene.frame_start):
+        reasons: list[str] = []
+        if mesh_cache_objects:
+            reasons.append("Mesh Sequence Cache")
+        if texture_sequences:
+            reasons.append("image sequence")
+        if animated_objects:
+            reasons.append("object/action animation")
+        if nla_sources:
+            reasons.append("NLA strips")
+        confidence = "high" if reasons else "low"
+        append_unique_source(
+            sources,
+            {
+                "kind": "scene_range",
+                "name": str(mesh_cache_objects[0]["object"]) if len(mesh_cache_objects) == 1 else "Scene range",
+                "frameStart": int(scene.frame_start),
+                "frameEnd": int(scene.frame_end),
+                "fps": fps,
+                "hasGeometryAnimation": has_geometry_animation,
+                "hasTextureAnimation": has_texture_animation,
+                "confidence": confidence,
+                "reason": " + ".join(reasons) if reasons else "Scene timeline range is longer than one frame",
+            },
+        )
+
+    for item in animated_objects:
+        append_unique_source(
+            sources,
+            {
+                "kind": "action",
+                "name": item["action"],
+                "frameStart": item["frameStart"],
+                "frameEnd": item["frameEnd"],
+                "fps": fps,
+                "object": item["object"],
+                "confidence": "medium",
+                "reason": f"{item['type']} action",
+            },
+        )
+
+    for item in nla_sources:
+        append_unique_source(
+            sources,
+            {
+                "kind": "nla",
+                "name": item["name"] or item["track"] or "NLA strip",
+                "frameStart": item["frameStart"],
+                "frameEnd": item["frameEnd"],
+                "fps": fps,
+                "object": item["object"],
+                "confidence": "medium",
+                "reason": "NLA strip",
+            },
+        )
+
+    sources.sort(key=lambda s: (int(s.get("frameStart", 1)), str(s.get("kind", "")), str(s.get("name", ""))))
+
+    return {
+        "version": 1,
+        "source": source_path,
+        "scene": {
+            "frameStart": int(scene.frame_start),
+            "frameEnd": int(scene.frame_end),
+            "currentFrame": int(scene.frame_current),
+            "fps": fps,
+        },
+        "sources": sources,
+        "meshCaches": mesh_cache_objects,
+        "textureSequences": texture_sequences,
+        "animatedObjects": animated_objects,
+        "nlaStrips": nla_sources,
+    }
+
+
 def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     subsets_out: list[dict[str, Any]] = []
+    scene_frame = int(scene.frame_current)
 
     mesh_objects = [o for o in scene.objects if o.type == "MESH" and o.visible_get()]
     mesh_objects.sort(key=lambda o: o.name)
@@ -158,7 +402,7 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                     mat_name = mat.name if mat else f"Material_{mat_idx}"
                     buckets[mat_idx] = {
                         "name": f"{obj.name}:{mat_name}",
-                        "texture": get_first_texture_path(mat),
+                        "texture": get_first_texture_path(mat, scene_frame),
                         "vertices": [],
                         "indices": [],
                         "_vmap": {},
@@ -259,8 +503,15 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     import_source(source_path)
     scene = bpy.context.scene
 
-    frame_start = max(1, int(args.frame_start))
-    frame_end = max(1, int(args.frame_end))
+    if args.bake_animation and args.use_scene_frame_range:
+        frame_start = int(scene.frame_start)
+        frame_end = int(scene.frame_end)
+    else:
+        frame_start = int(args.frame_start)
+        frame_end = int(args.frame_end)
+
+    frame_start = max(1, frame_start)
+    frame_end = max(1, frame_end)
     step = max(1, int(args.sample_step))
     if frame_end < frame_start:
         frame_start, frame_end = frame_end, frame_start
@@ -275,7 +526,8 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
             debug_print(args.debug_steps, f"export frame: {frame}")
             frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
     else:
-        frame = int(scene.frame_current)
+        frame = frame_start
+        scene.frame_set(frame)
         debug_print(args.debug_steps, f"export current frame: {frame}")
         frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
         frame_start = frame
@@ -290,10 +542,10 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     if args.bake_animation and len(frames_out) > 1:
         animations.append(
             {
-                "name": "Bake",
+                "name": args.animation_name or "Bake",
                 "initialFrame": 1,
                 "finalFrame": len(frames_out),
-                "timeBetweenFrame": 1.0 / fps,
+                "timeBetweenFrame": float(step) / fps,
                 "typeAnimation": 1,
             }
         )
@@ -323,8 +575,12 @@ def main() -> int:
         os.makedirs(out_dir, exist_ok=True)
     debug_print(args.debug_steps, f"output: {out_path}")
 
-    data = build_data(args)
-    debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
+    if args.scan_only:
+        data = build_scan_data(args)
+        debug_print(args.debug_steps, f"scan sources: {len(data.get('sources', []))}")
+    else:
+        data = build_data(args)
+        debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
     tmp_out = f"{out_path}.tmp.{os.getpid()}"
     with open(tmp_out, "w", encoding="utf-8") as fp:
         fp.write("return ")

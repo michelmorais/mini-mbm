@@ -161,6 +161,8 @@ function onInitScene()
         bStatusOk = true,
         bImporting = false,
         co = nil,
+        iAnimSettingsIndex = 0,
+        bOpenAnimSettingsPopup = false,
         iProgress = 0,
         iTotal = 0,
         iTimeoutSecs = 120,
@@ -194,6 +196,100 @@ local function getFileStem(path)
     return (name and name:match('(.+)%.[^%.]+$')) or name or 'mesh'
 end
 
+local function getDefaultSampleStep(frameStart, frameEnd)
+    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
+    if total > 800 then return 10 end
+    if total > 300 then return 5 end
+    return 1
+end
+
+local function ensureBlenderAnimSettings(row)
+    row.anim = row.anim or {
+        scanStatus = 'not_scanned',
+        scanData = nil,
+        scanError = '',
+        scanOutput = '',
+        scanLog = '',
+        scanStartTime = 0,
+        bEnableAnimation = false,
+        bManualRange = false,
+        iSelectedSource = 0,
+        iStaticFrame = 1,
+        iFrameStart = 1,
+        iFrameEnd = 1,
+        iSampleStep = 1,
+        sAnimationName = 'Bake',
+    }
+    return row.anim
+end
+
+local function getSourceFrameCount(src)
+    if not src then return 1 end
+    return math.max(1, math.abs((src.frameEnd or 1) - (src.frameStart or 1)) + 1)
+end
+
+local function getBakedFrameCount(frameStart, frameEnd, sampleStep)
+    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
+    return math.floor((total - 1) / math.max(1, sampleStep or 1)) + 1
+end
+
+local function applyBlenderSourceToSettings(anim, src, index)
+    if not src then return end
+    anim.iSelectedSource = index or 0
+    anim.bManualRange = false
+    anim.bEnableAnimation = true
+    anim.iFrameStart = math.max(1, math.floor(src.frameStart or 1))
+    anim.iFrameEnd = math.max(1, math.floor(src.frameEnd or anim.iFrameStart))
+    anim.iSampleStep = getDefaultSampleStep(anim.iFrameStart, anim.iFrameEnd)
+    anim.sAnimationName = tostring(src.name or 'Bake')
+end
+
+local function getBestBlenderScanSource(scanData)
+    local sources = scanData and scanData.sources
+    if type(sources) ~= 'table' then return nil, 0 end
+    for i = 1, #sources do
+        local src = sources[i]
+        if src.confidence == 'high' and getSourceFrameCount(src) > 1 then
+            return src, i
+        end
+    end
+    return nil, 0
+end
+
+local function applyBlenderScanDefaults(row)
+    local anim = ensureBlenderAnimSettings(row)
+    local scene = anim.scanData and anim.scanData.scene or nil
+    if type(scene) == 'table' then
+        anim.iStaticFrame = math.max(1, math.floor(scene.currentFrame or scene.frameStart or 1))
+        anim.iFrameStart = math.max(1, math.floor(scene.frameStart or 1))
+        anim.iFrameEnd = math.max(1, math.floor(scene.frameEnd or anim.iFrameStart))
+        anim.iSampleStep = getDefaultSampleStep(anim.iFrameStart, anim.iFrameEnd)
+    end
+
+    local src, index = getBestBlenderScanSource(anim.scanData)
+    if src then
+        applyBlenderSourceToSettings(anim, src, index)
+    end
+end
+
+local function getBlenderAnimSummary(row)
+    local anim = row and row.anim
+    if not anim or anim.scanStatus == 'not_scanned' then
+        return string.format(tLang.L('blender_anim_summary_not_scanned_fmt'), 1)
+    end
+    if anim.scanStatus == 'scanning' then
+        return tLang.L('blender_anim_summary_scanning')
+    end
+    if anim.scanStatus == 'failed' then
+        return tLang.L('blender_anim_summary_failed')
+    end
+    if anim.bEnableAnimation then
+        local baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+        return string.format(tLang.L('blender_anim_summary_animation_fmt'), anim.sAnimationName or 'Bake', baked, anim.iSampleStep)
+    end
+    return string.format(tLang.L('blender_anim_summary_static_fmt'), anim.iStaticFrame or 1)
+end
+
 local function appendBlenderSourceFiles(tFiles)
     local st = tBlenderImportState
     local seen = {}
@@ -206,7 +302,7 @@ local function appendBlenderSourceFiles(tFiles)
     for i = 1, #tFiles do
         local p = tFiles[i]
         if p and p ~= '' and not seen[p] then
-            table.insert(st.tSourceFiles, { path = p, enabled = true })
+            table.insert(st.tSourceFiles, { path = p, enabled = true, anim = nil })
             seen[p] = true
         end
     end
@@ -242,13 +338,13 @@ local function removeBlenderSourceFileAt(index)
     refreshBlenderSelectedCount()
 end
 
-local function getEnabledBlenderSourceFiles()
+local function getEnabledBlenderSourceRows()
     local st = tBlenderImportState
     local out = {}
     for i = 1, #st.tSourceFiles do
         local row = st.tSourceFiles[i]
         if row.enabled and row.path and row.path ~= '' then
-            table.insert(out, row.path)
+            table.insert(out, row)
         end
     end
     return out
@@ -387,6 +483,117 @@ local function enrichBlenderErrorMessage(msg)
         return msg .. ' | Hint: Blender 3.4 glTF addon is using deprecated np.bool with newer NumPy. Use Blender >= 3.6/4.x or install a compatible NumPy for this Blender build.'
     end
     return msg
+end
+
+local function validateBlenderScanData(tData)
+    if type(tData) ~= 'table' then
+        return false, 'Scan file did not return a table.'
+    end
+    if type(tData.scene) ~= 'table' then
+        return false, 'Scan file has no scene metadata.'
+    end
+    tData.sources = type(tData.sources) == 'table' and tData.sources or {}
+
+    local scene = tData.scene
+    scene.frameStart = math.max(1, math.floor(tonumber(scene.frameStart or 1) or 1))
+    scene.frameEnd = math.max(1, math.floor(tonumber(scene.frameEnd or scene.frameStart) or scene.frameStart))
+    scene.currentFrame = math.max(1, math.floor(tonumber(scene.currentFrame or scene.frameStart) or scene.frameStart))
+    scene.fps = tonumber(scene.fps or 24) or 24
+
+    for i = 1, #tData.sources do
+        local src = tData.sources[i]
+        src.name = tostring(src.name or ('Source ' .. i))
+        src.kind = tostring(src.kind or 'unknown')
+        src.frameStart = math.max(1, math.floor(tonumber(src.frameStart or scene.frameStart) or scene.frameStart))
+        src.frameEnd = math.max(1, math.floor(tonumber(src.frameEnd or src.frameStart) or src.frameStart))
+        src.fps = tonumber(src.fps or scene.fps) or scene.fps
+        src.confidence = tostring(src.confidence or 'low')
+        src.reason = tostring(src.reason or '')
+    end
+
+    return true
+end
+
+local function startBlenderAnimationScan(row)
+    local st = tBlenderImportState
+    local anim = ensureBlenderAnimSettings(row)
+    local exporterPath = getEditorDir() .. '/blender_mesh_export.py'
+    local baseDir = st.bKeepInSourceFolder and getFileDir(row.path) or getTempDir()
+    local stem = getFileStem(row.path)
+    local outLua = baseDir .. '/' .. stem .. '_mbm_scan.lua'
+    local dbgLog = baseDir .. '/' .. stem .. '_mbm_scan_debug.log'
+
+    os.remove(outLua)
+    os.remove(dbgLog)
+
+    local cmd = tBlender.buildScanCmd(row.path, outLua, exporterPath, {
+        debugSteps = st.bPrintDebugSteps,
+    })
+    if not cmd then
+        anim.scanStatus = 'failed'
+        anim.scanError = tLang.L('blender_anim_scan_cmd_failed')
+        return
+    end
+
+    blenderDebugPrint(st, 'scan start: %s', row.path)
+    blenderDebugPrint(st, 'scan outputs: lua=%s log=%s', outLua, dbgLog)
+    tBlender.launchCmdAsync(cmd, dbgLog)
+
+    anim.scanStatus = 'scanning'
+    anim.scanError = ''
+    anim.scanOutput = outLua
+    anim.scanLog = dbgLog
+    anim.scanStartTime = os.time()
+end
+
+local function pollBlenderAnimationScan(row)
+    local st = tBlenderImportState
+    local anim = ensureBlenderAnimSettings(row)
+    if anim.scanStatus ~= 'scanning' then return end
+
+    if tBlender.fileExists(anim.scanOutput) then
+        local chunk, loadErr = loadfile(anim.scanOutput)
+        if not chunk then
+            anim.scanStatus = 'failed'
+            anim.scanError = loadErr or tLang.L('blender_anim_scan_invalid')
+            return
+        end
+
+        local okRun, tData = pcall(chunk)
+        if not okRun then
+            anim.scanStatus = 'failed'
+            anim.scanError = tostring(tData)
+            return
+        end
+
+        local okVal, errVal = validateBlenderScanData(tData)
+        if not okVal then
+            anim.scanStatus = 'failed'
+            anim.scanError = errVal or tLang.L('blender_anim_scan_invalid')
+            return
+        end
+
+        anim.scanData = tData
+        anim.scanStatus = 'ready'
+        applyBlenderScanDefaults(row)
+        blenderDebugPrint(st, 'scan ready: %s sources=%d', row.path, #(tData.sources or {}))
+        return
+    end
+
+    if tBlender.fileExists(anim.scanLog) then
+        local logErr = extractBlenderLogError(anim.scanLog)
+        if logErr then
+            anim.scanStatus = 'failed'
+            anim.scanError = enrichBlenderErrorMessage(logErr)
+            return
+        end
+    end
+
+    local elapsed = os.time() - (anim.scanStartTime or os.time())
+    if elapsed >= math.max(10, st.iTimeoutSecs or 120) then
+        anim.scanStatus = 'failed'
+        anim.scanError = tLang.L('blender_anim_scan_timed_out')
+    end
 end
 
 local function validateIntermediateData(tData)
@@ -569,10 +776,33 @@ local function onOpenBlenderImportDialog()
     st.bStatusOk = true
 end
 
+local function getBlenderImportOptionsForRow(row)
+    local anim = ensureBlenderAnimSettings(row)
+    if anim.bEnableAnimation then
+        return {
+            bakeAnimation = true,
+            useSceneFrameRange = false,
+            frameStart = math.max(1, anim.iFrameStart or 1),
+            frameEnd = math.max(1, anim.iFrameEnd or anim.iFrameStart or 1),
+            sampleStep = math.max(1, anim.iSampleStep or 1),
+            animationName = anim.sAnimationName or 'Bake',
+        }
+    end
+
+    local staticFrame = math.max(1, anim.iStaticFrame or 1)
+    return {
+        bakeAnimation = false,
+        useSceneFrameRange = false,
+        frameStart = staticFrame,
+        frameEnd = staticFrame,
+        sampleStep = 1,
+    }
+end
+
 local function blenderImportCoroutine()
     local st = tBlenderImportState
     local exporterPath = getEditorDir() .. '/blender_mesh_export.py'
-    local selected = getEnabledBlenderSourceFiles()
+    local selected = getEnabledBlenderSourceRows()
     local total = #selected
     st.iTotal = total
     st.iProgress = 0
@@ -589,7 +819,8 @@ local function blenderImportCoroutine()
     for i = 1, total do
         if st.bAbortRequested then break end
 
-        local src = selected[i]
+        local row = selected[i]
+        local src = row.path
         local baseDir = st.bKeepInSourceFolder and getFileDir(src) or getTempDir()
         local outLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
@@ -601,10 +832,9 @@ local function blenderImportCoroutine()
         blenderDebugPrint(st, 'file %d/%d: %s', i, total, src)
         blenderDebugPrint(st, 'outputs: lua=%s msh=%s log=%s', outLua, outMsh, dbgLog)
 
-        local cmd = tBlender.buildBakeCmd(src, outLua, exporterPath, {
-            bakeAnimation = true,
-            debugSteps = st.bPrintDebugSteps,
-        })
+        local importOptions = getBlenderImportOptionsForRow(row)
+        importOptions.debugSteps = st.bPrintDebugSteps
+        local cmd = tBlender.buildBakeCmd(src, outLua, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
             local startTime = os.time()
@@ -775,6 +1005,154 @@ local function startBlenderImport()
     st.co = coroutine.create(blenderImportCoroutine)
 end
 
+local function showBlenderAnimationSettingsPopup(st)
+    if st.bOpenAnimSettingsPopup then
+        tImGui.OpenPopup('blender_animation_settings_modal')
+        st.bOpenAnimSettingsPopup = false
+    end
+
+    local row = st.tSourceFiles[st.iAnimSettingsIndex or 0]
+    if not row then return end
+    local anim = ensureBlenderAnimSettings(row)
+    pollBlenderAnimationScan(row)
+
+    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_animation_settings_title') .. '###blender_animation_settings_modal', false, flags)
+    if not isOpen then return end
+
+    tImGui.Text(tUtil.getShortName(row.path))
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(row.path)
+        tImGui.EndTooltip()
+    end
+
+    tImGui.Separator()
+    if anim.scanStatus == 'scanning' then
+        tImGui.Text(tLang.L('blender_anim_scanning'))
+    elseif anim.scanStatus == 'failed' then
+        tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.3, b=0.3, a=1})
+        tImGui.TextWrapped(anim.scanError ~= '' and anim.scanError or tLang.L('blender_anim_scan_failed'))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L('blender_anim_rescan')) then
+            startBlenderAnimationScan(row)
+        end
+        local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
+        if changedStatic and newStatic then
+            anim.iStaticFrame = math.max(1, newStatic)
+        end
+    elseif anim.scanStatus == 'ready' then
+        local scan = anim.scanData or {}
+        local scene = scan.scene or {}
+        tImGui.Text(string.format(tLang.L('blender_anim_scene_info_fmt'),
+            scene.frameStart or 1,
+            scene.frameEnd or 1,
+            tonumber(scene.fps or 0) or 0))
+
+        local sources = scan.sources or {}
+        if #sources == 0 then
+            tImGui.TextDisabled(tLang.L('blender_anim_no_sources'))
+        else
+            local sourceFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
+            if tImGui.BeginTable('blenderAnimSourcesTable', 5, sourceFlags, {x=720, y=150}) then
+                tImGui.TableSetupScrollFreeze(0, 1)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_use'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_name'))
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_kind'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_frames'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_reason'))
+                tImGui.TableHeadersRow()
+                for i = 1, #sources do
+                    local src = sources[i]
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    local selected = tImGui.RadioButton('##blendAnimSrc-' .. i, anim.iSelectedSource or 0, i)
+                    if selected ~= anim.iSelectedSource then
+                        applyBlenderSourceToSettings(anim, src, i)
+                    end
+                    tImGui.TableNextColumn()
+                    tImGui.Text(src.name or ('Source ' .. i))
+                    tImGui.TableNextColumn()
+                    tImGui.Text(src.kind or '')
+                    tImGui.TableNextColumn()
+                    tImGui.Text(string.format('%d..%d', src.frameStart or 1, src.frameEnd or 1))
+                    tImGui.TableNextColumn()
+                    tImGui.TextWrapped(src.reason or src.confidence or '')
+                end
+                tImGui.EndTable()
+            end
+        end
+
+        tImGui.Separator()
+        anim.bEnableAnimation = tImGui.Checkbox(tLang.L('blender_import_bake_animation'), anim.bEnableAnimation)
+        if not anim.bEnableAnimation then
+            local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
+            if changedStatic and newStatic then
+                anim.iStaticFrame = math.max(1, newStatic)
+            end
+        else
+            anim.bManualRange = tImGui.Checkbox(tLang.L('blender_anim_manual_range'), anim.bManualRange)
+            if anim.bManualRange then
+                anim.iSelectedSource = 0
+                if anim.sAnimationName == '' or anim.sAnimationName == 'Bake' then
+                    anim.sAnimationName = tLang.L('blender_anim_manual_default_name')
+                end
+            end
+
+            local nameChanged, newName = tImGui.InputText(tLang.L('blender_anim_engine_name'), anim.sAnimationName or 'Bake', 64, 0)
+            if nameChanged and newName then
+                anim.sAnimationName = newName
+            end
+
+            local fsChanged, newFs = tImGui.InputInt(tLang.L('blender_import_frame_start'), anim.iFrameStart or 1, 1, 10)
+            if fsChanged and newFs then
+                anim.iFrameStart = math.max(1, newFs)
+            end
+            local feChanged, newFe = tImGui.InputInt(tLang.L('blender_import_frame_end'), anim.iFrameEnd or anim.iFrameStart or 1, 1, 10)
+            if feChanged and newFe then
+                anim.iFrameEnd = math.max(1, newFe)
+            end
+            local stepChanged, newStep = tImGui.InputInt(tLang.L('blender_import_sample_step'), anim.iSampleStep or 1, 1, 10)
+            if stepChanged and newStep then
+                anim.iSampleStep = math.max(1, newStep)
+            end
+            if tImGui.IsItemHovered(0) then
+                tImGui.BeginTooltip()
+                tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                tImGui.EndTooltip()
+            end
+
+            local baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+            local warnKey = nil
+            if baked > 800 then
+                warnKey = 'blender_anim_warning_red_fmt'
+            elseif baked > 300 then
+                warnKey = 'blender_anim_warning_yellow_fmt'
+            end
+            tImGui.Text(string.format(tLang.L('blender_anim_estimate_fmt'), baked))
+            if warnKey then
+                tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+                tImGui.TextWrapped(string.format(tLang.L(warnKey), baked))
+                tImGui.PopStyleColor()
+            end
+        end
+
+        if tImGui.Button(tLang.L('blender_anim_rescan')) then
+            startBlenderAnimationScan(row)
+        end
+    else
+        if tImGui.Button(tLang.L('blender_anim_scan')) then
+            startBlenderAnimationScan(row)
+        end
+    end
+
+    tImGui.Separator()
+    if tImGui.Button(tLang.L('blender_import_btn_close')) then
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
+end
+
 function showBlenderImportDialog()
     local st = tBlenderImportState
     if not st.bOpen then return end
@@ -860,10 +1238,11 @@ function showBlenderImportDialog()
         end
 
         local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
-        if tImGui.BeginTable('blenderImportFilesTable', 3, tableFlags, {x=640, y=180}) then
+        if tImGui.BeginTable('blenderImportFilesTable', 4, tableFlags, {x=760, y=180}) then
             tImGui.TableSetupScrollFreeze(0, 1)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_enable'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_animation'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 260)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_remove'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableHeadersRow()
             local removeAt = 0
@@ -884,6 +1263,16 @@ function showBlenderImportDialog()
                     tImGui.Text(row.path)
                     tImGui.EndTooltip()
                 end
+                tImGui.TableNextColumn()
+                if tImGui.Button(tLang.L('blender_import_animation_settings') .. '##blenderAnim-' .. i) then
+                    ensureBlenderAnimSettings(row)
+                    st.iAnimSettingsIndex = i
+                    st.bOpenAnimSettingsPopup = true
+                    if row.anim.scanStatus == 'not_scanned' then
+                        startBlenderAnimationScan(row)
+                    end
+                end
+                tImGui.TextDisabled(getBlenderAnimSummary(row))
                 tImGui.TableNextColumn()
                 if tImGui.Button(tLang.L('blender_import_btn_remove') .. '##blenderRemove-' .. i) then
                     removeAt = i
@@ -988,6 +1377,7 @@ function showBlenderImportDialog()
         tImGui.CloseCurrentPopup()
     end
 
+    showBlenderAnimationSettingsPopup(st)
     tImGui.EndPopup()
 end
 
