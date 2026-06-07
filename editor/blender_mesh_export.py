@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import sys
 import traceback
 from typing import Any
@@ -24,12 +25,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--scan-only", action="store_true")
+    parser.add_argument("--stream-output", action="store_true")
     parser.add_argument("--bake-animation", action="store_true")
     parser.add_argument("--use-scene-frame-range", action="store_true")
     parser.add_argument("--frame-start", type=int, default=1)
     parser.add_argument("--frame-end", type=int, default=1)
     parser.add_argument("--sample-step", type=int, default=1)
     parser.add_argument("--animation-name", default="Bake")
+    parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
 
@@ -37,6 +40,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def debug_print(enabled: bool, message: str) -> None:
     if enabled:
         print(f"[blender_export] {message}", flush=True)
+
+
+def check_cancel_requested(cancel_file: str) -> None:
+    if cancel_file and os.path.exists(cancel_file):
+        raise RuntimeError("Canceled by user.")
 
 
 def apply_numpy_compat_shim(debug_enabled: bool) -> None:
@@ -218,6 +226,38 @@ def append_unique_source(sources: list[dict[str, Any]], source: dict[str, Any]) 
     sources.append(source)
 
 
+def get_mesh_cache_issues(scene: Any) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for obj in scene.objects:
+        if obj.type != "MESH":
+            continue
+        for mod in getattr(obj, "modifiers", []):
+            if mod.type != "MESH_SEQUENCE_CACHE":
+                continue
+            cache_file = getattr(mod, "cache_file", None)
+            read_data = set(getattr(mod, "read_data", set()) or set())
+            path_count = len(getattr(cache_file, "object_paths", [])) if cache_file else 0
+            layer_count = len(getattr(cache_file, "layers", [])) if cache_file else 0
+            if cache_file is None:
+                issues.append(
+                    {
+                        "object": str(obj.name),
+                        "modifier": str(mod.name),
+                        "message": "Mesh Sequence Cache has no cache file.",
+                    }
+                )
+            elif "VERT" in read_data and path_count == 0 and layer_count == 0:
+                issues.append(
+                    {
+                        "object": str(obj.name),
+                        "modifier": str(mod.name),
+                        "cacheFile": bpy.path.abspath(getattr(cache_file, "filepath", "") or ""),
+                        "message": "Mesh Sequence Cache has no loaded Alembic object paths/layers. This Blender build may not support Alembic cache evaluation.",
+                    }
+                )
+    return issues
+
+
 def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
     source_path = os.path.abspath(args.input)
     debug_print(args.debug_steps, f"scan source: {source_path}")
@@ -291,21 +331,25 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
                     }
                 )
 
+    mesh_cache_issues = get_mesh_cache_issues(scene)
+    has_mesh_cache_issue = len(mesh_cache_issues) > 0
     sources: list[dict[str, Any]] = []
-    has_geometry_animation = bool(mesh_cache_objects or animated_objects or nla_sources)
+    has_geometry_animation = bool((mesh_cache_objects and not has_mesh_cache_issue) or animated_objects or nla_sources)
     has_texture_animation = bool(texture_sequences)
 
     if int(scene.frame_end) > int(scene.frame_start):
         reasons: list[str] = []
         if mesh_cache_objects:
             reasons.append("Mesh Sequence Cache")
+        if has_mesh_cache_issue:
+            reasons.append("mesh cache not evaluable")
         if texture_sequences:
             reasons.append("image sequence")
         if animated_objects:
             reasons.append("object/action animation")
         if nla_sources:
             reasons.append("NLA strips")
-        confidence = "high" if reasons else "low"
+        confidence = "high" if reasons and not has_mesh_cache_issue else "low"
         append_unique_source(
             sources,
             {
@@ -367,6 +411,7 @@ def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
         "textureSequences": texture_sequences,
         "animatedObjects": animated_objects,
         "nlaStrips": nla_sources,
+        "meshCacheIssues": mesh_cache_issues,
     }
 
 
@@ -502,6 +547,10 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     debug_print(args.debug_steps, f"import source: {source_path}")
     import_source(source_path)
     scene = bpy.context.scene
+    mesh_cache_issues = get_mesh_cache_issues(scene)
+    if args.bake_animation and mesh_cache_issues:
+        details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
+        raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
     if args.bake_animation and args.use_scene_frame_range:
         frame_start = int(scene.frame_start)
@@ -522,14 +571,20 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     if args.bake_animation:
         debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
         for frame in range(frame_start, frame_end + 1, step):
+            check_cancel_requested(args.cancel_file)
             scene.frame_set(frame)
+            bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
             frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
+            check_cancel_requested(args.cancel_file)
     else:
+        check_cancel_requested(args.cancel_file)
         frame = frame_start
         scene.frame_set(frame)
+        bpy.context.view_layer.update()
         debug_print(args.debug_steps, f"export current frame: {frame}")
         frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
+        check_cancel_requested(args.cancel_file)
         frame_start = frame
         frame_end = frame
 
@@ -562,6 +617,98 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def write_lua_atomic(path: str, data: dict[str, Any]) -> None:
+    tmp_out = f"{path}.tmp.{os.getpid()}"
+    with open(tmp_out, "w", encoding="utf-8") as fp:
+        fp.write("return ")
+        fp.write(as_lua(data, 0))
+        fp.write("\n")
+        fp.flush()
+        os.fsync(fp.fileno())
+    os.replace(tmp_out, path)
+
+
+def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any]:
+    source_path = os.path.abspath(args.input)
+    debug_print(args.debug_steps, f"import source: {source_path}")
+    import_source(source_path)
+    scene = bpy.context.scene
+    mesh_cache_issues = get_mesh_cache_issues(scene)
+    if args.bake_animation and mesh_cache_issues:
+        details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
+        raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
+
+    if args.bake_animation and args.use_scene_frame_range:
+        frame_start = int(scene.frame_start)
+        frame_end = int(scene.frame_end)
+    else:
+        frame_start = int(args.frame_start)
+        frame_end = int(args.frame_end)
+
+    frame_start = max(1, frame_start)
+    frame_end = max(1, frame_end)
+    step = max(1, int(args.sample_step))
+    if frame_end < frame_start:
+        frame_start, frame_end = frame_end, frame_start
+
+    frames_dir = os.path.join(out_dir, "frames")
+    os.makedirs(frames_dir, exist_ok=True)
+
+    frames_manifest: list[dict[str, Any]] = []
+    if args.bake_animation:
+        debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
+        out_index = 0
+        for frame in range(frame_start, frame_end + 1, step):
+            check_cancel_requested(args.cancel_file)
+            out_index += 1
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            debug_print(args.debug_steps, f"export frame: {frame}")
+            rel_path = f"frames/frame_{out_index:06d}.lua"
+            frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
+            write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
+            frames_manifest.append({"sourceFrame": frame, "path": rel_path})
+            check_cancel_requested(args.cancel_file)
+    else:
+        check_cancel_requested(args.cancel_file)
+        frame = frame_start
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        debug_print(args.debug_steps, f"export current frame: {frame}")
+        rel_path = "frames/frame_000001.lua"
+        frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
+        write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
+        frames_manifest.append({"sourceFrame": frame, "path": rel_path})
+        frame_start = frame
+        frame_end = frame
+        check_cancel_requested(args.cancel_file)
+
+    fps = get_scene_fps(scene)
+    animations: list[dict[str, Any]] = []
+    if args.bake_animation and len(frames_manifest) > 1:
+        animations.append(
+            {
+                "name": args.animation_name or "Bake",
+                "initialFrame": 1,
+                "finalFrame": len(frames_manifest),
+                "timeBetweenFrame": float(step) / fps,
+                "typeAnimation": 1,
+            }
+        )
+
+    return {
+        "version": 3,
+        "streamOutput": True,
+        "source": source_path,
+        "bakeAnimation": bool(args.bake_animation),
+        "frameStart": frame_start,
+        "frameEnd": frame_end,
+        "sampleStep": step,
+        "frames": frames_manifest,
+        "animations": animations,
+    }
+
+
 def main() -> int:
     argv = []
     if "--" in sys.argv:
@@ -570,25 +717,36 @@ def main() -> int:
     apply_numpy_compat_shim(args.debug_steps)
 
     out_path = os.path.abspath(args.output)
+    debug_print(args.debug_steps, f"output: {out_path}")
+
+    if args.stream_output and not args.scan_only:
+        if os.path.isdir(out_path):
+            shutil.rmtree(out_path)
+        elif os.path.exists(out_path):
+            os.remove(out_path)
+        os.makedirs(out_path, exist_ok=True)
+        data = build_stream_output(args, out_path)
+        debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
+        check_cancel_requested(args.cancel_file)
+        debug_print(args.debug_steps, "writing output")
+        write_lua_atomic(os.path.join(out_path, "manifest.lua"), data)
+        debug_print(args.debug_steps, "done")
+        return 0
+
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
-    debug_print(args.debug_steps, f"output: {out_path}")
 
     if args.scan_only:
+        check_cancel_requested(args.cancel_file)
         data = build_scan_data(args)
         debug_print(args.debug_steps, f"scan sources: {len(data.get('sources', []))}")
     else:
         data = build_data(args)
         debug_print(args.debug_steps, f"frames exported: {len(data.get('frames', []))}")
-    tmp_out = f"{out_path}.tmp.{os.getpid()}"
-    with open(tmp_out, "w", encoding="utf-8") as fp:
-        fp.write("return ")
-        fp.write(as_lua(data, 0))
-        fp.write("\n")
-        fp.flush()
-        os.fsync(fp.fileno())
-    os.replace(tmp_out, out_path)
+    check_cancel_requested(args.cancel_file)
+    debug_print(args.debug_steps, "writing output")
+    write_lua_atomic(out_path, data)
     debug_print(args.debug_steps, "done")
 
     return 0

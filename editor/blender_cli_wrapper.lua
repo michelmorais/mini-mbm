@@ -256,6 +256,10 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     table.insert(args, '--output')
     table.insert(args, shellQuote(outputLuaPath))
 
+    if options.streamOutput then
+        table.insert(args, '--stream-output')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
     end
@@ -282,6 +286,11 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     if options.animationName and options.animationName ~= '' then
         table.insert(args, '--animation-name')
         table.insert(args, shellQuote(options.animationName))
+    end
+
+    if options.cancelFile and options.cancelFile ~= '' then
+        table.insert(args, '--cancel-file')
+        table.insert(args, shellQuote(options.cancelFile))
     end
 
     if options.debugSteps then
