@@ -23,6 +23,9 @@ import zlib
 from typing import Any
 
 
+MAX_MBM_SUBSET_VERTICES = 65535
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--input", required=True)
@@ -42,6 +45,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--angle-x", type=float, default=0.0)
     parser.add_argument("--angle-y", type=float, default=0.0)
     parser.add_argument("--angle-z", type=float, default=0.0)
+    parser.add_argument("--large-mesh-mode", choices=("fail", "vb_only"), default="fail")
     parser.add_argument("--cancel-file", default="")
     parser.add_argument("--debug-steps", action="store_true")
     return parser.parse_args(argv)
@@ -266,6 +270,72 @@ def get_mesh_cache_issues(scene: Any) -> list[dict[str, Any]]:
                     }
                 )
     return issues
+
+
+def split_subset_for_uint16_indices(subset: dict[str, Any]) -> list[dict[str, Any]]:
+    vertices = subset.get("vertices") or []
+    indices = subset.get("indices") or []
+    if len(vertices) <= MAX_MBM_SUBSET_VERTICES:
+        return [subset]
+
+    chunks: list[dict[str, Any]] = []
+    current_vertices: list[dict[str, Any]] = []
+    current_indices: list[int] = []
+    current_map: dict[int, int] = {}
+
+    def flush_chunk() -> None:
+        nonlocal current_vertices, current_indices, current_map
+        if not current_vertices or not current_indices:
+            return
+        chunks.append(
+            {
+                "name": str(subset.get("name") or "Subset"),
+                "texture": str(subset.get("texture") or ""),
+                "vertices": current_vertices,
+                "indices": current_indices,
+            }
+        )
+        current_vertices = []
+        current_indices = []
+        current_map = {}
+
+    for tri_start in range(0, len(indices), 3):
+        tri = indices[tri_start:tri_start + 3]
+        if len(tri) != 3:
+            raise RuntimeError(f"Subset {subset.get('name', '')} has a non-triangle index tail.")
+
+        missing = [idx for idx in tri if idx not in current_map]
+        if current_indices and len(current_vertices) + len(missing) > MAX_MBM_SUBSET_VERTICES:
+            flush_chunk()
+
+        for idx in tri:
+            idx_int = int(idx)
+            if idx_int < 1 or idx_int > len(vertices):
+                raise RuntimeError(f"Subset {subset.get('name', '')} index {idx_int} is out of range.")
+            mapped = current_map.get(idx_int)
+            if mapped is None:
+                mapped = len(current_vertices) + 1
+                current_map[idx_int] = mapped
+                current_vertices.append(dict(vertices[idx_int - 1]))
+            current_indices.append(mapped)
+
+    flush_chunk()
+
+    if len(chunks) <= 1:
+        return chunks
+    for i, chunk in enumerate(chunks, start=1):
+        chunk["name"] = f"{chunk['name']}#{i}"
+    return chunks
+
+
+def validate_frame_vertex_limit(subsets: list[dict[str, Any]]) -> None:
+    total_vertices = sum(len(subset.get("vertices") or []) for subset in subsets)
+    if total_vertices > MAX_MBM_SUBSET_VERTICES:
+        raise RuntimeError(
+            f"Cannot export this mesh as one MSH frame: {total_vertices} vertices exceed the "
+            f"{MAX_MBM_SUBSET_VERTICES} vertex limit. mini-mbm MSH v8 uses a 16-bit index buffer per frame; "
+            "reduce/split the model in Blender or export it as multiple meshes."
+        )
 
 
 def build_scan_data(args: argparse.Namespace) -> dict[str, Any]:
@@ -543,7 +613,7 @@ def export_frame_subsets(scene: Any) -> list[dict[str, Any]]:
                 bucket = buckets[mat_idx]
                 if bucket["vertices"] and bucket["indices"]:
                     bucket.pop("_vmap", None)
-                    subsets_out.append(bucket)
+                    subsets_out.extend(split_subset_for_uint16_indices(bucket))
         finally:
             eval_obj.to_mesh_clear()
 
@@ -922,7 +992,16 @@ def finalize_bounds(bounds: dict[str, list[float]]) -> dict[str, tuple[float, fl
     return {"half": half, "center": center}
 
 
-def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
+def append_vertex_stream(vertex: dict[str, Any],
+                         positions: list[tuple[float, float, float]],
+                         normals: list[tuple[float, float, float]],
+                         uvs: list[tuple[float, float]]) -> None:
+    positions.append((float(vertex.get("x", 0.0)), float(vertex.get("y", 0.0)), float(vertex.get("z", 0.0))))
+    normals.append((float(vertex.get("nx", 0.0)), float(vertex.get("ny", 0.0)), float(vertex.get("nz", 0.0))))
+    uvs.append((float(vertex.get("u", 0.0)), float(vertex.get("v", 0.0))))
+
+
+def write_direct_frame_chunk_indexed(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
     vertex_start = 0
     index_start = 0
     subset_headers: list[dict[str, Any]] = []
@@ -934,8 +1013,13 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
     for subset_index, subset in enumerate(subsets, start=1):
         vertices = subset.get("vertices") or []
         indices = subset.get("indices") or []
-        if len(vertices) > 65535:
-            raise RuntimeError(f"Subset {subset_index} exceeds 65535 vertices.")
+        if vertex_start + len(vertices) > MAX_MBM_SUBSET_VERTICES:
+            raise RuntimeError(
+                f"Cannot export this mesh as one MSH frame: total frame vertices exceed "
+                f"{MAX_MBM_SUBSET_VERTICES}. mini-mbm MSH v8 uses a 16-bit index buffer per frame."
+            )
+        if len(vertices) > MAX_MBM_SUBSET_VERTICES:
+            raise RuntimeError(f"Subset {subset_index} exceeds {MAX_MBM_SUBSET_VERTICES} vertices after splitting.")
         if not vertices or not indices:
             raise RuntimeError(f"Subset {subset_index} has no vertices or indices.")
         apply_direct_vertex_options(vertices, args)
@@ -945,9 +1029,7 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
                 raise RuntimeError(f"Subset {subset_index} index {idx} is out of range.")
             index_buffer.append(vertex_start + idx - 1)
         for vertex in vertices:
-            positions.append((float(vertex.get("x", 0.0)), float(vertex.get("y", 0.0)), float(vertex.get("z", 0.0))))
-            normals.append((float(vertex.get("nx", 0.0)), float(vertex.get("ny", 0.0)), float(vertex.get("nz", 0.0))))
-            uvs.append((float(vertex.get("u", 0.0)), float(vertex.get("v", 0.0))))
+            append_vertex_stream(vertex, positions, normals, uvs)
         subset_headers.append(
             {
                 "texture": texture_name_for_msh(str(subset.get("texture") or "")),
@@ -981,6 +1063,65 @@ def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: arg
             write_vec3(fp, normal)
         for uv in uvs:
             write_vec2(fp, uv)
+
+
+def write_direct_frame_chunk_vb_only(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
+    vertex_start = 0
+    subset_headers: list[dict[str, Any]] = []
+    positions: list[tuple[float, float, float]] = []
+    normals: list[tuple[float, float, float]] = []
+    uvs: list[tuple[float, float]] = []
+
+    for subset_index, subset in enumerate(subsets, start=1):
+        vertices = subset.get("vertices") or []
+        indices = subset.get("indices") or []
+        if not vertices or not indices:
+            raise RuntimeError(f"Subset {subset_index} has no vertices or indices.")
+        if (len(indices) % 3) != 0:
+            raise RuntimeError(f"Subset {subset_index} indices must be divisible by 3 for VB-only export.")
+        apply_direct_vertex_options(vertices, args)
+        for index in indices:
+            idx = int(index)
+            if idx < 1 or idx > len(vertices):
+                raise RuntimeError(f"Subset {subset_index} index {idx} is out of range.")
+            append_vertex_stream(vertices[idx - 1], positions, normals, uvs)
+        subset_headers.append(
+            {
+                "texture": texture_name_for_msh(str(subset.get("texture") or "")),
+                "vertexCount": len(indices),
+                "vertexStart": vertex_start,
+                "indexStart": 0,
+                "indexCount": 0,
+            }
+        )
+        vertex_start += len(indices)
+
+    with open(path, "wb") as fp:
+        write_i32(fp, len(subset_headers))
+        write_i32(fp, 0)
+        write_i32(fp, len(positions))
+        write_i32(fp, 3)
+        fp.write(b"VB\0\0")
+        for header in subset_headers:
+            fp.write(fixed_bytes(header["texture"], 64))
+            write_i32(fp, header["vertexCount"])
+            write_i32(fp, header["vertexStart"])
+            write_i32(fp, header["indexStart"])
+            write_i32(fp, header["indexCount"])
+            fp.write(bytes((1, 0, 0, 0)))
+        for pos in positions:
+            write_vec3(fp, pos)
+        for normal in normals:
+            write_vec3(fp, normal)
+        for uv in uvs:
+            write_vec2(fp, uv)
+
+
+def write_direct_frame_chunk(path: str, subsets: list[dict[str, Any]], args: argparse.Namespace) -> None:
+    if args.large_mesh_mode == "vb_only":
+        write_direct_frame_chunk_vb_only(path, subsets, args)
+        return
+    write_direct_frame_chunk_indexed(path, subsets, args)
 
 
 def compress_file_zlib(src: str, dst: str) -> None:
@@ -1035,6 +1176,10 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
             subsets = export_frame_subsets(scene)
+            if args.large_mesh_mode == "vb_only":
+                debug_print(args.debug_steps, "large mesh mode: vertex buffer only")
+            else:
+                validate_frame_vertex_limit(subsets)
             for subset in subsets:
                 add_texture_search_path(texture_paths, str(subset.get("texture") or ""))
                 update_bounds(bounds, subset.get("vertices") or [])

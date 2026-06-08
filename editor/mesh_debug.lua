@@ -177,6 +177,7 @@ function onInitScene()
         nImportAngleX = -90,
         nImportAngleY = 0,
         nImportAngleZ = 0,
+        iLargeMeshMode = 1,
         tRunResults = {},
     }
 end
@@ -391,11 +392,15 @@ local function getBlenderImportEstimateSummary()
     local rawBytes = 0
     local statsMissing = 0
     local maxFrames = 0
+    local vertexLimitExceeded = false
     for i = 1, #rows do
         local est = getRowImportEstimate(rows[i])
         targetFrames = targetFrames + est.targetFrames
         maxFrames = math.max(maxFrames, est.targetFrames)
         if est.hasStats then
+            if (est.verticesPerFrame or 0) > 65535 then
+                vertexLimitExceeded = true
+            end
             vertices = vertices + (est.totalVertices or 0)
             indices = indices + (est.totalIndices or 0)
             rawBytes = rawBytes + (est.estimatedRawBytes or 0)
@@ -405,7 +410,11 @@ local function getBlenderImportEstimateSummary()
     end
 
     local warning = nil
-    if rawBytes >= 1024 * 1024 * 1024 or maxFrames > 800 then
+    if vertexLimitExceeded and (tBlenderImportState.iLargeMeshMode or 1) == 2 then
+        warning = tLang.L('blender_import_estimate_warning_vb_only')
+    elseif vertexLimitExceeded then
+        warning = tLang.L('blender_import_estimate_warning_vertex_limit')
+    elseif rawBytes >= 1024 * 1024 * 1024 or maxFrames > 800 then
         warning = tLang.L('blender_import_estimate_warning_large')
     elseif rawBytes >= 256 * 1024 * 1024 or maxFrames > 300 then
         warning = tLang.L('blender_import_estimate_warning_medium')
@@ -418,8 +427,16 @@ local function getBlenderImportEstimateSummary()
         indices = indices,
         rawBytes = rawBytes,
         statsMissing = statsMissing,
+        vertexLimitExceeded = vertexLimitExceeded,
         warning = warning,
     }
+end
+
+local function getBlenderLargeMeshModeArg()
+    if (tBlenderImportState.iLargeMeshMode or 1) == 2 then
+        return 'vb_only'
+    end
+    return 'fail'
 end
 
 local function applyBlenderSourceToSettings(anim, src, index)
@@ -875,6 +892,7 @@ local function validateIntermediateData(tData)
         if type(subsets) ~= 'table' or #subsets == 0 then
             return false, string.format('Frame %d has no subsets.', fi)
         end
+        local frameVertices = 0
         for si = 1, #subsets do
             local subset = subsets[si]
             local verts = subset.vertices
@@ -882,6 +900,7 @@ local function validateIntermediateData(tData)
             if type(verts) ~= 'table' or #verts == 0 then
                 return false, string.format('Frame %d subset %d has no vertices.', fi, si)
             end
+            frameVertices = frameVertices + #verts
             if #verts > 65535 then
                 return false, string.format('Frame %d subset %d exceeds 65535 vertices.', fi, si)
             end
@@ -905,6 +924,9 @@ local function validateIntermediateData(tData)
                 end
                 indices[ii] = idx
             end
+        end
+        if frameVertices > 65535 then
+            return false, string.format('Frame %d has %d vertices total. MSH v8 uses a 16-bit index buffer and supports at most 65535 vertices per frame.', fi, frameVertices)
         end
     end
 
@@ -1287,6 +1309,7 @@ local function blenderImportCoroutine()
         importOptions.importAngleX = st.nImportAngleX
         importOptions.importAngleY = st.nImportAngleY
         importOptions.importAngleZ = st.nImportAngleZ
+        importOptions.largeMeshMode = getBlenderLargeMeshModeArg()
         local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
@@ -1820,6 +1843,17 @@ function showBlenderImportDialog()
     st.bIntermediateOnly = tImGui.Checkbox(tLang.L('blender_import_intermediate_only'), st.bIntermediateOnly)
     st.bPrintDebugSteps = tImGui.Checkbox(tLang.L('blender_import_print_debug_steps'), st.bPrintDebugSteps)
     st.bKeepInSourceFolder = tImGui.Checkbox(tLang.L('blender_import_keep_in_source_folder'), st.bKeepInSourceFolder)
+    local largeMeshOpts = {
+        tLang.L('blender_import_large_mesh_fail'),
+        tLang.L('blender_import_large_mesh_vb_only'),
+    }
+    local largeChanged, newLargeIdx = tImGui.Combo(tLang.L('blender_import_large_mesh_mode'), st.iLargeMeshMode or 1, largeMeshOpts, -1)
+    if largeChanged and newLargeIdx then
+        st.iLargeMeshMode = newLargeIdx
+    end
+    if (st.iLargeMeshMode or 1) == 2 then
+        tImGui.TextDisabled(tLang.L('blender_import_large_mesh_vb_only_note'))
+    end
     tImGui.Separator()
     st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
     tImGui.BeginDisabled(not st.bImportPostProcess)

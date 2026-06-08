@@ -292,6 +292,11 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, shellQuote(options.animationName))
     end
 
+    if options.largeMeshMode and options.largeMeshMode ~= '' then
+        table.insert(args, '--large-mesh-mode')
+        table.insert(args, tostring(options.largeMeshMode))
+    end
+
     if options.importPostProcess then
         table.insert(args, '--post-process')
         if options.importInvertU then
