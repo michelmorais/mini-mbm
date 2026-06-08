@@ -292,6 +292,19 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, shellQuote(options.animationName))
     end
 
+    if type(options.animationClips) == 'table' then
+        for i = 1, #options.animationClips do
+            local clip = options.animationClips[i]
+            if type(clip) == 'table' then
+                table.insert(args, '--animation-clip')
+                table.insert(args, shellQuote(clip.name or ('Bake ' .. i)))
+                table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.frameStart or 1) or 1))))
+                table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.frameEnd or clip.frameStart or 1) or 1))))
+                table.insert(args, tostring(math.max(1, math.floor(tonumber(clip.sampleStep or 1) or 1))))
+            end
+        end
+    end
+
     if options.largeMeshMode and options.largeMeshMode ~= '' then
         table.insert(args, '--large-mesh-mode')
         table.insert(args, tostring(options.largeMeshMode))

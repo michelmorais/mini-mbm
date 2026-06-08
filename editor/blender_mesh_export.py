@@ -39,6 +39,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--frame-end", type=int, default=1)
     parser.add_argument("--sample-step", type=int, default=1)
     parser.add_argument("--animation-name", default="Bake")
+    parser.add_argument("--animation-clip", action="append", nargs=4, metavar=("NAME", "START", "END", "STEP"))
     parser.add_argument("--post-process", action="store_true")
     parser.add_argument("--invert-u", action="store_true")
     parser.add_argument("--invert-v", action="store_true")
@@ -649,6 +650,73 @@ def import_source(input_path: str) -> None:
     raise RuntimeError(f"Unsupported source extension: {ext}")
 
 
+def normalize_frame_range(frame_start: int, frame_end: int) -> tuple[int, int]:
+    frame_start = max(1, int(frame_start))
+    frame_end = max(1, int(frame_end))
+    if frame_end < frame_start:
+        frame_start, frame_end = frame_end, frame_start
+    return frame_start, frame_end
+
+
+def parse_animation_clips(args: argparse.Namespace, scene: Any) -> list[dict[str, Any]]:
+    clips: list[dict[str, Any]] = []
+    if args.animation_clip:
+        for raw in args.animation_clip:
+            name = str(raw[0] or "Bake")
+            frame_start, frame_end = normalize_frame_range(int(raw[1]), int(raw[2]))
+            step = max(1, int(raw[3]))
+            clips.append(
+                {
+                    "name": name,
+                    "frameStart": frame_start,
+                    "frameEnd": frame_end,
+                    "sampleStep": step,
+                }
+            )
+        return clips
+
+    if args.bake_animation:
+        if args.use_scene_frame_range:
+            frame_start = int(scene.frame_start)
+            frame_end = int(scene.frame_end)
+        else:
+            frame_start = int(args.frame_start)
+            frame_end = int(args.frame_end)
+        frame_start, frame_end = normalize_frame_range(frame_start, frame_end)
+        clips.append(
+            {
+                "name": args.animation_name or "Bake",
+                "frameStart": frame_start,
+                "frameEnd": frame_end,
+                "sampleStep": max(1, int(args.sample_step)),
+            }
+        )
+    return clips
+
+
+def clip_frame_numbers(clip: dict[str, Any]) -> list[int]:
+    frame_start, frame_end = normalize_frame_range(int(clip.get("frameStart", 1)), int(clip.get("frameEnd", 1)))
+    step = max(1, int(clip.get("sampleStep", 1)))
+    return list(range(frame_start, frame_end + 1, step))
+
+
+def append_animation_header_for_clip(animations: list[dict[str, Any]],
+                                     clip: dict[str, Any],
+                                     target_start: int,
+                                     target_end: int,
+                                     fps: float) -> None:
+    step = max(1, int(clip.get("sampleStep", 1)))
+    animations.append(
+        {
+            "name": str(clip.get("name") or "Bake"),
+            "initialFrame": target_start,
+            "finalFrame": target_end,
+            "timeBetweenFrame": float(step) / fps,
+            "typeAnimation": 1,
+        }
+    )
+
+
 def build_data(args: argparse.Namespace) -> dict[str, Any]:
     source_path = os.path.abspath(args.input)
     debug_print(args.debug_steps, f"import source: {source_path}")
@@ -659,66 +727,43 @@ def build_data(args: argparse.Namespace) -> dict[str, Any]:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
         raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
-    if args.bake_animation and args.use_scene_frame_range:
-        frame_start = int(scene.frame_start)
-        frame_end = int(scene.frame_end)
-    else:
-        frame_start = int(args.frame_start)
-        frame_end = int(args.frame_end)
-
-    frame_start = max(1, frame_start)
-    frame_end = max(1, frame_end)
-    step = max(1, int(args.sample_step))
-    if frame_end < frame_start:
-        frame_start, frame_end = frame_end, frame_start
-
     source_file = source_path
+    clips = parse_animation_clips(args, scene)
 
     frames_out: list[dict[str, Any]] = []
-    if args.bake_animation:
-        debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
-        for frame in range(frame_start, frame_end + 1, step):
-            check_cancel_requested(args.cancel_file)
-            scene.frame_set(frame)
-            bpy.context.view_layer.update()
-            debug_print(args.debug_steps, f"export frame: {frame}")
-            frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
-            check_cancel_requested(args.cancel_file)
+    animations: list[dict[str, Any]] = []
+    fps = get_scene_fps(scene)
+    if clips:
+        for clip in clips:
+            target_start = len(frames_out) + 1
+            debug_print(
+                args.debug_steps,
+                f"bake animation clip: {clip.get('name', 'Bake')} {clip['frameStart']}..{clip['frameEnd']} step={clip['sampleStep']}",
+            )
+            for frame in clip_frame_numbers(clip):
+                check_cancel_requested(args.cancel_file)
+                scene.frame_set(frame)
+                bpy.context.view_layer.update()
+                debug_print(args.debug_steps, f"export frame: {frame}")
+                frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
+                check_cancel_requested(args.cancel_file)
+            append_animation_header_for_clip(animations, clip, target_start, len(frames_out), fps)
     else:
         check_cancel_requested(args.cancel_file)
-        frame = frame_start
+        frame = max(1, int(args.frame_start))
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         debug_print(args.debug_steps, f"export current frame: {frame}")
         frames_out.append({"frame": frame, "subsets": export_frame_subsets(scene)})
         check_cancel_requested(args.cancel_file)
-        frame_start = frame
-        frame_end = frame
-
-    fps_base = float(scene.render.fps_base) if scene.render.fps_base else 1.0
-    fps = float(scene.render.fps) / fps_base if fps_base > 0 else 24.0
-    if fps <= 0:
-        fps = 24.0
-
-    animations: list[dict[str, Any]] = []
-    if args.bake_animation and len(frames_out) > 1:
-        animations.append(
-            {
-                "name": args.animation_name or "Bake",
-                "initialFrame": 1,
-                "finalFrame": len(frames_out),
-                "timeBetweenFrame": float(step) / fps,
-                "typeAnimation": 1,
-            }
-        )
 
     return {
         "version": 2,
         "source": source_file,
-        "bakeAnimation": bool(args.bake_animation),
-        "frameStart": frame_start,
-        "frameEnd": frame_end,
-        "sampleStep": step,
+        "bakeAnimation": bool(clips),
+        "frameStart": clips[0]["frameStart"] if clips else frames_out[0]["frame"],
+        "frameEnd": clips[-1]["frameEnd"] if clips else frames_out[0]["frame"],
+        "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_out,
         "animations": animations,
     }
@@ -745,40 +790,36 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
         raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
-    if args.bake_animation and args.use_scene_frame_range:
-        frame_start = int(scene.frame_start)
-        frame_end = int(scene.frame_end)
-    else:
-        frame_start = int(args.frame_start)
-        frame_end = int(args.frame_end)
-
-    frame_start = max(1, frame_start)
-    frame_end = max(1, frame_end)
-    step = max(1, int(args.sample_step))
-    if frame_end < frame_start:
-        frame_start, frame_end = frame_end, frame_start
-
     frames_dir = os.path.join(out_dir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
+    clips = parse_animation_clips(args, scene)
 
     frames_manifest: list[dict[str, Any]] = []
-    if args.bake_animation:
-        debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
+    animations: list[dict[str, Any]] = []
+    fps = get_scene_fps(scene)
+    if clips:
         out_index = 0
-        for frame in range(frame_start, frame_end + 1, step):
-            check_cancel_requested(args.cancel_file)
-            out_index += 1
-            scene.frame_set(frame)
-            bpy.context.view_layer.update()
-            debug_print(args.debug_steps, f"export frame: {frame}")
-            rel_path = f"frames/frame_{out_index:06d}.lua"
-            frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
-            write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
-            frames_manifest.append({"sourceFrame": frame, "path": rel_path})
-            check_cancel_requested(args.cancel_file)
+        for clip in clips:
+            target_start = len(frames_manifest) + 1
+            debug_print(
+                args.debug_steps,
+                f"bake animation clip: {clip.get('name', 'Bake')} {clip['frameStart']}..{clip['frameEnd']} step={clip['sampleStep']}",
+            )
+            for frame in clip_frame_numbers(clip):
+                check_cancel_requested(args.cancel_file)
+                out_index += 1
+                scene.frame_set(frame)
+                bpy.context.view_layer.update()
+                debug_print(args.debug_steps, f"export frame: {frame}")
+                rel_path = f"frames/frame_{out_index:06d}.lua"
+                frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
+                write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
+                frames_manifest.append({"sourceFrame": frame, "path": rel_path})
+                check_cancel_requested(args.cancel_file)
+            append_animation_header_for_clip(animations, clip, target_start, len(frames_manifest), fps)
     else:
         check_cancel_requested(args.cancel_file)
-        frame = frame_start
+        frame = max(1, int(args.frame_start))
         scene.frame_set(frame)
         bpy.context.view_layer.update()
         debug_print(args.debug_steps, f"export current frame: {frame}")
@@ -786,31 +827,16 @@ def build_stream_output(args: argparse.Namespace, out_dir: str) -> dict[str, Any
         frame_data = {"frame": frame, "subsets": export_frame_subsets(scene)}
         write_lua_atomic(os.path.join(out_dir, rel_path), frame_data)
         frames_manifest.append({"sourceFrame": frame, "path": rel_path})
-        frame_start = frame
-        frame_end = frame
         check_cancel_requested(args.cancel_file)
-
-    fps = get_scene_fps(scene)
-    animations: list[dict[str, Any]] = []
-    if args.bake_animation and len(frames_manifest) > 1:
-        animations.append(
-            {
-                "name": args.animation_name or "Bake",
-                "initialFrame": 1,
-                "finalFrame": len(frames_manifest),
-                "timeBetweenFrame": float(step) / fps,
-                "typeAnimation": 1,
-            }
-        )
 
     return {
         "version": 3,
         "streamOutput": True,
         "source": source_path,
-        "bakeAnimation": bool(args.bake_animation),
-        "frameStart": frame_start,
-        "frameEnd": frame_end,
-        "sampleStep": step,
+        "bakeAnimation": bool(clips),
+        "frameStart": clips[0]["frameStart"] if clips else frames_manifest[0]["sourceFrame"],
+        "frameEnd": clips[-1]["frameEnd"] if clips else frames_manifest[0]["sourceFrame"],
+        "sampleStep": clips[0]["sampleStep"] if clips else 1,
         "frames": frames_manifest,
         "animations": animations,
     }
@@ -1149,29 +1175,17 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
         details = "; ".join(issue.get("message", "") for issue in mesh_cache_issues)
         raise RuntimeError(f"Cannot bake mesh-cache animation: {details}")
 
-    if args.bake_animation and args.use_scene_frame_range:
-        frame_start = int(scene.frame_start)
-        frame_end = int(scene.frame_end)
-    else:
-        frame_start = int(args.frame_start)
-        frame_end = int(args.frame_end)
-    frame_start = max(1, frame_start)
-    frame_end = max(1, frame_end)
-    step = max(1, int(args.sample_step))
-    if frame_end < frame_start:
-        frame_start, frame_end = frame_end, frame_start
-
-    frame_numbers = list(range(frame_start, frame_end + 1, step)) if args.bake_animation else [frame_start]
+    clips = parse_animation_clips(args, scene)
     temp_root = tempfile.mkdtemp(prefix="mbm_direct_msh_")
     raw_path = os.path.join(temp_root, "mesh.raw")
     frame_paths: list[str] = []
+    animations: list[dict[str, Any]] = []
     texture_paths: set[str] = set()
     bounds = {"min": [float("inf"), float("inf"), float("inf")], "max": [-float("inf"), -float("inf"), -float("inf")]}
     try:
-        if args.bake_animation:
-            debug_print(args.debug_steps, f"bake animation range: {frame_start}..{frame_end} step={step}")
-        for out_index, frame in enumerate(frame_numbers, start=1):
-            check_cancel_requested(args.cancel_file)
+        fps = get_scene_fps(scene)
+
+        def export_frame_to_chunk(frame: int) -> None:
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             debug_print(args.debug_steps, f"export frame: {frame}")
@@ -1188,19 +1202,25 @@ def build_direct_msh_output(args: argparse.Namespace, out_path: str) -> int:
             frame_paths.append(frame_path)
             check_cancel_requested(args.cancel_file)
 
-        fps = get_scene_fps(scene)
-        animations: list[dict[str, Any]]
-        if args.bake_animation and len(frame_paths) > 1:
-            animations = [
-                {
-                    "name": args.animation_name or "Bake",
-                    "initialFrame": 1,
-                    "finalFrame": len(frame_paths),
-                    "timeBetweenFrame": float(step) / fps,
-                    "typeAnimation": 1,
-                }
-            ]
+        out_index = 0
+        if clips:
+            for clip in clips:
+                target_start = len(frame_paths) + 1
+                debug_print(
+                    args.debug_steps,
+                    f"bake animation clip: {clip.get('name', 'Bake')} {clip['frameStart']}..{clip['frameEnd']} step={clip['sampleStep']}",
+                )
+                for frame in clip_frame_numbers(clip):
+                    check_cancel_requested(args.cancel_file)
+                    out_index += 1
+                    export_frame_to_chunk(frame)
+                append_animation_header_for_clip(animations, clip, target_start, len(frame_paths), fps)
         else:
+            out_index = 1
+            frame = max(1, int(args.frame_start))
+            check_cancel_requested(args.cancel_file)
+            debug_print(args.debug_steps, f"export current frame: {frame}")
+            export_frame_to_chunk(frame)
             animations = [
                 {
                     "name": "default",
