@@ -463,10 +463,11 @@ tUtil.save = function(name, value, tOut, onSaveUserData, saved)
         end
     end
 
+    local isRootSave = saved == nil
     saved = saved or {}
     if type(value) == 'table' and type(value[1]) == 'userdata' then
         if type(onSaveUserData) == 'function' then
-            onSaveUserData(name,value,tOut)
+            onSaveUserData(name,value,tOut,saved)
         end
     else
         table.insert(tOut,tostring(name) .. ' = ')
@@ -498,19 +499,19 @@ tUtil.save = function(name, value, tOut, onSaveUserData, saved)
         end
     end
 
-    local function getIndexEmptyLine(tOut)
+    if isRootSave then
+        local indexOut = 1
         for i=1, #tOut do
-            if tOut[i] == '' then
-                return i
+            if tOut[i] ~= '' then
+                if indexOut ~= i then
+                    tOut[indexOut] = tOut[i]
+                end
+                indexOut = indexOut + 1
             end
         end
-        return 0
-    end
-
-    local indexEmptyLine = getIndexEmptyLine(tOut)
-    while (indexEmptyLine ~= 0) do
-        table.remove(tOut,indexEmptyLine)
-        indexEmptyLine = getIndexEmptyLine(tOut)
+        for i=#tOut, indexOut, -1 do
+            tOut[i] = nil
+        end
     end
 end
 

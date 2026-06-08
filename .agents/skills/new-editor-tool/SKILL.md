@@ -564,6 +564,15 @@ function onLoadEditor(sFileName)
 end
 ```
 
+### Large State and Userdata Pitfalls
+
+Sprite Maker and importers can create very large editor states. Keep these constraints in mind before changing save/load behavior:
+
+- `tUtil.save(name, value, tOut, onSaveUserData)` is recursive; any expensive cleanup or line compaction must happen once at the top-level save, not once per recursive call. Repeated cleanup makes large frame/subset tables appear stuck.
+- If you add an `onSaveUserData` callback, pass the serializer's `saved` table through nested `tUtil.save(...)` calls so reference tracking keeps working.
+- Texture IDs are userdata and must be converted back into load code. For Sprite Maker, handle both `tFrameList[i]["tTexture"]["id"]` and nested `tFrameList[i]["tSubsetList"][j]["tTexture"]["id"]`.
+- Do not assume `{}` is accepted by engine bindings as an empty optional value. For example, `mesh:setPhysics({})` is invalid; only call `setPhysics(tPhysics)` when the physics array has entries.
+
 ---
 
 ## Window Positioning Patterns
@@ -838,6 +847,17 @@ tTexturesToEditor = tUtil.loadInfoImagesToTable(tFiles, tTexturesToEditor)
 -- Each entry: {file_name, width, height, alpha, id, base_file_name}
 --   id = texture userdata that can be passed to tImGui.Image()/ImageButton()
 ```
+
+### Sprite Maker Composite Imports
+
+When importing external animation formats into `sprite_maker.lua`, prefer a pure parser/wrapper module that returns editor-ready data, then adapt that data into Sprite Maker's existing model:
+
+- Keep parsers independent from `ImGui` and `mbm` when possible. Pure Lua wrappers can be smoke-tested with bundled Lua before launching the editor.
+- Sprite Maker frames have one main `tFrame.tShape` plus zero or more `tFrame.tSubsetList` entries. The main shape is not part of `tSubsetList`, but binary save and pivot/edit behavior still need to treat it as part of the visual frame.
+- For multi-part/composite imports, mark imported frames with an explicit flag such as `bCompositeFrame` and update frame movement, pivot editing, render visibility, scale reset, and auto-physics logic for both the main shape and every subset.
+- Existing Sprite Maker binary save writes the main shape first, then subsets. If the source format has only parts, choose one part as the main shape and import the remaining parts as subsets.
+- The shape binding signature for dynamic indexed geometry is `shape:createDynamicIndexed(vertex, index, uv, nickName, mode_draw?, cull_face?, front_face?)`. Do not pass `nil` before `nickName`; it shifts arguments and can produce invalid draw mode values such as `4294967295`.
+- Some Sprite Maker helpers mutate shape scale while preparing physics previews. Imported composite frames may need to skip automatic physics generation or reset scale on the main shape and all subsets after editing.
 
 ---
 

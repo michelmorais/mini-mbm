@@ -30,6 +30,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tSpriterScml  =     require "spriter_scml_wrapper"
 
 
 function onInitScene()
@@ -364,7 +365,7 @@ function onNewSprite()
     tSaveBinaryOptions.indexStride          = 1
 end
 
-function onSaveUserData(name,value,tOut)
+function onSaveUserData(name,value,tOut,saved)
     if name:match('tFrameList.*tShape') then
         --print('info',name)
         table.insert(tOut,name .. ' = shape:new(\'2dw\')')
@@ -375,11 +376,11 @@ function onSaveUserData(name,value,tOut)
         local uv_bkp            = name .. '.uv_bkp'
         local index_buffer_edit = name .. '.index_buffer_edit'
         
-        tUtil.save(uv,                 value.uv,                tOut, onSaveUserData)
-        tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData)
-        tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData)
-        tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData)
-        tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData)
+        tUtil.save(uv,                 value.uv,                tOut, onSaveUserData, saved)
+        tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData, saved)
+        tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData, saved)
+        tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData, saved)
+        tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData, saved)
         
         table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
         local s,e                  = name:match('^().*%]%[()')
@@ -389,12 +390,14 @@ function onSaveUserData(name,value,tOut)
 
         if value.tVertexEdited then
             local tVertexEdited       = name .. '.tVertexEdited'
-            tUtil.save(tVertexEdited, value.tVertexEdited,              tOut, onSaveUserData)
+            tUtil.save(tVertexEdited, value.tVertexEdited,              tOut, onSaveUserData, saved)
         end
 
         table.insert(tOut,string.format('%s:setTexture(%q)', name,sTextureNameCommand()))
         table.insert(tOut,string.format('%s:onRender(onRenderShape)',name))
-    elseif name:match('tTexturesToEditor%[%d+%]%["id"%]') or name:match('tFrameList%[%d+%]%["tTexture"%]%["id"%]') then
+    elseif name:match('tTexturesToEditor%[%d+%]%["id"%]') or 
+           name:match('tFrameList%[%d+%]%["tTexture"%]%["id"%]') or
+           name:match('tFrameList%[%d+%]%["tSubsetList"%]%[%d+%]%["tTexture"%]%["id"%]') then
         -- Recreate texture userdata from its file name
         local baseName = name:match('^(.*)%["id"%]$')
         local getter = load(string.format('return %s["file_name"]', baseName))
@@ -435,6 +438,9 @@ function onSaveEditionSprite(sFileName)
         for i =1, #tLinesFrameList do
             local sLine = tLinesFrameList[i]
             local s,e   = sLine:match('^()tFrameList%[%d+%]%["tTexture"()%]%["id"%]') -- replace id for loadTexture in runtime
+            if not s then
+                s,e = sLine:match('^()tFrameList%[%d+%]%["tSubsetList"%]%[%d+%]%["tTexture"()%]%["id"%]') -- replace subset id for loadTexture in runtime
+            end
             if s and e then
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
@@ -632,7 +638,9 @@ function onSaveSprite(fileName)
     for i=1, #tPhysicsOptions.tLinesPhysics do
         table.insert(tPhysics,tPhysicsOptions.tLinesPhysics[i].tPhysic)
     end
-    tMesh:setPhysics(tPhysics)
+    if #tPhysics > 0 then
+        tMesh:setPhysics(tPhysics)
+    end
 
     local calcNormal,calcUv = false,false --Instruct to do not calculate normal and UV
     if tMesh:save(fileName,calcNormal,calcUv) then
@@ -658,6 +666,10 @@ function main_menu_sprite()
             local pressed,checked = tImGui.MenuItem(tLang.L("load_sprite"), "Ctrl+O", false)
             if pressed then
                 onOpenSprite()
+            end
+            local pressed,checked = tImGui.MenuItem(tLang.L("import_spriter_scml"), nil, false)
+            if pressed then
+                onImportSpriterScml()
             end
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem(tLang.L("save_editor"), "Ctrl+S", false)
@@ -979,6 +991,16 @@ function setAllFrameAsNotVisible()
     end
 end
 
+function resetFrameAndSubsetsScale(tFrame)
+    if tFrame == nil then
+        return
+    end
+    tFrame.tShape:setScale(1,1)
+    for i=1, #tFrame.tSubsetList do
+        tFrame.tSubsetList[i].tShape:setScale(1,1)
+    end
+end
+
 function getSelectedFrame()
     if tFrameList.indexSelectedFrameNode and 
       tFrameList.indexSelectedFrameNode <= #tFrameList and
@@ -1022,8 +1044,13 @@ function showFrameEdit()
     if tFrame then
 
         tShape      = tFrame.tShape
+        resetFrameAndSubsetsScale(tFrame)
         if tPivotShape.visible then
-            tShape:setPos(0,0) --reset pos
+            if tFrame.bCompositeFrame then
+                tShape:setPos(tFrame.tPivot.x,tFrame.tPivot.y)
+            else
+                tShape:setPos(0,0) --reset pos
+            end
             setShapeToRender(tShape,tFrame)
             for i=1, #tFrame.tSubsetList do
                 local tSubset = tFrame.tSubsetList[i]
@@ -3262,7 +3289,7 @@ function closePhysicsWindow()
     bShowEditPhysics   = false
     if #tFrameList > 0 then
         local tFrame = tFrameList[1]
-        tFrame.tShape:setScale(1,1)
+        resetFrameAndSubsetsScale(tFrame)
         tFrame.tShape.visible = false
     end
     for i=1, #tPhysicsOptions.tLinesPhysics do
@@ -3444,7 +3471,7 @@ function newPrimitiveShape(tTexture,tVertexEdited,width,height)
         end
         tVertexBkp = vertex
     end
-    tShape:createDynamicIndexed(tVertex,tIndex,tUv,tNormal,nickName)
+    tShape:createDynamicIndexed(tVertex,tIndex,tUv,nickName)
     tShape:setTexture(tTexture.file_name)
     tShape.tVertexEdited     = { vertex = tVertexBkp, index = tIndex, old_width = old_width, old_height = old_height}
     tShape.visible           = true
@@ -3555,6 +3582,165 @@ function newPrimitiveFrameFromFrameAddOptions(tTexture,width,height)
     tFrame.tPivot                             = {x = 0, y = 0}
     tFrame.tShape,tFrame.width,tFrame.height  = newPrimitiveShape(tTexture,tVertexEdited,width,height)
     return tFrame
+end
+
+local function normalizeSpriterPath(fileName)
+    return (fileName or ''):gsub('\\','/')
+end
+
+local function copySpriterIndex(tIndex)
+    local tOut = {}
+    for i=1, #tIndex do
+        tOut[i] = tIndex[i]
+    end
+    return tOut
+end
+
+local function makeSpriterVertexTable(tVertex)
+    local tOut = {}
+    for i=1, #tVertex, 2 do
+        table.insert(tOut, {x = tVertex[i], y = tVertex[i + 1]})
+    end
+    return tOut
+end
+
+local function makeSpriterUvTable(tUv)
+    local tOut = {}
+    for i=1, #tUv, 2 do
+        table.insert(tOut, {u = tUv[i], v = tUv[i + 1]})
+    end
+    return tOut
+end
+
+local function newSpriterShape(tPart, tTexture)
+    local tShape   = shape:new('2dw')
+    local nickName = getUniqueNickName()
+    tShape:createDynamicIndexed(tPart.vertices, tPart.index, tPart.uv, nickName)
+    tShape:setTexture(tTexture.file_name)
+    tShape.vertex            = makeSpriterVertexTable(tPart.vertices)
+    tShape.uv                = makeSpriterUvTable(tPart.uv)
+    tShape.uv_bkp            = makeSpriterUvTable(tPart.uv)
+    tShape.index_read_only   = copySpriterIndex(tPart.index)
+    tShape.index_buffer_edit = copySpriterIndex(tPart.index)
+    tShape.normal            = nil
+    tShape.visible           = true
+    tShape.bFirstRender      = true
+    tShape:onRender(onRenderShape)
+    return tShape
+end
+
+local function newSpriterFramePart(tPart, tTexture, width, height)
+    return {
+        type         = 'triangle',
+        iNumElements = 2,
+        tTexture     = tTexture,
+        width        = width,
+        height       = height,
+        tSubsetList  = {},
+        tPivot       = {x = 0, y = 0},
+        bCompositeFrame = true,
+        tShape       = newSpriterShape(tPart, tTexture),
+    }
+end
+
+local function collectSpriterTexturePaths(tImport)
+    local tSeen = {}
+    local tPaths = {}
+    for _, tFrame in ipairs(tImport.frames) do
+        for _, tPart in ipairs(tFrame.parts) do
+            local path = normalizeSpriterPath(tPart.texturePath)
+            if not tSeen[path] then
+                tSeen[path] = true
+                table.insert(tPaths, path)
+            end
+        end
+    end
+    return tPaths
+end
+
+local function makeTextureByPath(tTextures)
+    local tByPath = {}
+    for _, tTexture in ipairs(tTextures) do
+        tByPath[normalizeSpriterPath(tTexture.file_name)] = tTexture
+    end
+    return tByPath
+end
+
+function onImportSpriterScml()
+    local file_name = mbm.openFile(sLastEditorFileName, '*.scml')
+    if not file_name then
+        return
+    end
+
+    local tImport = tSpriterScml.import(file_name)
+    if not tImport or not tImport.ok then
+        local msg = (tImport and tImport.message) or tLang.L("spriter_import_failed")
+        tUtil.showMessageWarn(string.format(tLang.L("spriter_import_failed_fmt"), msg))
+        return
+    end
+
+    local tTexturePaths = collectSpriterTexturePaths(tImport)
+    onNewSprite()
+    tTexturesToEditor = tUtil.loadInfoImagesToTable(tTexturePaths, tTexturesToEditor)
+    local tTextureByPath = makeTextureByPath(tTexturesToEditor)
+    local skippedParts = 0
+    local tFrameIndexRemap = {}
+
+    for iImportedFrame, tImportedFrame in ipairs(tImport.frames) do
+        local tFrame = nil
+        for _, tPart in ipairs(tImportedFrame.parts) do
+            local tTexture = tTextureByPath[normalizeSpriterPath(tPart.texturePath)]
+            if tTexture then
+                local tFramePart = newSpriterFramePart(tPart, tTexture, tImport.width, tImport.height)
+                if tFrame == nil then
+                    tFrame = tFramePart
+                else
+                    table.insert(tFrame.tSubsetList, tFramePart)
+                end
+            else
+                skippedParts = skippedParts + 1
+            end
+        end
+        if tFrame then
+            table.insert(tFrameList, tFrame)
+            tFrameIndexRemap[iImportedFrame] = #tFrameList
+        end
+    end
+
+    for _, tAnim in ipairs(tImport.animations) do
+        local iFrameStart = tFrameIndexRemap[tAnim.frameStart]
+        local iFrameStop = tFrameIndexRemap[tAnim.frameStop]
+        if iFrameStart and iFrameStop and iFrameStart <= iFrameStop then
+            table.insert(tAnimationList, {
+                sNameAnim   = tAnim.name,
+                fTimeFrame  = tAnim.frameTime,
+                iTypeAnim   = 3,
+                iFrameStart = iFrameStart,
+                iFrameStop  = iFrameStop,
+            })
+        end
+    end
+
+    sLastEditorFileName = ''
+    sLastTextureOpenned = file_name
+    bTextureViewOpened = true
+    bShowFrameList = true
+    bShowAnimationEdit = true
+    unCollapse(tWindowsTitle.title_image_selector)
+    unCollapse(tWindowsTitle.title_frame_list)
+    unCollapse(tWindowsTitle.title_animation)
+
+    local message = string.format(tLang.L("spriter_import_ok_fmt"), #tFrameList, #tAnimationList, #tTexturesToEditor)
+    if skippedParts > 0 then
+        message = message .. '\n' .. string.format(tLang.L("spriter_import_skipped_parts_fmt"), skippedParts)
+    end
+    if tImport.warnings and #tImport.warnings > 0 then
+        for _, warning in ipairs(tImport.warnings) do
+            print('[spriter_scml] ' .. warning)
+        end
+        message = message .. '\n' .. string.format(tLang.L("spriter_import_warnings_fmt"), #tImport.warnings)
+    end
+    tUtil.showMessage(message, 6)
 end
 
 function onOpenImage()
@@ -3806,7 +3992,10 @@ function onLoop(delta)
         showEditPhysics()
     end
     tUtil.showOverlayMessage()
-    if #tFrameList > 0 and #tPhysicsOptions.tLinesPhysics == 0 and tFrameList[1].tShape.bFirstRender == false then
+    if #tFrameList > 0 and
+       not tFrameList[1].bCompositeFrame and
+       #tPhysicsOptions.tLinesPhysics == 0 and
+       tFrameList[1].tShape.bFirstRender == false then
         addPhysics(tFrameList[1].tShape)
         for i=1, #tFrameList[1].tSubsetList do
             addPhysics(tFrameList[1].tSubsetList[i].tShape)
