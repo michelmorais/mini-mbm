@@ -30,6 +30,7 @@
 
 tImGui        =     require "ImGui"
 tUtil         =     require "editor_utils"
+tSpriterScml  =     require "spriter_scml_wrapper"
 
 
 function onInitScene()
@@ -167,7 +168,9 @@ function onInitScene()
                             
 
     tAnimationOptions.reset = function (self)
-        self.iCurrentFrame       = self.iFrameStart
+        self.iFrameStart         = 1
+        self.iFrameStop          = 1
+        self.iCurrentFrame       = 1
         self.bDirectionGrowing   = true
         self.iTimeAnimSimulation = 0
         self.iTypeAnim           = 3
@@ -364,7 +367,7 @@ function onNewSprite()
     tSaveBinaryOptions.indexStride          = 1
 end
 
-function onSaveUserData(name,value,tOut)
+function onSaveUserData(name,value,tOut,saved)
     if name:match('tFrameList.*tShape') then
         --print('info',name)
         table.insert(tOut,name .. ' = shape:new(\'2dw\')')
@@ -375,11 +378,11 @@ function onSaveUserData(name,value,tOut)
         local uv_bkp            = name .. '.uv_bkp'
         local index_buffer_edit = name .. '.index_buffer_edit'
         
-        tUtil.save(uv,                 value.uv,                tOut, onSaveUserData)
-        tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData)
-        tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData)
-        tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData)
-        tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData)
+        tUtil.save(uv,                 value.uv,                tOut, onSaveUserData, saved)
+        tUtil.save(uv_bkp,             value.uv_bkp,            tOut, onSaveUserData, saved)
+        tUtil.save(vertex,             value.vertex,            tOut, onSaveUserData, saved)
+        tUtil.save(index_read_only,    value.index_read_only,   tOut, onSaveUserData, saved)
+        tUtil.save(index_buffer_edit,  value.index_buffer_edit, tOut, onSaveUserData, saved)
         
         table.insert(tOut,string.format('%s:createDynamicIndexed(rawVertex(%s),%s,rawUv(%s),%s)',name,vertex,index_read_only,uv,'getUniqueNickName()'))
         local s,e                  = name:match('^().*%]%[()')
@@ -389,12 +392,14 @@ function onSaveUserData(name,value,tOut)
 
         if value.tVertexEdited then
             local tVertexEdited       = name .. '.tVertexEdited'
-            tUtil.save(tVertexEdited, value.tVertexEdited,              tOut, onSaveUserData)
+            tUtil.save(tVertexEdited, value.tVertexEdited,              tOut, onSaveUserData, saved)
         end
 
         table.insert(tOut,string.format('%s:setTexture(%q)', name,sTextureNameCommand()))
         table.insert(tOut,string.format('%s:onRender(onRenderShape)',name))
-    elseif name:match('tTexturesToEditor%[%d+%]%["id"%]') or name:match('tFrameList%[%d+%]%["tTexture"%]%["id"%]') then
+    elseif name:match('tTexturesToEditor%[%d+%]%["id"%]') or 
+           name:match('tFrameList%[%d+%]%["tTexture"%]%["id"%]') or
+           name:match('tFrameList%[%d+%]%["tSubsetList"%]%[%d+%]%["tTexture"%]%["id"%]') then
         -- Recreate texture userdata from its file name
         local baseName = name:match('^(.*)%["id"%]$')
         local getter = load(string.format('return %s["file_name"]', baseName))
@@ -435,6 +440,9 @@ function onSaveEditionSprite(sFileName)
         for i =1, #tLinesFrameList do
             local sLine = tLinesFrameList[i]
             local s,e   = sLine:match('^()tFrameList%[%d+%]%["tTexture"()%]%["id"%]') -- replace id for loadTexture in runtime
+            if not s then
+                s,e = sLine:match('^()tFrameList%[%d+%]%["tSubsetList"%]%[%d+%]%["tTexture"()%]%["id"%]') -- replace subset id for loadTexture in runtime
+            end
             if s and e then
                 local sIdTexture           = sLine:sub(s,e)
                 local sCommand             = string.format('return %s["file_name"]', sIdTexture ) -- return tTexturesToEditor[1]["file_name"]
@@ -632,7 +640,9 @@ function onSaveSprite(fileName)
     for i=1, #tPhysicsOptions.tLinesPhysics do
         table.insert(tPhysics,tPhysicsOptions.tLinesPhysics[i].tPhysic)
     end
-    tMesh:setPhysics(tPhysics)
+    if #tPhysics > 0 then
+        tMesh:setPhysics(tPhysics)
+    end
 
     local calcNormal,calcUv = false,false --Instruct to do not calculate normal and UV
     if tMesh:save(fileName,calcNormal,calcUv) then
@@ -658,6 +668,14 @@ function main_menu_sprite()
             local pressed,checked = tImGui.MenuItem(tLang.L("load_sprite"), "Ctrl+O", false)
             if pressed then
                 onOpenSprite()
+            end
+            local pressed,checked = tImGui.MenuItem(tLang.L("import_binary_sprite"), nil, false)
+            if pressed then
+                onImportBinarySprite()
+            end
+            local pressed,checked = tImGui.MenuItem(tLang.L("import_spriter_scml"), nil, false)
+            if pressed then
+                onImportSpriterScml()
             end
             tImGui.Separator()
             local pressed,checked = tImGui.MenuItem(tLang.L("save_editor"), "Ctrl+S", false)
@@ -979,6 +997,16 @@ function setAllFrameAsNotVisible()
     end
 end
 
+function resetFrameAndSubsetsScale(tFrame)
+    if tFrame == nil then
+        return
+    end
+    tFrame.tShape:setScale(1,1)
+    for i=1, #tFrame.tSubsetList do
+        tFrame.tSubsetList[i].tShape:setScale(1,1)
+    end
+end
+
 function getSelectedFrame()
     if tFrameList.indexSelectedFrameNode and 
       tFrameList.indexSelectedFrameNode <= #tFrameList and
@@ -1022,8 +1050,13 @@ function showFrameEdit()
     if tFrame then
 
         tShape      = tFrame.tShape
+        resetFrameAndSubsetsScale(tFrame)
         if tPivotShape.visible then
-            tShape:setPos(0,0) --reset pos
+            if tFrame.bCompositeFrame then
+                tShape:setPos(tFrame.tPivot.x,tFrame.tPivot.y)
+            else
+                tShape:setPos(0,0) --reset pos
+            end
             setShapeToRender(tShape,tFrame)
             for i=1, #tFrame.tSubsetList do
                 local tSubset = tFrame.tSubsetList[i]
@@ -2433,7 +2466,9 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     local iW, iH          = mbm.getRealSizeScreen()
     local bg_col          = {r=0,g=0,b=0,a=0}
     local tint_col        = {r=1,g=1,b=1,a=1}
-    if tFrame == nil then trace() end
+    if tFrame == nil or tFrame.width == nil or tFrame.height == nil then
+        return false
+    end
     local new_width       = math.min(tFrame.width, winSize.x - padding.x)
     local sy              = new_width / tFrame.width  * tFrame.height
     local size            = {x = math.min(new_width,iW), y = math.min(sy,iH) }
@@ -2442,7 +2477,7 @@ function addDynamicTextureToImGuiImage(tFrame,winSize,padding,iNumImage)
     tImGui.Image(tTextureInfo,size,tAnimationOptions.tUvZoom.uv0,tAnimationOptions.tUvZoom.uv1,bg_col,tint_col,bFlipV)
     applyZoomFrameAnimation()
     tImGui.HelpMarker(tLang.L("help_control_scroll_zoom"))
-    
+    return true
 end
 
 function showAnimationAdd(delta)
@@ -2454,7 +2489,6 @@ function showAnimationAdd(delta)
         local width        = 230
         local tSizeBtn     = {x=width - 30,y=0}
         local x_pos, y_pos = 0, 0
-        local indexFrame   = tAnimationOptions:updateAnimation(delta)
         tUtil.setInitialWindowPositionLeft(tWindowsTitle.title_animation,x_pos,y_pos,width)
         shouldICollapse(tWindowsTitle.title_animation)
         tImGui.PushStyleVar('ImGuiStyleVar_WindowMinSize',{x = width, y= width})
@@ -2470,6 +2504,18 @@ function showAnimationAdd(delta)
         end
         if tAnimationOptions.iFrameStop > #tFrameList then
             tAnimationOptions.iFrameStop = #tFrameList
+        end
+        if tAnimationOptions.iFrameStart > tAnimationOptions.iFrameStop then
+            tAnimationOptions.iFrameStop = tAnimationOptions.iFrameStart
+        end
+        if tAnimationOptions.iCurrentFrame < tAnimationOptions.iFrameStart or
+           tAnimationOptions.iCurrentFrame > tAnimationOptions.iFrameStop then
+            tAnimationOptions.iCurrentFrame = tAnimationOptions.iFrameStart
+        end
+        local indexFrame = tAnimationOptions:updateAnimation(delta)
+        if indexFrame < 1 or indexFrame > #tFrameList or tFrameList[indexFrame] == nil then
+            indexFrame = tAnimationOptions.iFrameStart
+            tAnimationOptions.iCurrentFrame = indexFrame
         end
         if is_opened then
             tImGui.Text(tLang.L("add_animation_label"))
@@ -3262,7 +3308,7 @@ function closePhysicsWindow()
     bShowEditPhysics   = false
     if #tFrameList > 0 then
         local tFrame = tFrameList[1]
-        tFrame.tShape:setScale(1,1)
+        resetFrameAndSubsetsScale(tFrame)
         tFrame.tShape.visible = false
     end
     for i=1, #tPhysicsOptions.tLinesPhysics do
@@ -3444,7 +3490,7 @@ function newPrimitiveShape(tTexture,tVertexEdited,width,height)
         end
         tVertexBkp = vertex
     end
-    tShape:createDynamicIndexed(tVertex,tIndex,tUv,tNormal,nickName)
+    tShape:createDynamicIndexed(tVertex,tIndex,tUv,nickName)
     tShape:setTexture(tTexture.file_name)
     tShape.tVertexEdited     = { vertex = tVertexBkp, index = tIndex, old_width = old_width, old_height = old_height}
     tShape.visible           = true
@@ -3555,6 +3601,503 @@ function newPrimitiveFrameFromFrameAddOptions(tTexture,width,height)
     tFrame.tPivot                             = {x = 0, y = 0}
     tFrame.tShape,tFrame.width,tFrame.height  = newPrimitiveShape(tTexture,tVertexEdited,width,height)
     return tFrame
+end
+
+local function normalizeSpriterPath(fileName)
+    return (fileName or ''):gsub('\\','/')
+end
+
+local function copySpriterIndex(tIndex)
+    local tOut = {}
+    for i=1, #tIndex do
+        tOut[i] = tIndex[i]
+    end
+    return tOut
+end
+
+local function makeSpriterVertexTable(tVertex)
+    local tOut = {}
+    for i=1, #tVertex, 2 do
+        table.insert(tOut, {x = tVertex[i], y = tVertex[i + 1]})
+    end
+    return tOut
+end
+
+local function makeSpriterUvTable(tUv)
+    local tOut = {}
+    for i=1, #tUv, 2 do
+        table.insert(tOut, {u = tUv[i], v = tUv[i + 1]})
+    end
+    return tOut
+end
+
+local function newSpriterShape(tPart, tTexture)
+    local tShape   = shape:new('2dw')
+    local nickName = getUniqueNickName()
+    tShape:createDynamicIndexed(tPart.vertices, tPart.index, tPart.uv, nickName)
+    tShape:setTexture(tTexture.file_name)
+    tShape.vertex            = makeSpriterVertexTable(tPart.vertices)
+    tShape.uv                = makeSpriterUvTable(tPart.uv)
+    tShape.uv_bkp            = makeSpriterUvTable(tPart.uv)
+    tShape.index_read_only   = copySpriterIndex(tPart.index)
+    tShape.index_buffer_edit = copySpriterIndex(tPart.index)
+    tShape.normal            = nil
+    tShape.visible           = true
+    tShape.bFirstRender      = true
+    tShape:onRender(onRenderShape)
+    return tShape
+end
+
+local function newSpriterFramePart(tPart, tTexture, width, height)
+    return {
+        type         = 'triangle',
+        iNumElements = 2,
+        tTexture     = tTexture,
+        width        = width,
+        height       = height,
+        tSubsetList  = {},
+        tPivot       = {x = 0, y = 0},
+        bCompositeFrame = true,
+        tShape       = newSpriterShape(tPart, tTexture),
+    }
+end
+
+local function collectSpriterTexturePaths(tImport)
+    local tSeen = {}
+    local tPaths = {}
+    for _, tFrame in ipairs(tImport.frames) do
+        for _, tPart in ipairs(tFrame.parts) do
+            local path = normalizeSpriterPath(tPart.texturePath)
+            if not tSeen[path] then
+                tSeen[path] = true
+                table.insert(tPaths, path)
+            end
+        end
+    end
+    return tPaths
+end
+
+local function makeTextureByPath(tTextures)
+    local tByPath = {}
+    for _, tTexture in ipairs(tTextures) do
+        tByPath[normalizeSpriterPath(tTexture.file_name)] = tTexture
+    end
+    return tByPath
+end
+
+local function getDirectoryName(fileName)
+    local normalized = normalizeSpriterPath(fileName)
+    return normalized:match('^(.*)/[^/]*$')
+end
+
+local function isAbsolutePath(fileName)
+    local normalized = normalizeSpriterPath(fileName)
+    return normalized:match('^/') ~= nil or normalized:match('^%a:/') ~= nil
+end
+
+local function findOptionIndex(tList, value, defaultIndex)
+    for i=1, #tList do
+        if tList[i] == value then
+            return i
+        end
+    end
+    return defaultIndex
+end
+
+local function getImportedSpriteAnimType(typeAnimation)
+    if type(typeAnimation) == 'number' and typeAnimation >= 0 and typeAnimation <= 6 then
+        return typeAnimation + 1
+    end
+
+    local tEngineAnimTypes = {
+        mbm.PAUSED,
+        mbm.GROWING,
+        mbm.GROWING_LOOP,
+        mbm.DECREASING,
+        mbm.DECREASING_LOOP,
+        mbm.RECURSIVE,
+        mbm.RECURSIVE_LOOP,
+    }
+    for i=1, #tEngineAnimTypes do
+        if typeAnimation == tEngineAnimTypes[i] then
+            return i
+        end
+    end
+    return 3
+end
+
+local function getOrLoadBinarySpriteTexture(textureName, spriteDir, tTextureByName)
+    local normalized = normalizeSpriterPath(textureName or '')
+    if normalized:len() == 0 then
+        return nil
+    end
+
+    local baseName = tUtil.getBaseFileName(normalized)
+    local cacheKey = normalizeSpriterPath(baseName)
+    if tTextureByName[cacheKey] then
+        return tTextureByName[cacheKey]
+    end
+
+    local tCandidates = {}
+    if spriteDir and not isAbsolutePath(normalized) then
+        table.insert(tCandidates, spriteDir .. '/' .. normalized)
+    end
+    table.insert(tCandidates, normalized)
+
+    for i=1, #tCandidates do
+        local candidate = tCandidates[i]
+        local texInfo = mbm.loadTexture(candidate)
+        if texInfo and texInfo:isValid() then
+            local tTexture = {
+                file_name      = candidate,
+                width          = texInfo:getWidth(),
+                height         = texInfo:getHeight(),
+                alpha          = texInfo:hasAlpha(),
+                id             = texInfo,
+                base_file_name = tUtil.getBaseFileName(candidate),
+            }
+            table.insert(tTexturesToEditor, tTexture)
+            tTextureByName[cacheKey] = tTexture
+            tTextureByName[normalizeSpriterPath(candidate)] = tTexture
+            return tTexture
+        end
+    end
+
+    return nil
+end
+
+local function copyIndexList(tIndex)
+    local tOut = {}
+    if type(tIndex) == 'table' then
+        for i=1, #tIndex do
+            tOut[i] = tIndex[i]
+        end
+    end
+    return tOut
+end
+
+local function makeSequentialIndex(totalVertex)
+    local tIndex = {}
+    for i=1, totalVertex do
+        tIndex[i] = i
+    end
+    return tIndex
+end
+
+local function makeBinarySpriteShape(tMesh, indexFrame, indexSubset, tTexture)
+    local totalVertex = tMesh:getTotalVertex(indexFrame, indexSubset)
+    if not totalVertex or totalVertex < 3 then
+        return nil
+    end
+
+    local tVertexInfo = tMesh:getVertex(indexFrame, indexSubset, 1, totalVertex)
+    if totalVertex == 1 then
+        tVertexInfo = { tVertexInfo }
+    end
+    if type(tVertexInfo) ~= 'table' or #tVertexInfo == 0 then
+        return nil
+    end
+
+    local tVertexRaw = {}
+    local tUvRaw = {}
+    local tVertex = {}
+    local tUv = {}
+    local minX, maxX, minY, maxY
+    for i=1, #tVertexInfo do
+        local v = tVertexInfo[i]
+        local x = v.x or 0
+        local y = v.y or 0
+        local u = v.u or 0
+        local vv = v.v or 0
+        table.insert(tVertexRaw, x)
+        table.insert(tVertexRaw, y)
+        table.insert(tUvRaw, u)
+        table.insert(tUvRaw, vv)
+        table.insert(tVertex, {x = x, y = y})
+        table.insert(tUv, {u = u, v = vv})
+        minX = minX and math.min(minX, x) or x
+        maxX = maxX and math.max(maxX, x) or x
+        minY = minY and math.min(minY, y) or y
+        maxY = maxY and math.max(maxY, y) or y
+    end
+
+    local tIndex = tMesh:getIndex(indexFrame, indexSubset)
+    if type(tIndex) ~= 'table' or #tIndex == 0 then
+        tIndex = makeSequentialIndex(totalVertex)
+    end
+
+    local tShape = shape:new('2dw')
+    local nickName = getUniqueNickName()
+    tShape:createDynamicIndexed(tVertexRaw, tIndex, tUvRaw, nickName)
+    tShape:setTexture(tTexture.file_name)
+    tShape.vertex            = tVertex
+    tShape.uv                = tUv
+    tShape.uv_bkp            = makeSpriterUvTable(tUvRaw)
+    tShape.index_read_only   = copyIndexList(tIndex)
+    tShape.index_buffer_edit = copyIndexList(tIndex)
+    tShape.normal            = nil
+    tShape.visible           = true
+    tShape.bFirstRender      = true
+    tShape:onRender(onRenderShape)
+
+    return tShape, {
+        minX = minX or 0,
+        maxX = maxX or 0,
+        minY = minY or 0,
+        maxY = maxY or 0,
+    }
+end
+
+local function newBinarySpriteFramePart(tMesh, indexFrame, indexSubset, tTexture)
+    local tShape, tBounds = makeBinarySpriteShape(tMesh, indexFrame, indexSubset, tTexture)
+    if not tShape then
+        return nil
+    end
+
+    local width = math.max(1, (tBounds.maxX or 0) - (tBounds.minX or 0))
+    local height = math.max(1, (tBounds.maxY or 0) - (tBounds.minY or 0))
+    return {
+        type         = 'triangle',
+        iNumElements = 2,
+        tTexture     = tTexture,
+        width        = width,
+        height       = height,
+        tSubsetList  = {},
+        tPivot       = {x = 0, y = 0},
+        bCompositeFrame = true,
+        tShape       = tShape,
+    }, tBounds
+end
+
+local function applyBinarySpriteDrawOptions(tMesh, tInfo)
+    local modeDraw = (tInfo and tInfo.modeDraw) or tMesh:getModeDraw()
+    local modeCullFace = (tInfo and tInfo.modeCullFace) or tMesh:getModeCullFace()
+    local modeFrontFace = (tInfo and tInfo.modeFrontFace) or tMesh:getModeFrontFace()
+    tSaveBinaryOptions.indexModeDraw = findOptionIndex(tSaveBinaryOptions.tModeDrawList, modeDraw, tSaveBinaryOptions.indexModeDraw)
+    tSaveBinaryOptions.indexCullFace = findOptionIndex(tSaveBinaryOptions.tCullFaceList, modeCullFace, tSaveBinaryOptions.indexCullFace)
+    tSaveBinaryOptions.indexFrontFace = findOptionIndex(tSaveBinaryOptions.tFrontFaceList, modeFrontFace, tSaveBinaryOptions.indexFrontFace)
+end
+
+function onImportBinarySprite()
+    local file_name = mbm.openFile(sLastSpriteOpenned, '*.spt')
+    if not file_name then
+        return
+    end
+
+    local tMesh = meshDebug:new()
+    if not tMesh:load(file_name) then
+        tUtil.showMessageWarn(string.format(tLang.L("binary_sprite_import_failed_fmt"), file_name))
+        return
+    end
+
+    local tInfo = meshDebug:getInfo(file_name)
+    if tInfo and tInfo.type ~= 'sprite' then
+        tUtil.showMessageWarn(string.format(tLang.L("binary_sprite_import_failed_fmt"), 'Expected sprite, got ' .. tostring(tInfo.type)))
+        return
+    end
+
+    local totalFrames = tMesh:getTotalFrame()
+    if not totalFrames or totalFrames == 0 then
+        tUtil.showMessageWarn(string.format(tLang.L("binary_sprite_import_failed_fmt"), tLang.L("no_frame_to_save_sprite")))
+        return
+    end
+
+    onNewSprite()
+    local spriteDir = getDirectoryName(file_name)
+    if spriteDir then
+        mbm.addPath(spriteDir)
+    end
+    local tTextureByName = {}
+    local skippedSubsets = 0
+    local tFrameIndexRemap = {}
+
+    for indexFrame=1, totalFrames do
+        local totalSubsets = tMesh:getTotalSubset(indexFrame)
+        local tFrame = nil
+        local frameBounds = nil
+        for indexSubset=1, totalSubsets do
+            local textureName = tMesh:getTexture(indexFrame, indexSubset)
+            local tTexture = getOrLoadBinarySpriteTexture(textureName, spriteDir, tTextureByName)
+            if tTexture then
+                local tFramePart, tBounds = newBinarySpriteFramePart(tMesh, indexFrame, indexSubset, tTexture)
+                if tFramePart then
+                    if tFrame == nil then
+                        tFrame = tFramePart
+                    else
+                        table.insert(tFrame.tSubsetList, tFramePart)
+                    end
+                    if tBounds then
+                        if frameBounds == nil then
+                            frameBounds = {minX = tBounds.minX, maxX = tBounds.maxX, minY = tBounds.minY, maxY = tBounds.maxY}
+                        else
+                            frameBounds.minX = math.min(frameBounds.minX, tBounds.minX)
+                            frameBounds.maxX = math.max(frameBounds.maxX, tBounds.maxX)
+                            frameBounds.minY = math.min(frameBounds.minY, tBounds.minY)
+                            frameBounds.maxY = math.max(frameBounds.maxY, tBounds.maxY)
+                        end
+                    end
+                else
+                    skippedSubsets = skippedSubsets + 1
+                end
+            else
+                skippedSubsets = skippedSubsets + 1
+                print('Could not load texture for binary sprite subset:', tostring(textureName))
+            end
+        end
+        if tFrame then
+            if frameBounds then
+                tFrame.width = math.max(1, frameBounds.maxX - frameBounds.minX)
+                tFrame.height = math.max(1, frameBounds.maxY - frameBounds.minY)
+            end
+            table.insert(tFrameList, tFrame)
+            tFrameIndexRemap[indexFrame] = #tFrameList
+        end
+    end
+
+    if #tFrameList == 0 then
+        tUtil.showMessageWarn(string.format(tLang.L("binary_sprite_import_failed_fmt"), tLang.L("no_frame_to_save_sprite")))
+        return
+    end
+
+    applyBinarySpriteDrawOptions(tMesh, tInfo)
+
+    local totalAnimations = (tInfo and tInfo.animation) or 0
+    for i=1, totalAnimations do
+        local name, initialFrame, finalFrame, timeBetweenFrame, typeAnimation = tMesh:getAnim(i)
+        if name and initialFrame and finalFrame then
+            local iFrameStart = nil
+            local iFrameStop = nil
+            for indexFrame=initialFrame, finalFrame do
+                local remapped = tFrameIndexRemap[indexFrame]
+                if remapped then
+                    iFrameStart = iFrameStart or remapped
+                    iFrameStop = remapped
+                end
+            end
+            if iFrameStart and iFrameStop then
+                table.insert(tAnimationList, {
+                    sNameAnim   = name,
+                    fTimeFrame  = timeBetweenFrame or 0.3,
+                    iTypeAnim   = getImportedSpriteAnimType(typeAnimation),
+                    iFrameStart = iFrameStart,
+                    iFrameStop  = iFrameStop,
+                })
+            end
+        end
+    end
+
+    if tAnimationList[1] then
+        tAnimationOptions.sNameAnim   = tAnimationList[1].sNameAnim
+        tAnimationOptions.fTimeFrame  = tAnimationList[1].fTimeFrame
+        tAnimationOptions.iTypeAnim   = tAnimationList[1].iTypeAnim
+        tAnimationOptions.iFrameStart = tAnimationList[1].iFrameStart
+        tAnimationOptions.iFrameStop  = tAnimationList[1].iFrameStop
+        tAnimationOptions:restartAnim()
+    end
+
+    sLastSpriteOpenned = file_name
+    sLastTextureOpenned = file_name
+    sLastEditorFileName = ''
+    bTextureViewOpened = true
+    bShowFrameList = true
+    bShowAnimationEdit = #tAnimationList > 0
+    unCollapse(tWindowsTitle.title_image_selector)
+    unCollapse(tWindowsTitle.title_frame_list)
+    if #tAnimationList > 0 then
+        unCollapse(tWindowsTitle.title_animation)
+    end
+
+    local message = string.format(tLang.L("binary_sprite_import_ok_fmt"), #tFrameList, #tAnimationList, #tTexturesToEditor)
+    if skippedSubsets > 0 then
+        message = message .. '\n' .. string.format(tLang.L("spriter_import_skipped_parts_fmt"), skippedSubsets)
+    end
+    tUtil.showMessage(message, 6)
+end
+
+function onImportSpriterScml()
+    local file_name = mbm.openFile(sLastEditorFileName, '*.scml')
+    if not file_name then
+        return
+    end
+
+    local tImport = tSpriterScml.import(file_name)
+    if not tImport or not tImport.ok then
+        local msg = (tImport and tImport.message) or tLang.L("spriter_import_failed")
+        tUtil.showMessageWarn(string.format(tLang.L("spriter_import_failed_fmt"), msg))
+        return
+    end
+
+    local tTexturePaths = collectSpriterTexturePaths(tImport)
+    onNewSprite()
+    tTexturesToEditor = tUtil.loadInfoImagesToTable(tTexturePaths, tTexturesToEditor)
+    local tTextureByPath = makeTextureByPath(tTexturesToEditor)
+    local skippedParts = 0
+    local tFrameIndexRemap = {}
+
+    for iImportedFrame, tImportedFrame in ipairs(tImport.frames) do
+        local tFrame = nil
+        for _, tPart in ipairs(tImportedFrame.parts) do
+            local tTexture = tTextureByPath[normalizeSpriterPath(tPart.texturePath)]
+            if tTexture then
+                local tFramePart = newSpriterFramePart(tPart, tTexture, tImport.width, tImport.height)
+                if tFrame == nil then
+                    tFrame = tFramePart
+                else
+                    table.insert(tFrame.tSubsetList, tFramePart)
+                end
+            else
+                skippedParts = skippedParts + 1
+            end
+        end
+        if tFrame then
+            table.insert(tFrameList, tFrame)
+            tFrameIndexRemap[iImportedFrame] = #tFrameList
+        end
+    end
+
+    for _, tAnim in ipairs(tImport.animations) do
+        local iFrameStart = tFrameIndexRemap[tAnim.frameStart]
+        local iFrameStop = tFrameIndexRemap[tAnim.frameStop]
+        if iFrameStart and iFrameStop and iFrameStart <= iFrameStop then
+            table.insert(tAnimationList, {
+                sNameAnim   = tAnim.name,
+                fTimeFrame  = tAnim.frameTime,
+                iTypeAnim   = 3,
+                iFrameStart = iFrameStart,
+                iFrameStop  = iFrameStop,
+            })
+        end
+    end
+
+    if tAnimationList[1] then
+        tAnimationOptions.sNameAnim   = tAnimationList[1].sNameAnim
+        tAnimationOptions.fTimeFrame  = tAnimationList[1].fTimeFrame
+        tAnimationOptions.iTypeAnim   = tAnimationList[1].iTypeAnim
+        tAnimationOptions.iFrameStart = tAnimationList[1].iFrameStart
+        tAnimationOptions.iFrameStop  = tAnimationList[1].iFrameStop
+        tAnimationOptions:restartAnim()
+    end
+
+    sLastEditorFileName = ''
+    sLastTextureOpenned = file_name
+    bTextureViewOpened = true
+    bShowFrameList = true
+    bShowAnimationEdit = true
+    unCollapse(tWindowsTitle.title_image_selector)
+    unCollapse(tWindowsTitle.title_frame_list)
+    unCollapse(tWindowsTitle.title_animation)
+
+    local message = string.format(tLang.L("spriter_import_ok_fmt"), #tFrameList, #tAnimationList, #tTexturesToEditor)
+    if skippedParts > 0 then
+        message = message .. '\n' .. string.format(tLang.L("spriter_import_skipped_parts_fmt"), skippedParts)
+    end
+    if tImport.warnings and #tImport.warnings > 0 then
+        for _, warning in ipairs(tImport.warnings) do
+            print('[spriter_scml] ' .. warning)
+        end
+        message = message .. '\n' .. string.format(tLang.L("spriter_import_warnings_fmt"), #tImport.warnings)
+    end
+    tUtil.showMessage(message, 6)
 end
 
 function onOpenImage()
@@ -3806,7 +4349,10 @@ function onLoop(delta)
         showEditPhysics()
     end
     tUtil.showOverlayMessage()
-    if #tFrameList > 0 and #tPhysicsOptions.tLinesPhysics == 0 and tFrameList[1].tShape.bFirstRender == false then
+    if #tFrameList > 0 and
+       not tFrameList[1].bCompositeFrame and
+       #tPhysicsOptions.tLinesPhysics == 0 and
+       tFrameList[1].tShape.bFirstRender == false then
         addPhysics(tFrameList[1].tShape)
         for i=1, #tFrameList[1].tSubsetList do
             addPhysics(tFrameList[1].tSubsetList[i].tShape)
