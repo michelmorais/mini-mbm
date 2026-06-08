@@ -161,12 +161,22 @@ function onInitScene()
         bStatusOk = true,
         bImporting = false,
         co = nil,
+        iAnimSettingsIndex = 0,
+        bOpenAnimSettingsPopup = false,
         iProgress = 0,
         iTotal = 0,
+        sProgressDetail = '',
         iTimeoutSecs = 120,
         bAbortRequested = false,
+        sCancelFile = '',
         customBlenderPath = '',
         bKeepInSourceFolder = false,
+        bImportPostProcess = true,
+        bImportInvertU = false,
+        bImportInvertV = true,
+        nImportAngleX = -90,
+        nImportAngleY = 0,
+        nImportAngleZ = 0,
         tRunResults = {},
     }
 end
@@ -194,6 +204,297 @@ local function getFileStem(path)
     return (name and name:match('(.+)%.[^%.]+$')) or name or 'mesh'
 end
 
+local function shellQuoteLocal(path)
+    if package.config:sub(1, 1) == '\\' then
+        return '"' .. tostring(path):gsub('"', '\\"') .. '"'
+    end
+    return "'" .. tostring(path):gsub("'", "'\\''") .. "'"
+end
+
+local function removePathRecursive(path)
+    if not path or path == '' then return end
+    if package.config:sub(1, 1) == '\\' then
+        os.execute('rmdir /s /q ' .. shellQuoteLocal(path) .. ' 2>nul')
+    else
+        os.execute('rm -rf ' .. shellQuoteLocal(path))
+    end
+end
+
+local function joinPath(base, rel)
+    if not base or base == '' then return rel end
+    if not rel or rel == '' then return base end
+    local sep = package.config:sub(1, 1)
+    if base:sub(-1) == '/' or base:sub(-1) == '\\' then
+        return base .. rel
+    end
+    return base .. sep .. rel
+end
+
+local function addPathIfValid(path, tSeen)
+    if type(path) ~= 'string' or path == '' then return 0 end
+    path = path:gsub("\\", "/")
+    if tSeen and tSeen[path] then return 0 end
+    mbm.addPath(path)
+    if tSeen then tSeen[path] = true end
+    return 1
+end
+
+local function addBlenderSourceFallbackSearchPath(sourcePath)
+    local added = 0
+    local tSeen = {}
+    added = added + addPathIfValid(getFileDir(sourcePath), tSeen)
+    return added
+end
+
+local function parseBlenderVersion(version)
+    local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.?(%d*)')
+    return tonumber(major) or 0, tonumber(minor) or 0, tonumber(patch) or 0
+end
+
+local function isBlenderVersionOlderThan(blender, majorMin, minorMin)
+    if not blender or not blender.found then return false end
+    local major, minor = parseBlenderVersion(blender.version)
+    if major == 0 then return false end
+    if major < majorMin then return true end
+    if major > majorMin then return false end
+    return minor < minorMin
+end
+
+local function getDefaultSampleStep(frameStart, frameEnd)
+    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
+    if total > 800 then return 10 end
+    if total > 300 then return 5 end
+    return 1
+end
+
+local function ensureBlenderAnimSettings(row)
+    row.anim = row.anim or {
+        scanStatus = 'not_scanned',
+        scanData = nil,
+        scanError = '',
+        scanOutput = '',
+        scanLog = '',
+        scanStartTime = 0,
+        bEnableAnimation = false,
+        bManualRange = false,
+        iSelectedSource = 0,
+        iStaticFrame = 1,
+        iFrameStart = 1,
+        iFrameEnd = 1,
+        iSampleStep = 1,
+        sAnimationName = 'Bake',
+    }
+    return row.anim
+end
+
+local function getSourceFrameCount(src)
+    if not src then return 1 end
+    return math.max(1, math.abs((src.frameEnd or 1) - (src.frameStart or 1)) + 1)
+end
+
+local function getBakedFrameCount(frameStart, frameEnd, sampleStep)
+    local total = math.max(1, math.abs((frameEnd or 1) - (frameStart or 1)) + 1)
+    return math.floor((total - 1) / math.max(1, sampleStep or 1)) + 1
+end
+
+local function formatLargeInt(value)
+    value = math.floor(tonumber(value or 0) or 0)
+    local s = tostring(value)
+    local out = ''
+    while #s > 3 do
+        out = ',' .. s:sub(-3) .. out
+        s = s:sub(1, -4)
+    end
+    return s .. out
+end
+
+local function formatBytes(bytes)
+    bytes = tonumber(bytes or 0) or 0
+    local units = {'B', 'KB', 'MB', 'GB'}
+    local idx = 1
+    while bytes >= 1024 and idx < #units do
+        bytes = bytes / 1024
+        idx = idx + 1
+    end
+    if idx == 1 then
+        return string.format('%d %s', math.floor(bytes), units[idx])
+    end
+    return string.format('%.1f %s', bytes, units[idx])
+end
+
+local function getTextureSearchPathCountFromScan(row)
+    local anim = row and row.anim
+    local stats = anim and anim.scanData and anim.scanData.meshStats
+    local paths = type(stats) == 'table' and stats.textureSearchPaths or nil
+    return type(paths) == 'table' and #paths or nil
+end
+
+local function estimateRawMeshBytes(frames, verticesPerFrame, indicesPerFrame, subsetsPerFrame, texturePathBytes)
+    frames = math.max(1, math.floor(tonumber(frames or 1) or 1))
+    verticesPerFrame = math.max(0, math.floor(tonumber(verticesPerFrame or 0) or 0))
+    indicesPerFrame = math.max(0, math.floor(tonumber(indicesPerFrame or 0) or 0))
+    subsetsPerFrame = math.max(0, math.floor(tonumber(subsetsPerFrame or 0) or 0))
+    texturePathBytes = math.max(0, math.floor(tonumber(texturePathBytes or 0) or 0))
+    local headerBytes = 56 + texturePathBytes + 12 + 40 + 140
+    local frameBytes = 20 + (subsetsPerFrame * 84) + (indicesPerFrame * 2) + (verticesPerFrame * 32)
+    return headerBytes + (frameBytes * frames)
+end
+
+local getEnabledBlenderSourceRows
+local getBlenderImportOptionsForRow
+
+local function getRowImportEstimate(row)
+    local options = getBlenderImportOptionsForRow(row)
+    local targetFrames = options.bakeAnimation and getBakedFrameCount(options.frameStart, options.frameEnd, options.sampleStep) or 1
+    local anim = row and row.anim
+    local stats = anim and anim.scanData and anim.scanData.meshStats or nil
+    local out = {
+        targetFrames = targetFrames,
+        hasStats = type(stats) == 'table' and stats.available == true,
+        verticesPerFrame = nil,
+        indicesPerFrame = nil,
+        subsetsPerFrame = nil,
+        totalVertices = nil,
+        totalIndices = nil,
+        estimatedRawBytes = nil,
+        texturePaths = getTextureSearchPathCountFromScan(row),
+        animationText = '',
+    }
+    if options.bakeAnimation then
+        out.animationText = string.format('%s %d..%d step %d', options.animationName or 'Bake', options.frameStart or 1, options.frameEnd or 1, options.sampleStep or 1)
+    else
+        out.animationText = string.format('static frame %d', options.frameStart or 1)
+    end
+    if out.hasStats then
+        out.verticesPerFrame = math.max(0, math.floor(tonumber(stats.vertices or 0) or 0))
+        out.indicesPerFrame = math.max(0, math.floor(tonumber(stats.indices or 0) or 0))
+        out.subsetsPerFrame = math.max(0, math.floor(tonumber(stats.subsets or 0) or 0))
+        out.totalVertices = out.verticesPerFrame * targetFrames
+        out.totalIndices = out.indicesPerFrame * targetFrames
+        local pathBytes = 0
+        if type(stats.textureSearchPaths) == 'table' then
+            for i = 1, #stats.textureSearchPaths do
+                pathBytes = pathBytes + 5 + tostring(stats.textureSearchPaths[i]):len()
+            end
+        end
+        out.estimatedRawBytes = estimateRawMeshBytes(targetFrames, out.verticesPerFrame, out.indicesPerFrame, out.subsetsPerFrame, pathBytes)
+    end
+    return out
+end
+
+local function getBlenderImportEstimateSummary()
+    local rows = getEnabledBlenderSourceRows()
+    local fileCount = #rows
+    local targetFrames = 0
+    local vertices = 0
+    local indices = 0
+    local rawBytes = 0
+    local statsMissing = 0
+    local maxFrames = 0
+    for i = 1, #rows do
+        local est = getRowImportEstimate(rows[i])
+        targetFrames = targetFrames + est.targetFrames
+        maxFrames = math.max(maxFrames, est.targetFrames)
+        if est.hasStats then
+            vertices = vertices + (est.totalVertices or 0)
+            indices = indices + (est.totalIndices or 0)
+            rawBytes = rawBytes + (est.estimatedRawBytes or 0)
+        else
+            statsMissing = statsMissing + 1
+        end
+    end
+
+    local warning = nil
+    if rawBytes >= 1024 * 1024 * 1024 or maxFrames > 800 then
+        warning = tLang.L('blender_import_estimate_warning_large')
+    elseif rawBytes >= 256 * 1024 * 1024 or maxFrames > 300 then
+        warning = tLang.L('blender_import_estimate_warning_medium')
+    end
+
+    return {
+        fileCount = fileCount,
+        targetFrames = targetFrames,
+        vertices = vertices,
+        indices = indices,
+        rawBytes = rawBytes,
+        statsMissing = statsMissing,
+        warning = warning,
+    }
+end
+
+local function applyBlenderSourceToSettings(anim, src, index)
+    if not src then return end
+    anim.iSelectedSource = index or 0
+    anim.bManualRange = false
+    anim.bEnableAnimation = true
+    anim.iFrameStart = math.max(1, math.floor(src.frameStart or 1))
+    anim.iFrameEnd = math.max(1, math.floor(src.frameEnd or anim.iFrameStart))
+    anim.iSampleStep = getDefaultSampleStep(anim.iFrameStart, anim.iFrameEnd)
+    anim.sAnimationName = tostring(src.name or 'Bake')
+end
+
+local function getBestBlenderScanSource(scanData)
+    local sources = scanData and scanData.sources
+    if type(sources) ~= 'table' then return nil, 0 end
+    for i = 1, #sources do
+        local src = sources[i]
+        if src.confidence == 'high' and getSourceFrameCount(src) > 1 then
+            return src, i
+        end
+    end
+    return nil, 0
+end
+
+local function canBakeBlenderAnimation(anim)
+    if not anim or type(anim.scanData) ~= 'table' then
+        return true
+    end
+    local issues = anim.scanData.meshCacheIssues or {}
+    if #issues == 0 then
+        return true
+    end
+    local sources = anim.scanData.sources or {}
+    local selected = sources[anim.iSelectedSource or 0]
+    return selected and selected.hasGeometryAnimation and selected.confidence ~= 'low'
+end
+
+local function applyBlenderScanDefaults(row)
+    local anim = ensureBlenderAnimSettings(row)
+    local scene = anim.scanData and anim.scanData.scene or nil
+    if type(scene) == 'table' then
+        anim.iStaticFrame = math.max(1, math.floor(scene.currentFrame or scene.frameStart or 1))
+        anim.iFrameStart = math.max(1, math.floor(scene.frameStart or 1))
+        anim.iFrameEnd = math.max(1, math.floor(scene.frameEnd or anim.iFrameStart))
+        anim.iSampleStep = getDefaultSampleStep(anim.iFrameStart, anim.iFrameEnd)
+    end
+
+    local src, index = getBestBlenderScanSource(anim.scanData)
+    if src then
+        applyBlenderSourceToSettings(anim, src, index)
+    elseif not canBakeBlenderAnimation(anim) then
+        anim.bEnableAnimation = false
+        anim.iSelectedSource = 0
+    end
+end
+
+local function getBlenderAnimSummary(row)
+    local anim = row and row.anim
+    if not anim or anim.scanStatus == 'not_scanned' then
+        return string.format(tLang.L('blender_anim_summary_not_scanned_fmt'), 1)
+    end
+    if anim.scanStatus == 'scanning' then
+        return tLang.L('blender_anim_summary_scanning')
+    end
+    if anim.scanStatus == 'failed' then
+        return tLang.L('blender_anim_summary_failed')
+    end
+    if anim.bEnableAnimation then
+        local baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+        return string.format(tLang.L('blender_anim_summary_animation_fmt'), anim.sAnimationName or 'Bake', baked, anim.iSampleStep)
+    end
+    return string.format(tLang.L('blender_anim_summary_static_fmt'), anim.iStaticFrame or 1)
+end
+
 local function appendBlenderSourceFiles(tFiles)
     local st = tBlenderImportState
     local seen = {}
@@ -206,7 +507,7 @@ local function appendBlenderSourceFiles(tFiles)
     for i = 1, #tFiles do
         local p = tFiles[i]
         if p and p ~= '' and not seen[p] then
-            table.insert(st.tSourceFiles, { path = p, enabled = true })
+            table.insert(st.tSourceFiles, { path = p, enabled = true, anim = nil })
             seen[p] = true
         end
     end
@@ -242,13 +543,13 @@ local function removeBlenderSourceFileAt(index)
     refreshBlenderSelectedCount()
 end
 
-local function getEnabledBlenderSourceFiles()
+getEnabledBlenderSourceRows = function()
     local st = tBlenderImportState
     local out = {}
     for i = 1, #st.tSourceFiles do
         local row = st.tSourceFiles[i]
         if row.enabled and row.path and row.path ~= '' then
-            table.insert(out, row.path)
+            table.insert(out, row)
         end
     end
     return out
@@ -326,6 +627,49 @@ local function shouldPrintBlenderLatestLogLine(line)
     return true
 end
 
+local function writeTextFile(path, content)
+    local fp = io.open(path, 'wb')
+    if not fp then return false end
+    fp:write(content or '')
+    fp:close()
+    return true
+end
+
+local function extractBlenderExportProgress(content)
+    local out = {
+        sourceFrame = nil,
+        framesExported = nil,
+        writingOutput = false,
+        done = false,
+        lastProgressLine = nil,
+    }
+    if type(content) ~= 'string' or content == '' then
+        return out
+    end
+
+    for line in content:gmatch('[^\r\n]+') do
+        local frame = line:match('%[blender_export%]%s+export frame:%s+(%d+)')
+        if frame then
+            out.sourceFrame = tonumber(frame)
+            out.lastProgressLine = line
+        end
+        local exported = line:match('%[blender_export%]%s+frames exported:%s+(%d+)')
+        if exported then
+            out.framesExported = tonumber(exported)
+            out.lastProgressLine = line
+        end
+        if line:find('[blender_export] writing output', 1, true) then
+            out.writingOutput = true
+            out.lastProgressLine = line
+        end
+        if line:find('[blender_export] done', 1, true) then
+            out.done = true
+            out.lastProgressLine = line
+        end
+    end
+    return out
+end
+
 local function extractBlenderLogError(logPath)
     if not logPath or logPath == '' then
         return nil
@@ -387,6 +731,130 @@ local function enrichBlenderErrorMessage(msg)
         return msg .. ' | Hint: Blender 3.4 glTF addon is using deprecated np.bool with newer NumPy. Use Blender >= 3.6/4.x or install a compatible NumPy for this Blender build.'
     end
     return msg
+end
+
+local function validateBlenderScanData(tData)
+    if type(tData) ~= 'table' then
+        return false, 'Scan file did not return a table.'
+    end
+    if type(tData.scene) ~= 'table' then
+        return false, 'Scan file has no scene metadata.'
+    end
+    tData.sources = type(tData.sources) == 'table' and tData.sources or {}
+
+    local scene = tData.scene
+    scene.frameStart = math.max(1, math.floor(tonumber(scene.frameStart or 1) or 1))
+    scene.frameEnd = math.max(1, math.floor(tonumber(scene.frameEnd or scene.frameStart) or scene.frameStart))
+    scene.currentFrame = math.max(1, math.floor(tonumber(scene.currentFrame or scene.frameStart) or scene.frameStart))
+    scene.fps = tonumber(scene.fps or 24) or 24
+
+    for i = 1, #tData.sources do
+        local src = tData.sources[i]
+        src.name = tostring(src.name or ('Source ' .. i))
+        src.kind = tostring(src.kind or 'unknown')
+        src.frameStart = math.max(1, math.floor(tonumber(src.frameStart or scene.frameStart) or scene.frameStart))
+        src.frameEnd = math.max(1, math.floor(tonumber(src.frameEnd or src.frameStart) or src.frameStart))
+        src.fps = tonumber(src.fps or scene.fps) or scene.fps
+        src.confidence = tostring(src.confidence or 'low')
+        src.reason = tostring(src.reason or '')
+    end
+
+    if type(tData.meshStats) == 'table' then
+        local stats = tData.meshStats
+        stats.available = stats.available == true
+        stats.frame = math.max(1, math.floor(tonumber(stats.frame or scene.currentFrame) or scene.currentFrame))
+        stats.subsets = math.max(0, math.floor(tonumber(stats.subsets or 0) or 0))
+        stats.vertices = math.max(0, math.floor(tonumber(stats.vertices or 0) or 0))
+        stats.indices = math.max(0, math.floor(tonumber(stats.indices or 0) or 0))
+        stats.textureSearchPaths = type(stats.textureSearchPaths) == 'table' and stats.textureSearchPaths or {}
+        stats.error = tostring(stats.error or '')
+    else
+        tData.meshStats = { available = false, textureSearchPaths = {} }
+    end
+
+    return true
+end
+
+local function startBlenderAnimationScan(row)
+    local st = tBlenderImportState
+    local anim = ensureBlenderAnimSettings(row)
+    local exporterPath = getEditorDir() .. '/blender_mesh_export.py'
+    local baseDir = st.bKeepInSourceFolder and getFileDir(row.path) or getTempDir()
+    local stem = getFileStem(row.path)
+    local outLua = baseDir .. '/' .. stem .. '_mbm_scan.lua'
+    local dbgLog = baseDir .. '/' .. stem .. '_mbm_scan_debug.log'
+
+    os.remove(outLua)
+    os.remove(dbgLog)
+
+    local cmd = tBlender.buildScanCmd(row.path, outLua, exporterPath, {
+        debugSteps = st.bPrintDebugSteps,
+    })
+    if not cmd then
+        anim.scanStatus = 'failed'
+        anim.scanError = tLang.L('blender_anim_scan_cmd_failed')
+        return
+    end
+
+    blenderDebugPrint(st, 'scan start: %s', row.path)
+    blenderDebugPrint(st, 'scan outputs: lua=%s log=%s', outLua, dbgLog)
+    tBlender.launchCmdAsync(cmd, dbgLog)
+
+    anim.scanStatus = 'scanning'
+    anim.scanError = ''
+    anim.scanOutput = outLua
+    anim.scanLog = dbgLog
+    anim.scanStartTime = os.time()
+end
+
+local function pollBlenderAnimationScan(row)
+    local st = tBlenderImportState
+    local anim = ensureBlenderAnimSettings(row)
+    if anim.scanStatus ~= 'scanning' then return end
+
+    if tBlender.fileExists(anim.scanOutput) then
+        local chunk, loadErr = loadfile(anim.scanOutput)
+        if not chunk then
+            anim.scanStatus = 'failed'
+            anim.scanError = loadErr or tLang.L('blender_anim_scan_invalid')
+            return
+        end
+
+        local okRun, tData = pcall(chunk)
+        if not okRun then
+            anim.scanStatus = 'failed'
+            anim.scanError = tostring(tData)
+            return
+        end
+
+        local okVal, errVal = validateBlenderScanData(tData)
+        if not okVal then
+            anim.scanStatus = 'failed'
+            anim.scanError = errVal or tLang.L('blender_anim_scan_invalid')
+            return
+        end
+
+        anim.scanData = tData
+        anim.scanStatus = 'ready'
+        applyBlenderScanDefaults(row)
+        blenderDebugPrint(st, 'scan ready: %s sources=%d', row.path, #(tData.sources or {}))
+        return
+    end
+
+    if tBlender.fileExists(anim.scanLog) then
+        local logErr = extractBlenderLogError(anim.scanLog)
+        if logErr then
+            anim.scanStatus = 'failed'
+            anim.scanError = enrichBlenderErrorMessage(logErr)
+            return
+        end
+    end
+
+    local elapsed = os.time() - (anim.scanStartTime or os.time())
+    if elapsed >= math.max(10, st.iTimeoutSecs or 120) then
+        anim.scanStatus = 'failed'
+        anim.scanError = tLang.L('blender_anim_scan_timed_out')
+    end
 end
 
 local function validateIntermediateData(tData)
@@ -466,57 +934,118 @@ local function validateIntermediateData(tData)
     return true
 end
 
-local function buildMeshFromIntermediate(tData, outMshPath)
-    local meshD = meshDebug:new()
-    meshD:setType('mesh')
-
-    local totalFrames = #tData.frames
-    local totalSubsets = 0
-    local totalVertices = 0
-    local totalIndices = 0
-    for fi = 1, totalFrames do
-        local frame = tData.frames[fi]
-        local subsets = frame and frame.subsets or {}
-        totalSubsets = totalSubsets + #subsets
-        for si = 1, #subsets do
-            local subset = subsets[si]
-            totalVertices = totalVertices + #(subset.vertices or {})
-            totalIndices = totalIndices + #(subset.indices or {})
-        end
+local function validateStreamManifest(tData)
+    if type(tData) ~= 'table' then
+        return false, 'Stream manifest did not return a table.'
     end
-    blenderDebugPrint(tBlenderImportState, 'build mesh data: frames=%d subsets=%d vertices=%d indices=%d', totalFrames, totalSubsets, totalVertices, totalIndices)
-
+    if type(tData.frames) ~= 'table' or #tData.frames == 0 then
+        return false, 'Stream manifest has no frames.'
+    end
     for fi = 1, #tData.frames do
         local frame = tData.frames[fi]
-        local frameIdx = meshD:addFrame(3)
-        for si = 1, #frame.subsets do
-            local subset = frame.subsets[si]
-            local subsetIdx = meshD:addSubSet(frameIdx)
-            if subset.texture and subset.texture ~= '' then
-                meshD:setTexture(frameIdx, subsetIdx, subset.texture)
-            end
-            blenderDebugPrint(tBlenderImportState, 'subset [%d/%d] vertices=%d indices=%d', si, #frame.subsets, #(subset.vertices or {}), #(subset.indices or {}))
-            if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
-                return false, string.format('Failed to add vertices for frame %d subset %d (vertices=%d).', fi, si, #(subset.vertices or {}))
-            end
-            if not meshD:addIndex(frameIdx, subsetIdx, subset.indices) then
-                local sample = {}
-                for ii = 1, math.min(6, #(subset.indices or {})) do
-                    sample[#sample + 1] = tostring(subset.indices[ii])
-                end
-                return false, string.format('Failed to add indices for frame %d subset %d (indices=%d sample=%s).', fi, si, #(subset.indices or {}), table.concat(sample, ','))
-            end
+        if type(frame) ~= 'table' then
+            return false, string.format('Manifest frame %d is invalid.', fi)
         end
+        if type(frame.path) ~= 'string' or frame.path == '' then
+            return false, string.format('Manifest frame %d has no path.', fi)
+        end
+        frame.sourceFrame = math.max(1, math.floor(tonumber(frame.sourceFrame or fi) or fi))
     end
 
-    local anims = tData.animations
+    if type(tData.animations) == 'table' then
+        for ai = 1, #tData.animations do
+            local anim = tData.animations[ai]
+            local ini = math.floor(anim.initialFrame or 1)
+            local fin = math.floor(anim.finalFrame or #tData.frames)
+            if ini < 1 or ini > #tData.frames or fin < 1 or fin > #tData.frames or ini > fin then
+                return false, string.format('Animation %d has invalid frame range.', ai)
+            end
+            local tbf = tonumber(anim.timeBetweenFrame or 0)
+            if not tbf or tbf <= 0 then
+                return false, string.format('Animation %d has invalid frame time.', ai)
+            end
+            local typ = math.floor(anim.typeAnimation or 1)
+            if typ < 0 or typ > 6 then
+                return false, string.format('Animation %d type is out of range [0..6].', ai)
+            end
+            anim.initialFrame = ini
+            anim.finalFrame = fin
+            anim.timeBetweenFrame = tbf
+            anim.typeAnimation = typ
+        end
+    end
+    return true
+end
+
+local function validateStreamFrameData(tData, frameIndex)
+    if type(tData) ~= 'table' then
+        return false, string.format('Frame file %d did not return a table.', frameIndex)
+    end
+    return validateIntermediateData({
+        frames = { tData },
+        animations = {},
+    })
+end
+
+local function applyImportVertexOptions(vertices, options)
+    if type(vertices) ~= 'table' or type(options) ~= 'table' then return end
+    if options.importPostProcess ~= true then return end
+    local invertU = options.importInvertU == true
+    local invertV = options.importInvertV == true
+    if not invertU and not invertV then return end
+    for vi = 1, #vertices do
+        local v = vertices[vi]
+        if type(v) == 'table' then
+            if invertU and type(v.u) == 'number' then v.u = 1 - v.u end
+            if invertV and type(v.v) == 'number' then v.v = 1 - v.v end
+        end
+    end
+end
+
+local function applyGeneratedMeshOptions(meshD, options)
+    if type(options) ~= 'table' then return end
+    if options.importPostProcess ~= true then return end
+    local ax = tonumber(options.importAngleX or 0) or 0
+    local ay = tonumber(options.importAngleY or 0) or 0
+    local az = tonumber(options.importAngleZ or 0) or 0
+    if ax ~= 0 or ay ~= 0 or az ~= 0 then
+        meshD:setAngle(ax, ay, az)
+        blenderDebugPrint(tBlenderImportState, 'applied import rotation: %.3f %.3f %.3f', ax, ay, az)
+    end
+end
+
+local function addIntermediateFrameToMesh(meshD, frame, frameNumber, options)
+    local frameIdx = meshD:addFrame(3)
+    for si = 1, #frame.subsets do
+        local subset = frame.subsets[si]
+        local subsetIdx = meshD:addSubSet(frameIdx)
+        if subset.texture and subset.texture ~= '' then
+            meshD:setTexture(frameIdx, subsetIdx, subset.texture)
+        end
+        applyImportVertexOptions(subset.vertices, options)
+        blenderDebugPrint(tBlenderImportState, 'subset [%d/%d] vertices=%d indices=%d', si, #frame.subsets, #(subset.vertices or {}), #(subset.indices or {}))
+        if not meshD:addVertex(frameIdx, subsetIdx, subset.vertices) then
+            return false, string.format('Failed to add vertices for frame %d subset %d (vertices=%d).', frameNumber, si, #(subset.vertices or {}))
+        end
+        if not meshD:addIndex(frameIdx, subsetIdx, subset.indices) then
+            local sample = {}
+            for ii = 1, math.min(6, #(subset.indices or {})) do
+                sample[#sample + 1] = tostring(subset.indices[ii])
+            end
+            return false, string.format('Failed to add indices for frame %d subset %d (indices=%d sample=%s).', frameNumber, si, #(subset.indices or {}), table.concat(sample, ','))
+        end
+    end
+    return true
+end
+
+local function addAnimationsToMesh(meshD, anims, totalFrames)
     if type(anims) ~= 'table' or #anims == 0 then
-        if #tData.frames > 1 then
+        if totalFrames > 1 then
             anims = {
                 {
                     name = 'Bake',
                     initialFrame = 1,
-                    finalFrame = #tData.frames,
+                    finalFrame = totalFrames,
                     timeBetweenFrame = 1.0 / 30.0,
                     typeAnimation = 1,
                 }
@@ -539,26 +1068,114 @@ local function buildMeshFromIntermediate(tData, outMshPath)
             return false, string.format('Failed to add animation %d.', ai)
         end
     end
-
-    local okCheck, errCheck = meshD:check()
-    if not okCheck then
-        return false, errCheck or 'Mesh check failed.'
-    end
-
-    if not meshD:save(outMshPath, false, false) then
-        return false, 'Failed to save generated MSH.'
-    end
-
-    local okCheck, errCheck = meshD:check()
-    if not okCheck then
-        return false, errCheck or 'Mesh check failed.'
-    end
-
-    if not meshD:save(outMshPath, false, false) then
-        return false, 'Failed to save generated MSH.'
-    end
-
     return true
+end
+
+local function saveGeneratedMesh(meshD, outMshPath)
+    local okCheck, errCheck = meshD:check()
+    if not okCheck then
+        return false, errCheck or 'Mesh check failed.'
+    end
+
+    if not meshD:save(outMshPath, false, false) then
+        return false, 'Failed to save generated MSH.'
+    end
+    return true
+end
+
+local function buildMeshFromIntermediate(tData, outMshPath, options)
+    local meshD = meshDebug:new()
+    meshD:setType('mesh')
+
+    local totalFrames = #tData.frames
+    local totalSubsets = 0
+    local totalVertices = 0
+    local totalIndices = 0
+    for fi = 1, totalFrames do
+        local frame = tData.frames[fi]
+        local subsets = frame and frame.subsets or {}
+        totalSubsets = totalSubsets + #subsets
+        for si = 1, #subsets do
+            local subset = subsets[si]
+            totalVertices = totalVertices + #(subset.vertices or {})
+            totalIndices = totalIndices + #(subset.indices or {})
+        end
+    end
+    blenderDebugPrint(tBlenderImportState, 'build mesh data: frames=%d subsets=%d vertices=%d indices=%d', totalFrames, totalSubsets, totalVertices, totalIndices)
+
+    for fi = 1, #tData.frames do
+        local frame = tData.frames[fi]
+        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frame, fi, options)
+        if not okAdd then
+            return false, errAdd
+        end
+    end
+
+    local okAnim, errAnim = addAnimationsToMesh(meshD, tData.animations, #tData.frames)
+    if not okAnim then return false, errAnim end
+    applyGeneratedMeshOptions(meshD, options)
+    return saveGeneratedMesh(meshD, outMshPath)
+end
+
+local function buildMeshFromStreamManifest(manifestPath, outMshPath, options)
+    local chunk, loadErr = loadfile(manifestPath)
+    if not chunk then
+        return false, loadErr or 'Failed to load stream manifest.'
+    end
+    local okRun, manifest = pcall(chunk)
+    if not okRun then
+        return false, tostring(manifest)
+    end
+    local okVal, errVal = validateStreamManifest(manifest)
+    if not okVal then
+        return false, errVal
+    end
+
+    local baseDir = getFileDir(manifestPath)
+    local meshD = meshDebug:new()
+    meshD:setType('mesh')
+
+    local totalFrames = #manifest.frames
+    local totalSubsets = 0
+    local totalVertices = 0
+    local totalIndices = 0
+
+    blenderDebugPrint(tBlenderImportState, 'build stream mesh data: frames=%d', totalFrames)
+    for fi = 1, totalFrames do
+        local entry = manifest.frames[fi]
+        local framePath = joinPath(baseDir, entry.path)
+        local frameChunk, frameLoadErr = loadfile(framePath)
+        if not frameChunk then
+            return false, frameLoadErr or string.format('Failed to load stream frame %d.', fi)
+        end
+        local okFrameRun, frameData = pcall(frameChunk)
+        if not okFrameRun then
+            return false, tostring(frameData)
+        end
+        local okFrameVal, errFrameVal = validateStreamFrameData(frameData, fi)
+        if not okFrameVal then
+            return false, errFrameVal
+        end
+
+        local subsets = frameData.subsets or {}
+        totalSubsets = totalSubsets + #subsets
+        for si = 1, #subsets do
+            totalVertices = totalVertices + #(subsets[si].vertices or {})
+            totalIndices = totalIndices + #(subsets[si].indices or {})
+        end
+
+        tBlenderImportState.sProgressDetail = string.format(tLang.L('blender_import_progress_build_frame_fmt'), fi, totalFrames)
+        local okAdd, errAdd = addIntermediateFrameToMesh(meshD, frameData, fi, options)
+        if not okAdd then
+            return false, errAdd
+        end
+    end
+    blenderDebugPrint(tBlenderImportState, 'build stream totals: frames=%d subsets=%d vertices=%d indices=%d', totalFrames, totalSubsets, totalVertices, totalIndices)
+
+    local okAnim, errAnim = addAnimationsToMesh(meshD, manifest.animations, totalFrames)
+    if not okAnim then return false, errAnim end
+    applyGeneratedMeshOptions(meshD, options)
+    return saveGeneratedMesh(meshD, outMshPath)
 end
 
 local function onOpenBlenderImportDialog()
@@ -569,10 +1186,60 @@ local function onOpenBlenderImportDialog()
     st.bStatusOk = true
 end
 
+getBlenderImportOptionsForRow = function(row)
+    local anim = ensureBlenderAnimSettings(row)
+    if anim.bEnableAnimation and canBakeBlenderAnimation(anim) then
+        return {
+            bakeAnimation = true,
+            useSceneFrameRange = false,
+            frameStart = math.max(1, anim.iFrameStart or 1),
+            frameEnd = math.max(1, anim.iFrameEnd or anim.iFrameStart or 1),
+            sampleStep = math.max(1, anim.iSampleStep or 1),
+            animationName = anim.sAnimationName or 'Bake',
+        }
+    end
+
+    local staticFrame = math.max(1, anim.iStaticFrame or 1)
+    return {
+        bakeAnimation = false,
+        useSceneFrameRange = false,
+        frameStart = staticFrame,
+        frameEnd = staticFrame,
+        sampleStep = 1,
+    }
+end
+
+local function buildBlenderImportSuccessSummary(row, outMsh, importOptions)
+    local info = meshDebug:getInfo(outMsh) or {}
+    local frames = tonumber(info.totalFrames or 0) or 0
+    local sizeText = formatBytes(getFileSize(outMsh))
+    local texturePaths = getTextureSearchPathCountFromScan(row)
+    local textureText = texturePaths and string.format(tLang.L('blender_import_summary_texture_paths_count_fmt'), texturePaths)
+        or tLang.L('blender_import_summary_texture_paths_embedded')
+    local animationText
+    if importOptions and importOptions.bakeAnimation then
+        animationText = string.format(
+            tLang.L('blender_import_summary_animation_fmt'),
+            importOptions.animationName or 'Bake',
+            importOptions.frameStart or 1,
+            importOptions.frameEnd or 1,
+            importOptions.sampleStep or 1)
+    else
+        animationText = string.format(tLang.L('blender_import_summary_static_fmt'), (importOptions and importOptions.frameStart) or 1)
+    end
+    return string.format(
+        tLang.L('blender_import_summary_fmt'),
+        outMsh,
+        frames,
+        animationText,
+        sizeText,
+        textureText)
+end
+
 local function blenderImportCoroutine()
     local st = tBlenderImportState
     local exporterPath = getEditorDir() .. '/blender_mesh_export.py'
-    local selected = getEnabledBlenderSourceFiles()
+    local selected = getEnabledBlenderSourceRows()
     local total = #selected
     st.iTotal = total
     st.iProgress = 0
@@ -583,81 +1250,107 @@ local function blenderImportCoroutine()
     local lastErr = nil
     local modeIntermediateOnly = st.bIntermediateOnly
 
-    blenderDebugPrint(st, 'import start: selected=%d intermediateOnly=%s timeout=%ds', total, tostring(modeIntermediateOnly), st.iTimeoutSecs)
+    blenderDebugPrint(st, 'import start: selected=%d intermediateOnly=%s idleTimeout=%ds', total, tostring(modeIntermediateOnly), st.iTimeoutSecs)
     tBlender.setDebugEnabled(st.bPrintDebugSteps)
 
     for i = 1, total do
         if st.bAbortRequested then break end
 
-        local src = selected[i]
+        local row = selected[i]
+        local src = row.path
         local baseDir = st.bKeepInSourceFolder and getFileDir(src) or getTempDir()
-        local outLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
+        local outDir = baseDir .. '/' .. getFileStem(src) .. '_mbm_import'
+        local outManifest = joinPath(outDir, 'manifest.lua')
+        local oldOutLua = baseDir .. '/' .. getFileStem(src) .. '_mbm_import.lua'
         local outMsh = baseDir .. '/' .. getFileStem(src) .. '.msh'
+        local waitOutput = modeIntermediateOnly and outManifest or outMsh
         local dbgLog = baseDir .. '/' .. getFileStem(src) .. '_mbm_blender_debug.log'
-        os.remove(outLua)
+        local cancelFile = baseDir .. '/' .. getFileStem(src) .. '_mbm_cancel'
+        os.remove(oldOutLua)
+        removePathRecursive(outDir)
         os.remove(outMsh)
         os.remove(dbgLog)
+        os.remove(cancelFile)
 
         blenderDebugPrint(st, 'file %d/%d: %s', i, total, src)
-        blenderDebugPrint(st, 'outputs: lua=%s msh=%s log=%s', outLua, outMsh, dbgLog)
+        blenderDebugPrint(st, 'outputs: stream=%s manifest=%s msh=%s log=%s', outDir, outManifest, outMsh, dbgLog)
+        st.sProgressDetail = string.format(tLang.L('blender_import_progress_waiting_fmt'), tUtil.getShortName(src))
 
-        local cmd = tBlender.buildBakeCmd(src, outLua, exporterPath, {
-            bakeAnimation = true,
-            debugSteps = st.bPrintDebugSteps,
-        })
+        local importOptions = getBlenderImportOptionsForRow(row)
+        importOptions.debugSteps = st.bPrintDebugSteps
+        importOptions.cancelFile = cancelFile
+        importOptions.streamOutput = modeIntermediateOnly
+        importOptions.directMshOutput = not modeIntermediateOnly
+        importOptions.importPostProcess = st.bImportPostProcess
+        importOptions.importInvertU = st.bImportInvertU
+        importOptions.importInvertV = st.bImportInvertV
+        importOptions.importAngleX = st.nImportAngleX
+        importOptions.importAngleY = st.nImportAngleY
+        importOptions.importAngleZ = st.nImportAngleZ
+        local cmd = tBlender.buildBakeCmd(src, modeIntermediateOnly and outDir or outMsh, exporterPath, importOptions)
         if cmd then
             tBlender.launchCmdAsync(cmd, dbgLog)
+            st.sCancelFile = cancelFile
             local startTime = os.time()
+            local lastActivityTime = startTime
             local lastWaitLog = -1
             local lastLogLinePrinted = nil
+            local lastProgressLine = nil
+            local expectedFrames = importOptions.bakeAnimation and getBakedFrameCount(importOptions.frameStart, importOptions.frameEnd, importOptions.sampleStep) or 1
             local finished = false
             while not finished do
-                if tBlender.fileExists(outLua) then
+                if st.bAbortRequested then
+                    writeTextFile(cancelFile, 'cancel\n')
+                    failed = failed + 1
+                    lastErr = tLang.L('blender_import_status_canceled')
+                    blenderDebugPrint(st, 'abort requested: %s', src)
+                    pushBlenderRunResult(src, 'failed', lastErr)
+                    finished = true
+                end
+
+                if not finished and tBlender.fileExists(waitOutput) then
                     local elapsed = os.time() - startTime
-                    local outSize = getFileSize(outLua)
+                    local outSize = getFileSize(waitOutput)
                     if st.bPrintDebugSteps then
-                        blenderDebugPrint(st, 'file exists: %s (%d bytes)', outLua, outSize)
+                        blenderDebugPrint(st, 'output exists: %s (%d bytes)', waitOutput, outSize)
                     end
 
                     local chunk, loadErr = nil, nil
                     local okRun, tData = false, nil
-                    local okVal, errVal = false, nil
+                    local okVal, errVal = (not modeIntermediateOnly), nil
 
-                    if outSize > 0 then
-                        chunk, loadErr = loadfile(outLua)
+                    if outSize > 0 and modeIntermediateOnly then
+                        chunk, loadErr = loadfile(outManifest)
                         if chunk then
                             okRun, tData = pcall(chunk)
                             if okRun then
-                                okVal, errVal = validateIntermediateData(tData)
+                                okVal, errVal = validateStreamManifest(tData)
                             end
                         end
                     end
 
-                    if outSize > 0 and chunk and okRun and okVal then
+                    if outSize > 0 and (not modeIntermediateOnly or (chunk and okRun and okVal)) then
                         exported = exported + 1
-                        blenderDebugPrint(st, 'file ready: %s', outLua)
+                        blenderDebugPrint(st, 'output ready: %s', waitOutput)
+                        st.sProgressDetail = tLang.L('blender_import_progress_building')
                         if modeIntermediateOnly then
                             blenderDebugPrint(st, 'intermediate-only mode: skip build/load')
                             pushBlenderRunResult(src, 'exported', tLang.L('blender_import_status_exported'))
                         else
-                            local okBuild, errBuild = buildMeshFromIntermediate(tData, outMsh)
-                            if not okBuild then
-                                failed = failed + 1
-                                lastErr = errBuild
-                                blenderDebugPrint(st, 'build failed: %s', errBuild)
-                                pushBlenderRunResult(src, 'failed', lastErr)
+                            local addedPaths = addBlenderSourceFallbackSearchPath(src)
+                            if addedPaths > 0 then
+                                blenderDebugPrint(st, 'added fallback mesh search paths: %d', addedPaths)
+                            end
+                            if addMeshToTable(outMsh) then
+                                imported = imported + 1
+                                bShowMeshTree = true
+                                blenderDebugPrint(st, 'imported mesh: %s', outMsh)
+                                pushBlenderRunResult(src, 'imported', buildBlenderImportSuccessSummary(row, outMsh, importOptions))
                             else
-                                if addMeshToTable(outMsh) then
-                                    imported = imported + 1
-                                    bShowMeshTree = true
-                                    blenderDebugPrint(st, 'imported mesh: %s', outMsh)
-                                    pushBlenderRunResult(src, 'imported', tLang.L('blender_import_status_imported'))
-                                else
-                                    failed = failed + 1
-                                    lastErr = 'Generated MSH could not be loaded into editor.'
-                                    blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
-                                    pushBlenderRunResult(src, 'failed', lastErr)
-                                end
+                                failed = failed + 1
+                                lastErr = 'Generated MSH could not be loaded into editor.'
+                                blenderDebugPrint(st, 'addMeshToTable failed: %s', outMsh)
+                                pushBlenderRunResult(src, 'failed', lastErr)
                             end
                         end
                         finished = true
@@ -665,22 +1358,23 @@ local function blenderImportCoroutine()
                         -- On Windows the file can appear before write completion; keep polling until valid or timeout.
                         local parseReason = nil
                         if outSize <= 0 then
-                            parseReason = 'intermediate file is still empty'
+                            parseReason = 'stream manifest is still empty'
                         elseif not chunk then
-                            parseReason = loadErr or 'failed to compile intermediate file'
+                            parseReason = loadErr or 'failed to compile stream manifest'
                         elseif not okRun then
                             parseReason = tostring(tData)
                         elseif not okVal then
                             parseReason = errVal
                         else
-                            parseReason = 'intermediate file is not ready yet'
+                            parseReason = 'stream manifest is not ready yet'
                         end
 
                         if st.bPrintDebugSteps then
-                            blenderDebugPrint(st, 'waiting valid intermediate (%ds): %s', elapsed, tostring(parseReason))
+                            blenderDebugPrint(st, 'waiting valid stream manifest (%ds): %s', elapsed, tostring(parseReason))
                         end
 
-                        if elapsed >= st.iTimeoutSecs or st.bAbortRequested then
+                        local idleSecs = os.time() - lastActivityTime
+                        if idleSecs >= st.iTimeoutSecs then
                             failed = failed + 1
                             lastErr = parseReason
                             pushBlenderRunResult(src, 'failed', tostring(parseReason))
@@ -689,9 +1383,29 @@ local function blenderImportCoroutine()
                             coroutine.yield()
                         end
                     end
-                else
+                elseif not finished then
                     local elapsed = os.time() - startTime
+                    local content = nil
                     if tBlender.fileExists(dbgLog) then
+                        content = readTextFile(dbgLog)
+                        local progress = extractBlenderExportProgress(content)
+                        if progress.lastProgressLine and progress.lastProgressLine ~= lastProgressLine then
+                            lastProgressLine = progress.lastProgressLine
+                            lastActivityTime = os.time()
+                        end
+                        if progress.writingOutput then
+                            st.sProgressDetail = tLang.L('blender_import_progress_writing')
+                        elseif progress.framesExported then
+                            st.sProgressDetail = string.format(tLang.L('blender_import_progress_write_fmt'), progress.framesExported)
+                        elseif progress.sourceFrame then
+                            local targetFrame = 1
+                            if importOptions.bakeAnimation then
+                                targetFrame = math.floor((progress.sourceFrame - importOptions.frameStart) / math.max(1, importOptions.sampleStep)) + 1
+                                targetFrame = math.max(1, math.min(expectedFrames, targetFrame))
+                            end
+                            st.sProgressDetail = string.format(tLang.L('blender_import_progress_frame_fmt'), progress.sourceFrame, targetFrame, expectedFrames)
+                        end
+
                         local logErr = extractBlenderLogError(dbgLog)
                         if logErr then
                             logErr = enrichBlenderErrorMessage(logErr)
@@ -705,7 +1419,7 @@ local function blenderImportCoroutine()
                     if finished then
                         -- If we already found an explicit error in Blender output, skip timeout wait.
                     elseif st.bPrintDebugSteps then
-                        local content = readTextFile(dbgLog)
+                        content = content or readTextFile(dbgLog)
                         local lastLine = getLogLastNonEmptyLine(content)
                         if lastLine
                            and lastLine ~= ''
@@ -718,17 +1432,18 @@ local function blenderImportCoroutine()
                     if st.bPrintDebugSteps then
                         local nowTick = math.floor(elapsed / 5)
                         if nowTick ~= lastWaitLog then
-                            blenderDebugPrint(st, 'waiting output (%ds): %s', elapsed, outLua)
+                            blenderDebugPrint(st, 'waiting output (%ds idle %ds): %s', elapsed, os.time() - lastActivityTime, waitOutput)
                             lastWaitLog = nowTick
                         end
                     end
-                    if not finished and (elapsed >= st.iTimeoutSecs or st.bAbortRequested) then
+                    local idleSecs = os.time() - lastActivityTime
+                    if not finished and idleSecs >= st.iTimeoutSecs then
                         timedOut = timedOut + 1
                         local msg = tLang.L('blender_import_status_timed_out')
                         if st.bPrintDebugSteps then
                             msg = msg .. ' (' .. dbgLog .. ')'
                         end
-                        blenderDebugPrint(st, 'timed out after %ds: %s', elapsed, src)
+                        blenderDebugPrint(st, 'timed out after %ds idle: %s', idleSecs, src)
                         pushBlenderRunResult(src, 'timed_out', msg)
                         finished = true
                     else
@@ -742,6 +1457,7 @@ local function blenderImportCoroutine()
             pushBlenderRunResult(src, 'timed_out', tLang.L('blender_import_status_timed_out'))
         end
         st.iProgress = i
+        st.sCancelFile = ''
     end
 
     local okCount = modeIntermediateOnly and exported or imported
@@ -766,13 +1482,199 @@ local function startBlenderImport()
     local st = tBlenderImportState
     st.iProgress = 0
     st.iTotal = 0
+    st.sProgressDetail = ''
     st.bAbortRequested = false
+    st.sCancelFile = ''
     st.sStatus = ''
     st.bStatusOk = true
     st.bImporting = true
     clearBlenderRunResults()
     tBlender.setDebugEnabled(st.bPrintDebugSteps)
     st.co = coroutine.create(blenderImportCoroutine)
+end
+
+local function showBlenderAnimationSettingsPopup(st)
+    if st.bOpenAnimSettingsPopup then
+        tImGui.OpenPopup('blender_animation_settings_modal')
+        st.bOpenAnimSettingsPopup = false
+    end
+
+    local row = st.tSourceFiles[st.iAnimSettingsIndex or 0]
+    if not row then return end
+    local anim = ensureBlenderAnimSettings(row)
+    pollBlenderAnimationScan(row)
+
+    local flags = tImGui.Flags('ImGuiWindowFlags_AlwaysAutoResize')
+    local isOpen, _ = tImGui.BeginPopupModal(tLang.L('blender_animation_settings_title') .. '###blender_animation_settings_modal', false, flags)
+    if not isOpen then return end
+
+    tImGui.Text(tUtil.getShortName(row.path))
+    if tImGui.IsItemHovered(0) then
+        tImGui.BeginTooltip()
+        tImGui.Text(row.path)
+        tImGui.EndTooltip()
+    end
+
+    tImGui.Separator()
+    if anim.scanStatus == 'scanning' then
+        tImGui.Text(tLang.L('blender_anim_scanning'))
+    elseif anim.scanStatus == 'failed' then
+        tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.3, b=0.3, a=1})
+        tImGui.TextWrapped(anim.scanError ~= '' and anim.scanError or tLang.L('blender_anim_scan_failed'))
+        tImGui.PopStyleColor()
+        if tImGui.Button(tLang.L('blender_anim_rescan')) then
+            startBlenderAnimationScan(row)
+        end
+        local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
+        if changedStatic and newStatic then
+            anim.iStaticFrame = math.max(1, newStatic)
+        end
+    elseif anim.scanStatus == 'ready' then
+        local scan = anim.scanData or {}
+        local scene = scan.scene or {}
+        tImGui.Text(string.format(tLang.L('blender_anim_scene_info_fmt'),
+            scene.frameStart or 1,
+            scene.frameEnd or 1,
+            tonumber(scene.fps or 0) or 0))
+        local stats = scan.meshStats or {}
+        if stats.available then
+            local rowEstimate = getRowImportEstimate(row)
+            tImGui.TextDisabled(string.format(
+                tLang.L('blender_anim_mesh_stats_fmt'),
+                stats.frame or scene.currentFrame or 1,
+                stats.subsets or 0,
+                formatLargeInt(stats.vertices or 0),
+                formatLargeInt(stats.indices or 0),
+                formatLargeInt(rowEstimate.totalVertices or 0),
+                formatLargeInt(rowEstimate.totalIndices or 0),
+                formatBytes(rowEstimate.estimatedRawBytes or 0)))
+        elseif stats.error and stats.error ~= '' then
+            tImGui.TextDisabled(string.format(tLang.L('blender_anim_mesh_stats_unavailable_fmt'), stats.error))
+        end
+
+        local issues = scan.meshCacheIssues or {}
+        if #issues > 0 then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(tLang.L('blender_anim_mesh_cache_issue'))
+            for i = 1, #issues do
+                local issue = issues[i]
+                tImGui.TextWrapped('- ' .. tostring(issue.message or issue.cacheFile or 'Mesh cache issue'))
+            end
+            tImGui.PopStyleColor()
+        end
+
+        local sources = scan.sources or {}
+        if #sources == 0 then
+            tImGui.TextDisabled(tLang.L('blender_anim_no_sources'))
+        else
+            local sourceFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
+            if tImGui.BeginTable('blenderAnimSourcesTable', 5, sourceFlags, {x=720, y=150}) then
+                tImGui.TableSetupScrollFreeze(0, 1)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_use'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 55)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_name'))
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_kind'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 100)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_frames'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 120)
+                tImGui.TableSetupColumn(tLang.L('blender_anim_col_reason'))
+                tImGui.TableHeadersRow()
+                for i = 1, #sources do
+                    local src = sources[i]
+                    tImGui.TableNextRow()
+                    tImGui.TableNextColumn()
+                    local selected = tImGui.RadioButton('##blendAnimSrc-' .. i, anim.iSelectedSource or 0, i)
+                    if selected ~= anim.iSelectedSource then
+                        applyBlenderSourceToSettings(anim, src, i)
+                    end
+                    tImGui.TableNextColumn()
+                    tImGui.Text(src.name or ('Source ' .. i))
+                    tImGui.TableNextColumn()
+                    tImGui.Text(src.kind or '')
+                    tImGui.TableNextColumn()
+                    tImGui.Text(string.format('%d..%d', src.frameStart or 1, src.frameEnd or 1))
+                    tImGui.TableNextColumn()
+                    tImGui.TextWrapped(src.reason or src.confidence or '')
+                end
+                tImGui.EndTable()
+            end
+            tImGui.TextDisabled(tLang.L('blender_anim_single_source_note'))
+        end
+
+        tImGui.Separator()
+        local canBake = canBakeBlenderAnimation(anim)
+        if not canBake then
+            anim.bEnableAnimation = false
+        end
+        if not canBake then tImGui.BeginDisabled(true) end
+        anim.bEnableAnimation = tImGui.Checkbox(tLang.L('blender_import_bake_animation'), anim.bEnableAnimation)
+        if not canBake then tImGui.EndDisabled() end
+        if not canBake then
+            tImGui.TextDisabled(tLang.L('blender_anim_bake_disabled_cache_issue'))
+        end
+        if not anim.bEnableAnimation then
+            local changedStatic, newStatic = tImGui.InputInt(tLang.L('blender_anim_static_frame'), anim.iStaticFrame or 1, 1, 10)
+            if changedStatic and newStatic then
+                anim.iStaticFrame = math.max(1, newStatic)
+            end
+        else
+            anim.bManualRange = tImGui.Checkbox(tLang.L('blender_anim_manual_range'), anim.bManualRange)
+            if anim.bManualRange then
+                anim.iSelectedSource = 0
+                if anim.sAnimationName == '' or anim.sAnimationName == 'Bake' then
+                    anim.sAnimationName = tLang.L('blender_anim_manual_default_name')
+                end
+            end
+
+            local nameChanged, newName = tImGui.InputText(tLang.L('blender_anim_engine_name'), anim.sAnimationName or 'Bake', 64, 0)
+            if nameChanged and newName then
+                anim.sAnimationName = newName
+            end
+
+            local fsChanged, newFs = tImGui.InputInt(tLang.L('blender_import_frame_start'), anim.iFrameStart or 1, 1, 10)
+            if fsChanged and newFs then
+                anim.iFrameStart = math.max(1, newFs)
+            end
+            local feChanged, newFe = tImGui.InputInt(tLang.L('blender_import_frame_end'), anim.iFrameEnd or anim.iFrameStart or 1, 1, 10)
+            if feChanged and newFe then
+                anim.iFrameEnd = math.max(1, newFe)
+            end
+            local stepChanged, newStep = tImGui.InputInt(tLang.L('blender_import_sample_step'), anim.iSampleStep or 1, 1, 10)
+            if stepChanged and newStep then
+                anim.iSampleStep = math.max(1, newStep)
+            end
+            if tImGui.IsItemHovered(0) then
+                tImGui.BeginTooltip()
+                tImGui.Text(tLang.L('blender_import_sample_step_tooltip'))
+                tImGui.EndTooltip()
+            end
+
+            local baked = getBakedFrameCount(anim.iFrameStart, anim.iFrameEnd, anim.iSampleStep)
+            local warnKey = nil
+            if baked > 800 then
+                warnKey = 'blender_anim_warning_red_fmt'
+            elseif baked > 300 then
+                warnKey = 'blender_anim_warning_yellow_fmt'
+            end
+            tImGui.Text(string.format(tLang.L('blender_anim_estimate_fmt'), baked))
+            if warnKey then
+                tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+                tImGui.TextWrapped(string.format(tLang.L(warnKey), baked))
+                tImGui.PopStyleColor()
+            end
+        end
+
+        if tImGui.Button(tLang.L('blender_anim_rescan')) then
+            startBlenderAnimationScan(row)
+        end
+    else
+        if tImGui.Button(tLang.L('blender_anim_scan')) then
+            startBlenderAnimationScan(row)
+        end
+    end
+
+    tImGui.Separator()
+    if tImGui.Button(tLang.L('blender_import_btn_close')) then
+        tImGui.CloseCurrentPopup()
+    end
+    tImGui.EndPopup()
 end
 
 function showBlenderImportDialog()
@@ -804,10 +1706,16 @@ function showBlenderImportDialog()
 
         local fraction = st.iTotal > 0 and (st.iProgress / st.iTotal) or 0
         tImGui.Text(string.format(tLang.L('blender_import_progress_fmt'), st.iProgress, st.iTotal))
+        if st.sProgressDetail and st.sProgressDetail ~= '' then
+            tImGui.TextDisabled(st.sProgressDetail)
+        end
         tImGui.ProgressBar(fraction)
         tImGui.SameLine()
         if tImGui.Button(tLang.L('blender_import_btn_abort')) then
             st.bAbortRequested = true
+            if st.sCancelFile and st.sCancelFile ~= '' then
+                writeTextFile(st.sCancelFile, 'cancel\n')
+            end
         end
 
         if not st.bImporting then
@@ -860,10 +1768,11 @@ function showBlenderImportDialog()
         end
 
         local tableFlags = tImGui.Flags('ImGuiTableFlags_Borders', 'ImGuiTableFlags_RowBg', 'ImGuiTableFlags_ScrollY')
-        if tImGui.BeginTable('blenderImportFilesTable', 3, tableFlags, {x=640, y=180}) then
+        if tImGui.BeginTable('blenderImportFilesTable', 4, tableFlags, {x=760, y=180}) then
             tImGui.TableSetupScrollFreeze(0, 1)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_enable'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_file'))
+            tImGui.TableSetupColumn(tLang.L('blender_import_col_animation'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 260)
             tImGui.TableSetupColumn(tLang.L('blender_import_col_remove'), tImGui.Flags('ImGuiTableColumnFlags_WidthFixed'), 80)
             tImGui.TableHeadersRow()
             local removeAt = 0
@@ -885,6 +1794,16 @@ function showBlenderImportDialog()
                     tImGui.EndTooltip()
                 end
                 tImGui.TableNextColumn()
+                if tImGui.Button(tLang.L('blender_import_animation_settings') .. '##blenderAnim-' .. i) then
+                    ensureBlenderAnimSettings(row)
+                    st.iAnimSettingsIndex = i
+                    st.bOpenAnimSettingsPopup = true
+                    if row.anim.scanStatus == 'not_scanned' then
+                        startBlenderAnimationScan(row)
+                    end
+                end
+                tImGui.TextDisabled(getBlenderAnimSummary(row))
+                tImGui.TableNextColumn()
                 if tImGui.Button(tLang.L('blender_import_btn_remove') .. '##blenderRemove-' .. i) then
                     removeAt = i
                 end
@@ -901,6 +1820,23 @@ function showBlenderImportDialog()
     st.bIntermediateOnly = tImGui.Checkbox(tLang.L('blender_import_intermediate_only'), st.bIntermediateOnly)
     st.bPrintDebugSteps = tImGui.Checkbox(tLang.L('blender_import_print_debug_steps'), st.bPrintDebugSteps)
     st.bKeepInSourceFolder = tImGui.Checkbox(tLang.L('blender_import_keep_in_source_folder'), st.bKeepInSourceFolder)
+    tImGui.Separator()
+    st.bImportPostProcess = tImGui.Checkbox(tLang.L('blender_import_postprocess'), st.bImportPostProcess)
+    tImGui.BeginDisabled(not st.bImportPostProcess)
+    st.bImportInvertU = tImGui.Checkbox(tLang.L('blender_import_invert_u'), st.bImportInvertU)
+    tImGui.SameLine()
+    st.bImportInvertV = tImGui.Checkbox(tLang.L('blender_import_invert_v'), st.bImportInvertV)
+    tImGui.PushItemWidth(90)
+    local rxChanged, newRx = tImGui.InputFloat(tLang.L('blender_import_rotation_x'), st.nImportAngleX, 1, 15, '%.1f', 0)
+    if rxChanged and newRx then st.nImportAngleX = newRx end
+    tImGui.SameLine()
+    local ryChanged, newRy = tImGui.InputFloat(tLang.L('blender_import_rotation_y'), st.nImportAngleY, 1, 15, '%.1f', 0)
+    if ryChanged and newRy then st.nImportAngleY = newRy end
+    tImGui.SameLine()
+    local rzChanged, newRz = tImGui.InputFloat(tLang.L('blender_import_rotation_z'), st.nImportAngleZ, 1, 15, '%.1f', 0)
+    if rzChanged and newRz then st.nImportAngleZ = newRz end
+    tImGui.PopItemWidth()
+    tImGui.EndDisabled()
     local toChanged, newTo = tImGui.InputInt(tLang.L('blender_import_timeout_secs'), st.iTimeoutSecs, 10, 60)
     if toChanged and newTo and newTo >= 10 then
         st.iTimeoutSecs = newTo
@@ -920,6 +1856,10 @@ function showBlenderImportDialog()
                 blender = tBlender.detectBlender()
             end
         end
+    elseif isBlenderVersionOlderThan(blender, 5, 1) then
+        tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.6, b=0, a=1})
+        tImGui.TextWrapped(string.format(tLang.L('blender_import_version_warning_fmt'), blender.version or '?'))
+        tImGui.PopStyleColor()
     end
 
     if st.sStatus ~= '' then
@@ -927,6 +1867,33 @@ function showBlenderImportDialog()
         tImGui.PushStyleColor('ImGuiCol_Text', col)
         tImGui.TextWrapped(st.sStatus)
         tImGui.PopStyleColor()
+    end
+
+    if st.iSelectedCount > 0 then
+        local estimate = getBlenderImportEstimateSummary()
+        tImGui.Separator()
+        tImGui.Text(tLang.L('blender_import_estimate_title'))
+        if estimate.statsMissing > 0 then
+            tImGui.TextWrapped(string.format(
+                tLang.L('blender_import_estimate_partial_fmt'),
+                estimate.fileCount,
+                estimate.targetFrames,
+                estimate.statsMissing))
+        else
+            tImGui.TextWrapped(string.format(
+                tLang.L('blender_import_estimate_full_fmt'),
+                estimate.fileCount,
+                estimate.targetFrames,
+                formatLargeInt(estimate.vertices),
+                formatLargeInt(estimate.indices),
+                formatBytes(estimate.rawBytes)))
+        end
+        if estimate.warning then
+            tImGui.PushStyleColor('ImGuiCol_Text', {r=1, g=0.65, b=0.2, a=1})
+            tImGui.TextWrapped(estimate.warning)
+            tImGui.PopStyleColor()
+        end
+        tImGui.TextDisabled(tLang.L('blender_import_multi_anim_note'))
     end
 
     if #st.tRunResults > 0 then
@@ -988,6 +1955,7 @@ function showBlenderImportDialog()
         tImGui.CloseCurrentPopup()
     end
 
+    showBlenderAnimationSettingsPopup(st)
     tImGui.EndPopup()
 end
 

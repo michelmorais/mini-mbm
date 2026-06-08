@@ -256,8 +256,20 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
     table.insert(args, '--output')
     table.insert(args, shellQuote(outputLuaPath))
 
+    if options.streamOutput then
+        table.insert(args, '--stream-output')
+    end
+
+    if options.directMshOutput then
+        table.insert(args, '--direct-msh-output')
+    end
+
     if options.bakeAnimation then
         table.insert(args, '--bake-animation')
+    end
+
+    if options.useSceneFrameRange then
+        table.insert(args, '--use-scene-frame-range')
     end
 
     if options.frameStart then
@@ -275,12 +287,74 @@ function M.buildBakeCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
         table.insert(args, tostring(options.sampleStep))
     end
 
+    if options.animationName and options.animationName ~= '' then
+        table.insert(args, '--animation-name')
+        table.insert(args, shellQuote(options.animationName))
+    end
+
+    if options.importPostProcess then
+        table.insert(args, '--post-process')
+        if options.importInvertU then
+            table.insert(args, '--invert-u')
+        end
+        if options.importInvertV then
+            table.insert(args, '--invert-v')
+        end
+        table.insert(args, '--angle-x')
+        table.insert(args, tostring(options.importAngleX or 0))
+        table.insert(args, '--angle-y')
+        table.insert(args, tostring(options.importAngleY or 0))
+        table.insert(args, '--angle-z')
+        table.insert(args, tostring(options.importAngleZ or 0))
+    end
+
+    if options.cancelFile and options.cancelFile ~= '' then
+        table.insert(args, '--cancel-file')
+        table.insert(args, shellQuote(options.cancelFile))
+    end
+
     if options.debugSteps then
         table.insert(args, '--debug-steps')
     end
 
     local cmd = table.concat(args, ' ')
     debugPrint('build cmd: %s', cmd)
+    return cmd
+end
+
+function M.buildScanCmd(sourcePath, outputLuaPath, exporterScriptPath, options)
+    local b = M.blender or M.detectBlender()
+    if not b.found then return nil end
+
+    options = options or {}
+    local sourceExt = ((sourcePath:match('%.([^%.]+)$')) or ''):lower()
+
+    local args = {
+        shellQuote(b.path),
+        '-b',
+    }
+
+    if sourceExt == 'blend' then
+        table.insert(args, shellQuote(sourcePath))
+    else
+        table.insert(args, '--factory-startup')
+    end
+
+    table.insert(args, '--python')
+    table.insert(args, shellQuote(exporterScriptPath))
+    table.insert(args, '--')
+    table.insert(args, '--input')
+    table.insert(args, shellQuote(sourcePath))
+    table.insert(args, '--output')
+    table.insert(args, shellQuote(outputLuaPath))
+    table.insert(args, '--scan-only')
+
+    if options.debugSteps then
+        table.insert(args, '--debug-steps')
+    end
+
+    local cmd = table.concat(args, ' ')
+    debugPrint('build scan cmd: %s', cmd)
     return cmd
 end
 
