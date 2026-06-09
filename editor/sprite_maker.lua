@@ -116,13 +116,14 @@ function onInitScene()
     tFrameBulkOptions    = {iFrameStart = 1,
                             iFrameStop = 1,
                             iOperation = 1,
-                            tOperations = {'duplicate','transform_existing','resize','centralize'},
+                            tOperations = {'duplicate','transform_existing','resize','centralize','offset'},
                             bIncludeSubsets = true,
                             bInvertU = false,
                             bInvertV = false,
                             bMirrorX = false,
                             bMirrorY = false,
                             bCentralizeOnDuplicate = false,
+                            bCopyAnimationsOnDuplicate = false,
                             bCommitUvAsReset = false,
                             iResizeMode = 1,
                             tResizeModes = {'set_size','scale'},
@@ -130,8 +131,12 @@ function onInitScene()
                             fHeight = 100,
                             fScaleX = 1,
                             fScaleY = 1,
+                            fOffsetX = 0,
+                            fOffsetY = 0,
                             bKeepRatio = false,
                             iRatioDriver = 1,
+                            bDebugDiagnostics = false,
+                            bDebugPreviewVerbose = false,
                             sLastResult = nil}
 
     tFrameBulkOptions.resetRange = function(self)
@@ -160,14 +165,19 @@ function onInitScene()
         self.bMirrorX = false
         self.bMirrorY = false
         self.bCentralizeOnDuplicate = false
+        self.bCopyAnimationsOnDuplicate = false
         self.bCommitUvAsReset = false
         self.iResizeMode = 1
         self.fWidth = 100
         self.fHeight = 100
         self.fScaleX = 1
         self.fScaleY = 1
+        self.fOffsetX = 0
+        self.fOffsetY = 0
         self.bKeepRatio = false
         self.iRatioDriver = 1
+        self.bDebugDiagnostics = self.bDebugDiagnostics == true
+        self.bDebugPreviewVerbose = self.bDebugPreviewVerbose == true
         self.sLastResult = nil
     end
 
@@ -222,6 +232,8 @@ function onInitScene()
                             iTimeAnimSimulation = 0,
                             fTimeFrame          = 0.3,
                             tDynamicAnims       = {},
+                            tPreviewDebugHashes = {},
+                            iPreviewGeneration  = 0,
                             sNameAnim           = 'No name',
                             tAnimTypes          = {'PAUSED','GROWING','GROWING_LOOP', 'DECREASING', 'DECREASING_LOOP', 'RECURSIVE', 'RECURSIVE_LOOP'}
                         }
@@ -247,7 +259,7 @@ function onInitScene()
             v.visible = false
         end
         for k,v in pairs(self.tDynamicAnims) do
-            v:clear()
+            v.visible = false
         end
         
     end
@@ -963,7 +975,10 @@ function onRenderShape(self,vertex,uv,index_read_only)
     end
 
     if self.bFirstRender then
-        self.visible      = false --stop render
+        if self.bKeepVisibleOnFirstRender ~= true then
+            self.visible  = false --stop render
+        end
+        self.bKeepVisibleOnFirstRender = nil
         self.bFirstRender = false
     end
 
@@ -1200,7 +1215,8 @@ local function createShapeFromEditorData(tTexture, tVertex, tUv, tUvBkp, tIndexR
     tShape.index_buffer_edit = copyNumberList(tIndexEditCopy)
     tShape.normal            = nil
     tShape.visible           = true
-    tShape.bFirstRender      = true
+    tShape.bFirstRender      = false
+    tShape.bKeepVisibleOnFirstRender = nil
     tShape.tVertexEdited     = {vertex = rawVertexFromEditor(tVertexCopy),
                                 index = copyNumberList(tIndexEditCopy),
                                 old_width = width,
@@ -1211,21 +1227,26 @@ end
 
 local function rebuildFramePartShape(tPart)
     local tOldShape = tPart.tShape
-    local tShape = createShapeFromEditorData(tPart.tTexture,
-                                             tOldShape.vertex,
-                                             tOldShape.uv,
-                                             tOldShape.uv_bkp,
-                                             tOldShape.index_read_only,
-                                             tOldShape.index_buffer_edit,
-                                             tPart.width,
-                                             tPart.height)
-    tPart.tShape = tShape
+    local tVertex = copyVertexList(tOldShape.vertex)
+    local tUv = copyUvList(tOldShape.uv)
+    local tUvBkp = copyUvList(tOldShape.uv_bkp)
+    local tIndexReadOnly = copyNumberList(tOldShape.index_read_only)
+    local tIndexEdit = copyNumberList(tOldShape.index_buffer_edit)
     if tOldShape then
         tOldShape.visible = false
         pcall(function()
             tOldShape:destroy()
         end)
     end
+    local tShape = createShapeFromEditorData(tPart.tTexture,
+                                             tVertex,
+                                             tUv,
+                                             tUvBkp,
+                                             tIndexReadOnly,
+                                             tIndexEdit,
+                                             tPart.width,
+                                             tPart.height)
+    tPart.tShape = tShape
     setShapeToRender(tShape,tPart)
     return tShape
 end
@@ -1347,18 +1368,20 @@ local function getFrameCompositeBounds(tFrame, includeSubsets)
     return {minX = minX, minY = minY, maxX = maxX, maxY = maxY}
 end
 
-local function centralizeFrameComposite(tFrame, includeSubsets)
+local function centralizeFrameComposite(tFrame, includeSubsets, offsetX, offsetY)
     local tBounds = getFrameCompositeBounds(tFrame, includeSubsets)
     if tBounds == nil then
         return false
     end
+    offsetX = offsetX or 0
+    offsetY = offsetY or 0
     local centerX = (tBounds.minX + tBounds.maxX) * 0.5
     local centerY = (tBounds.minY + tBounds.maxY) * 0.5
     eachFramePart(tFrame, includeSubsets, function(tPart)
         local tShape = tPart.tShape
         for i=1, #tShape.vertex do
-            tShape.vertex[i].x = tShape.vertex[i].x - tPart.tPivot.x - centerX
-            tShape.vertex[i].y = tShape.vertex[i].y - tPart.tPivot.y - centerY
+            tShape.vertex[i].x = tShape.vertex[i].x - tPart.tPivot.x - centerX + offsetX
+            tShape.vertex[i].y = tShape.vertex[i].y - tPart.tPivot.y - centerY + offsetY
         end
         tPart.tPivot.x = 0
         tPart.tPivot.y = 0
@@ -1441,6 +1464,313 @@ local function getBulkResizeScale(tFrame)
     return targetWidth / tFrame.width, targetHeight / tFrame.height, targetWidth, targetHeight
 end
 
+local function bulkDiagnosticsEnabled()
+    return tFrameBulkOptions ~= nil and tFrameBulkOptions.bDebugDiagnostics == true
+end
+
+local function bulkDiagnosticPrint(sFormat, ...)
+    if not bulkDiagnosticsEnabled() then
+        return
+    end
+    local ok, message = pcall(string.format, sFormat, ...)
+    if not ok then
+        message = tostring(sFormat)
+    end
+    print('[sprite_maker_diag] ' .. message)
+end
+
+local function diagnosticBool(value)
+    return value and 'true' or 'false'
+end
+
+local function diagnosticCount(tValue)
+    if type(tValue) == 'table' then
+        return #tValue
+    end
+    return -1
+end
+
+local function diagnosticShapeSummary(tShape)
+    if tShape == nil then
+        return 'nil'
+    end
+    return string.format('ptr=%s visible=%s first=%s keep=%s mark=%s vertices=%d uv=%d idx=%d idx_edit=%d',
+                         tostring(tShape),
+                         diagnosticBool(tShape.visible),
+                         diagnosticBool(tShape.bFirstRender),
+                         diagnosticBool(tShape.bKeepVisibleOnFirstRender),
+                         diagnosticBool(tShape.mark_to_remove),
+                         diagnosticCount(tShape.vertex),
+                         diagnosticCount(tShape.uv),
+                         diagnosticCount(tShape.index_read_only),
+                         diagnosticCount(tShape.index_buffer_edit))
+end
+
+local function diagnosticFrameSummary(label, indexFrame, tFrame)
+    if not bulkDiagnosticsEnabled() then
+        return
+    end
+    if tFrame == nil then
+        bulkDiagnosticPrint('%s frame=%s nil', label, tostring(indexFrame))
+        return
+    end
+    local pivotX = tFrame.tPivot and tFrame.tPivot.x or 0
+    local pivotY = tFrame.tPivot and tFrame.tPivot.y or 0
+    bulkDiagnosticPrint('%s frame=%s ptr=%s size=%.3fx%.3f pivot=(%.3f,%.3f) subsets=%d shape={%s}',
+                        label,
+                        tostring(indexFrame),
+                        tostring(tFrame),
+                        tFrame.width or -1,
+                        tFrame.height or -1,
+                        pivotX,
+                        pivotY,
+                        diagnosticCount(tFrame.tSubsetList),
+                        diagnosticShapeSummary(tFrame.tShape))
+end
+
+local function diagnosticNumber(value)
+    if type(value) == 'number' then
+        return value
+    end
+    return 0
+end
+
+local function diagnosticVertexBounds(tVertex, tPivot)
+    if type(tVertex) ~= 'table' or #tVertex == 0 then
+        return nil
+    end
+    local minX, minY, maxX, maxY
+    local pivotX = tPivot and tPivot.x or 0
+    local pivotY = tPivot and tPivot.y or 0
+    for i=1, #tVertex do
+        local x = diagnosticNumber(tVertex[i].x)
+        local y = diagnosticNumber(tVertex[i].y)
+        local rx = x - pivotX
+        local ry = y - pivotY
+        minX = minX and math.min(minX, rx) or rx
+        minY = minY and math.min(minY, ry) or ry
+        maxX = maxX and math.max(maxX, rx) or rx
+        maxY = maxY and math.max(maxY, ry) or ry
+    end
+    return minX, minY, maxX, maxY
+end
+
+local function diagnosticUvBounds(tUv)
+    if type(tUv) ~= 'table' or #tUv == 0 then
+        return nil
+    end
+    local minU, minV, maxU, maxV
+    for i=1, #tUv do
+        local u = diagnosticNumber(tUv[i].u)
+        local v = diagnosticNumber(tUv[i].v)
+        minU = minU and math.min(minU, u) or u
+        minV = minV and math.min(minV, v) or v
+        maxU = maxU and math.max(maxU, u) or u
+        maxV = maxV and math.max(maxV, v) or v
+    end
+    return minU, minV, maxU, maxV
+end
+
+local function diagnosticTriangleWinding(tVertex, tIndex)
+    if type(tVertex) ~= 'table' or type(tIndex) ~= 'table' then
+        return 0, 0, 0, 0
+    end
+    local positive, negative, zero, sumArea = 0, 0, 0, 0
+    for i=1, #tIndex - 2, 3 do
+        local a = tVertex[tIndex[i]]
+        local b = tVertex[tIndex[i + 1]]
+        local c = tVertex[tIndex[i + 2]]
+        if a and b and c then
+            local area = ((diagnosticNumber(b.x) - diagnosticNumber(a.x)) * (diagnosticNumber(c.y) - diagnosticNumber(a.y)) -
+                          (diagnosticNumber(c.x) - diagnosticNumber(a.x)) * (diagnosticNumber(b.y) - diagnosticNumber(a.y))) * 0.5
+            sumArea = sumArea + area
+            if area > 0.00001 then
+                positive = positive + 1
+            elseif area < -0.00001 then
+                negative = negative + 1
+            else
+                zero = zero + 1
+            end
+        end
+    end
+    return positive, negative, zero, sumArea
+end
+
+local function diagnosticIndexPreview(tIndex)
+    if type(tIndex) ~= 'table' then
+        return 'nil'
+    end
+    local total = math.min(#tIndex, 6)
+    local tOut = {}
+    for i=1, total do
+        tOut[#tOut + 1] = tostring(tIndex[i])
+    end
+    return table.concat(tOut, ',')
+end
+
+local function diagnosticPartGeometrySummary(label, indexFrame, subsetIndex, tPart)
+    if not bulkDiagnosticsEnabled() or tPart == nil or tPart.tShape == nil then
+        return
+    end
+    local tShape = tPart.tShape
+    local minX, minY, maxX, maxY = diagnosticVertexBounds(tShape.vertex, tPart.tPivot)
+    local minU, minV, maxU, maxV = diagnosticUvBounds(tShape.uv)
+    local pos, neg, zero, area = diagnosticTriangleWinding(tShape.vertex, tShape.index_read_only)
+    bulkDiagnosticPrint('%s frame=%s subset=%s tex=%s pivot=(%.3f,%.3f) pos=(%.3f,%.3f,%.3f) render_bounds=(%.3f,%.3f)..(%.3f,%.3f) uv=(%.6f,%.6f)..(%.6f,%.6f) winding=+%d/-%d/0%d area=%.3f idx=%s',
+                        label,
+                        tostring(indexFrame),
+                        tostring(subsetIndex),
+                        tostring(tPart.tTexture and tPart.tTexture.file_name or nil),
+                        tPart.tPivot and tPart.tPivot.x or 0,
+                        tPart.tPivot and tPart.tPivot.y or 0,
+                        tShape.x or 0,
+                        tShape.y or 0,
+                        tShape.z or 0,
+                        minX or 0,
+                        minY or 0,
+                        maxX or 0,
+                        maxY or 0,
+                        minU or 0,
+                        minV or 0,
+                        maxU or 0,
+                        maxV or 0,
+                        pos,
+                        neg,
+                        zero,
+                        area,
+                        diagnosticIndexPreview(tShape.index_read_only))
+end
+
+local function diagnosticFrameGeometrySummary(label, indexFrame, tFrame)
+    if not bulkDiagnosticsEnabled() or tFrame == nil then
+        return
+    end
+    diagnosticPartGeometrySummary(label, indexFrame, 0, tFrame)
+    if #tFrame.tSubsetList > 0 then
+        diagnosticPartGeometrySummary(label, indexFrame, 1, tFrame.tSubsetList[1])
+        if #tFrame.tSubsetList > 1 then
+            diagnosticPartGeometrySummary(label, indexFrame, #tFrame.tSubsetList, tFrame.tSubsetList[#tFrame.tSubsetList])
+        end
+    end
+end
+
+local function animationNameExists(sName)
+    for i=1, #tAnimationList do
+        if tAnimationList[i].sNameAnim == sName then
+            return true
+        end
+    end
+    return false
+end
+
+local function makeUniqueCopiedAnimationName(sName)
+    local baseName = 'copy-' .. tostring(sName or 'animation')
+    if baseName:len() > 32 then
+        baseName = baseName:sub(1,32)
+    end
+    if not animationNameExists(baseName) then
+        return baseName
+    end
+    local index = 2
+    while index < 9999 do
+        local suffix = string.format('-%d', index)
+        local maxBase = 32 - suffix:len()
+        local candidate = baseName:sub(1, maxBase) .. suffix
+        if not animationNameExists(candidate) then
+            return candidate
+        end
+        index = index + 1
+    end
+    return baseName
+end
+
+local function copyAnimationsForDuplicatedRange(startFrame, stopFrame, newStartFrame)
+    local copied = 0
+    local offset = newStartFrame - startFrame
+    local totalAnimations = #tAnimationList
+    bulkDiagnosticPrint('copy animations request source_range=%d..%d new_start=%d offset=%d existing_anims=%d',
+                        startFrame, stopFrame, newStartFrame, offset, totalAnimations)
+    for i=1, totalAnimations do
+        local tAnim = tAnimationList[i]
+        local overlapStart = math.max(tAnim.iFrameStart, startFrame)
+        local overlapStop = math.min(tAnim.iFrameStop, stopFrame)
+        if overlapStart <= overlapStop then
+            local newName = makeUniqueCopiedAnimationName(tAnim.sNameAnim)
+            local newAnim = {
+                sNameAnim = newName,
+                fTimeFrame = tAnim.fTimeFrame,
+                iTypeAnim = tAnim.iTypeAnim,
+                iFrameStart = overlapStart + offset,
+                iFrameStop = overlapStop + offset,
+            }
+            table.insert(tAnimationList, newAnim)
+            bulkDiagnosticPrint('copy animation src_index=%d src=%s src_range=%d..%d overlap=%d..%d new=%s new_range=%d..%d',
+                                i,
+                                tostring(tAnim.sNameAnim),
+                                tAnim.iFrameStart,
+                                tAnim.iFrameStop,
+                                overlapStart,
+                                overlapStop,
+                                newAnim.sNameAnim,
+                                newAnim.iFrameStart,
+                                newAnim.iFrameStop)
+            copied = copied + 1
+        end
+    end
+    return copied
+end
+
+local function invalidateAnimationPreviewCache()
+    if tAnimationOptions == nil then
+        return
+    end
+    local shapeCacheCount = 0
+    local dynamicCacheCount = 0
+    if tAnimationOptions.tShapeAnimations then
+        for k,v in pairs(tAnimationOptions.tShapeAnimations) do
+            shapeCacheCount = shapeCacheCount + 1
+        end
+    end
+    if tAnimationOptions.tDynamicAnims then
+        for k,v in pairs(tAnimationOptions.tDynamicAnims) do
+            dynamicCacheCount = dynamicCacheCount + 1
+        end
+    end
+    bulkDiagnosticPrint('invalidate preview cache generation=%d shape_cache=%d dynamic_cache=%d',
+                        tAnimationOptions.iPreviewGeneration or 0,
+                        shapeCacheCount,
+                        dynamicCacheCount)
+    if tAnimationOptions.tShapeAnimations then
+        for k,v in pairs(tAnimationOptions.tShapeAnimations) do
+            pcall(function()
+                v:destroy()
+            end)
+        end
+        tAnimationOptions.tShapeAnimations = {}
+    end
+    if tAnimationOptions.tDynamicAnims then
+        for k,v in pairs(tAnimationOptions.tDynamicAnims) do
+            pcall(function()
+                v:clear()
+                v:release()
+                v.visible = false
+            end)
+            pcall(function()
+                v:destroy()
+            end)
+        end
+        tAnimationOptions.tDynamicAnims = {}
+    end
+    tAnimationOptions.tPreviewDebugHashes = {}
+    tAnimationOptions.iPreviewGeneration = (tAnimationOptions.iPreviewGeneration or 0) + 1
+    tAnimationOptions:restartAnim()
+    bulkDiagnosticPrint('preview cache invalidated new_generation=%d current_frame=%d range=%d..%d',
+                        tAnimationOptions.iPreviewGeneration or 0,
+                        tAnimationOptions.iCurrentFrame or -1,
+                        tAnimationOptions.iFrameStart or -1,
+                        tAnimationOptions.iFrameStop or -1)
+end
+
 local function applyBulkTransformsToFrame(tFrame, includeSubsets, commitUvAsReset)
     local changed = false
     if tFrameBulkOptions.bInvertU or tFrameBulkOptions.bInvertV then
@@ -1469,6 +1799,25 @@ local function applyFrameBulkOperation()
     local operation = tFrameBulkOptions.tOperations[tFrameBulkOptions.iOperation]
     local totalApplied = 0
 
+    bulkDiagnosticPrint('bulk apply begin operation=%s range=%d..%d include_subsets=%s frames_before=%d animations_before=%d invert_u=%s invert_v=%s mirror_x=%s mirror_y=%s copy_anims=%s',
+                        tostring(operation),
+                        startFrame,
+                        stopFrame,
+                        diagnosticBool(includeSubsets),
+                        #tFrameList,
+                        #tAnimationList,
+                        diagnosticBool(tFrameBulkOptions.bInvertU),
+                        diagnosticBool(tFrameBulkOptions.bInvertV),
+                        diagnosticBool(tFrameBulkOptions.bMirrorX),
+                        diagnosticBool(tFrameBulkOptions.bMirrorY),
+                        diagnosticBool(tFrameBulkOptions.bCopyAnimationsOnDuplicate))
+    diagnosticFrameSummary('bulk source first before', startFrame, tFrameList[startFrame])
+    if stopFrame ~= startFrame then
+        diagnosticFrameSummary('bulk source last before', stopFrame, tFrameList[stopFrame])
+    end
+
+    invalidateAnimationPreviewCache()
+
     if operation == 'duplicate' then
         local oldTotal = #tFrameList
         for i=startFrame, stopFrame do
@@ -1479,6 +1828,9 @@ local function applyFrameBulkOperation()
             end
             table.insert(tFrameList, tClone)
             totalApplied = totalApplied + 1
+            if i == startFrame or i == stopFrame then
+                diagnosticFrameSummary('bulk clone inserted', oldTotal + totalApplied, tClone)
+            end
         end
         tFrameBulkOptions.iFrameStart = oldTotal + 1
         tFrameBulkOptions.iFrameStop = oldTotal + totalApplied
@@ -1487,7 +1839,15 @@ local function applyFrameBulkOperation()
         tFrameList.indexSelectedFrameNodeToExpand = oldTotal + 1
         bShowFrameList = true
         unCollapse(tWindowsTitle.title_frame_list)
-        tFrameBulkOptions.sLastResult = string.format(tLang.L("bulk_duplicate_result_fmt"), totalApplied, oldTotal + 1, oldTotal + totalApplied)
+        local copiedAnimations = 0
+        if tFrameBulkOptions.bCopyAnimationsOnDuplicate then
+            copiedAnimations = copyAnimationsForDuplicatedRange(startFrame, stopFrame, oldTotal + 1)
+        end
+        if copiedAnimations > 0 then
+            tFrameBulkOptions.sLastResult = string.format(tLang.L("bulk_duplicate_anims_result_fmt"), totalApplied, oldTotal + 1, oldTotal + totalApplied, copiedAnimations)
+        else
+            tFrameBulkOptions.sLastResult = string.format(tLang.L("bulk_duplicate_result_fmt"), totalApplied, oldTotal + 1, oldTotal + totalApplied)
+        end
     elseif operation == 'transform_existing' then
         for i=startFrame, stopFrame do
             if applyBulkTransformsToFrame(tFrameList[i], includeSubsets, tFrameBulkOptions.bCommitUvAsReset) then
@@ -1513,10 +1873,26 @@ local function applyFrameBulkOperation()
             end
         end
         tFrameBulkOptions.sLastResult = string.format(tLang.L("bulk_centralize_result_fmt"), totalApplied)
+    elseif operation == 'offset' then
+        for i=startFrame, stopFrame do
+            if centralizeFrameComposite(tFrameList[i], includeSubsets, tFrameBulkOptions.fOffsetX, tFrameBulkOptions.fOffsetY) then
+                totalApplied = totalApplied + 1
+            end
+        end
+        tFrameBulkOptions.sLastResult = string.format(tLang.L("bulk_offset_result_fmt"), totalApplied)
     end
 
     setAllFrameAsNotVisible()
     tPivotShape.visible = false
+    invalidateAnimationPreviewCache()
+    bulkDiagnosticPrint('bulk apply end operation=%s total_applied=%d frames_after=%d animations_after=%d selected_frame=%s selected_subset=%s result=%s',
+                        tostring(operation),
+                        totalApplied,
+                        #tFrameList,
+                        #tAnimationList,
+                        tostring(tFrameList.indexSelectedFrameNode),
+                        tostring(tFrameList.iIndexSelectedSubsetNode),
+                        tostring(tFrameBulkOptions.sLastResult))
     tUtil.showMessage(tFrameBulkOptions.sLastResult, 3)
 end
 
@@ -1539,6 +1915,7 @@ function showFrameBulkOperations()
             tFrameBulkOptions.iOperation = tImGui.RadioButton(tLang.L("bulk_op_transform_existing"), tFrameBulkOptions.iOperation, 2)
             tFrameBulkOptions.iOperation = tImGui.RadioButton(tLang.L("bulk_op_resize"), tFrameBulkOptions.iOperation, 3)
             tFrameBulkOptions.iOperation = tImGui.RadioButton(tLang.L("bulk_op_centralize"), tFrameBulkOptions.iOperation, 4)
+            tFrameBulkOptions.iOperation = tImGui.RadioButton(tLang.L("bulk_op_offset"), tFrameBulkOptions.iOperation, 5)
 
             tImGui.Separator()
             tImGui.Text(string.format(tLang.L("bulk_total_frames_fmt"), #tFrameList))
@@ -1557,6 +1934,10 @@ function showFrameBulkOperations()
                 tFrameBulkOptions.iFrameStop = #tFrameList
             end
             tFrameBulkOptions.bIncludeSubsets = tImGui.Checkbox(tLang.L("bulk_include_subsets"), tFrameBulkOptions.bIncludeSubsets)
+            tFrameBulkOptions.bDebugDiagnostics = tImGui.Checkbox(tLang.L("bulk_debug_diagnostics"), tFrameBulkOptions.bDebugDiagnostics)
+            if tFrameBulkOptions.bDebugDiagnostics then
+                tFrameBulkOptions.bDebugPreviewVerbose = tImGui.Checkbox(tLang.L("bulk_debug_preview_verbose"), tFrameBulkOptions.bDebugPreviewVerbose)
+            end
 
             local operation = tFrameBulkOptions.tOperations[tFrameBulkOptions.iOperation]
             if operation == 'duplicate' or operation == 'transform_existing' then
@@ -1568,6 +1949,7 @@ function showFrameBulkOperations()
                 tFrameBulkOptions.bMirrorY = tImGui.Checkbox(tLang.L("bulk_mirror_y"), tFrameBulkOptions.bMirrorY)
                 if operation == 'duplicate' then
                     tFrameBulkOptions.bCentralizeOnDuplicate = tImGui.Checkbox(tLang.L("bulk_centralize_copies"), tFrameBulkOptions.bCentralizeOnDuplicate)
+                    tFrameBulkOptions.bCopyAnimationsOnDuplicate = tImGui.Checkbox(tLang.L("bulk_copy_animations"), tFrameBulkOptions.bCopyAnimationsOnDuplicate)
                 else
                     tFrameBulkOptions.bCommitUvAsReset = tImGui.Checkbox(tLang.L("bulk_commit_uv_reset"), tFrameBulkOptions.bCommitUvAsReset)
                 end
@@ -1603,6 +1985,19 @@ function showFrameBulkOperations()
                 if tFrameBulkOptions.bKeepRatio then
                     tFrameBulkOptions.iRatioDriver = tImGui.RadioButton(tLang.L("bulk_ratio_driver_width"), tFrameBulkOptions.iRatioDriver, 1)
                     tFrameBulkOptions.iRatioDriver = tImGui.RadioButton(tLang.L("bulk_ratio_driver_height"), tFrameBulkOptions.iRatioDriver, 2)
+                end
+            elseif operation == 'offset' then
+                tImGui.Separator()
+                tImGui.Text(tLang.L("bulk_offset_options"))
+                local format = "%.3f"
+                local flags = 0
+                local changed, fValue = tImGui.InputFloat(tLang.L("axis_x"), tFrameBulkOptions.fOffsetX, 1.0, 10.0, format, flags)
+                if changed then
+                    tFrameBulkOptions.fOffsetX = fValue
+                end
+                local changed, fValue = tImGui.InputFloat(tLang.L("axis_y"), tFrameBulkOptions.fOffsetY, 1.0, 10.0, format, flags)
+                if changed then
+                    tFrameBulkOptions.fOffsetY = fValue
                 end
             end
 
@@ -2953,14 +3348,48 @@ function getShapeViewForAnim(tFrame)
     return tAnimationOptions.tShapeAnimations[sTexHash]
 end
 
+function getFrameIndexForAnimImage(tFrame)
+    for i=1, #tFrameList do
+        if tFrameList[i] == tFrame then
+            return i
+        end
+    end
+    return 0
+end
+
 function makeHashStringForAnimImage(tFrame, iNumImage)
-    local sTexHash = string.format('%d:%dx%d',iNumImage, math.floor(tFrame.width),math.floor(tFrame.height))
+    local generation = tAnimationOptions.iPreviewGeneration or 0
+    local indexFrame = getFrameIndexForAnimImage(tFrame)
+    local sTexHash = string.format('%d:%d:%d:%dx%d', generation, iNumImage, indexFrame, math.floor(tFrame.width),math.floor(tFrame.height))
     return sTexHash
+end
+
+function prepareShapeForDynamicPreview(tShape)
+    if tShape == nil then
+        return
+    end
+    if tShape.bFirstRender then
+        tShape.bKeepVisibleOnFirstRender = true
+    end
+    tShape.visible = true
+    tShape:onRender(onRenderShape)
+    tShape.visible = true
+end
+
+function setFramePartPosForDynamicPreview(tPart, zOrder)
+    if tPart == nil or tPart.tShape == nil then
+        return
+    end
+    -- Keep transparent preview quads at distinct depths inside render2texture.
+    tPart.tShape:setPos(-tPart.tPivot.x, -tPart.tPivot.y, zOrder or 0)
 end
 
 function getTextureInfoForAnimImage(tFrame, iNumImage)
     local sTexHash = makeHashStringForAnimImage(tFrame, iNumImage)
     local tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
+    local verbosePreview = tFrameBulkOptions and tFrameBulkOptions.bDebugPreviewVerbose == true
+    local shouldLogPreview = bulkDiagnosticsEnabled() and
+                             (verbosePreview or tAnimationOptions.tPreviewDebugHashes[sTexHash] ~= true)
     --it will not render the frame twice, thats why we return the same previous frame
     if iNumImage == 2 and tAnimationOptions.iFrameStart == tAnimationOptions.iFrameStop then
         sTexHash = makeHashStringForAnimImage(tFrame, 1)
@@ -2985,31 +3414,76 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
         return tRender.tTextureInfo, tRender.nick_name
     end
 
+    if shouldLogPreview then
+        local indexFrame = getFrameIndexForAnimImage(tFrame)
+        bulkDiagnosticPrint('preview request image=%d hash=%s frame=%d generation=%d existing_render=%s current_anim_frame=%d anim_range=%d..%d',
+                            iNumImage,
+                            sTexHash,
+                            indexFrame,
+                            tAnimationOptions.iPreviewGeneration or 0,
+                            diagnosticBool(tRender ~= nil),
+                            tAnimationOptions.iCurrentFrame or -1,
+                            tAnimationOptions.iFrameStart or -1,
+                            tAnimationOptions.iFrameStop or -1)
+        diagnosticFrameSummary('preview frame before add', indexFrame, tFrame)
+        diagnosticFrameGeometrySummary('preview geometry', indexFrame, tFrame)
+    end
+
     if tRender == nil then
         tRender = render2texture:new('2dw')
         local bSuccess,nick_name, tTextureInfo = tRender:create(math.floor(tFrame.width),math.floor(tFrame.height),true,sTexHash)
         if bSuccess and tTextureInfo then
             tRender.tTextureInfo = tTextureInfo
             tRender.nick_name = nick_name
+            bulkDiagnosticPrint('preview render created hash=%s nick=%s size=%dx%d',
+                                sTexHash,
+                                tostring(nick_name),
+                                math.floor(tFrame.width),
+                                math.floor(tFrame.height))
         else
             print('error','Could not create dynamic texture!',sTexHash)
             tUtil.showMessageWarn(string.format(tLang.L("could_not_create_dynamic_texture_fmt"), sTexHash))
+            bulkDiagnosticPrint('preview render create failed hash=%s size=%dx%d success=%s texture_info=%s',
+                                sTexHash,
+                                math.floor(tFrame.width),
+                                math.floor(tFrame.height),
+                                diagnosticBool(bSuccess),
+                                tostring(tTextureInfo))
         end
         tRender:enableFrame(false)
         tRender:setColor(0,0,0,0)
+        tRender.bFrameObjectsPrepared = false
         tAnimationOptions.tDynamicAnims[sTexHash] = tRender
     end
 
-    tRender:clear()
     tRender.visible       = true
-    tFrame.tShape.visible = true
-    tFrame.tShape:setPos(-tFrame.tPivot.x,-tFrame.tPivot.y)
-    tRender:add(tFrame.tShape)
+    prepareShapeForDynamicPreview(tFrame.tShape)
+    setFramePartPosForDynamicPreview(tFrame, 0)
+    local addedMain = true
+    if tRender.bFrameObjectsPrepared ~= true then
+        tRender:clear()
+        addedMain = tRender:add(tFrame.tShape)
+    end
+    local addedSubsets = 0
     for i=1, #tFrame.tSubsetList do
         local tSubset = tFrame.tSubsetList[i]
-        tSubset.tShape.visible = true
-        tSubset.tShape:setPos(-tSubset.tPivot.x,-tSubset.tPivot.y)
-        tRender:add(tSubset.tShape)
+        prepareShapeForDynamicPreview(tSubset.tShape)
+        setFramePartPosForDynamicPreview(tSubset, -i * 0.01)
+        if tRender.bFrameObjectsPrepared == true or tRender:add(tSubset.tShape) then
+            addedSubsets = addedSubsets + 1
+        end
+    end
+    tRender.bFrameObjectsPrepared = true
+    if shouldLogPreview then
+        bulkDiagnosticPrint('preview add complete hash=%s added_main=%s added_subsets=%d/%d prepared=%s texture_info=%s nick=%s',
+                            sTexHash,
+                            diagnosticBool(addedMain),
+                            addedSubsets,
+                            #tFrame.tSubsetList,
+                            diagnosticBool(tRender.bFrameObjectsPrepared),
+                            tostring(tRender.tTextureInfo),
+                            tostring(tRender.nick_name))
+        tAnimationOptions.tPreviewDebugHashes[sTexHash] = true
     end
     return tRender.tTextureInfo, tRender.nick_name
 end
@@ -3254,6 +3728,7 @@ function showAnimationAdd(delta)
                             tAnimationOptions.iFrameStart = tAnim.iFrameStart
                             tAnimationOptions.iFrameStop  = tAnim.iFrameStop
                             tAnimationOptions:restartAnim()
+                            invalidateAnimationPreviewCache()
                         end
                         if tImGui.Button(tLang.L("apply_current_options"), tSizeBtn) then
                             tAnim.sNameAnim   = tAnimationOptions.sNameAnim
@@ -3261,7 +3736,7 @@ function showAnimationAdd(delta)
                             tAnim.iTypeAnim   = tAnimationOptions.iTypeAnim
                             tAnim.iFrameStart = tAnimationOptions.iFrameStart
                             tAnim.iFrameStop  = tAnimationOptions.iFrameStop
-                            tAnimationOptions:restartAnim()
+                            invalidateAnimationPreviewCache()
                         end
                         tImGui.TreePop()
                     end

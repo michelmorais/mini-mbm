@@ -427,4 +427,6 @@ When creating a new standalone Lua game project (e.g., `/home/michel/tower-defen
 - **`existScene(int idScene)`** must be overridden in `GAME` to return whether a given scene index exists
 - **`DEVICE::getInstance()`** is a singleton; never hold it across frames as a member — call `getInstance()` each time
 - **`enableRender`** member on `RENDERIZABLE` controls per-object visibility without destroying the object
+- **Render-to-texture ownership**: do not use `RENDERIZABLE::isRender2Texture` as proof that an object is in a specific `RENDER_2_TEXTURE`. It only says the object participates in render-to-texture somewhere; `addObject2Render()` / `removeObject2Render()` must inspect that target's own 2D/3D object list.
+- **Sprite Maker animation preview**: render-to-texture previews compose many transparent frame/subset quads. Keep deterministic z ordering for preview parts so equal-depth transparent quads do not blank or flicker in copied/mirrored animations.
 - Lua plugin entry points support both `luaopen_<name>` and `luaopen_lib<name>` for compatibility with different `require` mechanisms
