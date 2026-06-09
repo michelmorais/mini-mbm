@@ -3385,11 +3385,7 @@ function setFramePartPosForDynamicPreview(tPart, zOrder)
 end
 
 function getFrameSubsetZForDynamicPreview(indexSubset)
-    local zStep = 0.01
-    if not mbm.get('USE_DIRECTX9') then
-        zStep = -zStep
-    end
-    return indexSubset * zStep
+    return -indexSubset * 0.01
 end
 
 function getTextureInfoForAnimImage(tFrame, iNumImage)
@@ -3467,9 +3463,12 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
     tRender.visible       = true
     prepareShapeForDynamicPreview(tFrame.tShape)
     setFramePartPosForDynamicPreview(tFrame, 0)
+    -- DirectX9 can keep stale render-target membership/state for these cached dynamic preview textures.
+    local rebuildFrameObjects = tRender.bFrameObjectsPrepared ~= true or mbm.get('USE_DIRECTX9')
     local addedMain = true
-    if tRender.bFrameObjectsPrepared ~= true then
+    if rebuildFrameObjects then
         tRender:clear()
+        tRender.bFrameObjectsPrepared = false
         addedMain = tRender:add(tFrame.tShape)
     end
     local addedSubsets = 0
@@ -3477,7 +3476,7 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
         local tSubset = tFrame.tSubsetList[i]
         prepareShapeForDynamicPreview(tSubset.tShape)
         setFramePartPosForDynamicPreview(tSubset, getFrameSubsetZForDynamicPreview(i))
-        if tRender.bFrameObjectsPrepared == true or tRender:add(tSubset.tShape) then
+        if rebuildFrameObjects == false or tRender:add(tSubset.tShape) then
             addedSubsets = addedSubsets + 1
         end
     end
