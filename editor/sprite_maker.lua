@@ -3323,7 +3323,12 @@ tFrameAddOptions.bInvertUFrameOptions = tImGui.Checkbox(tLang.L("invert_u"), tFr
 end
 
 function getShapeViewForAnim(tFrame)
-    local sTexHash = string.format('%dx%d', math.floor(tFrame.width),math.floor(tFrame.height))
+    local sTexHash
+    if mbm.get('USE_DIRECTX9') then
+        sTexHash = string.format('view:%s', makeHashStringForAnimImage(tFrame, 0))
+    else
+        sTexHash = string.format('%dx%d', math.floor(tFrame.width),math.floor(tFrame.height))
+    end
     local cached = tAnimationOptions.tShapeAnimations[sTexHash]
     if cached and cached.bRender2TexturePreview ~= true then
         cached:destroy()
@@ -3343,6 +3348,7 @@ function getShapeViewForAnim(tFrame)
         local tShape   = shape:new('2dw')
         tShape:createIndexed(tVertex,tIndex,tUv,nickName)
         tShape.bRender2TexturePreview = true
+        tShape.sPreviewTextureNick = nil
         tAnimationOptions.tShapeAnimations[sTexHash] = tShape
     end
     return tAnimationOptions.tShapeAnimations[sTexHash]
@@ -3482,12 +3488,14 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
     end
     tRender.bFrameObjectsPrepared = true
     if shouldLogPreview then
-        bulkDiagnosticPrint('preview add complete hash=%s added_main=%s added_subsets=%d/%d prepared=%s texture_info=%s nick=%s',
+        bulkDiagnosticPrint('preview add complete hash=%s added_main=%s added_subsets=%d/%d prepared=%s rebuild=%s render_visible=%s texture_info=%s nick=%s',
                             sTexHash,
                             diagnosticBool(addedMain),
                             addedSubsets,
                             #tFrame.tSubsetList,
                             diagnosticBool(tRender.bFrameObjectsPrepared),
+                            diagnosticBool(rebuildFrameObjects),
+                            diagnosticBool(tRender.visible),
                             tostring(tRender.tTextureInfo),
                             tostring(tRender.nick_name))
         tAnimationOptions.tPreviewDebugHashes[sTexHash] = true
@@ -3649,7 +3657,10 @@ function showAnimationAdd(delta)
             local stage              = 1
             local tShapeAnimations   = getShapeViewForAnim(tFrame)
             tShapeAnimations.visible = true
-            tShapeAnimations:setTexture(nick_name,alpha,stage)
+            if tShapeAnimations.sPreviewTextureNick ~= nick_name then
+                tShapeAnimations:setTexture(nick_name,alpha,stage)
+                tShapeAnimations.sPreviewTextureNick = nick_name
+            end
             
             tShapeAnimations:setScale(tAnimationOptions.tScaleAnim.sx,tAnimationOptions.tScaleAnim.sy)
 
@@ -3736,6 +3747,12 @@ function showAnimationAdd(delta)
                             tAnimationOptions.iFrameStop  = tAnim.iFrameStop
                             tAnimationOptions:restartAnim()
                             invalidateAnimationPreviewCache()
+                            bulkDiagnosticPrint('animation selected name=%s range=%d..%d current_frame=%d type=%s',
+                                                tostring(tAnimationOptions.sNameAnim),
+                                                tAnimationOptions.iFrameStart or -1,
+                                                tAnimationOptions.iFrameStop or -1,
+                                                tAnimationOptions.iCurrentFrame or -1,
+                                                tostring(tAnimationOptions.tAnimTypes[tAnimationOptions.iTypeAnim]))
                         end
                         if tImGui.Button(tLang.L("apply_current_options"), tSizeBtn) then
                             tAnim.sNameAnim   = tAnimationOptions.sNameAnim
