@@ -66,7 +66,7 @@ function onInitScene()
     bShowFrameBulkOps    = false
     iNumNickName         = 0
     keyControlPressed    = false
-    bEnableMoveWindow    = true
+    bEnableMoveWindow    = false
     tPreviewFrameColor   = {r=1,g=1,b=1,a=1}
     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iStep_zoom           = 10
