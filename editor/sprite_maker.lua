@@ -66,7 +66,7 @@ function onInitScene()
     bShowFrameBulkOps    = false
     iNumNickName         = 0
     keyControlPressed    = false
-    bEnableMoveWindow    = false
+    bEnableMoveWindow    = true
     tPreviewFrameColor   = {r=1,g=1,b=1,a=1}
     ImGuiWindowFlags_NoMove = tImGui.Flags('ImGuiWindowFlags_NoMove')
     iStep_zoom           = 10
@@ -3384,6 +3384,14 @@ function setFramePartPosForDynamicPreview(tPart, zOrder)
     tPart.tShape:setPos(-tPart.tPivot.x, -tPart.tPivot.y, zOrder or 0)
 end
 
+function getFrameSubsetZForDynamicPreview(indexSubset)
+    local zStep = 0.01
+    if not mbm.get('USE_DIRECTX9') then
+        zStep = -zStep
+    end
+    return indexSubset * zStep
+end
+
 function getTextureInfoForAnimImage(tFrame, iNumImage)
     local sTexHash = makeHashStringForAnimImage(tFrame, iNumImage)
     local tRender  = tAnimationOptions.tDynamicAnims[sTexHash]
@@ -3468,7 +3476,7 @@ function getTextureInfoForAnimImage(tFrame, iNumImage)
     for i=1, #tFrame.tSubsetList do
         local tSubset = tFrame.tSubsetList[i]
         prepareShapeForDynamicPreview(tSubset.tShape)
-        setFramePartPosForDynamicPreview(tSubset, -i * 0.01)
+        setFramePartPosForDynamicPreview(tSubset, getFrameSubsetZForDynamicPreview(i))
         if tRender.bFrameObjectsPrepared == true or tRender:add(tSubset.tShape) then
             addedSubsets = addedSubsets + 1
         end
